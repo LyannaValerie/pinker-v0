@@ -126,10 +126,14 @@ impl Marcador {
     }
 
     fn texto(&self) -> String {
-        self.campos
-            .iter()
-            .map(|(chave, valor)| format!("{chave}: {valor}\n"))
-            .collect()
+        let mut texto = String::new();
+        for (chave, valor) in &self.campos {
+            texto.push_str(chave);
+            texto.push_str(": ");
+            texto.push_str(valor);
+            texto.push('\n');
+        }
+        texto
     }
 }
 

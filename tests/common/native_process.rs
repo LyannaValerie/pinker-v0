@@ -28,6 +28,15 @@ mod native_process_sandbox;
 
 use native_process_launcher::{LauncherIdentity, ProcessLauncher};
 pub use native_process_launcher::{LifecycleProbe, StartupFailurePoint};
+// Autoridade de varredura exposta às regressões. A produção e a fonte
+// sintética atravessam exatamente estes itens: não há segunda implementação da
+// decisão de ancestralidade, de sinalização ou de prova de ausência.
+#[cfg(target_os = "linux")]
+#[allow(unused_imports)]
+pub(crate) use native_process_launcher::{
+    raw_ancestry, raw_parse_parent_field, scan_with, Ancestry, CandidateSource, CandidateStep,
+    ParentField, ParentLookup, ParentSource, ScanSummary, SignalSink,
+};
 use native_process_marker::MarkerState;
 #[allow(unused_imports)]
 pub use native_process_marker::{

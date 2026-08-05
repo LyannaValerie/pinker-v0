@@ -2165,3 +2165,641 @@ fn sensibilidade_detecta_variacoes_e_restaura_fontes_byte_a_byte() {
         );
     }
 }
+
+// ---------------------------------------------------------------------------
+// Regressões sintéticas da varredura de processos.
+//
+// Exercem a mesma autoridade decisória usada em produção: `scan_with` recebe a
+// enumeração, a fonte de pais e o destino de sinal como parâmetros genéricos,
+// resolvidos por monomorfização. Nenhuma lógica de ancestralidade é duplicada
+// aqui; o que muda é apenas de onde vêm os candidatos e as identidades.
+//
+// Quantidades acima de alguns milhares são atendidas por fonte sintética.
+// Nenhum destes testes cria processo real.
+// ---------------------------------------------------------------------------
+#[cfg(target_os = "linux")]
+mod varredura_sintetica {
+    use crate::common::native_process::{
+        raw_ancestry, raw_parse_parent_field, scan_with, Ancestry, CandidateSource, CandidateStep,
+        ParentField, ParentLookup, ParentSource, ScanSummary, SignalSink,
+    };
+    use std::cell::RefCell;
+    use std::collections::BTreeMap;
+
+    const LAUNCHER: i32 = 1000;
+
+    /// Fonte de pais sintética.
+    ///
+    /// Suporta mutação de identidade condicionada à quantidade de consultas
+    /// feitas a um PID específico, que é como se reproduz reuso de PID e
+    /// divergência de identidade entre a classificação e a sinalização sem
+    /// depender de corrida real.
+    struct FonteSintetica {
+        pais: RefCell<BTreeMap<i32, ParentLookup>>,
+        consultas: RefCell<BTreeMap<i32, usize>>,
+        /// `(pid, após esta quantidade de consultas a esse pid, novo pai)`
+        mutacoes: Vec<(i32, usize, ParentLookup)>,
+    }
+
+    impl FonteSintetica {
+        fn nova(pais: &[(i32, ParentLookup)]) -> Self {
+            Self {
+                pais: RefCell::new(pais.iter().copied().collect()),
+                consultas: RefCell::new(BTreeMap::new()),
+                mutacoes: Vec::new(),
+            }
+        }
+
+        fn com_mutacao(mut self, pid: i32, apos: usize, novo: ParentLookup) -> Self {
+            self.mutacoes.push((pid, apos, novo));
+            self
+        }
+
+        fn consultas_a(&self, pid: i32) -> usize {
+            self.consultas.borrow().get(&pid).copied().unwrap_or(0)
+        }
+    }
+
+    impl ParentSource for FonteSintetica {
+        fn parent_of(&self, pid: i32) -> ParentLookup {
+            if pid <= 0 {
+                return ParentLookup::Malformed;
+            }
+            if pid == 1 {
+                return ParentLookup::UserspaceRoot;
+            }
+            let vezes = {
+                let mut consultas = self.consultas.borrow_mut();
+                let contador = consultas.entry(pid).or_insert(0);
+                *contador += 1;
+                *contador
+            };
+            for (alvo, apos, novo) in &self.mutacoes {
+                if *alvo == pid && vezes > *apos {
+                    self.pais.borrow_mut().insert(pid, *novo);
+                }
+            }
+            // PID sem entrada é PID que não existe mais: desaparecido, nunca
+            // incógnita.
+            self.pais
+                .borrow()
+                .get(&pid)
+                .copied()
+                .unwrap_or(ParentLookup::Gone)
+        }
+    }
+
+    /// Enumeração sintética, com erro opcional em uma posição.
+    struct CandidatosSinteticos {
+        itens: Vec<CandidateStep>,
+        indice: usize,
+        erro_em: Option<usize>,
+    }
+
+    impl CandidatosSinteticos {
+        fn de_pids(pids: &[i32]) -> Self {
+            Self {
+                itens: pids.iter().map(|pid| CandidateStep::Pid(*pid)).collect(),
+                indice: 0,
+                erro_em: None,
+            }
+        }
+
+        fn de_passos(itens: Vec<CandidateStep>) -> Self {
+            Self {
+                itens,
+                indice: 0,
+                erro_em: None,
+            }
+        }
+
+        fn com_erro_em(mut self, posicao: usize) -> Self {
+            self.erro_em = Some(posicao);
+            self
+        }
+    }
+
+    impl CandidateSource for CandidatosSinteticos {
+        fn next_candidate(&mut self) -> std::io::Result<CandidateStep> {
+            if self.erro_em == Some(self.indice) {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "enumeração sintética interrompida",
+                ));
+            }
+            match self.itens.get(self.indice) {
+                Some(passo) => {
+                    self.indice += 1;
+                    Ok(*passo)
+                }
+                None => Ok(CandidateStep::Done),
+            }
+        }
+    }
+
+    /// Destino de sinal sintético.
+    ///
+    /// Reproduz o contrato da produção: fixa a identidade, revalida a
+    /// ancestralidade **depois** de fixá-la e só então registra o sinal.
+    struct ColetorSinais {
+        sinalizados: Vec<(i32, i32)>,
+        /// PIDs para os quais fixar a identidade falha, como `pidfd_open`
+        /// falhando porque o processo já saiu.
+        identidade_indisponivel: Vec<i32>,
+    }
+
+    impl ColetorSinais {
+        fn novo() -> Self {
+            Self {
+                sinalizados: Vec::new(),
+                identidade_indisponivel: Vec::new(),
+            }
+        }
+
+        fn sem_identidade(mut self, pids: &[i32]) -> Self {
+            self.identidade_indisponivel.extend_from_slice(pids);
+            self
+        }
+
+        fn pids(&self) -> Vec<i32> {
+            self.sinalizados.iter().map(|(pid, _)| *pid).collect()
+        }
+    }
+
+    impl SignalSink for ColetorSinais {
+        fn signal<S: ParentSource>(
+            &mut self,
+            pid: i32,
+            signal: i32,
+            parents: &S,
+            launcher: i32,
+        ) -> bool {
+            if self.identidade_indisponivel.contains(&pid) {
+                return false;
+            }
+            if raw_ancestry(parents, pid, launcher) != Ancestry::Descendant {
+                return false;
+            }
+            self.sinalizados.push((pid, signal));
+            true
+        }
+    }
+
+    fn varre(
+        pids: &[i32],
+        fonte: &FonteSintetica,
+        sinal: Option<i32>,
+    ) -> (ScanSummary, ColetorSinais) {
+        let mut candidatos = CandidatosSinteticos::de_pids(pids);
+        let mut coletor = ColetorSinais::novo();
+        let resumo = scan_with(&mut candidatos, fonte, &mut coletor, LAUNCHER, sinal)
+            .expect("varredura sintética");
+        (resumo, coletor)
+    }
+
+    /// Cadeia sintética de `profundidade` elos terminando no launcher.
+    fn cadeia_ate_launcher(base: i32, profundidade: usize) -> Vec<(i32, ParentLookup)> {
+        let mut pais = Vec::with_capacity(profundidade);
+        for degrau in 0..profundidade {
+            let pid = base + degrau as i32;
+            let pai = if degrau + 1 == profundidade {
+                ParentLookup::Parent(LAUNCHER)
+            } else {
+                ParentLookup::Parent(base + degrau as i32 + 1)
+            };
+            pais.push((pid, pai));
+        }
+        pais
+    }
+
+    // -----------------------------------------------------------------------
+    // Classificação do campo `ppid`.
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn ppid_zero_e_fronteira_raiz_e_nao_entrada_malformada() {
+        // Thread de kernel: `ppid` zero. É raiz, não parse inválido.
+        assert_eq!(
+            raw_parse_parent_field(b"2 (kthreadd) S 0 0 0 0 -1 0", 2),
+            ParentField::KernelRoot
+        );
+        // Raiz de userspace.
+        assert_eq!(
+            raw_parse_parent_field(b"400 (init) S 1 400 400 0 -1 0", 400),
+            ParentField::UserspaceRoot
+        );
+        // Pai comum, estritamente maior que um.
+        assert_eq!(
+            raw_parse_parent_field(b"1234 (bash) S 999 1234 1234 0 -1 0", 1234),
+            ParentField::Pid(999)
+        );
+        // `comm` com espaço e parêntese não desloca o campo de pai.
+        assert_eq!(
+            raw_parse_parent_field(b"77 (pi nker) x) S 0 77 77 0 -1 0", 77),
+            ParentField::KernelRoot
+        );
+    }
+
+    #[test]
+    fn ppid_invalido_e_ausente_permanecem_parse_invalido() {
+        // Sinal explícito não é aceito: `ppid` é não negativo, não é assinado.
+        assert_eq!(
+            raw_parse_parent_field(b"5 (x) S -1 5 5 0 -1 0", 5),
+            ParentField::Malformed
+        );
+        // Não numérico.
+        assert_eq!(
+            raw_parse_parent_field(b"5 (x) S nao-numerico 5", 5),
+            ParentField::Malformed
+        );
+        // Campo ausente: `stat` termina antes do pai.
+        assert_eq!(
+            raw_parse_parent_field(b"5 (x) S", 5),
+            ParentField::Malformed
+        );
+        // Truncado antes do fecho de `comm`.
+        assert_eq!(raw_parse_parent_field(b"5 (x", 5), ParentField::Malformed);
+        // Vazio.
+        assert_eq!(raw_parse_parent_field(b"", 5), ParentField::Malformed);
+        // Estouro do inteiro de 32 bits.
+        assert_eq!(
+            raw_parse_parent_field(b"5 (x) S 99999999999999 5", 5),
+            ParentField::Malformed
+        );
+    }
+
+    #[test]
+    fn auto_parent_e_ciclo_declarado_pela_propria_entrada() {
+        assert_eq!(
+            raw_parse_parent_field(b"321 (x) S 321 321 321 0 -1 0", 321),
+            ParentField::SelfParent
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // Ancestralidade.
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn cadeia_curta_e_profunda_alcancam_o_launcher_sem_recursao() {
+        let curta = FonteSintetica::nova(&[(50, ParentLookup::Parent(LAUNCHER))]);
+        assert_eq!(raw_ancestry(&curta, 50, LAUNCHER), Ancestry::Descendant);
+
+        // Profundidade muito acima de qualquer teto que já existiu, para provar
+        // que não há limite de altura nem estouro de pilha por recursão.
+        let pais = cadeia_ate_launcher(20_000, 12_000);
+        let profunda = FonteSintetica::nova(&pais);
+        assert_eq!(
+            raw_ancestry(&profunda, 20_000, LAUNCHER),
+            Ancestry::Descendant
+        );
+    }
+
+    #[test]
+    fn cadeia_que_termina_em_raiz_nao_pertence_a_arvore() {
+        // Termina em `ppid` zero: fronteira do kernel.
+        let kernel = FonteSintetica::nova(&[
+            (60, ParentLookup::Parent(61)),
+            (61, ParentLookup::KernelRoot),
+        ]);
+        assert_eq!(raw_ancestry(&kernel, 60, LAUNCHER), Ancestry::Foreign);
+
+        // Termina em `ppid` um: raiz de userspace.
+        let userspace = FonteSintetica::nova(&[
+            (70, ParentLookup::Parent(71)),
+            (71, ParentLookup::UserspaceRoot),
+        ]);
+        assert_eq!(raw_ancestry(&userspace, 70, LAUNCHER), Ancestry::Foreign);
+
+        // Processo de kernel sintético: `ppid` zero direto.
+        let kthreadd = FonteSintetica::nova(&[(2, ParentLookup::KernelRoot)]);
+        assert_eq!(raw_ancestry(&kthreadd, 2, LAUNCHER), Ancestry::Foreign);
+    }
+
+    #[test]
+    fn ciclos_e_pid_invalido_sao_incognita_tipada_e_nunca_laco_infinito() {
+        // Auto-pai.
+        let auto = FonteSintetica::nova(&[(80, ParentLookup::Parent(80))]);
+        assert_eq!(raw_ancestry(&auto, 80, LAUNCHER), Ancestry::Cycle);
+
+        // O próprio `stat` declarando auto-pai.
+        let declarado = FonteSintetica::nova(&[(81, ParentLookup::SelfParent)]);
+        assert_eq!(raw_ancestry(&declarado, 81, LAUNCHER), Ancestry::Cycle);
+
+        // Ciclo de dois nós.
+        let dois = FonteSintetica::nova(&[
+            (90, ParentLookup::Parent(91)),
+            (91, ParentLookup::Parent(90)),
+        ]);
+        assert_eq!(raw_ancestry(&dois, 90, LAUNCHER), Ancestry::Cycle);
+
+        // Ciclo maior, com entrada fora do laço.
+        let maior = FonteSintetica::nova(&[
+            (100, ParentLookup::Parent(101)),
+            (101, ParentLookup::Parent(102)),
+            (102, ParentLookup::Parent(103)),
+            (103, ParentLookup::Parent(104)),
+            (104, ParentLookup::Parent(101)),
+        ]);
+        assert_eq!(raw_ancestry(&maior, 100, LAUNCHER), Ancestry::Cycle);
+
+        // PID não positivo nunca nomeia entrada de /proc.
+        let vazia = FonteSintetica::nova(&[]);
+        assert_eq!(raw_ancestry(&vazia, 0, LAUNCHER), Ancestry::Malformed);
+        assert_eq!(raw_ancestry(&vazia, -7, LAUNCHER), Ancestry::Malformed);
+    }
+
+    #[test]
+    fn desaparecimento_de_candidato_e_de_ancestral_sao_distintos() {
+        // O candidato sumiu: nada há a conter.
+        let sumiu = FonteSintetica::nova(&[]);
+        assert_eq!(raw_ancestry(&sumiu, 110, LAUNCHER), Ancestry::Gone);
+
+        // Um ancestral sumiu: a cadeia não fecha, e isso não é prova de nada.
+        // O launcher é subreaper, então a repetição interna reencontra o órfão
+        // reparentado; aqui o pai continua ausente e o resultado permanece
+        // incógnita, jamais "fora da árvore".
+        let ancestral = FonteSintetica::nova(&[(120, ParentLookup::Parent(121))]);
+        assert_eq!(raw_ancestry(&ancestral, 120, LAUNCHER), Ancestry::ReadError);
+        assert!(raw_ancestry(&ancestral, 120, LAUNCHER).ne(&Ancestry::Foreign));
+    }
+
+    #[test]
+    fn erro_de_leitura_e_parse_invalido_nunca_viram_arvore_ausente() {
+        let erro = FonteSintetica::nova(&[(130, ParentLookup::ReadError)]);
+        assert_eq!(raw_ancestry(&erro, 130, LAUNCHER), Ancestry::ReadError);
+
+        let malformado = FonteSintetica::nova(&[(140, ParentLookup::Malformed)]);
+        assert_eq!(
+            raw_ancestry(&malformado, 140, LAUNCHER),
+            Ancestry::Malformed
+        );
+
+        // Nenhum dos dois é estrangeiro nem desaparecido.
+        for classe in [
+            raw_ancestry(&erro, 130, LAUNCHER),
+            raw_ancestry(&malformado, 140, LAUNCHER),
+        ] {
+            assert_ne!(classe, Ancestry::Foreign);
+            assert_ne!(classe, Ancestry::Gone);
+            assert_ne!(classe, Ancestry::Descendant);
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Passagem completa.
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn zero_e_um_candidato_sao_casos_validos() {
+        let fonte = FonteSintetica::nova(&[]);
+        let (vazio, _) = varre(&[], &fonte, None);
+        assert_eq!(vazio.examined, 0);
+        assert!(vazio.complete);
+        assert!(vazio.proves_absence());
+
+        let unico = FonteSintetica::nova(&[(200, ParentLookup::KernelRoot)]);
+        let (resumo, _) = varre(&[200], &unico, None);
+        assert_eq!(resumo.examined, 1);
+        assert_eq!(resumo.foreign, 1);
+        assert!(resumo.proves_absence());
+    }
+
+    #[test]
+    fn entrada_nao_numerica_de_proc_nao_e_candidato_nem_incognita() {
+        let fonte = FonteSintetica::nova(&[(210, ParentLookup::Parent(LAUNCHER))]);
+        let mut candidatos = CandidatosSinteticos::de_passos(vec![
+            CandidateStep::Skip,
+            CandidateStep::Pid(210),
+            CandidateStep::Skip,
+        ]);
+        let mut coletor = ColetorSinais::novo();
+        let resumo = scan_with(&mut candidatos, &fonte, &mut coletor, LAUNCHER, None)
+            .expect("varredura sintética");
+        assert_eq!(resumo.examined, 1);
+        assert_eq!(resumo.descendants, 1);
+        assert_eq!(resumo.unknown, 0);
+        assert!(resumo.complete);
+    }
+
+    #[test]
+    fn descendente_no_primeiro_no_ultimo_e_em_varias_posicoes() {
+        let total = 500_i32;
+        let pids: Vec<i32> = (1..=total).map(|indice| 300_000 + indice).collect();
+
+        // Primeiro candidato.
+        let mut pais: Vec<(i32, ParentLookup)> = pids
+            .iter()
+            .map(|pid| (*pid, ParentLookup::KernelRoot))
+            .collect();
+        pais[0].1 = ParentLookup::Parent(LAUNCHER);
+        let fonte = FonteSintetica::nova(&pais);
+        let (resumo, coletor) = varre(&pids, &fonte, Some(15));
+        assert_eq!(resumo.descendants, 1);
+        assert_eq!(coletor.pids(), vec![pids[0]]);
+
+        // Último candidato.
+        let mut pais: Vec<(i32, ParentLookup)> = pids
+            .iter()
+            .map(|pid| (*pid, ParentLookup::KernelRoot))
+            .collect();
+        let ultimo = pais.len() - 1;
+        pais[ultimo].1 = ParentLookup::Parent(LAUNCHER);
+        let fonte = FonteSintetica::nova(&pais);
+        let (resumo, coletor) = varre(&pids, &fonte, Some(15));
+        assert_eq!(resumo.descendants, 1);
+        assert_eq!(coletor.pids(), vec![pids[ultimo]]);
+
+        // Vários descendentes separados por estrangeiros.
+        let mut pais: Vec<(i32, ParentLookup)> = pids
+            .iter()
+            .map(|pid| (*pid, ParentLookup::KernelRoot))
+            .collect();
+        let escolhidos = [0_usize, 7, 128, 129, 300, 499];
+        for posicao in escolhidos {
+            pais[posicao].1 = ParentLookup::Parent(LAUNCHER);
+        }
+        let fonte = FonteSintetica::nova(&pais);
+        let (resumo, coletor) = varre(&pids, &fonte, Some(15));
+        assert_eq!(resumo.descendants, escolhidos.len() as u32);
+        assert_eq!(resumo.signaled, escolhidos.len() as u32);
+        assert_eq!(
+            coletor.pids(),
+            escolhidos
+                .iter()
+                .map(|posicao| pids[*posicao])
+                .collect::<Vec<_>>()
+        );
+
+        // Nenhuma relação com o launcher.
+        let pais: Vec<(i32, ParentLookup)> = pids
+            .iter()
+            .map(|pid| (*pid, ParentLookup::UserspaceRoot))
+            .collect();
+        let fonte = FonteSintetica::nova(&pais);
+        let (resumo, coletor) = varre(&pids, &fonte, Some(15));
+        assert_eq!(resumo.descendants, 0);
+        assert_eq!(resumo.foreign, total as u32);
+        assert!(resumo.proves_absence());
+        assert!(coletor.pids().is_empty());
+    }
+
+    #[test]
+    fn quantidade_de_candidatos_nao_tem_fronteira_semantica() {
+        // 4096 era um teto global de entradas. Estas quantidades cercam o valor
+        // antigo e o ultrapassam com folga; nenhuma delas pode mudar o
+        // comportamento, e a última prova que 8192 (bytes do buffer de
+        // diretório) também não é limite de quantidade.
+        for total in [1_i32, 4_095, 4_096, 4_097, 8_192, 8_193, 20_000] {
+            let pids: Vec<i32> = (1..=total).map(|indice| 500_000 + indice).collect();
+            let mut pais: Vec<(i32, ParentLookup)> = pids
+                .iter()
+                .map(|pid| (*pid, ParentLookup::KernelRoot))
+                .collect();
+            // Descendente sempre na última posição: se houvesse truncamento em
+            // qualquer teto, ele desapareceria.
+            let ultimo = pais.len() - 1;
+            pais[ultimo].1 = ParentLookup::Parent(LAUNCHER);
+            let fonte = FonteSintetica::nova(&pais);
+            let (resumo, coletor) = varre(&pids, &fonte, Some(9));
+
+            assert_eq!(resumo.examined, total as u32, "total {total}");
+            assert_eq!(resumo.descendants, 1, "total {total}");
+            assert_eq!(resumo.signaled, 1, "total {total}");
+            assert_eq!(resumo.unknown, 0, "total {total}");
+            assert!(resumo.complete, "total {total}");
+            assert!(!resumo.proves_absence(), "total {total}");
+            assert_eq!(coletor.pids(), vec![pids[ultimo]], "total {total}");
+        }
+    }
+
+    #[test]
+    fn erro_em_uma_entrada_nao_impede_tratamento_de_descendente_comprovado() {
+        let fonte = FonteSintetica::nova(&[
+            (600, ParentLookup::ReadError),
+            (601, ParentLookup::Malformed),
+            (602, ParentLookup::Parent(602)),
+            (603, ParentLookup::Parent(LAUNCHER)),
+            (604, ParentLookup::ReadError),
+            (605, ParentLookup::Parent(LAUNCHER)),
+        ]);
+        let (resumo, coletor) = varre(&[600, 601, 602, 603, 604, 605], &fonte, Some(15));
+
+        assert_eq!(resumo.examined, 6);
+        assert_eq!(resumo.descendants, 2);
+        assert_eq!(resumo.signaled, 2);
+        assert_eq!(coletor.pids(), vec![603, 605]);
+        assert_eq!(resumo.unknown, 4);
+        assert_eq!(resumo.read_errors, 2);
+        assert_eq!(resumo.malformed, 1);
+        assert_eq!(resumo.cycles, 1);
+        assert!(resumo.complete);
+        // Incógnita jamais é convertida em prova de encerramento.
+        assert!(!resumo.proves_absence());
+    }
+
+    #[test]
+    fn identidade_divergente_e_pid_reutilizado_nunca_recebem_sinal() {
+        // O candidato é descendente quando classificado e deixa de ser antes da
+        // sinalização: o PID foi reutilizado por um processo alheio à árvore.
+        let fonte = FonteSintetica::nova(&[(700, ParentLookup::Parent(LAUNCHER))]).com_mutacao(
+            700,
+            1,
+            ParentLookup::UserspaceRoot,
+        );
+        let (resumo, coletor) = varre(&[700], &fonte, Some(9));
+
+        assert_eq!(resumo.descendants, 1, "classificado como descendente");
+        assert_eq!(resumo.signaled, 0, "revalidação impediu o sinal");
+        assert!(coletor.pids().is_empty());
+        assert!(fonte.consultas_a(700) >= 2, "houve revalidação após fixar");
+
+        // Identidade que não pôde ser fixada: sem `pidfd`, sem sinal.
+        let fonte = FonteSintetica::nova(&[(710, ParentLookup::Parent(LAUNCHER))]);
+        let mut candidatos = CandidatosSinteticos::de_pids(&[710]);
+        let mut coletor = ColetorSinais::novo().sem_identidade(&[710]);
+        let resumo = scan_with(&mut candidatos, &fonte, &mut coletor, LAUNCHER, Some(9))
+            .expect("varredura sintética");
+        assert_eq!(resumo.descendants, 1);
+        assert_eq!(resumo.signaled, 0);
+        // Descendente contado e não sinalizado continua bloqueando a ausência.
+        assert!(!resumo.proves_absence());
+    }
+
+    #[test]
+    fn ausencia_so_e_afirmada_apos_varredura_completa() {
+        // Resumo vazio, sem passagem alguma, não prova nada: `complete` nasce
+        // falso e a prova de ausência depende dele.
+        assert!(!ScanSummary::EMPTY.proves_absence());
+
+        // Enumeração que falha no meio não produz resumo: o descendente
+        // sobrevivente poderia estar exatamente na parte não lida.
+        let fonte = FonteSintetica::nova(&[
+            (800, ParentLookup::KernelRoot),
+            (801, ParentLookup::Parent(LAUNCHER)),
+        ]);
+        let mut candidatos = CandidatosSinteticos::de_pids(&[800, 801]).com_erro_em(1);
+        let mut coletor = ColetorSinais::novo();
+        let erro = scan_with(&mut candidatos, &fonte, &mut coletor, LAUNCHER, None)
+            .expect_err("enumeração interrompida deve falhar fechada");
+        assert_eq!(erro.kind(), std::io::ErrorKind::InvalidData);
+
+        // Varredura completa e sem incógnitas: só então há prova.
+        let fonte = FonteSintetica::nova(&[(810, ParentLookup::KernelRoot)]);
+        let (resumo, _) = varre(&[810], &fonte, None);
+        assert!(resumo.proves_absence());
+    }
+
+    #[test]
+    fn passagem_posterior_encontra_processo_criado_depois_da_anterior() {
+        // Primeira passagem prova ausência.
+        let fonte = FonteSintetica::nova(&[(900, ParentLookup::KernelRoot)]);
+        let (primeira, _) = varre(&[900], &fonte, Some(15));
+        assert!(primeira.proves_absence());
+
+        // O launcher continua vivo e a árvore ganhou um processo depois. A
+        // prova da passagem anterior não vale para a seguinte.
+        let fonte = FonteSintetica::nova(&[
+            (900, ParentLookup::KernelRoot),
+            (901, ParentLookup::Parent(LAUNCHER)),
+        ]);
+        let (segunda, coletor) = varre(&[900, 901], &fonte, Some(15));
+        assert!(!segunda.proves_absence());
+        assert_eq!(segunda.descendants, 1);
+        assert_eq!(coletor.pids(), vec![901]);
+    }
+
+    #[test]
+    fn quatro_mil_e_noventa_e_seis_nao_tem_significado_semantico_no_codigo() {
+        let fonte = std::fs::read_to_string("tests/common/native_process_launcher.rs")
+            .expect("fonte do launcher");
+        for (numero, linha) in fonte.lines().enumerate() {
+            if !linha.contains("4096") {
+                continue;
+            }
+            let aceitavel = linha.contains("[0_u8; 4096]")
+                || linha.contains("[u8; 4096]")
+                || linha.trim_start().starts_with("///")
+                || linha.trim_start().starts_with("//");
+            assert!(
+                aceitavel,
+                "linha {} reintroduz 4096 fora de buffer de I/O: {linha}",
+                numero + 1
+            );
+        }
+        // O contrato de ausência depende da varredura completa, nunca de um
+        // teto de quantidade.
+        assert!(
+            fonte.contains("self.complete && self.descendants == 0 && self.unknown == 0"),
+            "a prova de ausência deixou de exigir varredura completa"
+        );
+        // A produção continua sem estrutura proporcional à quantidade de
+        // processos no caminho pós-fork.
+        for proibido in ["Vec::with_capacity", "Vec::new()", "String::new()"] {
+            assert!(
+                !fonte.contains(proibido),
+                "produção reintroduziu alocação pós-fork: {proibido}"
+            );
+        }
+    }
+}

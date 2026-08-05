@@ -1035,12 +1035,24 @@ unsafe fn raw_supervise_tree(
             value: 0,
         },
     );
-    let _ = raw_signal_descendants(launcher_pid, 15)?;
+    // Falha de varredura não pode encerrar a supervisão antes do KILL.
+    //
+    // Antes, qualquer erro de `/proc` na fase TERM saía por `?` daqui, e com
+    // isso KILL não era enviado e o laço de reaping não corria: fail-closed
+    // para relatar, fail-open para conter, exatamente a inversão que este
+    // hotfix existe para fechar. O erro passa a ser retido como causa
+    // secundária e só é considerado quando o encerramento nunca é provado.
+    let mut varredura_falhou = false;
+    if let Err(_erro) = raw_signal_descendants(launcher_pid, 15) {
+        varredura_falhou = true;
+    }
     let term_deadline = raw_monotonic_millis().saturating_add(200);
     while raw_monotonic_millis() < term_deadline {
         raw_reap_all(guest_pid, &mut guest_status);
-        if raw_descendants_exist(launcher_pid)?.proves_absence() {
-            return Ok(guest_status.unwrap_or(0));
+        match raw_descendants_exist(launcher_pid) {
+            Ok(resumo) if resumo.proves_absence() => return Ok(guest_status.unwrap_or(0)),
+            Ok(_) => {}
+            Err(_erro) => varredura_falhou = true,
         }
         raw_sleep_millis(5);
     }
@@ -1052,20 +1064,33 @@ unsafe fn raw_supervise_tree(
             value: 0,
         },
     );
-    let _ = raw_signal_descendants(launcher_pid, 9)?;
+    if let Err(_erro) = raw_signal_descendants(launcher_pid, 9) {
+        varredura_falhou = true;
+    }
     let kill_deadline = raw_monotonic_millis().saturating_add(5_000);
     loop {
         raw_reap_all(guest_pid, &mut guest_status);
-        if raw_descendants_exist(launcher_pid)?.proves_absence() {
-            return Ok(guest_status.unwrap_or(9));
+        match raw_descendants_exist(launcher_pid) {
+            Ok(resumo) if resumo.proves_absence() => return Ok(guest_status.unwrap_or(9)),
+            Ok(_) => {}
+            Err(_erro) => varredura_falhou = true,
         }
         if raw_monotonic_millis() >= kill_deadline {
+            // Causa primária tipada: a árvore sobreviveu ao prazo absoluto.
+            // A falha de varredura acompanha como causa secundária, sem
+            // substituir a primária nem ser silenciada.
             return Err(io::Error::new(
                 io::ErrorKind::TimedOut,
-                "árvore permaneceu executável após KILL",
+                if varredura_falhou {
+                    "árvore permaneceu executável após KILL; varredura de /proc também falhou"
+                } else {
+                    "árvore permaneceu executável após KILL"
+                },
             ));
         }
-        let _ = raw_signal_descendants(launcher_pid, 9)?;
+        if let Err(_erro) = raw_signal_descendants(launcher_pid, 9) {
+            varredura_falhou = true;
+        }
         raw_sleep_millis(5);
     }
 }
@@ -1106,50 +1131,151 @@ unsafe fn raw_reap_all(guest_pid: i32, guest_status: &mut Option<i32>) {
 /// primeiro TERM**. TERM e KILL deixavam de ser enviados, o laço de reaping
 /// não corria e a árvore sobrevivia. Era fail-closed para relatar e fail-open
 /// para conter.
-#[derive(Clone, Copy)]
-struct ScanSummary {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct ScanSummary {
+    /// Candidatos efetivamente classificados nesta passagem.
+    pub(crate) examined: u32,
     /// Descendentes positivamente identificados nesta passagem.
-    descendants: u32,
+    pub(crate) descendants: u32,
     /// Descendentes que receberam o sinal nesta passagem.
-    signaled: u32,
-    /// Entradas cuja ancestralidade não pôde ser estabelecida.
-    unknown: u32,
+    pub(crate) signaled: u32,
+    /// Entradas cuja ancestralidade não pôde ser estabelecida. Agregado.
+    pub(crate) unknown: u32,
+    /// Incógnitas por `stat` ausente, truncado, não numérico ou com sinal.
+    pub(crate) malformed: u32,
+    /// Incógnitas por erro de leitura classificado, distinto de desaparecido.
+    pub(crate) read_errors: u32,
+    /// Incógnitas por cadeia de ancestralidade que se fecha sobre si mesma.
+    pub(crate) cycles: u32,
+    /// Entradas que desapareceram durante a inspeção. Não são incógnita.
+    pub(crate) gone: u32,
+    /// Entradas cuja cadeia alcança a raiz sem passar pelo launcher.
+    pub(crate) foreign: u32,
+    /// Passagem percorreu o diretório inteiro. Sem isto não há prova alguma.
+    pub(crate) complete: bool,
 }
 
 impl ScanSummary {
-    const EMPTY: Self = Self {
+    pub(crate) const EMPTY: Self = Self {
+        examined: 0,
         descendants: 0,
         signaled: 0,
         unknown: 0,
+        malformed: 0,
+        read_errors: 0,
+        cycles: 0,
+        gone: 0,
+        foreign: 0,
+        complete: false,
     };
 
-    /// A ausência só é provada por uma varredura completa e sem incógnitas.
-    /// Identidade desconhecida jamais é convertida em prova de encerramento.
-    fn proves_absence(&self) -> bool {
-        self.descendants == 0 && self.unknown == 0
+    /// A ausência só é provada por uma varredura **completa** e sem incógnitas.
+    /// Identidade desconhecida jamais é convertida em prova de encerramento, e
+    /// uma passagem interrompida no meio do diretório não prova nada: o
+    /// descendente sobrevivente poderia estar exatamente na parte não lida.
+    pub(crate) fn proves_absence(&self) -> bool {
+        self.complete && self.descendants == 0 && self.unknown == 0
+    }
+
+    fn conta_incognita(&mut self, motivo: Ancestry) {
+        self.unknown += 1;
+        match motivo {
+            Ancestry::Malformed => self.malformed += 1,
+            Ancestry::ReadError => self.read_errors += 1,
+            Ancestry::Cycle => self.cycles += 1,
+            _ => {}
+        }
     }
 }
 
 /// Classificação de uma entrada em relação à árvore do launcher.
 #[cfg(target_os = "linux")]
-#[derive(Clone, Copy, PartialEq)]
-enum Ancestry {
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum Ancestry {
     /// Cadeia de pais alcança o launcher.
     Descendant,
     /// Cadeia de pais alcança a raiz sem passar pelo launcher.
     Foreign,
     /// O processo desapareceu durante a inspeção: já não está executável.
     Gone,
-    /// Permissão, parse inválido, I/O não explicado ou sequência patológica.
-    Unknown,
+    /// Campo ausente, não numérico, com sinal, ou `stat` truncado.
+    Malformed,
+    /// Erro de leitura classificado, distinto de processo desaparecido.
+    ReadError,
+    /// A cadeia se fecha sobre si mesma: auto-pai ou ciclo maior.
+    Cycle,
+}
+
+impl Ancestry {
+    /// Toda classe que não seja descendente, estrangeira ou desaparecida
+    /// bloqueia a prova de ausência. O motivo permanece tipado para evidência.
+    fn e_incognita(self) -> bool {
+        matches!(self, Self::Malformed | Self::ReadError | Self::Cycle)
+    }
+}
+
+/// Resultado tipado da leitura do pai de um PID.
+///
+/// `ppid` é um inteiro **não negativo**. Zero não é entrada malformada: é a
+/// fronteira raiz declarada pelo próprio kernel para `kthreadd` e para os
+/// processos que dele descendem. Um é a raiz de userspace. Tratar qualquer um
+/// dos dois como parse inválido converte metade da tabela de processos em
+/// incógnita permanente e nenhuma varredura volta a provar ausência.
+#[cfg(target_os = "linux")]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum ParentLookup {
+    /// Pai estritamente maior que um.
+    Parent(i32),
+    /// `ppid` zero: fronteira raiz do kernel.
+    KernelRoot,
+    /// `ppid` um: raiz de userspace.
+    UserspaceRoot,
+    /// `ppid` igual ao próprio pid: ciclo declarado pela entrada.
+    SelfParent,
+    /// O processo desapareceu entre a enumeração e a leitura.
+    Gone,
+    /// Campo ausente, não numérico, com sinal, ou `stat` truncado.
+    Malformed,
+    /// Erro de leitura classificado, distinto de desaparecido.
+    ReadError,
+}
+
+/// Classificação do campo `ppid` isolada da leitura, para ser exercida por
+/// regressão sem depender de um processo real com aquela forma.
+#[cfg(target_os = "linux")]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum ParentField {
+    KernelRoot,
+    UserspaceRoot,
+    Pid(i32),
+    SelfParent,
+    Malformed,
+}
+
+/// Fonte de identidade de pais.
+///
+/// Existe para que a autoridade de ancestralidade seja exercida por regressão
+/// sobre uma sequência sintética sem duplicar a lógica de decisão. É um
+/// parâmetro genérico, resolvido por monomorfização: não há objeto de trait,
+/// não há despacho dinâmico e não há alocação no caminho pós-fork.
+#[cfg(target_os = "linux")]
+pub(crate) trait ParentSource {
+    fn parent_of(&self, pid: i32) -> ParentLookup;
+}
+
+/// Fonte de produção: lê `/proc/<pid>/stat` sob demanda, sem tabela.
+#[cfg(target_os = "linux")]
+pub(crate) struct ProcParentSource {
+    proc_fd: i32,
 }
 
 #[cfg(target_os = "linux")]
-enum ParentLookup {
-    Parent(i32),
-    Root,
-    Gone,
-    Unknown,
+impl ParentSource for ProcParentSource {
+    fn parent_of(&self, pid: i32) -> ParentLookup {
+        // Segurança: `proc_fd` é um descritor de diretório vivo, aberto por
+        // `raw_scan_pass` e fechado só depois de a passagem terminar.
+        unsafe { raw_parent_of(self.proc_fd, pid) }
+    }
 }
 
 /// Lê o pai de um PID sob demanda, sem alocação e sem tabela.
@@ -1164,8 +1290,12 @@ unsafe fn raw_parent_of(proc_fd: i32, pid: i32) -> ParentLookup {
     const O_CLOEXEC: i32 = 0o2000000;
     const ENOENT: i32 = 2;
     const ESRCH: i32 = 3;
-    if pid <= 1 {
-        return ParentLookup::Root;
+    // PID não positivo nunca nomeia entrada de `/proc`.
+    if pid <= 0 {
+        return ParentLookup::Malformed;
+    }
+    if pid == 1 {
+        return ParentLookup::UserspaceRoot;
     }
     let mut path = [0_u8; 32];
     let _ = raw_pid_stat_path(pid, &mut path);
@@ -1176,41 +1306,36 @@ unsafe fn raw_parent_of(proc_fd: i32, pid: i32) -> ParentLookup {
         if code == ENOENT || code == ESRCH {
             return ParentLookup::Gone;
         }
-        return ParentLookup::Unknown;
+        return ParentLookup::ReadError;
     }
     // Buffer de leitura de `stat`, não teto de quantidade de processos.
     let mut stat = [0_u8; 4096];
     let read_count = read(stat_fd, stat.as_mut_ptr(), stat.len());
     close(stat_fd);
-    if read_count <= 0 {
+    if read_count == 0 {
         return ParentLookup::Gone;
     }
-    match raw_parse_parent(&stat[..read_count as usize]) {
-        Some(parent) if parent <= 1 => ParentLookup::Root,
-        Some(parent) => ParentLookup::Parent(parent),
-        // PPID zero identifica a raiz do kernel. `raw_parse_parent` o rejeita
-        // por exigir inteiro positivo, e a varredura anterior simplesmente
-        // descartava a entrada em silencio. Classificar isso como incognita
-        // faria toda thread de kernel, a comecar por kthreadd, impedir para
-        // sempre a prova de ausencia da arvore.
-        None if raw_stat_parent_is_zero(&stat[..read_count as usize]) => ParentLookup::Root,
-        None => ParentLookup::Unknown,
+    if read_count < 0 {
+        let code = io::Error::last_os_error().raw_os_error().unwrap_or(0);
+        if code == ENOENT || code == ESRCH {
+            return ParentLookup::Gone;
+        }
+        return ParentLookup::ReadError;
     }
+    raw_parse_parent_field(&stat[..read_count as usize], pid).into_lookup()
 }
 
-/// Reconhece `ppid` igual a zero, a raiz do kernel.
 #[cfg(target_os = "linux")]
-fn raw_stat_parent_is_zero(stat: &[u8]) -> bool {
-    let Some(close) = stat.windows(2).rposition(|window| window == b") ") else {
-        return false;
-    };
-    let mut fields = stat[close + 2..]
-        .split(|byte| byte.is_ascii_whitespace())
-        .filter(|value| !value.is_empty());
-    if fields.next().is_none() {
-        return false;
+impl ParentField {
+    fn into_lookup(self) -> ParentLookup {
+        match self {
+            Self::KernelRoot => ParentLookup::KernelRoot,
+            Self::UserspaceRoot => ParentLookup::UserspaceRoot,
+            Self::Pid(parent) => ParentLookup::Parent(parent),
+            Self::SelfParent => ParentLookup::SelfParent,
+            Self::Malformed => ParentLookup::Malformed,
+        }
     }
-    matches!(fields.next(), Some(b"0"))
 }
 
 /// Determina a ancestralidade sob demanda, percorrendo a cadeia de pais.
@@ -1219,8 +1344,11 @@ fn raw_stat_parent_is_zero(stat: &[u8]) -> bool {
 /// ponteiros lento e rápido sobre a mesma cadeia, em espaço constante, sem
 /// reintroduzir teto arbitrário de quantidade de processos.
 #[cfg(target_os = "linux")]
-unsafe fn raw_ancestry(proc_fd: i32, candidate: i32, launcher: i32) -> Ancestry {
-    if candidate == launcher || candidate <= 1 {
+pub(crate) fn raw_ancestry<S: ParentSource>(source: &S, candidate: i32, launcher: i32) -> Ancestry {
+    if candidate <= 0 {
+        return Ancestry::Malformed;
+    }
+    if candidate == launcher || candidate == 1 {
         return Ancestry::Foreign;
     }
     // Uma cadeia pode quebrar porque um ancestral saiu durante a caminhada.
@@ -1233,61 +1361,80 @@ unsafe fn raw_ancestry(proc_fd: i32, candidate: i32, launcher: i32) -> Ancestry 
     // tipicamente permissao ou parse invalido.
     const TENTATIVAS: u32 = 3;
     for tentativa in 0..TENTATIVAS {
-        match raw_walk_ancestry(proc_fd, candidate, launcher) {
-            Ancestry::Unknown if tentativa + 1 < TENTATIVAS => {
+        match raw_walk_ancestry(source, candidate, launcher) {
+            resultado if resultado.e_incognita() && tentativa + 1 < TENTATIVAS => {
                 // Se o proprio candidato ja nao existe, nada ha a conter.
-                if let ParentLookup::Gone = raw_parent_of(proc_fd, candidate) {
+                if let ParentLookup::Gone = source.parent_of(candidate) {
                     return Ancestry::Gone;
                 }
             }
             outcome => return outcome,
         }
     }
-    Ancestry::Unknown
+    Ancestry::ReadError
 }
 
 /// Uma unica caminhada da cadeia de pais, sem repeticao.
+///
+/// Espaço constante: dois cursores sobre a mesma cadeia, nunca recursão, nunca
+/// tabela de visitados proporcional ao número de processos.
 #[cfg(target_os = "linux")]
-unsafe fn raw_walk_ancestry(proc_fd: i32, candidate: i32, launcher: i32) -> Ancestry {
+fn raw_walk_ancestry<S: ParentSource>(source: &S, candidate: i32, launcher: i32) -> Ancestry {
     let mut slow = candidate;
     let mut fast = candidate;
     loop {
-        match raw_parent_of(proc_fd, slow) {
-            ParentLookup::Parent(parent) => slow = parent,
-            ParentLookup::Root => return Ancestry::Foreign,
-            ParentLookup::Gone => {
-                return if slow == candidate {
-                    Ancestry::Gone
-                } else {
-                    // Um ancestral sumiu: a cadeia não pode ser fechada.
-                    Ancestry::Unknown
-                };
-            }
-            ParentLookup::Unknown => return Ancestry::Unknown,
+        match passo(source, slow, candidate, launcher) {
+            Passo::Segue(parent) => slow = parent,
+            Passo::Decidido(resultado) => return resultado,
         }
         if slow == launcher {
             return Ancestry::Descendant;
         }
         for _ in 0..2 {
-            match raw_parent_of(proc_fd, fast) {
-                ParentLookup::Parent(parent) => fast = parent,
-                ParentLookup::Root => return Ancestry::Foreign,
-                ParentLookup::Gone => {
-                    return if fast == candidate {
-                        Ancestry::Gone
-                    } else {
-                        Ancestry::Unknown
-                    };
-                }
-                ParentLookup::Unknown => return Ancestry::Unknown,
+            match passo(source, fast, candidate, launcher) {
+                Passo::Segue(parent) => fast = parent,
+                Passo::Decidido(resultado) => return resultado,
             }
             if fast == launcher {
                 return Ancestry::Descendant;
             }
         }
+        // Cursores coincidentes fora do launcher: a cadeia se fechou sobre si
+        // mesma. É estado inválido, não prova de que a árvore acabou.
         if slow == fast {
-            return Ancestry::Unknown;
+            return Ancestry::Cycle;
         }
+    }
+}
+
+#[cfg(target_os = "linux")]
+enum Passo {
+    Segue(i32),
+    Decidido(Ancestry),
+}
+
+/// Um passo da caminhada, com a classificação de fronteira em um só lugar.
+#[cfg(target_os = "linux")]
+fn passo<S: ParentSource>(source: &S, atual: i32, candidate: i32, launcher: i32) -> Passo {
+    match source.parent_of(atual) {
+        // Fronteira raiz, nas duas formas válidas: a cadeia terminou sem
+        // passar pelo launcher, então a entrada não pertence à árvore.
+        ParentLookup::KernelRoot | ParentLookup::UserspaceRoot => {
+            Passo::Decidido(Ancestry::Foreign)
+        }
+        ParentLookup::SelfParent => Passo::Decidido(Ancestry::Cycle),
+        ParentLookup::Parent(parent) if parent == atual => Passo::Decidido(Ancestry::Cycle),
+        ParentLookup::Parent(parent) if parent == launcher => Passo::Decidido(Ancestry::Descendant),
+        ParentLookup::Parent(parent) => Passo::Segue(parent),
+        ParentLookup::Gone => Passo::Decidido(if atual == candidate {
+            // O candidato sumiu: nada há a conter.
+            Ancestry::Gone
+        } else {
+            // Um ancestral sumiu: a cadeia não pode ser fechada nesta passagem.
+            Ancestry::ReadError
+        }),
+        ParentLookup::Malformed => Passo::Decidido(Ancestry::Malformed),
+        ParentLookup::ReadError => Passo::Decidido(Ancestry::ReadError),
     }
 }
 
@@ -1297,104 +1444,241 @@ unsafe fn raw_walk_ancestry(proc_fd: i32, candidate: i32, launcher: i32) -> Ance
 /// sinalizado antes de a próxima ser lida. Erro em uma entrada nunca impede a
 /// sinalização das demais, e a passagem só termina após percorrer o diretório
 /// inteiro.
+/// Um passo da enumeração de candidatos.
+#[cfg(target_os = "linux")]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum CandidateStep {
+    /// Candidato a classificar.
+    Pid(i32),
+    /// Entrada que não nomeia processo. Não é candidato e não é incógnita.
+    Skip,
+    /// A enumeração percorreu a fonte inteira.
+    Done,
+}
+
+/// Enumeração incremental de candidatos.
+///
+/// Produz um candidato por vez, em espaço constante. Nenhuma implementação
+/// materializa a lista de processos, e por isso não existe teto de quantidade.
+#[cfg(target_os = "linux")]
+pub(crate) trait CandidateSource {
+    fn next_candidate(&mut self) -> io::Result<CandidateStep>;
+}
+
+/// Autoridade de sinalização, separada da decisão de quem sinalizar.
+#[cfg(target_os = "linux")]
+pub(crate) trait SignalSink {
+    /// Fixa a identidade do alvo, revalida a ancestralidade **depois** de
+    /// fixá-la e só então sinaliza. Devolve `true` quando o sinal saiu.
+    fn signal<S: ParentSource>(
+        &mut self,
+        pid: i32,
+        signal: i32,
+        parents: &S,
+        launcher: i32,
+    ) -> bool;
+}
+
+/// Enumeração de produção: `getdents64` incremental sobre `/proc`.
+///
+/// O buffer de 8192 bytes é buffer de I/O do diretório, recarregado quantas
+/// vezes forem necessárias. Não é limite de quantidade de processos: nenhuma
+/// entrada é retida depois de classificada.
+#[cfg(target_os = "linux")]
+pub(crate) struct ProcCandidates {
+    proc_fd: i32,
+    buffer: [u8; 8192],
+    filled: usize,
+    offset: usize,
+    esgotado: bool,
+}
+
+#[cfg(target_os = "linux")]
+impl ProcCandidates {
+    fn new(proc_fd: i32) -> Self {
+        Self {
+            proc_fd,
+            buffer: [0_u8; 8192],
+            filled: 0,
+            offset: 0,
+            esgotado: false,
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+impl CandidateSource for ProcCandidates {
+    fn next_candidate(&mut self) -> io::Result<CandidateStep> {
+        extern "C" {
+            fn syscall(number: isize, ...) -> isize;
+        }
+        const SYS_GETDENTS64: isize = 217;
+        if self.offset >= self.filled {
+            if self.esgotado {
+                return Ok(CandidateStep::Done);
+            }
+            // Segurança: `proc_fd` está aberto e o buffer é próprio.
+            let bytes = unsafe {
+                syscall(
+                    SYS_GETDENTS64,
+                    self.proc_fd,
+                    self.buffer.as_mut_ptr(),
+                    self.buffer.len(),
+                )
+            };
+            if bytes < 0 {
+                return Err(io::Error::last_os_error());
+            }
+            if bytes == 0 {
+                self.esgotado = true;
+                return Ok(CandidateStep::Done);
+            }
+            self.filled = bytes as usize;
+            self.offset = 0;
+        }
+        if self.offset + 19 > self.filled {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "getdents truncado",
+            ));
+        }
+        let reclen =
+            u16::from_ne_bytes([self.buffer[self.offset + 16], self.buffer[self.offset + 17]])
+                as usize;
+        if reclen < 20 || self.offset + reclen > self.filled {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "dirent inválido",
+            ));
+        }
+        let name_bytes = &self.buffer[self.offset + 19..self.offset + reclen];
+        let name_len = name_bytes
+            .iter()
+            .position(|byte| *byte == 0)
+            .unwrap_or(name_bytes.len());
+        let passo = match raw_parse_positive(&name_bytes[..name_len]) {
+            Some(pid) => CandidateStep::Pid(pid),
+            // Entrada não numérica de /proc é ignorada, não é incógnita.
+            None => CandidateStep::Skip,
+        };
+        self.offset += reclen;
+        Ok(passo)
+    }
+}
+
+/// Sinalização de produção: `pidfd_open`, revalidação, `pidfd_send_signal`.
+#[cfg(target_os = "linux")]
+pub(crate) struct PidfdSink;
+
+#[cfg(target_os = "linux")]
+impl SignalSink for PidfdSink {
+    fn signal<S: ParentSource>(
+        &mut self,
+        pid: i32,
+        signal: i32,
+        parents: &S,
+        launcher: i32,
+    ) -> bool {
+        extern "C" {
+            fn close(fd: i32) -> i32;
+            fn syscall(number: isize, ...) -> isize;
+        }
+        const SYS_PIDFD_OPEN: isize = 434;
+        const SYS_PIDFD_SEND_SIGNAL: isize = 424;
+        // Segurança: chamadas diretas de sistema sobre um PID lido de /proc.
+        unsafe {
+            let pidfd = syscall(SYS_PIDFD_OPEN, pid, 0_u32) as i32;
+            if pidfd < 0 {
+                return false;
+            }
+            // O pidfd fixa a identidade. A reconfirmação da ancestralidade
+            // depois de fixá-la impede sinalizar um PID reutilizado que já não
+            // pertence à árvore.
+            let ainda_da_arvore = raw_ancestry(parents, pid, launcher) == Ancestry::Descendant;
+            let enviado = ainda_da_arvore
+                && syscall(
+                    SYS_PIDFD_SEND_SIGNAL,
+                    pidfd,
+                    signal,
+                    std::ptr::null::<u8>(),
+                    0_u32,
+                ) == 0;
+            close(pidfd);
+            enviado
+        }
+    }
+}
+
+/// A autoridade decisória única da varredura.
+///
+/// Produção e regressão sintética atravessam exatamente esta função: a lógica
+/// de ancestralidade, de sinalização e de prova de ausência não é duplicada em
+/// nenhuma implementação paralela "só para teste".
+///
+/// Erro de classificação de uma entrada nunca interrompe a passagem: a entrada
+/// vira incógnita tipada e as demais continuam sendo tratadas, de modo que um
+/// descendente comprovado depois dela ainda recebe o sinal.
+#[cfg(target_os = "linux")]
+pub(crate) fn scan_with<C, P, K>(
+    candidates: &mut C,
+    parents: &P,
+    sink: &mut K,
+    launcher_pid: i32,
+    signal: Option<i32>,
+) -> io::Result<ScanSummary>
+where
+    C: CandidateSource,
+    P: ParentSource,
+    K: SignalSink,
+{
+    let mut summary = ScanSummary::EMPTY;
+    loop {
+        match candidates.next_candidate()? {
+            CandidateStep::Done => {
+                summary.complete = true;
+                return Ok(summary);
+            }
+            CandidateStep::Skip => continue,
+            CandidateStep::Pid(pid) => {
+                summary.examined += 1;
+                match raw_ancestry(parents, pid, launcher_pid) {
+                    Ancestry::Descendant => {
+                        summary.descendants += 1;
+                        if let Some(signal) = signal {
+                            if sink.signal(pid, signal, parents, launcher_pid) {
+                                summary.signaled += 1;
+                            }
+                        }
+                    }
+                    Ancestry::Foreign => summary.foreign += 1,
+                    Ancestry::Gone => summary.gone += 1,
+                    motivo => summary.conta_incognita(motivo),
+                }
+            }
+        }
+    }
+}
+
 #[cfg(target_os = "linux")]
 unsafe fn raw_scan_pass(launcher_pid: i32, signal: Option<i32>) -> io::Result<ScanSummary> {
     extern "C" {
         fn close(fd: i32) -> i32;
         fn open(path: *const i8, flags: i32, ...) -> i32;
-        fn syscall(number: isize, ...) -> isize;
     }
     const O_RDONLY: i32 = 0;
     const O_DIRECTORY: i32 = 0o200000;
     const O_CLOEXEC: i32 = 0o2000000;
-    const SYS_GETDENTS64: isize = 217;
-    const SYS_PIDFD_OPEN: isize = 434;
-    const SYS_PIDFD_SEND_SIGNAL: isize = 424;
 
     let proc_fd = open(c"/proc".as_ptr(), O_RDONLY | O_DIRECTORY | O_CLOEXEC);
     if proc_fd < 0 {
         return Err(io::Error::last_os_error());
     }
-    let mut summary = ScanSummary::EMPTY;
-    let mut directory_buffer = [0_u8; 8192];
-    loop {
-        let bytes = syscall(
-            SYS_GETDENTS64,
-            proc_fd,
-            directory_buffer.as_mut_ptr(),
-            directory_buffer.len(),
-        );
-        if bytes < 0 {
-            let error = io::Error::last_os_error();
-            close(proc_fd);
-            return Err(error);
-        }
-        if bytes == 0 {
-            break;
-        }
-        let mut offset = 0_usize;
-        while offset < bytes as usize {
-            if offset + 19 > bytes as usize {
-                close(proc_fd);
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "getdents truncado",
-                ));
-            }
-            let reclen =
-                u16::from_ne_bytes([directory_buffer[offset + 16], directory_buffer[offset + 17]])
-                    as usize;
-            if reclen < 20 || offset + reclen > bytes as usize {
-                close(proc_fd);
-                return Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "dirent inválido",
-                ));
-            }
-            let name_bytes = &directory_buffer[offset + 19..offset + reclen];
-            let name_len = name_bytes
-                .iter()
-                .position(|byte| *byte == 0)
-                .unwrap_or(name_bytes.len());
-            // Entrada não numérica de /proc é ignorada, não é incógnita.
-            if let Some(pid) = raw_parse_positive(&name_bytes[..name_len]) {
-                match raw_ancestry(proc_fd, pid, launcher_pid) {
-                    Ancestry::Descendant => {
-                        summary.descendants += 1;
-                        if let Some(signal) = signal {
-                            let pidfd = syscall(SYS_PIDFD_OPEN, pid, 0_u32) as i32;
-                            if pidfd >= 0 {
-                                // Revalida a ancestralidade imediatamente antes
-                                // do sinal: o pidfd fixa a identidade, e a
-                                // reconfirmação impede sinalizar um PID
-                                // reutilizado fora da árvore.
-                                if raw_ancestry(proc_fd, pid, launcher_pid) == Ancestry::Descendant
-                                {
-                                    let sent = syscall(
-                                        SYS_PIDFD_SEND_SIGNAL,
-                                        pidfd,
-                                        signal,
-                                        std::ptr::null::<u8>(),
-                                        0_u32,
-                                    );
-                                    if sent == 0 {
-                                        summary.signaled += 1;
-                                    }
-                                }
-                                close(pidfd);
-                            }
-                        }
-                    }
-                    Ancestry::Unknown => summary.unknown += 1,
-                    // Estrangeiro ou já não executável: nada a conter.
-                    Ancestry::Foreign | Ancestry::Gone => {}
-                }
-            }
-            offset += reclen;
-        }
-    }
+    let mut candidates = ProcCandidates::new(proc_fd);
+    let parents = ProcParentSource { proc_fd };
+    let mut sink = PidfdSink;
+    let resultado = scan_with(&mut candidates, &parents, &mut sink, launcher_pid, signal);
     close(proc_fd);
-    Ok(summary)
+    resultado
 }
 
 #[cfg(target_os = "linux")]
@@ -1433,15 +1717,56 @@ fn raw_parse_positive(bytes: &[u8]) -> Option<i32> {
     (value > 0).then_some(value)
 }
 
+/// Aceita inteiro decimal **não negativo**, sem sinal explícito.
+///
+/// Existe separado de `raw_parse_positive` porque `pid` e `ppid` têm domínios
+/// diferentes: um PID é estritamente positivo, um PPID é não negativo. Usar a
+/// mesma regra para os dois era a origem do descarte silencioso de `ppid` zero.
 #[cfg(target_os = "linux")]
-fn raw_parse_parent(stat: &[u8]) -> Option<i32> {
-    let close = stat.windows(2).rposition(|window| window == b") ")?;
+fn raw_parse_nonnegative(bytes: &[u8]) -> Option<i32> {
+    if bytes.is_empty() {
+        return None;
+    }
+    let mut value = 0_i32;
+    for byte in bytes {
+        if !byte.is_ascii_digit() {
+            return None;
+        }
+        value = value.checked_mul(10)?.checked_add((byte - b'0') as i32)?;
+    }
+    Some(value)
+}
+
+/// Classifica o campo `ppid` de uma linha de `/proc/<pid>/stat`.
+///
+/// O `comm` do processo pode conter espaços e parênteses, então o corte é feito
+/// pelo **último** `") "`. Depois dele vem o estado e, em seguida, o `ppid`.
+#[cfg(target_os = "linux")]
+pub(crate) fn raw_parse_parent_field(stat: &[u8], pid: i32) -> ParentField {
+    let Some(close) = stat.windows(2).rposition(|window| window == b") ") else {
+        return ParentField::Malformed;
+    };
     let suffix = &stat[close + 2..];
     let mut fields = suffix
         .split(|byte| byte.is_ascii_whitespace())
         .filter(|v| !v.is_empty());
-    fields.next()?;
-    raw_parse_positive(fields.next()?)
+    // Campo de estado.
+    if fields.next().is_none() {
+        return ParentField::Malformed;
+    }
+    let Some(bruto) = fields.next() else {
+        // `stat` truncado antes do campo de pai.
+        return ParentField::Malformed;
+    };
+    match raw_parse_nonnegative(bruto) {
+        // Fronteira raiz do kernel. Não é entrada malformada.
+        Some(0) => ParentField::KernelRoot,
+        Some(1) => ParentField::UserspaceRoot,
+        Some(parent) if parent == pid => ParentField::SelfParent,
+        Some(parent) => ParentField::Pid(parent),
+        // Ausente, não numérico, com sinal, ou fora do inteiro de 32 bits.
+        None => ParentField::Malformed,
+    }
 }
 
 #[cfg(target_os = "linux")]
