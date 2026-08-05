@@ -138,6 +138,23 @@ impl Execucao {
     }
 }
 
+/// Lote que possui uma iteração em curso, se houver.
+///
+/// Um checkout pode conter lotes já concluídos; apenas o lote em execução
+/// carrega um diretório `.running-`.
+fn lote_em_execucao(evidencia: &Path) -> Option<PathBuf> {
+    diretorios_de(&evidencia.join("batches"))
+        .into_iter()
+        .find(|lote| {
+            diretorios_de(lote).iter().any(|caminho| {
+                caminho
+                    .file_name()
+                    .map(|nome| nome.to_string_lossy().starts_with(".running-"))
+                    .unwrap_or(false)
+            })
+        })
+}
+
 fn diretorios_de(raiz: &Path) -> Vec<PathBuf> {
     let Ok(entradas) = fs::read_dir(raiz) else {
         return Vec::new();
@@ -556,19 +573,12 @@ fn interrupcao_preserva_evidencia_e_retorna_130() {
         .expect("iniciar runner");
 
     let evidencia = raiz.join("target/pinker-flake-evidence");
-    let limite = Instant::now() + Duration::from_secs(20);
+    let limite = Instant::now() + Duration::from_secs(30);
     let mut lote_em_curso: Option<PathBuf> = None;
     while Instant::now() < limite {
-        if let Some(lote) = diretorios_de(&evidencia.join("batches")).into_iter().next() {
-            if diretorios_de(&lote).iter().any(|caminho| {
-                caminho
-                    .file_name()
-                    .map(|nome| nome.to_string_lossy().starts_with(".running-"))
-                    .unwrap_or(false)
-            }) {
-                lote_em_curso = Some(lote);
-                break;
-            }
+        if let Some(lote) = lote_em_execucao(&evidencia) {
+            lote_em_curso = Some(lote);
+            break;
         }
         std::thread::sleep(Duration::from_millis(50));
     }
@@ -663,6 +673,7 @@ const EXIT_TRAVADO: i32 = 3;
 struct CampanhaViva {
     filho: std::process::Child,
     evidencia: PathBuf,
+    lote: PathBuf,
 }
 
 impl CampanhaViva {
@@ -677,14 +688,23 @@ impl CampanhaViva {
             .spawn()
             .expect("iniciar campanha proprietária");
         let evidencia = raiz.join("target/pinker-flake-evidence");
-        let limite = Instant::now() + Duration::from_secs(20);
+        // Espera o estado em que os casos afirmam operar: lock adquirido, lote
+        // criado e iteração em curso. Parar no marker deixaria uma janela em
+        // que o lote ainda não existe e o `trap` não teria o que preservar.
+        let limite = Instant::now() + Duration::from_secs(30);
         while Instant::now() < limite {
             if evidencia.join(".lock/owner.marker").is_file() {
-                return Self { filho, evidencia };
+                if let Some(lote) = lote_em_execucao(&evidencia) {
+                    return Self {
+                        filho,
+                        evidencia,
+                        lote,
+                    };
+                }
             }
             std::thread::sleep(Duration::from_millis(20));
         }
-        panic!("campanha proprietária não adquiriu o lock");
+        panic!("campanha proprietária não chegou a executar uma iteração");
     }
 
     fn viva(&mut self) -> bool {
@@ -831,7 +851,16 @@ fn rejeicao_ocorre_antes_de_tocar_resumo_e_antes_do_binario_de_teste() {
     fs::write(&anterior, "resumo verde anterior\n").expect("resumo anterior");
 
     let mut dona = CampanhaViva::iniciar(&raiz, "dona");
-    let lotes_antes = diretorios_de(&evidencia.join("batches")).len();
+    let lotes_antes = diretorios_de(&evidencia.join("batches"));
+    assert_eq!(
+        lotes_antes.len(),
+        1,
+        "apenas o lote da campanha proprietária existe neste ponto"
+    );
+    assert_eq!(
+        lotes_antes[0], dona.lote,
+        "o lote existente é o da proprietária"
+    );
 
     // Binário falso que registra ter sido executado. Se a rejeição vier depois
     // do início do teste, o rastro existe.
@@ -866,7 +895,7 @@ fn rejeicao_ocorre_antes_de_tocar_resumo_e_antes_do_binario_de_teste() {
         "rejeição não pode iniciar o binário de teste"
     );
     assert_eq!(
-        diretorios_de(&evidencia.join("batches")).len(),
+        diretorios_de(&evidencia.join("batches")),
         lotes_antes,
         "rejeição não pode criar lote"
     );
@@ -1180,16 +1209,13 @@ fn caso_sinal_libera_lock(caso: &str, sinal: i32) {
     let raiz = raiz_isolada(caso);
     let dona = CampanhaViva::iniciar(&raiz, "modo");
     let evidencia = raiz.join("target/pinker-flake-evidence");
+    let lote = dona.lote.clone();
     let codigo = dona.encerrar(sinal);
     assert_eq!(codigo, EXIT_INTERROMPIDO, "{caso}: saída de interrupção");
     assert!(
         !evidencia.join(".lock").exists(),
         "{caso}: sinal precisa liberar o lock"
     );
-    let lote = diretorios_de(&evidencia.join("batches"))
-        .into_iter()
-        .next()
-        .expect("lote da campanha interrompida");
     let interrompidos: Vec<PathBuf> = diretorios_de(&lote)
         .into_iter()
         .filter(|caminho| {
