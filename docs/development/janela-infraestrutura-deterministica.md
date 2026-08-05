@@ -49,7 +49,7 @@ janela_auxiliar:
   status: ACTIVE
   completed:
     - Etapa 1 da Issue #414 (PR #420)
-  extraordinary_interruption: HF-9 — remediação de memória pública
+  extraordinary_interruption: HF-9 — memória pública e contenção do host
   next_delivery_after_hotfix_merge: Issue #384 — snapshots e projeções
 
 Eixo_A:
@@ -65,11 +65,12 @@ explícita e temporária de prioridade, com retorno determinado para D2 após o
 encerramento da janela. O Eixo A continua sendo a prioridade funcional soberana:
 qualquer conflito material de escopo ou regressão favorece o Eixo A.
 
-A remediação de memória pública foi autorizada diretamente pela mantenedora
-depois do merge humano da PR #420. É uma interrupção extraordinária de
-estabilidade: não ocupa uma das seis entregas, não altera sua ordem e não inicia
-D2. Depois do merge humano do hotfix, a entrega corrente volta a ser a segunda
-capacidade, snapshots e projeções da Issue #384.
+O HF-9 foi autorizado diretamente pela mantenedora depois do merge humano da
+PR #420. Sua unidade 1 é a memória pública da PR #421; a unidade 2 é a contenção
+do host da PR #422. A interrupção extraordinária não ocupa uma das seis
+entregas, não altera sua ordem e não inicia D2. Depois do merge humano da
+unidade 2, a entrega
+corrente volta a ser a segunda capacidade, snapshots e projeções da Issue #384.
 
 ## Ativação e efeito
 

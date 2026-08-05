@@ -19,8 +19,8 @@
 | Último bloco encerrado | **18** — core nobre e bibliotecas temáticas (Fase 207) |
 | Frente pausada | editor/TUI oficial da Pinker (Fase 136) |
 | Última expansão funcional paralela | **D1 adulta**, concluída pela PR #418 |
-| Trabalho ativo | PR #421 — hotfix extraordinário de memória pública, posterior ao merge da PR #420; revisão e merge exclusivamente humanos |
-| Último hotfix | **HF-9** — alocação pública lazy/proporcional, quatro orçamentos equivalentes, paridade e core zero instalado pelo runtime; não abre Fase nem conta na janela auxiliar |
+| Trabalho ativo | HF-9 unidade 2 — PR #422 de contenção do host posterior ao merge humano da PR #421; revisão e merge exclusivamente humanos |
+| Último hotfix | **HF-9 unidade 1** — PR #421 mergeada; memória pública lazy/proporcional e core zero do runtime. A unidade 2 completa a contenção do host sem abrir Fase nem contar na janela auxiliar |
 
 ### Estado operacional estruturado
 
@@ -47,7 +47,7 @@ janela_auxiliar:
   status: ACTIVE
   completed:
     - Etapa 1 da Issue #414 (PR #420, merge a22735385fde0a55b2cd1b3a010a9a6063600bda)
-  extraordinary_interruption: HF-9 memoria publica
+  extraordinary_interruption: HF-9 unidade 2 PR #422 contencao do host
   next_delivery_after_hotfix_merge: Issue #384 snapshots e projecoes
 D2:
   status: NOT_STARTED

@@ -66,7 +66,7 @@ Conteúdo abaixo é **propriedade da ferramenta** (projeção `state`); não edi
 mão. Regenere com `pink doc sincronizar`.
 
 <!-- @pinker-generated:start engine.state.generated -->
-- Manifestos processados: 9
-- Última mudança: PR #421 — Contenção da memória pública e eliminação da materialização ansiosa (fase —, bloco 20)
+- Manifestos processados: 10
+- Última mudança: PR #422 — Contenção do host para execuções nativas (fase —, bloco 20)
 - Seções implementadas: —
 <!-- @pinker-generated:end engine.state.generated -->

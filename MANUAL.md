@@ -438,6 +438,21 @@ em *recusar deterministicamente* endereço não registrado; eles não concordam
 sobre *quais* endereços fabricados são válidos, e essa parte é intrínseca ao
 modelo de execução, não uma lacuna a fechar.
 
+### Contenção do host nas suítes nativas
+
+A execução nativa de desenvolvimento usa uma autoridade comum com PGID,
+watchdog, timeout, limites de CPU e espaço de endereçamento, captura limitada e
+sandbox marcado sob `target/pinker-exec`. `output()` recebe EOF em stdin e
+captura stdout/stderr por padrão; `status()` herda os três canais e não captura
+saída ocultamente. Configuração explícita de stdio é preservada.
+
+O cleanup é dry-run por padrão, exige `--apply`, não segue symlink e só remove
+`exec-PID-ID` antigo com marcador válido e owner comprovadamente inativo.
+Qualquer ambiguidade em `/proc/PID/stat` preserva o diretório. O runtime Pinker
+instala core zero na entrada; `ci_env.sh` cobre testes Rust, compilador e
+ferramentas externas, preservando o hard limit do operador. O contrato completo
+está em `docs/development/native-execution-host-containment.md`.
+
 Os registros de região, vida e próxima identidade pertencem ao estado interno
 do interpretador, fora do mapa endereçável pelo programa. Assim, casts de
 inteiro para ponteiro não podem observar nem corromper metadata do allocator.

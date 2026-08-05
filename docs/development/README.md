@@ -75,6 +75,8 @@ janela auxiliar autorizada pela Issue #417 tem autoridade operacional própria e
 
 - `runtime-public-memory-containment.md` — contrato de memória pública,
   reprodução segura, demand paging, orçamentos e paridade;
+- `native-execution-host-containment.md` — autoridade de processos, stdio,
+  sandboxes, cleanup, proveniência e proteção de core da esteira;
 
 | Necessidade | Documento |
 |---|---|

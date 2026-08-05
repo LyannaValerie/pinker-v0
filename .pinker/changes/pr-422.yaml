@@ -1,0 +1,20 @@
+schema: 1
+source:
+  type: github-pr
+  number: 422
+  repository: "LyannaValerie/pinker-v0"
+kind: hotfix
+block: 20
+title: "Contenção do host para execuções nativas"
+area:
+  - testing.native-execution
+  - development.host-containment
+  - runtime.process-lifecycle
+status: completed
+updates:
+  state: true
+  history: true
+  roadmap: false
+validation:
+  required:
+    - make ci

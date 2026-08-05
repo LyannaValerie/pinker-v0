@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: preflight build check test fmt-check clippy doc-check guard change-history-check ci run-example check-example audit-example smoke docs-sync docs-check nav-sync nav-check
+.PHONY: preflight build check test fmt-check clippy doc-check guard change-history-check ci run-example check-example audit-example smoke docs-sync docs-check nav-sync nav-check cleanup-native
 
 CI_ENV := ./ci_env.sh
 
@@ -48,6 +48,10 @@ nav-sync:
 
 nav-check:
 	$(CI_ENV) cargo run --bin pink -- nav verificar
+
+# Inspeção conservadora; remoção exige `scripts/pinker-cleanup.sh --apply` explícito.
+cleanup-native:
+	$(CI_ENV) scripts/pinker-cleanup.sh --dry-run
 
 ci: preflight build check test fmt-check clippy doc-check guard docs-check nav-check change-history-check
 
