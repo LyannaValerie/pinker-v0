@@ -345,6 +345,65 @@ Interrupção é preservada, não apagada: o `trap` encerra o controlador `setsi
 pela identidade revalidada, promove o diretório em curso a `INTERRUPTED-*` e
 sai com `130`. Uma iteração interrompida nunca é contada como concluída.
 
+### Exclusividade por checkout
+
+Proibição operacional não é correção. Duas campanhas sobre o mesmo `target`
+compartilhavam progresso, resumo, sandboxes, markers e arquivos auxiliares, e o
+runner removia `PROGRESS-<mode>.txt` e `SUMMARY-<mode>.txt` no início de cada
+lote: a segunda destruía a evidência da primeira e podia terminar verde
+escondendo as iterações falhadas da outra. A autoridade passa a **impedir
+tecnicamente** a concorrência.
+
+Somente uma instância do runner opera sobre o `target` de um checkout por vez,
+independentemente de mode, filtro ou número de threads. A aquisição é um
+`mkdir` de `target/pinker-flake-evidence/.lock`, atômico em POSIX e sem
+depender de `flock`, ausente na Forja. O lock carrega um marker de campos
+fechados e ordenados: `schema`, `runner_pid`, `runner_start_time`, `mode`,
+`head_git`, `created_at_unix` e `batch_id`. Linha faltando, linha sobrando,
+chave fora de ordem, chave repetida ou valor fora do domínio tornam o marker
+inválido, e marker inválido falha fechado.
+
+Diante de um lock existente, a decisão nunca vem do nome. O runner exige
+diretório real — symlink é recusado —, valida o marker estritamente e
+classifica a identidade do proprietário pela mesma autoridade usada no resto da
+contenção:
+
+- `live`: PID existe e o start time confere. A segunda campanha é rejeitada com
+  saída não zero e diagnóstico determinístico, **antes** de remover resumo,
+  criar progresso, iniciar teste ou tocar `target/pinker-exec`. Não há espera
+  silenciosa, não há retry automático e a campanha proprietária não é
+  sinalizada;
+- `missing` ou `reused`: prova positiva de que a campanha proprietária
+  terminou. O lock obsoleto é recuperado por transação que revalida o marker
+  imediatamente antes de removê-lo; identidade divergente nesse intervalo
+  preserva o lock;
+- `unknown`: falha fechada e preservação. Identidade não provada jamais
+  autoriza remoção.
+
+O lock é liberado em sucesso, falha comum, erro posterior à aquisição, `SIGINT`,
+`SIGTERM` e `SIGHUP`. Antes de liberar, o runner revalida diretório, marker e
+identidade, e remove somente o lock desta instância. `SIGKILL` não executa trap
+algum: é justamente por isso que o marker registra identidade suficiente para
+que uma campanha posterior classifique o lock deixado para trás e o recupere.
+
+### Namespace de lote e projeções legadas
+
+Cada campanha possui identificador próprio e diretório exclusivo em
+`target/pinker-flake-evidence/batches/<batch-id>/`, contendo manifesto,
+progresso, resumo e as evidências das iterações. **A autoridade do resultado é
+esse diretório.**
+
+`PROGRESS-<mode>.txt` e `SUMMARY-<mode>.txt` deixam de ser autoridade e passam
+a ser projeção do último lote concluído. Nunca são removidos no início; são
+publicados apenas ao final, por temporário e rename atômico, e carregam
+`batch_id`, `head_sha`, `authority` e `projection=last-completed-batch`. Um
+leitor nunca observa arquivo parcial.
+
+Disso decorrem duas garantias que o incidente violava: uma campanha
+interrompida não chega à publicação e portanto **não substitui o último resumo
+completo**; e uma campanha falhada publica o resumo falhado do próprio lote,
+com `failures` maior que zero, sem poder herdar o verde de outra.
+
 ### Recuperação de quarentena
 
 Uma quarentena interrompida deixava diretório órfão sem autoridade que o
@@ -456,6 +515,23 @@ final da campanha: zero processos residuais, zero sandboxes residuais e nenhum
 diretório de evidência — sucesso não preserva evidência indevida. O teste de
 sensibilidade passou e as fontes foram restauradas byte a byte, com árvore
 limpa e delta temporário vazio.
+
+Essa campanha valida a **contenção**, cujo código não mudou desde então. A
+exclusividade por checkout e o namespace de lote pertencem ao runner de
+evidência e são validados por uma campanha representativa curta, executada com
+o runner novo sobre o mesmo binário de teste:
+
+- 5 focadas sequenciais: 5/5, 180 testes, 87.970 ms;
+- 5 focadas com threads padrão: 5/5, 180 testes, 38.359 ms;
+- arquivo completo, um thread: 1/1, 45 testes, 23.962 ms;
+- arquivo completo, threads padrão: 1/1, 45 testes, 7.926 ms.
+
+Cada grupo produziu o próprio lote, com manifesto e resumo exclusivos, e
+liberou o lock ao terminar; zero processos e zero sandboxes residuais. Com uma
+campanha proprietária em andamento sobre o checkout real, uma segunda campanha
+foi rejeitada com saída `3` e diagnóstico nomeando `owner_pid`,
+`owner_start_time` e `identity=live`, sem tocar a projeção do lote anterior e
+sem afetar a campanha proprietária, que seguiu até o fim com saída zero.
 
 ## Política de core da esteira
 

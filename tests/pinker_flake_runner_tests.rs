@@ -67,7 +67,13 @@ fn binario_falso_com_atraso(
     codigo: i32,
     atraso_segundos: u64,
 ) -> PathBuf {
-    let caminho = raiz.join("harness-falso.sh");
+    // Cada binário falso recebe caminho próprio. Reescrever um arquivo ainda
+    // em execução produz `ETXTBSY`, e um caso que mantém campanha proprietária
+    // viva precisa poder criar um segundo binário sem tocar o primeiro.
+    let caminho = raiz.join(format!(
+        "harness-falso-{}.sh",
+        SEQUENCIA.fetch_add(1, Ordering::Relaxed)
+    ));
     let mut arquivo = fs::File::create(&caminho).expect("criar binário falso");
     writeln!(arquivo, "#!/usr/bin/env bash").expect("escrever");
     if atraso_segundos > 0 {
@@ -104,18 +110,45 @@ impl Execucao {
         fs::read_to_string(self.evidencia().join(format!("SUMMARY-{modo}.txt"))).ok()
     }
 
+    /// Diretórios de lote sob `batches/`.
+    ///
+    /// Cada campanha possui o seu, e a autoridade do resultado vive ali. Os
+    /// caminhos legados por `mode` são projeção do último lote concluído.
+    fn lotes(&self) -> Vec<PathBuf> {
+        diretorios_de(&self.evidencia().join("batches"))
+    }
+
+    fn lote_unico(&self) -> PathBuf {
+        let lotes = self.lotes();
+        assert_eq!(lotes.len(), 1, "esperado exatamente um lote: {lotes:?}");
+        lotes.into_iter().next().expect("lote")
+    }
+
+    /// Evidências de iteração preservadas dentro do lote.
     fn diretorios_preservados(&self) -> Vec<PathBuf> {
-        let Ok(entradas) = fs::read_dir(self.evidencia()) else {
+        let lotes = self.lotes();
+        let Some(lote) = lotes.last() else {
             return Vec::new();
         };
-        let mut encontrados: Vec<PathBuf> = entradas
-            .flatten()
-            .filter(|entrada| entrada.path().is_dir())
-            .map(|entrada| entrada.path())
-            .collect();
-        encontrados.sort();
-        encontrados
+        diretorios_de(lote)
     }
+
+    fn lock(&self) -> PathBuf {
+        self.evidencia().join(".lock")
+    }
+}
+
+fn diretorios_de(raiz: &Path) -> Vec<PathBuf> {
+    let Ok(entradas) = fs::read_dir(raiz) else {
+        return Vec::new();
+    };
+    let mut encontrados: Vec<PathBuf> = entradas
+        .flatten()
+        .filter(|entrada| entrada.path().is_dir())
+        .map(|entrada| entrada.path())
+        .collect();
+    encontrados.sort();
+    encontrados
 }
 
 fn executar(raiz: &Path, argumentos: &[&str], ambiente: &[(&str, &str)]) -> Execucao {
@@ -524,22 +557,26 @@ fn interrupcao_preserva_evidencia_e_retorna_130() {
 
     let evidencia = raiz.join("target/pinker-flake-evidence");
     let limite = Instant::now() + Duration::from_secs(20);
-    let mut iniciou = false;
+    let mut lote_em_curso: Option<PathBuf> = None;
     while Instant::now() < limite {
-        if let Ok(entradas) = fs::read_dir(&evidencia) {
-            if entradas.flatten().any(|entrada| {
-                entrada
+        if let Some(lote) = diretorios_de(&evidencia.join("batches")).into_iter().next() {
+            if diretorios_de(&lote).iter().any(|caminho| {
+                caminho
                     .file_name()
-                    .to_string_lossy()
-                    .starts_with(".running-")
+                    .map(|nome| nome.to_string_lossy().starts_with(".running-"))
+                    .unwrap_or(false)
             }) {
-                iniciou = true;
+                lote_em_curso = Some(lote);
                 break;
             }
         }
         std::thread::sleep(Duration::from_millis(50));
     }
-    assert!(iniciou, "iteração não chegou a iniciar");
+    let lote = lote_em_curso.expect("iteração não chegou a iniciar");
+    assert!(
+        evidencia.join(".lock/owner.marker").is_file(),
+        "campanha em andamento precisa deter o lock"
+    );
 
     let pid = filho.id() as i32;
     // SIGINT no runner, exatamente como uma interrupção de terminal.
@@ -556,22 +593,27 @@ fn interrupcao_preserva_evidencia_e_retorna_130() {
         "interrupção deve retornar 130"
     );
 
-    let preservados: Vec<PathBuf> = fs::read_dir(&evidencia)
-        .expect("ler evidência")
-        .flatten()
-        .map(|entrada| entrada.path())
+    let preservados: Vec<PathBuf> = diretorios_de(&lote)
+        .into_iter()
         .filter(|caminho| {
-            caminho.is_dir()
-                && caminho
-                    .file_name()
-                    .map(|nome| nome.to_string_lossy().starts_with("INTERRUPTED-"))
-                    .unwrap_or(false)
+            caminho
+                .file_name()
+                .map(|nome| nome.to_string_lossy().starts_with("INTERRUPTED-"))
+                .unwrap_or(false)
         })
         .collect();
     assert_eq!(
         preservados.len(),
         1,
         "interrupção preserva exatamente um diretório: {preservados:?}"
+    );
+    assert!(
+        !evidencia.join(".lock").exists(),
+        "SIGINT precisa liberar o lock"
+    );
+    assert!(
+        !evidencia.join("SUMMARY-modo.txt").exists(),
+        "lote interrompido nunca publica projeção legada"
     );
     let manifesto =
         fs::read_to_string(preservados[0].join("manifest.txt")).expect("manifesto da interrupção");
@@ -596,4 +638,789 @@ fn evidencia_permanece_na_raiz_persistente_do_repositorio() {
         "a evidência precisa continuar ancorada na raiz do repositório"
     );
     let _ = SystemTime::now().duration_since(UNIX_EPOCH);
+}
+
+// ---------------------------------------------------------------------------
+// Exclusividade por checkout e namespace de lote.
+//
+// Duas campanhas sobre o mesmo `target` compartilhavam progresso, resumo,
+// sandboxes e arquivos auxiliares, e o runner removia `PROGRESS-<mode>.txt` e
+// `SUMMARY-<mode>.txt` no início de cada lote. A segunda campanha destruía a
+// evidência da primeira e podia terminar verde escondendo as iterações
+// falhadas da outra. Ocorreu de fato durante a correção da PR 422.
+//
+// Nenhuma destas regressões executa campanha longa: o harness é um binário
+// falso, e a campanha proprietária só precisa permanecer viva o suficiente
+// para que a segunda seja rejeitada.
+// ---------------------------------------------------------------------------
+
+const EXIT_TRAVADO: i32 = 3;
+
+/// Campanha proprietária viva, controlada pelo teste.
+///
+/// Mantém o lock enquanto o binário falso dorme, e é encerrada por sinal
+/// explícito ao final do caso.
+struct CampanhaViva {
+    filho: std::process::Child,
+    evidencia: PathBuf,
+}
+
+impl CampanhaViva {
+    fn iniciar(raiz: &Path, modo: &str) -> Self {
+        let binario = binario_falso_com_atraso(raiz, RESUMO_COM_TESTE, 0, 60);
+        let filho = Command::new(raiz.join("scripts/pinker-flake-runner.sh"))
+            .args([modo, "1"])
+            .env("PINKER_FLAKE_TEST_BINARY", &binario)
+            .env_remove("PINKER_FLAKE_RUN_TIMEOUT_SECONDS")
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("iniciar campanha proprietária");
+        let evidencia = raiz.join("target/pinker-flake-evidence");
+        let limite = Instant::now() + Duration::from_secs(20);
+        while Instant::now() < limite {
+            if evidencia.join(".lock/owner.marker").is_file() {
+                return Self { filho, evidencia };
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        panic!("campanha proprietária não adquiriu o lock");
+    }
+
+    fn viva(&mut self) -> bool {
+        matches!(self.filho.try_wait(), Ok(None))
+    }
+
+    fn marker(&self) -> String {
+        fs::read_to_string(self.evidencia.join(".lock/owner.marker")).expect("marker do lock")
+    }
+
+    fn encerrar(mut self, sinal: i32) -> i32 {
+        enviar_sinal(self.filho.id() as i32, sinal);
+        let status = self.filho.wait().expect("aguardar campanha proprietária");
+        status.code().unwrap_or(-1)
+    }
+}
+
+fn enviar_sinal(pid: i32, sinal: i32) {
+    unsafe {
+        extern "C" {
+            fn kill(pid: i32, sinal: i32) -> i32;
+        }
+        assert_eq!(kill(pid, sinal), 0, "enviar sinal {sinal} para {pid}");
+    }
+}
+
+fn campo_do_marker(marker: &str, chave: &str) -> String {
+    marker
+        .lines()
+        .find_map(|linha| linha.strip_prefix(&format!("{chave}: ")))
+        .unwrap_or_else(|| panic!("marker sem campo {chave}: {marker}"))
+        .to_string()
+}
+
+/// Escreve um lock cujo proprietário é uma identidade escolhida pelo teste.
+fn plantar_lock(evidencia: &Path, marker: &str) {
+    let lock = evidencia.join(".lock");
+    fs::create_dir_all(&lock).expect("criar lock plantado");
+    fs::write(lock.join("owner.marker"), marker).expect("escrever marker plantado");
+}
+
+fn marker_valido(pid: &str, start: &str, modo: &str, lote: &str) -> String {
+    format!(
+        "schema: 1\nrunner_pid: {pid}\nrunner_start_time: {start}\nmode: {modo}\n\
+         head_git: unknown\ncreated_at_unix: 1700000000\nbatch_id: {lote}\n"
+    )
+}
+
+/// PID livre e o start time que o tornaria `Missing`.
+///
+/// Usa um processo curto já encerrado e recolhido: o número deixou de nomear
+/// processo algum, que é exatamente a classe `Missing`.
+fn pid_encerrado() -> i32 {
+    let mut filho = Command::new("/bin/true")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("processo curto");
+    let pid = filho.id() as i32;
+    filho.wait().expect("recolher processo curto");
+    pid
+}
+
+fn executar_com_lock(raiz: &Path, modo: &str) -> Execucao {
+    let binario = binario_falso(raiz, RESUMO_COM_TESTE, 0);
+    executar(
+        raiz,
+        &[modo, "1"],
+        &[("PINKER_FLAKE_TEST_BINARY", binario.to_str().expect("utf-8"))],
+    )
+}
+
+// --- aquisição, rejeição e integridade da campanha proprietária ------------
+
+#[test]
+fn primeira_campanha_adquire_o_lock_com_marker_completo() {
+    let raiz = raiz_isolada("lock-adquire");
+    let mut dona = CampanhaViva::iniciar(&raiz, "dona");
+    let marker = dona.marker();
+    for chave in [
+        "schema",
+        "runner_pid",
+        "runner_start_time",
+        "mode",
+        "head_git",
+        "created_at_unix",
+        "batch_id",
+    ] {
+        assert!(
+            marker.contains(&format!("{chave}: ")),
+            "marker sem {chave}: {marker}"
+        );
+    }
+    assert_eq!(campo_do_marker(&marker, "mode"), "dona");
+    assert_eq!(campo_do_marker(&marker, "schema"), "1");
+    assert_eq!(
+        campo_do_marker(&marker, "runner_pid"),
+        dona.filho.id().to_string()
+    );
+    assert!(dona.viva());
+    dona.encerrar(15);
+    let _ = fs::remove_dir_all(&raiz);
+}
+
+#[test]
+fn segunda_campanha_no_mesmo_checkout_e_rejeitada() {
+    let raiz = raiz_isolada("lock-rejeita");
+    let mut dona = CampanhaViva::iniciar(&raiz, "dona");
+    let segunda = executar_com_lock(&raiz, "dona");
+    assert_eq!(
+        segunda.codigo, EXIT_TRAVADO,
+        "stderr={}",
+        segunda.saida_erro
+    );
+    assert!(
+        segunda.saida_erro.contains("campanha concorrente"),
+        "diagnóstico determinístico ausente: {}",
+        segunda.saida_erro
+    );
+    assert!(segunda.saida_erro.contains("identity=live"));
+    assert!(dona.viva(), "campanha proprietária precisa seguir intacta");
+    dona.encerrar(15);
+    let _ = fs::remove_dir_all(&raiz);
+}
+
+#[test]
+fn segunda_campanha_com_mode_diferente_tambem_e_rejeitada() {
+    // O lock é do checkout, não do mode: nenhum par de modes pode coexistir.
+    let raiz = raiz_isolada("lock-mode-diferente");
+    let mut dona = CampanhaViva::iniciar(&raiz, "dona");
+    let segunda = executar_com_lock(&raiz, "outro");
+    assert_eq!(segunda.codigo, EXIT_TRAVADO);
+    assert!(dona.viva());
+    dona.encerrar(15);
+    let _ = fs::remove_dir_all(&raiz);
+}
+
+#[test]
+fn rejeicao_ocorre_antes_de_tocar_resumo_e_antes_do_binario_de_teste() {
+    let raiz = raiz_isolada("lock-antes-de-tudo");
+    let evidencia = raiz.join("target/pinker-flake-evidence");
+    fs::create_dir_all(&evidencia).expect("criar evidência");
+    let anterior = evidencia.join("SUMMARY-outro.txt");
+    fs::write(&anterior, "resumo verde anterior\n").expect("resumo anterior");
+
+    let mut dona = CampanhaViva::iniciar(&raiz, "dona");
+    let lotes_antes = diretorios_de(&evidencia.join("batches")).len();
+
+    // Binário falso que registra ter sido executado. Se a rejeição vier depois
+    // do início do teste, o rastro existe.
+    let sentinela = raiz.join("executou.txt");
+    let binario = raiz.join("harness-sentinela.sh");
+    fs::write(
+        &binario,
+        format!(
+            "#!/usr/bin/env bash\nprintf 'sim\\n' > {}\nexit 0\n",
+            sentinela.display()
+        ),
+    )
+    .expect("escrever sentinela");
+    let mut permissoes = fs::metadata(&binario).expect("metadados").permissions();
+    permissoes.set_mode(0o755);
+    fs::set_permissions(&binario, permissoes).expect("permissões");
+
+    let segunda = executar(
+        &raiz,
+        &["outro", "1"],
+        &[("PINKER_FLAKE_TEST_BINARY", binario.to_str().expect("utf-8"))],
+    );
+
+    assert_eq!(segunda.codigo, EXIT_TRAVADO);
+    assert_eq!(
+        fs::read_to_string(&anterior).expect("ler resumo anterior"),
+        "resumo verde anterior\n",
+        "rejeição não pode tocar resumo existente"
+    );
+    assert!(
+        !sentinela.exists(),
+        "rejeição não pode iniciar o binário de teste"
+    );
+    assert_eq!(
+        diretorios_de(&evidencia.join("batches")).len(),
+        lotes_antes,
+        "rejeição não pode criar lote"
+    );
+    assert!(dona.viva());
+    dona.encerrar(15);
+    let _ = fs::remove_dir_all(&raiz);
+}
+
+#[test]
+fn lock_vivo_e_preservado_pela_campanha_rejeitada() {
+    let raiz = raiz_isolada("lock-preserva-vivo");
+    let dona = CampanhaViva::iniciar(&raiz, "dona");
+    let marker_antes = dona.marker();
+    let segunda = executar_com_lock(&raiz, "outro");
+    assert_eq!(segunda.codigo, EXIT_TRAVADO);
+    assert_eq!(
+        dona.marker(),
+        marker_antes,
+        "o lock da campanha viva não pode ser alterado"
+    );
+    dona.encerrar(15);
+    let _ = fs::remove_dir_all(&raiz);
+}
+
+// --- classificação de identidade do proprietário --------------------------
+
+#[test]
+fn lock_com_proprietario_missing_e_recuperado() {
+    let raiz = raiz_isolada("lock-missing");
+    let evidencia = raiz.join("target/pinker-flake-evidence");
+    fs::create_dir_all(&evidencia).expect("criar evidência");
+    plantar_lock(
+        &evidencia,
+        &marker_valido(&pid_encerrado().to_string(), "12345", "morta", "lote-morto"),
+    );
+
+    let execucao = executar_com_lock(&raiz, "nova");
+    assert_eq!(execucao.codigo, 0, "stderr={}", execucao.saida_erro);
+    assert!(
+        execucao.saida_erro.contains("lock obsoleto recuperado"),
+        "recuperação precisa ser explícita: {}",
+        execucao.saida_erro
+    );
+    assert!(!execucao.lock().exists(), "lock liberado ao final");
+    let _ = fs::remove_dir_all(&raiz);
+}
+
+#[test]
+fn lock_com_proprietario_reused_e_recuperado() {
+    // O PID existe, mas com outro start time: o número foi herdado por um
+    // processo alheio e a campanha proprietária já terminou.
+    let raiz = raiz_isolada("lock-reused");
+    let evidencia = raiz.join("target/pinker-flake-evidence");
+    fs::create_dir_all(&evidencia).expect("criar evidência");
+    plantar_lock(
+        &evidencia,
+        &marker_valido(&std::process::id().to_string(), "1", "morta", "lote-morto"),
+    );
+
+    let execucao = executar_com_lock(&raiz, "nova");
+    assert_eq!(execucao.codigo, 0, "stderr={}", execucao.saida_erro);
+    assert!(execucao.saida_erro.contains("lock obsoleto recuperado"));
+    assert!(!execucao.lock().exists());
+    let _ = fs::remove_dir_all(&raiz);
+}
+
+fn classificar(pid: &str, start: &str) -> String {
+    let runner = caminho_do_runner();
+    let script = format!(
+        "PINKER_FLAKE_LIB_ONLY=1 source {}; pinker_flake_classify_identity {} {}",
+        runner.display(),
+        aspas_simples(pid),
+        aspas_simples(start)
+    );
+    let saida = Command::new("bash")
+        .arg("-c")
+        .arg(script)
+        .output()
+        .expect("executar classificador");
+    String::from_utf8_lossy(&saida.stdout).trim().to_string()
+}
+
+#[test]
+fn classificacao_de_identidade_distingue_as_quatro_classes() {
+    let proprio = std::process::id().to_string();
+    let start_proprio = fs::read_to_string(format!("/proc/{proprio}/stat"))
+        .expect("stat do próprio processo")
+        .rsplit_once(") ")
+        .map(|(_, resto)| {
+            resto
+                .split_whitespace()
+                .nth(19)
+                .expect("campo starttime")
+                .to_string()
+        })
+        .expect("recorte do stat");
+
+    assert_eq!(classificar(&proprio, &start_proprio), "live");
+    assert_eq!(
+        classificar(&proprio, "1"),
+        "reused",
+        "mesmo PID com outro start time é número herdado"
+    );
+    assert_eq!(classificar(&pid_encerrado().to_string(), "1"), "missing");
+
+    // `unknown` é a classe que nunca autoriza remoção. No caminho real ela
+    // exige `/proc` inacessível, o que não é fabricável nesta VM; a autoridade
+    // é provada diretamente sobre a função.
+    assert_eq!(classificar("0", "1"), "unknown", "PID não positivo");
+    assert_eq!(classificar("-1", "1"), "unknown");
+    assert_eq!(classificar("abc", "1"), "unknown");
+    assert_eq!(
+        classificar(&proprio, "abc"),
+        "unknown",
+        "start time ilegível"
+    );
+    assert_eq!(classificar("", ""), "unknown");
+}
+
+#[test]
+fn identidade_desconhecida_falha_fechada_e_preserva() {
+    // Somente `missing` e `reused` são provas positivas de que a campanha
+    // proprietária terminou. `unknown` precisa preservar, e o mapeamento vive
+    // em um único ponto da autoridade.
+    let fonte = fs::read_to_string(caminho_do_runner()).expect("ler runner");
+    let recuperaveis = fonte
+        .lines()
+        .filter(|linha| linha.trim_start().starts_with("missing|reused)"))
+        .count();
+    assert_eq!(
+        recuperaveis, 1,
+        "a recuperação precisa ter exatamente um ponto de entrada"
+    );
+    assert!(
+        fonte.contains("identidade do proprietario desconhecida, falha fechada"),
+        "identidade desconhecida precisa falhar fechada"
+    );
+    assert!(
+        fonte.contains("identity=unknown"),
+        "o diagnóstico precisa nomear a classe observada"
+    );
+}
+
+// --- integridade estrita do marker ----------------------------------------
+
+fn caso_marker_invalido(caso: &str, conteudo: Option<&str>) {
+    let raiz = raiz_isolada(caso);
+    let evidencia = raiz.join("target/pinker-flake-evidence");
+    fs::create_dir_all(evidencia.join(".lock")).expect("criar lock");
+    if let Some(texto) = conteudo {
+        fs::write(evidencia.join(".lock/owner.marker"), texto).expect("marker");
+    }
+    let execucao = executar_com_lock(&raiz, "nova");
+    assert_eq!(
+        execucao.codigo, EXIT_TRAVADO,
+        "{caso}: marker inválido falha fechada; stderr={}",
+        execucao.saida_erro
+    );
+    assert!(
+        execucao.saida_erro.contains("invalido") || execucao.saida_erro.contains("inválido"),
+        "{caso}: diagnóstico ausente; stderr={}",
+        execucao.saida_erro
+    );
+    assert!(execucao.lock().exists(), "{caso}: lock preservado");
+    let _ = fs::remove_dir_all(&raiz);
+}
+
+#[test]
+fn marker_ausente_falha_fechado() {
+    caso_marker_invalido("marker-ausente", None);
+}
+
+#[test]
+fn marker_truncado_falha_fechado() {
+    caso_marker_invalido(
+        "marker-truncado",
+        Some("schema: 1\nrunner_pid: 1\nrunner_start_time: 2\n"),
+    );
+}
+
+#[test]
+fn marker_com_campo_extra_falha_fechado() {
+    let mut texto = marker_valido("1", "2", "modo", "lote");
+    texto.push_str("extra: 1\n");
+    caso_marker_invalido("marker-extra", Some(&texto));
+}
+
+#[test]
+fn marker_com_campo_duplicado_falha_fechado() {
+    let texto = "schema: 1\nrunner_pid: 1\nrunner_pid: 2\nrunner_start_time: 2\nmode: modo\n\
+                 head_git: unknown\ncreated_at_unix: 1\nbatch_id: lote\n";
+    caso_marker_invalido("marker-duplicado", Some(texto));
+}
+
+#[test]
+fn marker_fora_de_ordem_falha_fechado() {
+    let texto = "runner_pid: 1\nschema: 1\nrunner_start_time: 2\nmode: modo\n\
+                 head_git: unknown\ncreated_at_unix: 1\nbatch_id: lote\n";
+    caso_marker_invalido("marker-ordem", Some(texto));
+}
+
+#[test]
+fn lock_symlink_e_rejeitado() {
+    let raiz = raiz_isolada("lock-symlink");
+    let evidencia = raiz.join("target/pinker-flake-evidence");
+    fs::create_dir_all(&evidencia).expect("criar evidência");
+    let alvo = raiz.join("alvo-do-symlink");
+    fs::create_dir_all(&alvo).expect("criar alvo");
+    std::os::unix::fs::symlink(&alvo, evidencia.join(".lock")).expect("criar symlink");
+
+    let execucao = executar_com_lock(&raiz, "nova");
+    assert_eq!(
+        execucao.codigo, EXIT_TRAVADO,
+        "stderr={}",
+        execucao.saida_erro
+    );
+    assert!(
+        execucao.saida_erro.contains("symlink"),
+        "stderr={}",
+        execucao.saida_erro
+    );
+    assert!(
+        evidencia.join(".lock").symlink_metadata().is_ok(),
+        "symlink preservado, nunca removido pelo nome"
+    );
+    let _ = fs::remove_dir_all(&raiz);
+}
+
+#[test]
+fn troca_de_identidade_antes_da_remocao_preserva_o_lock() {
+    // O gancho substitui o marker exatamente entre a classificação e a
+    // remoção. O lock deixa de ser o objeto validado e precisa sobreviver.
+    let raiz = raiz_isolada("lock-troca-identidade");
+    let evidencia = raiz.join("target/pinker-flake-evidence");
+    fs::create_dir_all(&evidencia).expect("criar evidência");
+    plantar_lock(
+        &evidencia,
+        &marker_valido(&pid_encerrado().to_string(), "999", "morta", "lote-morto"),
+    );
+
+    let gancho = raiz.join("gancho.sh");
+    let substituto = marker_valido("1", "1", "outra", "lote-outro");
+    fs::write(
+        &gancho,
+        format!(
+            "#!/usr/bin/env bash\nprintf '%s' {} > \"$2/owner.marker\"\nexit 0\n",
+            aspas_simples(&substituto)
+        ),
+    )
+    .expect("escrever gancho");
+    let mut permissoes = fs::metadata(&gancho).expect("metadados").permissions();
+    permissoes.set_mode(0o755);
+    fs::set_permissions(&gancho, permissoes).expect("permissões do gancho");
+
+    let binario = binario_falso(&raiz, RESUMO_COM_TESTE, 0);
+    let execucao = executar(
+        &raiz,
+        &["nova", "1"],
+        &[
+            ("PINKER_FLAKE_TEST_BINARY", binario.to_str().expect("utf-8")),
+            ("PINKER_FLAKE_TEST_HOOK", gancho.to_str().expect("utf-8")),
+        ],
+    );
+
+    assert_eq!(
+        execucao.codigo, EXIT_TRAVADO,
+        "stderr={}",
+        execucao.saida_erro
+    );
+    assert!(
+        execucao.lock().join("owner.marker").is_file(),
+        "identidade divergente preserva o lock"
+    );
+    assert_eq!(
+        fs::read_to_string(execucao.lock().join("owner.marker")).expect("marker"),
+        substituto,
+        "o lock preservado é o novo, não o validado"
+    );
+    let _ = fs::remove_dir_all(&raiz);
+}
+
+// --- liberação -------------------------------------------------------------
+
+#[test]
+fn sucesso_libera_o_lock() {
+    let raiz = raiz_isolada("lock-libera-sucesso");
+    let execucao = executar_com_lock(&raiz, "modo");
+    assert_eq!(execucao.codigo, 0, "stderr={}", execucao.saida_erro);
+    assert!(!execucao.lock().exists(), "sucesso precisa liberar o lock");
+    let _ = fs::remove_dir_all(&raiz);
+}
+
+#[test]
+fn falha_libera_o_lock() {
+    let raiz = raiz_isolada("lock-libera-falha");
+    let binario = binario_falso(&raiz, SEM_RESUMO, 0);
+    let execucao = executar(
+        &raiz,
+        &["modo", "1"],
+        &[("PINKER_FLAKE_TEST_BINARY", binario.to_str().expect("utf-8"))],
+    );
+    assert_eq!(execucao.codigo, EXIT_FALHAS);
+    assert!(
+        !execucao.lock().exists(),
+        "falha comum também libera o lock"
+    );
+    let _ = fs::remove_dir_all(&raiz);
+}
+
+fn caso_sinal_libera_lock(caso: &str, sinal: i32) {
+    let raiz = raiz_isolada(caso);
+    let dona = CampanhaViva::iniciar(&raiz, "modo");
+    let evidencia = raiz.join("target/pinker-flake-evidence");
+    let codigo = dona.encerrar(sinal);
+    assert_eq!(codigo, EXIT_INTERROMPIDO, "{caso}: saída de interrupção");
+    assert!(
+        !evidencia.join(".lock").exists(),
+        "{caso}: sinal precisa liberar o lock"
+    );
+    let lote = diretorios_de(&evidencia.join("batches"))
+        .into_iter()
+        .next()
+        .expect("lote da campanha interrompida");
+    let interrompidos: Vec<PathBuf> = diretorios_de(&lote)
+        .into_iter()
+        .filter(|caminho| {
+            caminho
+                .file_name()
+                .map(|nome| nome.to_string_lossy().starts_with("INTERRUPTED-"))
+                .unwrap_or(false)
+        })
+        .collect();
+    assert_eq!(
+        interrompidos.len(),
+        1,
+        "{caso}: evidência da interrupção preservada: {interrompidos:?}"
+    );
+    assert!(
+        !evidencia.join("SUMMARY-modo.txt").exists(),
+        "{caso}: lote interrompido não publica projeção legada"
+    );
+    let _ = fs::remove_dir_all(&raiz);
+}
+
+#[test]
+fn sigint_libera_o_lock_e_preserva_evidencia() {
+    caso_sinal_libera_lock("lock-sigint", 2);
+}
+
+#[test]
+fn sigterm_libera_o_lock_e_preserva_evidencia() {
+    caso_sinal_libera_lock("lock-sigterm", 15);
+}
+
+#[test]
+fn lock_deixado_por_sigkill_e_recuperavel() {
+    // SIGKILL não executa trap: o lock sobrevive ao proprietário. A identidade
+    // registrada é o que permite a uma campanha posterior classificá-lo.
+    let raiz = raiz_isolada("lock-sigkill");
+    let dona = CampanhaViva::iniciar(&raiz, "morta");
+    let evidencia = raiz.join("target/pinker-flake-evidence");
+    dona.encerrar(9);
+    assert!(
+        evidencia.join(".lock/owner.marker").is_file(),
+        "SIGKILL deixa o lock para trás"
+    );
+
+    let seguinte = executar_com_lock(&raiz, "seguinte");
+    assert_eq!(seguinte.codigo, 0, "stderr={}", seguinte.saida_erro);
+    assert!(seguinte.saida_erro.contains("lock obsoleto recuperado"));
+    assert!(!evidencia.join(".lock").exists());
+    let _ = fs::remove_dir_all(&raiz);
+}
+
+// --- namespace de lote e projeção legada ----------------------------------
+
+#[test]
+fn cada_lote_possui_namespace_exclusivo() {
+    let raiz = raiz_isolada("lote-exclusivo");
+    let execucao = executar_com_lock(&raiz, "modo");
+    assert_eq!(execucao.codigo, 0);
+    let lote = execucao.lote_unico();
+    for exigido in ["MANIFEST.txt", "PROGRESS.txt", "SUMMARY.txt"] {
+        assert!(
+            lote.join(exigido).is_file(),
+            "lote sem {exigido}: {}",
+            lote.display()
+        );
+    }
+    let _ = fs::remove_dir_all(&raiz);
+}
+
+#[test]
+fn dois_lotes_sequenciais_mantem_manifests_proprios() {
+    let raiz = raiz_isolada("lotes-sequenciais");
+    let primeira = executar_com_lock(&raiz, "modo");
+    assert_eq!(primeira.codigo, 0);
+    let segunda = executar_com_lock(&raiz, "modo");
+    assert_eq!(segunda.codigo, 0);
+
+    let lotes = segunda.lotes();
+    assert_eq!(lotes.len(), 2, "dois lotes distintos: {lotes:?}");
+    let mut identificadores = Vec::new();
+    for lote in &lotes {
+        let manifesto = fs::read_to_string(lote.join("MANIFEST.txt")).expect("manifesto do lote");
+        let identificador = manifesto
+            .lines()
+            .find_map(|linha| linha.strip_prefix("batch_id="))
+            .expect("batch_id no manifesto")
+            .to_string();
+        assert!(
+            lote.ends_with(&identificador),
+            "manifesto pertence a outro lote: {manifesto}"
+        );
+        identificadores.push(identificador);
+    }
+    assert_ne!(
+        identificadores[0], identificadores[1],
+        "lotes precisam de identificadores distintos"
+    );
+    let _ = fs::remove_dir_all(&raiz);
+}
+
+#[test]
+fn resumo_de_lote_anterior_nao_e_removido_no_inicio() {
+    // A projeção legada do primeiro lote precisa sobreviver ao segundo até que
+    // o segundo conclua, e o resumo do primeiro lote permanece intacto no seu
+    // próprio diretório para sempre.
+    let raiz = raiz_isolada("lote-preserva-anterior");
+    let primeira = executar_com_lock(&raiz, "modo");
+    assert_eq!(primeira.codigo, 0);
+    let primeiro_lote = primeira.lote_unico();
+    let resumo_do_primeiro =
+        fs::read_to_string(primeiro_lote.join("SUMMARY.txt")).expect("resumo do primeiro lote");
+
+    let dona = CampanhaViva::iniciar(&raiz, "modo");
+    let projecao_durante = fs::read_to_string(primeira.evidencia().join("SUMMARY-modo.txt"))
+        .expect("projeção do primeiro lote durante o segundo");
+    assert!(
+        projecao_durante.contains("completed=1"),
+        "projeção anterior removida no início: {projecao_durante}"
+    );
+    dona.encerrar(15);
+
+    assert_eq!(
+        fs::read_to_string(primeiro_lote.join("SUMMARY.txt")).expect("resumo do primeiro lote"),
+        resumo_do_primeiro,
+        "o resumo do lote anterior é imutável"
+    );
+    let _ = fs::remove_dir_all(&raiz);
+}
+
+#[test]
+fn projecao_legada_e_publicada_atomicamente_e_identifica_o_lote() {
+    let raiz = raiz_isolada("projecao-atomica");
+    let execucao = executar_com_lock(&raiz, "modo");
+    assert_eq!(execucao.codigo, 0);
+    let projecao = execucao.resumo("modo").expect("projeção legada");
+    assert!(
+        projecao.contains("projection=last-completed-batch"),
+        "projeção precisa se declarar não autoritativa: {projecao}"
+    );
+    assert!(projecao.contains("batch_id="), "projeção: {projecao}");
+    assert!(projecao.contains("head_sha="), "projeção: {projecao}");
+    assert!(projecao.contains("authority="), "projeção: {projecao}");
+
+    // Nenhum temporário de publicação sobrevive.
+    let restos: Vec<PathBuf> = fs::read_dir(execucao.evidencia())
+        .expect("ler evidência")
+        .flatten()
+        .map(|entrada| entrada.path())
+        .filter(|caminho| {
+            caminho
+                .file_name()
+                .map(|nome| nome.to_string_lossy().contains(".parcial"))
+                .unwrap_or(false)
+        })
+        .collect();
+    assert!(
+        restos.is_empty(),
+        "temporário de publicação vazado: {restos:?}"
+    );
+
+    // O conteúdo da projeção corresponde ao resumo autoritativo do lote.
+    let autoridade =
+        fs::read_to_string(execucao.lote_unico().join("SUMMARY.txt")).expect("resumo do lote");
+    for linha in autoridade.lines() {
+        assert!(
+            projecao.contains(linha),
+            "projeção divergiu da autoridade na linha {linha}"
+        );
+    }
+    let _ = fs::remove_dir_all(&raiz);
+}
+
+#[test]
+fn campanha_falhada_publica_resumo_falhado_do_proprio_lote() {
+    let raiz = raiz_isolada("lote-falhado");
+    let verde = executar_com_lock(&raiz, "modo");
+    assert_eq!(verde.codigo, 0);
+    let projecao_verde = verde.resumo("modo").expect("projeção verde");
+    assert!(projecao_verde.contains("failures=0"));
+
+    let binario = binario_falso(&raiz, RESUMO_COM_FALHA, 101);
+    let vermelha = executar(
+        &raiz,
+        &["modo", "1"],
+        &[("PINKER_FLAKE_TEST_BINARY", binario.to_str().expect("utf-8"))],
+    );
+    assert_eq!(vermelha.codigo, EXIT_FALHAS);
+
+    let projecao = vermelha.resumo("modo").expect("projeção do lote falhado");
+    assert!(
+        projecao.contains("failures=1") && projecao.contains("exit_code=1"),
+        "campanha falhada não pode produzir resumo verde: {projecao}"
+    );
+
+    let lotes = vermelha.lotes();
+    assert_eq!(lotes.len(), 2);
+    let resumo_falhado =
+        fs::read_to_string(lotes[1].join("SUMMARY.txt")).expect("resumo do lote falhado");
+    assert!(resumo_falhado.contains("failures=1"), "{resumo_falhado}");
+    let resumo_verde =
+        fs::read_to_string(lotes[0].join("SUMMARY.txt")).expect("resumo do lote verde");
+    assert!(
+        resumo_verde.contains("failures=0"),
+        "o lote verde anterior permanece verde no próprio diretório: {resumo_verde}"
+    );
+    let _ = fs::remove_dir_all(&raiz);
+}
+
+#[test]
+fn resumo_do_lote_registra_batch_id_e_head_sha() {
+    let raiz = raiz_isolada("resumo-identifica-lote");
+    let execucao = executar_com_lock(&raiz, "modo");
+    assert_eq!(execucao.codigo, 0);
+    let lote = execucao.lote_unico();
+    let resumo = fs::read_to_string(lote.join("SUMMARY.txt")).expect("resumo do lote");
+    let identificador = lote
+        .file_name()
+        .expect("nome do lote")
+        .to_string_lossy()
+        .into_owned();
+    assert!(
+        resumo.contains(&format!("batch_id={identificador}")),
+        "resumo={resumo}"
+    );
+    assert!(resumo.contains("head_sha="), "resumo={resumo}");
+    assert!(
+        execucao
+            .saida_padrao
+            .contains(&format!("batch_id={identificador}")),
+        "a linha SUMMARY impressa também identifica o lote: {}",
+        execucao.saida_padrao
+    );
+    let _ = fs::remove_dir_all(&raiz);
 }
