@@ -1035,11 +1035,11 @@ unsafe fn raw_supervise_tree(
             value: 0,
         },
     );
-    raw_signal_descendants(launcher_pid, 15)?;
+    let _ = raw_signal_descendants(launcher_pid, 15)?;
     let term_deadline = raw_monotonic_millis().saturating_add(200);
     while raw_monotonic_millis() < term_deadline {
         raw_reap_all(guest_pid, &mut guest_status);
-        if !raw_descendants_exist(launcher_pid)? {
+        if raw_descendants_exist(launcher_pid)?.proves_absence() {
             return Ok(guest_status.unwrap_or(0));
         }
         raw_sleep_millis(5);
@@ -1052,11 +1052,11 @@ unsafe fn raw_supervise_tree(
             value: 0,
         },
     );
-    raw_signal_descendants(launcher_pid, 9)?;
+    let _ = raw_signal_descendants(launcher_pid, 9)?;
     let kill_deadline = raw_monotonic_millis().saturating_add(5_000);
     loop {
         raw_reap_all(guest_pid, &mut guest_status);
-        if !raw_descendants_exist(launcher_pid)? {
+        if raw_descendants_exist(launcher_pid)?.proves_absence() {
             return Ok(guest_status.unwrap_or(9));
         }
         if raw_monotonic_millis() >= kill_deadline {
@@ -1065,7 +1065,7 @@ unsafe fn raw_supervise_tree(
                 "árvore permaneceu executável após KILL",
             ));
         }
-        raw_signal_descendants(launcher_pid, 9)?;
+        let _ = raw_signal_descendants(launcher_pid, 9)?;
         raw_sleep_millis(5);
     }
 }
@@ -1097,30 +1097,225 @@ unsafe fn raw_reap_all(guest_pid: i32, guest_status: &mut Option<i32>) {
 }
 
 #[cfg(target_os = "linux")]
+/// Resultado de uma passagem completa de enumeração de `/proc`.
+///
+/// Substitui a tabela global de 4096 entradas. O teto anterior não truncava
+/// silenciosamente: `raw_scan_processes` devolvia erro ao excedê-lo. O erro,
+/// porém, era propagado por `?` a partir de `raw_signal_descendants`, de modo
+/// que estourar o limite fazia o launcher retornar **antes de enviar o
+/// primeiro TERM**. TERM e KILL deixavam de ser enviados, o laço de reaping
+/// não corria e a árvore sobrevivia. Era fail-closed para relatar e fail-open
+/// para conter.
 #[derive(Clone, Copy)]
-struct ProcEntry {
-    pid: i32,
-    parent: i32,
+struct ScanSummary {
+    /// Descendentes positivamente identificados nesta passagem.
+    descendants: u32,
+    /// Descendentes que receberam o sinal nesta passagem.
+    signaled: u32,
+    /// Entradas cuja ancestralidade não pôde ser estabelecida.
+    unknown: u32,
+}
+
+impl ScanSummary {
+    const EMPTY: Self = Self {
+        descendants: 0,
+        signaled: 0,
+        unknown: 0,
+    };
+
+    /// A ausência só é provada por uma varredura completa e sem incógnitas.
+    /// Identidade desconhecida jamais é convertida em prova de encerramento.
+    fn proves_absence(&self) -> bool {
+        self.descendants == 0 && self.unknown == 0
+    }
+}
+
+/// Classificação de uma entrada em relação à árvore do launcher.
+#[cfg(target_os = "linux")]
+#[derive(Clone, Copy, PartialEq)]
+enum Ancestry {
+    /// Cadeia de pais alcança o launcher.
+    Descendant,
+    /// Cadeia de pais alcança a raiz sem passar pelo launcher.
+    Foreign,
+    /// O processo desapareceu durante a inspeção: já não está executável.
+    Gone,
+    /// Permissão, parse inválido, I/O não explicado ou sequência patológica.
+    Unknown,
 }
 
 #[cfg(target_os = "linux")]
-unsafe fn raw_scan_processes(entries: &mut [ProcEntry; 4096]) -> io::Result<usize> {
+enum ParentLookup {
+    Parent(i32),
+    Root,
+    Gone,
+    Unknown,
+}
+
+/// Lê o pai de um PID sob demanda, sem alocação e sem tabela.
+#[cfg(target_os = "linux")]
+unsafe fn raw_parent_of(proc_fd: i32, pid: i32) -> ParentLookup {
+    extern "C" {
+        fn close(fd: i32) -> i32;
+        fn openat(directory: i32, path: *const i8, flags: i32, ...) -> i32;
+        fn read(fd: i32, buffer: *mut u8, count: usize) -> isize;
+    }
+    const O_RDONLY: i32 = 0;
+    const O_CLOEXEC: i32 = 0o2000000;
+    const ENOENT: i32 = 2;
+    const ESRCH: i32 = 3;
+    if pid <= 1 {
+        return ParentLookup::Root;
+    }
+    let mut path = [0_u8; 32];
+    let _ = raw_pid_stat_path(pid, &mut path);
+    let stat_fd = openat(proc_fd, path.as_ptr().cast(), O_RDONLY | O_CLOEXEC);
+    if stat_fd < 0 {
+        let code = io::Error::last_os_error().raw_os_error().unwrap_or(0);
+        // O processo desapareceu entre a enumeração e a leitura.
+        if code == ENOENT || code == ESRCH {
+            return ParentLookup::Gone;
+        }
+        return ParentLookup::Unknown;
+    }
+    // Buffer de leitura de `stat`, não teto de quantidade de processos.
+    let mut stat = [0_u8; 4096];
+    let read_count = read(stat_fd, stat.as_mut_ptr(), stat.len());
+    close(stat_fd);
+    if read_count <= 0 {
+        return ParentLookup::Gone;
+    }
+    match raw_parse_parent(&stat[..read_count as usize]) {
+        Some(parent) if parent <= 1 => ParentLookup::Root,
+        Some(parent) => ParentLookup::Parent(parent),
+        // PPID zero identifica a raiz do kernel. `raw_parse_parent` o rejeita
+        // por exigir inteiro positivo, e a varredura anterior simplesmente
+        // descartava a entrada em silencio. Classificar isso como incognita
+        // faria toda thread de kernel, a comecar por kthreadd, impedir para
+        // sempre a prova de ausencia da arvore.
+        None if raw_stat_parent_is_zero(&stat[..read_count as usize]) => ParentLookup::Root,
+        None => ParentLookup::Unknown,
+    }
+}
+
+/// Reconhece `ppid` igual a zero, a raiz do kernel.
+#[cfg(target_os = "linux")]
+fn raw_stat_parent_is_zero(stat: &[u8]) -> bool {
+    let Some(close) = stat.windows(2).rposition(|window| window == b") ") else {
+        return false;
+    };
+    let mut fields = stat[close + 2..]
+        .split(|byte| byte.is_ascii_whitespace())
+        .filter(|value| !value.is_empty());
+    if fields.next().is_none() {
+        return false;
+    }
+    matches!(fields.next(), Some(b"0"))
+}
+
+/// Determina a ancestralidade sob demanda, percorrendo a cadeia de pais.
+///
+/// Iterativo, nunca recursivo. Sequências patológicas são detectadas por
+/// ponteiros lento e rápido sobre a mesma cadeia, em espaço constante, sem
+/// reintroduzir teto arbitrário de quantidade de processos.
+#[cfg(target_os = "linux")]
+unsafe fn raw_ancestry(proc_fd: i32, candidate: i32, launcher: i32) -> Ancestry {
+    if candidate == launcher || candidate <= 1 {
+        return Ancestry::Foreign;
+    }
+    // Uma cadeia pode quebrar porque um ancestral saiu durante a caminhada.
+    // Em sistema ativo isso e rotina e nao constitui incognita sobre a arvore.
+    //
+    // O launcher e subreaper, de modo que um orfao pertencente a arvore e
+    // reparentado ao proprio launcher: repetir a caminhada passa a encontra-lo
+    // diretamente. Um processo alheio, reparentado a init ou a outro subreaper,
+    // resolve como estrangeiro. Sobra como incognita apenas o que persiste,
+    // tipicamente permissao ou parse invalido.
+    const TENTATIVAS: u32 = 3;
+    for tentativa in 0..TENTATIVAS {
+        match raw_walk_ancestry(proc_fd, candidate, launcher) {
+            Ancestry::Unknown if tentativa + 1 < TENTATIVAS => {
+                // Se o proprio candidato ja nao existe, nada ha a conter.
+                if let ParentLookup::Gone = raw_parent_of(proc_fd, candidate) {
+                    return Ancestry::Gone;
+                }
+            }
+            outcome => return outcome,
+        }
+    }
+    Ancestry::Unknown
+}
+
+/// Uma unica caminhada da cadeia de pais, sem repeticao.
+#[cfg(target_os = "linux")]
+unsafe fn raw_walk_ancestry(proc_fd: i32, candidate: i32, launcher: i32) -> Ancestry {
+    let mut slow = candidate;
+    let mut fast = candidate;
+    loop {
+        match raw_parent_of(proc_fd, slow) {
+            ParentLookup::Parent(parent) => slow = parent,
+            ParentLookup::Root => return Ancestry::Foreign,
+            ParentLookup::Gone => {
+                return if slow == candidate {
+                    Ancestry::Gone
+                } else {
+                    // Um ancestral sumiu: a cadeia não pode ser fechada.
+                    Ancestry::Unknown
+                };
+            }
+            ParentLookup::Unknown => return Ancestry::Unknown,
+        }
+        if slow == launcher {
+            return Ancestry::Descendant;
+        }
+        for _ in 0..2 {
+            match raw_parent_of(proc_fd, fast) {
+                ParentLookup::Parent(parent) => fast = parent,
+                ParentLookup::Root => return Ancestry::Foreign,
+                ParentLookup::Gone => {
+                    return if fast == candidate {
+                        Ancestry::Gone
+                    } else {
+                        Ancestry::Unknown
+                    };
+                }
+                ParentLookup::Unknown => return Ancestry::Unknown,
+            }
+            if fast == launcher {
+                return Ancestry::Descendant;
+            }
+        }
+        if slow == fast {
+            return Ancestry::Unknown;
+        }
+    }
+}
+
+/// Uma passagem completa e incremental sobre `/proc`.
+///
+/// Nenhuma entrada é armazenada: cada PID é classificado e, quando exigido,
+/// sinalizado antes de a próxima ser lida. Erro em uma entrada nunca impede a
+/// sinalização das demais, e a passagem só termina após percorrer o diretório
+/// inteiro.
+#[cfg(target_os = "linux")]
+unsafe fn raw_scan_pass(launcher_pid: i32, signal: Option<i32>) -> io::Result<ScanSummary> {
     extern "C" {
         fn close(fd: i32) -> i32;
         fn open(path: *const i8, flags: i32, ...) -> i32;
-        fn openat(directory: i32, path: *const i8, flags: i32, ...) -> i32;
-        fn read(fd: i32, buffer: *mut u8, count: usize) -> isize;
         fn syscall(number: isize, ...) -> isize;
     }
     const O_RDONLY: i32 = 0;
     const O_DIRECTORY: i32 = 0o200000;
     const O_CLOEXEC: i32 = 0o2000000;
     const SYS_GETDENTS64: isize = 217;
+    const SYS_PIDFD_OPEN: isize = 434;
+    const SYS_PIDFD_SEND_SIGNAL: isize = 424;
+
     let proc_fd = open(c"/proc".as_ptr(), O_RDONLY | O_DIRECTORY | O_CLOEXEC);
     if proc_fd < 0 {
         return Err(io::Error::last_os_error());
     }
-    let mut count = 0_usize;
+    let mut summary = ScanSummary::EMPTY;
     let mut directory_buffer = [0_u8; 8192];
     loop {
         let bytes = syscall(
@@ -1161,32 +1356,45 @@ unsafe fn raw_scan_processes(entries: &mut [ProcEntry; 4096]) -> io::Result<usiz
                 .iter()
                 .position(|byte| *byte == 0)
                 .unwrap_or(name_bytes.len());
+            // Entrada não numérica de /proc é ignorada, não é incógnita.
             if let Some(pid) = raw_parse_positive(&name_bytes[..name_len]) {
-                let mut path = [0_u8; 32];
-                let path_len = raw_pid_stat_path(pid, &mut path);
-                let stat_fd = openat(proc_fd, path.as_ptr().cast(), O_RDONLY | O_CLOEXEC);
-                if stat_fd >= 0 {
-                    let mut stat = [0_u8; 4096];
-                    let read_count = read(stat_fd, stat.as_mut_ptr(), stat.len());
-                    close(stat_fd);
-                    if read_count > 0 {
-                        if let Some(parent) = raw_parse_parent(&stat[..read_count as usize]) {
-                            if count == entries.len() {
-                                close(proc_fd);
-                                return Err(io::Error::other("limite de processos excedido"));
+                match raw_ancestry(proc_fd, pid, launcher_pid) {
+                    Ancestry::Descendant => {
+                        summary.descendants += 1;
+                        if let Some(signal) = signal {
+                            let pidfd = syscall(SYS_PIDFD_OPEN, pid, 0_u32) as i32;
+                            if pidfd >= 0 {
+                                // Revalida a ancestralidade imediatamente antes
+                                // do sinal: o pidfd fixa a identidade, e a
+                                // reconfirmação impede sinalizar um PID
+                                // reutilizado fora da árvore.
+                                if raw_ancestry(proc_fd, pid, launcher_pid) == Ancestry::Descendant
+                                {
+                                    let sent = syscall(
+                                        SYS_PIDFD_SEND_SIGNAL,
+                                        pidfd,
+                                        signal,
+                                        std::ptr::null::<u8>(),
+                                        0_u32,
+                                    );
+                                    if sent == 0 {
+                                        summary.signaled += 1;
+                                    }
+                                }
+                                close(pidfd);
                             }
-                            entries[count] = ProcEntry { pid, parent };
-                            count += 1;
                         }
                     }
+                    Ancestry::Unknown => summary.unknown += 1,
+                    // Estrangeiro ou já não executável: nada a conter.
+                    Ancestry::Foreign | Ancestry::Gone => {}
                 }
-                let _ = path_len;
             }
             offset += reclen;
         }
     }
     close(proc_fd);
-    Ok(count)
+    Ok(summary)
 }
 
 #[cfg(target_os = "linux")]
@@ -1237,74 +1445,13 @@ fn raw_parse_parent(stat: &[u8]) -> Option<i32> {
 }
 
 #[cfg(target_os = "linux")]
-fn raw_is_descendant(entries: &[ProcEntry], candidate: i32, launcher: i32) -> bool {
-    let mut current = candidate;
-    for _ in 0..entries.len() {
-        let Some(entry) = entries.iter().find(|entry| entry.pid == current) else {
-            return false;
-        };
-        if entry.parent == launcher {
-            return true;
-        }
-        if entry.parent <= 1 || entry.parent == current {
-            return false;
-        }
-        current = entry.parent;
-    }
-    false
+unsafe fn raw_descendants_exist(launcher_pid: i32) -> io::Result<ScanSummary> {
+    raw_scan_pass(launcher_pid, None)
 }
 
 #[cfg(target_os = "linux")]
-unsafe fn raw_descendants_exist(launcher_pid: i32) -> io::Result<bool> {
-    let mut entries = [ProcEntry { pid: 0, parent: 0 }; 4096];
-    let count = raw_scan_processes(&mut entries)?;
-    Ok(entries[..count]
-        .iter()
-        .any(|entry| raw_is_descendant(&entries[..count], entry.pid, launcher_pid)))
-}
-
-#[cfg(target_os = "linux")]
-unsafe fn raw_signal_descendants(launcher_pid: i32, signal: i32) -> io::Result<()> {
-    extern "C" {
-        fn close(fd: i32) -> i32;
-        fn syscall(number: isize, ...) -> isize;
-    }
-    const SYS_PIDFD_OPEN: isize = 434;
-    const SYS_PIDFD_SEND_SIGNAL: isize = 424;
-    let mut entries = [ProcEntry { pid: 0, parent: 0 }; 4096];
-    let count = raw_scan_processes(&mut entries)?;
-    for entry in &entries[..count] {
-        if !raw_is_descendant(&entries[..count], entry.pid, launcher_pid) {
-            continue;
-        }
-        let pidfd = syscall(SYS_PIDFD_OPEN, entry.pid, 0_u32) as i32;
-        if pidfd < 0 {
-            continue;
-        }
-        let still_descendant = {
-            let mut refreshed = [ProcEntry { pid: 0, parent: 0 }; 4096];
-            match raw_scan_processes(&mut refreshed) {
-                Ok(refreshed_count) => {
-                    raw_is_descendant(&refreshed[..refreshed_count], entry.pid, launcher_pid)
-                }
-                Err(error) => {
-                    close(pidfd);
-                    return Err(error);
-                }
-            }
-        };
-        if still_descendant {
-            let _ = syscall(
-                SYS_PIDFD_SEND_SIGNAL,
-                pidfd,
-                signal,
-                std::ptr::null::<u8>(),
-                0_u32,
-            );
-        }
-        close(pidfd);
-    }
-    Ok(())
+unsafe fn raw_signal_descendants(launcher_pid: i32, signal: i32) -> io::Result<ScanSummary> {
+    raw_scan_pass(launcher_pid, Some(signal))
 }
 
 #[cfg(target_os = "linux")]
