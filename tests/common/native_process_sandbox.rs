@@ -353,8 +353,8 @@ fn scavenge_entry(
     let Some(name) = name.to_str() else {
         return Ok(RemovalVerdict::Preserved("invalid-entry"));
     };
-    let Some((name_owner, _)) = parse_execution_directory_name(name) else {
-        return Ok(RemovalVerdict::Preserved("invalid-entry"));
+    let Some(entry_kind) = classify_entry_name(name) else {
+        return Ok(RemovalVerdict::Preserved("unknown-name"));
     };
     let directory = entry.path();
     let metadata = fs::symlink_metadata(&directory)?;
@@ -378,8 +378,13 @@ fn scavenge_entry(
         MarkerParse::Legacy => return Ok(RemovalVerdict::Preserved("legacy-marker")),
         MarkerParse::Preserved(reason) => return Ok(RemovalVerdict::Preserved(reason)),
     };
-    if marker.owner_pid != name_owner {
-        return Ok(RemovalVerdict::Preserved("name-owner-mismatch"));
+    // Uma quarentena interrompida nao carrega o dono no proprio nome: o
+    // identificador ali e o do processo de limpeza. A autoridade vem do marker
+    // somado a identidade device/inode, que o rename preserva.
+    if let EntryKind::Execution(name_owner) = entry_kind {
+        if marker.owner_pid != name_owner {
+            return Ok(RemovalVerdict::Preserved("name-owner-mismatch"));
+        }
     }
     if marker.execution_device != identity.device || marker.execution_inode != identity.inode {
         return Ok(RemovalVerdict::Preserved("identity-mismatch"));
@@ -406,6 +411,49 @@ fn parse_execution_directory_name(name: &str) -> Option<(u32, u64)> {
     ids.next().is_none().then_some((owner, id))
 }
 
+/// Formas de entrada reconhecidas diretamente sob a raiz de execucao.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum EntryKind {
+    /// `exec-<dono>-<id>`. O nome carrega o dono e serve como verificacao
+    /// adicional contra o marker.
+    Execution(u32),
+    /// `.pinker-quarantine-...`. Quarentena interrompida entre o rename e a
+    /// remocao. O nome nao carrega o dono e, portanto, nao concede autoridade.
+    Quarantine,
+}
+
+fn classify_entry_name(name: &str) -> Option<EntryKind> {
+    if let Some((owner, _)) = parse_execution_directory_name(name) {
+        return Some(EntryKind::Execution(owner));
+    }
+    is_quarantine_directory_name(name).then_some(EntryKind::Quarantine)
+}
+
+/// Reconhece de forma conservadora as duas formas de quarentena ja produzidas
+/// por este head, e a forma canonica emitida por `quarantine_remove`:
+///
+/// - Bash e canonica: `.pinker-quarantine-<a>-<b>-<c>`
+/// - Rust anterior:   `.pinker-quarantine-<a>-<b>-<c>-<d>`
+///
+/// Todos os segmentos precisam ser decimais nao vazios. Qualquer outro formato
+/// permanece desconhecido e e preservado.
+fn is_quarantine_directory_name(name: &str) -> bool {
+    let Some(rest) = name.strip_prefix(".pinker-quarantine-") else {
+        return false;
+    };
+    let mut segments = 0_usize;
+    for segment in rest.split('-') {
+        if segment.is_empty() || !segment.bytes().all(|byte| byte.is_ascii_digit()) {
+            return false;
+        }
+        segments += 1;
+        if segments > 4 {
+            return false;
+        }
+    }
+    (3..=4).contains(&segments)
+}
+
 type QuarantineHook<'a> = &'a mut dyn FnMut(QuarantineStage, &Path, &Path);
 
 fn quarantine_remove(
@@ -416,10 +464,15 @@ fn quarantine_remove(
 ) -> io::Result<RemovalVerdict> {
     authority.revalidate()?;
     let id = NEXT_QUARANTINE.fetch_add(1, Ordering::SeqCst);
+    // O nome privado e derivado da identidade do objeto, e nunca do nome de
+    // origem. Compor a partir do nome anterior faria a recuperacao de uma
+    // quarentena produzir `.pinker-quarantine-<pid>-.pinker-quarantine-...`,
+    // irreconhecivel pelas duas autoridades e, portanto, nao idempotente.
+    // A forma canonica tem exatamente tres segmentos decimais.
     let quarantine_name = format!(
         ".pinker-quarantine-{}-{}-{id}",
         std::process::id(),
-        name.trim_start_matches("exec-")
+        expected.inode
     );
     let original = authority.root.join(name);
     let quarantine = authority.root.join(&quarantine_name);

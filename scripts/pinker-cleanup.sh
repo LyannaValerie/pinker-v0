@@ -134,7 +134,13 @@ parse_marker() {
     [[ "$watchdog_pid" =~ ^(null|[1-9][0-9]*)$ ]] || return 1
     [[ "$git_head" =~ ^(unknown|[0-9a-f]{40})$ ]] || return 1
     [[ "$executable_hash" =~ ^(pending|unknown|[0-9a-f]{64})$ ]] || return 1
-    [[ "$owner_pid" == "$expected_name_owner" ]] || { marker_reason=name-owner-mismatch; return 1; }
+    # Uma quarentena interrompida nao carrega o dono no proprio nome: o
+    # identificador presente ali e o do processo de limpeza, nao o do dono da
+    # execucao. Nesses casos a autoridade vem exclusivamente do marker somado
+    # a identidade device/inode, que o rename preserva.
+    if [[ -n "$expected_name_owner" ]]; then
+        [[ "$owner_pid" == "$expected_name_owner" ]] || { marker_reason=name-owner-mismatch; return 1; }
+    fi
     [[ "$execution_device:$execution_inode" == "$expected_identity" ]] || { marker_reason=identity-mismatch; return 1; }
 
     local shape=invalid
@@ -180,19 +186,58 @@ read_proc_start_time() {
     printf '%s' "${suffix_fields[19]}"
 }
 
+# Classificacao de nome reconhecido.
+#
+# Duas formas de quarentena ja foram produzidas por este head:
+#
+#   Bash:  .pinker-quarantine-<pid>-<random>-<contador>
+#   Rust:  .pinker-quarantine-<pid>-<dono>-<id>-<sequencia>
+#
+# Ambas sao reconhecidas de forma conservadora. Qualquer outro formato
+# permanece desconhecido e e preservado. O nome jamais autoriza remocao por
+# si: ele apenas habilita a autenticacao pelo marker e pela identidade.
+#
+# Emite 'execution' ou 'quarantine' e retorna 1 quando o nome e desconhecido.
+classify_entry_name() {
+    local candidate=$1
+    if [[ "$candidate" =~ ^exec-([0-9]+)-([0-9]+)$ ]]; then
+        printf 'execution'
+        return 0
+    fi
+    if [[ "$candidate" =~ ^\.pinker-quarantine-[0-9]+-[0-9]+-[0-9]+$ ]]; then
+        printf 'quarantine'
+        return 0
+    fi
+    if [[ "$candidate" =~ ^\.pinker-quarantine-[0-9]+-[0-9]+-[0-9]+-[0-9]+$ ]]; then
+        printf 'quarantine'
+        return 0
+    fi
+    return 1
+}
+
 now=$(date +%s)
 partial_error=0
 shopt -s nullglob
-candidates=("$execution_root"/exec-*)
+candidates=("$execution_root"/exec-* "$execution_root"/.pinker-quarantine-*)
 shopt -u nullglob
 
 for directory in "${candidates[@]}"; do
     name=${directory##*/}
-    if [[ -L "$directory" || ! -d "$directory" || ! "$name" =~ ^exec-([0-9]+)-([0-9]+)$ ]]; then
+    if ! entry_kind=$(classify_entry_name "$name"); then
+        printf 'PRESERVED unknown-name %q\n' "$name"
+        continue
+    fi
+    if [[ -L "$directory" || ! -d "$directory" ]]; then
         printf 'PRESERVED invalid-entry %q\n' "$name"
         continue
     fi
-    name_owner=${BASH_REMATCH[1]}
+    if [[ "$entry_kind" == execution ]]; then
+        [[ "$name" =~ ^exec-([0-9]+)-([0-9]+)$ ]]
+        name_owner=${BASH_REMATCH[1]}
+    else
+        # Recuperacao de quarentena interrompida: sem autoridade de nome.
+        name_owner=
+    fi
     entry_identity=$(stat -Lc '%d:%i' -- "$directory") || {
         printf 'PRESERVED unreadable-identity %q\n' "$name"
         continue
