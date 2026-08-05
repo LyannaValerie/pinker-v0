@@ -2,15 +2,141 @@
 set -u
 set -o pipefail
 
+# Politica de codigo de saida.
+#
+# A contagem de falhas nunca e usada diretamente como status do processo: o
+# shell trunca o codigo em modulo 256, de forma que 256 falhas produziriam
+# zero, ou seja, sucesso aparente. Os codigos abaixo sao fixos e disjuntos.
+readonly PINKER_FLAKE_EXIT_OK=0
+readonly PINKER_FLAKE_EXIT_FAILURES=1
+readonly PINKER_FLAKE_EXIT_USAGE=2
+readonly PINKER_FLAKE_EXIT_INTERRUPTED=130
+
+pinker_flake_usage() {
+    cat >&2 <<'USAGE'
+uso: pinker-flake-runner.sh <mode> <runs> [threads] [filter]
+
+  mode    identificador nao vazio do lote
+  runs    inteiro decimal estritamente positivo, sem sinal e sem zero a esquerda
+  threads "default" ou o valor repassado a --test-threads
+  filter  nome exato de teste, ou @launcher-watchdog
+
+ambiente:
+  PINKER_FLAKE_RUN_TIMEOUT_SECONDS  quando definido, inteiro decimal
+                                    estritamente positivo
+  PINKER_FLAKE_TEST_BINARY          binario de teste ja compilado
+USAGE
+}
+
+# Aceita somente inteiro decimal estritamente positivo.
+#
+# Rejeita ausente, vazio, texto, zero, negativo, sinal explicito, formato
+# parcialmente numerico e espacos. Zeros a esquerda tambem sao rejeitados
+# porque o Bash interpreta 010 como octal em contexto aritmetico, o que
+# tornaria o valor aceito diferente do valor escrito.
+#
+# O limite de 18 digitos mantem o valor abaixo de 10^18, seguramente dentro
+# do inteiro de 64 bits usado pelo Bash, de modo que a conversao aritmetica
+# nunca satura nem muda de sinal.
+pinker_flake_is_positive_int() {
+    local value=${1-}
+    [[ $value =~ ^[1-9][0-9]*$ ]] || return 1
+    (( ${#value} <= 18 )) || return 1
+    return 0
+}
+
+# Le o resumo do harness a partir do stdout da iteracao corrente.
+#
+# Emite "<executados> <passaram> <falharam>" e retorna 0 quando existe pelo
+# menos uma linha de resumo reconhecida. Retorna 1 quando nenhuma linha e
+# reconhecida, caso em que a iteracao nao pode ser considerada sucesso.
+#
+# Testes ignorados e filtrados nao contam como executados.
+pinker_flake_parse_summary() {
+    local file=${1-}
+    local line total_passed=0 total_failed=0 found=0
+    [[ -n $file && -r $file ]] || return 1
+    while IFS= read -r line; do
+        if [[ $line =~ ^test[[:space:]]result:[[:space:]].*[[:space:]]([0-9]+)[[:space:]]passed\;[[:space:]]([0-9]+)[[:space:]]failed ]]; then
+            total_passed=$(( total_passed + BASH_REMATCH[1] ))
+            total_failed=$(( total_failed + BASH_REMATCH[2] ))
+            found=$(( found + 1 ))
+        fi
+    done < "$file"
+    (( found > 0 )) || return 1
+    printf '%s %s %s\n' "$(( total_passed + total_failed ))" "$total_passed" "$total_failed"
+    return 0
+}
+
+# Traduz a contagem de falhas em codigo de saida fixo.
+#
+# Existe como funcao para que a politica seja provavel por regressao sem
+# produzir centenas de falhas reais.
+pinker_flake_exit_code_for() {
+    local failures=${1-}
+    if [[ ! $failures =~ ^[0-9]+$ ]]; then
+        printf '%s\n' "$PINKER_FLAKE_EXIT_USAGE"
+        return 0
+    fi
+    if (( failures == 0 )); then
+        printf '%s\n' "$PINKER_FLAKE_EXIT_OK"
+    else
+        printf '%s\n' "$PINKER_FLAKE_EXIT_FAILURES"
+    fi
+    return 0
+}
+
+# Modo biblioteca: permite que as regressoes carreguem as funcoes acima sem
+# executar lote algum.
+if [[ -n ${PINKER_FLAKE_LIB_ONLY:-} ]]; then
+    return 0 2>/dev/null || exit 0
+fi
+
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 repo_root=$(CDPATH= cd -- "$script_dir/.." && pwd -P)
 evidence_root="$repo_root/target/pinker-flake-evidence"
-mode=${1:?mode required}
-runs=${2:?run count required}
+
+# ---------------------------------------------------------------------------
+# Validacao de uso.
+#
+# Ocorre antes de criar diretorio de evidencia, antes de apagar resumo
+# anterior, antes de iniciar teste, antes de emitir progresso e antes de
+# emitir resumo. Um erro de uso nao pode deixar o diretorio de evidencia em
+# estado alterado nem remover o resultado de um lote anterior.
+# ---------------------------------------------------------------------------
+mode=${1-}
+runs=${2-}
 threads=${3:-default}
 filter=${4:-}
-per_run_timeout=${PINKER_FLAKE_RUN_TIMEOUT_SECONDS:-300}
+
+if [[ -z $mode ]]; then
+    printf 'pinker-flake-runner: mode ausente\n' >&2
+    pinker_flake_usage
+    exit "$PINKER_FLAKE_EXIT_USAGE"
+fi
+
+if ! pinker_flake_is_positive_int "$runs"; then
+    printf 'pinker-flake-runner: runs invalido: %s\n' "${runs-<ausente>}" >&2
+    printf 'pinker-flake-runner: exige inteiro decimal estritamente positivo\n' >&2
+    pinker_flake_usage
+    exit "$PINKER_FLAKE_EXIT_USAGE"
+fi
+
+if [[ -n ${PINKER_FLAKE_RUN_TIMEOUT_SECONDS+definido} ]]; then
+    if ! pinker_flake_is_positive_int "${PINKER_FLAKE_RUN_TIMEOUT_SECONDS}"; then
+        printf 'pinker-flake-runner: PINKER_FLAKE_RUN_TIMEOUT_SECONDS invalido: %s\n' \
+            "${PINKER_FLAKE_RUN_TIMEOUT_SECONDS}" >&2
+        pinker_flake_usage
+        exit "$PINKER_FLAKE_EXIT_USAGE"
+    fi
+    per_run_timeout=${PINKER_FLAKE_RUN_TIMEOUT_SECONDS}
+else
+    per_run_timeout=300
+fi
+
 test_binary=${PINKER_FLAKE_TEST_BINARY:-}
+
+# A partir daqui o uso esta validado e o efeito colateral e autorizado.
 mkdir -p "$evidence_root"
 progress_file="$evidence_root/PROGRESS-$mode.txt"
 summary_file="$evidence_root/SUMMARY-$mode.txt"
@@ -41,7 +167,8 @@ active_identity_matches() {
 cleanup_active() {
     active_identity_matches || return 0
     kill -TERM -- "-$active_pid" 2>/dev/null || true
-    for _ in $(seq 1 100); do
+    local _attempt
+    for (( _attempt = 0; _attempt < 100; _attempt++ )); do
         active_identity_matches || break
         sleep 0.02
     done
@@ -71,10 +198,11 @@ interrupt_runner() {
             "$interrupted_dir" \
             "${iteration:-unknown}" \
             "$interrupted_duration" \
-            130 \
-            "${controller_pid:-0}"
+            "$PINKER_FLAKE_EXIT_INTERRUPTED" \
+            "${controller_pid:-0}" \
+            interrupted
     fi
-    exit 130
+    exit "$PINKER_FLAKE_EXIT_INTERRUPTED"
 }
 
 trap cleanup_active EXIT
@@ -82,14 +210,18 @@ trap interrupt_runner INT TERM HUP
 
 preserve_failure() {
     local run_dir=$1 iteration=$2 duration=$3 exit_code=$4 controller_pid=$5
+    local reason=${6:-unspecified}
     local failed_tests pids pid
     mkdir -p "$run_dir/proc"
     failed_tests=$(sed -n 's/^---- \(.*\) stdout ----$/\1/p; s/^    \([^ ]*\)\r\{0,1\}$/\1/p' "$run_dir/stdout" | sort -u)
     {
         printf 'iteration=%s\nmode=%s\ntest_filter=%s\ntest_threads=%s\n' "$iteration" "$mode" "${filter:-<complete-file>}" "$threads"
+        printf 'reason=%s\n' "$reason"
         printf 'runner_pid=%s\nrunner_start_time=%s\nharness_pid=%s\nharness_start_time=%s\n' "$$" "$(proc_start_time $$ 2>/dev/null || printf unknown)" "$controller_pid" "$(proc_start_time "$controller_pid" 2>/dev/null || printf exited)"
         printf 'duration_ms=%s\nexit_code=%s\nhead_git=%s\n' "$duration" "$exit_code" "$(git -C "$repo_root" rev-parse HEAD 2>/dev/null || printf unknown)"
         printf 'compiled_test_binary=%s\n' "${test_binary:-false}"
+        printf 'tests_executed=%s\n' "${run_executed:-unknown}"
+        printf 'summary_recognized=%s\n' "${run_summary_recognized:-unknown}"
         printf 'failed_tests=%s\n' "${failed_tests:-unparsed-see-stdout-stderr}"
     } > "$run_dir/manifest.txt"
     ps -eo pid,ppid,pgid,sid,stat,lstart,comm,args > "$run_dir/processes.txt" 2>&1 || true
@@ -119,15 +251,17 @@ preserve_failure() {
         done
         readlink "/proc/$pid/exe" > "$run_dir/proc/${pid}-exe" 2>&1 || true
     done
-    printf 'FAIL mode=%s iteration=%s exit=%s evidence=%s failed=%s\n' "$mode" "$iteration" "$exit_code" "$run_dir" "${failed_tests:-unparsed}"
+    printf 'FAIL mode=%s iteration=%s exit=%s reason=%s evidence=%s failed=%s\n' \
+        "$mode" "$iteration" "$exit_code" "$reason" "$run_dir" "${failed_tests:-unparsed}"
 }
 
 failures=0
+completed=0
 maximum_processes=0
 maximum_sandboxes=0
 tests_executed=0
 started_batch=$(date +%s%3N)
-for iteration in $(seq 1 "$runs"); do
+for (( iteration = 1; iteration <= runs; iteration++ )); do
     run_id="$(date -u +%Y%m%dT%H%M%S.%NZ)-${mode}-${threads}-${iteration}-$$"
     tmp="$evidence_root/.running-$run_id"
     mkdir -p "$tmp"
@@ -165,7 +299,7 @@ for iteration in $(seq 1 "$runs"); do
     controller_pid=$!
     active_pid=$controller_pid
     active_start=
-    for _ in $(seq 1 50); do
+    for (( _probe = 0; _probe < 50; _probe++ )); do
         active_start=$(proc_start_time "$active_pid" 2>/dev/null || true)
         [[ -n "$active_start" ]] && break
         kill -0 "$active_pid" 2>/dev/null || break
@@ -191,22 +325,64 @@ for iteration in $(seq 1 "$runs"); do
     run_max_sandboxes=$(awk 'BEGIN { max=0 } $2 > max { max=$2 } END { print max }' "$tmp/resource-samples.txt")
     (( run_max_processes > maximum_processes )) && maximum_processes=$run_max_processes
     (( run_max_sandboxes > maximum_sandboxes )) && maximum_sandboxes=$run_max_sandboxes
-    run_tests=$(sed -n 's/^test result: .* \([0-9][0-9]*\) passed.*/\1/p' "$tmp/stdout" | tail -n 1)
-    [[ "$run_tests" =~ ^[0-9]+$ ]] && tests_executed=$((tests_executed+run_tests))
-    if [[ "$exit_code" -eq 0 ]]; then
+
+    # ---------------------------------------------------------------------
+    # Veredito da iteracao.
+    #
+    # O codigo de saida do harness e necessario, nunca suficiente. Uma
+    # iteracao so e PASS quando o harness termina em zero, existe resumo
+    # reconhecido pertencente a esta execucao, e pelo menos um teste foi
+    # efetivamente executado. Qualquer outra combinacao falha fechada e
+    # preserva a evidencia.
+    # ---------------------------------------------------------------------
+    run_status=pass
+    run_reason=ok
+    run_executed=0
+    run_summary_recognized=false
+    if (( exit_code != 0 )); then
+        run_status=fail
+        run_reason=harness-exit-$exit_code
+        if summary_line=$(pinker_flake_parse_summary "$tmp/stdout"); then
+            run_summary_recognized=true
+            read -r run_executed _run_passed _run_failed <<<"$summary_line"
+        fi
+    elif summary_line=$(pinker_flake_parse_summary "$tmp/stdout"); then
+        run_summary_recognized=true
+        read -r run_executed _run_passed _run_failed <<<"$summary_line"
+        if (( run_executed == 0 )); then
+            run_status=fail
+            run_reason=no-tests-executed
+        fi
+    else
+        run_status=fail
+        run_reason=unparseable-test-summary
+    fi
+    tests_executed=$(( tests_executed + run_executed ))
+
+    if [[ $run_status == pass ]]; then
         rm -rf -- "$tmp"
-        printf 'PASS mode=%s iteration=%s/%s duration_ms=%s\n' "$mode" "$iteration" "$runs" "$duration"
+        printf 'PASS mode=%s iteration=%s/%s duration_ms=%s tests=%s\n' \
+            "$mode" "$iteration" "$runs" "$duration" "$run_executed"
     else
         final="$evidence_root/$run_id"
         mv -- "$tmp" "$final"
-        preserve_failure "$final" "$iteration" "$duration" "$exit_code" "$controller_pid"
+        preserve_failure "$final" "$iteration" "$duration" "$exit_code" "$controller_pid" "$run_reason"
         failures=$((failures+1))
     fi
+    completed=$((completed+1))
     printf 'mode=%s\ncompleted=%s\nruns=%s\nfailures=%s\ntests_executed=%s\nlast_duration_ms=%s\nmaximum_processes=%s\nmaximum_sandboxes=%s\n' \
-        "$mode" "$iteration" "$runs" "$failures" "$tests_executed" "$duration" "$maximum_processes" "$maximum_sandboxes" > "$progress_file"
+        "$mode" "$completed" "$runs" "$failures" "$tests_executed" "$duration" "$maximum_processes" "$maximum_sandboxes" > "$progress_file"
 done
 ended_batch=$(date +%s%3N)
-printf 'mode=%s\nruns=%s\nfailures=%s\ntests_executed=%s\nduration_ms=%s\nmaximum_processes=%s\nmaximum_sandboxes=%s\nevidence_root=%s\n' \
-    "$mode" "$runs" "$failures" "$tests_executed" "$((ended_batch-started_batch))" "$maximum_processes" "$maximum_sandboxes" "$evidence_root" > "$summary_file"
-printf 'SUMMARY mode=%s runs=%s failures=%s duration_ms=%s evidence_root=%s\n' "$mode" "$runs" "$failures" "$((ended_batch-started_batch))" "$evidence_root"
-exit "$failures"
+
+# Nenhuma execucao comprovada nunca produz resumo verde.
+if (( completed == 0 )); then
+    failures=$((failures+1))
+fi
+
+batch_exit=$(pinker_flake_exit_code_for "$failures")
+printf 'mode=%s\nruns=%s\ncompleted=%s\nfailures=%s\ntests_executed=%s\nduration_ms=%s\nmaximum_processes=%s\nmaximum_sandboxes=%s\nevidence_root=%s\nexit_code=%s\n' \
+    "$mode" "$runs" "$completed" "$failures" "$tests_executed" "$((ended_batch-started_batch))" "$maximum_processes" "$maximum_sandboxes" "$evidence_root" "$batch_exit" > "$summary_file"
+printf 'SUMMARY mode=%s runs=%s completed=%s failures=%s tests_executed=%s duration_ms=%s evidence_root=%s\n' \
+    "$mode" "$runs" "$completed" "$failures" "$tests_executed" "$((ended_batch-started_batch))" "$evidence_root"
+exit "$batch_exit"
