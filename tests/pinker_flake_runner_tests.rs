@@ -16,17 +16,179 @@
 //! evidência real do repositório.
 
 use std::fs;
-use std::io::Write as _;
-use std::os::unix::fs::PermissionsExt as _;
+use std::io::{BufRead as _, BufReader, Write as _};
+use std::os::unix::fs::{MetadataExt as _, PermissionsExt as _};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output, Stdio};
+use std::process::{Child, Command, Output, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Barrier};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 static SEQUENCIA: AtomicU64 = AtomicU64::new(0);
 
 fn caminho_do_runner() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("scripts/pinker-flake-runner.sh")
+}
+
+// ---------------------------------------------------------------------------
+// Publicação de executáveis.
+//
+// `ETXTBSY` no `exec` ocorre enquanto **qualquer** processo mantém descritor
+// gravável para o inode executado. Escrever o arquivo aqui, no processo que roda
+// os testes, abre duas janelas sob paralelismo: o próprio processo mantém o
+// descritor enquanto escreve, e um `fork` concorrente — que copia a tabela de
+// descritores do processo inteiro, não da thread — produz um filho que segura
+// aquele descritor até o seu próprio `exec`.
+//
+// Escrever em nome temporário e renomear, isolado, **não** resolve: `rename`
+// troca o nome publicado, não o inode. A regressão
+// `rename_nao_remove_descritor_gravavel_sobre_o_inode` demonstra isso.
+//
+// A publicação passa a ter quatro passos, e cada um responde por um invariante:
+//
+//   1. o pai escreve `<destino>.fonte`, que nunca recebe bit de execução e nunca
+//      é executada, e fecha o descritor antes de qualquer fork;
+//   2. um processo auxiliar materializa `<destino>.parcial`. Só ele abre esse
+//      inode para escrita, e a tabela de descritores do pai nunca o contém,
+//      portanto nenhum fork do pai pode herdá-lo;
+//   3. o pai valida exit status, tipo, permissão e conteúdo. Falha é
+//      fail-closed;
+//   4. o auxiliar já terminou, logo o descritor está fechado, e só então o pai
+//      renomeia para o nome final — que nasce completo, executável e sem writer.
+//
+// Não há retry de `ETXTBSY` e não há espera probabilística. A classe causal é
+// eliminada por construção, não contornada.
+// ---------------------------------------------------------------------------
+
+// pinker-fork-autorizado:inicio
+//
+// Região única autorizada a criar processo para materializar executável. A
+// meta-regressão `publicacao_e_a_unica_autoridade_de_bit_executavel` inspeciona
+// apenas o texto **fora** destas sentinelas.
+
+/// Publica um arquivo executável sem que este processo detenha, em momento
+/// algum, descritor gravável para o inode publicado.
+fn publicar_executavel(destino: &Path, conteudo: &str) -> PathBuf {
+    let fonte = destino.with_extension("fonte");
+    let parcial = destino.with_extension("parcial");
+
+    {
+        // Sem bit de execução e nunca executada: manter o descritor aqui é
+        // inofensivo, e ele fecha ao fim do bloco, antes de qualquer fork.
+        let mut arquivo = fs::File::create(&fonte).expect("criar fonte não executável");
+        arquivo
+            .write_all(conteudo.as_bytes())
+            .expect("escrever fonte");
+        arquivo.sync_all().expect("sincronizar fonte");
+    }
+
+    // O único processo que abre o inode executável para escrita é este auxiliar.
+    let status = Command::new("install")
+        .arg("-m")
+        .arg("0755")
+        .arg(&fonte)
+        .arg(&parcial)
+        .status()
+        .expect("executar o publicador auxiliar");
+    assert!(
+        status.success(),
+        "publicação falhou fechada para {}: {status:?}",
+        destino.display()
+    );
+
+    // O auxiliar terminou: nenhum descritor gravável sobrevive sobre o inode.
+    let meta = fs::metadata(&parcial).expect("metadados do materializado");
+    assert!(
+        meta.is_file(),
+        "o materializado precisa ser arquivo regular"
+    );
+    assert_eq!(
+        meta.permissions().mode() & 0o777,
+        0o755,
+        "permissões aplicadas antes da publicação"
+    );
+    assert_eq!(
+        fs::read_to_string(&parcial).expect("reler materializado"),
+        conteudo,
+        "conteúdo íntegro antes da publicação"
+    );
+
+    // Só agora o nome final passa a existir, já completo e executável.
+    fs::rename(&parcial, destino).expect("publicar nome final");
+    fs::remove_file(&fonte).expect("remover fonte");
+
+    destino.to_path_buf()
+}
+
+// pinker-fork-autorizado:fim
+
+/// Processo auxiliar que mantém descritor **gravável** sobre um caminho.
+///
+/// Serve às provas de causalidade. A abertura é confirmada por sinalização no
+/// stdout do filho, de modo que a janela é determinada por sincronização
+/// explícita e nunca por tempo.
+struct EscritorConcorrente {
+    filho: Child,
+    saida: BufReader<std::process::ChildStdout>,
+}
+
+impl EscritorConcorrente {
+    fn abrir(caminho: &Path) -> Self {
+        let mut filho = Command::new("/bin/sh")
+            .arg("-c")
+            // `>>` abre para escrita **sem truncar**: o descritor continua
+            // gravável, que é a condição causal, e o conteúdo sobrevive.
+            .arg(format!(
+                "exec 9>> {}; printf 'aberto\n'; read _fecha; exec 9>&-",
+                aspas_simples(caminho.to_str().expect("utf-8"))
+            ))
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("iniciar escritor concorrente");
+        let mut saida = BufReader::new(filho.stdout.take().expect("stdout do escritor"));
+        let mut confirmacao = String::new();
+        saida
+            .read_line(&mut confirmacao)
+            .expect("aguardar abertura do descritor");
+        assert_eq!(
+            confirmacao.trim(),
+            "aberto",
+            "escritor concorrente não confirmou a abertura"
+        );
+        Self { filho, saida }
+    }
+
+    fn pid(&self) -> u32 {
+        self.filho.id()
+    }
+
+    /// Fecha o descritor e recolhe o processo, sem sinal e sem espera cega.
+    fn fechar(mut self) {
+        drop(self.filho.stdin.take());
+        let _ = self.saida;
+        self.filho.wait().expect("recolher escritor concorrente");
+    }
+}
+
+fn inode_de(caminho: &Path) -> u64 {
+    fs::metadata(caminho).expect("metadados").ino()
+}
+
+/// `ETXTBSY`. Comparado pelo número do erro porque
+/// `ErrorKind::ExecutableFileBusy` ainda é instável, e a suíte é stable-only.
+const ETXTBSY: i32 = 26;
+
+/// Erro do sistema devolvido ao tentar executar `caminho`, se houver.
+fn erro_ao_executar(caminho: &Path) -> Option<i32> {
+    match Command::new(caminho)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+    {
+        Ok(_) => None,
+        Err(erro) => Some(erro.raw_os_error().unwrap_or(-1)),
+    }
 }
 
 /// Cria uma raiz isolada contendo apenas `scripts/pinker-flake-runner.sh`.
@@ -44,15 +206,10 @@ fn raiz_isolada(caso: &str) -> PathBuf {
     let raiz = std::env::temp_dir().join(unico);
     let _ = fs::remove_dir_all(&raiz);
     fs::create_dir_all(raiz.join("scripts")).expect("criar raiz isolada");
-    fs::copy(
-        caminho_do_runner(),
-        raiz.join("scripts/pinker-flake-runner.sh"),
-    )
-    .expect("copiar runner");
-    let destino = raiz.join("scripts/pinker-flake-runner.sh");
-    let mut permissoes = fs::metadata(&destino).expect("metadados").permissions();
-    permissoes.set_mode(0o755);
-    fs::set_permissions(&destino, permissoes).expect("permissões do runner");
+    // Ler a origem é seguro: leitura não bloqueia `exec`. O que não pode existir
+    // é descritor **gravável** sobre o inode de destino.
+    let conteudo = fs::read_to_string(caminho_do_runner()).expect("ler runner");
+    publicar_executavel(&raiz.join("scripts/pinker-flake-runner.sh"), &conteudo);
     raiz
 }
 
@@ -74,20 +231,15 @@ fn binario_falso_com_atraso(
         "harness-falso-{}.sh",
         SEQUENCIA.fetch_add(1, Ordering::Relaxed)
     ));
-    let mut arquivo = fs::File::create(&caminho).expect("criar binário falso");
-    writeln!(arquivo, "#!/usr/bin/env bash").expect("escrever");
+    let mut conteudo = String::from("#!/usr/bin/env bash\n");
     if atraso_segundos > 0 {
-        writeln!(arquivo, "sleep {atraso_segundos}").expect("escrever");
+        conteudo.push_str(&format!("sleep {atraso_segundos}\n"));
     }
     for linha in saida_padrao.lines() {
-        writeln!(arquivo, "printf '%s\\n' {}", aspas_simples(linha)).expect("escrever");
+        conteudo.push_str(&format!("printf '%s\\n' {}\n", aspas_simples(linha)));
     }
-    writeln!(arquivo, "exit {codigo}").expect("escrever");
-    drop(arquivo);
-    let mut permissoes = fs::metadata(&caminho).expect("metadados").permissions();
-    permissoes.set_mode(0o755);
-    fs::set_permissions(&caminho, permissoes).expect("permissões do binário falso");
-    caminho
+    conteudo.push_str(&format!("exit {codigo}\n"));
+    publicar_executavel(&caminho, &conteudo)
 }
 
 fn aspas_simples(valor: &str) -> String {
@@ -865,18 +1017,13 @@ fn rejeicao_ocorre_antes_de_tocar_resumo_e_antes_do_binario_de_teste() {
     // Binário falso que registra ter sido executado. Se a rejeição vier depois
     // do início do teste, o rastro existe.
     let sentinela = raiz.join("executou.txt");
-    let binario = raiz.join("harness-sentinela.sh");
-    fs::write(
-        &binario,
-        format!(
+    let binario = publicar_executavel(
+        &raiz.join("harness-sentinela.sh"),
+        &format!(
             "#!/usr/bin/env bash\nprintf 'sim\\n' > {}\nexit 0\n",
             sentinela.display()
         ),
-    )
-    .expect("escrever sentinela");
-    let mut permissoes = fs::metadata(&binario).expect("metadados").permissions();
-    permissoes.set_mode(0o755);
-    fs::set_permissions(&binario, permissoes).expect("permissões");
+    );
 
     let segunda = executar(
         &raiz,
@@ -1136,19 +1283,14 @@ fn troca_de_identidade_antes_da_remocao_preserva_o_lock() {
         &marker_valido(&pid_encerrado().to_string(), "999", "morta", "lote-morto"),
     );
 
-    let gancho = raiz.join("gancho.sh");
     let substituto = marker_valido("1", "1", "outra", "lote-outro");
-    fs::write(
-        &gancho,
-        format!(
+    let gancho = publicar_executavel(
+        &raiz.join("gancho.sh"),
+        &format!(
             "#!/usr/bin/env bash\nprintf '%s' {} > \"$2/owner.marker\"\nexit 0\n",
             aspas_simples(&substituto)
         ),
-    )
-    .expect("escrever gancho");
-    let mut permissoes = fs::metadata(&gancho).expect("metadados").permissions();
-    permissoes.set_mode(0o755);
-    fs::set_permissions(&gancho, permissoes).expect("permissões do gancho");
+    );
 
     let binario = binario_falso(&raiz, RESUMO_COM_TESTE, 0);
     let execucao = executar(
@@ -1449,4 +1591,497 @@ fn resumo_do_lote_registra_batch_id_e_head_sha() {
         execucao.saida_padrao
     );
     let _ = fs::remove_dir_all(&raiz);
+}
+
+// ---------------------------------------------------------------------------
+// ETXTBSY: causalidade, correção e sensibilidade.
+//
+// O `exec` falha com `ETXTBSY` enquanto **qualquer** processo mantém descritor
+// gravável para o inode executado. As provas abaixo não dependem de repetição
+// nem de tempo: a janela é aberta e fechada por sincronização explícita entre o
+// teste e um processo auxiliar.
+// ---------------------------------------------------------------------------
+mod publicacao_de_executaveis {
+    use super::*;
+
+    const CORPO: &str = "#!/usr/bin/env bash\nexit 0\n";
+
+    /// Descritores **graváveis** deste processo que apontam para `inode`.
+    ///
+    /// `fork` copia a tabela deste processo, então esta é a origem que importa:
+    /// se aqui não há descritor gravável, nenhum filho pode tê-lo herdado.
+    fn descritores_graveis_para(inode: u64) -> Vec<String> {
+        let mut encontrados = Vec::new();
+        let Ok(entradas) = fs::read_dir("/proc/self/fd") else {
+            return encontrados;
+        };
+        for entrada in entradas.flatten() {
+            let numero = entrada.file_name().to_string_lossy().into_owned();
+            let Ok(alvo) = fs::read_link(entrada.path()) else {
+                continue;
+            };
+            let Ok(meta) = fs::metadata(&alvo) else {
+                continue;
+            };
+            if meta.ino() != inode {
+                continue;
+            }
+            let Ok(info) = fs::read_to_string(format!("/proc/self/fdinfo/{numero}")) else {
+                continue;
+            };
+            let modo = info
+                .lines()
+                .find_map(|linha| linha.strip_prefix("flags:"))
+                .and_then(|valor| u32::from_str_radix(valor.trim(), 8).ok())
+                .unwrap_or(0);
+            // O_WRONLY = 1, O_RDWR = 2.
+            if modo & 0o3 != 0 {
+                encontrados.push(format!("{numero} -> {}", alvo.display()));
+            }
+        }
+        encontrados
+    }
+
+    fn raiz_de_prova(caso: &str) -> PathBuf {
+        let raiz = std::env::temp_dir().join(format!(
+            "pinker-etxtbsy-{}-{}-{}",
+            caso,
+            std::process::id(),
+            SEQUENCIA.fetch_add(1, Ordering::Relaxed)
+        ));
+        let _ = fs::remove_dir_all(&raiz);
+        fs::create_dir_all(&raiz).expect("criar raiz de prova");
+        raiz
+    }
+
+    // --- causalidade -------------------------------------------------------
+
+    #[test]
+    fn descritor_gravavel_do_proprio_processo_impede_exec() {
+        let raiz = raiz_de_prova("proprio");
+        let alvo = raiz.join("alvo.sh");
+
+        let mut arquivo = fs::File::create(&alvo).expect("criar alvo");
+        arquivo.write_all(CORPO.as_bytes()).expect("escrever");
+        arquivo.flush().expect("flush");
+        let mut permissoes = fs::metadata(&alvo).expect("metadados").permissions();
+        permissoes.set_mode(0o755);
+        fs::set_permissions(&alvo, permissoes).expect("permissões");
+
+        let inode = inode_de(&alvo);
+        assert_eq!(
+            descritores_graveis_para(inode).len(),
+            1,
+            "o próprio processo detém exatamente um descritor gravável"
+        );
+        assert_eq!(
+            erro_ao_executar(&alvo),
+            Some(ETXTBSY),
+            "descritor gravável aberto impede o exec (pid={} inode={inode})",
+            std::process::id()
+        );
+
+        drop(arquivo);
+        assert!(
+            descritores_graveis_para(inode).is_empty(),
+            "fechar remove o descritor da tabela"
+        );
+        assert_eq!(
+            erro_ao_executar(&alvo),
+            None,
+            "sem descritor gravável, o mesmo inode executa"
+        );
+
+        let _ = fs::remove_dir_all(&raiz);
+    }
+
+    #[test]
+    fn descritor_gravavel_de_processo_concorrente_impede_exec() {
+        // O descritor causal não precisa ser deste processo. Basta existir.
+        let raiz = raiz_de_prova("concorrente");
+        let alvo = publicar_executavel(&raiz.join("alvo.sh"), CORPO);
+        let inode = inode_de(&alvo);
+        assert_eq!(erro_ao_executar(&alvo), None, "recém-publicado executa");
+
+        let escritor = EscritorConcorrente::abrir(&alvo);
+        let pid = escritor.pid();
+        assert_eq!(
+            erro_ao_executar(&alvo),
+            Some(ETXTBSY),
+            "descritor alheio (pid={pid}) impede o exec do inode {inode}"
+        );
+        assert!(
+            descritores_graveis_para(inode).is_empty(),
+            "o descritor causal é do auxiliar, não deste processo"
+        );
+
+        escritor.fechar();
+        assert_eq!(erro_ao_executar(&alvo), None, "fechado, volta a executar");
+
+        let _ = fs::remove_dir_all(&raiz);
+    }
+
+    #[test]
+    fn rename_nao_remove_descritor_gravavel_sobre_o_inode() {
+        // Sensibilidade contra a solução tentadora e insuficiente: escrever num
+        // nome temporário e renomear. `rename` troca o nome, não o inode.
+        let raiz = raiz_de_prova("rename");
+        let temporario = raiz.join("alvo.sh.tmp");
+        let publicado = raiz.join("alvo.sh");
+
+        publicar_executavel(&temporario, CORPO);
+        let antes = inode_de(&temporario);
+
+        let escritor = EscritorConcorrente::abrir(&temporario);
+        fs::rename(&temporario, &publicado).expect("renomear");
+
+        assert_eq!(
+            antes,
+            inode_de(&publicado),
+            "rename preserva o inode: é por isso que ele não basta sozinho"
+        );
+        assert_eq!(
+            erro_ao_executar(&publicado),
+            Some(ETXTBSY),
+            "o descritor alheio sobrevive ao rename"
+        );
+
+        escritor.fechar();
+        assert_eq!(erro_ao_executar(&publicado), None);
+
+        let _ = fs::remove_dir_all(&raiz);
+    }
+
+    // --- a correção --------------------------------------------------------
+
+    #[test]
+    fn publicacao_nao_deixa_descritor_gravavel_neste_processo() {
+        let raiz = raiz_de_prova("sem-descritor");
+        let alvo = publicar_executavel(&raiz.join("alvo.sh"), CORPO);
+        let inode = inode_de(&alvo);
+
+        assert!(
+            descritores_graveis_para(inode).is_empty(),
+            "publicar não deixa descritor gravável: {:?}",
+            descritores_graveis_para(inode)
+        );
+        assert_eq!(erro_ao_executar(&alvo), None, "o publicado executa");
+        assert!(
+            !raiz.join("alvo.fonte").exists(),
+            "a fonte não executável é removida"
+        );
+        assert!(
+            !raiz.join("alvo.parcial").exists(),
+            "o materializado intermediário não sobrevive"
+        );
+
+        let _ = fs::remove_dir_all(&raiz);
+    }
+
+    #[test]
+    fn permissoes_e_conteudo_completos_quando_o_caminho_e_devolvido() {
+        let raiz = raiz_de_prova("completo");
+        let mut corpo = String::from("#!/usr/bin/env bash\n");
+        for indice in 0..2000 {
+            corpo.push_str(&format!("# linha de enchimento {indice}\n"));
+        }
+        corpo.push_str("exit 7\n");
+
+        let alvo = publicar_executavel(&raiz.join("grande.sh"), &corpo);
+
+        assert_eq!(
+            fs::read_to_string(&alvo).expect("reler"),
+            corpo,
+            "conteúdo íntegro quando o caminho é devolvido"
+        );
+        assert_eq!(
+            fs::metadata(&alvo).expect("metadados").permissions().mode() & 0o777,
+            0o755,
+            "modo aplicado antes do uso"
+        );
+        let status = Command::new(&alvo).status().expect("executar publicado");
+        assert_eq!(status.code(), Some(7), "executa o arquivo completo");
+
+        let _ = fs::remove_dir_all(&raiz);
+    }
+
+    #[test]
+    fn publicacao_em_destino_impossivel_falha_fechada() {
+        let raiz = raiz_de_prova("falha-fechada");
+        let inexistente = raiz.join("nao-existe").join("alvo.sh");
+        let resultado = std::panic::catch_unwind(|| publicar_executavel(&inexistente, CORPO));
+        assert!(
+            resultado.is_err(),
+            "destino impossível falha fechado, nunca devolve caminho"
+        );
+        assert!(!inexistente.exists());
+        let _ = fs::remove_dir_all(&raiz);
+    }
+
+    #[test]
+    fn caminhos_publicados_sao_exclusivos_entre_raizes_e_harnesses() {
+        let primeira = raiz_isolada("exclusivo-a");
+        let segunda = raiz_isolada("exclusivo-b");
+        assert_ne!(primeira, segunda, "raízes isoladas são exclusivas");
+
+        let a = binario_falso(&primeira, RESUMO_COM_TESTE, 0);
+        let b = binario_falso(&primeira, RESUMO_COM_TESTE, 0);
+        let c = binario_falso(&segunda, RESUMO_COM_TESTE, 0);
+        assert_ne!(a, b, "harnesses na mesma raiz têm caminhos distintos");
+        assert_ne!(a, c);
+        assert_ne!(inode_de(&a), inode_de(&b), "inodes distintos");
+
+        let _ = fs::remove_dir_all(&primeira);
+        let _ = fs::remove_dir_all(&segunda);
+    }
+
+    // --- concorrência real --------------------------------------------------
+
+    #[test]
+    fn publicacao_concorrente_com_spawn_simultaneo_nunca_produz_etxtbsy() {
+        // Metade das threads publica e executa; a outra metade forka sem parar,
+        // que é o gesto que copia a tabela de descritores. Todas partem da mesma
+        // barreira, então a sobreposição é garantida e não depende de sorte.
+        const PUBLICADORAS: usize = 6;
+        const FORKADORAS: usize = 6;
+        const RODADAS: usize = 10;
+
+        let barreira = Arc::new(Barrier::new(PUBLICADORAS + FORKADORAS));
+        let mut linhas = Vec::new();
+
+        for indice in 0..PUBLICADORAS {
+            let barreira = Arc::clone(&barreira);
+            linhas.push(std::thread::spawn(move || {
+                let raiz = raiz_de_prova(&format!("concorrente-pub-{indice}"));
+                barreira.wait();
+                for rodada in 0..RODADAS {
+                    let alvo = publicar_executavel(
+                        &raiz.join(format!("alvo-{rodada}.sh")),
+                        "#!/usr/bin/env bash\nexit 0\n",
+                    );
+                    let erro = erro_ao_executar(&alvo);
+                    assert_eq!(
+                        erro, None,
+                        "publicação {indice}/{rodada} não pode falhar no exec: {erro:?}"
+                    );
+                }
+                let _ = fs::remove_dir_all(&raiz);
+            }));
+        }
+
+        for _ in 0..FORKADORAS {
+            let barreira = Arc::clone(&barreira);
+            linhas.push(std::thread::spawn(move || {
+                barreira.wait();
+                for _ in 0..RODADAS * 4 {
+                    let status = Command::new("/bin/true")
+                        .stdout(Stdio::null())
+                        .stderr(Stdio::null())
+                        .status()
+                        .expect("fork concorrente");
+                    assert!(status.success());
+                }
+            }));
+        }
+
+        for linha in linhas {
+            linha.join().expect("thread de concorrência");
+        }
+    }
+
+    #[test]
+    fn raizes_isoladas_concorrentes_produzem_runners_executaveis() {
+        const THREADS: usize = 6;
+        let barreira = Arc::new(Barrier::new(THREADS));
+        let mut linhas = Vec::new();
+
+        for indice in 0..THREADS {
+            let barreira = Arc::clone(&barreira);
+            linhas.push(std::thread::spawn(move || {
+                barreira.wait();
+                let raiz = raiz_isolada(&format!("raiz-concorrente-{indice}"));
+                let runner = raiz.join("scripts/pinker-flake-runner.sh");
+                assert!(runner.is_file(), "runner publicado");
+                assert!(
+                    descritores_graveis_para(inode_de(&runner)).is_empty(),
+                    "nenhum descritor gravável sobre o runner publicado"
+                );
+                // Uso real: erro de uso, que não inicia teste algum, mas exige
+                // que o `exec` do runner funcione.
+                let execucao = executar(&raiz, &["modo", "0"], &[]);
+                assert_eq!(
+                    execucao.codigo, EXIT_USO,
+                    "o runner precisa ter executado; stderr={}",
+                    execucao.saida_erro
+                );
+                let _ = fs::remove_dir_all(&raiz);
+            }));
+        }
+
+        for linha in linhas {
+            linha.join().expect("thread de raiz isolada");
+        }
+    }
+
+    #[test]
+    fn harnesses_falsos_concorrentes_sao_publicados_e_executam() {
+        const THREADS: usize = 6;
+        let barreira = Arc::new(Barrier::new(THREADS));
+        let mut linhas = Vec::new();
+
+        for indice in 0..THREADS {
+            let barreira = Arc::clone(&barreira);
+            linhas.push(std::thread::spawn(move || {
+                let raiz = raiz_isolada(&format!("harness-concorrente-{indice}"));
+                barreira.wait();
+                for _ in 0..4 {
+                    let binario = binario_falso(&raiz, RESUMO_COM_TESTE, 0);
+                    assert_eq!(
+                        erro_ao_executar(&binario),
+                        None,
+                        "harness recém-publicado precisa executar"
+                    );
+                }
+                let _ = fs::remove_dir_all(&raiz);
+            }));
+        }
+
+        for linha in linhas {
+            linha.join().expect("thread de harness");
+        }
+    }
+
+    #[test]
+    fn duas_campanhas_proprietarias_em_raizes_independentes_coexistem() {
+        // Raízes distintas são checkouts distintos: o lock é por checkout.
+        let primeira = raiz_isolada("independente-a");
+        let segunda = raiz_isolada("independente-b");
+
+        let dona_a = CampanhaViva::iniciar(&primeira, "modo");
+        let dona_b = CampanhaViva::iniciar(&segunda, "modo");
+
+        assert!(primeira.join("target/pinker-flake-evidence/.lock").is_dir());
+        assert!(segunda.join("target/pinker-flake-evidence/.lock").is_dir());
+        assert_ne!(dona_a.lote, dona_b.lote);
+
+        assert_eq!(dona_a.encerrar(15), EXIT_INTERROMPIDO);
+        assert_eq!(dona_b.encerrar(15), EXIT_INTERROMPIDO);
+
+        assert!(!primeira.join("target/pinker-flake-evidence/.lock").exists());
+        assert!(!segunda.join("target/pinker-flake-evidence/.lock").exists());
+
+        let _ = fs::remove_dir_all(&primeira);
+        let _ = fs::remove_dir_all(&segunda);
+    }
+
+    #[test]
+    fn limpeza_nao_deixa_residuo_de_publicacao() {
+        let raiz = raiz_isolada("limpeza");
+        let binario = binario_falso(&raiz, RESUMO_COM_TESTE, 0);
+        assert!(binario.is_file());
+
+        let restos: Vec<PathBuf> = fs::read_dir(&raiz)
+            .expect("ler raiz")
+            .flatten()
+            .map(|entrada| entrada.path())
+            .filter(|caminho| {
+                caminho
+                    .extension()
+                    .map(|extensao| extensao == "fonte" || extensao == "parcial")
+                    .unwrap_or(false)
+            })
+            .collect();
+        assert!(
+            restos.is_empty(),
+            "sem intermediários residuais: {restos:?}"
+        );
+
+        fs::remove_dir_all(&raiz).expect("remover raiz");
+        assert!(!raiz.exists(), "limpeza determinística");
+    }
+
+    // --- sensibilidade sobre a própria fonte --------------------------------
+
+    #[test]
+    fn publicacao_e_a_unica_autoridade_de_bit_executavel() {
+        // Detecta a reintrodução de escrita direta em caminho executável e de
+        // criação de processo materializador fora da região autorizada.
+        //
+        // O recorte usa sentinelas estáveis em vez de contagem de chaves: chave
+        // aparece em string, comentário e macro, e um contador ingênuo fecha a
+        // região no lugar errado — foi exatamente o defeito da tentativa
+        // anterior desta regressão.
+        let fonte = fs::read_to_string(
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/pinker_flake_runner_tests.rs"),
+        )
+        .expect("ler a própria suíte");
+
+        // Construídas por concatenação para que os literais desta regressão não
+        // casem consigo mesmos ao inspecionar a própria fonte.
+        let abertura = format!("// pinker-fork-{}:inicio", "autorizado");
+        let fechamento = format!("// pinker-fork-{}:fim", "autorizado");
+        let inicio_marca = abertura.as_str();
+        let fim_marca = fechamento.as_str();
+        assert_eq!(
+            fonte.matches(inicio_marca).count(),
+            1,
+            "a sentinela de abertura precisa ser única"
+        );
+        assert_eq!(
+            fonte.matches(fim_marca).count(),
+            1,
+            "a sentinela de fechamento precisa ser única"
+        );
+        let abre = fonte.find(inicio_marca).expect("abertura");
+        let fecha = fonte.find(fim_marca).expect("fechamento");
+        assert!(abre < fecha, "as sentinelas precisam estar em ordem");
+
+        let autorizada = &fonte[abre..fecha];
+        assert_eq!(
+            autorizada.matches("Command::new(\"install\")").count(),
+            1,
+            "a região autorizada contém exatamente o publicador auxiliar"
+        );
+
+        // Fora da região autorizada, nenhuma escrita direta em caminho
+        // executável. Este teste vive fora dela, então o próprio texto das
+        // asserções entra na amostra: as chaves de busca são construídas por
+        // concatenação para não casarem consigo mesmas.
+        let fora = format!("{}{}", &fonte[..abre], &fonte[fecha..]);
+        let copia = format!("fs::{}(", "copy");
+        assert_eq!(
+            fora.matches(copia.as_str()).count(),
+            0,
+            "cópia direta abre o destino para escrita neste processo"
+        );
+        let criar = format!("fs::File::{}(", "create");
+        assert_eq!(
+            fora.matches(criar.as_str()).count(),
+            1,
+            "a única criação fora da região autorizada é a da prova de causalidade"
+        );
+        let modo = format!("set_{}(0o755)", "mode");
+        assert_eq!(
+            fora.matches(modo.as_str()).count(),
+            1,
+            "o único bit de execução aplicado por escrita direta é o da prova"
+        );
+        let posicao = fora.find(modo.as_str()).expect("posição da prova");
+        assert!(
+            fora[..posicao].contains("fn descritor_gravavel_do_proprio_processo_impede_exec"),
+            "a escrita direta remanescente vive na prova de causalidade"
+        );
+
+        // A publicação precisa continuar sendo a única porta.
+        let nome_autoridade = format!("fn publicar_{}", "executavel");
+        assert_eq!(
+            fonte.matches(nome_autoridade.as_str()).count(),
+            1,
+            "a autoridade de publicação precisa ser única"
+        );
+        assert!(
+            autorizada.contains("fs::rename(&parcial, destino)"),
+            "o nome final precisa nascer por rename, depois do fechamento"
+        );
+    }
 }
