@@ -1216,13 +1216,41 @@ impl CampanhaViva {
             if self.evidencia.join(".lock/owner.marker").is_file() {
                 if let Some(lote) = lote_em_execucao(&self.evidencia) {
                     self.lote = lote;
-                    self.recapturar_membros();
+                    // O diretório `.running-` nasce **antes** de o runner criar o
+                    // `setsid` da iteração. Devolver o controle aqui entregaria
+                    // uma campanha cuja árvore ainda está vazia, e a contenção do
+                    // SIGKILL depende justamente de conhecê-la.
+                    assert!(
+                        self.aguardar_arvore(limite),
+                        "a iteração começou mas a árvore da campanha não apareceu"
+                    );
                     return;
                 }
             }
             std::thread::sleep(Duration::from_millis(20));
         }
         panic!("campanha proprietária não chegou a executar uma iteração");
+    }
+
+    /// Espera até que a sessão própria da iteração exista e esteja capturada.
+    ///
+    /// O `setsid` do runner abre uma sessão por iteração, e é exatamente essa que
+    /// o grupo do controlador não alcança. A sua presença é, portanto, o sinal de
+    /// que a árvore está completa o bastante para ser contida — esperar por ela é
+    /// esperar pelo estado que a fixture promete, e não por um tempo arbitrário.
+    fn aguardar_arvore(&mut self, limite: Instant) -> bool {
+        while Instant::now() < limite {
+            self.recapturar_membros();
+            if self
+                .membros
+                .iter()
+                .any(|membro| membro.sid != self.controlador.sid)
+            {
+                return true;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        false
     }
 
     /// Captura a árvore viva da campanha e as sessões que ela abriu.
@@ -2045,22 +2073,10 @@ fn campanha_nasce_em_sessao_e_grupo_exclusivos() {
 #[test]
 fn controlador_timeout_e_harness_pertencem_a_arvore_capturada() {
     let raiz = raiz_isolada("arvore-capturada");
-    let mut dona = CampanhaViva::iniciar(&raiz, "modo");
-    // A árvore só está completa depois que o runner cria a iteração; a espera é
-    // por estado observado.
-    let limite = Instant::now() + Duration::from_secs(30);
-    while Instant::now() < limite {
-        dona.recapturar_membros();
-        if dona
-            .membros
-            .iter()
-            .any(|membro| papel_de(membro) == PapelNaCampanha::Timeout)
-        {
-            break;
-        }
-        std::thread::sleep(Duration::from_millis(20));
-    }
-
+    // `iniciar` só devolve o controle depois que a sessão da iteração existe e
+    // está capturada: não há laço de espera aqui porque a espera é contrato da
+    // fixture, não responsabilidade de cada caso.
+    let dona = CampanhaViva::iniciar(&raiz, "modo");
     let papeis: Vec<PapelNaCampanha> = dona.membros.iter().map(papel_de).collect();
     assert!(
         papeis.contains(&PapelNaCampanha::Timeout),
@@ -2096,20 +2112,7 @@ fn sigkill_mata_o_controlador_e_a_fixture_limpa_os_descendentes() {
     // produziu os dezesseis órfãos observados na PR 424.
     let raiz = raiz_isolada("sigkill-limpa-arvore");
     let evidencia = raiz.join("target/pinker-flake-evidence");
-    let mut dona = CampanhaViva::iniciar(&raiz, "morta");
-    let limite = Instant::now() + Duration::from_secs(30);
-    while Instant::now() < limite {
-        dona.recapturar_membros();
-        if dona
-            .membros
-            .iter()
-            .any(|membro| papel_de(membro) == PapelNaCampanha::Timeout)
-        {
-            break;
-        }
-        std::thread::sleep(Duration::from_millis(20));
-    }
-
+    let dona = CampanhaViva::iniciar(&raiz, "morta");
     let relatorio = dona.encerrar_com_relatorio(SIGKILL);
 
     assert!(
