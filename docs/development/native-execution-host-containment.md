@@ -405,6 +405,13 @@ plano por conta própria, e `/proc/<pid>` de um harness rápido desaparece antes
 que o runner consiga lê-lo. Uma identidade anunciada não corre com a morte de
 quem a anunciou.
 
+O canal é aberto antes do spawn e **fechado para o filho**: o controlador e a
+árvore do harness não o herdam. Descritor herdado é precisamente a classe de
+defeito que esta suíte existe para vigiar — foi um `ETXTBSY` por descritor
+gravável herdado que motivou a PR #424 —, e um canal de sincronização interna do
+runner não pode virar um deles. O escritor do anúncio não depende de herança:
+ele abre o canal pelo caminho.
+
 O anúncio é validado estritamente: marca fechada, versão fechada, quatro campos
 decimais e nada além. Exige-se que ele pertença ao filho direto da iteração, que
 o controlador lidere o próprio grupo e a própria sessão, que nem o grupo nem a
