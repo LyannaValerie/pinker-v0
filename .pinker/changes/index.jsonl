@@ -9,3 +9,4 @@
 {"schema":1,"pr":421,"kind":"hotfix","block":20,"title":"Contenção da memória pública e eliminação da materialização ansiosa","status":"completed","area":["runtime.public-memory","runtime.allocation","language.memory"]}
 {"schema":1,"pr":422,"kind":"hotfix","block":20,"title":"Contenção do host para execuções nativas","status":"completed","area":["testing.native-execution","development.host-containment","runtime.process-lifecycle"]}
 {"schema":1,"pr":424,"kind":"hotfix","block":20,"title":"Integridade da fixture de testes: publicação segura de executáveis","status":"completed","area":["development.test-integrity","development.host-containment"]}
+{"schema":1,"pr":425,"kind":"hotfix","block":20,"title":"Fecha a janela de interrupção ao iniciar a campanha do runner de estabilidade","status":"completed","area":["development.test-integrity","development.host-containment"]}

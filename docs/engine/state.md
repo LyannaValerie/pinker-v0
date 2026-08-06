@@ -66,7 +66,7 @@ Conteúdo abaixo é **propriedade da ferramenta** (projeção `state`); não edi
 mão. Regenere com `pink doc sincronizar`.
 
 <!-- @pinker-generated:start engine.state.generated -->
-- Manifestos processados: 11
-- Última mudança: PR #424 — Integridade da fixture de testes: publicação segura de executáveis (fase —, bloco 20)
+- Manifestos processados: 12
+- Última mudança: PR #425 — Fecha a janela de interrupção ao iniciar a campanha do runner de estabilidade (fase —, bloco 20)
 - Seções implementadas: —
 <!-- @pinker-generated:end engine.state.generated -->
