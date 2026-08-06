@@ -13,6 +13,9 @@ readonly PINKER_FLAKE_EXIT_USAGE=2
 # Campanha concorrente ou lock em estado que nao autoriza prosseguir. Distinto
 # de falha de teste: nenhum teste chegou a ser executado.
 readonly PINKER_FLAKE_EXIT_LOCKED=3
+# A identidade do controlador nao pode ser provada. Distinto de falha de teste e
+# distinto de lock: o lote nao pode nem comecar a ser observado com seguranca.
+readonly PINKER_FLAKE_EXIT_IDENTITY=4
 readonly PINKER_FLAKE_EXIT_INTERRUPTED=130
 
 # Nome do lock e do marker. O lock e um diretorio, adquirido por `mkdir`, que e
@@ -155,6 +158,57 @@ pinker_flake_start_time_of() {
     set -- $rest
     [[ ${20-} =~ ^[0-9]+$ ]] || return 1
     printf '%s\n' "${20}"
+}
+
+# Extrai `state pgid sid start_time` do texto de uma linha de /proc/<pid>/stat.
+#
+# Mesmo corte pelo ultimo `) ` de `pinker_flake_start_time_of`, pela mesma
+# razao: `comm` aceita espaco e parentese, e cortar pelo primeiro deslocaria
+# todos os campos seguintes. Recebe o texto em vez do PID para que uma linha
+# truncada, nao numerica ou ambigua possa ser provada por regressao sem
+# depender de um processo real.
+#
+# Retorna 1 sem emitir nada quando qualquer campo exigido faltar ou nao for
+# decimal. Identidade estruturalmente invalida nunca vira identidade parcial.
+pinker_flake_stat_fields() {
+    local texto=${1-} rest
+    [[ -n $texto ]] || return 1
+    rest=${texto##*') '}
+    [[ $rest != "$texto" ]] || return 1
+    # shellcheck disable=SC2086
+    set -- $rest
+    [[ ${1-} =~ ^[A-Za-z]$ ]] || return 1
+    [[ ${3-} =~ ^[0-9]+$ ]] || return 1
+    [[ ${4-} =~ ^[0-9]+$ ]] || return 1
+    [[ ${20-} =~ ^[0-9]+$ ]] || return 1
+    printf '%s %s %s %s\n' "${1}" "${3}" "${4}" "${20}"
+}
+
+# `state pgid sid start_time` de um PID vivo, ou 1 quando indisponivel.
+pinker_flake_stat_fields_of() {
+    local pid=${1-}
+    [[ $pid =~ ^[1-9][0-9]*$ ]] || return 1
+    [[ -r "/proc/$pid/stat" ]] || return 1
+    pinker_flake_stat_fields "$(<"/proc/$pid/stat")"
+}
+
+# Valida o anuncio de prontidao publicado pelo proprio controlador.
+#
+# Linha unica, marca fechada, versao fechada, quatro campos decimais e nada
+# depois. Emite `pid start_time pgid sid` e retorna 0; retorna 1 sem emitir
+# nada em qualquer outro caso. Falha fechada: um anuncio que nao passa aqui
+# jamais vira identidade ativa.
+pinker_flake_parse_identity_line() {
+    local linha=${1-} marca versao pid start pgid sid extra
+    read -r marca versao pid start pgid sid extra <<<"$linha"
+    [[ $marca == pinker-flake-identity ]] || return 1
+    [[ $versao == 1 ]] || return 1
+    [[ -z ${extra:-} ]] || return 1
+    [[ $pid =~ ^[1-9][0-9]*$ ]] || return 1
+    [[ $start =~ ^[0-9]+$ ]] || return 1
+    [[ $pgid =~ ^[1-9][0-9]*$ ]] || return 1
+    [[ $sid =~ ^[1-9][0-9]*$ ]] || return 1
+    printf '%s %s %s %s\n' "$pid" "$start" "$pgid" "$sid"
 }
 
 # Classifica a identidade do proprietario registrado no marker.
@@ -333,6 +387,14 @@ lock_dir="$evidence_root/$PINKER_FLAKE_LOCK_NAME"
 lock_marker="$lock_dir/$PINKER_FLAKE_MARKER_NAME"
 lock_owned=
 runner_start=$(pinker_flake_start_time_of $$ || printf 'unknown')
+# Grupo e sessao do proprio runner. Nenhum sinal coletivo pode alcanca-los: se o
+# `setsid` da iteracao falhasse em silencio, o controlador nasceria neste grupo
+# e conter a arvore alcancaria o processo de testes que iniciou a campanha.
+runner_pgid=unknown
+runner_sid=unknown
+if runner_fields=$(pinker_flake_stat_fields_of $$); then
+    read -r _runner_state runner_pgid runner_sid _runner_start <<<"$runner_fields"
+fi
 head_sha=$(git -C "$repo_root" rev-parse HEAD 2>/dev/null || printf 'unknown')
 [[ $head_sha =~ ^[0-9a-f]{40}$ ]] || head_sha=unknown
 created_at=$(date +%s)
@@ -551,39 +613,356 @@ proc_start_time() {
     printf '%s\n' "${20:-unknown}"
 }
 
+# ---------------------------------------------------------------------------
+# Ciclo de vida do controlador da iteracao.
+#
+# Estados explicitos, jamais inferidos da combinacao de variaveis vazias:
+#
+#   idle      nenhum controlador iniciado nesta iteracao;
+#   starting  criacao iniciada, identidade ainda nao confirmada;
+#   active    PID, start time, PGID e SID capturados e validados;
+#   reaping   encerramento e wait em andamento;
+#   finished  filho aguardado e estado limpo.
+#
+# A fase `starting` existe porque os traps de INT, TERM e HUP ja estao ativos
+# quando o controlador nasce. Antes desta correcao o handler chamava direto o
+# cleanup, cuja validacao exigia `active_start` — capturado somente depois do
+# `setsid`. Um sinal nessa janela encontrava a validacao falhando, o cleanup
+# retornava sem encerrar nada, e o runner saia com 130 deixando `timeout`,
+# harness e descendentes vivos: uma interrupcao aparentemente correta com
+# residuo. A janela foi descoberta durante a PR 424 e deliberadamente deixada
+# fora do escopo daquela unidade.
+#
+# A eliminacao e por construcao, nao por temporizacao: durante `starting` o
+# sinal e registrado como interrupcao pendente e processado somente depois de a
+# identidade estar completa.
+# ---------------------------------------------------------------------------
+active_state=idle
 active_pid=
 active_start=
+active_pgid=
+active_sid=
+monitor_pid=
+identity_channel=
+identity_fd=
+pending_signal=
+pending_state=
+pending_controller=no
+interrupt_in_progress=
+interrupt_residual_group=unknown
 
-active_identity_matches() {
-    local stat rest
-    [[ -n "$active_pid" && -n "$active_start" ]] || return 1
-    [[ -r "/proc/$active_pid/stat" ]] || return 1
-    stat=$(<"/proc/$active_pid/stat") || return 1
-    rest=${stat##*) }
-    set -- $rest
-    [[ "${3:-}" == "$active_pid" && "${20:-}" == "$active_start" ]]
+# Orcamento do anuncio de prontidao. Generoso para uma maquina saturada e
+# finito por principio: espera infinita nao e contencao.
+readonly PINKER_FLAKE_IDENTITY_TIMEOUT_SECONDS=30
+# Prazo de cada fase do encerramento: 250 x 20 ms = 5 s.
+readonly PINKER_FLAKE_REAP_ATTEMPTS=250
+readonly PINKER_FLAKE_REAP_INTERVAL=0.02
+
+# Preambulo executado pelo proprio controlador antes do harness.
+#
+# `setsid` nao forka nesta maquina — o filho de background de um shell sem
+# controle de job nao lidera grupo, e util-linux so forka quando ja lidera —, de
+# modo que este `bash` mantem o PID de `$!` e o `exec` final preserva PID, start
+# time, PGID e SID. A igualdade `pid = pgid = sid` nao e presumida: ela e
+# medida aqui, anunciada, e reexigida pelo validador.
+#
+# O anuncio acontece antes do `exec`, portanto antes do harness. Uma identidade
+# publicada pelo proprio processo nao corre com a morte dele: `/proc` some
+# quando o Bash colhe o filho de background, e uma captura que dependesse de
+# `/proc` perderia a identidade de um harness rapido.
+readonly PINKER_FLAKE_CONTROLLER_PREAMBLE='
+canal=$PINKER_FLAKE_IDENTITY_CHANNEL
+stat=$(</proc/self/stat) || exit 97
+rest=${stat##*") "}
+[[ $rest != "$stat" ]] || exit 97
+campos=($rest)
+printf "pinker-flake-identity 1 %s %s %s %s\n" \
+    "$$" "${campos[19]}" "${campos[2]}" "${campos[3]}" > "$canal" || exit 97
+exec "$@"
+'
+
+# Gancho estritamente de teste para congelar pontos da inicializacao.
+#
+# Separado de `PINKER_FLAKE_TEST_HOOK` de proposito: ampliar o gancho antigo
+# faria um hook ja existente receber estagios que ele nunca esperou, e o unico
+# consumidor atual reescreve o marker do lock em qualquer estagio que receba.
+# Exige duas variaveis — o programa e a lista explicita de estagios — para que
+# nem uma configuracao parcial ative comportamento. Ausente, producao nao muda
+# em nada.
+pinker_flake_startup_hook() {
+    local stage=${1-}
+    [[ -n ${PINKER_FLAKE_STARTUP_HOOK:-} ]] || return 0
+    case " ${PINKER_FLAKE_STARTUP_HOOK_STAGES:-} " in
+        *" $stage "*) ;;
+        *) return 0 ;;
+    esac
+    "$PINKER_FLAKE_STARTUP_HOOK" "$stage" "$batch_dir" "${iteration:-0}" || true
+    return 0
 }
 
-cleanup_active() {
-    active_identity_matches || return 0
-    kill -TERM -- "-$active_pid" 2>/dev/null || true
-    local _attempt
-    for (( _attempt = 0; _attempt < 100; _attempt++ )); do
-        active_identity_matches || break
-        sleep 0.02
-    done
-    if active_identity_matches; then
-        kill -KILL -- "-$active_pid" 2>/dev/null || true
+# Canal exclusivo da iteracao para o anuncio de prontidao.
+#
+# Aberto em leitura-escrita: `open` de FIFO nunca bloqueia nesse modo e o canal
+# nunca sinaliza EOF, de modo que a espera termina por dado ou por prazo, e
+# nunca por fechamento acidental do escritor. O canal nao sobrevive a iteracao.
+pinker_flake_open_identity_channel() {
+    identity_channel="$batch_dir/.identity-${iteration:-0}-$$.fifo"
+    rm -f -- "$identity_channel" || return 1
+    mkfifo -m 0600 -- "$identity_channel" 2>/dev/null || return 1
+    exec {identity_fd}<>"$identity_channel" || return 1
+    return 0
+}
+
+pinker_flake_close_identity_channel() {
+    if [[ -n $identity_fd ]]; then
+        exec {identity_fd}>&- 2>/dev/null || true
+        identity_fd=
     fi
+    if [[ -n $identity_channel ]]; then
+        rm -f -- "$identity_channel" 2>/dev/null || true
+        identity_channel=
+    fi
+    return 0
+}
+
+# Espera o anuncio, com orcamento finito.
+#
+# `read` devolve assim que o dado chega: a espera e por evento, e o prazo de um
+# segundo existe apenas para reavaliar o orcamento quando um sinal tratado
+# interrompe a leitura. O sinal ja ficou registrado como interrupcao pendente e
+# sera processado assim que a identidade estiver completa — abortar aqui
+# devolveria justamente a identidade incompleta que esta correcao elimina.
+pinker_flake_await_identity() {
+    local restante=$PINKER_FLAKE_IDENTITY_TIMEOUT_SECONDS linha campos
+    [[ -n $identity_fd ]] || return 1
+    while (( restante > 0 )); do
+        if IFS= read -r -t 1 linha <&"$identity_fd"; then
+            campos=$(pinker_flake_parse_identity_line "$linha") || return 1
+            printf '%s\n' "$campos"
+            return 0
+        fi
+        restante=$(( restante - 1 ))
+    done
+    return 1
+}
+
+# Captura e valida a identidade completa do controlador.
+#
+# Sucesso significa: anuncio integro, pertencente ao filho direto desta
+# iteracao, com o controlador liderando grupo e sessao proprios, fora do grupo e
+# da sessao do runner, e concordante com `/proc` enquanto o processo existir.
+# Qualquer divergencia falha fechada.
+pinker_flake_capture_identity() {
+    local campos pid start pgid sid observados o_state o_pgid o_sid o_start
+    campos=$(pinker_flake_await_identity) || return 1
+    read -r pid start pgid sid <<<"$campos"
+    [[ $pid == "${controller_pid:-}" ]] || return 1
+    [[ $pgid == "$pid" && $sid == "$pid" ]] || return 1
+    [[ $runner_pgid != unknown && $runner_sid != unknown ]] || return 1
+    [[ $pgid != "$runner_pgid" && $sid != "$runner_sid" ]] || return 1
+    if observados=$(pinker_flake_stat_fields_of "$pid"); then
+        read -r o_state o_pgid o_sid o_start <<<"$observados"
+        [[ $o_start == "$start" ]] || return 1
+        [[ $o_pgid == "$pgid" ]] || return 1
+        [[ $o_sid == "$sid" ]] || return 1
+    fi
+    active_pid=$pid
+    active_start=$start
+    active_pgid=$pgid
+    active_sid=$sid
+    return 0
+}
+
+# A identidade ativa esta completa e estruturalmente valida?
+#
+# Ponto unico do contrato: `active` exige os quatro campos, e nao a combinacao
+# implicita de variaveis vazias que o runner usava antes.
+pinker_flake_identity_complete() {
+    [[ $active_pid =~ ^[1-9][0-9]*$ ]] || return 1
+    [[ $active_start =~ ^[0-9]+$ ]] || return 1
+    [[ $active_pgid =~ ^[1-9][0-9]*$ ]] || return 1
+    [[ $active_sid =~ ^[1-9][0-9]*$ ]] || return 1
+    return 0
+}
+
+# Revalida a identidade ativa contra `/proc`, imediatamente antes de agir.
+#
+#   live     os quatro campos conferem e o processo executa;
+#   zombie   terminou e ainda nao foi colhido: nada a sinalizar;
+#   gone     /proc/<pid> nao existe: prova positiva de ausencia;
+#   unknown  incompleta, ilegivel ou divergente. Nunca autoriza sinal.
+pinker_flake_active_identity_state() {
+    local observados o_state o_pgid o_sid o_start
+    if ! pinker_flake_identity_complete; then
+        printf 'unknown\n'
+        return 0
+    fi
+    if [[ ! -e "/proc/$active_pid" ]]; then
+        printf 'gone\n'
+        return 0
+    fi
+    if ! observados=$(pinker_flake_stat_fields_of "$active_pid"); then
+        printf 'unknown\n'
+        return 0
+    fi
+    read -r o_state o_pgid o_sid o_start <<<"$observados"
+    if [[ $o_start != "$active_start" || $o_pgid != "$active_pgid" || $o_sid != "$active_sid" ]]; then
+        printf 'unknown\n'
+        return 0
+    fi
+    if [[ $o_state == Z ]]; then
+        printf 'zombie\n'
+    else
+        printf 'live\n'
+    fi
+}
+
+# Contem o filho direto pelo PID.
+#
+# Contencao primaria: `timeout` propaga o sinal ao comando que administra, de
+# modo que alcancar o filho direto derruba a maior parte da arvore. Quando a
+# identidade esta completa, o sinal exige revalidacao — um PID ja colhido pode
+# ter sido reutilizado. Quando ainda nao ha identidade, o filho e
+# comprovadamente nao aguardado e o numero nao pode nomear outra coisa.
+pinker_flake_signal_direct_child() {
+    local sinal=$1 estado
+    [[ -n $active_pid ]] || return 0
+    if pinker_flake_identity_complete; then
+        estado=$(pinker_flake_active_identity_state)
+        [[ $estado == live || $estado == zombie ]] || return 0
+    fi
+    kill -"$sinal" -- "$active_pid" 2>/dev/null || true
+    return 0
+}
+
+# Sinal coletivo, autorizado somente por identidade revalidada.
+#
+# Identidade desconhecida nao autoriza sinalizacao coletiva: um PGID pode ter
+# desaparecido e passado a nomear outro grupo entre a captura e o sinal.
+pinker_flake_signal_group() {
+    local sinal=$1
+    [[ $(pinker_flake_active_identity_state) == live ]] || return 1
+    kill -"$sinal" -- "-$active_pgid" 2>/dev/null || true
+    return 0
+}
+
+# Quantos processos vivos, fora o controlador, ainda pertencem ao grupo.
+#
+# A varredura so vale enquanto o controlador nao foi colhido: ele lidera o
+# grupo, e o numero do grupo nao pode nomear outra coisa enquanto o seu PID
+# permanecer preso. Depois do `wait` essa garantia acaba, e por isso a
+# confirmacao acontece antes dele. Zumbis nao contam: nao executam nada.
+pinker_flake_group_survivors() {
+    local entrada pid texto rest total=0
+    if ! pinker_flake_identity_complete; then
+        printf 'unknown\n'
+        return 0
+    fi
+    for entrada in /proc/[0-9]*/stat; do
+        pid=${entrada#/proc/}
+        pid=${pid%/stat}
+        [[ $pid == "$active_pid" ]] && continue
+        [[ -r $entrada ]] || continue
+        texto=$(<"$entrada") || continue
+        rest=${texto##*') '}
+        [[ $rest != "$texto" ]] || continue
+        # shellcheck disable=SC2086
+        set -- $rest
+        [[ ${1-} == Z ]] && continue
+        [[ ${3-} == "$active_pgid" ]] && total=$(( total + 1 ))
+    done
+    printf '%s\n' "$total"
+    return 0
+}
+
+# A arvore da iteracao esta silenciosa?
+#
+# Sem identidade completa nao ha grupo autorizado a observar, e o silencio se
+# reduz ao unico fato provavel: o filho direto, cujo numero nao pode nomear
+# outra coisa enquanto o runner nao o colher.
+pinker_flake_tree_quiet() {
+    if ! pinker_flake_identity_complete; then
+        [[ -n $active_pid ]] || return 0
+        kill -0 "$active_pid" 2>/dev/null && return 1
+        return 0
+    fi
+    [[ $(pinker_flake_active_identity_state) != live ]] || return 1
+    [[ $(pinker_flake_group_survivors) == 0 ]] || return 1
+    return 0
+}
+
+pinker_flake_await_tree_quiescence() {
+    local _tentativa
+    for (( _tentativa = 0; _tentativa < PINKER_FLAKE_REAP_ATTEMPTS; _tentativa++ )); do
+        pinker_flake_tree_quiet && return 0
+        sleep "$PINKER_FLAKE_REAP_INTERVAL"
+    done
+    return 1
+}
+
+# Encerra e aguarda a arvore do controlador, em ordem explicita.
+#
+# TERM na arvore autorizada, prazo limitado, revalidacao, KILL somente nos
+# sobreviventes autorizados, e por fim o `wait` do filho direto — sem o qual o
+# controlador vira zumbi dentro do runner, que e residuo tanto quanto um
+# processo vivo.
+pinker_flake_reap_active_tree() {
+    [[ -n $active_pid ]] || return 0
+    active_state=reaping
+    pinker_flake_signal_direct_child TERM
+    pinker_flake_signal_group TERM || true
+    pinker_flake_await_tree_quiescence || true
+    if ! pinker_flake_tree_quiet; then
+        pinker_flake_signal_direct_child KILL
+        pinker_flake_signal_group KILL || true
+        pinker_flake_await_tree_quiescence || true
+    fi
+    interrupt_residual_group=$(pinker_flake_group_survivors)
     wait "$active_pid" 2>/dev/null || true
     active_pid=
     active_start=
+    active_pgid=
+    active_sid=
+    return 0
 }
 
-interrupt_runner() {
+# Encerra ou aguarda o subshell monitor.
+#
+# O monitor pertence ao runner tanto quanto o controlador. Ele sai sozinho ao
+# observar a morte do controlador — que so e observavel depois do `wait` do
+# filho direto —, e a espera aqui e o que impede que ele seja reparentado para o
+# init ou que escreva na evidencia depois de ela ter sido movida. A contencao
+# por PID e limitada e so age quando a saida espontanea nao acontece: derrubar o
+# subshell no meio de uma amostragem deixaria os processos que ele acabou de
+# forkar orfaos.
+pinker_flake_reap_monitor() {
+    local _tentativa
+    [[ -n $monitor_pid ]] || return 0
+    for (( _tentativa = 0; _tentativa < PINKER_FLAKE_REAP_ATTEMPTS; _tentativa++ )); do
+        kill -0 "$monitor_pid" 2>/dev/null || break
+        sleep "$PINKER_FLAKE_REAP_INTERVAL"
+    done
+    if kill -0 "$monitor_pid" 2>/dev/null; then
+        kill -TERM -- "$monitor_pid" 2>/dev/null || true
+    fi
+    wait "$monitor_pid" 2>/dev/null || true
+    monitor_pid=
+    return 0
+}
+
+cleanup_active() {
+    pinker_flake_reap_active_tree
+    pinker_flake_reap_monitor
+    pinker_flake_close_identity_channel
+    active_state=finished
+    return 0
+}
+
+# Conclui uma interrupcao ja congelada. Nunca retorna.
+pinker_flake_finish_interrupted() {
+    local interrupted_name interrupted_dir stopped_at interrupted_duration
     cleanup_active
     if [[ -n "${tmp:-}" && -d "${tmp:-}" ]]; then
-        local interrupted_name interrupted_dir stopped_at interrupted_duration
         interrupted_name=${tmp##*/}
         interrupted_name=${interrupted_name#.running-}
         interrupted_dir="$batch_dir/INTERRUPTED-$interrupted_name"
@@ -601,17 +980,83 @@ interrupt_runner() {
             "$PINKER_FLAKE_EXIT_INTERRUPTED" \
             "${controller_pid:-0}" \
             interrupted
+        # Relatorio humano da primeira causa. O schema publico do manifesto nao
+        # muda de forma: continuam sendo linhas `chave=valor`.
+        {
+            printf 'interrupt_signal=%s\n' "${pending_signal:-unknown}"
+            printf 'interrupt_state=%s\n' "${pending_state:-unknown}"
+            printf 'interrupt_controller_existed=%s\n' "$pending_controller"
+            printf 'interrupt_residual_group=%s\n' "${interrupt_residual_group:-unknown}"
+        } >> "$interrupted_dir/manifest.txt"
     fi
     exit "$PINKER_FLAKE_EXIT_INTERRUPTED"
 }
 
-# A liberacao do lock fica no EXIT porque `interrupt_runner` termina por `exit`:
+# Handler unico de INT, TERM e HUP.
+#
+# Durante `starting` a interrupcao e apenas registrada: o handler nao executa
+# cleanup com identidade incompleta, nao sai do runner e nao ignora o sinal em
+# definitivo. A primeira causa vence e nunca e substituida, e um segundo sinal
+# durante o encerramento nao reinicia a escalada.
+interrupt_runner() {
+    local sinal=${1:-UNKNOWN}
+    if [[ -z $pending_signal ]]; then
+        pending_signal=$sinal
+        pending_state=$active_state
+        pending_controller=no
+        [[ -n $active_pid ]] && pending_controller=yes
+    fi
+    if [[ $active_state == starting ]]; then
+        return 0
+    fi
+    [[ -z $interrupt_in_progress ]] || return 0
+    interrupt_in_progress=1
+    pinker_flake_finish_interrupted
+}
+
+# Processa uma interrupcao registrada durante `starting`. Nunca retorna quando
+# ha causa pendente.
+pinker_flake_settle_pending() {
+    [[ -n $pending_signal ]] || return 0
+    [[ -z $interrupt_in_progress ]] || return 0
+    interrupt_in_progress=1
+    pinker_flake_finish_interrupted
+}
+
+# Falha fechada quando a identidade do controlador nao pode ser provada.
+#
+# Nao inicia o monitor, nao executa os testes seguintes, nao publica PASS e nao
+# publica resumo. Contem o filho direto, aguarda-o, preserva evidencia
+# diagnostica e termina com codigo nao zero estavel.
+pinker_flake_fail_identity() {
+    local destino
+    active_state=reaping
+    pinker_flake_settle_pending
+    interrupt_in_progress=1
+    cleanup_active
+    if [[ -n "${tmp:-}" && -d "${tmp:-}" ]]; then
+        destino="$batch_dir/IDENTITY-FAILURE-${tmp##*/.running-}"
+        mv -- "$tmp" "$destino"
+        preserve_failure \
+            "$destino" \
+            "${iteration:-unknown}" \
+            0 \
+            "$PINKER_FLAKE_EXIT_IDENTITY" \
+            "${controller_pid:-0}" \
+            identity-capture-failed
+    fi
+    exit "$PINKER_FLAKE_EXIT_IDENTITY"
+}
+
+# A liberacao do lock fica no EXIT porque a interrupcao termina por `exit`:
 # sucesso, falha comum, erro apos a aquisicao, SIGINT, SIGTERM e SIGHUP passam
 # todos por aqui. SIGKILL nao executa trap algum, e por isso o lock registra
 # identidade suficiente para que uma campanha posterior o classifique e o
 # recupere.
 trap 'cleanup_active; pinker_flake_release_lock' EXIT
-trap interrupt_runner INT TERM HUP
+trap 'interrupt_runner INT' INT
+trap 'interrupt_runner TERM' TERM
+trap 'interrupt_runner HUP' HUP
 
 preserve_failure() {
     local run_dir=$1 iteration=$2 duration=$3 exit_code=$4 controller_pid=$5
@@ -700,16 +1145,44 @@ for (( iteration = 1; iteration <= runs; iteration++ )); do
     else
         invocation=("$repo_root/ci_env.sh" "${args[@]}")
     fi
-    setsid timeout --signal=TERM --kill-after=5s "${per_run_timeout}s" "${invocation[@]}" > "$tmp/stdout" 2> "$tmp/stderr" &
+    # -----------------------------------------------------------------------
+    # Janela critica de inicializacao.
+    #
+    # Comeca antes da linha que inicia o controlador e so termina depois de PID,
+    # start time, PGID e SID capturados, revalidados e promovidos. Todo ponto
+    # dentro dela tem comportamento definido: o sinal e diferido, registrado e
+    # processado depois, nunca perdido e nunca aplicado a identidade incompleta.
+    # -----------------------------------------------------------------------
+    active_state=starting
+    monitor_pid=
+    controller_pid=
+    if ! pinker_flake_open_identity_channel; then
+        printf 'pinker-flake-runner: canal de prontidao indisponivel: %s\n' \
+            "$identity_channel" >&2
+        pinker_flake_fail_identity
+    fi
+    pinker_flake_startup_hook before-spawn
+    # Sinal antes do spawn: nada foi criado, e nada deve ser.
+    pinker_flake_settle_pending
+    PINKER_FLAKE_IDENTITY_CHANNEL="$identity_channel" \
+        setsid bash -c "$PINKER_FLAKE_CONTROLLER_PREAMBLE" pinker-flake-controller \
+        timeout --signal=TERM --kill-after=5s "${per_run_timeout}s" "${invocation[@]}" \
+        > "$tmp/stdout" 2> "$tmp/stderr" &
     controller_pid=$!
     active_pid=$controller_pid
-    active_start=
-    for (( _probe = 0; _probe < 50; _probe++ )); do
-        active_start=$(proc_start_time "$active_pid" 2>/dev/null || true)
-        [[ -n "$active_start" ]] && break
-        kill -0 "$active_pid" 2>/dev/null || break
-        sleep 0.01
-    done
+    pinker_flake_startup_hook after-spawn
+    if ! pinker_flake_capture_identity; then
+        printf 'pinker-flake-runner: identidade do controlador nao pode ser provada\n' >&2
+        printf 'pinker-flake-runner: controller_pid=%s iteration=%s\n' \
+            "$controller_pid" "$iteration" >&2
+        pinker_flake_fail_identity
+    fi
+    pinker_flake_close_identity_channel
+    pinker_flake_startup_hook after-identity
+    active_state=active
+    pinker_flake_startup_hook after-active
+    pinker_flake_settle_pending
+    # --- fim da janela critica ---------------------------------------------
     (
         while kill -0 "$controller_pid" 2>/dev/null; do
             process_count=$(ps -eo args= | awk '/native_process_control_tests/ && !/awk/ { count++ } END { print count + 0 }')
@@ -719,11 +1192,17 @@ for (( iteration = 1; iteration <= runs; iteration++ )); do
         done
     ) > "$tmp/resource-samples.txt" &
     monitor_pid=$!
+    pinker_flake_startup_hook after-monitor
+    pinker_flake_settle_pending
     wait "$controller_pid"
     exit_code=$?
+    active_state=reaping
     active_pid=
     active_start=
-    wait "$monitor_pid" 2>/dev/null || true
+    active_pgid=
+    active_sid=
+    pinker_flake_reap_monitor
+    active_state=finished
     end=$(date +%s%3N)
     duration=$((end-start))
     run_max_processes=$(awk 'BEGIN { max=0 } $1 > max { max=$1 } END { print max }' "$tmp/resource-samples.txt")
