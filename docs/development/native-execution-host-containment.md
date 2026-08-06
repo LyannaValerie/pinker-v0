@@ -357,7 +357,11 @@ tecnicamente** a concorrência.
 Somente uma instância do runner opera sobre o `target` de um checkout por vez,
 independentemente de mode, filtro ou número de threads. A aquisição é um
 `mkdir` de `target/pinker-flake-evidence/.lock`, atômico em POSIX e sem
-depender de `flock`, ausente na Forja. O lock carrega um marker de campos
+depender de `flock`. O `flock` existe na máquina e não é usado de propósito:
+seu lock vive preso a um descritor aberto e desaparece junto com o processo,
+inclusive sob `SIGKILL`, enquanto este contrato exige exatamente o oposto — que
+o lock sobreviva ao dono morto carregando a identidade que permite
+classificá-lo. O lock carrega um marker de campos
 fechados e ordenados: `schema`, `runner_pid`, `runner_start_time`, `mode`,
 `head_git`, `created_at_unix` e `batch_id`. Linha faltando, linha sobrando,
 chave fora de ordem, chave repetida ou valor fora do domínio tornam o marker
