@@ -41,4 +41,5 @@ mão. Regenere com `pink doc sincronizar`.
 | #420 | — | 20 | Normaliza descoberta, ajuda e versão da CLI | completed |
 | #421 | — | 20 | Contenção da memória pública e eliminação da materialização ansiosa | completed |
 | #422 | — | 20 | Contenção do host para execuções nativas | completed |
+| #424 | — | 20 | Integridade da fixture de testes: publicação segura de executáveis | completed |
 <!-- @pinker-generated:end roadmap.generated -->

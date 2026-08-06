@@ -16,7 +16,12 @@ readonly PINKER_FLAKE_EXIT_LOCKED=3
 readonly PINKER_FLAKE_EXIT_INTERRUPTED=130
 
 # Nome do lock e do marker. O lock e um diretorio, adquirido por `mkdir`, que e
-# atomico em POSIX e nao depende de `flock`, ausente na Forja.
+# atomico em POSIX. `flock` existe nesta maquina, mas nao e usado de
+# proposito: um lock de `flock` vive preso a um descritor aberto e some
+# junto com o processo, inclusive sob SIGKILL. O contrato aqui exige o
+# oposto — o lock precisa sobreviver ao dono morto, carregando a
+# identidade que permite a uma campanha posterior classifica-lo e
+# recupera-lo.
 readonly PINKER_FLAKE_LOCK_NAME='.lock'
 readonly PINKER_FLAKE_MARKER_NAME='owner.marker'
 readonly PINKER_FLAKE_MARKER_SCHEMA=1
