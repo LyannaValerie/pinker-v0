@@ -15,13 +15,15 @@
 //! falso controlado, e cada caso roda em uma raiz própria para não tocar a
 //! evidência real do repositório.
 
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::{BufRead as _, BufReader, Write as _};
 use std::os::unix::fs::{MetadataExt as _, PermissionsExt as _};
+use std::os::unix::process::CommandExt as _;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Output, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Barrier};
+use std::sync::{Arc, Barrier, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 static SEQUENCIA: AtomicU64 = AtomicU64::new(0);
@@ -818,45 +820,501 @@ fn evidencia_permanece_na_raiz_persistente_do_repositorio() {
 
 const EXIT_TRAVADO: i32 = 3;
 
+// ---------------------------------------------------------------------------
+// Contenção da campanha proprietária.
+//
+// `SIGKILL` não executa trap algum. Matar o controlador deixava vivos o
+// `timeout` que ele cria por `setsid`, o harness sob esse `timeout`, o `sleep`
+// do harness e o subshell monitor — quatro processos por iteração, reparentados
+// para o init. Foi o que produziu os dezesseis órfãos observados na PR 424.
+//
+// A autoridade de encerramento pertence à **fixture**, não ao runner de
+// produto: o encerramento é artificial, provocado pelo teste, e o runner não
+// pode ser responsabilizado por sobreviver ao próprio assassinato. O contrato
+// tem três peças:
+//
+//   1. o controlador nasce em sessão e grupo exclusivos (`setsid` entre o
+//      `fork` e o `exec`), de modo que a árvore da campanha jamais se confunde
+//      com a do `cargo test` e conter a campanha jamais alcança o processo de
+//      testes;
+//   2. a árvore é capturada **antes** de qualquer sinal, porque o `SIGKILL`
+//      reparenta os sobreviventes e destrói a ancestralidade que os
+//      identificaria depois. O que sobrevive ao reparenting é a **sessão**, e é
+//      por isso que as sessões observadas viram propriedade registrada;
+//   3. nenhum sinal parte sem revalidar `(pid, start time, pgid, sid)`. Nunca se
+//      sinaliza um grupo inteiro, nunca se casa por nome e nunca se age sobre
+//      identidade não comprovada. Diante de ambiguidade, falha fechada.
+// ---------------------------------------------------------------------------
+
+// pinker-contencao:inicio
+//
+// Região única autorizada a enviar sinal. A regressão de sensibilidade
+// `sensibilidade_das_guardas_de_contencao_detecta_cada_variacao` inspeciona
+// este recorte.
+
+// Chamadas de sistema exigidas pela contenção. A suíte é sem dependência
+// externa: em vez de uma crate de bindings, declara exatamente as duas chamadas
+// de que precisa.
+extern "C" {
+    fn kill(pid: i32, sinal: i32) -> i32;
+    fn setsid() -> i32;
+}
+
+const SIGKILL: i32 = 9;
+const SIGTERM: i32 = 15;
+
+/// Prazo de cada etapa da contenção. Generoso o bastante para uma máquina de CI
+/// carregada, curto o bastante para que um vazamento real apareça como falha em
+/// vez de travar a suíte.
+const PRAZO_DE_CONTENCAO: Duration = Duration::from_secs(10);
+
+/// Falhas da limpeza de contingência, observáveis pelo teste.
+///
+/// `Drop` não pode entrar em pânico: faria o processo abortar durante o
+/// desenrolar de outro pânico e esconderia o original, que é justamente a
+/// informação que o teste precisa mostrar. O contador é o canal observável que
+/// substitui o pânico proibido.
+static FALHAS_DE_LIMPEZA_EM_DROP: AtomicU64 = AtomicU64::new(0);
+
+/// Quantas vezes o `Drop` precisou agir por conta própria.
+static CONTENCOES_EM_DROP: AtomicU64 = AtomicU64::new(0);
+
+/// Identidade suficiente para autorizar um sinal.
+///
+/// O par `(pid, start_time)` é o que o kernel não reutiliza junto; `pgid` e
+/// `sid` amarram o processo à árvore que a campanha criou. `comm` entra apenas
+/// como rótulo de evidência: **nunca** autoriza sinal.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Identidade {
+    pid: i32,
+    start_time: u64,
+    pgid: i32,
+    sid: i32,
+    comm: String,
+}
+
+/// Mesma taxonomia que a autoridade de contenção nativa do repositório usa para
+/// classificar dono de sandbox e dono de lock. Manter as duas iguais é
+/// intencional.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ClasseIdentidade {
+    /// O PID existe e todos os campos capturados conferem.
+    Viva,
+    /// `/proc/<pid>` comprovadamente não existe: o processo terminou.
+    Ausente,
+    /// O PID existe com outro start time: o número passou a nomear outro
+    /// processo.
+    Reutilizada,
+    /// Não foi possível provar a identidade, ou grupo/sessão divergiram do
+    /// capturado. **Nunca autoriza nada.**
+    Desconhecida,
+}
+
+/// Campos de `/proc/<pid>/stat` que identificam o processo.
+///
+/// O corte usa o **último** `')'`: `comm` aceita espaço e parêntese, e cortar
+/// pelo primeiro desloca todos os campos seguintes — inclusive `starttime`, que
+/// é exatamente o que distingue um PID vivo de um número herdado.
+fn campos_do_stat(pid: i32) -> Option<(String, i32, i32, i32, u64)> {
+    let bruto = fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
+    let abre = bruto.find('(')?;
+    let fecha = bruto.rfind(')')?;
+    if fecha <= abre {
+        return None;
+    }
+    let comm = bruto[abre + 1..fecha].to_string();
+    let campos: Vec<&str> = bruto[fecha + 1..].split_whitespace().collect();
+    // Depois do corte, `campos[0]` é o campo 3 do `stat` (`state`), de modo que
+    // o índice do documento menos três dá o índice aqui: `ppid` é o campo 4,
+    // `pgrp` o 5, `session` o 6 e `starttime` o 22.
+    let ppid = campos.get(1)?.parse::<i32>().ok()?;
+    let pgid = campos.get(2)?.parse::<i32>().ok()?;
+    let sid = campos.get(3)?.parse::<i32>().ok()?;
+    let start_time = campos.get(19)?.parse::<u64>().ok()?;
+    Some((comm, ppid, pgid, sid, start_time))
+}
+
+fn identidade_de(pid: i32) -> Option<Identidade> {
+    let (comm, _ppid, pgid, sid, start_time) = campos_do_stat(pid)?;
+    Some(Identidade {
+        pid,
+        start_time,
+        pgid,
+        sid,
+        comm,
+    })
+}
+
+/// Reclassifica uma identidade capturada contra o estado atual do sistema.
+fn classificar_identidade(identidade: &Identidade) -> ClasseIdentidade {
+    if identidade.pid <= 1 {
+        return ClasseIdentidade::Desconhecida;
+    }
+    match campos_do_stat(identidade.pid) {
+        None => {
+            if Path::new(&format!("/proc/{}", identidade.pid)).exists() {
+                // O diretório existe mas o `stat` não pôde ser lido: sem prova,
+                // sem autorização.
+                ClasseIdentidade::Desconhecida
+            } else {
+                ClasseIdentidade::Ausente
+            }
+        }
+        Some((_comm, _ppid, pgid, sid, start_time)) => {
+            if start_time != identidade.start_time {
+                ClasseIdentidade::Reutilizada
+            } else if pgid != identidade.pgid || sid != identidade.sid {
+                ClasseIdentidade::Desconhecida
+            } else {
+                ClasseIdentidade::Viva
+            }
+        }
+    }
+}
+
+fn pids_vivos() -> Vec<i32> {
+    let Ok(entradas) = fs::read_dir("/proc") else {
+        return Vec::new();
+    };
+    entradas
+        .flatten()
+        .filter_map(|entrada| entrada.file_name().to_str()?.parse::<i32>().ok())
+        .collect()
+}
+
+/// Fecho transitivo de descendentes, montado a partir da tabela de pais.
+///
+/// Precisa ser tirado enquanto o controlador vive: depois do `SIGKILL` os
+/// sobreviventes passam a ter `ppid = 1` e esta função não os encontra mais.
+fn descendentes_de(raiz_pid: i32) -> Vec<Identidade> {
+    let mut por_pai: HashMap<i32, Vec<Identidade>> = HashMap::new();
+    for pid in pids_vivos() {
+        if let Some((comm, ppid, pgid, sid, start_time)) = campos_do_stat(pid) {
+            por_pai.entry(ppid).or_default().push(Identidade {
+                pid,
+                start_time,
+                pgid,
+                sid,
+                comm,
+            });
+        }
+    }
+    let mut encontrados = Vec::new();
+    let mut visitados = HashSet::new();
+    let mut fila = vec![raiz_pid];
+    while let Some(atual) = fila.pop() {
+        if !visitados.insert(atual) {
+            continue;
+        }
+        for filho in por_pai.get(&atual).into_iter().flatten() {
+            encontrados.push(filho.clone());
+            fila.push(filho.pid);
+        }
+    }
+    encontrados.sort_by_key(|identidade| identidade.pid);
+    encontrados
+}
+
+/// Envia `sinal` somente se a identidade continuar sendo exatamente a capturada.
+///
+/// A revalidação acontece imediatamente antes do `kill`, e a classe precisa ser
+/// `Viva`: `Reutilizada` significa que o número passou a nomear outro processo,
+/// `Ausente` que já morreu, e `Desconhecida` nunca autoriza nada. Devolve se o
+/// sinal chegou a partir.
+fn sinalizar_identidade(identidade: &Identidade, sinal: i32) -> bool {
+    if identidade.pid <= 1 || identidade.pid == std::process::id() as i32 {
+        return false;
+    }
+    if classificar_identidade(identidade) != ClasseIdentidade::Viva {
+        return false;
+    }
+    unsafe { kill(identidade.pid, sinal) == 0 }
+}
+
+/// Sinal explícito a um PID conhecido do próprio caso, com falha ruidosa.
+///
+/// Usada apenas onde o teste acabou de observar o processo vivo e uma falha de
+/// entrega é defeito, não corrida.
+fn enviar_sinal(pid: i32, sinal: i32) {
+    unsafe {
+        assert_eq!(kill(pid, sinal), 0, "enviar sinal {sinal} para {pid}");
+    }
+}
+
+/// Papel de um processo dentro da campanha.
+///
+/// Existe para **relatar**, não para decidir: a autorização de sinal vem de
+/// identidade comprovada, nunca de nome. Um classificador por nome que também
+/// autorizasse seria o casamento por nome que este módulo existe para evitar —
+/// e a guarda de sensibilidade proíbe até a menção literal das ferramentas que
+/// o fazem, de modo que este comentário as descreve sem as nomear.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PapelNaCampanha {
+    Timeout,
+    Harness,
+    ShellIntermediario,
+    Descendente,
+}
+
+fn papel_de(identidade: &Identidade) -> PapelNaCampanha {
+    if identidade.comm == "timeout" {
+        PapelNaCampanha::Timeout
+    } else if identidade.comm.starts_with("harness-falso") {
+        PapelNaCampanha::Harness
+    } else if matches!(identidade.comm.as_str(), "sh" | "bash" | "dash") {
+        PapelNaCampanha::ShellIntermediario
+    } else {
+        PapelNaCampanha::Descendente
+    }
+}
+
+/// Resultado observável de um encerramento, para que o teste afirme sobre o que
+/// de fato aconteceu em vez de sobre o que deveria ter acontecido.
+#[derive(Debug)]
+struct RelatorioEncerramento {
+    codigo: i32,
+    controlador: Identidade,
+    sessoes: Vec<i32>,
+    membros_antes: Vec<Identidade>,
+    controlador_morto: bool,
+    sobreviventes_apos_controlador: Vec<Identidade>,
+    term_enviados: Vec<i32>,
+    kill_enviados: Vec<i32>,
+    filho_recolhido: bool,
+    restantes: Vec<Identidade>,
+    grupo_vazio: bool,
+    sessao_vazia: bool,
+    /// Quantos membros capturados citavam a raiz temporária do caso. Fator
+    /// corroborante de propriedade, nunca autoridade de sinal.
+    membros_ligados_a_raiz: usize,
+}
+
+impl RelatorioEncerramento {
+    fn papeis_sobreviventes(&self) -> Vec<PapelNaCampanha> {
+        self.sobreviventes_apos_controlador
+            .iter()
+            .map(papel_de)
+            .collect()
+    }
+
+    fn papeis_restantes(&self) -> Vec<PapelNaCampanha> {
+        self.restantes.iter().map(papel_de).collect()
+    }
+}
+
 /// Campanha proprietária viva, controlada pelo teste.
 ///
 /// Mantém o lock enquanto o binário falso dorme, e é encerrada por sinal
-/// explícito ao final do caso.
+/// explícito ao final do caso. A fixture é dona da árvore inteira que criou, e
+/// responde por ela mesmo quando o sinal escolhido impede o alvo de se limpar.
 struct CampanhaViva {
-    filho: std::process::Child,
+    filho: Child,
     evidencia: PathBuf,
     lote: PathBuf,
+    raiz: PathBuf,
+    controlador: Identidade,
+    /// Sessões criadas pela campanha: a do controlador e a que o `setsid` do
+    /// runner abre por iteração. É a única propriedade que sobrevive ao
+    /// reparenting provocado pelo `SIGKILL`.
+    sessoes: Vec<i32>,
+    /// Última captura da árvore, sempre anterior a qualquer sinal.
+    membros: Vec<Identidade>,
+    filho_recolhido: bool,
 }
 
 impl CampanhaViva {
     fn iniciar(raiz: &Path, modo: &str) -> Self {
         let binario = binario_falso_com_atraso(raiz, RESUMO_COM_TESTE, 0, 60);
-        let filho = Command::new(raiz.join("scripts/pinker-flake-runner.sh"))
+        let mut comando = Command::new(raiz.join("scripts/pinker-flake-runner.sh"));
+        comando
             .args([modo, "1"])
             .env("PINKER_FLAKE_TEST_BINARY", &binario)
             .env_remove("PINKER_FLAKE_RUN_TIMEOUT_SECONDS")
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .expect("iniciar campanha proprietária");
+            .stderr(Stdio::piped());
+        // Sessão e grupo exclusivos, estabelecidos entre o `fork` e o `exec`.
+        // Sem isto a campanha nasce no grupo do `cargo test`, e qualquer
+        // contenção por grupo alcançaria o próprio processo de testes.
+        unsafe {
+            comando.pre_exec(|| {
+                if setsid() < 0 {
+                    return Err(std::io::Error::last_os_error());
+                }
+                Ok(())
+            });
+        }
+        let filho = comando.spawn().expect("iniciar campanha proprietária");
+        let pid = filho.id() as i32;
         let evidencia = raiz.join("target/pinker-flake-evidence");
-        // Espera o estado em que os casos afirmam operar: lock adquirido, lote
-        // criado e iteração em curso. Parar no marker deixaria uma janela em
-        // que o lote ainda não existe e o `trap` não teria o que preservar.
+        let mut campanha = Self {
+            filho,
+            evidencia,
+            lote: PathBuf::new(),
+            raiz: raiz.to_path_buf(),
+            controlador: Identidade {
+                pid,
+                start_time: 0,
+                pgid: 0,
+                sid: 0,
+                comm: String::new(),
+            },
+            sessoes: Vec::new(),
+            membros: Vec::new(),
+            filho_recolhido: false,
+        };
+        // A partir daqui qualquer pânico passa pelo `Drop`, que contém a árvore
+        // já criada: falhar a construção não pode vazar processo.
+        campanha.exigir_isolamento();
+        campanha.aguardar_iteracao();
+        campanha
+    }
+
+    /// Falha fechada quando a sessão exclusiva não puder ser comprovada.
+    ///
+    /// O `setsid` roda no filho, depois do `fork`: o pai só o observa quando o
+    /// kernel já publicou o novo `sid`. A espera é por estado observado, nunca
+    /// por tempo arbitrário.
+    fn exigir_isolamento(&mut self) {
+        let proprio =
+            identidade_de(std::process::id() as i32).expect("identidade do processo de testes");
+        let limite = Instant::now() + Duration::from_secs(30);
+        loop {
+            if let Some(identidade) = identidade_de(self.controlador.pid) {
+                if identidade.sid == identidade.pid && identidade.pgid == identidade.pid {
+                    assert_ne!(
+                        identidade.sid, proprio.sid,
+                        "a campanha não pode compartilhar sessão com o processo de testes"
+                    );
+                    assert_ne!(
+                        identidade.pgid, proprio.pgid,
+                        "a campanha não pode compartilhar grupo com o processo de testes"
+                    );
+                    self.sessoes.push(identidade.sid);
+                    self.controlador = identidade;
+                    return;
+                }
+            } else if matches!(self.filho.try_wait(), Ok(Some(_))) {
+                self.filho_recolhido = true;
+                panic!("controlador terminou antes de estabelecer sessão exclusiva");
+            }
+            assert!(
+                Instant::now() < limite,
+                "controlador não estabeleceu sessão e grupo exclusivos: isolamento falha fechado"
+            );
+            std::thread::sleep(Duration::from_millis(5));
+        }
+    }
+
+    /// Espera o estado em que os casos afirmam operar: lock adquirido, lote
+    /// criado e iteração em curso.
+    ///
+    /// Parar no marker deixaria uma janela em que o lote ainda não existe e o
+    /// `trap` não teria o que preservar.
+    fn aguardar_iteracao(&mut self) {
         let limite = Instant::now() + Duration::from_secs(30);
         while Instant::now() < limite {
-            if evidencia.join(".lock/owner.marker").is_file() {
-                if let Some(lote) = lote_em_execucao(&evidencia) {
-                    return Self {
-                        filho,
-                        evidencia,
-                        lote,
-                    };
+            if self.evidencia.join(".lock/owner.marker").is_file() {
+                if let Some(lote) = lote_em_execucao(&self.evidencia) {
+                    self.lote = lote;
+                    self.recapturar_membros();
+                    return;
                 }
             }
             std::thread::sleep(Duration::from_millis(20));
         }
         panic!("campanha proprietária não chegou a executar uma iteração");
+    }
+
+    /// Captura a árvore viva da campanha e as sessões que ela abriu.
+    fn recapturar_membros(&mut self) {
+        for descendente in descendentes_de(self.controlador.pid) {
+            if !self.sessoes.contains(&descendente.sid) {
+                self.sessoes.push(descendente.sid);
+            }
+            self.registrar_membro(descendente);
+        }
+        self.absorver_retardatarios();
+    }
+
+    /// Recolhe processos que apareceram numa sessão já reconhecida como da
+    /// campanha depois da última varredura de ancestralidade.
+    fn absorver_retardatarios(&mut self) {
+        for identidade in self.membros_por_sessao() {
+            self.registrar_membro(identidade);
+        }
+    }
+
+    fn registrar_membro(&mut self, identidade: Identidade) {
+        if identidade.pid == self.controlador.pid || identidade.pid <= 1 {
+            return;
+        }
+        if !self.membros.contains(&identidade) {
+            self.membros.push(identidade);
+        }
+    }
+
+    /// Processos vivos numa das sessões exclusivas da campanha.
+    ///
+    /// A sessão é propriedade comprovada: o controlador é líder da sua por
+    /// `setsid` desta fixture, e as demais foram abertas por descendentes dele
+    /// observados enquanto a ancestralidade ainda existia.
+    fn membros_por_sessao(&self) -> Vec<Identidade> {
+        let proprio = std::process::id() as i32;
+        pids_vivos()
+            .into_iter()
+            .filter(|pid| *pid > 1 && *pid != proprio && *pid != self.controlador.pid)
+            .filter_map(identidade_de)
+            .filter(|identidade| self.sessoes.contains(&identidade.sid))
+            .collect()
+    }
+
+    /// Vínculo de um processo com a raiz temporária deste caso.
+    ///
+    /// Fator **corroborante**, registrado como evidência. Não autoriza sinal por
+    /// si: a autorização vem de identidade comprovada e de pertencer a uma
+    /// sessão que esta fixture criou. Um processo pode ser legitimamente da
+    /// campanha e não citar a raiz — o `sleep` do harness herda o diretório de
+    /// trabalho do runner, não da raiz isolada.
+    fn relacionado_a_raiz(&self, identidade: &Identidade) -> bool {
+        let alvo = self.raiz.to_string_lossy().into_owned();
+        for campo in ["cwd", "exe"] {
+            if let Ok(destino) = fs::read_link(format!("/proc/{}/{campo}", identidade.pid)) {
+                if destino.to_string_lossy().contains(&alvo) {
+                    return true;
+                }
+            }
+        }
+        fs::read_to_string(format!("/proc/{}/cmdline", identidade.pid))
+            .map(|linha| linha.contains(&alvo))
+            .unwrap_or(false)
+    }
+
+    /// Membros capturados cuja identidade ainda confere exatamente.
+    fn sobreviventes(&self) -> Vec<Identidade> {
+        self.membros
+            .iter()
+            .filter(|membro| classificar_identidade(membro) == ClasseIdentidade::Viva)
+            .cloned()
+            .collect()
+    }
+
+    /// Processos vivos no grupo do controlador, por varredura independente.
+    fn vivos_no_grupo(&self) -> Vec<Identidade> {
+        pids_vivos()
+            .into_iter()
+            .filter_map(identidade_de)
+            .filter(|identidade| identidade.pgid == self.controlador.pgid)
+            .collect()
+    }
+
+    /// Processos vivos em qualquer sessão da campanha, por varredura
+    /// independente da lista de membros.
+    fn vivos_nas_sessoes(&self) -> Vec<Identidade> {
+        pids_vivos()
+            .into_iter()
+            .filter_map(identidade_de)
+            .filter(|identidade| self.sessoes.contains(&identidade.sid))
+            .collect()
     }
 
     fn viva(&mut self) -> bool {
@@ -867,21 +1325,149 @@ impl CampanhaViva {
         fs::read_to_string(self.evidencia.join(".lock/owner.marker")).expect("marker do lock")
     }
 
-    fn encerrar(mut self, sinal: i32) -> i32 {
-        enviar_sinal(self.filho.id() as i32, sinal);
+    fn encerrar(self, sinal: i32) -> i32 {
+        self.encerrar_com_relatorio(sinal).codigo
+    }
+
+    /// Encerra a campanha e devolve o que foi observado em cada etapa.
+    fn encerrar_com_relatorio(mut self, sinal: i32) -> RelatorioEncerramento {
+        // A árvore precisa ser conhecida antes do sinal: depois do `SIGKILL`
+        // não há mais ancestralidade que a reconstrua.
+        self.recapturar_membros();
+        let membros_antes = self.membros.clone();
+        let membros_ligados_a_raiz = membros_antes
+            .iter()
+            .filter(|membro| self.relacionado_a_raiz(membro))
+            .count();
+        assert_eq!(
+            classificar_identidade(&self.controlador),
+            ClasseIdentidade::Viva,
+            "o controlador precisa manter a identidade capturada antes de receber sinal"
+        );
+        assert_eq!(
+            self.controlador.sid, self.controlador.pid,
+            "o controlador precisa continuar líder da própria sessão"
+        );
+
+        enviar_sinal(self.controlador.pid, sinal);
+        let codigo = self.recolher_filho_direto();
+        let controlador_morto = classificar_identidade(&self.controlador) != ClasseIdentidade::Viva;
+
+        // Só agora os remanescentes são tratados, e sempre por identidade.
+        self.absorver_retardatarios();
+        let sobreviventes_apos_controlador = self.sobreviventes();
+        let (term_enviados, kill_enviados, restantes) =
+            self.conter_remanescentes(PRAZO_DE_CONTENCAO);
+
+        let relatorio = RelatorioEncerramento {
+            codigo,
+            controlador: self.controlador.clone(),
+            sessoes: self.sessoes.clone(),
+            membros_antes,
+            controlador_morto,
+            sobreviventes_apos_controlador,
+            term_enviados,
+            kill_enviados,
+            filho_recolhido: self.filho_recolhido,
+            grupo_vazio: self.vivos_no_grupo().is_empty(),
+            sessao_vazia: self.vivos_nas_sessoes().is_empty(),
+            membros_ligados_a_raiz,
+            restantes,
+        };
+        assert!(
+            relatorio.restantes.is_empty(),
+            "a fixture não conseguiu conter a própria campanha: {:?}",
+            relatorio.restantes
+        );
+        relatorio
+    }
+
+    /// `wait` no filho direto.
+    ///
+    /// Sem isto o controlador vira zumbi dentro do processo de testes, que é
+    /// resíduo tanto quanto um processo vivo.
+    fn recolher_filho_direto(&mut self) -> i32 {
+        if self.filho_recolhido {
+            return -1;
+        }
         let status = self.filho.wait().expect("aguardar campanha proprietária");
+        self.filho_recolhido = true;
         status.code().unwrap_or(-1)
+    }
+
+    /// Encerra os membros comprovados que sobreviveram ao controlador.
+    ///
+    /// `TERM` primeiro, para que quem tiver trap possa preservar evidência;
+    /// `KILL` só nos que continuarem sendo comprovadamente a mesma identidade
+    /// depois do prazo. Devolve os PIDs sinalizados em cada etapa e o que restou.
+    fn conter_remanescentes(&mut self, prazo: Duration) -> (Vec<i32>, Vec<i32>, Vec<Identidade>) {
+        self.absorver_retardatarios();
+        let mut term_enviados = Vec::new();
+        let mut kill_enviados = Vec::new();
+
+        for alvo in self.sobreviventes() {
+            if sinalizar_identidade(&alvo, SIGTERM) {
+                term_enviados.push(alvo.pid);
+            }
+        }
+        self.aguardar_extincao(prazo);
+
+        for alvo in self.sobreviventes() {
+            if sinalizar_identidade(&alvo, SIGKILL) {
+                kill_enviados.push(alvo.pid);
+            }
+        }
+        self.aguardar_extincao(prazo);
+
+        (term_enviados, kill_enviados, self.sobreviventes())
+    }
+
+    fn aguardar_extincao(&self, prazo: Duration) {
+        let limite = Instant::now() + prazo;
+        while Instant::now() < limite && !self.sobreviventes().is_empty() {
+            std::thread::sleep(Duration::from_millis(20));
+        }
     }
 }
 
-fn enviar_sinal(pid: i32, sinal: i32) {
-    unsafe {
-        extern "C" {
-            fn kill(pid: i32, sinal: i32) -> i32;
+impl Drop for CampanhaViva {
+    /// Defesa secundária. A autoridade principal continua sendo `encerrar`.
+    ///
+    /// Nunca entra em pânico e nunca oculta o pânico original: uma falha de
+    /// limpeza aqui é registrada em contador observável, e o teste que quiser
+    /// afirmar sobre ela lê o contador.
+    fn drop(&mut self) {
+        // Fechar os pipes antes de qualquer espera: um filho bloqueado
+        // escrevendo em pipe cheio nunca morreria por TERM.
+        drop(self.filho.stdout.take());
+        drop(self.filho.stderr.take());
+        drop(self.filho.stdin.take());
+
+        if !self.filho_recolhido {
+            CONTENCOES_EM_DROP.fetch_add(1, Ordering::Relaxed);
+            if classificar_identidade(&self.controlador) == ClasseIdentidade::Viva {
+                sinalizar_identidade(&self.controlador, SIGTERM);
+                let limite = Instant::now() + PRAZO_DE_CONTENCAO;
+                while Instant::now() < limite
+                    && classificar_identidade(&self.controlador) == ClasseIdentidade::Viva
+                {
+                    std::thread::sleep(Duration::from_millis(20));
+                }
+                sinalizar_identidade(&self.controlador, SIGKILL);
+            }
+            if self.filho.wait().is_ok() {
+                self.filho_recolhido = true;
+            }
         }
-        assert_eq!(kill(pid, sinal), 0, "enviar sinal {sinal} para {pid}");
+
+        let (_term, _kill, restantes) = self.conter_remanescentes(PRAZO_DE_CONTENCAO);
+        if !restantes.is_empty() || !self.filho_recolhido {
+            FALHAS_DE_LIMPEZA_EM_DROP.fetch_add(1, Ordering::Relaxed);
+        }
     }
 }
+
+// pinker-contencao:fim
 
 fn campo_do_marker(marker: &str, chave: &str) -> String {
     marker
@@ -1352,8 +1938,33 @@ fn caso_sinal_libera_lock(caso: &str, sinal: i32) {
     let dona = CampanhaViva::iniciar(&raiz, "modo");
     let evidencia = raiz.join("target/pinker-flake-evidence");
     let lote = dona.lote.clone();
-    let codigo = dona.encerrar(sinal);
+    let relatorio = dona.encerrar_com_relatorio(sinal);
+    let codigo = relatorio.codigo;
     assert_eq!(codigo, EXIT_INTERROMPIDO, "{caso}: saída de interrupção");
+
+    // O encerramento normal permite ao runner rodar os próprios traps, e é ele
+    // quem derruba a árvore. A fixture confirma o resultado; não o substitui.
+    assert!(
+        relatorio.filho_recolhido,
+        "{caso}: o filho direto precisa ser aguardado"
+    );
+    assert!(
+        relatorio.controlador_morto,
+        "{caso}: o controlador precisa ter terminado"
+    );
+    assert!(
+        relatorio.restantes.is_empty(),
+        "{caso}: nenhum descendente pode sobreviver: {:?}",
+        relatorio.papeis_restantes()
+    );
+    assert!(
+        relatorio.grupo_vazio,
+        "{caso}: o grupo do controlador precisa ficar vazio"
+    );
+    assert!(
+        relatorio.sessao_vazia,
+        "{caso}: as sessões da campanha precisam ficar sem membros"
+    );
     assert!(
         !evidencia.join(".lock").exists(),
         "{caso}: sinal precisa liberar o lock"
@@ -1386,7 +1997,194 @@ fn sigint_libera_o_lock_e_preserva_evidencia() {
 
 #[test]
 fn sigterm_libera_o_lock_e_preserva_evidencia() {
-    caso_sinal_libera_lock("lock-sigterm", 15);
+    caso_sinal_libera_lock("lock-sigterm", SIGTERM);
+}
+
+#[test]
+fn sighup_libera_o_lock_e_preserva_evidencia() {
+    caso_sinal_libera_lock("lock-sighup", 1);
+}
+
+// --- isolamento e contenção da campanha ------------------------------------
+
+#[test]
+fn campanha_nasce_em_sessao_e_grupo_exclusivos() {
+    let raiz = raiz_isolada("campanha-isolada");
+    let dona = CampanhaViva::iniciar(&raiz, "modo");
+    let proprio = identidade_de(std::process::id() as i32).expect("identidade própria");
+
+    let controlador = dona.controlador.clone();
+    assert_eq!(
+        controlador.sid, controlador.pid,
+        "o controlador precisa liderar a própria sessão"
+    );
+    assert_eq!(
+        controlador.pgid, controlador.pid,
+        "o controlador precisa liderar o próprio grupo"
+    );
+    assert_ne!(
+        controlador.sid, proprio.sid,
+        "sessão compartilhada com o cargo test"
+    );
+    assert_ne!(
+        controlador.pgid, proprio.pgid,
+        "grupo compartilhado com o cargo test"
+    );
+    assert!(
+        controlador.start_time > 0,
+        "start time precisa ser capturado"
+    );
+    assert!(
+        !dona.membros.is_empty(),
+        "a árvore da campanha precisa ser capturada na criação"
+    );
+    dona.encerrar(SIGTERM);
+    let _ = fs::remove_dir_all(&raiz);
+}
+
+#[test]
+fn controlador_timeout_e_harness_pertencem_a_arvore_capturada() {
+    let raiz = raiz_isolada("arvore-capturada");
+    let mut dona = CampanhaViva::iniciar(&raiz, "modo");
+    // A árvore só está completa depois que o runner cria a iteração; a espera é
+    // por estado observado.
+    let limite = Instant::now() + Duration::from_secs(30);
+    while Instant::now() < limite {
+        dona.recapturar_membros();
+        if dona
+            .membros
+            .iter()
+            .any(|membro| papel_de(membro) == PapelNaCampanha::Timeout)
+        {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+
+    let papeis: Vec<PapelNaCampanha> = dona.membros.iter().map(papel_de).collect();
+    assert!(
+        papeis.contains(&PapelNaCampanha::Timeout),
+        "o `timeout` criado pelo runner precisa entrar na captura: {papeis:?}"
+    );
+    assert!(
+        papeis.len() >= 2,
+        "a árvore tem mais que o controlador: {papeis:?}"
+    );
+    // Toda a árvore pertence a sessões que esta fixture reconhece como suas.
+    for membro in &dona.membros {
+        assert!(
+            dona.sessoes.contains(&membro.sid),
+            "membro fora das sessões da campanha: {membro:?}"
+        );
+    }
+    // O `timeout` vive numa sessão própria, criada pelo `setsid` do runner: é
+    // exatamente por isso que o grupo do controlador não basta para alcançá-lo.
+    let sessoes_distintas: HashSet<i32> = dona.membros.iter().map(|m| m.sid).collect();
+    assert!(
+        sessoes_distintas.len() >= 2,
+        "o runner abre sessão própria por iteração: {sessoes_distintas:?}"
+    );
+    dona.encerrar(SIGTERM);
+    let _ = fs::remove_dir_all(&raiz);
+}
+
+#[test]
+fn sigkill_mata_o_controlador_e_a_fixture_limpa_os_descendentes() {
+    // O defeito corrigido: `SIGKILL` não executa trap, de modo que o runner não
+    // derruba a própria árvore. Sem esta limpeza, cada execução deste caso
+    // deixava `timeout`, harness, `sleep` e o subshell monitor vivos — foi o que
+    // produziu os dezesseis órfãos observados na PR 424.
+    let raiz = raiz_isolada("sigkill-limpa-arvore");
+    let evidencia = raiz.join("target/pinker-flake-evidence");
+    let mut dona = CampanhaViva::iniciar(&raiz, "morta");
+    let limite = Instant::now() + Duration::from_secs(30);
+    while Instant::now() < limite {
+        dona.recapturar_membros();
+        if dona
+            .membros
+            .iter()
+            .any(|membro| papel_de(membro) == PapelNaCampanha::Timeout)
+        {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+
+    let relatorio = dona.encerrar_com_relatorio(SIGKILL);
+
+    assert!(
+        relatorio.controlador_morto,
+        "o SIGKILL precisa ter matado o controlador"
+    );
+    assert_ne!(
+        classificar_identidade(&relatorio.controlador),
+        ClasseIdentidade::Viva,
+        "a identidade capturada do controlador não pode continuar viva"
+    );
+    assert!(
+        relatorio.filho_recolhido,
+        "o filho direto precisa ser aguardado, sob pena de zumbi no cargo test"
+    );
+    assert!(
+        !relatorio.membros_antes.is_empty(),
+        "a árvore precisa ter sido capturada antes do sinal"
+    );
+    assert!(
+        !relatorio.sobreviventes_apos_controlador.is_empty(),
+        "matar apenas o controlador não derruba a árvore: é este o defeito que a \
+         limpeza da fixture existe para cobrir"
+    );
+    assert!(
+        relatorio
+            .papeis_sobreviventes()
+            .contains(&PapelNaCampanha::Timeout),
+        "o `timeout` sobrevive ao controlador: {:?}",
+        relatorio.papeis_sobreviventes()
+    );
+    assert!(
+        !relatorio.term_enviados.is_empty(),
+        "os remanescentes precisam receber TERM antes de KILL"
+    );
+    assert!(
+        relatorio.restantes.is_empty(),
+        "nenhum resíduo pode sobreviver à fixture: {:?}",
+        relatorio.restantes
+    );
+    assert!(
+        relatorio.grupo_vazio,
+        "grupo do controlador precisa esvaziar"
+    );
+    assert!(
+        relatorio.sessao_vazia,
+        "as sessões da campanha precisam ficar sem membros"
+    );
+    for papel in [
+        PapelNaCampanha::Timeout,
+        PapelNaCampanha::Harness,
+        PapelNaCampanha::ShellIntermediario,
+        PapelNaCampanha::Descendente,
+    ] {
+        assert!(
+            !relatorio.papeis_restantes().contains(&papel),
+            "papel {papel:?} sobreviveu à limpeza"
+        );
+    }
+    assert!(
+        relatorio.membros_ligados_a_raiz > 0,
+        "ao menos um membro precisa citar a raiz temporária do caso"
+    );
+    assert!(
+        relatorio.sessoes.len() >= 2,
+        "a campanha registra a própria sessão e a que o runner abre: {:?}",
+        relatorio.sessoes
+    );
+
+    // O lock é objeto deste teste e precisa sobreviver ao SIGKILL.
+    assert!(
+        evidencia.join(".lock/owner.marker").is_file(),
+        "SIGKILL deixa o lock para trás"
+    );
+    let _ = fs::remove_dir_all(&raiz);
 }
 
 #[test]
@@ -1396,17 +2194,482 @@ fn lock_deixado_por_sigkill_e_recuperavel() {
     let raiz = raiz_isolada("lock-sigkill");
     let dona = CampanhaViva::iniciar(&raiz, "morta");
     let evidencia = raiz.join("target/pinker-flake-evidence");
-    dona.encerrar(9);
+    let lote_morto = dona.lote.clone();
+    let relatorio = dona.encerrar_com_relatorio(SIGKILL);
     assert!(
         evidencia.join(".lock/owner.marker").is_file(),
         "SIGKILL deixa o lock para trás"
+    );
+    assert!(
+        relatorio.restantes.is_empty(),
+        "a recuperação do lock não pode depender de resíduos vivos: {:?}",
+        relatorio.restantes
     );
 
     let seguinte = executar_com_lock(&raiz, "seguinte");
     assert_eq!(seguinte.codigo, 0, "stderr={}", seguinte.saida_erro);
     assert!(seguinte.saida_erro.contains("lock obsoleto recuperado"));
-    assert!(!evidencia.join(".lock").exists());
+    assert!(!evidencia.join(".lock").exists(), "zero locks ao final");
+
+    // O lote da campanha recuperadora conclui e não deixa iteração em curso. O
+    // lote morto conserva o seu `.running-`: `SIGKILL` não executa trap, logo
+    // ninguém o promoveu a `INTERRUPTED-`, e esse diretório é **evidência
+    // preservada** do que a campanha estava fazendo quando morreu — não resíduo.
+    // Recuperar o lock é competência do runner; reescrever a evidência de uma
+    // campanha morta não é, e o produto não foi alterado para fingir que é.
+    let lotes = seguinte.lotes();
+    assert_eq!(lotes.len(), 2, "o lote morto e o recuperador: {lotes:?}");
+    let em_curso: Vec<PathBuf> = lotes
+        .iter()
+        .filter(|lote| {
+            diretorios_de(lote).iter().any(|caminho| {
+                caminho
+                    .file_name()
+                    .map(|nome| nome.to_string_lossy().starts_with(".running-"))
+                    .unwrap_or(false)
+            })
+        })
+        .cloned()
+        .collect();
+    assert_eq!(
+        em_curso,
+        vec![lote_morto],
+        "somente o lote morto pelo SIGKILL preserva a iteração em curso"
+    );
+    let recuperador = lotes
+        .iter()
+        .find(|lote| **lote != em_curso[0])
+        .expect("lote da campanha recuperadora");
+    assert!(
+        recuperador.join("SUMMARY.txt").is_file(),
+        "a campanha recuperadora precisa concluir o próprio lote"
+    );
+    let vivos: Vec<Identidade> = pids_vivos()
+        .into_iter()
+        .filter_map(identidade_de)
+        .filter(|identidade| relatorio.sessoes.contains(&identidade.sid))
+        .collect();
+    assert!(
+        vivos.is_empty(),
+        "processos residuais da campanha: {vivos:?}"
+    );
     let _ = fs::remove_dir_all(&raiz);
+}
+
+// --- proteção de identidade: o que a fixture se recusa a sinalizar ---------
+
+/// Processo externo à campanha, do mesmo usuário, para provar que a contenção
+/// não o alcança.
+fn processo_externo() -> (Child, Identidade) {
+    let filho = Command::new("/bin/sleep")
+        .arg("120")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("iniciar processo externo");
+    let pid = filho.id() as i32;
+    let limite = Instant::now() + Duration::from_secs(10);
+    loop {
+        if let Some(identidade) = identidade_de(pid) {
+            return (filho, identidade);
+        }
+        assert!(
+            Instant::now() < limite,
+            "processo externo não apareceu em /proc"
+        );
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
+fn encerrar_externo(mut filho: Child, identidade: &Identidade) {
+    assert!(
+        sinalizar_identidade(identidade, SIGKILL),
+        "o próprio caso encerra o que criou"
+    );
+    filho.wait().expect("recolher processo externo");
+}
+
+#[test]
+fn identidade_divergente_nao_e_sinalizada() {
+    let (filho, identidade) = processo_externo();
+    let divergente = Identidade {
+        start_time: identidade.start_time + 1,
+        ..identidade.clone()
+    };
+    assert_eq!(
+        classificar_identidade(&divergente),
+        ClasseIdentidade::Reutilizada,
+        "start time diferente significa outro processo sob o mesmo número"
+    );
+    assert!(
+        !sinalizar_identidade(&divergente, SIGKILL),
+        "identidade divergente nunca é sinalizada"
+    );
+    assert_eq!(
+        classificar_identidade(&identidade),
+        ClasseIdentidade::Viva,
+        "o processo real precisa seguir intacto"
+    );
+    encerrar_externo(filho, &identidade);
+}
+
+#[test]
+fn pid_reutilizado_nao_e_sinalizado() {
+    // Um PID já recolhido e um start time fabricado: a classe precisa provar a
+    // morte, e nenhuma das provas positivas autoriza sinal.
+    let livre = pid_encerrado();
+    let fantasma = Identidade {
+        pid: livre,
+        start_time: 1,
+        pgid: livre,
+        sid: livre,
+        comm: String::from("fantasma"),
+    };
+    assert!(matches!(
+        classificar_identidade(&fantasma),
+        ClasseIdentidade::Ausente | ClasseIdentidade::Reutilizada
+    ));
+    assert!(
+        !sinalizar_identidade(&fantasma, SIGKILL),
+        "PID sem identidade comprovada nunca é sinalizado"
+    );
+}
+
+#[test]
+fn pgid_divergente_nao_e_sinalizado() {
+    let (filho, identidade) = processo_externo();
+    let divergente = Identidade {
+        pgid: identidade.pgid + 1,
+        ..identidade.clone()
+    };
+    assert_eq!(
+        classificar_identidade(&divergente),
+        ClasseIdentidade::Desconhecida,
+        "grupo divergente torna a propriedade ambígua"
+    );
+    assert!(!sinalizar_identidade(&divergente, SIGKILL));
+    assert_eq!(classificar_identidade(&identidade), ClasseIdentidade::Viva);
+    encerrar_externo(filho, &identidade);
+}
+
+#[test]
+fn sid_divergente_nao_e_sinalizado() {
+    let (filho, identidade) = processo_externo();
+    let divergente = Identidade {
+        sid: identidade.sid + 1,
+        ..identidade.clone()
+    };
+    assert_eq!(
+        classificar_identidade(&divergente),
+        ClasseIdentidade::Desconhecida,
+        "sessão divergente torna a propriedade ambígua"
+    );
+    assert!(!sinalizar_identidade(&divergente, SIGKILL));
+    encerrar_externo(filho, &identidade);
+}
+
+#[test]
+fn grupo_desconhecido_falha_fechado() {
+    // `unknown` é a classe que nunca autoriza nada. PID não positivo e o init
+    // são os dois casos que a fixture precisa recusar sem hesitar.
+    for pid in [0, -1, 1] {
+        let opaco = Identidade {
+            pid,
+            start_time: 1,
+            pgid: pid,
+            sid: pid,
+            comm: String::from("opaco"),
+        };
+        assert_eq!(
+            classificar_identidade(&opaco),
+            ClasseIdentidade::Desconhecida,
+            "pid {pid} não pode ser classificado como próprio"
+        );
+        assert!(
+            !sinalizar_identidade(&opaco, SIGTERM),
+            "pid {pid} nunca é sinalizado"
+        );
+    }
+}
+
+#[test]
+fn processo_externo_no_mesmo_usuario_nao_e_tocado() {
+    let (externo, identidade_externa) = processo_externo();
+    let raiz = raiz_isolada("externo-intocado");
+    let dona = CampanhaViva::iniciar(&raiz, "modo");
+    assert!(
+        !dona.sessoes.contains(&identidade_externa.sid),
+        "o processo externo não pode ser confundido com a campanha"
+    );
+    let relatorio = dona.encerrar_com_relatorio(SIGKILL);
+    assert!(
+        !relatorio.term_enviados.contains(&identidade_externa.pid),
+        "o processo externo não pode receber TERM"
+    );
+    assert!(
+        !relatorio.kill_enviados.contains(&identidade_externa.pid),
+        "o processo externo não pode receber KILL"
+    );
+    assert_eq!(
+        classificar_identidade(&identidade_externa),
+        ClasseIdentidade::Viva,
+        "o processo externo precisa sobreviver intacto à contenção"
+    );
+    encerrar_externo(externo, &identidade_externa);
+    let _ = fs::remove_dir_all(&raiz);
+}
+
+/// Identidade do controlador e sessões da campanha, publicadas pelo fecho que
+/// entra em pânico para que o caso possa afirmar sobre elas depois do `Drop`.
+type ObservacaoCompartilhada = Arc<Mutex<Option<(Identidade, Vec<i32>)>>>;
+
+#[test]
+fn limpeza_de_contingencia_em_drop_apos_panico_controlado() {
+    let raiz = raiz_isolada("drop-panico");
+    let contencoes_antes = CONTENCOES_EM_DROP.load(Ordering::Relaxed);
+    let observado: ObservacaoCompartilhada = Arc::new(Mutex::new(None));
+
+    let alvo = Arc::clone(&observado);
+    let caminho = raiz.clone();
+    let resultado = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
+        let dona = CampanhaViva::iniciar(&caminho, "modo");
+        *alvo.lock().expect("registrar identidade") =
+            Some((dona.controlador.clone(), dona.sessoes.clone()));
+        // Falha de asserção com a campanha viva: só o `Drop` pode contê-la.
+        panic!("panico controlado da regressao de Drop");
+    }));
+    assert!(resultado.is_err(), "o pânico precisa ter ocorrido");
+
+    let (controlador, sessoes) = observado
+        .lock()
+        .expect("ler identidade")
+        .clone()
+        .expect("a campanha chegou a existir");
+
+    assert_ne!(
+        classificar_identidade(&controlador),
+        ClasseIdentidade::Viva,
+        "o Drop precisa ter encerrado o controlador"
+    );
+    let vivos: Vec<Identidade> = pids_vivos()
+        .into_iter()
+        .filter_map(identidade_de)
+        .filter(|identidade| sessoes.contains(&identidade.sid))
+        .collect();
+    assert!(
+        vivos.is_empty(),
+        "o Drop precisa ter esvaziado as sessões da campanha: {vivos:?}"
+    );
+    assert!(
+        CONTENCOES_EM_DROP.load(Ordering::Relaxed) > contencoes_antes,
+        "a contingência precisa ser observável pelo teste"
+    );
+    assert_eq!(
+        FALHAS_DE_LIMPEZA_EM_DROP.load(Ordering::Relaxed),
+        0,
+        "nenhuma limpeza de contingência pode ter falhado"
+    );
+    let _ = fs::remove_dir_all(&raiz);
+}
+
+// --- sensibilidade das guardas de contenção --------------------------------
+
+/// Soma de verificação estável, para provar restauração byte a byte.
+///
+/// FNV-1a de 64 bits: uma dependência a menos e determinismo suficiente para o
+/// que se afirma aqui, que é igualdade de conteúdo e não resistência a colisão
+/// adversarial.
+fn soma_fnv1a(conteudo: &[u8]) -> u64 {
+    let mut soma: u64 = 0xcbf2_9ce4_8422_2325;
+    for byte in conteudo {
+        soma ^= u64::from(*byte);
+        soma = soma.wrapping_mul(0x1000_0000_01b3);
+    }
+    soma
+}
+
+/// Recorte da região autorizada a sinalizar.
+fn regiao_de_contencao(fonte: &str) -> Result<&str, String> {
+    // Construídas por concatenação para que os literais desta guarda não casem
+    // consigo mesmos ao inspecionar a própria fonte.
+    let abertura = format!("// pinker-contencao{}", ":inicio");
+    let fechamento = format!("// pinker-contencao{}", ":fim");
+    if fonte.matches(abertura.as_str()).count() != 1 {
+        return Err(String::from(
+            "sentinela de abertura da contenção não é única",
+        ));
+    }
+    if fonte.matches(fechamento.as_str()).count() != 1 {
+        return Err(String::from(
+            "sentinela de fechamento da contenção não é única",
+        ));
+    }
+    let abre = fonte.find(abertura.as_str()).expect("abertura");
+    let fecha = fonte.find(fechamento.as_str()).expect("fechamento");
+    if abre >= fecha {
+        return Err(String::from("sentinelas da contenção fora de ordem"));
+    }
+    Ok(&fonte[abre..fecha])
+}
+
+/// Invariantes que a contenção precisa manter.
+///
+/// Cada uma existe porque a sua ausência reintroduz um defeito concreto: árvore
+/// não limpa, sinal sem revalidação, zumbi no processo de testes, casamento por
+/// nome, ou sinalização de grupo inteiro.
+fn guarda_de_contencao(fonte: &str) -> Result<(), String> {
+    let regiao = regiao_de_contencao(fonte)?;
+
+    // Casamento por nome nunca pode reaparecer, em lugar algum da suíte.
+    for proibido in [
+        format!("{}kill", "p"),
+        format!("kill{}", "all"),
+        format!("{}grep", "p"),
+    ] {
+        if fonte.contains(proibido.as_str()) {
+            return Err(format!("casamento por nome reintroduzido: {proibido}"));
+        }
+    }
+
+    // Sinalização de grupo inteiro: um PGID pode ter desaparecido e sido
+    // reutilizado entre a captura e o sinal.
+    let sinal_de_grupo = format!("kill{}", "(-");
+    if fonte.contains(sinal_de_grupo.as_str()) {
+        return Err(String::from(
+            "sinalização de grupo sem prova de propriedade",
+        ));
+    }
+
+    // A limpeza de descendentes precisa existir nos dois caminhos: o explícito
+    // e a contingência do `Drop`.
+    let limpeza = "self.conter_remanescentes(PRAZO_DE_CONTENCAO)";
+    if regiao.matches(limpeza).count() < 2 {
+        return Err(String::from(
+            "limpeza de descendentes ausente no encerramento explícito ou no Drop",
+        ));
+    }
+
+    // Todo sinal passa por revalidação de identidade imediatamente antes do
+    // `kill`.
+    if !regiao.contains("if classificar_identidade(identidade) != ClasseIdentidade::Viva {") {
+        return Err(String::from("sinal sem revalidação de identidade"));
+    }
+
+    // Escalada TERM → KILL sobre os remanescentes, não apenas sobre o
+    // controlador.
+    for exigido in [
+        "sinalizar_identidade(&alvo, SIGTERM)",
+        "sinalizar_identidade(&alvo, SIGKILL)",
+    ] {
+        if !regiao.contains(exigido) {
+            return Err(format!("escalada incompleta: {exigido} ausente"));
+        }
+    }
+
+    // O filho direto precisa ser aguardado, ou vira zumbi dentro do processo de
+    // testes.
+    if !regiao
+        .contains(r#"let status = self.filho.wait().expect("aguardar campanha proprietária");"#)
+    {
+        return Err(String::from("wait do filho direto ausente"));
+    }
+    if !regiao.contains("let codigo = self.recolher_filho_direto();") {
+        return Err(String::from(
+            "o encerramento explícito não recolhe o filho direto",
+        ));
+    }
+
+    Ok(())
+}
+
+#[test]
+fn sensibilidade_das_guardas_de_contencao_detecta_cada_variacao() {
+    let caminho = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/pinker_flake_runner_tests.rs");
+    let original = fs::read(&caminho).expect("ler a própria suíte");
+    let soma_original = soma_fnv1a(&original);
+    let fonte = String::from_utf8(original.clone()).expect("a suíte é utf-8");
+
+    assert_eq!(
+        guarda_de_contencao(&fonte),
+        Ok(()),
+        "a fonte real precisa satisfazer as próprias guardas"
+    );
+
+    // Cada variação é aplicada a uma cópia em arquivo, e o arquivo é restaurado
+    // a partir dos bytes originais logo em seguida. O arquivo real da suíte
+    // nunca é reescrito.
+    let area = raiz_isolada("sensibilidade-contencao");
+    let copia = area.join("variacao.rs");
+
+    let variacoes: Vec<(&str, String)> = vec![
+        (
+            "remoção da limpeza de descendentes",
+            fonte.replace(
+                "self.conter_remanescentes(PRAZO_DE_CONTENCAO)",
+                "(Vec::new(), Vec::new(), Vec::new())",
+            ),
+        ),
+        (
+            "sinalização apenas do controlador",
+            fonte.replace("sinalizar_identidade(&alvo, SIGTERM)", "false"),
+        ),
+        (
+            "uso de identidade sem revalidação",
+            fonte.replace(
+                "if classificar_identidade(identidade) != ClasseIdentidade::Viva {",
+                "if false {",
+            ),
+        ),
+        (
+            "ausência de wait do filho direto",
+            fonte.replace(
+                r#"let status = self.filho.wait().expect("aguardar campanha proprietária");"#,
+                "let status = std::process::ExitStatus::default();",
+            ),
+        ),
+        (
+            "casamento por substring",
+            format!("{fonte}\n// {}kill -f campanha\n", "p"),
+        ),
+        (
+            "sinalização de grupo sem revalidação",
+            format!("{fonte}\n// kill{}pgid, SIGKILL)\n", "(-"),
+        ),
+    ];
+
+    for (nome, mutada) in &variacoes {
+        assert_ne!(
+            mutada.as_str(),
+            fonte.as_str(),
+            "a variação {nome} precisa alterar a fonte"
+        );
+        fs::write(&copia, mutada.as_bytes()).expect("gravar variação");
+        let lida = fs::read_to_string(&copia).expect("reler variação");
+        assert!(
+            guarda_de_contencao(&lida).is_err(),
+            "a variação {nome} passou despercebida pelas guardas"
+        );
+
+        // Restauração byte a byte, conferida por hash.
+        fs::write(&copia, &original).expect("restaurar variação");
+        let restaurada = fs::read(&copia).expect("reler restauração");
+        assert_eq!(
+            soma_fnv1a(&restaurada),
+            soma_original,
+            "restauração de {nome} não é byte a byte"
+        );
+        assert_eq!(restaurada, original, "restauração de {nome} divergiu");
+    }
+
+    // A suíte real permanece intacta.
+    let depois = fs::read(&caminho).expect("reler a própria suíte");
+    assert_eq!(
+        soma_fnv1a(&depois),
+        soma_original,
+        "a fonte da suíte precisa continuar byte a byte idêntica"
+    );
+    assert_eq!(depois, original);
+    let _ = fs::remove_dir_all(&area);
 }
 
 // --- namespace de lote e projeção legada ----------------------------------
