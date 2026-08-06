@@ -1,0 +1,19 @@
+schema: 1
+source:
+  type: github-pr
+  number: 424
+  repository: "LyannaValerie/pinker-v0"
+kind: hotfix
+block: 20
+title: "Integridade da fixture de testes: publicação segura de executáveis"
+area:
+  - development.test-integrity
+  - development.host-containment
+status: completed
+updates:
+  state: true
+  history: true
+  roadmap: false
+validation:
+  required:
+    - make ci
