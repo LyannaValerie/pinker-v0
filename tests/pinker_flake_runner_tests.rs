@@ -352,6 +352,20 @@ const SEM_RESUMO: &str = "compilando\nnenhuma linha de resumo reconhecivel aqui"
 const RESUMO_COM_FALHA: &str =
     "running 2 tests\ntest result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out";
 
+/// Duração do harness falso nos casos que precisam sinalizar uma iteração
+/// **em curso**.
+///
+/// A janela útil desses casos é o intervalo entre o início da iteração e o seu
+/// fim. Trinta segundos pareciam folgados e não eram: sob execuções paralelas
+/// com os núcleos saturados, a fome de escalonamento entre observar o lote e
+/// enviar o sinal chegou perto desse valor, a iteração terminou antes, e o caso
+/// que exige `130` recebeu `0`. Uma máquina ociosa esconde exatamente isso.
+///
+/// O valor fica bem abaixo do `per_run_timeout` padrão do runner, de trezentos
+/// segundos, para que o `timeout` do produto nunca seja quem encerra a
+/// iteração: o caso precisa que quem encerre seja o sinal.
+const HARNESS_LONGO_SEGUNDOS: u64 = 240;
+
 const EXIT_USO: i32 = 2;
 const EXIT_FALHAS: i32 = 1;
 const EXIT_INTERROMPIDO: i32 = 130;
@@ -716,8 +730,8 @@ fn validador_aceita_somente_inteiro_decimal_estritamente_positivo() {
 #[test]
 fn interrupcao_preserva_evidencia_e_retorna_130() {
     let raiz = raiz_isolada("interrupcao");
-    let binario = binario_falso_com_atraso(&raiz, RESUMO_COM_TESTE, 0, 30);
-    let mut filho = Command::new(raiz.join("scripts/pinker-flake-runner.sh"))
+    let binario = binario_falso_com_atraso(&raiz, RESUMO_COM_TESTE, 0, HARNESS_LONGO_SEGUNDOS);
+    let filho = Command::new(raiz.join("scripts/pinker-flake-runner.sh"))
         .args(["modo", "1"])
         .env("PINKER_FLAKE_TEST_BINARY", &binario)
         .env_remove("PINKER_FLAKE_RUN_TIMEOUT_SECONDS")
@@ -727,7 +741,8 @@ fn interrupcao_preserva_evidencia_e_retorna_130() {
         .expect("iniciar runner");
 
     let evidencia = raiz.join("target/pinker-flake-evidence");
-    let limite = Instant::now() + Duration::from_secs(30);
+    let inicio = Instant::now();
+    let limite = inicio + Duration::from_secs(30);
     let mut lote_em_curso: Option<PathBuf> = None;
     while Instant::now() < limite {
         if let Some(lote) = lote_em_execucao(&evidencia) {
@@ -737,24 +752,32 @@ fn interrupcao_preserva_evidencia_e_retorna_130() {
         std::thread::sleep(Duration::from_millis(50));
     }
     let lote = lote_em_curso.expect("iteração não chegou a iniciar");
+    let ate_o_lote = inicio.elapsed();
     assert!(
         evidencia.join(".lock/owner.marker").is_file(),
         "campanha em andamento precisa deter o lock"
     );
 
+    // A iteração precisa estar **em curso** no instante do sinal, não apenas
+    // ter começado. São estados diferentes quando a máquina está disputada, e
+    // confundi-los custou duas falhas em quarenta execuções sob carga — o
+    // harness terminava sozinho e o runner saía `0` onde o caso exige `130`.
+    // O harness longo fecha a janela; estes campos existem para que, se ela
+    // reabrir, a falha diga por quê em vez de exigir arqueologia.
+    let ainda_em_curso = lote_em_execucao(&evidencia).is_some();
+    let momento_do_sinal = inicio.elapsed();
     let pid = filho.id() as i32;
     // SIGINT no runner, exatamente como uma interrupção de terminal.
-    unsafe {
-        extern "C" {
-            fn kill(pid: i32, sinal: i32) -> i32;
-        }
-        assert_eq!(kill(pid, 2), 0, "enviar SIGINT");
-    }
-    let status = filho.wait().expect("aguardar runner");
+    enviar_sinal(pid, 2);
+    let saida = filho.wait_with_output().expect("aguardar runner");
     assert_eq!(
-        status.code(),
+        saida.status.code(),
         Some(EXIT_INTERROMPIDO),
-        "interrupção deve retornar 130"
+        "interrupção deve retornar 130; ate_o_lote={ate_o_lote:?} \
+         sinal_em={momento_do_sinal:?} iteracao_ainda_em_curso={ainda_em_curso}\n\
+         stdout do runner:\n{}\nstderr do runner:\n{}",
+        String::from_utf8_lossy(&saida.stdout),
+        String::from_utf8_lossy(&saida.stderr)
     );
 
     let preservados: Vec<PathBuf> = diretorios_de(&lote)
@@ -1124,7 +1147,7 @@ struct CampanhaViva {
 
 impl CampanhaViva {
     fn iniciar(raiz: &Path, modo: &str) -> Self {
-        let binario = binario_falso_com_atraso(raiz, RESUMO_COM_TESTE, 0, 60);
+        let binario = binario_falso_com_atraso(raiz, RESUMO_COM_TESTE, 0, HARNESS_LONGO_SEGUNDOS);
         let mut comando = Command::new(raiz.join("scripts/pinker-flake-runner.sh"));
         comando
             .args([modo, "1"])
@@ -1291,9 +1314,45 @@ impl CampanhaViva {
         pids_vivos()
             .into_iter()
             .filter(|pid| *pid > 1 && *pid != proprio && *pid != self.controlador.pid)
-            .filter_map(identidade_de)
-            .filter(|identidade| self.sessoes.contains(&identidade.sid))
+            .filter_map(|pid| campos_do_stat(pid).map(|campos| (pid, campos)))
+            .filter(|(_, (_, ppid, _, sid, _))| {
+                self.sessoes.contains(sid) && self.pai_conhecido(*ppid)
+            })
+            .map(|(pid, (comm, _ppid, pgid, sid, start_time))| Identidade {
+                pid,
+                start_time,
+                pgid,
+                sid,
+                comm,
+            })
             .collect()
+    }
+
+    /// O pai é o controlador ou um membro já capturado?
+    ///
+    /// Um número de sessão é reciclável, e o kernel recicla depressa sob
+    /// campanha — nesta VM o contador de PID dá a volta em poucas horas. A
+    /// sessão sozinha, portanto, não prova propriedade. Exigir que o **pai**
+    /// seja identidade já conhecida distingue o neto legítimo, forkado entre a
+    /// captura e o sinal, do processo alheio que apenas herdou o número.
+    fn pai_conhecido(&self, ppid: i32) -> bool {
+        ppid == self.controlador.pid || self.membros.iter().any(|membro| membro.pid == ppid)
+    }
+
+    /// A identidade é comprovadamente da campanha?
+    ///
+    /// Ou já foi capturada com o mesmo start time, ou o seu pai é identidade
+    /// conhecida. Qualquer outra coisa que apenas compartilhe grupo ou sessão é
+    /// número reciclado, e número reciclado não é resíduo.
+    fn pertence_a_campanha(&self, identidade: &Identidade) -> bool {
+        if self.membros.iter().any(|membro| {
+            membro.pid == identidade.pid && membro.start_time == identidade.start_time
+        }) {
+            return true;
+        }
+        campos_do_stat(identidade.pid)
+            .map(|(_, ppid, _, _, _)| self.pai_conhecido(ppid))
+            .unwrap_or(false)
     }
 
     /// Vínculo de um processo com a raiz temporária deste caso.
@@ -1332,6 +1391,7 @@ impl CampanhaViva {
             .into_iter()
             .filter_map(identidade_de)
             .filter(|identidade| identidade.pgid == self.controlador.pgid)
+            .filter(|identidade| self.pertence_a_campanha(identidade))
             .collect()
     }
 
@@ -1342,6 +1402,7 @@ impl CampanhaViva {
             .into_iter()
             .filter_map(identidade_de)
             .filter(|identidade| self.sessoes.contains(&identidade.sid))
+            .filter(|identidade| self.pertence_a_campanha(identidade))
             .collect()
     }
 
@@ -1384,8 +1445,7 @@ impl CampanhaViva {
         // Só agora os remanescentes são tratados, e sempre por identidade.
         self.absorver_retardatarios();
         let sobreviventes_apos_controlador = self.sobreviventes();
-        let (term_enviados, kill_enviados, restantes) =
-            self.conter_remanescentes(PRAZO_DE_CONTENCAO);
+        let contencao = self.conter_remanescentes(PRAZO_DE_CONTENCAO);
 
         let relatorio = RelatorioEncerramento {
             codigo,
@@ -1394,13 +1454,13 @@ impl CampanhaViva {
             membros_antes,
             controlador_morto,
             sobreviventes_apos_controlador,
-            term_enviados,
-            kill_enviados,
+            term_enviados: contencao.term,
+            kill_enviados: contencao.kill,
             filho_recolhido: self.filho_recolhido,
             grupo_vazio: self.vivos_no_grupo().is_empty(),
             sessao_vazia: self.vivos_nas_sessoes().is_empty(),
             membros_ligados_a_raiz,
-            restantes,
+            restantes: contencao.restantes,
         };
         assert!(
             relatorio.restantes.is_empty(),
@@ -1428,34 +1488,80 @@ impl CampanhaViva {
     /// `TERM` primeiro, para que quem tiver trap possa preservar evidência;
     /// `KILL` só nos que continuarem sendo comprovadamente a mesma identidade
     /// depois do prazo. Devolve os PIDs sinalizados em cada etapa e o que restou.
-    fn conter_remanescentes(&mut self, prazo: Duration) -> (Vec<i32>, Vec<i32>, Vec<Identidade>) {
-        self.absorver_retardatarios();
-        let mut term_enviados = Vec::new();
-        let mut kill_enviados = Vec::new();
-
-        for alvo in self.sobreviventes() {
-            if sinalizar_identidade(&alvo, SIGTERM) {
-                term_enviados.push(alvo.pid);
-            }
+    fn conter_remanescentes(&mut self, prazo: Duration) -> ResultadoContencao {
+        let term = self.fase_de_contencao(SIGTERM, prazo / 3);
+        let kill = self.fase_de_contencao(SIGKILL, prazo / 3);
+        self.drenar(prazo / 3);
+        ResultadoContencao {
+            term,
+            kill,
+            restantes: self.sobreviventes(),
         }
-        self.aguardar_extincao(prazo);
-
-        for alvo in self.sobreviventes() {
-            if sinalizar_identidade(&alvo, SIGKILL) {
-                kill_enviados.push(alvo.pid);
-            }
-        }
-        self.aguardar_extincao(prazo);
-
-        (term_enviados, kill_enviados, self.sobreviventes())
     }
 
-    fn aguardar_extincao(&self, prazo: Duration) {
+    /// Dreno final, por varredura independente da lista de membros.
+    ///
+    /// Confirma que nem o grupo nem as sessões guardam processo comprovadamente
+    /// da campanha, e escala o que ainda aparecer. Cobre a janela de
+    /// microssegundos entre o último `fork` de um pai moribundo e a checagem de
+    /// vazio — janela pequena, mas que sob cem execuções paralelas deixa de ser
+    /// hipotética.
+    fn drenar(&mut self, prazo: Duration) {
         let limite = Instant::now() + prazo;
-        while Instant::now() < limite && !self.sobreviventes().is_empty() {
-            std::thread::sleep(Duration::from_millis(20));
+        loop {
+            self.absorver_retardatarios();
+            for alvo in self.sobreviventes() {
+                sinalizar_identidade(&alvo, SIGKILL);
+            }
+            if self.vivos_no_grupo().is_empty() && self.vivos_nas_sessoes().is_empty() {
+                return;
+            }
+            if Instant::now() >= limite {
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(10));
         }
     }
+
+    /// Uma fase de contenção: sinaliza, reabsorve e repete até a árvore esvaziar
+    /// ou o prazo expirar.
+    ///
+    /// O laço não é zelo excessivo. Enquanto o `timeout` da iteração continua
+    /// vivo, o subshell monitor do runner segue forkando `ps`, `find` e `wc` a
+    /// cada 50 ms; um neto nascido entre a captura e o sinal pertence à campanha
+    /// tanto quanto o pai que o criou, e uma passada única o deixaria para trás.
+    /// Era exatamente essa a origem das cinco falhas de `grupo_vazio` em oitenta
+    /// e quatro execuções paralelas.
+    fn fase_de_contencao(&mut self, sinal: i32, prazo: Duration) -> Vec<i32> {
+        let mut sinalizados: Vec<i32> = Vec::new();
+        let limite = Instant::now() + prazo;
+        loop {
+            self.absorver_retardatarios();
+            let vivos = self.sobreviventes();
+            if vivos.is_empty() {
+                break;
+            }
+            for alvo in &vivos {
+                if !sinalizados.contains(&alvo.pid) && sinalizar_identidade(alvo, sinal) {
+                    sinalizados.push(alvo.pid);
+                }
+            }
+            if Instant::now() >= limite {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        sinalizados.sort_unstable();
+        sinalizados
+    }
+}
+
+/// O que uma contenção sinalizou e o que sobrou dela.
+#[derive(Debug, Default)]
+struct ResultadoContencao {
+    term: Vec<i32>,
+    kill: Vec<i32>,
+    restantes: Vec<Identidade>,
 }
 
 impl Drop for CampanhaViva {
@@ -1488,8 +1594,8 @@ impl Drop for CampanhaViva {
             }
         }
 
-        let (_term, _kill, restantes) = self.conter_remanescentes(PRAZO_DE_CONTENCAO);
-        if !restantes.is_empty() || !self.filho_recolhido {
+        let contencao = self.conter_remanescentes(PRAZO_DE_CONTENCAO);
+        if !contencao.restantes.is_empty() || !self.filho_recolhido {
             FALHAS_DE_LIMPEZA_EM_DROP.fetch_add(1, Ordering::Relaxed);
         }
     }
@@ -2561,12 +2667,23 @@ fn guarda_de_contencao(fonte: &str) -> Result<(), String> {
     // Escalada TERM → KILL sobre os remanescentes, não apenas sobre o
     // controlador.
     for exigido in [
-        "sinalizar_identidade(&alvo, SIGTERM)",
-        "sinalizar_identidade(&alvo, SIGKILL)",
+        "sinalizar_identidade(alvo, sinal)",
+        "self.fase_de_contencao(SIGTERM,",
+        "self.fase_de_contencao(SIGKILL,",
     ] {
         if !regiao.contains(exigido) {
             return Err(format!("escalada incompleta: {exigido} ausente"));
         }
+    }
+
+    // A árvore é reabsorvida a cada rodada. Uma passada única deixa para trás o
+    // neto forkado entre a captura e o sinal, que foi a origem das cinco falhas
+    // de grupo não vazio em oitenta e quatro execuções paralelas.
+    let reabsorcao = "self.absorver_retardatarios();";
+    if regiao.matches(reabsorcao).count() < 3 {
+        return Err(String::from(
+            "reabsorção da árvore ausente em alguma etapa da contenção",
+        ));
     }
 
     // O filho direto precisa ser aguardado, ou vira zumbi dentro do processo de
@@ -2609,12 +2726,16 @@ fn sensibilidade_das_guardas_de_contencao_detecta_cada_variacao() {
             "remoção da limpeza de descendentes",
             fonte.replace(
                 "self.conter_remanescentes(PRAZO_DE_CONTENCAO)",
-                "(Vec::new(), Vec::new(), Vec::new())",
+                "ResultadoContencao::default()",
             ),
         ),
         (
             "sinalização apenas do controlador",
-            fonte.replace("sinalizar_identidade(&alvo, SIGTERM)", "false"),
+            fonte.replace("sinalizar_identidade(alvo, sinal)", "false"),
+        ),
+        (
+            "passada única sem reabsorção da árvore",
+            fonte.replace("self.absorver_retardatarios();", ""),
         ),
         (
             "uso de identidade sem revalidação",
