@@ -1364,7 +1364,21 @@ impl CampanhaViva {
                 .filter(|membro| membro.sid != self.controlador.sid)
                 .count();
             if internos >= 2 {
-                return true;
+                // Uma reabsorção a mais antes de decidir: o monitor pode ter
+                // nascido entre a varredura e esta verificação.
+                self.absorver_retardatarios();
+                // O subshell monitor nasce na sessão do próprio runner.
+                // Exigi-lo junto fecha a última janela: sem ele, a espera
+                // podia terminar num instante em que a iteração já tem árvore
+                // mas o runner ainda não criou o auxiliar que também precisa
+                // ser aguardado no encerramento.
+                let monitor = self
+                    .membros
+                    .iter()
+                    .any(|membro| membro.sid == self.controlador.sid);
+                if monitor {
+                    return true;
+                }
             }
             std::thread::sleep(Duration::from_millis(10));
         }
@@ -1390,13 +1404,27 @@ impl CampanhaViva {
         }
     }
 
+    /// Registra um processo como membro, uma única vez.
+    ///
+    /// A identidade de um membro é `(pid, start_time)`; `comm` é rótulo, e um
+    /// processo continua sendo o mesmo processo quando troca de nome. O
+    /// controlador da iteração troca: ele publica a própria identidade e então
+    /// `exec`uta o `timeout`, de modo que a mesma entrada aparece antes como
+    /// shell e depois como `timeout`. Guardar as duas faria a espera pela árvore
+    /// aceitar **um** processo como se fossem dois, e devolver uma campanha cuja
+    /// árvore ainda não existe.
     fn registrar_membro(&mut self, identidade: Identidade) {
         if identidade.pid == self.controlador.pid || identidade.pid <= 1 {
             return;
         }
-        if !self.membros.contains(&identidade) {
-            self.membros.push(identidade);
+        if let Some(existente) = self.membros.iter_mut().find(|membro| {
+            membro.pid == identidade.pid && membro.start_time == identidade.start_time
+        }) {
+            // O rótulo mais recente é o que descreve o processo agora.
+            *existente = identidade;
+            return;
         }
+        self.membros.push(identidade);
     }
 
     /// Processos vivos numa das sessões exclusivas da campanha.
