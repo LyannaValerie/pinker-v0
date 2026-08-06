@@ -831,6 +831,10 @@ fn evidencia_permanece_na_raiz_persistente_do_repositorio() {
 
 const EXIT_TRAVADO: i32 = 3;
 
+/// Identidade do controlador não pôde ser provada. Distinto de falha de teste e
+/// distinto de lock: nenhuma iteração chegou a ser observada com segurança.
+const EXIT_IDENTIDADE: i32 = 4;
+
 // ---------------------------------------------------------------------------
 // Contenção da campanha proprietária.
 //
@@ -1118,7 +1122,7 @@ fn enviar_sinal(pid: i32, sinal: i32) {
 /// autorizasse seria o casamento por nome que este módulo existe para evitar —
 /// e a guarda de sensibilidade proíbe até a menção literal das ferramentas que
 /// o fazem, de modo que este comentário as descreve sem as nomear.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum PapelNaCampanha {
     Timeout,
     Harness,
@@ -1194,14 +1198,48 @@ struct CampanhaViva {
 
 impl CampanhaViva {
     fn iniciar(raiz: &Path, modo: &str) -> Self {
-        let binario = binario_falso_com_atraso(raiz, RESUMO_COM_TESTE, 0, HARNESS_LONGO_SEGUNDOS);
+        let mut campanha = Self::nascer(raiz, modo, &[]);
+        campanha.aguardar_iteracao();
+        campanha
+    }
+
+    /// Cria a campanha e prova o isolamento, sem esperar pela iteração.
+    ///
+    /// Os casos da janela de inicialização congelam o runner **antes** de a
+    /// árvore existir, de modo que esperar por ela aqui os tornaria
+    /// impossíveis. A espera pertence a quem afirma sobre a árvore.
+    fn nascer(raiz: &Path, modo: &str, ambiente: &[(&str, String)]) -> Self {
+        Self::nascer_com_harness(raiz, modo, ambiente, HARNESS_LONGO_SEGUNDOS)
+    }
+
+    fn nascer_com_harness(
+        raiz: &Path,
+        modo: &str,
+        ambiente: &[(&str, String)],
+        atraso_segundos: u64,
+    ) -> Self {
+        Self::nascer_completo(raiz, modo, "1", ambiente, atraso_segundos)
+    }
+
+    fn nascer_completo(
+        raiz: &Path,
+        modo: &str,
+        execucoes: &str,
+        ambiente: &[(&str, String)],
+        atraso_segundos: u64,
+    ) -> Self {
+        let binario = binario_falso_com_atraso(raiz, RESUMO_COM_TESTE, 0, atraso_segundos);
         let mut comando = Command::new(raiz.join("scripts/pinker-flake-runner.sh"));
         comando
-            .args([modo, "1"])
+            .args([modo, execucoes])
             .env("PINKER_FLAKE_TEST_BINARY", &binario)
             .env_remove("PINKER_FLAKE_RUN_TIMEOUT_SECONDS")
+            .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
+        for (chave, valor) in ambiente {
+            comando.env(chave, valor);
+        }
         // Sessão e grupo exclusivos, estabelecidos entre o `fork` e o `exec`.
         // Sem isto a campanha nasce no grupo do `cargo test`, e qualquer
         // contenção por grupo alcançaria o próprio processo de testes.
@@ -1237,7 +1275,6 @@ impl CampanhaViva {
         // A partir daqui qualquer pânico passa pelo `Drop`, que contém a árvore
         // já criada: falhar a construção não pode vazar processo.
         campanha.exigir_isolamento();
-        campanha.aguardar_iteracao();
         campanha
     }
 
@@ -1327,7 +1364,21 @@ impl CampanhaViva {
                 .filter(|membro| membro.sid != self.controlador.sid)
                 .count();
             if internos >= 2 {
-                return true;
+                // Uma reabsorção a mais antes de decidir: o monitor pode ter
+                // nascido entre a varredura e esta verificação.
+                self.absorver_retardatarios();
+                // O subshell monitor nasce na sessão do próprio runner.
+                // Exigi-lo junto fecha a última janela: sem ele, a espera
+                // podia terminar num instante em que a iteração já tem árvore
+                // mas o runner ainda não criou o auxiliar que também precisa
+                // ser aguardado no encerramento.
+                let monitor = self
+                    .membros
+                    .iter()
+                    .any(|membro| membro.sid == self.controlador.sid);
+                if monitor {
+                    return true;
+                }
             }
             std::thread::sleep(Duration::from_millis(10));
         }
@@ -1353,13 +1404,27 @@ impl CampanhaViva {
         }
     }
 
+    /// Registra um processo como membro, uma única vez.
+    ///
+    /// A identidade de um membro é `(pid, start_time)`; `comm` é rótulo, e um
+    /// processo continua sendo o mesmo processo quando troca de nome. O
+    /// controlador da iteração troca: ele publica a própria identidade e então
+    /// `exec`uta o `timeout`, de modo que a mesma entrada aparece antes como
+    /// shell e depois como `timeout`. Guardar as duas faria a espera pela árvore
+    /// aceitar **um** processo como se fossem dois, e devolver uma campanha cuja
+    /// árvore ainda não existe.
     fn registrar_membro(&mut self, identidade: Identidade) {
         if identidade.pid == self.controlador.pid || identidade.pid <= 1 {
             return;
         }
-        if !self.membros.contains(&identidade) {
-            self.membros.push(identidade);
+        if let Some(existente) = self.membros.iter_mut().find(|membro| {
+            membro.pid == identidade.pid && membro.start_time == identidade.start_time
+        }) {
+            // O rótulo mais recente é o que descreve o processo agora.
+            *existente = identidade;
+            return;
         }
+        self.membros.push(identidade);
     }
 
     /// Processos vivos numa das sessões exclusivas da campanha.
@@ -1478,8 +1543,18 @@ impl CampanhaViva {
 
     /// Encerra a campanha e devolve o que foi observado em cada etapa.
     fn encerrar_com_relatorio(mut self, sinal: i32) -> RelatorioEncerramento {
-        // A árvore precisa ser conhecida antes do sinal: depois do `SIGKILL`
-        // não há mais ancestralidade que a reconstrua.
+        let capturado = self.capturar_antes_do_sinal();
+        enviar_sinal(self.controlador.pid, sinal);
+        self.colher_relatorio(capturado)
+    }
+
+    /// Captura a árvore e prova a identidade do controlador **antes** de
+    /// qualquer sinal.
+    ///
+    /// Depois do `SIGKILL` não há mais ancestralidade que reconstrua a árvore, e
+    /// depois de um sinal qualquer a campanha pode terminar a qualquer instante:
+    /// afirmar sobre o controlador vivo só é determinístico antes.
+    fn capturar_antes_do_sinal(&mut self) -> (Vec<Identidade>, usize) {
         self.recapturar_membros();
         let membros_antes = self.membros.clone();
         let membros_ligados_a_raiz = membros_antes
@@ -1495,8 +1570,12 @@ impl CampanhaViva {
             self.controlador.sid, self.controlador.pid,
             "o controlador precisa continuar líder da própria sessão"
         );
+        (membros_antes, membros_ligados_a_raiz)
+    }
 
-        enviar_sinal(self.controlador.pid, sinal);
+    /// Recolhe e relata um encerramento cujo sinal já partiu.
+    fn colher_relatorio(mut self, capturado: (Vec<Identidade>, usize)) -> RelatorioEncerramento {
+        let (membros_antes, membros_ligados_a_raiz) = capturado;
         let codigo = self.recolher_filho_direto();
         let controlador_morto = classificar_identidade(&self.controlador) != ClasseIdentidade::Viva;
 
@@ -2664,6 +2743,1474 @@ fn limpeza_de_contingencia_em_drop_apos_panico_controlado() {
         "nenhuma limpeza de contingência pode ter falhado"
     );
     let _ = fs::remove_dir_all(&raiz);
+}
+
+// ---------------------------------------------------------------------------
+// Janela de interrupção ao iniciar a campanha.
+//
+// O runner criava o controlador e só depois capturava o seu start time. Os
+// `trap` de INT, TERM e HUP já estavam ativos durante essa sequência, e o
+// encerramento começava por uma validação que exigia a identidade completa.
+// Um sinal recebido depois do `setsid` e antes da captura encontrava a
+// validação falhando: o encerramento voltava sem matar nada, o runner saía com
+// `130`, liberava o lock e preservava a evidência como interrompida, deixando
+// `timeout`, harness e descendentes vivos. Interrupção correta por fora, árvore
+// viva por dentro.
+//
+// A janela é fechada por construção, nunca por temporização: durante `starting`
+// o sinal é registrado como interrupção pendente e só é processado depois de
+// PID, start time, PGID e SID capturados, revalidados e promovidos.
+//
+// A sincronização destes casos é causal, não temporal. O gancho de
+// inicialização congela o runner num ponto exato lendo uma linha da entrada
+// padrão; o caso envia o sinal enquanto o runner está bloqueado e só então
+// libera a barreira. `sleep` nenhum coordena coisa alguma, e a inspeção da
+// árvore por varredura serve apenas de confirmação, com prazo limitado.
+// ---------------------------------------------------------------------------
+
+/// Ponto da inicialização em que a barreira congela o runner.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum EstagioDeInicializacao {
+    AntesDoSpawn,
+    DepoisDoSpawn,
+    DepoisDaIdentidade,
+    DepoisDeAtivo,
+    DepoisDoMonitor,
+}
+
+impl EstagioDeInicializacao {
+    fn nome(self) -> &'static str {
+        match self {
+            Self::AntesDoSpawn => "before-spawn",
+            Self::DepoisDoSpawn => "after-spawn",
+            Self::DepoisDaIdentidade => "after-identity",
+            Self::DepoisDeAtivo => "after-active",
+            Self::DepoisDoMonitor => "after-monitor",
+        }
+    }
+
+    /// O controlador já foi criado quando a barreira segura este estágio?
+    fn controlador_existe(self) -> bool {
+        !matches!(self, Self::AntesDoSpawn)
+    }
+
+    /// Estado em que o runner recebe o sinal, tal como registrado no manifesto.
+    fn estado_esperado(self) -> &'static str {
+        match self {
+            Self::AntesDoSpawn | Self::DepoisDoSpawn | Self::DepoisDaIdentidade => "starting",
+            Self::DepoisDeAtivo | Self::DepoisDoMonitor => "active",
+        }
+    }
+}
+
+/// Prazo das confirmações por varredura. Nunca é sincronização: a barreira já
+/// garantiu a ordem, e isto só espera o efeito aparecer.
+const PRAZO_DE_CONFIRMACAO: Duration = Duration::from_secs(30);
+
+/// Campanha congelada em um ou mais pontos exatos da inicialização.
+///
+/// Vários pontos existem porque a ordem de entrega de sinais simultaneamente
+/// pendentes é do kernel, não de quem envia: no Linux, o menor número vence.
+/// Provar que a **primeira causa** é preservada exige, portanto, que os sinais
+/// cheguem em instantes distintos e ordenados, e é a barreira que os ordena.
+struct CampanhaNaJanela {
+    campanha: CampanhaViva,
+    area: PathBuf,
+    estagios: Vec<EstagioDeInicializacao>,
+    atual: usize,
+    capturado: Option<(Vec<Identidade>, usize)>,
+}
+
+impl CampanhaNaJanela {
+    fn nova(raiz: &Path, modo: &str, estagio: EstagioDeInicializacao) -> Self {
+        Self::nova_com_harness(raiz, modo, &[estagio], HARNESS_LONGO_SEGUNDOS)
+    }
+
+    fn nova_multi(raiz: &Path, modo: &str, estagios: &[EstagioDeInicializacao]) -> Self {
+        Self::nova_com_harness(raiz, modo, estagios, HARNESS_LONGO_SEGUNDOS)
+    }
+
+    fn nova_com_harness(
+        raiz: &Path,
+        modo: &str,
+        estagios: &[EstagioDeInicializacao],
+        atraso_segundos: u64,
+    ) -> Self {
+        Self::nova_completa(raiz, modo, "1", estagios, atraso_segundos)
+    }
+
+    fn nova_completa(
+        raiz: &Path,
+        modo: &str,
+        execucoes: &str,
+        estagios: &[EstagioDeInicializacao],
+        atraso_segundos: u64,
+    ) -> Self {
+        assert!(!estagios.is_empty(), "a barreira precisa de um estágio");
+        let unico = SEQUENCIA.fetch_add(1, Ordering::Relaxed);
+        let area = raiz.join(format!("barreira-{unico}"));
+        fs::create_dir_all(&area).expect("criar área da barreira");
+
+        // O gancho publica a chegada do estágio por rename atômico e então
+        // bloqueia lendo uma linha da entrada padrão, que é o cano deste
+        // processo. Enquanto ele não retornar, o runner não avança um único
+        // comando — é essa a barreira, e ela é causal, não temporal.
+        let gancho = publicar_executavel(
+            &raiz.join(format!("gancho-inicializacao-{unico}.sh")),
+            &format!(
+                "#!/usr/bin/env bash\nalvo={}/chegou-$1\nprintf '%s\\n' \"$1\" > \"$alvo.parcial\"\nmv -f -- \"$alvo.parcial\" \"$alvo\"\nIFS= read -r _liberado\nexit 0\n",
+                aspas_simples(area.to_str().expect("utf-8")),
+            ),
+        );
+
+        let nomes: Vec<&str> = estagios.iter().map(|estagio| estagio.nome()).collect();
+        let ambiente = vec![
+            (
+                "PINKER_FLAKE_STARTUP_HOOK",
+                gancho.to_str().expect("utf-8").to_string(),
+            ),
+            ("PINKER_FLAKE_STARTUP_HOOK_STAGES", nomes.join(" ")),
+        ];
+        let campanha =
+            CampanhaViva::nascer_completo(raiz, modo, execucoes, &ambiente, atraso_segundos);
+        let mut janela = Self {
+            campanha,
+            area,
+            estagios: estagios.to_vec(),
+            atual: 0,
+            capturado: None,
+        };
+        janela.aguardar_barreira();
+        janela
+    }
+
+    fn estagio(&self) -> EstagioDeInicializacao {
+        self.estagios[self.atual.min(self.estagios.len() - 1)]
+    }
+
+    /// Espera o runner chegar ao estágio corrente e ficar bloqueado nele.
+    fn aguardar_barreira(&mut self) {
+        let estagio = self.estagio();
+        let chegada = self.area.join(format!("chegou-{}", estagio.nome()));
+        let limite = Instant::now() + PRAZO_DE_CONFIRMACAO;
+        while Instant::now() < limite {
+            if chegada.is_file() {
+                return;
+            }
+            if matches!(self.campanha.filho.try_wait(), Ok(Some(_))) {
+                self.campanha.filho_recolhido = true;
+                panic!(
+                    "o runner terminou antes de alcançar o estágio {}",
+                    estagio.nome()
+                );
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        panic!("o runner não alcançou o estágio {}", estagio.nome());
+    }
+
+    /// Confirma o que o estágio promete sobre a árvore.
+    ///
+    /// Antes do spawn nada pode existir fora da sessão do runner; depois dele o
+    /// `timeout` e o harness precisam existir, e é isso que torna o caso uma
+    /// reprodução da janela e não um exercício vazio.
+    fn confirmar_arvore(&mut self) {
+        if !self.estagio().controlador_existe() {
+            self.campanha.recapturar_membros();
+            let fora: Vec<&Identidade> = self
+                .campanha
+                .membros
+                .iter()
+                .filter(|membro| membro.sid != self.campanha.controlador.sid)
+                .collect();
+            assert!(
+                fora.is_empty(),
+                "antes do spawn não pode existir árvore de iteração: {fora:?}"
+            );
+            return;
+        }
+        let limite = Instant::now() + PRAZO_DE_CONFIRMACAO;
+        assert!(
+            self.campanha.aguardar_arvore(limite),
+            "o estágio {} promete controlador e harness vivos",
+            self.estagio().nome()
+        );
+        let papeis: HashSet<PapelNaCampanha> = self
+            .campanha
+            .membros
+            .iter()
+            .filter(|membro| membro.sid != self.campanha.controlador.sid)
+            .map(papel_de)
+            .collect();
+        assert!(
+            papeis.contains(&PapelNaCampanha::Timeout),
+            "o controlador da iteração precisa existir: {papeis:?}"
+        );
+    }
+
+    /// Libera a barreira escrevendo a linha que o gancho aguarda.
+    fn liberar(&mut self) {
+        let entrada = self
+            .campanha
+            .filho
+            .stdin
+            .as_mut()
+            .expect("entrada padrão da campanha");
+        entrada
+            .write_all(b"liberado\n")
+            .expect("liberar a barreira");
+        entrada.flush().expect("liberar a barreira");
+    }
+
+    /// Envia sinais com o runner congelado no estágio corrente.
+    ///
+    /// A árvore é capturada antes do primeiro sinal e reaproveitada: capturá-la
+    /// de novo depois de um sinal deixaria de ser determinístico.
+    fn sinalizar(&mut self, sinais: &[i32]) {
+        if self.capturado.is_none() {
+            self.capturado = Some(self.campanha.capturar_antes_do_sinal());
+        }
+        for sinal in sinais {
+            enviar_sinal(self.campanha.controlador.pid, *sinal);
+        }
+    }
+
+    /// Libera o estágio corrente e para no próximo, se houver.
+    fn avancar(&mut self) {
+        self.liberar();
+        self.atual += 1;
+        if self.atual < self.estagios.len() {
+            self.aguardar_barreira();
+        }
+    }
+
+    /// Libera o que restar da barreira e recolhe o resultado.
+    fn colher(mut self) -> RelatorioEncerramento {
+        let capturado = match self.capturado.take() {
+            Some(capturado) => capturado,
+            None => self.campanha.capturar_antes_do_sinal(),
+        };
+        while self.atual < self.estagios.len() {
+            self.liberar();
+            self.atual += 1;
+            if self.atual < self.estagios.len() {
+                self.aguardar_barreira();
+            }
+        }
+        self.campanha.colher_relatorio(capturado)
+    }
+
+    /// Envia os sinais com o runner congelado, libera e recolhe o resultado.
+    fn interromper(mut self, sinais: &[i32]) -> RelatorioEncerramento {
+        self.sinalizar(sinais);
+        self.colher()
+    }
+
+    /// Libera a barreira sem sinal algum e recolhe o resultado.
+    ///
+    /// Serve aos casos em que o desfecho é decidido pelo próprio runner — falha
+    /// de identidade, por exemplo —, e cuja janela precisa mesmo assim ser
+    /// congelada para que a captura da árvore não corra com o desfecho.
+    fn concluir(self) -> RelatorioEncerramento {
+        self.colher()
+    }
+}
+
+/// Evidência de uma iteração interrompida, dentro do lote único da campanha.
+fn manifesto_interrompido(evidencia: &Path) -> String {
+    let lotes = diretorios_de(&evidencia.join("batches"));
+    assert_eq!(lotes.len(), 1, "esperado exatamente um lote: {lotes:?}");
+    let preservados: Vec<PathBuf> = diretorios_de(&lotes[0])
+        .into_iter()
+        .filter(|caminho| {
+            caminho
+                .file_name()
+                .map(|nome| nome.to_string_lossy().starts_with("INTERRUPTED-"))
+                .unwrap_or(false)
+        })
+        .collect();
+    assert_eq!(
+        preservados.len(),
+        1,
+        "interrupção preserva exatamente um diretório: {preservados:?}"
+    );
+    fs::read_to_string(preservados[0].join("manifest.txt")).expect("manifesto da interrupção")
+}
+
+fn campo_do_manifesto(manifesto: &str, chave: &str) -> String {
+    manifesto
+        .lines()
+        .find_map(|linha| linha.strip_prefix(&format!("{chave}=")))
+        .unwrap_or_else(|| panic!("manifesto sem campo {chave}: {manifesto}"))
+        .to_string()
+}
+
+/// Linha estruturada com o que o caso observou, para o registro das campanhas.
+///
+/// Sai apenas sob `--nocapture`. Existe para que uma campanha externa registre
+/// por iteração as identidades **observadas pelo caso**, em vez de reconstruí-las
+/// depois a partir de uma máquina que já mudou.
+fn registrar_iteracao(
+    caso: &str,
+    estagio: &str,
+    sinal: &str,
+    relatorio: &RelatorioEncerramento,
+    evidencia: &Path,
+) {
+    let runner = &relatorio.controlador;
+    let auxiliares: Vec<i32> = relatorio
+        .membros_antes
+        .iter()
+        .filter(|membro| membro.sid == runner.sid)
+        .map(|membro| membro.pid)
+        .collect();
+    let arvore: Vec<String> = relatorio
+        .membros_antes
+        .iter()
+        .filter(|membro| membro.sid != runner.sid)
+        .map(|membro| {
+            format!(
+                "{:?}:{}/{}/{}/{}",
+                papel_de(membro),
+                membro.pid,
+                membro.start_time,
+                membro.pgid,
+                membro.sid
+            )
+        })
+        .collect();
+    println!(
+        "JANELA caso={caso} estagio={estagio} sinal={sinal} \
+runner_pid={} runner_start={} runner_pgid={} runner_sid={} \
+auxiliares={auxiliares:?} arvore={arvore:?} sessoes={:?} exit={} \
+lock={} evidencia={} sobreviventes={} restantes={} grupo_vazio={} sessao_vazia={}",
+        runner.pid,
+        runner.start_time,
+        runner.pgid,
+        runner.sid,
+        relatorio.sessoes,
+        relatorio.codigo,
+        evidencia.join(".lock").exists(),
+        evidencia.display(),
+        relatorio.sobreviventes_apos_controlador.len(),
+        relatorio.restantes.len(),
+        relatorio.grupo_vazio,
+        relatorio.sessao_vazia,
+    );
+}
+
+/// Nenhum resíduo, lock liberado, evidência preservada e `130`.
+fn exigir_interrupcao_limpa(
+    caso: &str,
+    relatorio: &RelatorioEncerramento,
+    evidencia: &Path,
+    causas_aceitas: &[&str],
+    estado_esperado: &str,
+) {
+    registrar_iteracao(
+        caso,
+        estado_esperado,
+        &causas_aceitas.join("|"),
+        relatorio,
+        evidencia,
+    );
+    assert_eq!(
+        relatorio.codigo, EXIT_INTERROMPIDO,
+        "{caso}: interrupção precisa retornar 130; controlador={:?} sessoes={:?}",
+        relatorio.controlador, relatorio.sessoes
+    );
+    assert!(
+        relatorio.filho_recolhido,
+        "{caso}: o filho direto precisa ser aguardado"
+    );
+    assert!(
+        relatorio.controlador_morto,
+        "{caso}: o controlador precisa ter terminado"
+    );
+    // A asserção que a janela antiga violava: quando o runner sai, nada da
+    // árvore pode ter sobrevivido a ele.
+    assert!(
+        relatorio.sobreviventes_apos_controlador.is_empty(),
+        "{caso}: o runner deixou árvore viva atrás de si: {:?}",
+        relatorio.papeis_sobreviventes()
+    );
+    assert!(
+        relatorio.term_enviados.is_empty() && relatorio.kill_enviados.is_empty(),
+        "{caso}: a fixture não pode ter precisado conter nada: term={:?} kill={:?}",
+        relatorio.term_enviados,
+        relatorio.kill_enviados
+    );
+    assert!(
+        relatorio.restantes.is_empty(),
+        "{caso}: nenhum descendente pode sobreviver: {:?}",
+        relatorio.papeis_restantes()
+    );
+    assert!(
+        relatorio.grupo_vazio && relatorio.sessao_vazia,
+        "{caso}: grupo e sessões da campanha precisam ficar vazios"
+    );
+    assert!(
+        !evidencia.join(".lock").exists(),
+        "{caso}: interrupção precisa liberar o lock"
+    );
+    assert!(
+        !evidencia.join("SUMMARY-modo.txt").exists(),
+        "{caso}: lote interrompido nunca publica projeção legada"
+    );
+    let manifesto = manifesto_interrompido(evidencia);
+    assert_eq!(
+        campo_do_manifesto(&manifesto, "reason"),
+        "interrupted",
+        "{caso}: manifesto={manifesto}"
+    );
+    assert_eq!(
+        campo_do_manifesto(&manifesto, "exit_code"),
+        EXIT_INTERROMPIDO.to_string(),
+        "{caso}: manifesto={manifesto}"
+    );
+    let causa = campo_do_manifesto(&manifesto, "interrupt_signal");
+    assert!(
+        causas_aceitas.contains(&causa.as_str()),
+        "{caso}: a causa registrada precisa estar entre {causas_aceitas:?}: {manifesto}"
+    );
+    assert_eq!(
+        campo_do_manifesto(&manifesto, "interrupt_state"),
+        estado_esperado,
+        "{caso}: o estado da primeira causa precisa ser registrado: {manifesto}"
+    );
+}
+
+fn caso_interrupcao_na_janela(
+    caso: &str,
+    estagio: EstagioDeInicializacao,
+    sinal: i32,
+    nome_sinal: &str,
+) {
+    let raiz = raiz_isolada(caso);
+    let evidencia = raiz.join("target/pinker-flake-evidence");
+    let mut janela = CampanhaNaJanela::nova(&raiz, "modo", estagio);
+    janela.confirmar_arvore();
+    let controlador_existia = estagio.controlador_existe();
+    let relatorio = janela.interromper(&[sinal]);
+    exigir_interrupcao_limpa(
+        caso,
+        &relatorio,
+        &evidencia,
+        &[nome_sinal],
+        estagio.estado_esperado(),
+    );
+    let manifesto = manifesto_interrompido(&evidencia);
+    assert_eq!(
+        campo_do_manifesto(&manifesto, "interrupt_controller_existed"),
+        if controlador_existia { "yes" } else { "no" },
+        "{caso}: a existência do controlador na primeira causa: {manifesto}"
+    );
+    let _ = fs::remove_dir_all(&raiz);
+}
+
+macro_rules! casos_da_janela {
+    ($($nome:ident => ($estagio:expr, $sinal:expr, $rotulo:expr);)*) => {
+        $(
+            #[test]
+            fn $nome() {
+                caso_interrupcao_na_janela(stringify!($nome), $estagio, $sinal, $rotulo);
+            }
+        )*
+    };
+}
+
+casos_da_janela! {
+    int_antes_do_spawn_nao_inicia_controlador =>
+        (EstagioDeInicializacao::AntesDoSpawn, SIGINT, "INT");
+    term_antes_do_spawn_nao_inicia_controlador =>
+        (EstagioDeInicializacao::AntesDoSpawn, SIGTERM, "TERM");
+    hup_antes_do_spawn_nao_inicia_controlador =>
+        (EstagioDeInicializacao::AntesDoSpawn, SIGHUP, "HUP");
+
+    int_depois_do_spawn_e_antes_da_identidade =>
+        (EstagioDeInicializacao::DepoisDoSpawn, SIGINT, "INT");
+    term_depois_do_spawn_e_antes_da_identidade =>
+        (EstagioDeInicializacao::DepoisDoSpawn, SIGTERM, "TERM");
+    hup_depois_do_spawn_e_antes_da_identidade =>
+        (EstagioDeInicializacao::DepoisDoSpawn, SIGHUP, "HUP");
+
+    int_depois_da_identidade_e_antes_de_ativo =>
+        (EstagioDeInicializacao::DepoisDaIdentidade, SIGINT, "INT");
+    term_depois_da_identidade_e_antes_de_ativo =>
+        (EstagioDeInicializacao::DepoisDaIdentidade, SIGTERM, "TERM");
+    hup_depois_da_identidade_e_antes_de_ativo =>
+        (EstagioDeInicializacao::DepoisDaIdentidade, SIGHUP, "HUP");
+
+    int_imediatamente_depois_de_ativo =>
+        (EstagioDeInicializacao::DepoisDeAtivo, SIGINT, "INT");
+    term_imediatamente_depois_de_ativo =>
+        (EstagioDeInicializacao::DepoisDeAtivo, SIGTERM, "TERM");
+    hup_imediatamente_depois_de_ativo =>
+        (EstagioDeInicializacao::DepoisDeAtivo, SIGHUP, "HUP");
+
+    int_depois_da_criacao_do_monitor =>
+        (EstagioDeInicializacao::DepoisDoMonitor, SIGINT, "INT");
+    term_depois_da_criacao_do_monitor =>
+        (EstagioDeInicializacao::DepoisDoMonitor, SIGTERM, "TERM");
+    hup_depois_da_criacao_do_monitor =>
+        (EstagioDeInicializacao::DepoisDoMonitor, SIGHUP, "HUP");
+}
+
+/// Sinais em dois pontos distintos da fase STARTING.
+///
+/// A ordem entre eles é do caso, não do kernel: o primeiro chega com o runner
+/// congelado depois do spawn, e o restante só depois de a barreira ter avançado
+/// para o ponto seguinte, ainda dentro de STARTING. Enviar todos de uma vez
+/// provaria outra coisa — o Linux entrega o menor número primeiro, e a asserção
+/// mediria a ordem de entrega em vez da autoridade da primeira causa.
+fn caso_sinais_repetidos(caso: &str, primeiro: i32, seguintes: &[i32], rotulo: &str) {
+    let raiz = raiz_isolada(caso);
+    let evidencia = raiz.join("target/pinker-flake-evidence");
+    let mut janela = CampanhaNaJanela::nova_multi(
+        &raiz,
+        "modo",
+        &[
+            EstagioDeInicializacao::DepoisDoSpawn,
+            EstagioDeInicializacao::DepoisDaIdentidade,
+        ],
+    );
+    janela.confirmar_arvore();
+    janela.sinalizar(&[primeiro]);
+    janela.avancar();
+    janela.sinalizar(seguintes);
+    let relatorio = janela.colher();
+    exigir_interrupcao_limpa(caso, &relatorio, &evidencia, &[rotulo], "starting");
+    let _ = fs::remove_dir_all(&raiz);
+}
+
+#[test]
+fn dois_sinais_durante_starting_preservam_o_primeiro() {
+    caso_sinais_repetidos("dois-sinais-starting", SIGINT, &[SIGTERM], "INT");
+}
+
+#[test]
+fn dois_sinais_durante_starting_preservam_o_primeiro_mesmo_maior() {
+    // A primeira causa é a primeira **recebida**, não a de menor número: sem
+    // este caso, a preservação passaria por acidente da ordem do kernel.
+    caso_sinais_repetidos("dois-sinais-starting-maior", SIGTERM, &[SIGINT], "TERM");
+}
+
+#[test]
+fn tres_sinais_durante_starting_preservam_o_primeiro() {
+    caso_sinais_repetidos("tres-sinais-starting", SIGHUP, &[SIGINT, SIGTERM], "HUP");
+}
+
+#[test]
+fn sinais_repetidos_durante_o_encerramento_nao_reentram() {
+    // O handler não pode reentrar: um segundo sinal chegando durante o
+    // encerramento reiniciaria a escalada, poderia mover a evidência duas vezes
+    // e substituiria a primeira causa.
+    let caso = "sinais-durante-reaping";
+    let raiz = raiz_isolada(caso);
+    let evidencia = raiz.join("target/pinker-flake-evidence");
+    let mut janela = CampanhaNaJanela::nova(&raiz, "modo", EstagioDeInicializacao::DepoisDoMonitor);
+    janela.confirmar_arvore();
+
+    let controlador = janela.campanha.controlador.clone();
+    janela.sinalizar(&[SIGINT]);
+    janela.avancar();
+
+    // Enquanto o runner encerra a própria árvore, mais sinais chegam. Cada envio
+    // revalida a identidade, de modo que nenhum sinal parte para um PID que já
+    // deixou de ser o controlador.
+    //
+    // Este caso **não** fixa qual causa vence, e a distinção importa. Depois de
+    // liberada a barreira, o `INT` já entregue e o primeiro `TERM` deste laço
+    // ficam pendentes ao mesmo tempo, e a ordem em que o Bash despacha dois
+    // traps pendentes não é contrato de que se possa depender: uma execução em
+    // quarenta registrou `TERM`. O que este caso prova é a **não-reentrância** —
+    // exatamente uma causa é congelada, exatamente um diretório é promovido, o
+    // código é 130 e nada sobra. A autoridade da primeira causa é provada pelos
+    // casos de barreira ordenada, onde a ordem é do teste e não do kernel.
+    let limite = Instant::now() + PRAZO_DE_CONFIRMACAO;
+    let mut enviados = 0_u32;
+    while Instant::now() < limite && enviados < 40 {
+        if !sinalizar_identidade(&controlador, SIGTERM) {
+            break;
+        }
+        enviados += 1;
+        std::thread::sleep(Duration::from_millis(5));
+    }
+
+    let relatorio = janela.colher();
+    exigir_interrupcao_limpa(caso, &relatorio, &evidencia, &["INT", "TERM"], "active");
+    let _ = fs::remove_dir_all(&raiz);
+}
+
+#[test]
+fn controlador_que_termina_antes_da_captura_nao_perde_identidade() {
+    // O Bash colhe filhos de background por conta própria, e com isso
+    // `/proc/<pid>` de um controlador rápido desaparece antes que o runner
+    // consiga lê-lo. É por isso que a identidade é publicada pelo próprio
+    // controlador, antes do harness: uma identidade anunciada não corre com a
+    // morte de quem a anunciou.
+    let caso = "controlador-termina-antes-da-captura";
+    let raiz = raiz_isolada(caso);
+    let mut janela = CampanhaNaJanela::nova_com_harness(
+        &raiz,
+        "modo",
+        &[EstagioDeInicializacao::DepoisDoSpawn],
+        0,
+    );
+
+    // Confirmação por varredura, com prazo: o controlador precisa ter sumido
+    // antes de a barreira ser liberada.
+    let limite = Instant::now() + PRAZO_DE_CONFIRMACAO;
+    let mut sumiu = false;
+    while Instant::now() < limite {
+        janela.campanha.recapturar_membros();
+        let vivos = janela
+            .campanha
+            .membros
+            .iter()
+            .filter(|membro| membro.sid != janela.campanha.controlador.sid)
+            .filter(|membro| classificar_identidade(membro) == ClasseIdentidade::Viva)
+            .count();
+        if vivos == 0 && !janela.campanha.membros.is_empty() {
+            sumiu = true;
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(sumiu, "o controlador precisa terminar antes da liberação");
+
+    janela.liberar();
+    let status = janela
+        .campanha
+        .filho
+        .wait()
+        .expect("aguardar a campanha rápida");
+    janela.campanha.filho_recolhido = true;
+    assert_eq!(
+        status.code(),
+        Some(0),
+        "identidade anunciada sobrevive à morte do controlador"
+    );
+    let evidencia = raiz.join("target/pinker-flake-evidence");
+    assert!(
+        evidencia.join("SUMMARY-modo.txt").is_file(),
+        "a campanha precisa concluir normalmente"
+    );
+    assert!(!evidencia.join(".lock").exists(), "o lock é liberado");
+    drop(janela);
+    let _ = fs::remove_dir_all(&raiz);
+}
+
+#[test]
+fn interrupcao_nao_inicia_a_iteracao_seguinte() {
+    // Um lote de duas iterações interrompido na primeira não pode retomar o
+    // fluxo normal: o lote guarda a evidência da iteração interrompida e de
+    // nenhuma outra, e `PROGRESS.txt` — escrito apenas ao fim de cada
+    // iteração — nunca chega a existir.
+    let caso = "sem-iteracao-seguinte";
+    let raiz = raiz_isolada(caso);
+    let evidencia = raiz.join("target/pinker-flake-evidence");
+    let mut janela = CampanhaNaJanela::nova_completa(
+        &raiz,
+        "modo",
+        "2",
+        &[EstagioDeInicializacao::DepoisDoMonitor],
+        HARNESS_LONGO_SEGUNDOS,
+    );
+    janela.confirmar_arvore();
+    let relatorio = janela.interromper(&[SIGINT]);
+    exigir_interrupcao_limpa(caso, &relatorio, &evidencia, &["INT"], "active");
+
+    let lotes = diretorios_de(&evidencia.join("batches"));
+    assert_eq!(lotes.len(), 1, "lote único: {lotes:?}");
+    let preservados = diretorios_de(&lotes[0]);
+    assert_eq!(
+        preservados.len(),
+        1,
+        "somente a iteração interrompida pode existir: {preservados:?}"
+    );
+    assert!(
+        !lotes[0].join("PROGRESS.txt").exists(),
+        "nenhuma iteração foi concluída, logo não há progresso publicado"
+    );
+    assert!(
+        !lotes[0].join("SUMMARY.txt").exists(),
+        "um lote interrompido nunca publica o próprio resumo"
+    );
+    let manifesto = fs::read_to_string(lotes[0].join("MANIFEST.txt")).expect("manifesto do lote");
+    assert!(
+        manifesto.contains("runs=2"),
+        "o lote pedia duas iterações: {manifesto}"
+    );
+    let _ = fs::remove_dir_all(&raiz);
+}
+
+#[test]
+fn processo_externo_nao_e_tocado_por_interrupcao_na_janela() {
+    let caso = "externo-na-janela";
+    let raiz = raiz_isolada(caso);
+    let evidencia = raiz.join("target/pinker-flake-evidence");
+    let (externo, identidade) = processo_externo();
+    let mut janela = CampanhaNaJanela::nova(&raiz, "modo", EstagioDeInicializacao::DepoisDoSpawn);
+    janela.confirmar_arvore();
+    let relatorio = janela.interromper(&[SIGINT]);
+    exigir_interrupcao_limpa(caso, &relatorio, &evidencia, &["INT"], "starting");
+    assert_eq!(
+        classificar_identidade(&identidade),
+        ClasseIdentidade::Viva,
+        "o processo externo não pode ser alcançado"
+    );
+    encerrar_externo(externo, &identidade);
+    let _ = fs::remove_dir_all(&raiz);
+}
+
+// --- variações do runner: reprodução e falha de identidade -----------------
+
+/// Trechos do runner que carregam, cada um, um invariante da janela.
+///
+/// Ficam em constantes porque servem a três consumidores que precisam
+/// concordar byte a byte: a guarda textual, as variações de sensibilidade e as
+/// reproduções que reintroduzem o defeito num runner publicado à parte.
+const DEFERRAL_EM_STARTING: &str = "    if [[ $active_state == starting ]]; then";
+const CLEANUP_DO_FILHO_DIRETO: &str =
+    "    [[ -n $active_pid ]] || return 0\n    active_state=reaping";
+const CAPTURA_DE_IDENTIDADE: &str = "    if ! pinker_flake_capture_identity; then";
+const PRIMEIRA_CAUSA: &str = "    if [[ -z $pending_signal ]]; then";
+const REGISTRO_DA_CAUSA: &str = "        pending_signal=$sinal";
+const GUARDA_DE_REENTRANCIA: &str = "    [[ -z $interrupt_in_progress ]] || return 0";
+const PROMOCAO_PARA_ATIVO: &str = "    active_state=active";
+const CAMPO_START: &str = "    active_start=$start";
+const CAMPO_PGID: &str = "    active_pgid=$pgid";
+const CAMPO_SID: &str = "    active_sid=$sid";
+const EXIGENCIA_DE_START: &str = "    [[ $active_start =~ ^[0-9]+$ ]] || return 1";
+const WAIT_DO_CONTROLADOR: &str = "    wait \"$active_pid\" 2>/dev/null || true";
+const WAIT_DO_MONITOR: &str = "    wait \"$monitor_pid\" 2>/dev/null || true";
+const SAIDA_INTERROMPIDA: &str = "    exit \"$PINKER_FLAKE_EXIT_INTERRUPTED\"";
+/// Fecha o canal de prontidão **só para o comando** que cria o controlador.
+const FECHAMENTO_DO_CANAL: &str = " {identity_fd}>&- &";
+/// Linha em que o próprio controlador publica a sua identidade, antes do
+/// harness. Única no runner, e por isso endereçável byte a byte pelas variações.
+const ANUNCIO_DA_IDENTIDADE: &str =
+    "    \"$$\" \"${campos[19]}\" \"${campos[2]}\" \"${campos[3]}\" > \"$canal\" || exit 97";
+
+/// Publica em uma raiz própria uma variação do runner real.
+///
+/// O arquivo do repositório nunca é reescrito: a variação existe apenas dentro
+/// da raiz temporária do caso.
+fn raiz_com_runner_variado(caso: &str, substituicoes: &[(&str, &str)]) -> PathBuf {
+    let unico = format!(
+        "pinker-flake-runner-{}-{}-{}",
+        caso,
+        std::process::id(),
+        SEQUENCIA.fetch_add(1, Ordering::Relaxed)
+    );
+    let raiz = std::env::temp_dir().join(unico);
+    let _ = fs::remove_dir_all(&raiz);
+    fs::create_dir_all(raiz.join("scripts")).expect("criar raiz da variação");
+    let original = fs::read_to_string(caminho_do_runner()).expect("ler runner");
+    let mut variado = original.clone();
+    for (de, para) in substituicoes {
+        assert!(
+            variado.contains(de),
+            "a variação exige o trecho ausente no runner: {de:?}"
+        );
+        variado = variado.replace(de, para);
+    }
+    assert_ne!(variado, original, "a variação precisa alterar o runner");
+    publicar_executavel(&raiz.join("scripts/pinker-flake-runner.sh"), &variado);
+    raiz
+}
+
+#[test]
+fn reproducao_da_janela_antiga_deixa_a_arvore_viva() {
+    // Reintroduz exatamente o defeito, em dois pontos: o handler deixa de
+    // diferir durante `starting`, e o encerramento volta a exigir identidade
+    // completa antes de conter qualquer coisa. É o runner anterior a esta
+    // correção, com o gancho apenas tornando a janela endereçável.
+    //
+    // O caso existe para provar que a reprodução é determinística. Sem ele, a
+    // correção afirmaria fechar uma janela que ninguém demonstrou abrir.
+    let caso = "reproducao-janela-antiga";
+    let raiz = raiz_com_runner_variado(
+        caso,
+        &[
+            (DEFERRAL_EM_STARTING, "    if false; then"),
+            (
+                CLEANUP_DO_FILHO_DIRETO,
+                "    pinker_flake_identity_complete || return 0\n    active_state=reaping",
+            ),
+        ],
+    );
+    let evidencia = raiz.join("target/pinker-flake-evidence");
+    let mut janela = CampanhaNaJanela::nova(&raiz, "modo", EstagioDeInicializacao::DepoisDoSpawn);
+    janela.confirmar_arvore();
+    let relatorio = janela.interromper(&[SIGINT]);
+
+    // O verde enganoso: código correto, lock liberado, evidência preservada.
+    assert_eq!(
+        relatorio.codigo, EXIT_INTERROMPIDO,
+        "a janela antiga devolvia 130 assim mesmo"
+    );
+    assert!(
+        !evidencia.join(".lock").exists(),
+        "a janela antiga liberava o lock"
+    );
+    assert_eq!(
+        campo_do_manifesto(&manifesto_interrompido(&evidencia), "reason"),
+        "interrupted",
+        "a janela antiga preservava a evidência como interrompida"
+    );
+
+    // E o defeito por baixo dele.
+    assert!(
+        !relatorio.sobreviventes_apos_controlador.is_empty(),
+        "a reprodução precisa deixar árvore viva; papéis={:?}",
+        relatorio.papeis_sobreviventes()
+    );
+    assert!(
+        relatorio
+            .papeis_sobreviventes()
+            .contains(&PapelNaCampanha::Timeout),
+        "o controlador da iteração precisa sobreviver ao runner: {:?}",
+        relatorio.papeis_sobreviventes()
+    );
+    // A fixture é dona da árvore que o runner variado abandonou.
+    assert!(
+        !relatorio.kill_enviados.is_empty() || !relatorio.term_enviados.is_empty(),
+        "a fixture precisa ter contido o que o runner variado deixou"
+    );
+    assert!(
+        relatorio.restantes.is_empty(),
+        "a fixture precisa conter o resíduo da reprodução: {:?}",
+        relatorio.papeis_restantes()
+    );
+    let _ = fs::remove_dir_all(&raiz);
+}
+
+#[test]
+fn falha_de_identidade_e_fechada_e_nao_publica_resumo() {
+    // Identidade que não pode ser provada não autoriza monitor, teste seguinte,
+    // PASS nem resumo. O runner contém o filho direto, aguarda-o, libera o lock
+    // e termina com código não zero estável.
+    let caso = "identidade-falha-fechada";
+    let raiz = raiz_com_runner_variado(
+        caso,
+        &[(
+            "pinker_flake_capture_identity() {\n    local campos",
+            "pinker_flake_capture_identity() {\n    return 1\n    local campos",
+        )],
+    );
+    let evidencia = raiz.join("target/pinker-flake-evidence");
+    // A janela é congelada depois do spawn: sem isso a captura da árvore
+    // correria com um desfecho que acontece em milissegundos.
+    let mut janela = CampanhaNaJanela::nova(&raiz, "modo", EstagioDeInicializacao::DepoisDoSpawn);
+    janela.confirmar_arvore();
+    let relatorio = janela.concluir();
+
+    assert_eq!(
+        relatorio.codigo, EXIT_IDENTIDADE,
+        "falha de identidade termina com código não zero estável"
+    );
+    assert!(
+        relatorio.sobreviventes_apos_controlador.is_empty(),
+        "a falha fechada precisa conter o filho direto e a árvore dele: {:?}",
+        relatorio.papeis_sobreviventes()
+    );
+    assert!(
+        relatorio.filho_recolhido,
+        "o filho direto precisa ser aguardado mesmo na falha de identidade"
+    );
+    assert!(
+        relatorio.restantes.is_empty(),
+        "nada pode restar: {:?}",
+        relatorio.papeis_restantes()
+    );
+    assert!(
+        !evidencia.join(".lock").exists(),
+        "a falha de identidade libera o lock"
+    );
+    assert!(
+        !evidencia.join("SUMMARY-modo.txt").exists(),
+        "falha de identidade nunca publica resumo"
+    );
+    let lotes = diretorios_de(&evidencia.join("batches"));
+    assert_eq!(lotes.len(), 1, "lote único: {lotes:?}");
+    assert!(
+        !lotes[0].join("SUMMARY.txt").exists(),
+        "o lote não publica resumo próprio"
+    );
+    let diagnostico: Vec<PathBuf> = diretorios_de(&lotes[0])
+        .into_iter()
+        .filter(|caminho| {
+            caminho
+                .file_name()
+                .map(|nome| nome.to_string_lossy().starts_with("IDENTITY-FAILURE-"))
+                .unwrap_or(false)
+        })
+        .collect();
+    assert_eq!(
+        diagnostico.len(),
+        1,
+        "evidência diagnóstica preservada: {diagnostico:?}"
+    );
+    let manifesto =
+        fs::read_to_string(diagnostico[0].join("manifest.txt")).expect("manifesto diagnóstico");
+    assert_eq!(
+        campo_do_manifesto(&manifesto, "reason"),
+        "identity-capture-failed",
+        "manifesto={manifesto}"
+    );
+    let _ = fs::remove_dir_all(&raiz);
+}
+
+fn caso_identidade_divergente(caso: &str, substituicao: (&str, &str)) {
+    let raiz = raiz_com_runner_variado(caso, &[substituicao]);
+    let evidencia = raiz.join("target/pinker-flake-evidence");
+    let mut janela = CampanhaNaJanela::nova(&raiz, "modo", EstagioDeInicializacao::DepoisDoSpawn);
+    janela.confirmar_arvore();
+    let relatorio = janela.concluir();
+    assert_eq!(
+        relatorio.codigo, EXIT_IDENTIDADE,
+        "{caso}: identidade divergente falha fechada"
+    );
+    assert!(
+        relatorio.filho_recolhido,
+        "{caso}: o filho direto precisa ser aguardado"
+    );
+    assert!(
+        relatorio.restantes.is_empty(),
+        "{caso}: nada pode restar: {:?}",
+        relatorio.papeis_restantes()
+    );
+    assert!(
+        !evidencia.join("SUMMARY-modo.txt").exists(),
+        "{caso}: identidade divergente nunca publica resumo"
+    );
+    assert!(!evidencia.join(".lock").exists(), "{caso}: lock liberado");
+    let _ = fs::remove_dir_all(&raiz);
+}
+
+#[test]
+fn pgid_divergente_do_controlador_falha_fechado() {
+    // O anúncio deixa de coincidir com o grupo real. Sinalizar o grupo passaria
+    // a alcançar processo que a campanha não criou, e por isso não acontece.
+    caso_identidade_divergente(
+        "pgid-divergente-controlador",
+        (
+            ANUNCIO_DA_IDENTIDADE,
+            "    \"$$\" \"${campos[19]}\" \"$(( campos[2] + 1 ))\" \"${campos[3]}\" > \"$canal\" || exit 97",
+        ),
+    );
+}
+
+#[test]
+fn sid_divergente_do_controlador_falha_fechado() {
+    caso_identidade_divergente(
+        "sid-divergente-controlador",
+        (
+            ANUNCIO_DA_IDENTIDADE,
+            "    \"$$\" \"${campos[19]}\" \"${campos[2]}\" \"$(( campos[3] + 1 ))\" > \"$canal\" || exit 97",
+        ),
+    );
+}
+
+#[test]
+fn start_time_divergente_do_controlador_falha_fechado() {
+    // Start time divergente é a assinatura de PID reutilizado: o número existe,
+    // mas passou a nomear outro processo. O anúncio deixa de bater com `/proc`
+    // e a captura falha fechada.
+    caso_identidade_divergente(
+        "start-time-divergente-controlador",
+        (
+            ANUNCIO_DA_IDENTIDADE,
+            "    \"$$\" \"$(( campos[19] + 1 ))\" \"${campos[2]}\" \"${campos[3]}\" > \"$canal\" || exit 97",
+        ),
+    );
+}
+
+#[test]
+fn pid_divergente_do_filho_direto_falha_fechado() {
+    // Um anúncio íntegro que não pertence ao filho direto desta iteração não
+    // pode virar identidade ativa: seria autoridade sobre um processo alheio.
+    caso_identidade_divergente(
+        "pid-divergente-controlador",
+        (
+            ANUNCIO_DA_IDENTIDADE,
+            "    \"$(( $$ + 1 ))\" \"${campos[19]}\" \"${campos[2]}\" \"${campos[3]}\" > \"$canal\" || exit 97",
+        ),
+    );
+}
+
+// --- higiene de descritores ------------------------------------------------
+
+#[test]
+fn o_harness_nao_herda_o_canal_de_prontidao() {
+    // O canal de prontidão é aberto pelo runner **antes** do spawn, de modo que
+    // sem fechamento explícito o controlador e toda a árvore do harness
+    // herdariam um descritor do runner. Descritor herdado é exatamente a classe
+    // de defeito que a suíte nativa existe para vigiar — foi um `ETXTBSY` por
+    // descritor gravável herdado que motivou a PR #424 —, e um canal de
+    // sincronização interna do runner não pode virar um deles.
+    let raiz = raiz_isolada("canal-nao-vaza");
+    let registro = raiz.join("descritores-do-harness.txt");
+    let harness = publicar_executavel(
+        &raiz.join("harness-que-lista-descritores.sh"),
+        &format!(
+            "#!/usr/bin/env bash\nfor alvo in /proc/self/fd/*; do printf '%s -> %s\\n' \"${{alvo##*/}}\" \"$(readlink -f \"$alvo\" 2>/dev/null)\"; done > {}\n{}\nexit 0\n",
+            aspas_simples(registro.to_str().expect("utf-8")),
+            RESUMO_COM_TESTE
+                .lines()
+                .map(|linha| format!("printf '%s\\n' {}", aspas_simples(linha)))
+                .collect::<Vec<_>>()
+                .join("\n"),
+        ),
+    );
+
+    let execucao = executar(
+        &raiz,
+        &["modo", "1"],
+        &[("PINKER_FLAKE_TEST_BINARY", harness.to_str().expect("utf-8"))],
+    );
+    assert_eq!(execucao.codigo, 0, "stderr={}", execucao.saida_erro);
+
+    let descritores = fs::read_to_string(&registro).expect("descritores do harness");
+    assert!(
+        !descritores.contains(".fifo"),
+        "o harness herdou o canal de prontidão do runner:\n{descritores}"
+    );
+    // Nem qualquer outro descritor apontando para dentro da evidência, além dos
+    // dois que o runner abre de propósito: `stdout` e `stderr` da iteração.
+    let para_a_evidencia: Vec<&str> = descritores
+        .lines()
+        .filter(|linha| linha.contains("pinker-flake-evidence"))
+        .collect();
+    assert!(
+        para_a_evidencia
+            .iter()
+            .all(|linha| linha.ends_with("/stdout") || linha.ends_with("/stderr")),
+        "descritor inesperado para a evidência: {para_a_evidencia:?}"
+    );
+    let _ = fs::remove_dir_all(&raiz);
+}
+
+// --- gancho de inicialização ----------------------------------------------
+
+#[test]
+fn gancho_de_inicializacao_e_inativo_por_padrao() {
+    // Producão não muda quando a variável não existe, e também não muda quando
+    // apenas uma das duas existe: configuração parcial não ativa comportamento.
+    let raiz = raiz_isolada("gancho-inativo");
+    let marca = raiz.join("gancho-executou");
+    let gancho = publicar_executavel(
+        &raiz.join("gancho-proibido.sh"),
+        &format!(
+            "#!/usr/bin/env bash\nprintf '%s\\n' \"$1\" >> {}\nexit 0\n",
+            aspas_simples(marca.to_str().expect("utf-8"))
+        ),
+    );
+    let binario = binario_falso(&raiz, RESUMO_COM_TESTE, 0);
+    let execucao = executar(
+        &raiz,
+        &["modo", "1"],
+        &[
+            ("PINKER_FLAKE_TEST_BINARY", binario.to_str().expect("utf-8")),
+            ("PINKER_FLAKE_STARTUP_HOOK", gancho.to_str().expect("utf-8")),
+        ],
+    );
+    assert_eq!(execucao.codigo, 0, "stderr={}", execucao.saida_erro);
+    assert!(
+        !marca.exists(),
+        "sem a lista explícita de estágios o gancho não pode ser chamado"
+    );
+    let _ = fs::remove_dir_all(&raiz);
+}
+
+#[test]
+fn gancho_antigo_nao_recebe_estagios_novos() {
+    // `PINKER_FLAKE_TEST_HOOK` continua sendo chamado apenas na remoção de lock.
+    // Ampliá-lo faria o único consumidor existente — que reescreve o marker em
+    // qualquer estágio que receba — agir em pontos que nunca esperou.
+    let raiz = raiz_isolada("gancho-antigo-compativel");
+    let registro = raiz.join("estagios-do-gancho-antigo.txt");
+    let gancho = publicar_executavel(
+        &raiz.join("gancho-antigo.sh"),
+        &format!(
+            "#!/usr/bin/env bash\nprintf '%s\\n' \"$1\" >> {}\nexit 0\n",
+            aspas_simples(registro.to_str().expect("utf-8"))
+        ),
+    );
+    let evidencia = raiz.join("target/pinker-flake-evidence");
+    fs::create_dir_all(&evidencia).expect("criar evidência");
+    plantar_lock(
+        &evidencia,
+        &marker_valido(&pid_encerrado().to_string(), "999", "morta", "lote-morto"),
+    );
+    let binario = binario_falso(&raiz, RESUMO_COM_TESTE, 0);
+    let execucao = executar(
+        &raiz,
+        &["nova", "1"],
+        &[
+            ("PINKER_FLAKE_TEST_BINARY", binario.to_str().expect("utf-8")),
+            ("PINKER_FLAKE_TEST_HOOK", gancho.to_str().expect("utf-8")),
+        ],
+    );
+    assert_eq!(execucao.codigo, 0, "stderr={}", execucao.saida_erro);
+    let estagios = fs::read_to_string(&registro).expect("estágios registrados");
+    let observados: Vec<&str> = estagios.lines().collect();
+    assert_eq!(
+        observados,
+        vec!["before-lock-removal"],
+        "o gancho antigo recebe exatamente o estágio que sempre recebeu"
+    );
+    let _ = fs::remove_dir_all(&raiz);
+}
+
+// --- leitura de identidade em modo biblioteca ------------------------------
+
+/// Avalia uma função do runner em modo biblioteca.
+fn avaliar_no_runner(chamada: &str) -> (bool, String) {
+    let script = format!(
+        "PINKER_FLAKE_LIB_ONLY=1 source {}; {chamada}",
+        caminho_do_runner().display()
+    );
+    let saida = Command::new("bash")
+        .arg("-c")
+        .arg(script)
+        .output()
+        .expect("executar função do runner");
+    (
+        saida.status.success(),
+        String::from_utf8_lossy(&saida.stdout).trim().to_string(),
+    )
+}
+
+#[test]
+fn leitura_de_stat_rejeita_truncado_nao_numerico_e_ambiguo() {
+    // `comm` aceita espaço e parêntese. Cortar pelo primeiro `)` deslocaria
+    // todos os campos seguintes, inclusive o start time — que é exatamente o que
+    // distingue um PID vivo de um número herdado.
+    // Cauda em que o valor de cada campo é o próprio índice posicional: `$3` vale
+    // 3, `$4` vale 4 e `$20` vale 20. Um deslocamento de campo aparece como
+    // número trocado, e não como falha genérica.
+    let cauda: Vec<String> = (2..=52).map(|indice| indice.to_string()).collect();
+    let corpo = format!("S {}", cauda.join(" "));
+    let normal = format!("7 (bash) {corpo}");
+    let (ok, saida) = avaliar_no_runner(&format!(
+        "pinker_flake_stat_fields {}",
+        aspas_simples(&normal)
+    ));
+    assert!(ok, "linha normal precisa ser aceita: {normal}");
+    assert_eq!(saida, "S 3 4 20", "campos extraídos: {saida}");
+
+    let ambiguo = format!("7 (co) mm) {corpo}");
+    let (ok_ambiguo, saida_ambigua) = avaliar_no_runner(&format!(
+        "pinker_flake_stat_fields {}",
+        aspas_simples(&ambiguo)
+    ));
+    assert!(ok_ambiguo, "comm com parêntese precisa ser aceito");
+    assert_eq!(
+        saida_ambigua, "S 3 4 20",
+        "o corte precisa usar o último fecha-parêntese"
+    );
+
+    let sem_start = format!("7 (bash) S {}", cauda[..10].join(" "));
+    let start_nao_numerico = normal.replacen(" 20 ", " x ", 1);
+    let pgid_nao_numerico = normal.replacen(" 3 ", " x ", 1);
+    for invalido in [
+        "",
+        "sem parenteses aqui",
+        sem_start.as_str(),
+        start_nao_numerico.as_str(),
+        pgid_nao_numerico.as_str(),
+    ] {
+        let (aceito, _) = avaliar_no_runner(&format!(
+            "pinker_flake_stat_fields {}",
+            aspas_simples(invalido)
+        ));
+        assert!(
+            !aceito,
+            "estrutura inválida precisa ser rejeitada: {invalido:?}"
+        );
+    }
+
+    // `/proc` indisponível: um PID que não existe não produz identidade parcial.
+    let (aceito, _) =
+        avaliar_no_runner(&format!("pinker_flake_stat_fields_of {}", pid_encerrado()));
+    assert!(!aceito, "PID inexistente não pode produzir identidade");
+}
+
+#[test]
+fn anuncio_de_identidade_e_validado_estritamente() {
+    let (ok, saida) =
+        avaliar_no_runner("pinker_flake_parse_identity_line 'pinker-flake-identity 1 7 4242 7 7'");
+    assert!(ok, "anúncio íntegro precisa ser aceito");
+    assert_eq!(saida, "7 4242 7 7");
+
+    for invalido in [
+        "",
+        "pinker-flake-identity 1 7 4242 7",
+        "pinker-flake-identity 1 7 4242 7 7 sobrando",
+        "pinker-flake-identity 2 7 4242 7 7",
+        "outra-marca 1 7 4242 7 7",
+        "pinker-flake-identity 1 0 4242 7 7",
+        "pinker-flake-identity 1 -7 4242 7 7",
+        "pinker-flake-identity 1 7 x 7 7",
+        "pinker-flake-identity 1 7 4242 0 7",
+        "pinker-flake-identity 1 7 4242 7 0",
+    ] {
+        let (aceito, _) = avaliar_no_runner(&format!(
+            "pinker_flake_parse_identity_line {}",
+            aspas_simples(invalido)
+        ));
+        assert!(
+            !aceito,
+            "anúncio inválido precisa ser rejeitado: {invalido:?}"
+        );
+    }
+}
+
+// --- sensibilidade das guardas de inicialização ----------------------------
+
+/// Invariantes que o ciclo de inicialização e interrupção precisa manter.
+///
+/// Cada um existe porque a sua ausência reintroduz um defeito concreto e
+/// nomeado: sinal perdido, cleanup com identidade incompleta, promoção sem os
+/// quatro campos, zumbi, monitor abandonado ou resumo publicado depois de uma
+/// interrupção.
+fn guarda_de_inicializacao(fonte: &str) -> Result<(), String> {
+    // Casamento por nome nunca pode aparecer no runner.
+    for proibido in [
+        format!("{}kill", "p"),
+        format!("kill{}", "all"),
+        format!("{}grep", "p"),
+    ] {
+        if fonte.contains(proibido.as_str()) {
+            return Err(format!("casamento por nome no runner: {proibido}"));
+        }
+    }
+
+    // A fase STARTING precisa existir e diferir o sinal sem sair e sem limpar.
+    let Some(deferral) = fonte.find(DEFERRAL_EM_STARTING) else {
+        return Err(String::from("a deferral durante STARTING desapareceu"));
+    };
+    let corpo = &fonte[deferral..];
+    let fim = corpo.find("\n    fi\n").unwrap_or(corpo.len());
+    if !corpo[..fim].contains("        return 0") {
+        return Err(String::from(
+            "a fase STARTING deixou de retornar sem encerrar",
+        ));
+    }
+
+    // Primeira causa imutável e handler não reentrante.
+    if !fonte.contains(PRIMEIRA_CAUSA) || !fonte.contains(REGISTRO_DA_CAUSA) {
+        return Err(String::from("a primeira causa deixou de ser registrada"));
+    }
+    if fonte.matches(GUARDA_DE_REENTRANCIA).count() < 2 {
+        return Err(String::from(
+            "a guarda de reentrância não cobre handler e deferral",
+        ));
+    }
+
+    // A promoção acontece uma única vez, depois da captura validada.
+    if fonte.matches(PROMOCAO_PARA_ATIVO).count() != 1 {
+        return Err(String::from("a promoção para ACTIVE deixou de ser única"));
+    }
+    let promocao = fonte.find(PROMOCAO_PARA_ATIVO).expect("promoção");
+    let Some(captura) = fonte.find(CAPTURA_DE_IDENTIDADE) else {
+        return Err(String::from("a captura de identidade desapareceu"));
+    };
+    let Some(spawn) = fonte.find("        setsid bash -c") else {
+        return Err(String::from("o spawn do controlador desapareceu"));
+    };
+    let Some(starting) = fonte.find("    active_state=starting") else {
+        return Err(String::from("a fase STARTING não é iniciada"));
+    };
+    let Some(monitor) = fonte.find("    monitor_pid=$!") else {
+        return Err(String::from("o monitor deixou de ser identificado"));
+    };
+    if !(starting < spawn && spawn < captura && captura < promocao && promocao < monitor) {
+        return Err(String::from("a ordem da janela crítica foi quebrada"));
+    }
+
+    // Os quatro campos da identidade ativa.
+    for exigido in [CAMPO_START, CAMPO_PGID, CAMPO_SID, EXIGENCIA_DE_START] {
+        if !fonte.contains(exigido) {
+            return Err(format!("campo da identidade ativa ausente: {exigido}"));
+        }
+    }
+    for exigido in [
+        "    [[ $active_pgid =~ ^[1-9][0-9]*$ ]] || return 1",
+        "    [[ $active_sid =~ ^[1-9][0-9]*$ ]] || return 1",
+    ] {
+        if !fonte.contains(exigido) {
+            return Err(format!("a completude da identidade não exige: {exigido}"));
+        }
+    }
+
+    // O encerramento contém o filho direto mesmo sem identidade completa, e o
+    // sinal coletivo exige revalidação.
+    if !fonte.contains(CLEANUP_DO_FILHO_DIRETO) {
+        return Err(String::from(
+            "o encerramento voltou a exigir identidade completa para agir",
+        ));
+    }
+    if !fonte.contains("    [[ $(pinker_flake_active_identity_state) == live ]] || return 1") {
+        return Err(String::from("sinal coletivo sem revalidação"));
+    }
+
+    // O canal de prontidão não pode ser herdado pela árvore do harness.
+    if !fonte.contains(FECHAMENTO_DO_CANAL) {
+        return Err(String::from(
+            "o canal de prontidao vaza como descritor herdado para o harness",
+        ));
+    }
+
+    // Filho direto e monitor aguardados.
+    if !fonte.contains(WAIT_DO_CONTROLADOR) {
+        return Err(String::from("wait do controlador ausente"));
+    }
+    if !fonte.contains(WAIT_DO_MONITOR) {
+        return Err(String::from("wait do monitor ausente"));
+    }
+    if !fonte.contains("monitor_pid=\n") && !fonte.contains("    monitor_pid=\n") {
+        return Err(String::from(
+            "o monitor deixou de ser inicializado explicitamente",
+        ));
+    }
+
+    // Interrupção termina em 130 e nunca cai no fluxo normal.
+    if !fonte.contains(SAIDA_INTERROMPIDA) {
+        return Err(String::from(
+            "a interrupção deixou de sair com 130 e pode publicar resumo",
+        ));
+    }
+    if !fonte.contains("    exit \"$PINKER_FLAKE_EXIT_IDENTITY\"") {
+        return Err(String::from("a falha de identidade deixou de ser fechada"));
+    }
+
+    Ok(())
+}
+
+#[test]
+fn sensibilidade_das_guardas_de_inicializacao_detecta_cada_variacao() {
+    let caminho = caminho_do_runner();
+    let original = fs::read(&caminho).expect("ler o runner");
+    let soma_original = soma_fnv1a(&original);
+    let fonte = String::from_utf8(original.clone()).expect("o runner é utf-8");
+
+    assert_eq!(
+        guarda_de_inicializacao(&fonte),
+        Ok(()),
+        "o runner real precisa satisfazer as próprias guardas"
+    );
+
+    let area = raiz_isolada("sensibilidade-inicializacao");
+    let copia = area.join("variacao.sh");
+
+    let variacoes: Vec<(&str, String)> = vec![
+        (
+            "remoção da deferral durante STARTING",
+            fonte.replace(DEFERRAL_EM_STARTING, "    if false; then"),
+        ),
+        (
+            "promoção para ACTIVE antes da captura",
+            fonte.replace(CAPTURA_DE_IDENTIDADE, "    if false; then"),
+        ),
+        (
+            "promoção para ACTIVE antes de start time",
+            fonte.replace(CAMPO_START, "    active_start="),
+        ),
+        (
+            "promoção para ACTIVE antes de PGID",
+            fonte.replace(CAMPO_PGID, "    active_pgid="),
+        ),
+        (
+            "promoção para ACTIVE antes de SID",
+            fonte.replace(CAMPO_SID, "    active_sid="),
+        ),
+        (
+            "active_start vazio restaurado como estado permitido",
+            fonte.replace(EXIGENCIA_DE_START, "    [[ -z $active_start ]] || return 0"),
+        ),
+        (
+            "retorno silencioso do cleanup com filho vivo",
+            fonte.replace(
+                CLEANUP_DO_FILHO_DIRETO,
+                "    pinker_flake_identity_complete || return 0\n    active_state=reaping",
+            ),
+        ),
+        (
+            "perda da interrupção pendente",
+            fonte.replace(REGISTRO_DA_CAUSA, "        pending_signal="),
+        ),
+        (
+            "segundo sinal substituindo o primeiro",
+            fonte.replace(PRIMEIRA_CAUSA, "    if true; then"),
+        ),
+        (
+            "handler reentrante",
+            fonte.replace(GUARDA_DE_REENTRANCIA, "    true"),
+        ),
+        (
+            "remoção do wait do controlador",
+            fonte.replace(WAIT_DO_CONTROLADOR, "    true"),
+        ),
+        (
+            "remoção do wait do monitor",
+            fonte.replace(WAIT_DO_MONITOR, "    true"),
+        ),
+        (
+            "publicação de resumo após interrupção",
+            fonte.replace(SAIDA_INTERROMPIDA, "    return 0"),
+        ),
+        (
+            "sinal coletivo sem revalidação",
+            fonte.replace(
+                "    [[ $(pinker_flake_active_identity_state) == live ]] || return 1",
+                "    true",
+            ),
+        ),
+        (
+            "canal de prontidao herdado pelo harness",
+            fonte.replace(FECHAMENTO_DO_CANAL, " &"),
+        ),
+        (
+            "casamento por substring no runner",
+            format!("{fonte}\n# {}kill -f campanha\n", "p"),
+        ),
+    ];
+
+    for (nome, mutada) in &variacoes {
+        assert_ne!(
+            mutada.as_str(),
+            fonte.as_str(),
+            "a variação {nome} precisa alterar a fonte"
+        );
+        fs::write(&copia, mutada.as_bytes()).expect("gravar variação");
+        let lida = fs::read_to_string(&copia).expect("reler variação");
+        assert!(
+            guarda_de_inicializacao(&lida).is_err(),
+            "a variação {nome} passou despercebida pelas guardas"
+        );
+
+        fs::write(&copia, &original).expect("restaurar variação");
+        let restaurada = fs::read(&copia).expect("reler restauração");
+        assert_eq!(
+            soma_fnv1a(&restaurada),
+            soma_original,
+            "restauração de {nome} não é byte a byte"
+        );
+        assert_eq!(restaurada, original, "restauração de {nome} divergiu");
+    }
+
+    let depois = fs::read(&caminho).expect("reler o runner");
+    assert_eq!(
+        soma_fnv1a(&depois),
+        soma_original,
+        "o runner precisa continuar byte a byte idêntico"
+    );
+    assert_eq!(depois, original);
+    let _ = fs::remove_dir_all(&area);
 }
 
 // --- sensibilidade das guardas de contenção --------------------------------

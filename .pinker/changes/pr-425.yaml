@@ -1,0 +1,19 @@
+schema: 1
+source:
+  type: github-pr
+  number: 425
+  repository: "LyannaValerie/pinker-v0"
+kind: hotfix
+block: 20
+title: "Fecha a janela de interrupção ao iniciar a campanha do runner de estabilidade"
+area:
+  - development.test-integrity
+  - development.host-containment
+status: completed
+updates:
+  state: true
+  history: true
+  roadmap: false
+validation:
+  required:
+    - make ci

@@ -345,6 +345,131 @@ Interrupção é preservada, não apagada: o `trap` encerra o controlador `setsi
 pela identidade revalidada, promove o diretório em curso a `INTERRUPTED-*` e
 sai com `130`. Uma iteração interrompida nunca é contada como concluída.
 
+### Janela de interrupção ao iniciar a campanha
+
+A janela abaixo foi **descoberta durante a PR #424** e deliberadamente deixada
+fora do escopo daquela unidade, que tratava da publicação segura de
+executáveis. Ela é corrigida nesta unidade posterior. Nada do que a PR #424
+entregou é reescrito aqui.
+
+**A janela antiga.** O runner criava o diretório `.running-*`, iniciava
+`setsid timeout ...` em segundo plano, capturava `$!` como controlador e só
+então lia `/proc/<pid>/stat` repetidamente para descobrir o `start time`. Os
+`trap` de `INT`, `TERM` e `HUP` já estavam ativos durante toda essa sequência, e
+o encerramento começava por uma validação que exigia simultaneamente PID
+presente, start time presente, processo existente e grupo correspondente.
+
+Um sinal recebido **depois** da criação do controlador e **antes** da captura do
+start time encontrava essa validação falhando. O encerramento retornava sem
+encerrar coisa alguma, e o runner ainda assim saía com `130`, liberava o lock e
+preservava a evidência como interrompida — deixando `timeout`, harness,
+descendentes e o subshell monitor vivos. Interrupção correta por fora, árvore
+viva por dentro: o modo de falha mais caro, porque nada no resultado denuncia o
+resíduo.
+
+**Estados explícitos.** O ciclo do controlador deixa de ser inferido da
+combinação de variáveis vazias e passa a ser um estado nomeado:
+
+| estado | significado |
+|---|---|
+| `idle` | nenhum controlador iniciado nesta iteração |
+| `starting` | criação iniciada, identidade ainda não confirmada |
+| `active` | PID, start time, PGID e SID capturados e validados |
+| `reaping` | encerramento e `wait` em andamento |
+| `finished` | filho aguardado e estado limpo |
+
+A fase `starting` é instalada **antes** da linha que cria o controlador e só
+termina depois de a identidade estar completa, revalidada e promovida.
+
+**Interrupção pendente e primeira causa imutável.** Durante `starting`, `INT`,
+`TERM` e `HUP` são registrados como interrupção pendente e o handler retorna: ele
+não executa encerramento com identidade incompleta, não sai do runner e não
+ignora o sinal em definitivo. A primeira causa recebida vence e nunca é
+substituída por um sinal posterior; um segundo sinal durante o encerramento não
+reinicia a escalada. A causa, o estado em que ela chegou, a existência do
+controlador naquele instante e o resultado do encerramento são registrados no
+manifesto da evidência interrompida, que continua sendo um conjunto de linhas
+`chave=valor`.
+
+A ordem entre sinais simultaneamente pendentes é do kernel, não de quem envia —
+no Linux vence o menor número. "Primeira causa" significa, portanto, a primeira
+**recebida**, e as regressões a estabelecem por barreira explícita em pontos
+distintos da inicialização, nunca por ordem de envio.
+
+**Identidade completa, anunciada pelo próprio controlador.** A identidade ativa
+exige quatro campos: PID, start time, PGID e SID. Ela não é mais garimpada em
+`/proc` pelo runner: o controlador a publica em um canal exclusivo do lote antes
+de executar o harness, e só então entrega o processo por `exec`, que preserva os
+quatro campos. A razão é medida, não suposta — o Bash colhe filhos de segundo
+plano por conta própria, e `/proc/<pid>` de um harness rápido desaparece antes
+que o runner consiga lê-lo. Uma identidade anunciada não corre com a morte de
+quem a anunciou.
+
+O canal é aberto antes do spawn e **fechado para o filho**: o controlador e a
+árvore do harness não o herdam. Descritor herdado é precisamente a classe de
+defeito que esta suíte existe para vigiar — foi um `ETXTBSY` por descritor
+gravável herdado que motivou a PR #424 —, e um canal de sincronização interna do
+runner não pode virar um deles. O escritor do anúncio não depende de herança:
+ele abre o canal pelo caminho.
+
+O anúncio é validado estritamente: marca fechada, versão fechada, quatro campos
+decimais e nada além. Exige-se que ele pertença ao filho direto da iteração, que
+o controlador lidere o próprio grupo e a própria sessão, que nem o grupo nem a
+sessão sejam os do runner, e que `/proc` concorde com o anúncio enquanto o
+processo existir. `setsid` não cria processo intermediário nesta máquina, e a
+igualdade `pid = pgid = sid` é exigida por medição, não presumida por
+coincidência.
+
+**Falha fechada quando a identidade não pode ser provada.** O runner não segue
+com identidade incompleta. Não inicia o monitor, não executa as iterações
+seguintes, não publica `PASS` e não publica resumo: contém o filho direto,
+aguarda-o, preserva evidência diagnóstica em `IDENTITY-FAILURE-*`, libera o lock
+e termina com o código `4`, distinto de falha de teste e de lock.
+
+**Autoridade de sinal.** A contenção primária é o filho direto, pelo PID: um
+filho ainda não aguardado não pode ter o número reutilizado, e `timeout` propaga
+o sinal ao grupo que administra. O sinal **coletivo** exige identidade
+revalidada imediatamente antes — PID, start time, PGID e SID —, porque um PGID
+pode ter deixado de existir e passado a nomear outro grupo. Identidade
+desconhecida nunca autoriza sinalização coletiva. Nenhum processo é alcançado
+por nome, por substring ou por PID sem start time.
+
+**Contenção do monitor.** O subshell de amostragem pertence ao runner tanto
+quanto o controlador. Ele é inicializado explicitamente, sai sozinho ao observar
+a morte do controlador — observável apenas depois do `wait` do filho direto — e
+é sempre aguardado. A evidência só é movida depois disso, de modo que o monitor
+nunca escreve num diretório já promovido a `INTERRUPTED-*` nem é reparentado
+para o init. A contenção por PID é limitada e só age quando a saída espontânea
+não acontece: derrubar o subshell no meio de uma amostragem deixaria órfãos os
+processos que ele acabou de criar.
+
+**Ordem do encerramento.** Congelar a primeira causa; impedir reentrância;
+completar ou validar a identidade; revalidar os quatro campos; `TERM` na árvore
+autorizada; prazo limitado; revalidar; `KILL` somente nos sobreviventes
+autorizados; aguardar o filho direto; encerrar ou aguardar o monitor; confirmar
+ausência de descendentes; promover `.running-*` a `INTERRUPTED-*`; preservar
+manifesto e evidência; liberar o lock pelo caminho canônico; sair com `130`.
+
+O código continua sendo `130` para `INT`, `TERM` e `HUP`, o lote interrompido
+continua preservado, a última projeção de lote concluído permanece intacta e
+nenhum resumo novo é publicado.
+
+**Interrupção normal e `SIGKILL` são contratos distintos.** Uma interrupção
+normal executa os traps: o runner encerra a própria árvore, aguarda o filho
+direto e o monitor, libera o lock e não deixa resíduo. `SIGKILL` não executa
+trap algum: o lock sobrevive carregando identidade suficiente para que uma
+campanha posterior o classifique e o recupere, e um `.running-*` deixado por
+`SIGKILL` pertence a esse outro contrato — não é resíduo inexplicado e não é
+removido automaticamente.
+
+**Gancho determinístico.** Um gancho estritamente de teste congela a
+inicialização em `before-spawn`, `after-spawn`, `after-identity`, `after-active`
+e `after-monitor`. Ele é inativo por padrão e exige duas variáveis — o programa
+e a lista explícita de estágios —, de modo que configuração parcial não ativa
+comportamento algum. É deliberadamente separado do gancho de lock já existente,
+que continua recebendo apenas `before-lock-removal`: ampliar aquele faria o seu
+único consumidor agir em pontos que nunca esperou.
+
 ### Exclusividade por checkout
 
 Proibição operacional não é correção. Duas campanhas sobre o mesmo `target`

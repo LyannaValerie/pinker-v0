@@ -42,4 +42,5 @@ mão. Regenere com `pink doc sincronizar`.
 | #421 | — | 20 | Contenção da memória pública e eliminação da materialização ansiosa | completed |
 | #422 | — | 20 | Contenção do host para execuções nativas | completed |
 | #424 | — | 20 | Integridade da fixture de testes: publicação segura de executáveis | completed |
+| #425 | — | 20 | Fecha a janela de interrupção ao iniciar a campanha do runner de estabilidade | completed |
 <!-- @pinker-generated:end roadmap.generated -->
