@@ -3076,10 +3076,16 @@ fn exigir_interrupcao_limpa(
     caso: &str,
     relatorio: &RelatorioEncerramento,
     evidencia: &Path,
-    sinal_esperado: &str,
+    causas_aceitas: &[&str],
     estado_esperado: &str,
 ) {
-    registrar_iteracao(caso, estado_esperado, sinal_esperado, relatorio, evidencia);
+    registrar_iteracao(
+        caso,
+        estado_esperado,
+        &causas_aceitas.join("|"),
+        relatorio,
+        evidencia,
+    );
     assert_eq!(
         relatorio.codigo, EXIT_INTERROMPIDO,
         "{caso}: interrupção precisa retornar 130; controlador={:?} sessoes={:?}",
@@ -3134,10 +3140,10 @@ fn exigir_interrupcao_limpa(
         EXIT_INTERROMPIDO.to_string(),
         "{caso}: manifesto={manifesto}"
     );
-    assert_eq!(
-        campo_do_manifesto(&manifesto, "interrupt_signal"),
-        sinal_esperado,
-        "{caso}: a primeira causa precisa ser preservada: {manifesto}"
+    let causa = campo_do_manifesto(&manifesto, "interrupt_signal");
+    assert!(
+        causas_aceitas.contains(&causa.as_str()),
+        "{caso}: a causa registrada precisa estar entre {causas_aceitas:?}: {manifesto}"
     );
     assert_eq!(
         campo_do_manifesto(&manifesto, "interrupt_state"),
@@ -3162,7 +3168,7 @@ fn caso_interrupcao_na_janela(
         caso,
         &relatorio,
         &evidencia,
-        nome_sinal,
+        &[nome_sinal],
         estagio.estado_esperado(),
     );
     let manifesto = manifesto_interrompido(&evidencia);
@@ -3245,7 +3251,7 @@ fn caso_sinais_repetidos(caso: &str, primeiro: i32, seguintes: &[i32], rotulo: &
     janela.avancar();
     janela.sinalizar(seguintes);
     let relatorio = janela.colher();
-    exigir_interrupcao_limpa(caso, &relatorio, &evidencia, rotulo, "starting");
+    exigir_interrupcao_limpa(caso, &relatorio, &evidencia, &[rotulo], "starting");
     let _ = fs::remove_dir_all(&raiz);
 }
 
@@ -3284,6 +3290,15 @@ fn sinais_repetidos_durante_o_encerramento_nao_reentram() {
     // Enquanto o runner encerra a própria árvore, mais sinais chegam. Cada envio
     // revalida a identidade, de modo que nenhum sinal parte para um PID que já
     // deixou de ser o controlador.
+    //
+    // Este caso **não** fixa qual causa vence, e a distinção importa. Depois de
+    // liberada a barreira, o `INT` já entregue e o primeiro `TERM` deste laço
+    // ficam pendentes ao mesmo tempo, e a ordem em que o Bash despacha dois
+    // traps pendentes não é contrato de que se possa depender: uma execução em
+    // quarenta registrou `TERM`. O que este caso prova é a **não-reentrância** —
+    // exatamente uma causa é congelada, exatamente um diretório é promovido, o
+    // código é 130 e nada sobra. A autoridade da primeira causa é provada pelos
+    // casos de barreira ordenada, onde a ordem é do teste e não do kernel.
     let limite = Instant::now() + PRAZO_DE_CONFIRMACAO;
     let mut enviados = 0_u32;
     while Instant::now() < limite && enviados < 40 {
@@ -3295,7 +3310,7 @@ fn sinais_repetidos_durante_o_encerramento_nao_reentram() {
     }
 
     let relatorio = janela.colher();
-    exigir_interrupcao_limpa(caso, &relatorio, &evidencia, "INT", "active");
+    exigir_interrupcao_limpa(caso, &relatorio, &evidencia, &["INT", "TERM"], "active");
     let _ = fs::remove_dir_all(&raiz);
 }
 
@@ -3376,7 +3391,7 @@ fn interrupcao_nao_inicia_a_iteracao_seguinte() {
     );
     janela.confirmar_arvore();
     let relatorio = janela.interromper(&[SIGINT]);
-    exigir_interrupcao_limpa(caso, &relatorio, &evidencia, "INT", "active");
+    exigir_interrupcao_limpa(caso, &relatorio, &evidencia, &["INT"], "active");
 
     let lotes = diretorios_de(&evidencia.join("batches"));
     assert_eq!(lotes.len(), 1, "lote único: {lotes:?}");
@@ -3411,7 +3426,7 @@ fn processo_externo_nao_e_tocado_por_interrupcao_na_janela() {
     let mut janela = CampanhaNaJanela::nova(&raiz, "modo", EstagioDeInicializacao::DepoisDoSpawn);
     janela.confirmar_arvore();
     let relatorio = janela.interromper(&[SIGINT]);
-    exigir_interrupcao_limpa(caso, &relatorio, &evidencia, "INT", "starting");
+    exigir_interrupcao_limpa(caso, &relatorio, &evidencia, &["INT"], "starting");
     assert_eq!(
         classificar_identidade(&identidade),
         ClasseIdentidade::Viva,
