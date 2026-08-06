@@ -1218,10 +1218,20 @@ impl CampanhaViva {
         ambiente: &[(&str, String)],
         atraso_segundos: u64,
     ) -> Self {
+        Self::nascer_completo(raiz, modo, "1", ambiente, atraso_segundos)
+    }
+
+    fn nascer_completo(
+        raiz: &Path,
+        modo: &str,
+        execucoes: &str,
+        ambiente: &[(&str, String)],
+        atraso_segundos: u64,
+    ) -> Self {
         let binario = binario_falso_com_atraso(raiz, RESUMO_COM_TESTE, 0, atraso_segundos);
         let mut comando = Command::new(raiz.join("scripts/pinker-flake-runner.sh"));
         comando
-            .args([modo, "1"])
+            .args([modo, execucoes])
             .env("PINKER_FLAKE_TEST_BINARY", &binario)
             .env_remove("PINKER_FLAKE_RUN_TIMEOUT_SECONDS")
             .stdin(Stdio::piped())
@@ -2798,6 +2808,16 @@ impl CampanhaNaJanela {
         estagios: &[EstagioDeInicializacao],
         atraso_segundos: u64,
     ) -> Self {
+        Self::nova_completa(raiz, modo, "1", estagios, atraso_segundos)
+    }
+
+    fn nova_completa(
+        raiz: &Path,
+        modo: &str,
+        execucoes: &str,
+        estagios: &[EstagioDeInicializacao],
+        atraso_segundos: u64,
+    ) -> Self {
         assert!(!estagios.is_empty(), "a barreira precisa de um estágio");
         let unico = SEQUENCIA.fetch_add(1, Ordering::Relaxed);
         let area = raiz.join(format!("barreira-{unico}"));
@@ -2823,7 +2843,8 @@ impl CampanhaNaJanela {
             ),
             ("PINKER_FLAKE_STARTUP_HOOK_STAGES", nomes.join(" ")),
         ];
-        let campanha = CampanhaViva::nascer_com_harness(raiz, modo, &ambiente, atraso_segundos);
+        let campanha =
+            CampanhaViva::nascer_completo(raiz, modo, execucoes, &ambiente, atraso_segundos);
         let mut janela = Self {
             campanha,
             area,
@@ -3334,6 +3355,50 @@ fn controlador_que_termina_antes_da_captura_nao_perde_identidade() {
     );
     assert!(!evidencia.join(".lock").exists(), "o lock é liberado");
     drop(janela);
+    let _ = fs::remove_dir_all(&raiz);
+}
+
+#[test]
+fn interrupcao_nao_inicia_a_iteracao_seguinte() {
+    // Um lote de duas iterações interrompido na primeira não pode retomar o
+    // fluxo normal: o lote guarda a evidência da iteração interrompida e de
+    // nenhuma outra, e `PROGRESS.txt` — escrito apenas ao fim de cada
+    // iteração — nunca chega a existir.
+    let caso = "sem-iteracao-seguinte";
+    let raiz = raiz_isolada(caso);
+    let evidencia = raiz.join("target/pinker-flake-evidence");
+    let mut janela = CampanhaNaJanela::nova_completa(
+        &raiz,
+        "modo",
+        "2",
+        &[EstagioDeInicializacao::DepoisDoMonitor],
+        HARNESS_LONGO_SEGUNDOS,
+    );
+    janela.confirmar_arvore();
+    let relatorio = janela.interromper(&[SIGINT]);
+    exigir_interrupcao_limpa(caso, &relatorio, &evidencia, "INT", "active");
+
+    let lotes = diretorios_de(&evidencia.join("batches"));
+    assert_eq!(lotes.len(), 1, "lote único: {lotes:?}");
+    let preservados = diretorios_de(&lotes[0]);
+    assert_eq!(
+        preservados.len(),
+        1,
+        "somente a iteração interrompida pode existir: {preservados:?}"
+    );
+    assert!(
+        !lotes[0].join("PROGRESS.txt").exists(),
+        "nenhuma iteração foi concluída, logo não há progresso publicado"
+    );
+    assert!(
+        !lotes[0].join("SUMMARY.txt").exists(),
+        "um lote interrompido nunca publica o próprio resumo"
+    );
+    let manifesto = fs::read_to_string(lotes[0].join("MANIFEST.txt")).expect("manifesto do lote");
+    assert!(
+        manifesto.contains("runs=2"),
+        "o lote pedia duas iterações: {manifesto}"
+    );
     let _ = fs::remove_dir_all(&raiz);
 }
 
