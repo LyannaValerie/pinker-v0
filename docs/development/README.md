@@ -77,6 +77,8 @@ janela auxiliar autorizada pela Issue #417 tem autoridade operacional própria e
   reprodução segura, demand paging, orçamentos e paridade;
 - `native-execution-host-containment.md` — autoridade de processos, stdio,
   sandboxes, cleanup, proveniência e proteção de core da esteira;
+- `projection-snapshots-contract.md` — schema, estados, medidas, reconstrução e
+  classificação dos snapshots históricos de projeção do catálogo de navegação;
 
 | Necessidade | Documento |
 |---|---|
@@ -85,6 +87,7 @@ janela auxiliar autorizada pela Issue #417 tem autoridade operacional própria e
 | mapa de código por feature | `../code_map.md` |
 | navegação semântica do código | `pink nav buscar "<conceito>"` |
 | janela auxiliar de infraestrutura determinística | `janela-infraestrutura-deterministica.md` |
+| snapshots históricos de projeção | `projection-snapshots-contract.md` |
 
 ## Rotas de leitura
 
