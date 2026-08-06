@@ -1164,10 +1164,15 @@ for (( iteration = 1; iteration <= runs; iteration++ )); do
     pinker_flake_startup_hook before-spawn
     # Sinal antes do spawn: nada foi criado, e nada deve ser.
     pinker_flake_settle_pending
+    # `{identity_fd}>&-` fecha o canal de prontidao **somente para este comando**.
+    # Sem isso o controlador e toda a arvore do harness herdariam um descritor
+    # do runner, e descritor herdado e exatamente a classe de defeito que a
+    # suite nativa existe para vigiar. O escritor do anuncio nao depende dessa
+    # heranca: o preambulo abre o canal pelo caminho.
     PINKER_FLAKE_IDENTITY_CHANNEL="$identity_channel" \
         setsid bash -c "$PINKER_FLAKE_CONTROLLER_PREAMBLE" pinker-flake-controller \
         timeout --signal=TERM --kill-after=5s "${per_run_timeout}s" "${invocation[@]}" \
-        > "$tmp/stdout" 2> "$tmp/stderr" &
+        > "$tmp/stdout" 2> "$tmp/stderr" {identity_fd}>&- &
     controller_pid=$!
     active_pid=$controller_pid
     pinker_flake_startup_hook after-spawn

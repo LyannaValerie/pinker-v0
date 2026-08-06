@@ -3486,6 +3486,8 @@ const EXIGENCIA_DE_START: &str = "    [[ $active_start =~ ^[0-9]+$ ]] || return 
 const WAIT_DO_CONTROLADOR: &str = "    wait \"$active_pid\" 2>/dev/null || true";
 const WAIT_DO_MONITOR: &str = "    wait \"$monitor_pid\" 2>/dev/null || true";
 const SAIDA_INTERROMPIDA: &str = "    exit \"$PINKER_FLAKE_EXIT_INTERRUPTED\"";
+/// Fecha o canal de prontidão **só para o comando** que cria o controlador.
+const FECHAMENTO_DO_CANAL: &str = " {identity_fd}>&- &";
 /// Linha em que o próprio controlador publica a sua identidade, antes do
 /// harness. Única no runner, e por isso endereçável byte a byte pelas variações.
 const ANUNCIO_DA_IDENTIDADE: &str =
@@ -3737,6 +3739,58 @@ fn pid_divergente_do_filho_direto_falha_fechado() {
             "    \"$(( $$ + 1 ))\" \"${campos[19]}\" \"${campos[2]}\" \"${campos[3]}\" > \"$canal\" || exit 97",
         ),
     );
+}
+
+// --- higiene de descritores ------------------------------------------------
+
+#[test]
+fn o_harness_nao_herda_o_canal_de_prontidao() {
+    // O canal de prontidão é aberto pelo runner **antes** do spawn, de modo que
+    // sem fechamento explícito o controlador e toda a árvore do harness
+    // herdariam um descritor do runner. Descritor herdado é exatamente a classe
+    // de defeito que a suíte nativa existe para vigiar — foi um `ETXTBSY` por
+    // descritor gravável herdado que motivou a PR #424 —, e um canal de
+    // sincronização interna do runner não pode virar um deles.
+    let raiz = raiz_isolada("canal-nao-vaza");
+    let registro = raiz.join("descritores-do-harness.txt");
+    let harness = publicar_executavel(
+        &raiz.join("harness-que-lista-descritores.sh"),
+        &format!(
+            "#!/usr/bin/env bash\nfor alvo in /proc/self/fd/*; do printf '%s -> %s\\n' \"${{alvo##*/}}\" \"$(readlink -f \"$alvo\" 2>/dev/null)\"; done > {}\n{}\nexit 0\n",
+            aspas_simples(registro.to_str().expect("utf-8")),
+            RESUMO_COM_TESTE
+                .lines()
+                .map(|linha| format!("printf '%s\\n' {}", aspas_simples(linha)))
+                .collect::<Vec<_>>()
+                .join("\n"),
+        ),
+    );
+
+    let execucao = executar(
+        &raiz,
+        &["modo", "1"],
+        &[("PINKER_FLAKE_TEST_BINARY", harness.to_str().expect("utf-8"))],
+    );
+    assert_eq!(execucao.codigo, 0, "stderr={}", execucao.saida_erro);
+
+    let descritores = fs::read_to_string(&registro).expect("descritores do harness");
+    assert!(
+        !descritores.contains(".fifo"),
+        "o harness herdou o canal de prontidão do runner:\n{descritores}"
+    );
+    // Nem qualquer outro descritor apontando para dentro da evidência, além dos
+    // dois que o runner abre de propósito: `stdout` e `stderr` da iteração.
+    let para_a_evidencia: Vec<&str> = descritores
+        .lines()
+        .filter(|linha| linha.contains("pinker-flake-evidence"))
+        .collect();
+    assert!(
+        para_a_evidencia
+            .iter()
+            .all(|linha| linha.ends_with("/stdout") || linha.ends_with("/stderr")),
+        "descritor inesperado para a evidência: {para_a_evidencia:?}"
+    );
+    let _ = fs::remove_dir_all(&raiz);
 }
 
 // --- gancho de inicialização ----------------------------------------------
@@ -4004,6 +4058,13 @@ fn guarda_de_inicializacao(fonte: &str) -> Result<(), String> {
         return Err(String::from("sinal coletivo sem revalidação"));
     }
 
+    // O canal de prontidão não pode ser herdado pela árvore do harness.
+    if !fonte.contains(FECHAMENTO_DO_CANAL) {
+        return Err(String::from(
+            "o canal de prontidao vaza como descritor herdado para o harness",
+        ));
+    }
+
     // Filho direto e monitor aguardados.
     if !fonte.contains(WAIT_DO_CONTROLADOR) {
         return Err(String::from("wait do controlador ausente"));
@@ -4108,6 +4169,10 @@ fn sensibilidade_das_guardas_de_inicializacao_detecta_cada_variacao() {
                 "    [[ $(pinker_flake_active_identity_state) == live ]] || return 1",
                 "    true",
             ),
+        ),
+        (
+            "canal de prontidao herdado pelo harness",
+            fonte.replace(FECHAMENTO_DO_CANAL, " &"),
         ),
         (
             "casamento por substring no runner",
