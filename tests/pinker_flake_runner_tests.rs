@@ -1684,13 +1684,16 @@ mod publicacao_de_executaveis {
         drop(arquivo);
         assert!(
             descritores_graveis_para(inode).is_empty(),
-            "fechar remove o descritor da tabela"
+            "fechar remove o descritor da tabela deste processo"
         );
-        assert_eq!(
-            erro_ao_executar(&alvo),
-            None,
-            "sem descritor gravável, o mesmo inode executa"
-        );
+
+        // Deliberadamente **não** se afirma aqui que o inode volta a executar.
+        // Esta é a única função da suíte que escreve um executável no processo
+        // de teste, e por isso sofre do próprio mecanismo que demonstra: um
+        // `fork` concorrente pode ter herdado este descritor e o mantém até o
+        // seu `exec`. Essa direção é provada sem corrida por
+        // `descritor_gravavel_de_processo_concorrente_impede_exec`, onde o
+        // fechamento é sincronizado com o auxiliar.
 
         let _ = fs::remove_dir_all(&raiz);
     }
