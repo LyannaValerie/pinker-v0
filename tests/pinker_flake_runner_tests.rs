@@ -730,54 +730,42 @@ fn validador_aceita_somente_inteiro_decimal_estritamente_positivo() {
 #[test]
 fn interrupcao_preserva_evidencia_e_retorna_130() {
     let raiz = raiz_isolada("interrupcao");
-    let binario = binario_falso_com_atraso(&raiz, RESUMO_COM_TESTE, 0, HARNESS_LONGO_SEGUNDOS);
-    let filho = Command::new(raiz.join("scripts/pinker-flake-runner.sh"))
-        .args(["modo", "1"])
-        .env("PINKER_FLAKE_TEST_BINARY", &binario)
-        .env_remove("PINKER_FLAKE_RUN_TIMEOUT_SECONDS")
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("iniciar runner");
-
     let evidencia = raiz.join("target/pinker-flake-evidence");
-    let inicio = Instant::now();
-    let limite = inicio + Duration::from_secs(30);
-    let mut lote_em_curso: Option<PathBuf> = None;
-    while Instant::now() < limite {
-        if let Some(lote) = lote_em_execucao(&evidencia) {
-            lote_em_curso = Some(lote);
-            break;
-        }
-        std::thread::sleep(Duration::from_millis(50));
-    }
-    let lote = lote_em_curso.expect("iteração não chegou a iniciar");
-    let ate_o_lote = inicio.elapsed();
+
+    // Este caso usava espera própria: aguardava só o lote `.running-` e
+    // sinalizava a seguir, tipicamente aos cinquenta milissegundos. O lote nasce
+    // **antes** de o runner capturar o start time do `setsid timeout` que
+    // acabara de criar, e sem esse dado o `cleanup_active` do runner sai sem
+    // matar nada. O caso terminava verde — recebia mesmo o `130` — deixando
+    // `timeout` e harness órfãos até o `timeout` deles expirar, trezentos
+    // segundos depois. Oito iterações de um burn-in de quarenta reportaram o
+    // mesmo par de PIDs por isso.
+    //
+    // `CampanhaViva` espera pela árvore antes de devolver o controle e contém o
+    // que sobrar. Espera duplicada, e mais fraca, em cada chamador é exatamente
+    // como esta classe de vazamento se reintroduz.
+    let dona = CampanhaViva::iniciar(&raiz, "modo");
+    let lote = dona.lote.clone();
     assert!(
         evidencia.join(".lock/owner.marker").is_file(),
         "campanha em andamento precisa deter o lock"
     );
 
-    // A iteração precisa estar **em curso** no instante do sinal, não apenas
-    // ter começado. São estados diferentes quando a máquina está disputada, e
-    // confundi-los custou duas falhas em quarenta execuções sob carga — o
-    // harness terminava sozinho e o runner saía `0` onde o caso exige `130`.
-    // O harness longo fecha a janela; estes campos existem para que, se ela
-    // reabrir, a falha diga por quê em vez de exigir arqueologia.
-    let ainda_em_curso = lote_em_execucao(&evidencia).is_some();
-    let momento_do_sinal = inicio.elapsed();
-    let pid = filho.id() as i32;
     // SIGINT no runner, exatamente como uma interrupção de terminal.
-    enviar_sinal(pid, 2);
-    let saida = filho.wait_with_output().expect("aguardar runner");
+    let relatorio = dona.encerrar_com_relatorio(SIGINT);
     assert_eq!(
-        saida.status.code(),
-        Some(EXIT_INTERROMPIDO),
-        "interrupção deve retornar 130; ate_o_lote={ate_o_lote:?} \
-         sinal_em={momento_do_sinal:?} iteracao_ainda_em_curso={ainda_em_curso}\n\
-         stdout do runner:\n{}\nstderr do runner:\n{}",
-        String::from_utf8_lossy(&saida.stdout),
-        String::from_utf8_lossy(&saida.stderr)
+        relatorio.codigo, EXIT_INTERROMPIDO,
+        "interrupção deve retornar 130; controlador={:?} sessoes={:?}",
+        relatorio.controlador, relatorio.sessoes
+    );
+    assert!(
+        relatorio.restantes.is_empty(),
+        "a interrupção não pode deixar árvore para trás: {:?}",
+        relatorio.papeis_restantes()
+    );
+    assert!(
+        relatorio.grupo_vazio && relatorio.sessao_vazia,
+        "grupo e sessões da campanha precisam ficar vazios"
     );
 
     let preservados: Vec<PathBuf> = diretorios_de(&lote)
@@ -881,10 +869,69 @@ const EXIT_TRAVADO: i32 = 3;
 extern "C" {
     fn kill(pid: i32, sinal: i32) -> i32;
     fn setsid() -> i32;
+    fn signal(sinal: i32, manipulador: usize) -> usize;
 }
 
+const SIGHUP: i32 = 1;
+const SIGINT: i32 = 2;
+const SIGQUIT: i32 = 3;
 const SIGKILL: i32 = 9;
 const SIGTERM: i32 = 15;
+
+const SIG_DFL: usize = 0;
+const SIG_ERR: usize = usize::MAX;
+
+/// Devolve os sinais de encerramento à disposição padrão, entre o `fork` e o
+/// `exec`.
+///
+/// Um sinal **ignorado na entrada do shell não pode ser trapeado**: o Bash
+/// recusa `trap ... INT` para ele, silenciosamente. O runner seguiria até o fim
+/// como se nada tivesse acontecido, e é o modo de falha mais confuso que existe,
+/// porque `kill` devolve zero e erro algum aparece em lugar nenhum.
+///
+/// A disposição ignorada atravessa o `exec`, então precisa ser desfeita aqui, no
+/// filho — não no processo de testes, que não pode alterar a própria sem afetar
+/// os demais casos.
+fn restaurar_sinais_padrao() -> std::io::Result<()> {
+    for sinal in [SIGINT, SIGTERM, SIGHUP, SIGQUIT] {
+        // Chamada de sistema sem efeito sobre memória, num filho que ainda não
+        // executou nada além do `fork`.
+        if unsafe { signal(sinal, SIG_DFL) } == SIG_ERR {
+            return Err(std::io::Error::last_os_error());
+        }
+    }
+    Ok(())
+}
+
+/// Máscaras de sinal publicadas pelo kernel, para diagnóstico.
+///
+/// `SigIgn` com o bit do sinal aceso explica, sozinho, um `kill` que devolve
+/// zero e não produz efeito nenhum.
+fn mascaras_de_sinal(pid: i32) -> String {
+    fs::read_to_string(format!("/proc/{pid}/status"))
+        .map(|texto| {
+            texto
+                .lines()
+                .filter(|linha| linha.starts_with("Sig"))
+                .collect::<Vec<_>>()
+                .join(" ")
+        })
+        .unwrap_or_else(|_| String::from("<indisponível>"))
+}
+
+/// O sinal está ignorado neste processo, segundo o kernel?
+///
+/// `SigIgn` é máscara hexadecimal com o bit `sinal - 1`.
+fn sinal_ignorado(pid: i32, sinal: i32) -> bool {
+    let status = fs::read_to_string(format!("/proc/{pid}/status")).expect("status do processo");
+    let mascara = status
+        .lines()
+        .find_map(|linha| linha.strip_prefix("SigIgn:"))
+        .map(str::trim)
+        .expect("campo SigIgn");
+    let bits = u64::from_str_radix(mascara, 16).expect("SigIgn hexadecimal");
+    bits & (1u64 << (sinal - 1)) != 0
+}
 
 /// Prazo de cada etapa da contenção. Generoso o bastante para uma máquina de CI
 /// carregada, curto o bastante para que um vazamento real apareça como falha em
@@ -1163,7 +1210,9 @@ impl CampanhaViva {
                 if setsid() < 0 {
                     return Err(std::io::Error::last_os_error());
                 }
-                Ok(())
+                // Sinal ignorado na entrada do shell não pode ser trapeado, e o
+                // contrato de encerramento normal depende dos traps do runner.
+                restaurar_sinais_padrao()
             });
         }
         let filho = comando.spawn().expect("iniciar campanha proprietária");
@@ -1264,11 +1313,20 @@ impl CampanhaViva {
     fn aguardar_arvore(&mut self, limite: Instant) -> bool {
         while Instant::now() < limite {
             self.recapturar_membros();
-            if self
+            // Dois membros na sessão da iteração, não um. O primeiro é o
+            // `timeout`; o segundo é o harness que ele executa. Esperar pelo
+            // segundo garante que o runner já passou do laço que captura o start
+            // time do `timeout` — e é esse start time que o `cleanup_active` do
+            // runner exige para poder derrubar a própria árvore. Parar no
+            // primeiro devolvia uma campanha que o runner ainda não sabia
+            // encerrar, e o encerramento normal vazava `timeout` e harness em
+            // silêncio, com o caso terminando verde.
+            let internos = self
                 .membros
                 .iter()
-                .any(|membro| membro.sid != self.controlador.sid)
-            {
+                .filter(|membro| membro.sid != self.controlador.sid)
+                .count();
+            if internos >= 2 {
                 return true;
             }
             std::thread::sleep(Duration::from_millis(10));
@@ -2177,6 +2235,33 @@ fn campanha_nasce_em_sessao_e_grupo_exclusivos() {
 }
 
 #[test]
+fn campanha_nasce_com_sinais_de_encerramento_no_padrao() {
+    // Um sinal ignorado na entrada do shell **não pode ser trapeado**: o Bash
+    // recusa `trap ... INT` silenciosamente, e o runner seguiria até o fim como
+    // se nada tivesse acontecido, com `kill` devolvendo zero o tempo todo. O
+    // contrato de encerramento normal inteiro depende desta máscara.
+    let raiz = raiz_isolada("sinais-no-padrao");
+    let dona = CampanhaViva::iniciar(&raiz, "modo");
+    let pid = dona.controlador.pid;
+    // `SIGQUIT` fica de fora de propósito: o Bash não interativo o ignora por
+    // decisão própria, e não por herança. Afirmar sobre ele codificaria uma
+    // expectativa falsa — a medição mostra `SigIgn: 0x4` num controlador
+    // perfeitamente saudável, cujo `SigCgt` traz `SIGINT`, `SIGTERM` e `SIGHUP`
+    // capturados.
+    for (sinal, nome) in [(SIGINT, "SIGINT"), (SIGTERM, "SIGTERM"), (SIGHUP, "SIGHUP")] {
+        assert!(
+            !sinal_ignorado(pid, sinal),
+            "{nome} ignorado no controlador: o trap do runner seria no-op \
+             silencioso; mascaras={}",
+            mascaras_de_sinal(pid)
+        );
+    }
+    // E o contrato vale na prática, não só na máscara.
+    assert_eq!(dona.encerrar(SIGINT), EXIT_INTERROMPIDO);
+    let _ = fs::remove_dir_all(&raiz);
+}
+
+#[test]
 fn controlador_timeout_e_harness_pertencem_a_arvore_capturada() {
     let raiz = raiz_isolada("arvore-capturada");
     // `iniciar` só devolve o controle depois que a sessão da iteração existe e
@@ -2676,6 +2761,24 @@ fn guarda_de_contencao(fonte: &str) -> Result<(), String> {
         }
     }
 
+    // Todo shell que precise honrar trap nasce com os sinais de encerramento na
+    // disposição padrão. Herdar `SIG_IGN` torna `trap ... INT` um no-op
+    // silencioso, e o encerramento normal deixa de existir sem que erro algum
+    // apareça.
+    if !regiao.contains("restaurar_sinais_padrao()") {
+        return Err(String::from(
+            "campanha nasce sem restaurar a disposição de sinais",
+        ));
+    }
+
+    // A espera pela árvore exige a sessão da iteração povoada, não apenas
+    // aberta: é o que prova que o runner já sabe encerrar a própria árvore.
+    if !regiao.contains("if internos >= 2 {") {
+        return Err(String::from(
+            "a espera aceita árvore incompleta e devolve campanha que o runner não sabe encerrar",
+        ));
+    }
+
     // A árvore é reabsorvida a cada rodada. Uma passada única deixa para trás o
     // neto forkado entre a captura e o sinal, que foi a origem das cinco falhas
     // de grupo não vazio em oitenta e quatro execuções paralelas.
@@ -2736,6 +2839,14 @@ fn sensibilidade_das_guardas_de_contencao_detecta_cada_variacao() {
         (
             "passada única sem reabsorção da árvore",
             fonte.replace("self.absorver_retardatarios();", ""),
+        ),
+        (
+            "shell nasce com sinal herdado como ignorado",
+            fonte.replace("restaurar_sinais_padrao()", "Ok(())"),
+        ),
+        (
+            "espera aceita árvore incompleta",
+            fonte.replace("if internos >= 2 {", "if internos >= 1 {"),
         ),
         (
             "uso de identidade sem revalidação",
