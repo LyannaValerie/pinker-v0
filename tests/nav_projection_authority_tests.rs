@@ -5,9 +5,9 @@
 //! autoridade nova, não a coexistência temporária com o mecanismo legado.
 
 use pinker_v0::nav::{CodeCatalog, CodeRegion};
-use pinker_v0::nav_projection_recipe::{self, Library, Recipe, RECIPES_DIR};
+use pinker_v0::nav_projection_recipe::{self, Library, Recipe, RECIPES_DIR, RECIPE_SCHEMA};
 use pinker_v0::nav_projection_snapshot::{
-    self as snapshot, Outcome, ProjectionSnapshot, SnapshotState, SNAPSHOTS_DIR,
+    self as snapshot, Outcome, ProjectionSnapshot, SnapshotState, SNAPSHOTS_DIR, SNAPSHOT_SCHEMA,
 };
 use std::collections::BTreeSet;
 use std::fs;
@@ -354,4 +354,30 @@ fn predecessor_e_base_snapshot_sao_relacoes_distintas() {
         coincidem, 0,
         "nesta autoridade nenhuma das duas relações é sinônimo da outra"
     );
+}
+
+/// Artefato novo nasce na versão corrente do formato, não na mínima que aquele
+/// caso precisaria.
+///
+/// Sem esta guarda, um snapshot que por acaso não usa `override-region` poderia
+/// ser emitido em `schema = 1` e continuar válido — e o acervo passaria a
+/// misturar versões por acidente de conteúdo, não por decisão.
+#[test]
+fn o_acervo_usa_a_versao_corrente_de_cada_formato() {
+    for (caminho, modelo) in carrega_snapshots() {
+        assert_eq!(
+            modelo.schema,
+            SNAPSHOT_SCHEMA,
+            "{} não está na versão de emissão corrente do formato de snapshot",
+            caminho.display()
+        );
+    }
+    for (caminho, receita) in carrega_receitas() {
+        assert_eq!(
+            receita.schema,
+            RECIPE_SCHEMA,
+            "{} não está na versão de emissão corrente do formato de receita",
+            caminho.display()
+        );
+    }
 }

@@ -21,10 +21,15 @@ related:
 - **Papel:** contrato de domínio
 - **Status:** ativo
 
-Este documento descreve o contrato **somente leitura** dos snapshots históricos
-das projeções do catálogo de navegação, implementado em
-`src/nav_projection_snapshot.rs` sob a segunda capacidade da janela auxiliar
+Este documento descreve o contrato dos snapshots históricos das projeções do
+catálogo de navegação, implementado em `src/nav_projection_snapshot.rs` sob a
+segunda capacidade da janela auxiliar
 (`janela-infraestrutura-deterministica.md`, Issue #384).
+
+A **implementação** continua somente leitura: o módulo não escreve em disco, não
+descobre root e não expõe CLI. O **acervo**, esse já existe — 13 snapshots e 1
+receita materializados em `.pinker/projections/`. Somente leitura descreve o que
+o código faz, não se os arquivos existem.
 
 <!-- @pinker-doc:start
 id: development.projection-snapshots-contract.schema
@@ -64,7 +69,10 @@ Um snapshot congela exatamente três medidas da projeção estável:
 
 ## Schema versionado
 
-Formato TOML, um arquivo por snapshot, em `.pinker/projections/<id>.toml`:
+Formato TOML, um arquivo por snapshot, em `.pinker/projections/<id>.toml`. O
+exemplo abaixo usa `schema = 1` porque é a forma mínima do formato — lista plana,
+sem composição. **Artefatos novos são emitidos em `schema = 3`**; as versões
+anteriores seguem aceitas para leitura.
 
 ```toml
 schema = 1
@@ -116,8 +124,9 @@ tabela hash ou endereço de memória.
 ## Estados
 
 Só existem dois. `FROZEN` é imutável e nunca é atualizado implicitamente.
-`CANDIDATE` existe no modelo, mas este recorte não prepara nem aceita candidatos:
-o ciclo de vida mutável e a superfície de CLI pertencem a etapas posteriores.
+`CANDIDATE` existe no modelo, mas nada o prepara nem o aceita ainda: o ciclo de
+vida mutável e a superfície de CLI seguem pertencendo a etapas posteriores. Os 13
+snapshots materializados são todos `FROZEN`.
 <!-- @pinker-doc:end development.projection-snapshots-contract.schema -->
 
 <!-- @pinker-doc:start
@@ -166,21 +175,31 @@ sem qualquer path absoluto.
 
 ## Fora deste recorte
 
-- criação de snapshots reais e migração das medidas históricas;
-- preparação e aceitação de candidatos;
+- preparação e aceitação de candidatos, e o ciclo de vida mutável;
 - escrita em disco, descoberta de root e temporários;
 - superfície de CLI;
 - qualquer alteração do contrato congelado `pink-agent-v1`.
+
+A criação dos snapshots reais e a migração das medidas históricas **estavam**
+nesta lista e saíram: foram entregues. Os 13 snapshots e a receita de
+normalização vivem em `.pinker/projections/`, e as medidas congeladas são
+literais migrados do mecanismo legado. Ver "A autoridade histórica
+materializada", no fim deste documento.
+
+Os artefatos foram escritos por um gerador descartável, fora do produto. A
+ausência de escrita continua sendo propriedade do módulo, não consequência de o
+acervo estar vazio.
 <!-- @pinker-doc:end development.projection-snapshots-contract.reconstrucao -->
 
 <!-- @pinker-doc:start
 id: development.projection-snapshots-contract.composicao
 tags: [desenvolvimento, snapshots, composicao, receitas, schema]
 aliases:
-  - schema 2 de snapshot
+  - schema 2 e 3 de snapshot
   - receita de reconstrucao
   - composicao de reconstrucao
-summary: Schema 2 do snapshot, formato de receita e os invariantes do grafo de composição.
+  - autoridade historica materializada
+summary: Schemas 2 e 3 do snapshot, formato de receita, invariantes do grafo de composição e o acervo histórico materializado da Issue #384.
 -->
 ## Quantas receitas a migração criou
 
@@ -238,10 +257,19 @@ autoridade, deliberadamente menor.
 | estado | sim | **não** |
 | predecessor | sim | **não** |
 | compõe | `base_snapshot` + `recipes` | apenas `recipes` |
-| versão atual | `schema = 2` | `schema = 1` |
+| versões aceitas | 1, 2, 3 | 1, 2 |
+| versão emitida hoje | `schema = 3` | `schema = 2` |
 
-Os formatos são versionados de forma independente: o `schema = 2` pertence ao
-snapshot, que foi quem ganhou composição. A receita nasce agora e estreia em 1.
+Os formatos são versionados de forma independente e evoluíram em ritmos
+diferentes. O snapshot ganhou composição no `schema = 2` e `override-region` no
+`schema = 3`; a receita estreou em 1 e ganhou `override-region` em 2. Cada
+autoridade sobe de versão quando **ela** ganha capacidade, não quando a outra
+sobe.
+
+Versão aceita e versão emitida são coisas distintas: o parser continua lendo
+todas as anteriores, e nenhum artefato existente é reescrito por causa de um
+bump. Artefatos novos, porém, nascem na versão corrente do respectivo formato —
+não na mínima que aquele caso específico precisaria.
 
 Uma receita que declare `state`, `predecessor`, `justification`, `measures`,
 `base_snapshot` ou `recipes` é rejeitada com erro **nomeado**, não com "chave
@@ -317,8 +345,8 @@ formato fala:
 
 | Situação | Código | Mensagem |
 |---|---|---|
-| snapshot com versão fora de {1, 2} | `E-SNAP-SCHEMA` | "schema N desconhecido para snapshot; este formato aceita 1 ou 2" |
-| receita com versão fora de {1} | `E-RECEITA-SCHEMA` | "schema N desconhecido para receita; este formato aceita somente 1" |
+| snapshot com versão fora de {1, 2, 3} | `E-SNAP-SCHEMA` | "schema N desconhecido para snapshot; este formato aceita 1, 2 ou 3" |
+| receita com versão fora de {1, 2} | `E-RECEITA-SCHEMA` | "schema N desconhecido para receita; este formato aceita 1 ou 2" |
 
 O mesmo vale para autorreferência, porque a relação não é a mesma nas duas:
 
@@ -514,6 +542,28 @@ O registro anterior falava em nove contagens derivadas. Esse número vinha de um
 inventário que só inspecionava a tupla do assert de projeção; as outras nove
 contagens existiam como asserções de `len()` separadas, no mesmo estado. Vale
 como lembrete de que "não encontrei" e "não existe" são afirmações diferentes.
+
+### Como contar o mecanismo legado
+
+Durante a migração, quatro cardinalidades diferentes foram todas chamadas de
+"sítio" em algum momento, e um relatório chegou a publicar um número que não
+media nenhuma delas. Os nomes ficam fixados aqui:
+
+| métrica | valor | o que conta |
+|---|---:|---|
+| `source_locations` | 27 | chamadas de `stable_region_projection` no fonte |
+| `behavioral_projection_sites` | 31 | projeções distintas produzidas em execução |
+| `measurement_assertion_statements` | 27 | comandos `assert_eq!` que fixam medida |
+| `measurement_expectation_tuples` | 31 | pares literais `(length, fnv)` esperados |
+| `unique_snapshots` | 13 | estados históricos distintos |
+
+A diferença entre 27 e 31 é inteira: duas das 27 chamadas estão dentro de laços
+que iteram sobre três expectativas cada. `25 + 3 + 3 = 31`.
+
+A equivalência com a autoridade nova é medida em
+`behavioral_projection_sites` — 31 — porque é o número de projeções que
+realmente existem para comparar byte a byte. "Sítio", sozinho, deixou de ser
+termo aceitável.
 
 ### Coexistência temporária
 
