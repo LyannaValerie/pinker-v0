@@ -172,3 +172,121 @@ sem qualquer path absoluto.
 - superfície de CLI;
 - qualquer alteração do contrato congelado `pink-agent-v1`.
 <!-- @pinker-doc:end development.projection-snapshots-contract.reconstrucao -->
+
+<!-- @pinker-doc:start
+id: development.projection-snapshots-contract.composicao
+tags: [desenvolvimento, snapshots, composicao, receitas, schema]
+aliases:
+  - schema 2 de snapshot
+  - receita de reconstrucao
+  - composicao de reconstrucao
+summary: Schema 2 do snapshot, formato de receita e os invariantes do grafo de composição.
+-->
+## Por que existe composição
+
+O inventário refeito sobre a `main` mostrou 15 helpers de reconstrução dispostos
+num DAG e apenas 13 estados com medida histórica própria. **Oito helpers são nós
+puramente intermediários**: nenhum teste os chama e nenhum produz medida.
+
+Achatar as cadeias produziria arquivos de noventa regras sem relação visível com
+a estrutura real. Inventar snapshots para os oito nós seria fabricar história.
+Nenhuma das duas é aceitável, então o formato ganhou composição — e uma segunda
+autoridade, deliberadamente menor.
+
+## Duas autoridades
+
+| | snapshot | receita |
+|---|---|---|
+| local | `.pinker/projections/<id>.toml` | `.pinker/projections/recipes/<id>.toml` |
+| medidas | sim | **não** |
+| estado | sim | **não** |
+| predecessor | sim | **não** |
+| compõe | `base_snapshot` + `recipes` | apenas `recipes` |
+| versão atual | `schema = 2` | `schema = 1` |
+
+Os formatos são versionados de forma independente: o `schema = 2` pertence ao
+snapshot, que foi quem ganhou composição. A receita nasce agora e estreia em 1.
+
+Uma receita que declare `state`, `predecessor`, `justification`, `measures`,
+`base_snapshot` ou `recipes` é rejeitada com erro **nomeado**, não com "chave
+desconhecida": a ausência desses campos é estrutural, e o diagnóstico diz isso.
+
+## Duas relações distintas
+
+| Relação | Significa |
+|---|---|
+| `predecessor` | o snapshot histórico **anterior na linha do tempo** |
+| `reconstruction.base_snapshot` | o estado sobre o qual **esta reconstrução se apoia** |
+
+Elas coincidem em alguns snapshots e divergem em outros. Tratá-las como a mesma
+coisa perderia a distinção.
+
+## Namespaces resolvem estruturalmente
+
+`base_snapshot` procura somente entre snapshots. `recipes` e `steps` procuram
+somente entre receitas. Não há resolvedor polimórfico, então um snapshot e uma
+receita podem compartilhar o mesmo identificador textual — e **não existe falha
+de base ambígua**, porque a ambiguidade nunca foi introduzida.
+
+Uma receita não pode depender de snapshot. O grafo tem uma direção só:
+
+```text
+snapshot → snapshot
+         → receita → receita
+```
+
+## Ordem de aplicação
+
+1. resolve a base recursivamente **e verifica as medidas dela**;
+2. aplica as receitas na ordem declarada, cada uma resolvendo seus próprios
+   passos antes das próprias regras;
+3. aplica as exclusões locais;
+4. aplica os overrides locais.
+
+A ordem de `recipes` e de `steps` é **procedural**: o renderer a preserva em vez
+de canonicalizar por nome. Regras locais, que são independentes entre si, seguem
+a canonicalização de sempre.
+
+## A base é verificada, não apenas reconstruída
+
+Cada `base_snapshot` é conferido contra as **próprias** medidas congeladas antes
+de servir de fundação. Sem isso, uma base quebrada poderia ser compensada por
+coincidência pelas regras do descendente, e a separação entre erro de harness e
+drift — que é o ponto da Issue #384 — deixaria de valer. Regras do descendente
+nunca mascaram falha da base.
+
+## Invariantes do grafo
+
+| Situação | Resultado |
+|---|---|
+| `base_snapshot` inexistente | `HARNESS_FAILURE` |
+| receita inexistente | `HARNESS_FAILURE` |
+| autorreferência | `HARNESS_FAILURE` |
+| ciclo, no grafo completo | `HARNESS_FAILURE` |
+| receita repetida no mesmo escopo | `HARNESS_FAILURE` |
+| base que não bate com as próprias medidas | `HARNESS_FAILURE` |
+| `FROZEN` dependendo de `CANDIDATE`, direta **ou transitivamente** | `HARNESS_FAILURE` |
+
+Receitas não têm estado, então são neutras na última regra — consequência de não
+lhes darmos estado, não exceção.
+
+O consumo é validado **em cada escopo**, e nenhum consumo é contado duas vezes:
+cada regra pertence a exatamente um escopo, e o ledger registra a sequência
+`recipe:… → snapshot:…` na ordem de aplicação.
+
+## O schema 1 continua significando o que significava
+
+Um arquivo que declara `schema = 1` continua sendo lista plana. Usar
+`base_snapshot`, `recipes`, `exclude-file` ou `exclude-key-prefix` nele é falha
+explícita — `E-SNAP-CAPACIDADE-SCHEMA` — e nunca interpretação silenciosa.
+
+## Operações por versão
+
+| Operação | snapshot 1 | snapshot 2 | receita 1 |
+|---|:-:|:-:|:-:|
+| `override-hash` | sim | sim | sim |
+| `exclude-key` | sim | sim | sim |
+| `exclude-file-prefix` | sim | sim | sim |
+| `exclude-file` | não | sim | sim |
+| `exclude-key-prefix` | não | sim | sim |
+<!-- @pinker-doc:end development.projection-snapshots-contract.composicao -->

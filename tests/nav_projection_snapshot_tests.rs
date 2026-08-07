@@ -13,7 +13,7 @@ use pinker_v0::nav::CodeRegion;
 use pinker_v0::nav_projection_snapshot::{
     fnv1a64, human_report, json_report, measure, parse, reconstruct, render, stable_projection,
     verify, HarnessFailure, Measures, Outcome, ProjectionSnapshot, Rule, SnapshotState, FNV_PREFIX,
-    SNAPSHOTS_DIR, SNAPSHOT_SCHEMA,
+    SNAPSHOTS_DIR, SNAPSHOT_SCHEMA, SNAPSHOT_SCHEMA_V1,
 };
 
 // ---------------------------------------------------------------------------
@@ -133,7 +133,12 @@ fn com_linha(original: &str, substituta: &str) -> String {
 #[test]
 fn parse_aceita_snapshot_valido() {
     let snapshot = snapshot();
-    assert_eq!(snapshot.schema, SNAPSHOT_SCHEMA);
+    // A fixture declara `schema = 1` e continua significando o que significava:
+    // lista plana, sem composição. `SNAPSHOT_SCHEMA` passou a apontar para a
+    // versão mais nova, então o teste fixa a versão do arquivo, não a máxima.
+    assert_eq!(snapshot.schema, SNAPSHOT_SCHEMA_V1);
+    assert_eq!(snapshot.base_snapshot, None);
+    assert!(snapshot.recipes.is_empty());
     assert_eq!(snapshot.id, "historico-exemplo");
     assert_eq!(snapshot.state, SnapshotState::Frozen);
     assert_eq!(snapshot.predecessor.as_deref(), Some("historico-anterior"));
@@ -263,11 +268,13 @@ fn schema_ausente_e_rejeitado() {
 
 #[test]
 fn schema_desconhecido_e_rejeitado() {
-    let texto = com_linha("schema = 1", "schema = 2");
-    assert!(matches!(
-        parse(&texto),
-        Err(HarnessFailure::SchemaUnknown { found: 2 })
-    ));
+    // `2` passou a ser válido quando a composição chegou; o exemplo de versão
+    // desconhecida acompanha a versão máxima aceita.
+    let texto = com_linha("schema = 1", &format!("schema = {}", SNAPSHOT_SCHEMA + 1));
+    match parse(&texto) {
+        Err(HarnessFailure::SchemaUnknown { found }) => assert_eq!(found, SNAPSHOT_SCHEMA + 1),
+        outro => panic!("esperado schema desconhecido, veio {outro:?}"),
+    }
 }
 
 #[test]

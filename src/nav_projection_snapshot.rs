@@ -45,8 +45,20 @@
 use crate::nav::CodeRegion;
 use std::fmt;
 
-/// Versão única e atual do schema de snapshot.
-pub const SNAPSHOT_SCHEMA: u64 = 1;
+/// Primeira versão do formato de snapshot: lista plana de regras, sem
+/// composição.
+pub const SNAPSHOT_SCHEMA_V1: u64 = 1;
+
+/// Segunda versão: acrescenta composição (`base_snapshot` e `recipes`) e as
+/// operações `exclude-file` e `exclude-key-prefix`.
+///
+/// O significado do schema 1 fica preservado: um arquivo que declara
+/// `schema = 1` continua sendo lista plana, e usar qualquer capacidade nova
+/// nele é falha de harness, não interpretação silenciosa.
+pub const SNAPSHOT_SCHEMA_V2: u64 = 2;
+
+/// Versão máxima aceita.
+pub const SNAPSHOT_SCHEMA: u64 = SNAPSHOT_SCHEMA_V2;
 
 /// Prefixo canônico do hash FNV-1a 64 usado pela Trama.
 pub const FNV_PREFIX: &str = "fnv1a64:";
@@ -139,6 +151,14 @@ pub enum Rule {
         prefix: String,
         expected_matches: u64,
     },
+    /// Remove todas as regiões de um arquivo exato. Schema 2 em diante.
+    ExcludeFile { file: String, expected_matches: u64 },
+    /// Remove todas as regiões cuja chave começa pelo prefixo. Schema 2 em
+    /// diante.
+    ExcludeKeyPrefix {
+        prefix: String,
+        expected_matches: u64,
+    },
 }
 
 impl Rule {
@@ -148,6 +168,16 @@ impl Rule {
             Rule::OverrideHash { .. } => "override-hash",
             Rule::ExcludeKey { .. } => "exclude-key",
             Rule::ExcludeFilePrefix { .. } => "exclude-file-prefix",
+            Rule::ExcludeFile { .. } => "exclude-file",
+            Rule::ExcludeKeyPrefix { .. } => "exclude-key-prefix",
+        }
+    }
+
+    /// A partir de qual versão do formato de snapshot a operação existe.
+    pub fn since_schema(&self) -> u64 {
+        match self {
+            Rule::ExcludeFile { .. } | Rule::ExcludeKeyPrefix { .. } => SNAPSHOT_SCHEMA_V2,
+            _ => SNAPSHOT_SCHEMA_V1,
         }
     }
 
@@ -157,6 +187,8 @@ impl Rule {
             Rule::OverrideHash { key, .. } => key.as_str(),
             Rule::ExcludeKey { key, .. } => key.as_str(),
             Rule::ExcludeFilePrefix { prefix, .. } => prefix.as_str(),
+            Rule::ExcludeFile { file, .. } => file.as_str(),
+            Rule::ExcludeKeyPrefix { prefix, .. } => prefix.as_str(),
         }
     }
 
@@ -168,6 +200,12 @@ impl Rule {
                 expected_matches, ..
             } => *expected_matches,
             Rule::ExcludeFilePrefix {
+                expected_matches, ..
+            } => *expected_matches,
+            Rule::ExcludeFile {
+                expected_matches, ..
+            } => *expected_matches,
+            Rule::ExcludeKeyPrefix {
                 expected_matches, ..
             } => *expected_matches,
         }
@@ -182,8 +220,10 @@ impl Rule {
     fn op_rank(&self) -> u8 {
         match self {
             Rule::ExcludeKey { .. } => 0,
-            Rule::ExcludeFilePrefix { .. } => 1,
-            Rule::OverrideHash { .. } => 2,
+            Rule::ExcludeKeyPrefix { .. } => 1,
+            Rule::ExcludeFile { .. } => 2,
+            Rule::ExcludeFilePrefix { .. } => 3,
+            Rule::OverrideHash { .. } => 4,
         }
     }
 }
@@ -202,6 +242,21 @@ pub struct ProjectionSnapshot {
     pub expected_overrides: u64,
     /// Quantidade declarada de regras de exclusão, pelo mesmo motivo.
     pub expected_exclusions: u64,
+    /// Snapshot sobre o qual esta reconstrução se apoia. Schema 2 em diante.
+    ///
+    /// É a relação de **composição**, distinta de [`ProjectionSnapshot::predecessor`],
+    /// que é a relação **histórica**. Elas coincidem em alguns snapshots e
+    /// divergem em outros; tratá-las como a mesma coisa perderia a distinção.
+    ///
+    /// O campo resolve exclusivamente contra snapshots: nunca contra receitas.
+    /// A separação é estrutural, e não há resolvedor polimórfico — por isso não
+    /// existe falha de base ambígua.
+    pub base_snapshot: Option<String>,
+    /// Receitas aplicadas **na ordem declarada**, depois da base.
+    ///
+    /// Resolve exclusivamente contra receitas, nunca contra snapshots. A ordem
+    /// é procedural e faz parte do significado: o renderer a preserva.
+    pub recipes: Vec<String>,
     /// Regras em ordem canônica.
     pub rules: Vec<Rule>,
 }
@@ -308,6 +363,30 @@ pub enum HarnessFailure {
     },
     /// Exclusão sem nenhuma correspondência.
     ExclusionNoMatch { selector: String },
+    /// Dois snapshots com o mesmo identificador.
+    DuplicateSnapshot { id: String },
+    /// Duas receitas com o mesmo identificador.
+    DuplicateRecipe { id: String },
+    /// `base_snapshot` aponta para um snapshot que não existe.
+    BaseSnapshotMissing { id: String },
+    /// Uma receita referenciada não existe.
+    RecipeMissing { id: String },
+    /// Ciclo no grafo de composição.
+    CompositionCycle { path: String },
+    /// A base foi reconstruída e não bate com as próprias medidas congeladas.
+    BaseMeasuresDiverged {
+        id: String,
+        expected: Measures,
+        observed: Measures,
+    },
+    /// Um snapshot congelado depende, direta ou transitivamente, de um candidato.
+    FrozenDependsOnCandidate { frozen: String, candidate: String },
+    /// Receita declarando campo que pertence exclusivamente a snapshot.
+    RecipeHasSnapshotField { field: String },
+    /// Capacidade de schema 2 usada num arquivo que declara schema 1.
+    CapabilityRequiresSchema2 { capability: String, found: u64 },
+    /// Snapshot que declara a si mesmo como base.
+    SelfBase { id: String },
     /// Exclusão que consumiu quantidade diferente da declarada.
     ExclusionPartiallyConsumed {
         selector: String,
@@ -347,6 +426,16 @@ impl HarnessFailure {
             HarnessFailure::MetadataChanged { .. } => "E-SNAP-METADATA-ALTERADA",
             HarnessFailure::OverrideStaleBase { .. } => "E-SNAP-OVERRIDE-BASE",
             HarnessFailure::ExclusionNoMatch { .. } => "E-SNAP-EXCLUSAO-SEM-CORRESPONDENCIA",
+            HarnessFailure::DuplicateSnapshot { .. } => "E-SNAP-SNAPSHOT-DUPLICADO",
+            HarnessFailure::DuplicateRecipe { .. } => "E-SNAP-RECEITA-DUPLICADA",
+            HarnessFailure::BaseSnapshotMissing { .. } => "E-SNAP-BASE-AUSENTE",
+            HarnessFailure::RecipeMissing { .. } => "E-SNAP-RECEITA-AUSENTE",
+            HarnessFailure::CompositionCycle { .. } => "E-SNAP-CICLO",
+            HarnessFailure::BaseMeasuresDiverged { .. } => "E-SNAP-BASE-DIVERGENTE",
+            HarnessFailure::FrozenDependsOnCandidate { .. } => "E-SNAP-CONGELADO-SOBRE-CANDIDATO",
+            HarnessFailure::RecipeHasSnapshotField { .. } => "E-SNAP-RECEITA-CAMPO-DE-SNAPSHOT",
+            HarnessFailure::CapabilityRequiresSchema2 { .. } => "E-SNAP-CAPACIDADE-SCHEMA",
+            HarnessFailure::SelfBase { .. } => "E-SNAP-BASE-PROPRIA",
             HarnessFailure::ExclusionPartiallyConsumed { .. } => "E-SNAP-EXCLUSAO-PARCIAL",
         }
     }
@@ -488,6 +577,54 @@ impl fmt::Display for HarnessFailure {
                 "exclusão sem correspondência para o seletor '{}'",
                 selector
             ),
+            HarnessFailure::DuplicateSnapshot { id } => {
+                write!(f, "snapshot duplicado: '{}'", id)
+            }
+            HarnessFailure::DuplicateRecipe { id } => {
+                write!(f, "receita duplicada: '{}'", id)
+            }
+            HarnessFailure::BaseSnapshotMissing { id } => {
+                write!(f, "base_snapshot '{}' não existe entre os snapshots", id)
+            }
+            HarnessFailure::RecipeMissing { id } => {
+                write!(f, "receita '{}' não existe", id)
+            }
+            HarnessFailure::CompositionCycle { path } => {
+                write!(f, "ciclo no grafo de composição: {}", path)
+            }
+            HarnessFailure::BaseMeasuresDiverged {
+                id,
+                expected,
+                observed,
+            } => write!(
+                f,
+                "base '{}' não bate com as próprias medidas: esperado regioes={} comprimento={} {}, observado regioes={} comprimento={} {}",
+                id,
+                expected.regions,
+                expected.length,
+                expected.fnv1a64_canonical(),
+                observed.regions,
+                observed.length,
+                observed.fnv1a64_canonical()
+            ),
+            HarnessFailure::FrozenDependsOnCandidate { frozen, candidate } => write!(
+                f,
+                "snapshot congelado '{}' depende do candidato '{}'",
+                frozen, candidate
+            ),
+            HarnessFailure::RecipeHasSnapshotField { field } => write!(
+                f,
+                "receita declara '{}', que pertence a snapshot: receita não tem medidas, estado nem predecessor",
+                field
+            ),
+            HarnessFailure::CapabilityRequiresSchema2 { capability, found } => write!(
+                f,
+                "'{}' exige schema {}; o arquivo declara schema {}",
+                capability, SNAPSHOT_SCHEMA_V2, found
+            ),
+            HarnessFailure::SelfBase { id } => {
+                write!(f, "snapshot '{}' declara a si mesmo como base", id)
+            }
             HarnessFailure::ExclusionPartiallyConsumed {
                 selector,
                 expected,
@@ -579,16 +716,28 @@ pub fn measure<'a>(regions: impl Iterator<Item = &'a CodeRegion>) -> Measures {
 
 /// Valor escalar aceito pelo subconjunto TOML.
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum Scalar {
+pub(crate) enum Scalar {
     Text(String),
     Integer(u64),
+    /// Lista de textos, na ordem declarada. Usada apenas por `recipes`, cuja
+    /// ordem é procedural.
+    List(Vec<String>),
 }
 
 /// Uma tabela em construção: pares na ordem de aparição, com detecção de
 /// duplicidade.
 #[derive(Debug, Default)]
-struct Table {
+pub(crate) struct Table {
     pairs: Vec<(String, Scalar, usize)>,
+}
+
+impl Scalar {
+    pub(crate) fn as_integer(&self) -> Option<u64> {
+        match self {
+            Scalar::Integer(value) => Some(*value),
+            _ => None,
+        }
+    }
 }
 
 impl Table {
@@ -603,7 +752,7 @@ impl Table {
         Ok(())
     }
 
-    fn get(&self, key: &str) -> Option<&Scalar> {
+    pub(crate) fn get(&self, key: &str) -> Option<&Scalar> {
         self.pairs
             .iter()
             .find(|(existing, _, _)| existing == key)
@@ -616,11 +765,11 @@ impl Table {
 }
 
 #[derive(Debug, Default)]
-struct RawDocument {
-    root: Table,
-    reconstruction: Option<Table>,
-    measures: Option<Table>,
-    rules: Vec<Table>,
+pub(crate) struct RawDocument {
+    pub(crate) root: Table,
+    pub(crate) reconstruction: Option<Table>,
+    pub(crate) measures: Option<Table>,
+    pub(crate) rules: Vec<Table>,
 }
 
 /// Interpreta o texto de um snapshot e valida o schema por inteiro.
@@ -631,7 +780,7 @@ pub fn parse(text: &str) -> Result<ProjectionSnapshot, HarnessFailure> {
     build(raw)
 }
 
-fn parse_raw(text: &str) -> Result<RawDocument, TomlError> {
+pub(crate) fn parse_raw(text: &str) -> Result<RawDocument, TomlError> {
     let mut doc = RawDocument::default();
     let mut current = Section::Root;
     let mut seen_reconstruction = false;
@@ -754,6 +903,39 @@ fn parse_value(input: &str, line: usize) -> Result<Scalar, TomlError> {
         });
     }
 
+    // Lista de textos: única forma agregada aceita, e só para `recipes`, cuja
+    // ordem declarada é significado. Uma linha, sem aninhamento.
+    if let Some(rest) = input.strip_prefix('[') {
+        let Some(interior) = rest.strip_suffix(']') else {
+            return Err(TomlError {
+                line,
+                msg: "lista sem ']' de fechamento na mesma linha".to_string(),
+            });
+        };
+        let interior = interior.trim();
+        if interior.is_empty() {
+            return Ok(Scalar::List(Vec::new()));
+        }
+        let mut itens = Vec::new();
+        for bruto in interior.split(',') {
+            let item = bruto.trim();
+            let Some(sem_aspas) = item.strip_prefix('"').and_then(|r| r.strip_suffix('"')) else {
+                return Err(TomlError {
+                    line,
+                    msg: format!("item de lista fora do formato \"texto\": '{}'", item),
+                });
+            };
+            if sem_aspas.contains('"') || sem_aspas.contains('\\') {
+                return Err(TomlError {
+                    line,
+                    msg: "item de lista não aceita aspas nem escape".to_string(),
+                });
+            }
+            itens.push(sem_aspas.to_string());
+        }
+        return Ok(Scalar::List(itens));
+    }
+
     if let Some(rest) = input.strip_prefix('"') {
         let mut text = String::new();
         let mut chars = rest.char_indices();
@@ -836,9 +1018,14 @@ fn parse_value(input: &str, line: usize) -> Result<Scalar, TomlError> {
 }
 
 const ROOT_KEYS: [&str; 5] = ["schema", "id", "state", "predecessor", "justification"];
-const RECONSTRUCTION_KEYS: [&str; 2] = ["expected_overrides", "expected_exclusions"];
+const RECONSTRUCTION_KEYS: [&str; 4] = [
+    "expected_overrides",
+    "expected_exclusions",
+    "base_snapshot",
+    "recipes",
+];
 const MEASURES_KEYS: [&str; 3] = ["regions", "length", "fnv1a64"];
-const RULE_KEYS: [&str; 9] = [
+const RULE_KEYS: [&str; 10] = [
     "op",
     "key",
     "from",
@@ -847,10 +1034,15 @@ const RULE_KEYS: [&str; 9] = [
     "expect_domain",
     "expect_layer",
     "prefix",
+    "file",
     "expected_matches",
 ];
 
-fn reject_unknown(table: &Table, allowed: &[&str], scope: &str) -> Result<(), HarnessFailure> {
+pub(crate) fn reject_unknown(
+    table: &Table,
+    allowed: &[&str],
+    scope: &str,
+) -> Result<(), HarnessFailure> {
     for key in table.keys() {
         if !allowed.contains(&key) {
             return Err(HarnessFailure::InvalidField {
@@ -862,10 +1054,14 @@ fn reject_unknown(table: &Table, allowed: &[&str], scope: &str) -> Result<(), Ha
     Ok(())
 }
 
-fn require_text(table: &Table, key: &str, scope: &str) -> Result<String, HarnessFailure> {
+pub(crate) fn require_text(
+    table: &Table,
+    key: &str,
+    scope: &str,
+) -> Result<String, HarnessFailure> {
     match table.get(key) {
         Some(Scalar::Text(value)) => Ok(value.clone()),
-        Some(Scalar::Integer(_)) => Err(HarnessFailure::InvalidField {
+        Some(_) => Err(HarnessFailure::InvalidField {
             field: format!("{}{}", scope, key),
             msg: "esperado texto entre aspas".to_string(),
         }),
@@ -875,10 +1071,14 @@ fn require_text(table: &Table, key: &str, scope: &str) -> Result<String, Harness
     }
 }
 
-fn optional_text(table: &Table, key: &str, scope: &str) -> Result<Option<String>, HarnessFailure> {
+pub(crate) fn optional_text(
+    table: &Table,
+    key: &str,
+    scope: &str,
+) -> Result<Option<String>, HarnessFailure> {
     match table.get(key) {
         Some(Scalar::Text(value)) => Ok(Some(value.clone())),
-        Some(Scalar::Integer(_)) => Err(HarnessFailure::InvalidField {
+        Some(_) => Err(HarnessFailure::InvalidField {
             field: format!("{}{}", scope, key),
             msg: "esperado texto entre aspas".to_string(),
         }),
@@ -886,10 +1086,14 @@ fn optional_text(table: &Table, key: &str, scope: &str) -> Result<Option<String>
     }
 }
 
-fn require_integer(table: &Table, key: &str, scope: &str) -> Result<u64, HarnessFailure> {
+pub(crate) fn require_integer(
+    table: &Table,
+    key: &str,
+    scope: &str,
+) -> Result<u64, HarnessFailure> {
     match table.get(key) {
         Some(Scalar::Integer(value)) => Ok(*value),
-        Some(Scalar::Text(_)) => Err(HarnessFailure::InvalidField {
+        Some(_) => Err(HarnessFailure::InvalidField {
             field: format!("{}{}", scope, key),
             msg: "esperado inteiro, não texto".to_string(),
         }),
@@ -899,8 +1103,23 @@ fn require_integer(table: &Table, key: &str, scope: &str) -> Result<u64, Harness
     }
 }
 
+pub(crate) fn optional_list(
+    table: &Table,
+    key: &str,
+    scope: &str,
+) -> Result<Vec<String>, HarnessFailure> {
+    match table.get(key) {
+        Some(Scalar::List(itens)) => Ok(itens.clone()),
+        Some(_) => Err(HarnessFailure::InvalidField {
+            field: format!("{}{}", scope, key),
+            msg: "esperado lista de textos".to_string(),
+        }),
+        None => Ok(Vec::new()),
+    }
+}
+
 /// Um identificador é seguro quando pode virar nome de arquivo sem ambiguidade.
-fn validate_id(value: &str, field: &str) -> Result<(), HarnessFailure> {
+pub(crate) fn validate_id(value: &str, field: &str) -> Result<(), HarnessFailure> {
     let unsafe_id = || HarnessFailure::IdUnsafe {
         field: field.to_string(),
         value: value.to_string(),
@@ -976,7 +1195,7 @@ fn build(raw: RawDocument) -> Result<ProjectionSnapshot, HarnessFailure> {
 
     let schema = match raw.root.get("schema") {
         Some(Scalar::Integer(value)) => *value,
-        Some(Scalar::Text(_)) => {
+        Some(_) => {
             return Err(HarnessFailure::InvalidField {
                 field: "schema".to_string(),
                 msg: "esperado inteiro, não texto".to_string(),
@@ -984,7 +1203,7 @@ fn build(raw: RawDocument) -> Result<ProjectionSnapshot, HarnessFailure> {
         }
         None => return Err(HarnessFailure::SchemaUnknown { found: 0 }),
     };
-    if schema != SNAPSHOT_SCHEMA {
+    if schema != SNAPSHOT_SCHEMA_V1 && schema != SNAPSHOT_SCHEMA_V2 {
         return Err(HarnessFailure::SchemaUnknown { found: schema });
     }
 
@@ -1051,9 +1270,50 @@ fn build(raw: RawDocument) -> Result<ProjectionSnapshot, HarnessFailure> {
         "reconstruction.",
     )?;
 
+    // Composição: capacidade do schema 2. Num arquivo schema 1 ela é falha
+    // explícita, nunca leitura silenciosa.
+    let base_snapshot = optional_text(&reconstruction_table, "base_snapshot", "reconstruction.")?;
+    let recipes = optional_list(&reconstruction_table, "recipes", "reconstruction.")?;
+    if schema < SNAPSHOT_SCHEMA_V2 {
+        if base_snapshot.is_some() {
+            return Err(HarnessFailure::CapabilityRequiresSchema2 {
+                capability: "reconstruction.base_snapshot".to_string(),
+                found: schema,
+            });
+        }
+        if !recipes.is_empty() {
+            return Err(HarnessFailure::CapabilityRequiresSchema2 {
+                capability: "reconstruction.recipes".to_string(),
+                found: schema,
+            });
+        }
+    }
+    if let Some(base) = &base_snapshot {
+        validate_id(base, "reconstruction.base_snapshot")?;
+        if base == &id {
+            return Err(HarnessFailure::SelfBase { id: id.clone() });
+        }
+    }
+    for (posicao, receita) in recipes.iter().enumerate() {
+        validate_id(receita, &format!("reconstruction.recipes[{}]", posicao))?;
+        if recipes[..posicao].contains(receita) {
+            return Err(HarnessFailure::InvalidField {
+                field: format!("reconstruction.recipes[{}]", posicao),
+                msg: format!("receita '{}' declarada duas vezes no mesmo escopo", receita),
+            });
+        }
+    }
+
     let mut rules = Vec::with_capacity(raw.rules.len());
     for (index, table) in raw.rules.iter().enumerate() {
-        rules.push(build_rule(table, index)?);
+        let rule = build_rule(table, index)?;
+        if rule.since_schema() > schema {
+            return Err(HarnessFailure::CapabilityRequiresSchema2 {
+                capability: format!("op '{}'", rule.op()),
+                found: schema,
+            });
+        }
+        rules.push(rule);
     }
 
     let found_overrides = rules.iter().filter(|rule| rule.is_override()).count() as u64;
@@ -1109,6 +1369,8 @@ fn build(raw: RawDocument) -> Result<ProjectionSnapshot, HarnessFailure> {
         state,
         predecessor,
         justification,
+        base_snapshot,
+        recipes,
         measures: Measures {
             regions,
             length,
@@ -1120,7 +1382,7 @@ fn build(raw: RawDocument) -> Result<ProjectionSnapshot, HarnessFailure> {
     })
 }
 
-fn sort_rules(rules: &mut [Rule]) {
+pub(crate) fn sort_rules(rules: &mut [Rule]) {
     rules.sort_by(|a, b| {
         a.op_rank()
             .cmp(&b.op_rank())
@@ -1128,13 +1390,13 @@ fn sort_rules(rules: &mut [Rule]) {
     });
 }
 
-fn build_rule(table: &Table, index: usize) -> Result<Rule, HarnessFailure> {
+pub(crate) fn build_rule(table: &Table, index: usize) -> Result<Rule, HarnessFailure> {
     reject_unknown(table, &RULE_KEYS, &format!("rules[{}].", index))?;
     let scope = format!("rules[{}].", index);
 
     let op = match table.get("op") {
         Some(Scalar::Text(value)) => value.clone(),
-        Some(Scalar::Integer(_)) => {
+        Some(_) => {
             return Err(HarnessFailure::InvalidField {
                 field: format!("{}op", scope),
                 msg: "esperado texto entre aspas".to_string(),
@@ -1214,6 +1476,41 @@ fn build_rule(table: &Table, index: usize) -> Result<Rule, HarnessFailure> {
                 expected_matches,
             })
         }
+        "exclude-file" => {
+            let file = match optional_text(table, "file", &scope)? {
+                Some(file) if !file.is_empty() => file,
+                _ => return Err(HarnessFailure::RuleWithoutSelector { index, op }),
+            };
+            validate_relative_path(&file, &format!("{}file", scope))?;
+            let expected_matches = require_integer(table, "expected_matches", &scope)?;
+            if expected_matches == 0 {
+                return Err(HarnessFailure::InvalidField {
+                    field: format!("{}expected_matches", scope),
+                    msg: "exclusão precisa consumir ao menos uma correspondência".to_string(),
+                });
+            }
+            Ok(Rule::ExcludeFile {
+                file,
+                expected_matches,
+            })
+        }
+        "exclude-key-prefix" => {
+            let prefix = match optional_text(table, "prefix", &scope)? {
+                Some(prefix) if !prefix.is_empty() => prefix,
+                _ => return Err(HarnessFailure::RuleWithoutSelector { index, op }),
+            };
+            let expected_matches = require_integer(table, "expected_matches", &scope)?;
+            if expected_matches == 0 {
+                return Err(HarnessFailure::InvalidField {
+                    field: format!("{}expected_matches", scope),
+                    msg: "exclusão precisa consumir ao menos uma correspondência".to_string(),
+                });
+            }
+            Ok(Rule::ExcludeKeyPrefix {
+                prefix,
+                expected_matches,
+            })
+        }
         other => Err(HarnessFailure::RuleOperationUnknown {
             index,
             op: other.to_string(),
@@ -1231,7 +1528,7 @@ fn build_rule(table: &Table, index: usize) -> Result<Rule, HarnessFailure> {
 ///
 /// Cobre exatamente os escapes que o parser aceita, de modo que
 /// `parse(render(x)) == x` para todo modelo válido.
-fn toml_escape(value: &str) -> String {
+pub(crate) fn toml_escape(value: &str) -> String {
     let mut out = String::with_capacity(value.len() + 2);
     out.push('"');
     for ch in value.chars() {
@@ -1252,6 +1549,65 @@ fn toml_escape(value: &str) -> String {
 ///
 /// A saída é estável: mesma entrada, mesmos bytes, em qualquer máquina, root,
 /// usuário ou momento.
+
+/// Renderiza o corpo de uma regra (tudo menos o cabeçalho `[[rules]]`).
+///
+/// Compartilhada pelas duas autoridades: snapshot e receita escrevem regras com
+/// exatamente a mesma forma canônica.
+pub(crate) fn render_rule_body(rule: &Rule) -> String {
+    let mut out = String::new();
+    out.push_str(&format!("op = {}\n", toml_escape(rule.op())));
+    match rule {
+        Rule::OverrideHash {
+            key,
+            from,
+            to,
+            expect_file,
+            expect_domain,
+            expect_layer,
+        } => {
+            out.push_str(&format!("key = {}\n", toml_escape(key)));
+            out.push_str(&format!("from = {}\n", toml_escape(from)));
+            out.push_str(&format!("to = {}\n", toml_escape(to)));
+            if let Some(file) = expect_file {
+                out.push_str(&format!("expect_file = {}\n", toml_escape(file)));
+            }
+            if let Some(domain) = expect_domain {
+                out.push_str(&format!("expect_domain = {}\n", toml_escape(domain)));
+            }
+            if let Some(layer) = expect_layer {
+                out.push_str(&format!("expect_layer = {}\n", toml_escape(layer)));
+            }
+        }
+        Rule::ExcludeKey {
+            key,
+            expected_matches,
+        } => {
+            out.push_str(&format!("key = {}\n", toml_escape(key)));
+            out.push_str(&format!("expected_matches = {}\n", expected_matches));
+        }
+        Rule::ExcludeKeyPrefix {
+            prefix,
+            expected_matches,
+        }
+        | Rule::ExcludeFilePrefix {
+            prefix,
+            expected_matches,
+        } => {
+            out.push_str(&format!("prefix = {}\n", toml_escape(prefix)));
+            out.push_str(&format!("expected_matches = {}\n", expected_matches));
+        }
+        Rule::ExcludeFile {
+            file,
+            expected_matches,
+        } => {
+            out.push_str(&format!("file = {}\n", toml_escape(file)));
+            out.push_str(&format!("expected_matches = {}\n", expected_matches));
+        }
+    }
+    out
+}
+
 pub fn render(snapshot: &ProjectionSnapshot) -> String {
     let mut out = String::new();
     out.push_str(&format!("schema = {}\n", snapshot.schema));
@@ -1268,6 +1624,15 @@ pub fn render(snapshot: &ProjectionSnapshot) -> String {
     }
 
     out.push_str("\n[reconstruction]\n");
+    if let Some(base) = &snapshot.base_snapshot {
+        out.push_str(&format!("base_snapshot = {}\n", toml_escape(base)));
+    }
+    if !snapshot.recipes.is_empty() {
+        // A ordem declarada é procedural e faz parte do significado: o renderer
+        // a preserva em vez de canonicalizar por nome.
+        let itens: Vec<String> = snapshot.recipes.iter().map(|r| toml_escape(r)).collect();
+        out.push_str(&format!("recipes = [{}]\n", itens.join(", ")));
+    }
     out.push_str(&format!(
         "expected_overrides = {}\n",
         snapshot.expected_overrides
@@ -1289,44 +1654,7 @@ pub fn render(snapshot: &ProjectionSnapshot) -> String {
     sort_rules(&mut rules);
     for rule in &rules {
         out.push_str("\n[[rules]]\n");
-        out.push_str(&format!("op = {}\n", toml_escape(rule.op())));
-        match rule {
-            Rule::OverrideHash {
-                key,
-                from,
-                to,
-                expect_file,
-                expect_domain,
-                expect_layer,
-            } => {
-                out.push_str(&format!("key = {}\n", toml_escape(key)));
-                out.push_str(&format!("from = {}\n", toml_escape(from)));
-                out.push_str(&format!("to = {}\n", toml_escape(to)));
-                if let Some(file) = expect_file {
-                    out.push_str(&format!("expect_file = {}\n", toml_escape(file)));
-                }
-                if let Some(domain) = expect_domain {
-                    out.push_str(&format!("expect_domain = {}\n", toml_escape(domain)));
-                }
-                if let Some(layer) = expect_layer {
-                    out.push_str(&format!("expect_layer = {}\n", toml_escape(layer)));
-                }
-            }
-            Rule::ExcludeKey {
-                key,
-                expected_matches,
-            } => {
-                out.push_str(&format!("key = {}\n", toml_escape(key)));
-                out.push_str(&format!("expected_matches = {}\n", expected_matches));
-            }
-            Rule::ExcludeFilePrefix {
-                prefix,
-                expected_matches,
-            } => {
-                out.push_str(&format!("prefix = {}\n", toml_escape(prefix)));
-                out.push_str(&format!("expected_matches = {}\n", expected_matches));
-            }
-        }
+        out.push_str(&render_rule_body(rule));
     }
 
     out
@@ -1370,9 +1698,23 @@ pub fn reconstruct(
     base: &[CodeRegion],
     snapshot: &ProjectionSnapshot,
 ) -> Result<Reconstruction, HarnessFailure> {
-    let mut regions: Vec<CodeRegion> = base.to_vec();
-    let mut ledger: Vec<RuleConsumption> = Vec::with_capacity(snapshot.rules.len());
-    let mut rules = snapshot.rules.clone();
+    let (regions, ledger) = apply_rules(base.to_vec(), &snapshot.rules)?;
+    Ok(Reconstruction { regions, ledger })
+}
+
+/// Aplica um conjunto de regras a um estado, validando o consumo **no escopo
+/// deste conjunto**.
+///
+/// É a unidade compartilhada por snapshots e receitas: cada escopo valida o
+/// próprio consumo, e nenhum consumo é contado duas vezes, porque cada regra
+/// pertence a exatamente um escopo.
+pub fn apply_rules(
+    entrada: Vec<CodeRegion>,
+    regras: &[Rule],
+) -> Result<(Vec<CodeRegion>, Vec<RuleConsumption>), HarnessFailure> {
+    let mut regions: Vec<CodeRegion> = entrada;
+    let mut ledger: Vec<RuleConsumption> = Vec::with_capacity(regras.len());
+    let mut rules = regras.to_vec();
     sort_rules(&mut rules);
 
     for rule in &rules {
@@ -1423,6 +1765,59 @@ pub fn reconstruct(
                     });
                 }
                 regions.retain(|region| !region.file.starts_with(prefix.as_str()));
+                ledger.push(RuleConsumption {
+                    op: rule.op(),
+                    selector: prefix.clone(),
+                    expected: *expected_matches,
+                    consumed,
+                });
+            }
+            Rule::ExcludeFile {
+                file,
+                expected_matches,
+            } => {
+                let consumed = regions.iter().filter(|region| region.file == *file).count() as u64;
+                if consumed == 0 {
+                    return Err(HarnessFailure::ExclusionNoMatch {
+                        selector: file.clone(),
+                    });
+                }
+                if consumed != *expected_matches {
+                    return Err(HarnessFailure::ExclusionPartiallyConsumed {
+                        selector: file.clone(),
+                        expected: *expected_matches,
+                        consumed,
+                    });
+                }
+                regions.retain(|region| region.file != *file);
+                ledger.push(RuleConsumption {
+                    op: rule.op(),
+                    selector: file.clone(),
+                    expected: *expected_matches,
+                    consumed,
+                });
+            }
+            Rule::ExcludeKeyPrefix {
+                prefix,
+                expected_matches,
+            } => {
+                let consumed = regions
+                    .iter()
+                    .filter(|region| region.key.starts_with(prefix.as_str()))
+                    .count() as u64;
+                if consumed == 0 {
+                    return Err(HarnessFailure::ExclusionNoMatch {
+                        selector: prefix.clone(),
+                    });
+                }
+                if consumed != *expected_matches {
+                    return Err(HarnessFailure::ExclusionPartiallyConsumed {
+                        selector: prefix.clone(),
+                        expected: *expected_matches,
+                        consumed,
+                    });
+                }
+                regions.retain(|region| !region.key.starts_with(prefix.as_str()));
                 ledger.push(RuleConsumption {
                     op: rule.op(),
                     selector: prefix.clone(),
@@ -1517,7 +1912,7 @@ pub fn reconstruct(
         }
     }
 
-    Ok(Reconstruction { regions, ledger })
+    Ok((regions, ledger))
 }
 
 /// Distingue "região removida" de "key alterada" quando um override não
@@ -1884,7 +2279,11 @@ mod tests {
     #[test]
     fn parse_aceita_snapshot_valido() {
         let snapshot = parse(VALID).expect("snapshot valido");
-        assert_eq!(snapshot.schema, SNAPSHOT_SCHEMA);
+        // A fixture declara `schema = 1` e assim permanece: o significado do
+        // schema 1 é preservado mesmo depois de a composição chegar.
+        assert_eq!(snapshot.schema, SNAPSHOT_SCHEMA_V1);
+        assert_eq!(snapshot.base_snapshot, None);
+        assert!(snapshot.recipes.is_empty());
         assert_eq!(snapshot.id, "exemplo-historico");
         assert_eq!(snapshot.state, SnapshotState::Frozen);
         assert_eq!(snapshot.predecessor.as_deref(), Some("exemplo-anterior"));
@@ -1932,11 +2331,11 @@ mod tests {
 
     #[test]
     fn schema_desconhecido_e_falha_de_harness() {
-        let text = VALID.replace("schema = 1", "schema = 2");
-        assert!(matches!(
-            parse(&text),
-            Err(HarnessFailure::SchemaUnknown { found: 2 })
-        ));
+        let text = VALID.replace("schema = 1", &format!("schema = {}", SNAPSHOT_SCHEMA + 1));
+        match parse(&text) {
+            Err(HarnessFailure::SchemaUnknown { found }) => assert_eq!(found, SNAPSHOT_SCHEMA + 1),
+            outro => panic!("esperado schema desconhecido, veio {outro:?}"),
+        }
     }
 
     #[test]
