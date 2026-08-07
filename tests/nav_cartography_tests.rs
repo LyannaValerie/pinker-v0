@@ -52,7 +52,27 @@ fn stable_region_projection<'a>(regions: impl Iterator<Item = &'a CodeRegion>) -
     records.concat()
 }
 
+fn project_pre_automation_core(catalog: &mut CodeCatalog) {
+    // O núcleo comum de automação (Issue #385, item 3 da janela da Issue #417)
+    // é posterior a todos os snapshots desta suíte, inclusive ao contrato de
+    // snapshots do item 2. Remove suas seis regiões da camada `automation`
+    // antes de qualquer reconstrução histórica; como no item 2, nenhuma medida
+    // congelada muda e nenhum literal de comprimento ou FNV é recalibrado.
+    catalog.regions.retain(|region| {
+        !matches!(
+            region.key.as_str(),
+            "automation.comparacao.classificacao"
+                | "automation.contrato.resultados"
+                | "automation.paths.politica-lexical"
+                | "automation.plano.modelo"
+                | "automation.plano.serializacao"
+                | "automation.relatorio.renderizacao"
+        )
+    });
+}
+
 fn project_pre_projection_snapshot_contract(catalog: &mut CodeCatalog) {
+    project_pre_automation_core(catalog);
     // O contrato somente leitura de snapshots históricos (Issue #384, item 2 da
     // janela da Issue #417) é posterior a todos os snapshots desta suíte. Suas
     // oito regiões da camada `trama` são removidas antes de qualquer
@@ -1194,12 +1214,14 @@ fn catalogo_real_cartografa_o_guardiao_pinker_da_onda_9() {
     // `build.elf.leitor` (`src/elf.rs`), `sussurro.artefato.invariante`
     // (`src/inline_asm.rs`) e as duas de evidência do hotfix.
     // O contrato somente leitura de snapshots históricos (#384) acrescenta oito
-    // regiões `trama.snapshots.*` em `src/nav_projection_snapshot.rs`. Este é o
-    // único total vivo desta suíte; todos os demais são reconstruções
-    // históricas e continuam com os literais congelados, porque
-    // `project_pre_projection_snapshot_contract` remove as regiões novas antes
+    // regiões `trama.snapshots.*` em `src/nav_projection_snapshot.rs`, e o
+    // núcleo comum de automação (#385) acrescenta seis regiões `automation.*`
+    // em `src/automation/`. Este é o único total vivo desta suíte; todos os
+    // demais são reconstruções históricas e continuam com os literais
+    // congelados, porque `project_pre_automation_core` e
+    // `project_pre_projection_snapshot_contract` removem as regiões novas antes
     // de qualquer reconstrução.
-    assert_eq!(index.regions.len(), 509);
+    assert_eq!(index.regions.len(), 515);
 
     // Exatamente uma região Pinker, a do Guardião, com metadados congelados.
     let guardiao: Vec<_> = index
