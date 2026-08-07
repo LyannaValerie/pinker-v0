@@ -44,14 +44,20 @@
 //! `STALE_PLAN`, `IO_FAILURE` nem falha posterior à escrita.
 
 pub mod compare;
+pub mod fsio;
 pub mod path;
 pub mod plan;
 pub mod report;
+pub mod root;
 
 pub use compare::{check, ChangeKind, CheckReport, Observation, ObservedState, TargetOutcome};
+pub use fsio::{apply, confine, observe, observe_target, verify_written, ApplyReport};
 pub use path::{Allowlist, RelativePath};
 pub use plan::{Payload, Plan, PlanBuilder, PlannedTarget};
-pub use report::{json_failure, json_report, markdown_report};
+pub use report::{
+    json_apply_report, json_failure, json_report, markdown_apply_report, markdown_report,
+};
+pub use root::{RepoRoot, ROOT_MARKER};
 
 use std::fmt;
 
@@ -103,12 +109,18 @@ impl Outcome {
         }
     }
 
-    /// Verdadeiro para os resultados que o núcleo puro consegue produzir.
+    /// Verdadeiro para os resultados que o núcleo **puro** consegue produzir,
+    /// isto é, sem tocar o filesystem.
     ///
-    /// Serve de invariante executável: nenhuma função deste estágio pode
-    /// devolver um outcome fora deste conjunto.
+    /// Serve de invariante executável: `check` nunca devolve um outcome fora
+    /// deste conjunto, mesmo depois de o apply existir.
     pub fn reachable_by_pure_core(&self) -> bool {
         matches!(self, Outcome::Match | Outcome::Drift)
+    }
+
+    /// Verdadeiro para os resultados que a aplicação local consegue produzir.
+    pub fn reachable_by_apply(&self) -> bool {
+        matches!(self, Outcome::Applied | Outcome::NoChange)
     }
 }
 
@@ -128,11 +140,10 @@ pub enum Failure {
     /// allowlist ou limite de tamanho excedido.
     PolicyViolation(PolicyCause),
     /// Plano autorizado deixou de corresponder ao estado observado.
-    /// Não alcançável neste estágio.
-    StalePlan { plan_digest: String },
-    /// Falha de entrada e saída. Não alcançável neste estágio.
+    StalePlan { plan_digest: String, msg: String },
+    /// Falha de entrada e saída.
     IoFailure { path: String, msg: String },
-    /// Verificação posterior à escrita reprovou. Não alcançável neste estágio.
+    /// Verificação posterior à escrita reprovou.
     VerifyAfterApplyFailure { path: String, msg: String },
 }
 
@@ -148,7 +159,8 @@ impl Failure {
         }
     }
 
-    /// Verdadeiro para as falhas que o núcleo puro consegue produzir.
+    /// Verdadeiro para as falhas que o núcleo **puro** consegue produzir, isto
+    /// é, sem tocar o filesystem.
     pub fn reachable_by_pure_core(&self) -> bool {
         matches!(
             self,
@@ -162,14 +174,13 @@ impl fmt::Display for Failure {
         match self {
             Failure::HarnessFailure(cause) => write!(f, "{}: {}", self.code(), cause),
             Failure::PolicyViolation(cause) => write!(f, "{}: {}", self.code(), cause),
-            Failure::StalePlan { plan_digest } => {
-                write!(
-                    f,
-                    "{}: plano {} não corresponde mais",
-                    self.code(),
-                    plan_digest
-                )
-            }
+            Failure::StalePlan { plan_digest, msg } => write!(
+                f,
+                "{}: plano {} não corresponde mais: {}",
+                self.code(),
+                plan_digest,
+                msg
+            ),
             Failure::IoFailure { path, msg } => {
                 write!(f, "{}: {}: {}", self.code(), path, msg)
             }
@@ -195,6 +206,8 @@ pub enum HarnessCause {
     MissingObservation { path: String },
     /// Uma observação não corresponde a nenhum target do plano.
     ObservationWithoutTarget { path: String },
+    /// A raiz canônica do repositório não pôde ser determinada.
+    RootNotFound { start: String, msg: String },
 }
 
 impl fmt::Display for HarnessCause {
@@ -223,6 +236,11 @@ impl fmt::Display for HarnessCause {
                 f,
                 "observação de {} não corresponde a nenhum target do plano",
                 path
+            ),
+            HarnessCause::RootNotFound { start, msg } => write!(
+                f,
+                "raiz canônica não determinada a partir de '{}': {}",
+                start, msg
             ),
         }
     }
@@ -255,6 +273,18 @@ pub enum PolicyCause {
     },
     /// Soma dos payloads maior que [`MAX_PLAN_BYTES`].
     PlanLimitExceeded { bytes: usize, limit: usize },
+    /// O digest autorizado não é o do plano apresentado.
+    AuthorizationMismatch { expected: String, provided: String },
+    /// O caminho resolvido cai fora da raiz canônica.
+    EscapesRoot { path: String },
+    /// O próprio target é um link simbólico.
+    SymlinkTarget { path: String },
+    /// Um ancestral do target é um link simbólico.
+    SymlinkAncestor { path: String, component: String },
+    /// Um ancestral existe e não é diretório.
+    AncestorNotDirectory { path: String, component: String },
+    /// O target existe e não é arquivo regular.
+    TargetNotRegularFile { path: String },
 }
 
 impl fmt::Display for PolicyCause {
@@ -292,6 +322,30 @@ impl fmt::Display for PolicyCause {
                 "plano com {} bytes decodificados excede o limite de {}",
                 bytes, limit
             ),
+            PolicyCause::AuthorizationMismatch { expected, provided } => write!(
+                f,
+                "autorização não corresponde ao plano: esperado {}, apresentado {}",
+                expected, provided
+            ),
+            PolicyCause::EscapesRoot { path } => {
+                write!(f, "'{}' resolve fora da raiz canônica", path)
+            }
+            PolicyCause::SymlinkTarget { path } => {
+                write!(f, "target '{}' é link simbólico", path)
+            }
+            PolicyCause::SymlinkAncestor { path, component } => write!(
+                f,
+                "ancestral '{}' de '{}' é link simbólico",
+                component, path
+            ),
+            PolicyCause::AncestorNotDirectory { path, component } => write!(
+                f,
+                "ancestral '{}' de '{}' existe e não é diretório",
+                component, path
+            ),
+            PolicyCause::TargetNotRegularFile { path } => {
+                write!(f, "target '{}' existe e não é arquivo regular", path)
+            }
         }
     }
 }
@@ -319,6 +373,62 @@ impl fmt::Display for Decision {
     }
 }
 // @pinker-nav:end automation.contrato.resultados
+
+// @pinker-nav:start automation.contrato.autorizacao
+// @pinker-nav:domain contrato
+// @pinker-nav:layer automation
+// @pinker-nav:summary Autorização de escrita por digest exato do plano, drift final medido ou explicitamente desconhecido, e o procedimento de recuperação constante — observar de novo, novo check, novo plano, novo digest — que substitui qualquer promessa de rollback ou retry cego.
+
+/// Autorização explícita para aplicar um plano.
+///
+/// O tipo é a prova: não existe caminho de escrita que não receba uma
+/// autorização, então "apply sem digest" não é um erro em tempo de execução —
+/// é uma expressão que não compila. O valor guardado é comparado com o digest
+/// do plano apresentado.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Authorization {
+    digest: String,
+}
+
+impl Authorization {
+    /// Autoriza exatamente o plano cujo digest é este.
+    pub fn for_digest(digest: &str) -> Authorization {
+        Authorization {
+            digest: digest.to_string(),
+        }
+    }
+
+    pub fn digest(&self) -> &str {
+        &self.digest
+    }
+}
+
+/// Estado do drift depois de uma aplicação.
+///
+/// `Unknown` carrega a razão: um relatório que não conseguiu medir precisa
+/// dizer isso, não omitir.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FinalDrift {
+    Measured(Outcome),
+    Unknown(String),
+}
+
+impl FinalDrift {
+    pub fn as_str(&self) -> &str {
+        match self {
+            FinalDrift::Measured(outcome) => outcome.as_str(),
+            FinalDrift::Unknown(_) => "UNKNOWN",
+        }
+    }
+}
+
+/// Procedimento de recuperação depois de uma aplicação parcial.
+///
+/// Não há rollback global e não há retry cego: um plano que parou no meio deixa
+/// o repositório num estado que só uma nova observação descreve.
+pub const RECOVERY_PROCEDURE: &str =
+    "observar novamente; executar novo check; produzir novo plano; autorizar novo digest";
+// @pinker-nav:end automation.contrato.autorizacao
 
 /// Escapa um texto para string JSON.
 ///
