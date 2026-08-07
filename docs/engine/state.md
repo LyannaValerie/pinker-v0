@@ -66,7 +66,7 @@ Conteúdo abaixo é **propriedade da ferramenta** (projeção `state`); não edi
 mão. Regenere com `pink doc sincronizar`.
 
 <!-- @pinker-generated:start engine.state.generated -->
-- Manifestos processados: 14
-- Última mudança: PR #428 — Adiciona o núcleo determinístico e somente leitura das automações internas (fase —, bloco 20)
+- Manifestos processados: 15
+- Última mudança: PR #429 — Adiciona descoberta de root, política de paths e aplicação local atômica (fase —, bloco 20)
 - Seções implementadas: —
 <!-- @pinker-generated:end engine.state.generated -->

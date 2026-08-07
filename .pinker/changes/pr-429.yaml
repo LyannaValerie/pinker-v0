@@ -1,0 +1,19 @@
+schema: 1
+source:
+  type: github-pr
+  number: 429
+  repository: "LyannaValerie/pinker-v0"
+kind: parallel-phase
+block: 20
+title: "Adiciona descoberta de root, política de paths e aplicação local atômica"
+area:
+  - development.automation-core-contract
+  - development.deterministic-infrastructure-window
+status: completed
+updates:
+  state: true
+  history: true
+  roadmap: false
+validation:
+  required:
+    - make ci
