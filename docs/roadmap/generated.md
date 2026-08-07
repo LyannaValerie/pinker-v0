@@ -45,4 +45,5 @@ mão. Regenere com `pink doc sincronizar`.
 | #425 | — | 20 | Fecha a janela de interrupção ao iniciar a campanha do runner de estabilidade | completed |
 | #426 | — | 20 | Adiciona o contrato somente leitura dos snapshots históricos de projeção | completed |
 | #428 | — | 20 | Adiciona o núcleo determinístico e somente leitura das automações internas | completed |
+| #429 | — | 20 | Adiciona descoberta de root, política de paths e aplicação local atômica | completed |
 <!-- @pinker-generated:end roadmap.generated -->

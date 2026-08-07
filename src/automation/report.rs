@@ -9,7 +9,8 @@
 //! modelo só conhece paths repo-relativos.
 
 use super::compare::CheckReport;
-use super::{json_string, Failure};
+use super::fsio::ApplyReport;
+use super::{json_string, Failure, FinalDrift};
 
 // @pinker-nav:start automation.relatorio.renderizacao
 // @pinker-nav:domain relatorio
@@ -165,6 +166,124 @@ fn optional_text(value: Option<&str>) -> String {
     value.map_or_else(|| "null".to_string(), json_string)
 }
 // @pinker-nav:end automation.relatorio.renderizacao
+
+// @pinker-nav:start automation.relatorio.aplicacao
+// @pinker-nav:domain relatorio
+// @pinker-nav:layer automation
+// @pinker-nav:summary Renderização do relatório de aplicação em JSON e Markdown a partir do mesmo modelo: aplicados, item falho, não tentados, rollback_performed sempre falso, drift final medido ou explicitamente desconhecido, causa e estado decisório lado a lado, e o procedimento de recuperação impresso em vez de sugerido.
+
+fn lista_json(itens: &[String]) -> String {
+    let partes: Vec<String> = itens.iter().map(|i| json_string(i)).collect();
+    format!("[{}]", partes.join(","))
+}
+
+/// Relatório JSON de uma aplicação, de uma linha e com ordem de chaves fixa.
+pub fn json_apply_report(report: &ApplyReport) -> String {
+    let mut out = String::new();
+    out.push_str(&format!("{{\"schema\":{}", report.schema));
+    out.push_str(&format!(",\"producer\":{}", json_string(&report.producer)));
+    out.push_str(&format!(
+        ",\"plan_digest\":{}",
+        json_string(&report.plan_digest)
+    ));
+    match report.outcome {
+        Some(outcome) => out.push_str(&format!(",\"outcome\":{}", json_string(outcome.as_str()))),
+        None => out.push_str(",\"outcome\":null"),
+    }
+    out.push_str(&format!(",\"applied\":{}", lista_json(&report.applied)));
+    match &report.failed {
+        Some(path) => out.push_str(&format!(",\"failed\":{}", json_string(path))),
+        None => out.push_str(",\"failed\":null"),
+    }
+    out.push_str(&format!(
+        ",\"not_attempted\":{}",
+        lista_json(&report.not_attempted)
+    ));
+    out.push_str(&format!(
+        ",\"rollback_performed\":{}",
+        report.rollback_performed
+    ));
+    match &report.final_drift {
+        FinalDrift::Measured(outcome) => out.push_str(&format!(
+            ",\"final_drift\":{{\"state\":{},\"reason\":null}}",
+            json_string(outcome.as_str())
+        )),
+        FinalDrift::Unknown(reason) => out.push_str(&format!(
+            ",\"final_drift\":{{\"state\":\"UNKNOWN\",\"reason\":{}}}",
+            json_string(reason)
+        )),
+    }
+    match &report.failure {
+        Some(failure) => out.push_str(&format!(
+            ",\"failure\":{{\"code\":{},\"message\":{}}}",
+            json_string(failure.code()),
+            json_string(&failure.to_string())
+        )),
+        None => out.push_str(",\"failure\":null"),
+    }
+    match report.decision {
+        Some(decision) => {
+            out.push_str(&format!(",\"decision\":{}", json_string(decision.as_str())))
+        }
+        None => out.push_str(",\"decision\":null"),
+    }
+    out.push_str(&format!(",\"recovery\":{}", json_string(report.recovery)));
+    out.push('}');
+    out
+}
+
+/// Relatório Markdown de uma aplicação, derivado do mesmo modelo do JSON.
+pub fn markdown_apply_report(report: &ApplyReport) -> String {
+    let estado = report.outcome.map_or("—", |o| o.as_str());
+    let mut out = String::new();
+    out.push_str(&format!("# Aplicação — {}\n\n", estado));
+    out.push_str(&format!("- origem dos dados: `{}`\n", report.producer));
+    out.push_str(&format!("- plano: `{}`\n", report.plan_digest));
+    out.push_str(&format!("- aplicados: {}\n", lista_humana(&report.applied)));
+    out.push_str(&format!(
+        "- item falho: {}\n",
+        report.failed.as_deref().unwrap_or("—")
+    ));
+    out.push_str(&format!(
+        "- não tentados: {}\n",
+        lista_humana(&report.not_attempted)
+    ));
+    out.push_str(&format!(
+        "- rollback executado: {}\n",
+        report.rollback_performed
+    ));
+    match &report.final_drift {
+        FinalDrift::Measured(outcome) => {
+            out.push_str(&format!("- drift final: {}\n", outcome.as_str()))
+        }
+        FinalDrift::Unknown(reason) => {
+            out.push_str(&format!("- drift final: UNKNOWN ({})\n", reason))
+        }
+    }
+    match &report.failure {
+        Some(failure) => out.push_str(&format!("- causa: {}\n", failure)),
+        None => out.push_str("- causa: —\n"),
+    }
+    match report.decision {
+        Some(decision) => out.push_str(&format!("- decisão: {}\n", decision.as_str())),
+        None => out.push_str("- decisão: —\n"),
+    }
+    out.push_str(&format!("\nRecuperação: {}.\n", report.recovery));
+    out
+}
+
+fn lista_humana(itens: &[String]) -> String {
+    if itens.is_empty() {
+        "—".to_string()
+    } else {
+        itens
+            .iter()
+            .map(|i| format!("`{i}`"))
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+}
+// @pinker-nav:end automation.relatorio.aplicacao
 
 #[cfg(test)]
 mod tests {

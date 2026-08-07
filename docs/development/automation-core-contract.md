@@ -49,15 +49,22 @@ dependência sobre `src/agent.rs` é `sha256_hex`, função pura de bytes: o
 contrato proíbe adicionar crate de hash e proíbe duplicar hashing em silêncio, e
 essa é a única implementação pública de SHA-256 do repositório.
 
-## O que este recorte não faz
+## Camadas do núcleo
 
-Este é o recorte **puro e somente leitura**. Fora dele ficam filesystem,
-descoberta de root, temporários, rename, apply, CLI, consumidor real e qualquer
+O núcleo tem duas camadas, e a fronteira entre elas é o filesystem:
+
+| Camada | Módulos | Toca o disco? |
+|---|---|---|
+| puro | `mod.rs`, `path.rs`, `plan.rs`, `compare.rs`, `report.rs` | não |
+| local | `root.rs`, `fsio.rs` | sim, e só ali |
+
+A camada pura continua recebendo o estado observado como **dado**: `check` é
+trivialmente sem escrita porque não tem filesystem para escrever. A camada local
+é o único ponto em que o disco entra e sai, e ela atravessa sempre o
+confinamento.
+
+Fora do núcleo continuam CLI, consumidor real, processos, rede, Git e qualquer
 alteração do contrato congelado `pink-agent-v1`.
-
-O estado observado entra como **dado**, fornecido pelo chamador. A consequência
-é que o check aqui é trivialmente sem escrita: não há caminho de escrita a
-evitar, porque não há filesystem.
 
 ## O plano é efêmero
 
@@ -156,3 +163,121 @@ divergir. Nenhum dos dois carrega o payload completo — um relatório descreve 
 que mudaria, não o conteúdo — e nenhum carrega root absoluto, porque o modelo só
 conhece paths repo-relativos. Não há códigos ANSI no JSON.
 <!-- @pinker-doc:end development.automation-core-contract.resultados -->
+
+<!-- @pinker-doc:start
+id: development.automation-core-contract.aplicacao
+tags: [desenvolvimento, automacao, apply, atomicidade, confinamento]
+aliases:
+  - apply do automation core
+  - confinamento de paths
+  - progresso parcial
+summary: Raiz canônica, confinamento no filesystem, autorização por digest, atomicidade por arquivo e o contrato explícito de progresso parcial sem rollback.
+-->
+## Raiz canônica
+
+A raiz é descoberta subindo do diretório de partida até encontrar
+`.pinker/doc.toml` — o mesmo marcador que a Trama já usa como configuração
+canônica, não um segundo marcador inventado. O caminho de partida é
+canonicalizado antes da subida, de modo que dois caminhos para o mesmo
+repositório, um deles por link simbólico, convergem para a mesma raiz.
+
+`RepoRoot::at` aceita uma raiz declarada e **não sobe**: quem declara a raiz
+declara exatamente qual é.
+
+## Confinamento
+
+Três portões distintos, nesta ordem:
+
+1. **lexical** — no tipo `RelativePath`, desde o recorte puro;
+2. **allowlist** — o target precisa ter sido declarado;
+3. **filesystem** — cada ancestral existente e o próprio alvo passam por
+   `symlink_metadata`.
+
+O terceiro portão rejeita link simbólico no alvo, link simbólico em qualquer
+ancestral, ancestral que exista e não seja diretório, alvo que exista e não seja
+arquivo regular, e qualquer resultado fora da raiz canônica — comparada por
+componente, não por prefixo textual, porque `/repo-de-outro` tem `/repo` como
+prefixo de string.
+
+O confinamento é revalidado **imediatamente antes** da substituição.
+
+### Ausência é `NotFound`, e nada mais
+
+Um componente ou target só conta como ausente quando `symlink_metadata` devolve
+`ErrorKind::NotFound`. Qualquer outro erro — permissão negada num ancestral, I/O
+do dispositivo, limite de descritores — é `IO_FAILURE` explícito.
+
+A distinção não é cosmética. Se um erro operacional virasse ausência, um target
+existente sob um diretório sem permissão de travessia seria observado como
+inexistente, e daí sairia `CREATE` — ou, num plano de remoção, `NO_CHANGE` e
+portanto `MATCH`: uma automação concluiria que o repositório está convergido
+justamente porque não conseguiu olhar para ele. Pelo mesmo motivo, `final_drift`
+nunca é `Measured` quando a observação final falha; ele é `Unknown` com a razão.
+
+A mesma regra vale para o temporário: só `ErrorKind::AlreadyExists` justifica
+tentar o próximo nome. Qualquer outro erro de criação já vale para todos os
+nomes, e insistir nas 64 tentativas apenas esconderia a causa real atrás de uma
+mensagem de exaustão.
+
+### O que o confinamento não promete
+
+Não há proteção absoluta contra TOCTOU em filesystem hostil concorrente. A
+política é lexical mais `symlink_metadata`, e não substitui `openat2` com
+`RESOLVE_BENEATH`.
+
+O runner tem um `ConfinedFs` sobre descritores que faz exatamente isso, mas ele
+é privado de `src/agent.rs`, deriva a própria raiz do pai do alvo em vez de uma
+raiz de repositório, existe apenas para `linux/x86_64` e vive dentro de uma
+região catalogada da superfície congelada `pink-agent-v1`. Torná-lo público
+mudaria essa superfície e recalibraria medidas históricas da cartografia.
+
+Este núcleo também **não cria diretórios**: um target cujo diretório pai não
+existe falha explicitamente.
+
+## Autorização e plano obsoleto
+
+`apply` recebe uma `Authorization`. O tipo é a prova: "apply sem digest" não é um
+erro em tempo de execução, é uma expressão que não compila. O valor autorizado é
+comparado com o digest do plano apresentado, e qualquer divergência para antes de
+tocar o disco.
+
+Antes de escrever, o núcleo reobserva e compara com as precondições registradas
+no check. Se o estado observado de qualquer target mudou, o resultado é
+`STALE_PLAN` e nada é escrito. O recálculo do estado desejado é do **adaptador**:
+o núcleo não sabe derivar o plano, então valida o que recebe em vez de fingir que
+recalculou.
+
+## Atomicidade por arquivo
+
+Para cada target, nesta ordem: temporário irmão criado com `create_new`, escrita
+completa, sync quando suportado, revalidação do confinamento, `rename` no mesmo
+diretório, sync do diretório quando suportado, releitura verificando **tamanho e
+digest**.
+
+O temporário é exclusivo por construção; havendo colisão, tenta-se o próximo
+nome, até um limite explícito. Falha em qualquer ponto anterior ao `rename`
+remove o temporário e preserva o alvo intacto.
+
+A garantia real por arquivo é a releitura, não o `sync`.
+
+## Progresso parcial
+
+Não há atomicidade multi-arquivo e não há rollback global. Um relatório de
+aplicação carrega sempre:
+
+| Campo | Significado |
+|---|---|
+| `applied` | targets aplicados e verificados |
+| `failed` | o target em que parou |
+| `not_attempted` | os que nem chegaram a ser tentados |
+| `rollback_performed` | sempre `false` |
+| `final_drift` | medido, ou `UNKNOWN` **com a razão** |
+| `failure` | a causa |
+| `decision` | `NEEDS_HUMAN_DECISION`, ao lado da causa |
+| `recovery` | o procedimento, impresso |
+
+Aplicação parcial não é `APPLIED`: o outcome fica ausente e a causa ocupa seu
+lugar próprio. A recuperação é observar novamente, executar novo check, produzir
+novo plano e autorizar novo digest — não há retry cego e não há reaplicação de
+plano obsoleto.
+<!-- @pinker-doc:end development.automation-core-contract.aplicacao -->
