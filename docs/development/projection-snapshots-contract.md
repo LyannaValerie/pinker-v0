@@ -182,6 +182,24 @@ aliases:
   - composicao de reconstrucao
 summary: Schema 2 do snapshot, formato de receita e os invariantes do grafo de composição.
 -->
+## Quantas receitas a migração vai criar
+
+Não se sabe ainda, e o número **não** é derivável da contagem de helpers.
+
+O inventário encontrou 15 helpers de reconstrução. Oito são nós puramente
+intermediários e sete são pontos de entrada compartilhados entre snapshots —
+todos os quinze são candidatos a receita, porque todos são reutilizados.
+
+O número final sai da **semântica**, não da contagem. Um helper só pode ser
+colapsado quando as três condições valerem ao mesmo tempo:
+
+- é mera delegação, sem regras locais próprias;
+- não marca fronteira procedural relevante, isto é, colapsá-lo não muda a ordem
+  observável de aplicação;
+- a equivalência exata é demonstrada, não presumida.
+
+Qualquer estimativa anterior a essa análise — inclusive "oito" — é chute.
+
 ## Por que existe composição
 
 O inventário refeito sobre a `main` mostrou 15 helpers de reconstrução dispostos
@@ -320,6 +338,39 @@ primeira versão.
 Usar uma capacidade acima da versão declarada é `E-SNAP-CAPACIDADE-SCHEMA` ou
 `E-RECEITA-CAPACIDADE-SCHEMA`, e o diagnóstico carrega autoridade, capacidade,
 versão encontrada e versão exigida — não uma regra fixa numa versão específica.
+
+## Estriteza por operação
+
+A gramática tem dois filtros, e eles respondem por coisas diferentes:
+
+1. **união** — a chave existe em algum lugar do formato?
+2. **por operação** — a chave pertence a **esta** regra?
+
+Sem o segundo, um campo legítimo de outra operação passava pelo primeiro e era
+descartado em silêncio: `from_summary` numa regra `override-hash` era aceito e
+ignorado, inclusive em versões que nem conhecem `override-region`. Quem escreveu
+a linha acreditava ter declarado uma restauração que não existia.
+
+Os campos permitidos vivem numa tabela única, por operação:
+
+| Operação | Campos |
+|---|---|
+| `override-hash` | `op`, `key`, `from`, `to`, `expect_file`, `expect_domain`, `expect_layer` |
+| `override-region` | `op`, `key`, `from_hash`, `to_hash`, `from_summary`, `to_summary`, `expect_file`, `expect_domain`, `expect_layer` |
+| `exclude-key` | `op`, `key`, `expected_matches` |
+| `exclude-key-prefix` | `op`, `prefix`, `expected_matches` |
+| `exclude-file` | `op`, `file`, `expected_matches` |
+| `exclude-file-prefix` | `op`, `prefix`, `expected_matches` |
+
+Acrescentar capacidade a uma operação é editar uma linha dessa tabela — não
+lembrar de um `if` espalhado pelo braço correspondente.
+
+Os dois diagnósticos permanecem distinguíveis:
+
+| Situação | Erro |
+|---|---|
+| chave que nenhuma operação conhece | campo desconhecido |
+| chave de outra operação | `E-SNAP-CAMPO-DA-OPERACAO` — "campo 'x' não pertence à operação 'y'" |
 
 ## `override-region`
 

@@ -464,6 +464,12 @@ pub enum HarnessFailure {
         expected: String,
         found: String,
     },
+    /// Campo conhecido pela gramática, mas que não pertence a esta operação.
+    ///
+    /// Distinto de "chave desconhecida": o campo existe no formato, só não nesta
+    /// regra. Descartá-lo em silêncio seria aceitar uma declaração que o autor
+    /// acredita ter efeito e não tem.
+    FieldNotAllowedForOp { op: String, field: String },
     /// `override-region` sem nenhum par completo, ou com meio par.
     OverrideRegionPairInvalid { key: String, msg: String },
     /// Hash corrente da região divergente do `from` declarado.
@@ -550,6 +556,7 @@ impl HarnessFailure {
             HarnessFailure::PathChanged { .. } => "E-SNAP-PATH-ALTERADO",
             HarnessFailure::MetadataChanged { .. } => "E-SNAP-METADATA-ALTERADA",
             HarnessFailure::OverrideStaleSummary { .. } => "E-SNAP-OVERRIDE-SUMMARY",
+            HarnessFailure::FieldNotAllowedForOp { .. } => "E-SNAP-CAMPO-DA-OPERACAO",
             HarnessFailure::OverrideRegionPairInvalid { .. } => "E-SNAP-OVERRIDE-PAR",
             HarnessFailure::OverrideStaleBase { .. } => "E-SNAP-OVERRIDE-BASE",
             HarnessFailure::ExclusionNoMatch { .. } => "E-SNAP-EXCLUSAO-SEM-CORRESPONDENCIA",
@@ -704,6 +711,11 @@ impl fmt::Display for HarnessFailure {
                 f,
                 "summary corrente da região '{}' divergente: esperado '{}', encontrado '{}'",
                 key, expected, found
+            ),
+            HarnessFailure::FieldNotAllowedForOp { op, field } => write!(
+                f,
+                "campo '{}' não pertence à operação '{}'",
+                field, op
             ),
             HarnessFailure::OverrideRegionPairInvalid { key, msg } => write!(
                 f,
@@ -1183,6 +1195,56 @@ const RECONSTRUCTION_KEYS: [&str; 4] = [
     "recipes",
 ];
 const MEASURES_KEYS: [&str; 3] = ["regions", "length", "fnv1a64"];
+/// Campos permitidos **por operação**, em tabela única.
+///
+/// [`RULE_KEYS`] é a união de todos os campos e só detecta chave desconhecida
+/// pelo conjunto inteiro. Sem esta segunda camada, um campo legítimo de outra
+/// operação — `from_summary` numa regra `override-hash`, por exemplo — passava
+/// pelo filtro global e era **silenciosamente ignorado** pelo braço que não o lê.
+///
+/// A tabela é a fonte única: acrescentar capacidade a uma operação é editar uma
+/// linha aqui, não lembrar de um `if` espalhado pelo braço correspondente.
+const RULE_KEYS_BY_OP: [(&str, &[&str]); 6] = [
+    (
+        "override-hash",
+        &[
+            "op",
+            "key",
+            "from",
+            "to",
+            "expect_file",
+            "expect_domain",
+            "expect_layer",
+        ],
+    ),
+    (
+        "override-region",
+        &[
+            "op",
+            "key",
+            "from_hash",
+            "to_hash",
+            "from_summary",
+            "to_summary",
+            "expect_file",
+            "expect_domain",
+            "expect_layer",
+        ],
+    ),
+    ("exclude-key", &["op", "key", "expected_matches"]),
+    ("exclude-key-prefix", &["op", "prefix", "expected_matches"]),
+    ("exclude-file", &["op", "file", "expected_matches"]),
+    ("exclude-file-prefix", &["op", "prefix", "expected_matches"]),
+];
+
+/// Campos permitidos para uma operação, ou `None` se a operação é desconhecida.
+fn allowed_keys_for_op(op: &str) -> Option<&'static [&'static str]> {
+    RULE_KEYS_BY_OP
+        .iter()
+        .find(|(nome, _)| *nome == op)
+        .map(|(_, campos)| *campos)
+}
+
 const RULE_KEYS: [&str; 14] = [
     "op",
     "key",
@@ -1582,6 +1644,21 @@ pub(crate) fn build_rule(table: &Table, index: usize) -> Result<Rule, HarnessFai
         None => return Err(HarnessFailure::RuleWithoutOperation { index }),
     };
 
+    // Estriteza por operação: o filtro global só conhece a união dos campos.
+    // Aqui cada operação responde pelos seus, e um campo que pertence a outra
+    // falha explicitamente em vez de ser descartado em silêncio.
+    let Some(permitidos) = allowed_keys_for_op(op.as_str()) else {
+        return Err(HarnessFailure::RuleOperationUnknown { index, op });
+    };
+    for chave in table.keys() {
+        if !permitidos.contains(&chave) {
+            return Err(HarnessFailure::FieldNotAllowedForOp {
+                op: op.clone(),
+                field: chave.to_string(),
+            });
+        }
+    }
+
     match op.as_str() {
         "override-hash" => {
             let key = match optional_text(table, "key", &scope)? {
@@ -1603,12 +1680,6 @@ pub(crate) fn build_rule(table: &Table, index: usize) -> Result<Rule, HarnessFai
             }
             let expect_domain = optional_text(table, "expect_domain", &scope)?;
             let expect_layer = optional_text(table, "expect_layer", &scope)?;
-            if table.get("prefix").is_some() || table.get("expected_matches").is_some() {
-                return Err(HarnessFailure::InvalidField {
-                    field: format!("{}op", scope),
-                    msg: "'override-hash' não aceita 'prefix' nem 'expected_matches'".to_string(),
-                });
-            }
             Ok(Rule::OverrideHash {
                 key,
                 from,
@@ -1692,18 +1763,6 @@ pub(crate) fn build_rule(table: &Table, index: usize) -> Result<Rule, HarnessFai
             let expect_file = optional_text(table, "expect_file", &scope)?;
             if let Some(file) = &expect_file {
                 validate_relative_path(file, &format!("{}expect_file", scope))?;
-            }
-            if table.get("from").is_some()
-                || table.get("to").is_some()
-                || table.get("prefix").is_some()
-                || table.get("file").is_some()
-                || table.get("expected_matches").is_some()
-            {
-                return Err(HarnessFailure::InvalidField {
-                    field: format!("{}op", scope),
-                    msg: "'override-region' usa from_hash/to_hash e from_summary/to_summary"
-                        .to_string(),
-                });
             }
             Ok(Rule::OverrideRegion {
                 key,

@@ -1842,3 +1842,258 @@ fn override_region_com_seletor_sem_correspondencia_falha() {
         Err(HarnessFailure::RegionRemoved { .. })
     ));
 }
+
+// ---------------------------------------------------------------------------
+// Estriteza por operação: campo de outra operação falha, nunca é descartado
+// ---------------------------------------------------------------------------
+
+/// Monta um snapshot com uma única regra, na versão pedida.
+fn snapshot_com_regra(schema: u64, corpo: &str) -> String {
+    format!(
+        concat!(
+            "schema = {}\n",
+            "id = \"estriteza\"\n",
+            "state = \"FROZEN\"\n",
+            "\n[reconstruction]\n",
+            "expected_overrides = {}\n",
+            "expected_exclusions = {}\n",
+            "\n[measures]\n",
+            "regions = 1\n",
+            "length = 1\n",
+            "fnv1a64 = \"fnv1a64:0000000000000000\"\n",
+            "\n[[rules]]\n",
+            "{}"
+        ),
+        schema,
+        u8::from(corpo.contains("override")),
+        u8::from(!corpo.contains("override")),
+        corpo
+    )
+}
+
+fn receita_com_regra(schema: u64, corpo: &str) -> String {
+    format!(
+        concat!(
+            "schema = {}\n",
+            "id = \"estriteza\"\n",
+            "\n[reconstruction]\n",
+            "expected_overrides = {}\n",
+            "expected_exclusions = {}\n",
+            "\n[[rules]]\n",
+            "{}"
+        ),
+        schema,
+        u8::from(corpo.contains("override")),
+        u8::from(!corpo.contains("override")),
+        corpo
+    )
+}
+
+const R_OVERRIDE_HASH: &str = concat!(
+    "op = \"override-hash\"\n",
+    "key = \"a.um\"\n",
+    "from = \"fnv1a64:0000000000000001\"\n",
+    "to = \"fnv1a64:00000000000000ff\"\n",
+);
+const R_OVERRIDE_REGION: &str = concat!(
+    "op = \"override-region\"\n",
+    "key = \"a.um\"\n",
+    "from_hash = \"fnv1a64:0000000000000001\"\n",
+    "to_hash = \"fnv1a64:00000000000000ff\"\n",
+);
+const R_EXCLUDE_KEY: &str = concat!(
+    "op = \"exclude-key\"\n",
+    "key = \"a.um\"\n",
+    "expected_matches = 1\n",
+);
+const R_EXCLUDE_KEY_PREFIX: &str = concat!(
+    "op = \"exclude-key-prefix\"\n",
+    "prefix = \"a.\"\n",
+    "expected_matches = 1\n",
+);
+const R_EXCLUDE_FILE: &str = concat!(
+    "op = \"exclude-file\"\n",
+    "file = \"src/a.rs\"\n",
+    "expected_matches = 1\n",
+);
+const R_EXCLUDE_FILE_PREFIX: &str = concat!(
+    "op = \"exclude-file-prefix\"\n",
+    "prefix = \"src/\"\n",
+    "expected_matches = 1\n",
+);
+
+/// Confere que anexar `intruso` à regra faz o parser recusar nomeando o campo.
+fn recusa_campo(schema: u64, base: &str, intruso: &str, campo: &str) {
+    let texto = snapshot_com_regra(schema, &format!("{base}{intruso}"));
+    match parse(&texto) {
+        Err(erro @ HarnessFailure::FieldNotAllowedForOp { .. }) => {
+            assert_eq!(erro.code(), "E-SNAP-CAMPO-DA-OPERACAO");
+            assert!(
+                erro.to_string().contains(campo),
+                "a mensagem não nomeia o campo '{campo}': {erro}"
+            );
+        }
+        outro => panic!("campo '{campo}' foi aceito ou descartado em silêncio: {outro:?}"),
+    }
+}
+
+#[test]
+fn override_hash_recusa_campos_de_outras_operacoes() {
+    for (intruso, campo) in [
+        ("from_hash = \"fnv1a64:0000000000000001\"\n", "from_hash"),
+        ("to_hash = \"fnv1a64:00000000000000ff\"\n", "to_hash"),
+        ("from_summary = \"x\"\n", "from_summary"),
+        ("to_summary = \"y\"\n", "to_summary"),
+        ("file = \"src/a.rs\"\n", "file"),
+        ("prefix = \"a.\"\n", "prefix"),
+        ("expected_matches = 1\n", "expected_matches"),
+    ] {
+        recusa_campo(3, R_OVERRIDE_HASH, intruso, campo);
+    }
+}
+
+#[test]
+fn override_region_recusa_campos_de_outras_operacoes() {
+    for (intruso, campo) in [
+        ("from = \"fnv1a64:0000000000000001\"\n", "from"),
+        ("to = \"fnv1a64:00000000000000ff\"\n", "to"),
+        ("file = \"src/a.rs\"\n", "file"),
+        ("prefix = \"a.\"\n", "prefix"),
+        ("expected_matches = 1\n", "expected_matches"),
+    ] {
+        recusa_campo(3, R_OVERRIDE_REGION, intruso, campo);
+    }
+}
+
+#[test]
+fn cada_exclusao_recusa_campos_de_override_e_seletores_alheios() {
+    let intrusos_de_override = [
+        ("from = \"fnv1a64:0000000000000001\"\n", "from"),
+        ("to = \"fnv1a64:00000000000000ff\"\n", "to"),
+        ("from_hash = \"fnv1a64:0000000000000001\"\n", "from_hash"),
+        ("to_summary = \"y\"\n", "to_summary"),
+        ("expect_file = \"src/a.rs\"\n", "expect_file"),
+        ("expect_domain = \"d\"\n", "expect_domain"),
+        ("expect_layer = \"l\"\n", "expect_layer"),
+    ];
+    for base in [
+        R_EXCLUDE_KEY,
+        R_EXCLUDE_KEY_PREFIX,
+        R_EXCLUDE_FILE,
+        R_EXCLUDE_FILE_PREFIX,
+    ] {
+        for (intruso, campo) in intrusos_de_override {
+            recusa_campo(3, base, intruso, campo);
+        }
+    }
+
+    // E os seletores das outras exclusões, que o filtro global conhecia.
+    recusa_campo(3, R_EXCLUDE_KEY, "prefix = \"a.\"\n", "prefix");
+    recusa_campo(3, R_EXCLUDE_KEY, "file = \"src/a.rs\"\n", "file");
+    recusa_campo(3, R_EXCLUDE_KEY_PREFIX, "key = \"a.um\"\n", "key");
+    recusa_campo(3, R_EXCLUDE_KEY_PREFIX, "file = \"src/a.rs\"\n", "file");
+    recusa_campo(3, R_EXCLUDE_FILE, "key = \"a.um\"\n", "key");
+    recusa_campo(3, R_EXCLUDE_FILE, "prefix = \"src/\"\n", "prefix");
+    recusa_campo(3, R_EXCLUDE_FILE_PREFIX, "key = \"a.um\"\n", "key");
+    recusa_campo(3, R_EXCLUDE_FILE_PREFIX, "file = \"src/a.rs\"\n", "file");
+}
+
+#[test]
+fn schemas_antigos_falham_em_vez_de_ignorar_campos_de_override_region() {
+    // Este é o caso que a lacuna permitia: num schema que nem conhece
+    // `override-region`, seus campos anexados a um `override-hash` passavam pelo
+    // filtro global e eram descartados sem aviso.
+    for schema in [SNAPSHOT_SCHEMA_V1, SNAPSHOT_SCHEMA_V2] {
+        for (intruso, campo) in [
+            ("from_summary = \"x\"\n", "from_summary"),
+            ("to_summary = \"y\"\n", "to_summary"),
+            ("from_hash = \"fnv1a64:0000000000000001\"\n", "from_hash"),
+            ("to_hash = \"fnv1a64:00000000000000ff\"\n", "to_hash"),
+        ] {
+            recusa_campo(schema, R_OVERRIDE_HASH, intruso, campo);
+        }
+    }
+}
+
+#[test]
+fn recipe_schema_1_falha_em_vez_de_ignorar_campos_de_override_region() {
+    for (intruso, campo) in [
+        ("from_summary = \"x\"\n", "from_summary"),
+        ("to_summary = \"y\"\n", "to_summary"),
+        ("from_hash = \"fnv1a64:0000000000000001\"\n", "from_hash"),
+    ] {
+        let texto = receita_com_regra(1, &format!("{R_OVERRIDE_HASH}{intruso}"));
+        match parse_recipe(&texto) {
+            Err(erro @ HarnessFailure::FieldNotAllowedForOp { .. }) => {
+                assert!(erro.to_string().contains(campo), "{erro}");
+            }
+            outro => panic!("receita schema 1 ignorou '{campo}': {outro:?}"),
+        }
+    }
+}
+
+#[test]
+fn a_estriteza_nao_quebra_as_formas_canonicas_validas() {
+    // Cada operação, na sua versão mínima, continua válida e com round-trip.
+    let casos: [(u64, &str); 6] = [
+        (1, R_OVERRIDE_HASH),
+        (1, R_EXCLUDE_KEY),
+        (1, R_EXCLUDE_FILE_PREFIX),
+        (2, R_EXCLUDE_FILE),
+        (2, R_EXCLUDE_KEY_PREFIX),
+        (3, R_OVERRIDE_REGION),
+    ];
+    for (schema, corpo) in casos {
+        let texto = snapshot_com_regra(schema, corpo);
+        let modelo = parse(&texto).unwrap_or_else(|e| panic!("schema {schema} recusou: {e}"));
+        assert_eq!(modelo.schema, schema);
+        let renderizado = render(&modelo);
+        assert_eq!(parse(&renderizado).expect("reparse"), modelo);
+        assert_eq!(render(&parse(&renderizado).unwrap()), renderizado);
+    }
+}
+
+#[test]
+fn as_formas_completas_com_expectativas_continuam_validas() {
+    // `expect_*` pertence às duas operações de override e não pode ter sido
+    // barrado junto com os campos alheios.
+    let com_expectativas = format!(
+        "{R_OVERRIDE_HASH}expect_file = \"src/a.rs\"\nexpect_domain = \"dominio\"\nexpect_layer = \"camada\"\n"
+    );
+    let modelo = parse(&snapshot_com_regra(1, &com_expectativas)).expect("override-hash completo");
+    assert_eq!(parse(&render(&modelo)).expect("round-trip"), modelo);
+
+    let regiao_completa = format!(
+        "{R_OVERRIDE_REGION}from_summary = \"antes\"\nto_summary = \"depois\"\nexpect_file = \"src/a.rs\"\nexpect_domain = \"dominio\"\nexpect_layer = \"camada\"\n"
+    );
+    let modelo = parse(&snapshot_com_regra(3, &regiao_completa)).expect("override-region completo");
+    assert_eq!(parse(&render(&modelo)).expect("round-trip"), modelo);
+}
+
+#[test]
+fn operacao_desconhecida_continua_sendo_operacao_desconhecida() {
+    // A tabela por operação não pode transformar op inválida em campo inválido.
+    let texto = snapshot_com_regra(3, "op = \"renomear-chave\"\nkey = \"a.um\"\n");
+    assert!(matches!(
+        parse(&texto),
+        Err(HarnessFailure::RuleOperationUnknown { .. })
+    ));
+}
+
+#[test]
+fn chave_fora_da_gramatica_continua_sendo_chave_desconhecida() {
+    // Campo que nenhuma operação conhece segue no diagnóstico genérico; campo de
+    // outra operação tem diagnóstico próprio. Os dois casos são distinguíveis.
+    let fora = snapshot_com_regra(3, &format!("{R_OVERRIDE_HASH}inventado = \"x\"\n"));
+    match parse(&fora) {
+        Err(HarnessFailure::InvalidField { msg, .. }) => {
+            assert!(msg.contains("desconhecida"), "{msg}")
+        }
+        outro => panic!("esperada chave desconhecida, veio {outro:?}"),
+    }
+    let de_outra = snapshot_com_regra(3, &format!("{R_OVERRIDE_HASH}from_summary = \"x\"\n"));
+    assert!(matches!(
+        parse(&de_outra),
+        Err(HarnessFailure::FieldNotAllowedForOp { .. })
+    ));
+}
