@@ -8,9 +8,10 @@
 //! Cada teste monta um repositório sintético sob `TMPDIR` e o remove ao fim.
 
 use pinker_v0::automation::{
-    apply, check, confine, json_apply_report, markdown_apply_report, observe, observe_target,
-    verify_written, Allowlist, Authorization, Decision, Failure, FinalDrift, HarnessCause, Outcome,
-    Plan, PlanBuilder, PolicyCause, RelativePath, RepoRoot, ROOT_MARKER,
+    apply, check, confine, json_apply_report, markdown_apply_report, measure_final_drift, observe,
+    observe_target, verify_written, Allowlist, Authorization, ChangeKind, Decision, Failure,
+    FinalDrift, HarnessCause, Outcome, Plan, PlanBuilder, PolicyCause, RelativePath, RepoRoot,
+    ROOT_MARKER,
 };
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
@@ -475,6 +476,225 @@ fn exaustao_de_temporarios_falha_explicitamente() {
         outro => panic!("esperada exaustão de temporários, veio {outro:?}"),
     }
     assert!(!base.join("docs/a.md").exists());
+    limpar(&base);
+}
+
+// ---------------------------------------------------------------------------
+// Ausência é `NotFound`, e nada mais
+// ---------------------------------------------------------------------------
+
+/// Torna um diretório inacessível, executa e restaura — mesmo em caso de pânico
+/// o `limpar` do teste devolve as permissões.
+fn sem_permissao<T>(dir: &Path, acao: impl FnOnce() -> T) -> T {
+    fs::set_permissions(dir, fs::Permissions::from_mode(0o000)).unwrap();
+    let saida = acao();
+    fs::set_permissions(dir, fs::Permissions::from_mode(0o755)).unwrap();
+    saida
+}
+
+#[test]
+fn alvo_realmente_ausente_continua_sendo_ausencia_valida() {
+    let base = repo("ausencia-valida");
+    let root = RepoRoot::at(&base).unwrap();
+
+    // Alvo inexistente sob diretório existente e legível.
+    assert!(confine(&root, &rel("docs/a.md")).is_ok());
+    let observado = observe_target(&root, &rel("docs/a.md")).expect("ausência é válida");
+    assert_eq!(observado.bytes(), None);
+
+    // Ancestral inexistente também é ausência, não erro de confinamento.
+    assert!(confine(&root, &rel("docs/sub/inner.md")).is_ok());
+    assert_eq!(
+        observe_target(&root, &rel("docs/sub/inner.md"))
+            .expect("ancestral ausente é válido")
+            .bytes(),
+        None
+    );
+
+    // E o plano correspondente classifica CREATE, não falha.
+    let plano = plano_criar(&[("docs/a.md", b"novo\n")]);
+    let relatorio = check(&plano, &observe(&root, &plano).unwrap()).unwrap();
+    assert_eq!(relatorio.targets[0].change, ChangeKind::Create);
+    limpar(&base);
+}
+
+#[test]
+fn alvo_sob_ancestral_sem_permissao_nao_vira_ausencia() {
+    let base = repo("ancestral-sem-permissao");
+    fs::create_dir_all(base.join("docs/sub")).unwrap();
+    fs::write(base.join("docs/sub/inner.md"), b"existe\n").unwrap();
+    let root = RepoRoot::at(&base).unwrap();
+
+    let (confinado, observado) = sem_permissao(&base.join("docs/sub"), || {
+        (
+            confine(&root, &rel("docs/sub/inner.md")),
+            observe_target(&root, &rel("docs/sub/inner.md")),
+        )
+    });
+
+    match confinado {
+        Err(Failure::IoFailure { path, msg }) => {
+            assert_eq!(path, "docs/sub/inner.md");
+            assert!(msg.contains("inacessível"), "{msg}");
+        }
+        outro => panic!("ancestral sem permissão virou {outro:?} em vez de IO_FAILURE"),
+    }
+    match observado {
+        Err(Failure::IoFailure { .. }) => {}
+        Ok(observacao) => panic!(
+            "observação devolveu {:?} para um alvo inacessível",
+            observacao.bytes().map(<[u8]>::len)
+        ),
+        outro => panic!("esperado IO_FAILURE, veio {outro:?}"),
+    }
+    limpar(&base);
+}
+
+#[test]
+fn erro_operacional_na_observacao_nao_vira_drift_nem_match() {
+    let base = repo("erro-nao-vira-drift");
+    fs::create_dir_all(base.join("docs/sub")).unwrap();
+    fs::write(base.join("docs/sub/inner.md"), b"conteudo\n").unwrap();
+    let root = RepoRoot::at(&base).unwrap();
+
+    // Plano que, se a ausência fosse inventada, viraria CREATE e portanto DRIFT.
+    let plano_criacao = plano_criar(&[("docs/sub/inner.md", b"conteudo\n")]);
+    // Plano de remoção que, se a ausência fosse inventada, viraria NO_CHANGE e
+    // portanto MATCH — o caso mais perigoso, porque parece convergido.
+    let plano_remocao = PlanBuilder::new("adaptador-de-teste", allowlist())
+        .remove("docs/sub/inner.md")
+        .unwrap()
+        .build()
+        .unwrap();
+
+    // As precondições são colhidas enquanto o diretório ainda é observável.
+    let precondicoes: Vec<_> = [&plano_criacao, &plano_remocao]
+        .iter()
+        .map(|plano| check(plano, &observe(&root, plano).unwrap()).unwrap())
+        .collect();
+
+    sem_permissao(&base.join("docs/sub"), || {
+        for (plano, precondicao) in [&plano_criacao, &plano_remocao].iter().zip(&precondicoes) {
+            match observe(&root, plano) {
+                Err(Failure::IoFailure { .. }) => {}
+                Ok(estado) => panic!(
+                    "observação inventou estado: {:?}",
+                    check(plano, &estado).map(|r| r.outcome)
+                ),
+                outro => panic!("esperado IO_FAILURE, veio {outro:?}"),
+            }
+            // E o apply para antes de escrever, sem outcome de domínio.
+            let relatorio = apply(
+                &root,
+                plano,
+                &Authorization::for_digest(&plano.digest()),
+                precondicao,
+            );
+            assert_eq!(relatorio.outcome, None, "falha de I/O produziu outcome");
+            assert!(matches!(relatorio.failure, Some(Failure::IoFailure { .. })));
+            assert!(
+                matches!(relatorio.final_drift, FinalDrift::Unknown(_)),
+                "drift final medido a partir de observação que falhou"
+            );
+        }
+    });
+    limpar(&base);
+}
+
+#[test]
+fn drift_final_nao_e_medido_quando_a_observacao_final_falha() {
+    let base = repo("drift-final-desconhecido");
+    fs::create_dir_all(base.join("docs/sub")).unwrap();
+    fs::write(base.join("docs/sub/inner.md"), b"conteudo\n").unwrap();
+    let root = RepoRoot::at(&base).unwrap();
+    let plano = plano_criar(&[("docs/sub/inner.md", b"conteudo\n")]);
+
+    // Observável: medido.
+    match measure_final_drift(&root, &plano) {
+        FinalDrift::Measured(Outcome::Match) => {}
+        outro => panic!("esperado MATCH medido, veio {outro:?}"),
+    }
+
+    // Inobservável: desconhecido, com a razão.
+    let desconhecido = sem_permissao(&base.join("docs/sub"), || {
+        measure_final_drift(&root, &plano)
+    });
+    match desconhecido {
+        FinalDrift::Unknown(razao) => {
+            assert!(!razao.is_empty(), "estado desconhecido sem razão");
+            assert!(razao.contains("IO_FAILURE"), "{razao}");
+        }
+        FinalDrift::Measured(outcome) => {
+            panic!("drift final medido como {outcome} sem observação válida")
+        }
+    }
+    assert_eq!(FinalDrift::Unknown(String::new()).as_str(), "UNKNOWN");
+    limpar(&base);
+}
+
+// ---------------------------------------------------------------------------
+// Temporários: colisão versus erro operacional
+// ---------------------------------------------------------------------------
+
+#[test]
+fn colisao_real_continua_tentando_o_proximo_nome() {
+    let base = repo("colisao-proximo-nome");
+    // Ocupa os três primeiros nomes: a criação precisa chegar ao quarto.
+    for i in 0..3 {
+        fs::write(base.join(format!("docs/.a.md.pinker-tmp-{i}")), b"ocupado").unwrap();
+    }
+    let root = RepoRoot::at(&base).unwrap();
+    let plano = plano_criar(&[("docs/a.md", b"conteudo\n")]);
+
+    let relatorio = aplicar(&root, &plano);
+    assert_eq!(relatorio.outcome, Some(Outcome::Applied));
+    assert_eq!(fs::read(base.join("docs/a.md")).unwrap(), b"conteudo\n");
+    for i in 0..3 {
+        assert_eq!(
+            fs::read(base.join(format!("docs/.a.md.pinker-tmp-{i}"))).unwrap(),
+            b"ocupado",
+            "o nome ocupado {i} foi sobrescrito"
+        );
+    }
+    // O quarto nome foi usado e removido pelo rename.
+    assert!(!base.join("docs/.a.md.pinker-tmp-3").exists());
+    limpar(&base);
+}
+
+#[test]
+fn erro_de_criacao_diferente_de_colisao_falha_de_imediato() {
+    let base = repo("erro-nao-colisao");
+    fs::create_dir_all(base.join("docs/sub")).unwrap();
+    let root = RepoRoot::at(&base).unwrap();
+    let plano = plano_criar(&[("docs/sub/inner.md", b"conteudo\n")]);
+    let precondicao = check(&plano, &observe(&root, &plano).unwrap()).unwrap();
+
+    // Diretório legível e atravessável, mas não gravável: `create_new` devolve
+    // `PermissionDenied`, que vale igual para todos os 64 nomes.
+    fs::set_permissions(base.join("docs/sub"), fs::Permissions::from_mode(0o555)).unwrap();
+    let relatorio = apply(
+        &root,
+        &plano,
+        &Authorization::for_digest(&plano.digest()),
+        &precondicao,
+    );
+    fs::set_permissions(base.join("docs/sub"), fs::Permissions::from_mode(0o755)).unwrap();
+
+    match &relatorio.failure {
+        Some(Failure::IoFailure { path, msg }) => {
+            assert_eq!(path, "docs/sub/inner.md");
+            assert!(
+                msg.contains("temporário não pôde ser criado"),
+                "causa real escondida: {msg}"
+            );
+            assert!(
+                !msg.contains("tentativas"),
+                "percorreu as tentativas em vez de falhar de imediato: {msg}"
+            );
+        }
+        outro => panic!("esperada falha imediata de criação, veio {outro:?}"),
+    }
+    assert!(temporarios(&base).is_empty());
     limpar(&base);
 }
 

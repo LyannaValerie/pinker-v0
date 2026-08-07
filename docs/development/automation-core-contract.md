@@ -201,6 +201,24 @@ prefixo de string.
 
 O confinamento é revalidado **imediatamente antes** da substituição.
 
+### Ausência é `NotFound`, e nada mais
+
+Um componente ou target só conta como ausente quando `symlink_metadata` devolve
+`ErrorKind::NotFound`. Qualquer outro erro — permissão negada num ancestral, I/O
+do dispositivo, limite de descritores — é `IO_FAILURE` explícito.
+
+A distinção não é cosmética. Se um erro operacional virasse ausência, um target
+existente sob um diretório sem permissão de travessia seria observado como
+inexistente, e daí sairia `CREATE` — ou, num plano de remoção, `NO_CHANGE` e
+portanto `MATCH`: uma automação concluiria que o repositório está convergido
+justamente porque não conseguiu olhar para ele. Pelo mesmo motivo, `final_drift`
+nunca é `Measured` quando a observação final falha; ele é `Unknown` com a razão.
+
+A mesma regra vale para o temporário: só `ErrorKind::AlreadyExists` justifica
+tentar o próximo nome. Qualquer outro erro de criação já vale para todos os
+nomes, e insistir nas 64 tentativas apenas esconderia a causa real atrás de uma
+mensagem de exaustão.
+
 ### O que o confinamento não promete
 
 Não há proteção absoluta contra TOCTOU em filesystem hostil concorrente. A

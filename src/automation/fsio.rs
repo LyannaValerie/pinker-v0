@@ -37,7 +37,7 @@ use super::{
     MAX_TARGET_BYTES, RECOVERY_PROCEDURE,
 };
 use std::fs;
-use std::io::Write;
+use std::io::{ErrorKind, Write};
 use std::path::{Path, PathBuf};
 
 /// Quantas vezes se tenta um nome de temporário antes de desistir.
@@ -81,9 +81,19 @@ pub fn confine(root: &RepoRoot, relative: &RelativePath) -> Result<PathBuf, Fail
                     },
                 ))
             }
-            // Ancestral inexistente é aceito aqui; a escrita falha depois com
+            Ok(_) => {}
+            // Somente `NotFound` significa ausência. A escrita falha depois com
             // causa própria, porque este estágio não cria diretórios.
-            _ => {}
+            Err(err) if err.kind() == ErrorKind::NotFound => {}
+            // Qualquer outro erro é operacional e não pode ser lido como
+            // ausência: um ancestral sem permissão de travessia não é um
+            // ancestral inexistente.
+            Err(err) => {
+                return Err(Failure::IoFailure {
+                    path: relative.as_str().to_string(),
+                    msg: format!("ancestral '{}' inacessível: {}", component, err),
+                })
+            }
         }
     }
 
@@ -98,7 +108,13 @@ pub fn confine(root: &RepoRoot, relative: &RelativePath) -> Result<PathBuf, Fail
                 path: relative.as_str().to_string(),
             },
         )),
-        _ => Ok(absolute),
+        Ok(_) => Ok(absolute),
+        // Ausência é exatamente `NotFound`, e nada mais.
+        Err(err) if err.kind() == ErrorKind::NotFound => Ok(absolute),
+        Err(err) => Err(Failure::IoFailure {
+            path: relative.as_str().to_string(),
+            msg: format!("target inacessível: {}", err),
+        }),
     }
 }
 // @pinker-nav:end automation.filesystem.confinamento
@@ -112,7 +128,16 @@ pub fn confine(root: &RepoRoot, relative: &RelativePath) -> Result<PathBuf, Fail
 pub fn observe_target(root: &RepoRoot, relative: &RelativePath) -> Result<Observation, Failure> {
     let absolute = confine(root, relative)?;
     match fs::symlink_metadata(&absolute) {
-        Err(_) => Observation::absent(relative.as_str()).map_err(Failure::PolicyViolation),
+        // Só `NotFound` é ausência observada. Qualquer outro erro é falha
+        // operacional: tratá-lo como ausência inventaria um `CREATE` e faria
+        // uma falha de I/O virar drift.
+        Err(err) if err.kind() == ErrorKind::NotFound => {
+            Observation::absent(relative.as_str()).map_err(Failure::PolicyViolation)
+        }
+        Err(err) => Err(Failure::IoFailure {
+            path: relative.as_str().to_string(),
+            msg: format!("observação falhou: {}", err),
+        }),
         Ok(metadata) => {
             let len = metadata.len();
             if len > MAX_TARGET_BYTES as u64 {
@@ -314,10 +339,7 @@ pub fn apply(
         }
     }
 
-    let final_drift = match observe(root, plan).and_then(|estado| check(plan, &estado)) {
-        Ok(report) => FinalDrift::Measured(report.outcome),
-        Err(erro) => FinalDrift::Unknown(erro.to_string()),
-    };
+    let final_drift = measure_final_drift(root, plan);
 
     let houve_falha = falha.is_some();
     ApplyReport {
@@ -341,6 +363,18 @@ pub fn apply(
         rollback_performed: false,
         final_drift,
         recovery: RECOVERY_PROCEDURE,
+    }
+}
+
+/// Mede o drift depois da aplicação.
+///
+/// Se a observação final falhar, o resultado é `Unknown` **com a razão**: um
+/// relatório que não conseguiu medir precisa dizer isso, e nunca apresentar
+/// `Measured` a partir de uma observação que não aconteceu.
+pub fn measure_final_drift(root: &RepoRoot, plan: &Plan) -> FinalDrift {
+    match observe(root, plan).and_then(|estado| check(plan, &estado)) {
+        Ok(report) => FinalDrift::Measured(report.outcome),
+        Err(erro) => FinalDrift::Unknown(erro.to_string()),
     }
 }
 
@@ -369,10 +403,7 @@ fn write_one(root: &RepoRoot, relative: &RelativePath, bytes: &[u8]) -> Result<(
     if !parent.is_dir() {
         return Err(Failure::IoFailure {
             path: relative.as_str().to_string(),
-            msg: format!(
-                "diretório pai ausente: {}; este núcleo não cria diretórios",
-                parent.display()
-            ),
+            msg: "diretório pai ausente; este núcleo não cria diretórios".to_string(),
         });
     }
 
@@ -438,7 +469,17 @@ fn create_temporary(
             .open(&candidato)
         {
             Ok(file) => return Ok((candidato, file)),
-            Err(err) => ultimo = err.to_string(),
+            // Só colisão justifica tentar o próximo nome.
+            Err(err) if err.kind() == ErrorKind::AlreadyExists => ultimo = err.to_string(),
+            // Qualquer outro erro já vale para todos os nomes: insistir 64
+            // vezes só esconderia a causa real atrás de uma mensagem de
+            // exaustão.
+            Err(err) => {
+                return Err(Failure::IoFailure {
+                    path: relative.as_str().to_string(),
+                    msg: format!("temporário não pôde ser criado: {}", err),
+                })
+            }
         }
     }
     Err(Failure::IoFailure {

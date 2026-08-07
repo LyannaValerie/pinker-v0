@@ -51,7 +51,9 @@ pub mod report;
 pub mod root;
 
 pub use compare::{check, ChangeKind, CheckReport, Observation, ObservedState, TargetOutcome};
-pub use fsio::{apply, confine, observe, observe_target, verify_written, ApplyReport};
+pub use fsio::{
+    apply, confine, measure_final_drift, observe, observe_target, verify_written, ApplyReport,
+};
 pub use path::{Allowlist, RelativePath};
 pub use plan::{Payload, Plan, PlanBuilder, PlannedTarget};
 pub use report::{
