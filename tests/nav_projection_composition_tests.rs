@@ -8,11 +8,11 @@
 use pinker_v0::nav::CodeRegion;
 use pinker_v0::nav_projection_recipe::{
     parse_recipe, render_recipe, resolve, verify_frozen_dependencies, Library, Recipe, RECIPES_DIR,
-    RECIPE_SCHEMA,
+    RECIPE_SCHEMA, RECIPE_SCHEMA_V1, RECIPE_SCHEMA_V2,
 };
 use pinker_v0::nav_projection_snapshot::{
     measure, parse, render, stable_projection, HarnessFailure, Measures, ProjectionSnapshot, Rule,
-    SnapshotState, SNAPSHOT_SCHEMA_V1, SNAPSHOT_SCHEMA_V2,
+    SchemaAuthority, SnapshotState, SNAPSHOT_SCHEMA_V1, SNAPSHOT_SCHEMA_V2, SNAPSHOT_SCHEMA_V3,
 };
 
 // ---------------------------------------------------------------------------
@@ -137,7 +137,8 @@ fn receita_nao_tem_medida_estado_nem_predecessor() {
     let r = receita("intermediaria", &[], vec![excluir("posterior.nova")]);
     // O tipo é a prova: não existem esses campos para preencher.
     assert_eq!(r.schema, RECIPE_SCHEMA);
-    assert_eq!(RECIPE_SCHEMA, 1, "o formato de receita estreia em 1");
+    assert_eq!(RECIPE_SCHEMA_V1, 1, "o formato de receita estreou em 1");
+    assert_eq!(RECIPE_SCHEMA_V2, 2, "e ganhou override-region no 2");
     assert_eq!(RECIPES_DIR, ".pinker/projections/recipes/");
     let fonte = include_str!("../src/nav_projection_recipe.rs");
     let inicio = fonte.find("pub struct Recipe {").expect("struct Recipe");
@@ -768,8 +769,15 @@ fn schema_1_rejeita_todas_as_capacidades_do_schema_2() {
     ];
     for (rec, rule) in casos {
         match parse(&schema1(rec, rule)) {
-            Err(HarnessFailure::CapabilityRequiresSchema2 { found, .. }) => {
-                assert_eq!(found, SNAPSHOT_SCHEMA_V1);
+            Err(HarnessFailure::CapabilityRequiresSchema {
+                authority,
+                found_schema,
+                required_schema,
+                ..
+            }) => {
+                assert_eq!(authority, SchemaAuthority::Snapshot);
+                assert_eq!(found_schema, SNAPSHOT_SCHEMA_V1);
+                assert_eq!(required_schema, SNAPSHOT_SCHEMA_V2);
             }
             outro => panic!("schema 1 aceitou capacidade do schema 2: {rec}{rule} -> {outro:?}"),
         }
@@ -968,7 +976,10 @@ fn round_trip_canonico_da_receita_schema_1() {
         modelo, reinterpretado,
         "parse_recipe(render_recipe(x)) != x"
     );
-    assert_eq!(modelo.schema, RECIPE_SCHEMA);
+    assert_eq!(
+        modelo.schema, RECIPE_SCHEMA_V1,
+        "a fixture declara schema 1 e assim permanece"
+    );
     assert_eq!(
         modelo.relative_path(),
         ".pinker/projections/recipes/intermediaria.toml"
@@ -1027,9 +1038,9 @@ fn receita_rejeita_campos_que_pertencem_a_snapshot() {
 
 #[test]
 fn receita_com_schema_desconhecido_e_rejeitada() {
-    // `2` é válido para snapshot e inválido para receita: o diagnóstico precisa
+    // O conjunto aceito por cada autoridade é diferente; o diagnóstico precisa
     // falar do formato certo, e não do conjunto aceito pelo outro.
-    let texto = RECEITA_V1.replace("schema = 1", "schema = 2");
+    let texto = RECEITA_V1.replace("schema = 1", "schema = 9");
     match parse_recipe(&texto) {
         Err(erro @ HarnessFailure::SchemaUnknown { .. }) => {
             assert_eq!(erro.code(), "E-RECEITA-SCHEMA");
@@ -1039,11 +1050,11 @@ fn receita_com_schema_desconhecido_e_rejeitada() {
                 "a mensagem não identifica a autoridade: {msg}"
             );
             assert!(
-                msg.contains("aceita somente 1"),
+                msg.contains("aceita 1 ou 2"),
                 "a mensagem não diz o que a receita aceita: {msg}"
             );
             assert!(
-                !msg.contains("1 ou 2"),
+                !msg.contains("1, 2 ou 3"),
                 "a mensagem de receita citou o conjunto de snapshot: {msg}"
             );
         }
@@ -1059,18 +1070,18 @@ fn o_diagnostico_de_schema_e_separado_por_autoridade() {
     let msg = de_snapshot.to_string();
     assert!(msg.contains("desconhecido para snapshot"), "{msg}");
     assert!(
-        msg.contains("aceita 1 ou 2"),
-        "snapshot aceita as duas versões e a mensagem precisa dizer isso: {msg}"
-    );
-    assert!(
-        !msg.contains("somente"),
-        "a mensagem afirmou que snapshot aceita uma versão só: {msg}"
+        msg.contains("aceita 1, 2 ou 3"),
+        "snapshot aceita as três versões e a mensagem precisa dizer isso: {msg}"
     );
 
     let de_receita = parse_recipe(&RECEITA_V1.replace("schema = 1", "schema = 9"))
         .expect_err("schema 9 é inválido para receita");
     assert_eq!(de_receita.code(), "E-RECEITA-SCHEMA");
-    assert!(de_receita.to_string().contains("aceita somente 1"));
+    assert!(de_receita.to_string().contains("aceita 1 ou 2"));
+    assert!(
+        !de_receita.to_string().contains("1, 2 ou 3"),
+        "a receita citou o conjunto do snapshot"
+    );
 
     // Os dois códigos são distintos: um leitor de log separa as autoridades.
     assert_ne!(de_snapshot.code(), de_receita.code());
@@ -1293,4 +1304,541 @@ fn o_grafo_completo_resolve_snapshot_para_snapshot_para_receita_para_receita() {
         stable_projection(composicao.regions.iter()),
         stable_projection(apos_descendente.iter())
     );
+}
+
+// ---------------------------------------------------------------------------
+// override-region: schema 3 do snapshot, schema 2 da receita
+// ---------------------------------------------------------------------------
+
+fn regiao_alvo() -> Vec<CodeRegion> {
+    vec![region("a.um", "src/a.rs", "fnv1a64:0000000000000001")]
+}
+
+/// Constrói um snapshot schema 3 com um único `override-region`.
+fn snapshot_v3(regra: &str) -> String {
+    format!(
+        concat!(
+            "schema = 3\n",
+            "id = \"com-override-region\"\n",
+            "state = \"FROZEN\"\n",
+            "\n[reconstruction]\n",
+            "expected_overrides = 1\n",
+            "expected_exclusions = 0\n",
+            "\n[measures]\n",
+            "regions = 1\n",
+            "length = 1\n",
+            "fnv1a64 = \"fnv1a64:0000000000000000\"\n",
+            "\n[[rules]]\n",
+            "op = \"override-region\"\n",
+            "key = \"a.um\"\n",
+            "{}"
+        ),
+        regra
+    )
+}
+
+fn receita_v2(regra: &str) -> String {
+    format!(
+        concat!(
+            "schema = 2\n",
+            "id = \"com-override-region\"\n",
+            "\n[reconstruction]\n",
+            "expected_overrides = 1\n",
+            "expected_exclusions = 0\n",
+            "\n[[rules]]\n",
+            "op = \"override-region\"\n",
+            "key = \"a.um\"\n",
+            "{}"
+        ),
+        regra
+    )
+}
+
+const PAR_HASH: &str = concat!(
+    "from_hash = \"fnv1a64:0000000000000001\"\n",
+    "to_hash = \"fnv1a64:00000000000000ff\"\n",
+);
+const PAR_SUMMARY: &str = concat!(
+    "from_summary = \"Resumo de a.um.\"\n",
+    "to_summary = \"Resumo historico restaurado.\"\n",
+);
+
+/// Aplica uma regra isolada a uma região e devolve o resultado.
+fn aplicar_regra(regra: Rule, entrada: Vec<CodeRegion>) -> Result<Vec<CodeRegion>, HarnessFailure> {
+    let library = Library::new()
+        .with_snapshot(snapshot(
+            "isolado",
+            SnapshotState::Frozen,
+            medidas_de(&entrada),
+            None,
+            &[],
+            vec![regra],
+        ))
+        .unwrap();
+    resolve(&library, "isolado", &entrada).map(|c| c.regions)
+}
+
+fn override_region(
+    from_hash: Option<&str>,
+    to_hash: Option<&str>,
+    from_summary: Option<&str>,
+    to_summary: Option<&str>,
+) -> Rule {
+    Rule::OverrideRegion {
+        key: "a.um".to_string(),
+        from_hash: from_hash.map(str::to_string),
+        to_hash: to_hash.map(str::to_string),
+        from_summary: from_summary.map(str::to_string),
+        to_summary: to_summary.map(str::to_string),
+        expect_file: None,
+        expect_domain: None,
+        expect_layer: None,
+    }
+}
+
+#[test]
+fn snapshot_schema_2_rejeita_override_region_exigindo_schema_3() {
+    let texto = snapshot_v3(PAR_HASH).replace("schema = 3", "schema = 2");
+    match parse(&texto) {
+        Err(
+            erro @ HarnessFailure::CapabilityRequiresSchema {
+                authority: SchemaAuthority::Snapshot,
+                found_schema: SNAPSHOT_SCHEMA_V2,
+                required_schema: SNAPSHOT_SCHEMA_V3,
+                ..
+            },
+        ) => {
+            assert_eq!(erro.code(), "E-SNAP-CAPACIDADE-SCHEMA");
+            assert!(erro.to_string().contains("override-region"), "{erro}");
+            assert!(erro.to_string().contains("de snapshot"), "{erro}");
+        }
+        outro => panic!("esperada capacidade de schema 3, veio {outro:?}"),
+    }
+}
+
+#[test]
+fn recipe_schema_1_rejeita_override_region_exigindo_schema_2() {
+    let texto = receita_v2(PAR_HASH).replace("schema = 2", "schema = 1");
+    match parse_recipe(&texto) {
+        Err(
+            erro @ HarnessFailure::CapabilityRequiresSchema {
+                authority: SchemaAuthority::Recipe,
+                found_schema: 1,
+                required_schema: 2,
+                ..
+            },
+        ) => {
+            assert_eq!(erro.code(), "E-RECEITA-CAPACIDADE-SCHEMA");
+            assert!(erro.to_string().contains("de receita"), "{erro}");
+        }
+        outro => panic!("esperada capacidade de receita 2, veio {outro:?}"),
+    }
+}
+
+#[test]
+fn a_matriz_de_capacidades_e_por_autoridade() {
+    // `exclude-file` e `exclude-key-prefix` chegaram ao snapshot no 2, mas o
+    // formato de receita nasceu depois e já as trouxe no 1.
+    let casos: [(Rule, u64, u64); 6] = [
+        (excluir("x"), 1, 1),
+        (
+            Rule::ExcludeFilePrefix {
+                prefix: "apps/".to_string(),
+                expected_matches: 1,
+            },
+            1,
+            1,
+        ),
+        (excluir_arquivo("src/a.rs", 1), 2, 1),
+        (excluir_prefixo_de_chave("a.", 1), 2, 1),
+        (
+            override_hash(
+                "a.um",
+                "fnv1a64:0000000000000001",
+                "fnv1a64:00000000000000ff",
+            ),
+            1,
+            1,
+        ),
+        (
+            override_region(
+                Some("fnv1a64:0000000000000001"),
+                Some("fnv1a64:00000000000000ff"),
+                None,
+                None,
+            ),
+            3,
+            2,
+        ),
+    ];
+    for (regra, snap, rec) in casos {
+        assert_eq!(
+            regra.min_schema(SchemaAuthority::Snapshot),
+            snap,
+            "matriz de snapshot errada para {}",
+            regra.op()
+        );
+        assert_eq!(
+            regra.min_schema(SchemaAuthority::Recipe),
+            rec,
+            "matriz de receita errada para {}",
+            regra.op()
+        );
+    }
+}
+
+#[test]
+fn snapshot_schema_3_faz_round_trip_canonico_com_override_region() {
+    let texto = snapshot_v3(&format!(
+        "{PAR_HASH}{PAR_SUMMARY}expect_file = \"src/a.rs\"\nexpect_domain = \"dominio\"\nexpect_layer = \"camada\"\n"
+    ));
+    let modelo = parse(&texto).expect("schema 3 válido");
+    assert_eq!(modelo.schema, SNAPSHOT_SCHEMA_V3);
+    let renderizado = render(&modelo);
+    assert_eq!(parse(&renderizado).expect("reparse"), modelo);
+    assert_eq!(render(&parse(&renderizado).unwrap()), renderizado);
+}
+
+#[test]
+fn recipe_schema_2_faz_round_trip_canonico_com_override_region() {
+    let texto = receita_v2(&format!("{PAR_HASH}{PAR_SUMMARY}"));
+    let modelo = parse_recipe(&texto).expect("receita schema 2 válida");
+    assert_eq!(modelo.schema, 2);
+    let renderizado = render_recipe(&modelo);
+    assert_eq!(parse_recipe(&renderizado).expect("reparse"), modelo);
+    assert_eq!(
+        render_recipe(&parse_recipe(&renderizado).unwrap()),
+        renderizado
+    );
+}
+
+#[test]
+fn restauracao_somente_de_summary_funciona() {
+    let saida = aplicar_regra(
+        override_region(
+            None,
+            None,
+            Some("Resumo de a.um."),
+            Some("Resumo historico."),
+        ),
+        regiao_alvo(),
+    )
+    .expect("summary sozinho é válido");
+    assert_eq!(saida[0].summary, "Resumo historico.");
+    assert_eq!(
+        saida[0].hash, "fnv1a64:0000000000000001",
+        "o hash não podia ter sido tocado"
+    );
+}
+
+#[test]
+fn restauracao_de_hash_e_summary_e_uma_unica_regra() {
+    let saida = aplicar_regra(
+        override_region(
+            Some("fnv1a64:0000000000000001"),
+            Some("fnv1a64:00000000000000ff"),
+            Some("Resumo de a.um."),
+            Some("Resumo historico."),
+        ),
+        regiao_alvo(),
+    )
+    .expect("os dois campos juntos");
+    assert_eq!(saida[0].hash, "fnv1a64:00000000000000ff");
+    assert_eq!(saida[0].summary, "Resumo historico.");
+}
+
+#[test]
+fn expected_overrides_conta_por_regra_e_nao_por_campo() {
+    // Uma regra que restaura dois campos continua sendo uma regra.
+    let texto = snapshot_v3(&format!("{PAR_HASH}{PAR_SUMMARY}"));
+    let modelo = parse(&texto).expect("válido");
+    assert_eq!(modelo.expected_overrides, 1);
+    assert_eq!(modelo.rules.len(), 1);
+    assert!(modelo.rules[0].is_override());
+
+    // Declarar 2 seria override ausente, não "dois campos".
+    let dois = texto.replace("expected_overrides = 1", "expected_overrides = 2");
+    assert!(matches!(
+        parse(&dois),
+        Err(HarnessFailure::OverrideMissing {
+            declared: 2,
+            found: 1
+        })
+    ));
+}
+
+#[test]
+fn par_de_hash_incompleto_e_rejeitado() {
+    for regra in [
+        "from_hash = \"fnv1a64:0000000000000001\"\n",
+        "to_hash = \"fnv1a64:00000000000000ff\"\n",
+    ] {
+        match parse(&snapshot_v3(&format!("{regra}{PAR_SUMMARY}"))) {
+            Err(HarnessFailure::OverrideRegionPairInvalid { msg, .. }) => {
+                assert!(msg.contains("from_hash"), "{msg}");
+            }
+            outro => panic!("meio par de hash aceito: {outro:?}"),
+        }
+    }
+}
+
+#[test]
+fn par_de_summary_incompleto_e_rejeitado() {
+    for regra in ["from_summary = \"x\"\n", "to_summary = \"y\"\n"] {
+        match parse(&snapshot_v3(&format!("{PAR_HASH}{regra}"))) {
+            Err(HarnessFailure::OverrideRegionPairInvalid { msg, .. }) => {
+                assert!(msg.contains("from_summary"), "{msg}");
+            }
+            outro => panic!("meio par de summary aceito: {outro:?}"),
+        }
+    }
+}
+
+#[test]
+fn regra_sem_nenhum_par_e_rejeitada() {
+    match parse(&snapshot_v3("expect_file = \"src/a.rs\"\n")) {
+        Err(HarnessFailure::OverrideRegionPairInvalid { key, msg }) => {
+            assert_eq!(key, "a.um");
+            assert!(msg.contains("ao menos um par"), "{msg}");
+        }
+        outro => panic!("regra sem par aceita: {outro:?}"),
+    }
+}
+
+#[test]
+fn hash_corrente_divergente_falha_antes_da_mutacao() {
+    let erro = aplicar_regra(
+        override_region(
+            Some("fnv1a64:00000000000000aa"),
+            Some("fnv1a64:00000000000000ff"),
+            Some("Resumo de a.um."),
+            Some("Resumo historico."),
+        ),
+        regiao_alvo(),
+    )
+    .expect_err("hash divergente");
+    assert!(matches!(erro, HarnessFailure::OverrideStaleBase { .. }));
+    assert_eq!(erro.code(), "E-SNAP-OVERRIDE-BASE");
+}
+
+#[test]
+fn summary_corrente_divergente_falha_antes_da_mutacao() {
+    let erro = aplicar_regra(
+        override_region(
+            Some("fnv1a64:0000000000000001"),
+            Some("fnv1a64:00000000000000ff"),
+            Some("Resumo que nao e o corrente."),
+            Some("Resumo historico."),
+        ),
+        regiao_alvo(),
+    )
+    .expect_err("summary divergente");
+    match &erro {
+        HarnessFailure::OverrideStaleSummary { key, .. } => assert_eq!(key, "a.um"),
+        outro => panic!("esperado summary divergente, veio {outro:?}"),
+    }
+    assert_eq!(erro.code(), "E-SNAP-OVERRIDE-SUMMARY");
+}
+
+#[test]
+fn com_dois_campos_declarados_nenhum_e_alterado_se_uma_precondicao_falhar() {
+    // O hash confere, o summary não. Nenhum dos dois pode ser tocado — é isto
+    // que significa "atômica no sentido lógico da regra".
+    let entrada = regiao_alvo();
+    let erro = aplicar_regra(
+        override_region(
+            Some("fnv1a64:0000000000000001"),
+            Some("fnv1a64:00000000000000ff"),
+            Some("Resumo errado."),
+            Some("Resumo historico."),
+        ),
+        entrada.clone(),
+    )
+    .expect_err("uma precondição falha");
+    assert!(matches!(erro, HarnessFailure::OverrideStaleSummary { .. }));
+
+    // A entrada segue intacta: a falha aconteceu antes da fase de mutação.
+    assert_eq!(entrada[0].hash, "fnv1a64:0000000000000001");
+    assert_eq!(entrada[0].summary, "Resumo de a.um.");
+
+    // E a ordem inversa também: summary confere, hash não.
+    let erro = aplicar_regra(
+        override_region(
+            Some("fnv1a64:00000000000000aa"),
+            Some("fnv1a64:00000000000000ff"),
+            Some("Resumo de a.um."),
+            Some("Resumo historico."),
+        ),
+        entrada.clone(),
+    )
+    .expect_err("a outra precondição falha");
+    assert!(matches!(erro, HarnessFailure::OverrideStaleBase { .. }));
+    assert_eq!(entrada[0].summary, "Resumo de a.um.");
+}
+
+#[test]
+fn expectativa_de_identidade_protege_antes_da_mutacao() {
+    let entrada = regiao_alvo();
+    for (campo, regra) in [
+        (
+            "file",
+            Rule::OverrideRegion {
+                key: "a.um".to_string(),
+                from_hash: Some("fnv1a64:0000000000000001".to_string()),
+                to_hash: Some("fnv1a64:00000000000000ff".to_string()),
+                from_summary: None,
+                to_summary: None,
+                expect_file: Some("src/outro.rs".to_string()),
+                expect_domain: None,
+                expect_layer: None,
+            },
+        ),
+        (
+            "domain",
+            Rule::OverrideRegion {
+                key: "a.um".to_string(),
+                from_hash: Some("fnv1a64:0000000000000001".to_string()),
+                to_hash: Some("fnv1a64:00000000000000ff".to_string()),
+                from_summary: None,
+                to_summary: None,
+                expect_file: None,
+                expect_domain: Some("outro".to_string()),
+                expect_layer: None,
+            },
+        ),
+        (
+            "layer",
+            Rule::OverrideRegion {
+                key: "a.um".to_string(),
+                from_hash: Some("fnv1a64:0000000000000001".to_string()),
+                to_hash: Some("fnv1a64:00000000000000ff".to_string()),
+                from_summary: None,
+                to_summary: None,
+                expect_file: None,
+                expect_domain: None,
+                expect_layer: Some("outra".to_string()),
+            },
+        ),
+    ] {
+        let erro = aplicar_regra(regra, entrada.clone()).expect_err("identidade divergente");
+        let esperado = matches!(
+            erro,
+            HarnessFailure::PathChanged { .. } | HarnessFailure::MetadataChanged { .. }
+        );
+        assert!(esperado, "campo {campo}: veio {erro:?}");
+        assert_eq!(
+            entrada[0].hash, "fnv1a64:0000000000000001",
+            "mutou mesmo assim"
+        );
+    }
+}
+
+#[test]
+fn duas_regras_de_override_para_a_mesma_key_continuam_rejeitadas() {
+    // Mesmo misturando as duas operações de override.
+    let texto = format!(
+        "{}\n[[rules]]\nop = \"override-hash\"\nkey = \"a.um\"\nfrom = \"fnv1a64:00000000000000ff\"\nto = \"fnv1a64:00000000000000bb\"\n",
+        snapshot_v3(PAR_HASH).replace("expected_overrides = 1", "expected_overrides = 2")
+    );
+    assert!(matches!(
+        parse(&texto),
+        Err(HarnessFailure::OverrideRepeated { .. })
+    ));
+}
+
+#[test]
+fn override_hash_mantem_a_semantica_anterior() {
+    // A operação antiga não mudou: continua schema 1 nas duas autoridades e
+    // continua tocando apenas o hash.
+    let regra = override_hash(
+        "a.um",
+        "fnv1a64:0000000000000001",
+        "fnv1a64:00000000000000ff",
+    );
+    assert_eq!(regra.min_schema(SchemaAuthority::Snapshot), 1);
+    assert_eq!(regra.min_schema(SchemaAuthority::Recipe), 1);
+    let saida = aplicar_regra(regra, regiao_alvo()).expect("override-hash segue válido");
+    assert_eq!(saida[0].hash, "fnv1a64:00000000000000ff");
+    assert_eq!(saida[0].summary, "Resumo de a.um.", "summary foi tocado");
+}
+
+#[test]
+fn schemas_1_e_2_de_snapshot_seguem_compativeis() {
+    // O schema 1 continua sendo lista plana sem composição.
+    let s1 = parse(VALID_SCHEMA_1).expect("schema 1 válido");
+    assert_eq!(s1.schema, SNAPSHOT_SCHEMA_V1);
+    assert_eq!(s1.base_snapshot, None);
+    assert!(s1.recipes.is_empty());
+    assert_eq!(render(&s1), render(&parse(&render(&s1)).unwrap()));
+
+    // O schema 2 continua com composição e sem override-region.
+    let s2 = parse(SNAPSHOT_V2).expect("schema 2 válido");
+    assert_eq!(s2.schema, SNAPSHOT_SCHEMA_V2);
+    assert_eq!(s2.base_snapshot.as_deref(), Some("a-base"));
+    assert_eq!(parse(&render(&s2)).expect("round-trip"), s2);
+    assert!(!s2.rules.iter().any(|r| r.op() == "override-region"));
+
+    // E o schema 2 segue recusando as capacidades do 3.
+    assert!(matches!(
+        parse(&snapshot_v3(PAR_HASH).replace("schema = 3", "schema = 2")),
+        Err(HarnessFailure::CapabilityRequiresSchema { .. })
+    ));
+}
+
+#[test]
+fn schema_1_de_recipe_segue_compativel() {
+    let r1 = parse_recipe(RECEITA_V1).expect("receita schema 1 válida");
+    assert_eq!(r1.schema, 1);
+    assert_eq!(parse_recipe(&render_recipe(&r1)).expect("round-trip"), r1);
+    // E o schema 1 recusa a capacidade do 2.
+    assert!(matches!(
+        parse_recipe(&receita_v2(PAR_HASH).replace("schema = 2", "schema = 1")),
+        Err(HarnessFailure::CapabilityRequiresSchema { .. })
+    ));
+}
+
+#[test]
+fn override_region_consome_exatamente_uma_regiao() {
+    let library = Library::new()
+        .with_snapshot(snapshot(
+            "consumo",
+            SnapshotState::Frozen,
+            medidas_de(&regiao_alvo()),
+            None,
+            &[],
+            vec![override_region(
+                Some("fnv1a64:0000000000000001"),
+                Some("fnv1a64:00000000000000ff"),
+                Some("Resumo de a.um."),
+                Some("Resumo historico."),
+            )],
+        ))
+        .unwrap();
+    let composicao = resolve(&library, "consumo", &regiao_alvo()).expect("válido");
+    let total: usize = composicao.ledger.iter().map(|e| e.entries.len()).sum();
+    assert_eq!(
+        total, 1,
+        "uma regra, um consumo — mesmo restaurando dois campos"
+    );
+    let entrada = &composicao.ledger[0].entries[0];
+    assert_eq!(entrada.op, "override-region");
+    assert_eq!((entrada.expected, entrada.consumed), (1, 1));
+}
+
+#[test]
+fn override_region_com_seletor_sem_correspondencia_falha() {
+    let regra = Rule::OverrideRegion {
+        key: "nao.existe".to_string(),
+        from_hash: Some("fnv1a64:0000000000000001".to_string()),
+        to_hash: Some("fnv1a64:00000000000000ff".to_string()),
+        from_summary: None,
+        to_summary: None,
+        expect_file: None,
+        expect_domain: None,
+        expect_layer: None,
+    };
+    assert!(matches!(
+        aplicar_regra(regra, regiao_alvo()),
+        Err(HarnessFailure::RegionRemoved { .. })
+    ));
 }

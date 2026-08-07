@@ -44,8 +44,15 @@ use crate::nav_projection_snapshot::{
 };
 use std::collections::BTreeMap;
 
-/// Versão do formato de receita. Independente do formato de snapshot.
-pub const RECIPE_SCHEMA: u64 = 1;
+/// Primeira versão do formato de receita.
+pub const RECIPE_SCHEMA_V1: u64 = 1;
+
+/// Segunda versão: acrescenta `override-region`, pela mesma razão histórica que
+/// levou o snapshot ao schema 3 — a reconstrução real restaura `summary`.
+pub const RECIPE_SCHEMA_V2: u64 = 2;
+
+/// Versão máxima aceita do formato de receita.
+pub const RECIPE_SCHEMA: u64 = RECIPE_SCHEMA_V2;
 
 /// Diretório repo-relativo canônico das receitas.
 pub const RECIPES_DIR: &str = ".pinker/projections/recipes/";
@@ -125,7 +132,7 @@ pub fn parse_recipe(text: &str) -> Result<Recipe, HarnessFailure> {
             })
         }
     };
-    if schema != RECIPE_SCHEMA {
+    if !(RECIPE_SCHEMA_V1..=RECIPE_SCHEMA_V2).contains(&schema) {
         return Err(HarnessFailure::SchemaUnknown {
             authority: SchemaAuthority::Recipe,
             found: schema,
@@ -165,9 +172,21 @@ pub fn parse_recipe(text: &str) -> Result<Recipe, HarnessFailure> {
 
     let mut rules = Vec::with_capacity(raw.rules.len());
     for (index, table) in raw.rules.iter().enumerate() {
-        rules.push(build_rule(table, index)?);
+        let rule = build_rule(table, index)?;
+        // A matriz de capacidades é por autoridade: a mesma operação pode exigir
+        // versões diferentes em snapshot e em receita.
+        let exigido = rule.min_schema(SchemaAuthority::Recipe);
+        if exigido > schema {
+            return Err(HarnessFailure::CapabilityRequiresSchema {
+                authority: SchemaAuthority::Recipe,
+                capability: format!("op '{}'", rule.op()),
+                found_schema: schema,
+                required_schema: exigido,
+            });
+        }
+        rules.push(rule);
     }
-    let encontrados_override = rules.iter().filter(|r| r.op() == "override-hash").count() as u64;
+    let encontrados_override = rules.iter().filter(|r| r.is_override()).count() as u64;
     let encontradas_exclusoes = rules.len() as u64 - encontrados_override;
     if expected_overrides != encontrados_override {
         return Err(if expected_overrides > encontrados_override {

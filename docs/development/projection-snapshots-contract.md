@@ -301,13 +301,91 @@ Um arquivo que declara `schema = 1` continua sendo lista plana. Usar
 `base_snapshot`, `recipes`, `exclude-file` ou `exclude-key-prefix` nele é falha
 explícita — `E-SNAP-CAPACIDADE-SCHEMA` — e nunca interpretação silenciosa.
 
-## Operações por versão
+## Matriz de capacidades
 
-| Operação | snapshot 1 | snapshot 2 | receita 1 |
-|---|:-:|:-:|:-:|
-| `override-hash` | sim | sim | sim |
-| `exclude-key` | sim | sim | sim |
-| `exclude-file-prefix` | sim | sim | sim |
-| `exclude-file` | não | sim | sim |
-| `exclude-key-prefix` | não | sim | sim |
+A versão mínima de cada operação depende da **autoridade**: os dois formatos
+evoluíram em ritmos diferentes. `exclude-file` e `exclude-key-prefix` chegaram ao
+snapshot no schema 2, mas o formato de receita nasceu depois e já as trouxe na
+primeira versão.
+
+| Operação | snapshot | receita |
+|---|---:|---:|
+| `override-hash` | 1 | 1 |
+| `exclude-key` | 1 | 1 |
+| `exclude-file-prefix` | 1 | 1 |
+| `exclude-file` | 2 | 1 |
+| `exclude-key-prefix` | 2 | 1 |
+| `override-region` | 3 | 2 |
+
+Usar uma capacidade acima da versão declarada é `E-SNAP-CAPACIDADE-SCHEMA` ou
+`E-RECEITA-CAPACIDADE-SCHEMA`, e o diagnóstico carrega autoridade, capacidade,
+versão encontrada e versão exigida — não uma regra fixa numa versão específica.
+
+## `override-region`
+
+A reconstrução histórica real restaura `region.summary`, e `summary` participa da
+projeção estável. O schema 2 só sabia alterar `hash`: ele não conseguia
+representar a própria história que deveria migrar. `override-region` existe para
+isso, e **apenas** para isso.
+
+Restaura, de uma única região selecionada por `key`, somente:
+
+- `hash`
+- `summary`
+
+Não é uma operação genérica de campo. A allowlist é essa, e é fechada.
+
+```toml
+[[rules]]
+op = "override-region"
+key = "camada.dominio.regiao"
+
+from_hash = "fnv1a64:0000000000000001"
+to_hash = "fnv1a64:00000000000000ff"
+
+from_summary = "texto corrente"
+to_summary = "texto histórico"
+
+expect_file = "src/exemplo.rs"
+expect_domain = "dominio"
+expect_layer = "camada"
+```
+
+### Pares
+
+Cada par `from`/`to` é individualmente opcional, mas:
+
+- ao menos um par completo precisa existir;
+- `from_hash` sem `to_hash`, ou o inverso, é inválido;
+- `from_summary` sem `to_summary`, ou o inverso, é inválido.
+
+Meio par não descreve restauração: um `from` sozinho não muda nada, e um `to`
+sozinho seria mutação sem precondição.
+
+### Atômica no sentido lógico da regra
+
+A aplicação tem duas fases, nesta ordem:
+
+1. **validação** — identidade (`expect_file`, `expect_domain`, `expect_layer`) e
+   **todos** os `from` declarados;
+2. **mutação** — só se a primeira fase inteira passar.
+
+Uma regra que restaura dois campos nunca deixa metade aplicada. Se o hash
+confere e o summary não, nada é tocado; e vice-versa. Qualquer divergência é
+`HARNESS_FAILURE`, nunca drift.
+
+### Consumo
+
+Uma regra bem-sucedida consome exatamente uma região. `override-region` conta
+como **uma** regra de override em `expected_overrides`, independentemente de
+restaurar um ou dois campos — o orçamento é por regra, não por campo. Duas
+regras de override para a mesma `key` continuam proibidas no mesmo escopo,
+inclusive misturando `override-hash` e `override-region`.
+
+### Quando usar cada uma
+
+`override-hash` continua existindo com exatamente a semântica anterior. Use-a
+para restaurações exclusivamente de hash, quando isso representar naturalmente o
+legado. Use `override-region` quando houver restauração de `summary`, isolada ou
+junto de `hash`.
 <!-- @pinker-doc:end development.projection-snapshots-contract.composicao -->

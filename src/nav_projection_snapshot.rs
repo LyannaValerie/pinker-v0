@@ -57,8 +57,16 @@ pub const SNAPSHOT_SCHEMA_V1: u64 = 1;
 /// nele é falha de harness, não interpretação silenciosa.
 pub const SNAPSHOT_SCHEMA_V2: u64 = 2;
 
-/// Versão máxima aceita.
-pub const SNAPSHOT_SCHEMA: u64 = SNAPSHOT_SCHEMA_V2;
+/// Terceira versão: acrescenta `override-region`, a restauração atômica de
+/// `hash` e `summary` de uma mesma região.
+///
+/// Existe porque a reconstrução histórica real restaura `summary`, e `summary`
+/// participa da projeção estável: sem essa operação, o formato não consegue
+/// representar a própria história que deveria migrar.
+pub const SNAPSHOT_SCHEMA_V3: u64 = 3;
+
+/// Versão máxima aceita do formato de snapshot.
+pub const SNAPSHOT_SCHEMA: u64 = SNAPSHOT_SCHEMA_V3;
 
 /// Prefixo canônico do hash FNV-1a 64 usado pela Trama.
 pub const FNV_PREFIX: &str = "fnv1a64:";
@@ -93,8 +101,8 @@ impl SchemaAuthority {
     /// Versões que este formato suporta, em texto.
     pub fn supported_versions(&self) -> &'static str {
         match self {
-            SchemaAuthority::Snapshot => "1 ou 2",
-            SchemaAuthority::Recipe => "somente 1",
+            SchemaAuthority::Snapshot => "1, 2 ou 3",
+            SchemaAuthority::Recipe => "1 ou 2",
         }
     }
 
@@ -195,6 +203,29 @@ pub enum Rule {
         prefix: String,
         expected_matches: u64,
     },
+    /// Restauração atômica de uma única região, selecionada por `key`.
+    ///
+    /// Restaura `hash`, `summary`, ou os dois — e nada além disso. Cada par
+    /// `from`/`to` é individualmente opcional, mas ao menos um par completo
+    /// precisa existir, e meio par é inválido.
+    ///
+    /// "Atômica" no sentido lógico da regra: **todas** as precondições — as
+    /// expectativas de identidade e todos os `from` declarados — são validadas
+    /// antes de qualquer campo ser alterado. Uma regra que restaura dois campos
+    /// nunca deixa metade aplicada.
+    ///
+    /// Conta como **uma** regra de override, independentemente de alterar um ou
+    /// dois campos.
+    OverrideRegion {
+        key: String,
+        from_hash: Option<String>,
+        to_hash: Option<String>,
+        from_summary: Option<String>,
+        to_summary: Option<String>,
+        expect_file: Option<String>,
+        expect_domain: Option<String>,
+        expect_layer: Option<String>,
+    },
 }
 
 impl Rule {
@@ -206,14 +237,36 @@ impl Rule {
             Rule::ExcludeFilePrefix { .. } => "exclude-file-prefix",
             Rule::ExcludeFile { .. } => "exclude-file",
             Rule::ExcludeKeyPrefix { .. } => "exclude-key-prefix",
+            Rule::OverrideRegion { .. } => "override-region",
         }
     }
 
-    /// A partir de qual versão do formato de snapshot a operação existe.
-    pub fn since_schema(&self) -> u64 {
-        match self {
-            Rule::ExcludeFile { .. } | Rule::ExcludeKeyPrefix { .. } => SNAPSHOT_SCHEMA_V2,
-            _ => SNAPSHOT_SCHEMA_V1,
+    /// Versão mínima que suporta esta operação **na autoridade indicada**.
+    ///
+    /// A matriz é por autoridade porque os dois formatos evoluíram em ritmos
+    /// diferentes: `exclude-file` e `exclude-key-prefix` chegaram ao snapshot no
+    /// schema 2, mas o formato de receita nasceu depois e já as trouxe na
+    /// primeira versão.
+    ///
+    /// | operação | snapshot | receita |
+    /// |---|---:|---:|
+    /// | `override-hash` | 1 | 1 |
+    /// | `exclude-key` | 1 | 1 |
+    /// | `exclude-file-prefix` | 1 | 1 |
+    /// | `exclude-file` | 2 | 1 |
+    /// | `exclude-key-prefix` | 2 | 1 |
+    /// | `override-region` | 3 | 2 |
+    pub fn min_schema(&self, authority: SchemaAuthority) -> u64 {
+        match (self, authority) {
+            (Rule::OverrideHash { .. }, _) => 1,
+            (Rule::ExcludeKey { .. }, _) => 1,
+            (Rule::ExcludeFilePrefix { .. }, _) => 1,
+            (Rule::ExcludeFile { .. }, SchemaAuthority::Snapshot) => SNAPSHOT_SCHEMA_V2,
+            (Rule::ExcludeFile { .. }, SchemaAuthority::Recipe) => 1,
+            (Rule::ExcludeKeyPrefix { .. }, SchemaAuthority::Snapshot) => SNAPSHOT_SCHEMA_V2,
+            (Rule::ExcludeKeyPrefix { .. }, SchemaAuthority::Recipe) => 1,
+            (Rule::OverrideRegion { .. }, SchemaAuthority::Snapshot) => SNAPSHOT_SCHEMA_V3,
+            (Rule::OverrideRegion { .. }, SchemaAuthority::Recipe) => 2,
         }
     }
 
@@ -225,6 +278,7 @@ impl Rule {
             Rule::ExcludeFilePrefix { prefix, .. } => prefix.as_str(),
             Rule::ExcludeFile { file, .. } => file.as_str(),
             Rule::ExcludeKeyPrefix { prefix, .. } => prefix.as_str(),
+            Rule::OverrideRegion { key, .. } => key.as_str(),
         }
     }
 
@@ -244,11 +298,20 @@ impl Rule {
             Rule::ExcludeKeyPrefix {
                 expected_matches, ..
             } => *expected_matches,
+            Rule::OverrideRegion { .. } => 1,
         }
     }
 
-    fn is_override(&self) -> bool {
-        matches!(self, Rule::OverrideHash { .. })
+    /// Verdadeiro para as operações que restauram campos de uma região.
+    ///
+    /// `override-region` conta como **uma** regra de override, independentemente
+    /// de restaurar um ou dois campos: o orçamento declarado é por regra, não
+    /// por campo.
+    pub fn is_override(&self) -> bool {
+        matches!(
+            self,
+            Rule::OverrideHash { .. } | Rule::OverrideRegion { .. }
+        )
     }
 
     /// Ordem canônica entre operações: exclusões antes de overrides, que é
@@ -260,6 +323,7 @@ impl Rule {
             Rule::ExcludeFile { .. } => 2,
             Rule::ExcludeFilePrefix { .. } => 3,
             Rule::OverrideHash { .. } => 4,
+            Rule::OverrideRegion { .. } => 5,
         }
     }
 }
@@ -394,6 +458,14 @@ pub enum HarnessFailure {
         expected: String,
         found: String,
     },
+    /// Summary corrente da região divergente do `from_summary` declarado.
+    OverrideStaleSummary {
+        key: String,
+        expected: String,
+        found: String,
+    },
+    /// `override-region` sem nenhum par completo, ou com meio par.
+    OverrideRegionPairInvalid { key: String, msg: String },
     /// Hash corrente da região divergente do `from` declarado.
     OverrideStaleBase {
         key: String,
@@ -422,8 +494,16 @@ pub enum HarnessFailure {
     FrozenDependsOnCandidate { frozen: String, candidate: String },
     /// Receita declarando campo que pertence exclusivamente a snapshot.
     RecipeHasSnapshotField { field: String },
-    /// Capacidade de schema 2 usada num arquivo que declara schema 1.
-    CapabilityRequiresSchema2 { capability: String, found: u64 },
+    /// Capacidade usada num arquivo cuja versão não a suporta.
+    ///
+    /// Carrega a autoridade porque os dois formatos têm matrizes próprias: a
+    /// mesma capacidade pode exigir versões diferentes em snapshot e em receita.
+    CapabilityRequiresSchema {
+        authority: SchemaAuthority,
+        capability: String,
+        found_schema: u64,
+        required_schema: u64,
+    },
     /// Snapshot que declara a si mesmo como base.
     SelfBase { id: String },
     /// Receita que declara a si mesma como passo.
@@ -469,6 +549,8 @@ impl HarnessFailure {
             HarnessFailure::OverrideNotConsumed { .. } => "E-SNAP-OVERRIDE-NAO-CONSUMIDO",
             HarnessFailure::PathChanged { .. } => "E-SNAP-PATH-ALTERADO",
             HarnessFailure::MetadataChanged { .. } => "E-SNAP-METADATA-ALTERADA",
+            HarnessFailure::OverrideStaleSummary { .. } => "E-SNAP-OVERRIDE-SUMMARY",
+            HarnessFailure::OverrideRegionPairInvalid { .. } => "E-SNAP-OVERRIDE-PAR",
             HarnessFailure::OverrideStaleBase { .. } => "E-SNAP-OVERRIDE-BASE",
             HarnessFailure::ExclusionNoMatch { .. } => "E-SNAP-EXCLUSAO-SEM-CORRESPONDENCIA",
             HarnessFailure::DuplicateSnapshot { .. } => "E-SNAP-SNAPSHOT-DUPLICADO",
@@ -479,7 +561,10 @@ impl HarnessFailure {
             HarnessFailure::BaseMeasuresDiverged { .. } => "E-SNAP-BASE-DIVERGENTE",
             HarnessFailure::FrozenDependsOnCandidate { .. } => "E-SNAP-CONGELADO-SOBRE-CANDIDATO",
             HarnessFailure::RecipeHasSnapshotField { .. } => "E-SNAP-RECEITA-CAMPO-DE-SNAPSHOT",
-            HarnessFailure::CapabilityRequiresSchema2 { .. } => "E-SNAP-CAPACIDADE-SCHEMA",
+            HarnessFailure::CapabilityRequiresSchema { authority, .. } => match authority {
+                SchemaAuthority::Snapshot => "E-SNAP-CAPACIDADE-SCHEMA",
+                SchemaAuthority::Recipe => "E-RECEITA-CAPACIDADE-SCHEMA",
+            },
             HarnessFailure::SelfBase { .. } => "E-SNAP-BASE-PROPRIA",
             HarnessFailure::RecipeSelfStep { .. } => "E-RECEITA-PASSO-PROPRIO",
             HarnessFailure::ExclusionPartiallyConsumed { .. } => "E-SNAP-EXCLUSAO-PARCIAL",
@@ -611,6 +696,20 @@ impl fmt::Display for HarnessFailure {
                 "metadata alterada na região '{}': '{}' esperado '{}', encontrado '{}'",
                 key, field, expected, found
             ),
+            HarnessFailure::OverrideStaleSummary {
+                key,
+                expected,
+                found,
+            } => write!(
+                f,
+                "summary corrente da região '{}' divergente: esperado '{}', encontrado '{}'",
+                key, expected, found
+            ),
+            HarnessFailure::OverrideRegionPairInvalid { key, msg } => write!(
+                f,
+                "override-region de '{}' inválido: {}",
+                key, msg
+            ),
             HarnessFailure::OverrideStaleBase {
                 key,
                 expected,
@@ -665,10 +764,18 @@ impl fmt::Display for HarnessFailure {
                 "receita declara '{}', que pertence a snapshot: receita não tem medidas, estado nem predecessor",
                 field
             ),
-            HarnessFailure::CapabilityRequiresSchema2 { capability, found } => write!(
+            HarnessFailure::CapabilityRequiresSchema {
+                authority,
+                capability,
+                found_schema,
+                required_schema,
+            } => write!(
                 f,
-                "'{}' exige schema {}; o arquivo declara schema {}",
-                capability, SNAPSHOT_SCHEMA_V2, found
+                "'{}' exige schema {} de {}; o arquivo declara schema {}",
+                capability,
+                required_schema,
+                authority.as_str(),
+                found_schema
             ),
             HarnessFailure::SelfBase { id } => {
                 write!(f, "snapshot '{}' declara a si mesmo como base", id)
@@ -1076,11 +1183,15 @@ const RECONSTRUCTION_KEYS: [&str; 4] = [
     "recipes",
 ];
 const MEASURES_KEYS: [&str; 3] = ["regions", "length", "fnv1a64"];
-const RULE_KEYS: [&str; 10] = [
+const RULE_KEYS: [&str; 14] = [
     "op",
     "key",
     "from",
     "to",
+    "from_hash",
+    "to_hash",
+    "from_summary",
+    "to_summary",
     "expect_file",
     "expect_domain",
     "expect_layer",
@@ -1259,7 +1370,7 @@ fn build(raw: RawDocument) -> Result<ProjectionSnapshot, HarnessFailure> {
             })
         }
     };
-    if schema != SNAPSHOT_SCHEMA_V1 && schema != SNAPSHOT_SCHEMA_V2 {
+    if !(SNAPSHOT_SCHEMA_V1..=SNAPSHOT_SCHEMA_V3).contains(&schema) {
         return Err(HarnessFailure::SchemaUnknown {
             authority: SchemaAuthority::Snapshot,
             found: schema,
@@ -1335,15 +1446,19 @@ fn build(raw: RawDocument) -> Result<ProjectionSnapshot, HarnessFailure> {
     let recipes = optional_list(&reconstruction_table, "recipes", "reconstruction.")?;
     if schema < SNAPSHOT_SCHEMA_V2 {
         if base_snapshot.is_some() {
-            return Err(HarnessFailure::CapabilityRequiresSchema2 {
+            return Err(HarnessFailure::CapabilityRequiresSchema {
+                authority: SchemaAuthority::Snapshot,
                 capability: "reconstruction.base_snapshot".to_string(),
-                found: schema,
+                found_schema: schema,
+                required_schema: SNAPSHOT_SCHEMA_V2,
             });
         }
         if !recipes.is_empty() {
-            return Err(HarnessFailure::CapabilityRequiresSchema2 {
+            return Err(HarnessFailure::CapabilityRequiresSchema {
+                authority: SchemaAuthority::Snapshot,
                 capability: "reconstruction.recipes".to_string(),
-                found: schema,
+                found_schema: schema,
+                required_schema: SNAPSHOT_SCHEMA_V2,
             });
         }
     }
@@ -1366,10 +1481,13 @@ fn build(raw: RawDocument) -> Result<ProjectionSnapshot, HarnessFailure> {
     let mut rules = Vec::with_capacity(raw.rules.len());
     for (index, table) in raw.rules.iter().enumerate() {
         let rule = build_rule(table, index)?;
-        if rule.since_schema() > schema {
-            return Err(HarnessFailure::CapabilityRequiresSchema2 {
+        let exigido = rule.min_schema(SchemaAuthority::Snapshot);
+        if exigido > schema {
+            return Err(HarnessFailure::CapabilityRequiresSchema {
+                authority: SchemaAuthority::Snapshot,
                 capability: format!("op '{}'", rule.op()),
-                found: schema,
+                found_schema: schema,
+                required_schema: exigido,
             });
         }
         rules.push(rule);
@@ -1535,6 +1653,69 @@ pub(crate) fn build_rule(table: &Table, index: usize) -> Result<Rule, HarnessFai
                 expected_matches,
             })
         }
+        "override-region" => {
+            let key = match optional_text(table, "key", &scope)? {
+                Some(key) if !key.is_empty() => key,
+                _ => return Err(HarnessFailure::RuleWithoutSelector { index, op }),
+            };
+            let from_hash = optional_text(table, "from_hash", &scope)?;
+            let to_hash = optional_text(table, "to_hash", &scope)?;
+            let from_summary = optional_text(table, "from_summary", &scope)?;
+            let to_summary = optional_text(table, "to_summary", &scope)?;
+
+            // Meio par é inválido: um `from` sem `to` não descreve restauração
+            // alguma, e um `to` sem `from` seria mutação sem precondição.
+            if from_hash.is_some() != to_hash.is_some() {
+                return Err(HarnessFailure::OverrideRegionPairInvalid {
+                    key,
+                    msg: "'from_hash' e 'to_hash' precisam vir juntos".to_string(),
+                });
+            }
+            if from_summary.is_some() != to_summary.is_some() {
+                return Err(HarnessFailure::OverrideRegionPairInvalid {
+                    key,
+                    msg: "'from_summary' e 'to_summary' precisam vir juntos".to_string(),
+                });
+            }
+            if from_hash.is_none() && from_summary.is_none() {
+                return Err(HarnessFailure::OverrideRegionPairInvalid {
+                    key,
+                    msg: "ao menos um par completo é obrigatório".to_string(),
+                });
+            }
+            if let Some(valor) = &from_hash {
+                validate_hash(valor, &format!("{}from_hash", scope))?;
+            }
+            if let Some(valor) = &to_hash {
+                validate_hash(valor, &format!("{}to_hash", scope))?;
+            }
+            let expect_file = optional_text(table, "expect_file", &scope)?;
+            if let Some(file) = &expect_file {
+                validate_relative_path(file, &format!("{}expect_file", scope))?;
+            }
+            if table.get("from").is_some()
+                || table.get("to").is_some()
+                || table.get("prefix").is_some()
+                || table.get("file").is_some()
+                || table.get("expected_matches").is_some()
+            {
+                return Err(HarnessFailure::InvalidField {
+                    field: format!("{}op", scope),
+                    msg: "'override-region' usa from_hash/to_hash e from_summary/to_summary"
+                        .to_string(),
+                });
+            }
+            Ok(Rule::OverrideRegion {
+                key,
+                from_hash,
+                to_hash,
+                from_summary,
+                to_summary,
+                expect_file,
+                expect_domain: optional_text(table, "expect_domain", &scope)?,
+                expect_layer: optional_text(table, "expect_layer", &scope)?,
+            })
+        }
         "exclude-file" => {
             let file = match optional_text(table, "file", &scope)? {
                 Some(file) if !file.is_empty() => file,
@@ -1662,6 +1843,39 @@ pub(crate) fn render_rule_body(rule: &Rule) -> String {
         } => {
             out.push_str(&format!("file = {}\n", toml_escape(file)));
             out.push_str(&format!("expected_matches = {}\n", expected_matches));
+        }
+        Rule::OverrideRegion {
+            key,
+            from_hash,
+            to_hash,
+            from_summary,
+            to_summary,
+            expect_file,
+            expect_domain,
+            expect_layer,
+        } => {
+            out.push_str(&format!("key = {}\n", toml_escape(key)));
+            if let Some(valor) = from_hash {
+                out.push_str(&format!("from_hash = {}\n", toml_escape(valor)));
+            }
+            if let Some(valor) = to_hash {
+                out.push_str(&format!("to_hash = {}\n", toml_escape(valor)));
+            }
+            if let Some(valor) = from_summary {
+                out.push_str(&format!("from_summary = {}\n", toml_escape(valor)));
+            }
+            if let Some(valor) = to_summary {
+                out.push_str(&format!("to_summary = {}\n", toml_escape(valor)));
+            }
+            if let Some(valor) = expect_file {
+                out.push_str(&format!("expect_file = {}\n", toml_escape(valor)));
+            }
+            if let Some(valor) = expect_domain {
+                out.push_str(&format!("expect_domain = {}\n", toml_escape(valor)));
+            }
+            if let Some(valor) = expect_layer {
+                out.push_str(&format!("expect_layer = {}\n", toml_escape(valor)));
+            }
         }
     }
     out
@@ -1882,6 +2096,109 @@ pub fn apply_rules(
                     selector: prefix.clone(),
                     expected: *expected_matches,
                     consumed,
+                });
+            }
+            Rule::OverrideRegion {
+                key,
+                from_hash,
+                to_hash,
+                from_summary,
+                to_summary,
+                expect_file,
+                expect_domain,
+                expect_layer,
+            } => {
+                let matches: Vec<usize> = regions
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, region)| &region.key == key)
+                    .map(|(index, _)| index)
+                    .collect();
+                if matches.is_empty() {
+                    return Err(missing_override_failure(
+                        &regions,
+                        key,
+                        expect_file.as_deref(),
+                        expect_domain.as_deref(),
+                        expect_layer.as_deref(),
+                    ));
+                }
+                if matches.len() > 1 {
+                    return Err(HarnessFailure::SelectorAmbiguous {
+                        key: key.clone(),
+                        matches: matches.len(),
+                    });
+                }
+
+                // Fase de validação. Nenhum campo é tocado até que **todas** as
+                // precondições passem: identidade, metadata e cada `from`
+                // declarado. É isto que torna a regra atômica no sentido lógico.
+                {
+                    let region = &regions[matches[0]];
+                    if let Some(esperado) = expect_file {
+                        if &region.file != esperado {
+                            return Err(HarnessFailure::PathChanged {
+                                key: key.clone(),
+                                expected: esperado.clone(),
+                                found: region.file.clone(),
+                            });
+                        }
+                    }
+                    if let Some(esperado) = expect_domain {
+                        let encontrado = region.domain.clone().unwrap_or_default();
+                        if &encontrado != esperado {
+                            return Err(HarnessFailure::MetadataChanged {
+                                key: key.clone(),
+                                field: "domain".to_string(),
+                                expected: esperado.clone(),
+                                found: encontrado,
+                            });
+                        }
+                    }
+                    if let Some(esperado) = expect_layer {
+                        let encontrado = region.layer.clone().unwrap_or_default();
+                        if &encontrado != esperado {
+                            return Err(HarnessFailure::MetadataChanged {
+                                key: key.clone(),
+                                field: "layer".to_string(),
+                                expected: esperado.clone(),
+                                found: encontrado,
+                            });
+                        }
+                    }
+                    if let Some(esperado) = from_hash {
+                        if &region.hash != esperado {
+                            return Err(HarnessFailure::OverrideStaleBase {
+                                key: key.clone(),
+                                expected: esperado.clone(),
+                                found: region.hash.clone(),
+                            });
+                        }
+                    }
+                    if let Some(esperado) = from_summary {
+                        if &region.summary != esperado {
+                            return Err(HarnessFailure::OverrideStaleSummary {
+                                key: key.clone(),
+                                expected: esperado.clone(),
+                                found: region.summary.clone(),
+                            });
+                        }
+                    }
+                }
+
+                // Fase de mutação. Só se chega aqui com tudo validado.
+                let region = &mut regions[matches[0]];
+                if let Some(valor) = to_hash {
+                    region.hash.clone_from(valor);
+                }
+                if let Some(valor) = to_summary {
+                    region.summary.clone_from(valor);
+                }
+                ledger.push(RuleConsumption {
+                    op: rule.op(),
+                    selector: key.clone(),
+                    expected: 1,
+                    consumed: 1,
                 });
             }
             Rule::OverrideHash {
