@@ -71,6 +71,42 @@ pub const MAX_ID_LEN: usize = 64;
 // @pinker-nav:layer trama
 // @pinker-nav:summary Modelo imutável dos snapshots históricos de projeção do catálogo de navegação: schema versionado, ID estável, estados FROZEN/CANDIDATE, medidas (regiões, comprimento, FNV-1a 64 canônico), predecessor opcional, justificativa e regras de reconstrução tipadas com orçamento explícito de consumo.
 
+/// Qual formato está sendo interpretado.
+///
+/// Existe porque as duas autoridades têm versões próprias e conjuntos aceitos
+/// diferentes: um diagnóstico de schema precisa dizer de qual formato fala, e
+/// qual versão aquele formato de fato aceita.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SchemaAuthority {
+    Snapshot,
+    Recipe,
+}
+
+impl SchemaAuthority {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            SchemaAuthority::Snapshot => "snapshot",
+            SchemaAuthority::Recipe => "receita",
+        }
+    }
+
+    /// Versões que este formato suporta, em texto.
+    pub fn supported_versions(&self) -> &'static str {
+        match self {
+            SchemaAuthority::Snapshot => "1 ou 2",
+            SchemaAuthority::Recipe => "somente 1",
+        }
+    }
+
+    /// Código estável do erro de schema deste formato.
+    pub fn schema_error_code(&self) -> &'static str {
+        match self {
+            SchemaAuthority::Snapshot => "E-SNAP-SCHEMA",
+            SchemaAuthority::Recipe => "E-RECEITA-SCHEMA",
+        }
+    }
+}
+
 /// Estado de um snapshot. Só existem dois.
 ///
 /// `FROZEN` é imutável: nunca é atualizado implicitamente. `CANDIDATE` só nasce
@@ -302,8 +338,11 @@ pub enum HarnessFailure {
     MissingField { field: String },
     /// Campo presente com valor estruturalmente inválido.
     InvalidField { field: String, msg: String },
-    /// `schema` ausente ou diferente de [`SNAPSHOT_SCHEMA`].
-    SchemaUnknown { found: u64 },
+    /// `schema` ausente ou fora do conjunto aceito **pela autoridade indicada**.
+    SchemaUnknown {
+        authority: SchemaAuthority,
+        found: u64,
+    },
     /// Identificador que não pode ser usado com segurança como nome de arquivo.
     IdUnsafe { field: String, value: String },
     /// Estado fora de `FROZEN`/`CANDIDATE`.
@@ -387,6 +426,12 @@ pub enum HarnessFailure {
     CapabilityRequiresSchema2 { capability: String, found: u64 },
     /// Snapshot que declara a si mesmo como base.
     SelfBase { id: String },
+    /// Receita que declara a si mesma como passo.
+    ///
+    /// Separada de [`HarnessFailure::SelfBase`] de propósito: uma receita não
+    /// tem base, e dizer que ela "declarou a si mesma como base" descreveria uma
+    /// relação que não existe naquela autoridade.
+    RecipeSelfStep { id: String },
     /// Exclusão que consumiu quantidade diferente da declarada.
     ExclusionPartiallyConsumed {
         selector: String,
@@ -402,7 +447,7 @@ impl HarnessFailure {
             HarnessFailure::Toml(_) => "E-SNAP-TOML",
             HarnessFailure::MissingField { .. } => "E-SNAP-CAMPO-AUSENTE",
             HarnessFailure::InvalidField { .. } => "E-SNAP-CAMPO-INVALIDO",
-            HarnessFailure::SchemaUnknown { .. } => "E-SNAP-SCHEMA",
+            HarnessFailure::SchemaUnknown { authority, .. } => authority.schema_error_code(),
             HarnessFailure::IdUnsafe { .. } => "E-SNAP-ID",
             HarnessFailure::StateUnknown { .. } => "E-SNAP-ESTADO",
             HarnessFailure::HashInvalid { .. } => "E-SNAP-HASH",
@@ -436,6 +481,7 @@ impl HarnessFailure {
             HarnessFailure::RecipeHasSnapshotField { .. } => "E-SNAP-RECEITA-CAMPO-DE-SNAPSHOT",
             HarnessFailure::CapabilityRequiresSchema2 { .. } => "E-SNAP-CAPACIDADE-SCHEMA",
             HarnessFailure::SelfBase { .. } => "E-SNAP-BASE-PROPRIA",
+            HarnessFailure::RecipeSelfStep { .. } => "E-RECEITA-PASSO-PROPRIO",
             HarnessFailure::ExclusionPartiallyConsumed { .. } => "E-SNAP-EXCLUSAO-PARCIAL",
         }
     }
@@ -452,10 +498,12 @@ impl fmt::Display for HarnessFailure {
             HarnessFailure::InvalidField { field, msg } => {
                 write!(f, "campo '{}' inválido: {}", field, msg)
             }
-            HarnessFailure::SchemaUnknown { found } => write!(
+            HarnessFailure::SchemaUnknown { authority, found } => write!(
                 f,
-                "schema {} desconhecido; esta versão aceita somente schema {}",
-                found, SNAPSHOT_SCHEMA
+                "schema {} desconhecido para {}; este formato aceita {}",
+                found,
+                authority.as_str(),
+                authority.supported_versions()
             ),
             HarnessFailure::IdUnsafe { field, value } => write!(
                 f,
@@ -624,6 +672,9 @@ impl fmt::Display for HarnessFailure {
             ),
             HarnessFailure::SelfBase { id } => {
                 write!(f, "snapshot '{}' declara a si mesmo como base", id)
+            }
+            HarnessFailure::RecipeSelfStep { id } => {
+                write!(f, "receita '{}' declara a si mesma como passo", id)
             }
             HarnessFailure::ExclusionPartiallyConsumed {
                 selector,
@@ -1201,10 +1252,18 @@ fn build(raw: RawDocument) -> Result<ProjectionSnapshot, HarnessFailure> {
                 msg: "esperado inteiro, não texto".to_string(),
             })
         }
-        None => return Err(HarnessFailure::SchemaUnknown { found: 0 }),
+        None => {
+            return Err(HarnessFailure::SchemaUnknown {
+                authority: SchemaAuthority::Snapshot,
+                found: 0,
+            })
+        }
     };
     if schema != SNAPSHOT_SCHEMA_V1 && schema != SNAPSHOT_SCHEMA_V2 {
-        return Err(HarnessFailure::SchemaUnknown { found: schema });
+        return Err(HarnessFailure::SchemaUnknown {
+            authority: SchemaAuthority::Snapshot,
+            found: schema,
+        });
     }
 
     let id = require_text(&raw.root, "id", "")?;
@@ -2333,7 +2392,9 @@ mod tests {
     fn schema_desconhecido_e_falha_de_harness() {
         let text = VALID.replace("schema = 1", &format!("schema = {}", SNAPSHOT_SCHEMA + 1));
         match parse(&text) {
-            Err(HarnessFailure::SchemaUnknown { found }) => assert_eq!(found, SNAPSHOT_SCHEMA + 1),
+            Err(HarnessFailure::SchemaUnknown { found, .. }) => {
+                assert_eq!(found, SNAPSHOT_SCHEMA + 1)
+            }
             outro => panic!("esperado schema desconhecido, veio {outro:?}"),
         }
     }

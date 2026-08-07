@@ -1027,12 +1027,75 @@ fn receita_rejeita_campos_que_pertencem_a_snapshot() {
 
 #[test]
 fn receita_com_schema_desconhecido_e_rejeitada() {
+    // `2` é válido para snapshot e inválido para receita: o diagnóstico precisa
+    // falar do formato certo, e não do conjunto aceito pelo outro.
     let texto = RECEITA_V1.replace("schema = 1", "schema = 2");
     match parse_recipe(&texto) {
-        Err(HarnessFailure::SchemaUnknown { found }) => assert_eq!(found, 2),
+        Err(erro @ HarnessFailure::SchemaUnknown { .. }) => {
+            assert_eq!(erro.code(), "E-RECEITA-SCHEMA");
+            let msg = erro.to_string();
+            assert!(
+                msg.contains("desconhecido para receita"),
+                "a mensagem não identifica a autoridade: {msg}"
+            );
+            assert!(
+                msg.contains("aceita somente 1"),
+                "a mensagem não diz o que a receita aceita: {msg}"
+            );
+            assert!(
+                !msg.contains("1 ou 2"),
+                "a mensagem de receita citou o conjunto de snapshot: {msg}"
+            );
+        }
         outro => panic!("esperado schema desconhecido, veio {outro:?}"),
     }
 }
+
+#[test]
+fn o_diagnostico_de_schema_e_separado_por_autoridade() {
+    let de_snapshot = parse(&SNAPSHOT_V2.replace("schema = 2", "schema = 9"))
+        .expect_err("schema 9 é inválido para snapshot");
+    assert_eq!(de_snapshot.code(), "E-SNAP-SCHEMA");
+    let msg = de_snapshot.to_string();
+    assert!(msg.contains("desconhecido para snapshot"), "{msg}");
+    assert!(
+        msg.contains("aceita 1 ou 2"),
+        "snapshot aceita as duas versões e a mensagem precisa dizer isso: {msg}"
+    );
+    assert!(
+        !msg.contains("somente"),
+        "a mensagem afirmou que snapshot aceita uma versão só: {msg}"
+    );
+
+    let de_receita = parse_recipe(&RECEITA_V1.replace("schema = 1", "schema = 9"))
+        .expect_err("schema 9 é inválido para receita");
+    assert_eq!(de_receita.code(), "E-RECEITA-SCHEMA");
+    assert!(de_receita.to_string().contains("aceita somente 1"));
+
+    // Os dois códigos são distintos: um leitor de log separa as autoridades.
+    assert_ne!(de_snapshot.code(), de_receita.code());
+
+    // E o schema 1 continua válido nas duas, cada uma no seu formato.
+    assert!(parse_recipe(RECEITA_V1).is_ok());
+    assert_eq!(
+        parse(VALID_SCHEMA_1).expect("schema 1 de snapshot").schema,
+        SNAPSHOT_SCHEMA_V1
+    );
+}
+
+/// Snapshot mínimo em schema 1, para provar que a versão 1 segue aceita.
+const VALID_SCHEMA_1: &str = concat!(
+    "schema = 1\n",
+    "id = \"antigo-valido\"\n",
+    "state = \"FROZEN\"\n",
+    "\n[reconstruction]\n",
+    "expected_overrides = 0\n",
+    "expected_exclusions = 0\n",
+    "\n[measures]\n",
+    "regions = 1\n",
+    "length = 1\n",
+    "fnv1a64 = \"fnv1a64:0000000000000000\"\n",
+);
 
 #[test]
 fn receita_com_passo_repetido_ou_autorreferente_e_rejeitada() {
@@ -1048,10 +1111,46 @@ fn receita_com_passo_repetido_ou_autorreferente_e_rejeitada() {
         "steps = [\"segunda\", \"primeira\"]",
         "steps = [\"intermediaria\"]",
     );
-    assert!(matches!(
-        parse_recipe(&propria),
-        Err(HarnessFailure::SelfBase { .. })
-    ));
+    match parse_recipe(&propria) {
+        Err(erro @ HarnessFailure::RecipeSelfStep { .. }) => {
+            assert_eq!(erro.code(), "E-RECEITA-PASSO-PROPRIO");
+            let msg = erro.to_string();
+            assert!(
+                msg.contains("receita 'intermediaria' declara a si mesma como passo"),
+                "{msg}"
+            );
+            assert!(
+                !msg.contains("base"),
+                "a receita não tem base; a mensagem descreveu relação inexistente: {msg}"
+            );
+        }
+        outro => panic!("esperado passo próprio, veio {outro:?}"),
+    }
+}
+
+#[test]
+fn autorreferencia_de_receita_e_de_snapshot_sao_diagnosticos_distintos() {
+    let de_receita = parse_recipe(&RECEITA_V1.replace(
+        "steps = [\"segunda\", \"primeira\"]",
+        "steps = [\"intermediaria\"]",
+    ))
+    .expect_err("passo próprio");
+
+    let de_snapshot =
+        parse(&SNAPSHOT_V2.replace("base_snapshot = \"a-base\"", "base_snapshot = \"composto\""))
+            .expect_err("base própria");
+
+    assert_eq!(de_receita.code(), "E-RECEITA-PASSO-PROPRIO");
+    assert_eq!(de_snapshot.code(), "E-SNAP-BASE-PROPRIA");
+    assert_ne!(de_receita.code(), de_snapshot.code());
+
+    assert!(de_snapshot
+        .to_string()
+        .contains("snapshot 'composto' declara a si mesmo como base"));
+    assert!(
+        !de_receita.to_string().contains("snapshot"),
+        "o diagnóstico da receita mencionou snapshot"
+    );
 }
 
 #[test]

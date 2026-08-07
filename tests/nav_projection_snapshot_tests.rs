@@ -262,7 +262,7 @@ fn schema_ausente_e_rejeitado() {
     let texto = snapshot_texto().replace("schema = 1\n", "");
     assert!(matches!(
         parse(&texto),
-        Err(HarnessFailure::SchemaUnknown { found: 0 })
+        Err(HarnessFailure::SchemaUnknown { found: 0, .. })
     ));
 }
 
@@ -272,7 +272,7 @@ fn schema_desconhecido_e_rejeitado() {
     // desconhecida acompanha a versão máxima aceita.
     let texto = com_linha("schema = 1", &format!("schema = {}", SNAPSHOT_SCHEMA + 1));
     match parse(&texto) {
-        Err(HarnessFailure::SchemaUnknown { found }) => assert_eq!(found, SNAPSHOT_SCHEMA + 1),
+        Err(HarnessFailure::SchemaUnknown { found, .. }) => assert_eq!(found, SNAPSHOT_SCHEMA + 1),
         outro => panic!("esperado schema desconhecido, veio {outro:?}"),
     }
 }

@@ -274,6 +274,27 @@ O consumo é validado **em cada escopo**, e nenhum consumo é contado duas vezes
 cada regra pertence a exatamente um escopo, e o ledger registra a sequência
 `recipe:… → snapshot:…` na ordem de aplicação.
 
+## Diagnósticos são separados por autoridade
+
+As duas autoridades têm conjuntos de versão diferentes, e o erro diz de qual
+formato fala:
+
+| Situação | Código | Mensagem |
+|---|---|---|
+| snapshot com versão fora de {1, 2} | `E-SNAP-SCHEMA` | "schema N desconhecido para snapshot; este formato aceita 1 ou 2" |
+| receita com versão fora de {1} | `E-RECEITA-SCHEMA` | "schema N desconhecido para receita; este formato aceita somente 1" |
+
+O mesmo vale para autorreferência, porque a relação não é a mesma nas duas:
+
+| Situação | Código | Mensagem |
+|---|---|---|
+| snapshot com `base_snapshot` igual ao próprio ID | `E-SNAP-BASE-PROPRIA` | "snapshot 'x' declara a si mesmo como base" |
+| receita com passo igual ao próprio ID | `E-RECEITA-PASSO-PROPRIO` | "receita 'x' declara a si mesma como passo" |
+
+Uma receita não tem base. Dizer que ela "declarou a si mesma como base"
+descreveria uma relação que não existe naquela autoridade, e mandaria quem lê o
+log procurar um campo que o formato não tem.
+
 ## O schema 1 continua significando o que significava
 
 Um arquivo que declara `schema = 1` continua sendo lista plana. Usar

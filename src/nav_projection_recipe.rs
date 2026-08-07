@@ -40,7 +40,7 @@ use crate::nav::CodeRegion;
 use crate::nav_projection_snapshot::{
     apply_rules, build_rule, measure, optional_list, parse_raw, reject_unknown, render_rule_body,
     require_integer, require_text, sort_rules, toml_escape, validate_id, HarnessFailure, Measures,
-    ProjectionSnapshot, Rule, RuleConsumption, SnapshotState,
+    ProjectionSnapshot, Rule, RuleConsumption, SchemaAuthority, SnapshotState,
 };
 use std::collections::BTreeMap;
 
@@ -118,10 +118,18 @@ pub fn parse_recipe(text: &str) -> Result<Recipe, HarnessFailure> {
                 })
             }
         },
-        None => return Err(HarnessFailure::SchemaUnknown { found: 0 }),
+        None => {
+            return Err(HarnessFailure::SchemaUnknown {
+                authority: SchemaAuthority::Recipe,
+                found: 0,
+            })
+        }
     };
     if schema != RECIPE_SCHEMA {
-        return Err(HarnessFailure::SchemaUnknown { found: schema });
+        return Err(HarnessFailure::SchemaUnknown {
+            authority: SchemaAuthority::Recipe,
+            found: schema,
+        });
     }
 
     let id = require_text(&raw.root, "id", "")?;
@@ -141,7 +149,7 @@ pub fn parse_recipe(text: &str) -> Result<Recipe, HarnessFailure> {
     for (posicao, passo) in steps.iter().enumerate() {
         validate_id(passo, &format!("reconstruction.steps[{}]", posicao))?;
         if passo == &id {
-            return Err(HarnessFailure::SelfBase { id: id.clone() });
+            return Err(HarnessFailure::RecipeSelfStep { id: id.clone() });
         }
         if steps[..posicao].contains(passo) {
             return Err(HarnessFailure::InvalidField {
