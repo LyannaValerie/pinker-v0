@@ -79,6 +79,8 @@ janela auxiliar autorizada pela Issue #417 tem autoridade operacional própria e
   sandboxes, cleanup, proveniência e proteção de core da esteira;
 - `projection-snapshots-contract.md` — schema, estados, medidas, reconstrução e
   classificação dos snapshots históricos de projeção do catálogo de navegação;
+- `automation-core-contract.md` — fronteira, plano efêmero, digest, limites,
+  classificação e relatórios do núcleo comum de automação;
 
 | Necessidade | Documento |
 |---|---|
@@ -88,6 +90,7 @@ janela auxiliar autorizada pela Issue #417 tem autoridade operacional própria e
 | navegação semântica do código | `pink nav buscar "<conceito>"` |
 | janela auxiliar de infraestrutura determinística | `janela-infraestrutura-deterministica.md` |
 | snapshots históricos de projeção | `projection-snapshots-contract.md` |
+| núcleo comum de automação | `automation-core-contract.md` |
 
 ## Rotas de leitura
 
