@@ -52,7 +52,29 @@ fn stable_region_projection<'a>(regions: impl Iterator<Item = &'a CodeRegion>) -
     records.concat()
 }
 
+fn project_pre_projection_snapshot_contract(catalog: &mut CodeCatalog) {
+    // O contrato somente leitura de snapshots históricos (Issue #384, item 2 da
+    // janela da Issue #417) é posterior a todos os snapshots desta suíte. Suas
+    // oito regiões da camada `trama` são removidas antes de qualquer
+    // reconstrução histórica: nenhuma medida congelada muda por causa delas, e
+    // por isso nenhum literal de comprimento ou FNV é recalibrado por esta PR.
+    catalog.regions.retain(|region| {
+        !matches!(
+            region.key.as_str(),
+            "trama.snapshots.erros"
+                | "trama.snapshots.medidas"
+                | "trama.snapshots.modelo"
+                | "trama.snapshots.parser"
+                | "trama.snapshots.reconstrucao"
+                | "trama.snapshots.relatorio"
+                | "trama.snapshots.renderizacao"
+                | "trama.snapshots.verificacao"
+        )
+    });
+}
+
 fn project_pre_d1(catalog: &mut CodeCatalog) {
+    project_pre_projection_snapshot_contract(catalog);
     // D1 é posterior a todos os snapshots históricos desta suíte. Remove as
     // cinco regiões novas e restaura os hashes do head e47b84a antes de
     // aplicar as projeções mais antigas.
@@ -1171,7 +1193,13 @@ fn catalogo_real_cartografa_o_guardiao_pinker_da_onda_9() {
     // O hotfix da atribuição de símbolo em `sussurro` acrescenta quatro regiões:
     // `build.elf.leitor` (`src/elf.rs`), `sussurro.artefato.invariante`
     // (`src/inline_asm.rs`) e as duas de evidência do hotfix.
-    assert_eq!(index.regions.len(), 501);
+    // O contrato somente leitura de snapshots históricos (#384) acrescenta oito
+    // regiões `trama.snapshots.*` em `src/nav_projection_snapshot.rs`. Este é o
+    // único total vivo desta suíte; todos os demais são reconstruções
+    // históricas e continuam com os literais congelados, porque
+    // `project_pre_projection_snapshot_contract` remove as regiões novas antes
+    // de qualquer reconstrução.
+    assert_eq!(index.regions.len(), 509);
 
     // Exatamente uma região Pinker, a do Guardião, com metadados congelados.
     let guardiao: Vec<_> = index

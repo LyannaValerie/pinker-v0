@@ -60,4 +60,5 @@ mão. Regenere com `pink doc sincronizar`.
 | #422 | hotfix | — | 20 | Contenção do host para execuções nativas | completed |
 | #424 | hotfix | — | 20 | Integridade da fixture de testes: publicação segura de executáveis | completed |
 | #425 | hotfix | — | 20 | Fecha a janela de interrupção ao iniciar a campanha do runner de estabilidade | completed |
+| #426 | parallel-phase | — | 20 | Adiciona o contrato somente leitura dos snapshots históricos de projeção | completed |
 <!-- @pinker-generated:end change.history -->
