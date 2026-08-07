@@ -182,29 +182,47 @@ aliases:
   - composicao de reconstrucao
 summary: Schema 2 do snapshot, formato de receita e os invariantes do grafo de composição.
 -->
-## Quantas receitas a migração vai criar
+## Quantas receitas a migração criou
 
-Não se sabe ainda, e o número **não** é derivável da contagem de helpers.
+**Uma.** E o número não veio de contar helpers: veio de perguntar quais
+transformações têm significado próprio e são reutilizadas.
 
-O inventário encontrou 15 helpers de reconstrução. Oito são nós puramente
-intermediários e sete são pontos de entrada compartilhados entre snapshots —
-todos os quinze são candidatos a receita, porque todos são reutilizados.
+A pergunta original desta seção supunha que cada helper legado viraria uma
+receita. Essa suposição não sobreviveu à migração, por um motivo que vale
+registrar: o helper legado é um programa **tolerante** — um `if` que não casa
+segue adiante, um `retain` sobre chave ausente é no-op — enquanto a autoridade
+canônica é **estrita**, e toda regra precisa consumir. Traduzir estrutura
+produziria regras que abortam.
 
-O número final sai da **semântica**, não da contagem. Um helper só pode ser
-colapsado quando as três condições valerem ao mesmo tempo:
+A unidade de tradução passou a ser o delta observado:
 
-- é mera delegação, sem regras locais próprias;
-- não marca fronteira procedural relevante, isto é, colapsá-lo não muda a ordem
-  observável de aplicação;
-- a equivalência exata é demonstrada, não presumida.
+```
+estado de entrada + delta efetivamente ocorrido = estado reconstruído
+```
 
-Qualquer estimativa anterior a essa análise — inclusive "oito" — é chute.
+Das 818 operações candidatas observadas nos caminhos legados, **287 produziram
+efeito**. As outras não existem como transformação: 481 ramos dormentes, 19
+overrides sobre região já removida e 31 exclusões que não consomem nada. Um ramo
+que nunca alterou coisa alguma não é regra — é linha de código.
+
+Sobrou exatamente uma transformação com identidade própria e reutilização real:
+retirar do catálogo corrente as regiões posteriores a todo o acervo histórico.
+Ela é a receita `normalizacao-corrente-para-historico`.
+
+Um experimento de fatoração mostrou que cinco regras de exclusão se repetem em
+contextos aninhados e poderiam virar cinco receitas de uma regra cada. Foi
+**rejeitado**: deduplicar declarações não é motivo para criar autoridade
+nomeada. Receita representa transformação reutilizável **semanticamente**, não
+economia textual.
 
 ## Por que existe composição
 
-O inventário refeito sobre a `main` mostrou 15 helpers de reconstrução dispostos
-num DAG e apenas 13 estados com medida histórica própria. **Oito helpers são nós
-puramente intermediários**: nenhum teste os chama e nenhum produz medida.
+O inventário refeito sobre a `main` mostrou helpers de reconstrução dispostos num
+DAG e apenas 13 estados com medida histórica própria. Vários helpers são nós
+puramente intermediários: nenhum teste os chama e nenhum produz medida. (A
+contagem exata foi corrigida depois: a enumeração original filtrava por prefixo
+de nome e perdia um helper cujo nome fugia da convenção. Enumerar pela
+assinatura, não pelo nome, deu 13 helpers históricos e 4 posteriores ao acervo.)
 
 Achatar as cadeias produziria arquivos de noventa regras sem relação visível com
 a estrutura real. Inventar snapshots para os oito nós seria fabricar história.
@@ -439,4 +457,68 @@ inclusive misturando `override-hash` e `override-region`.
 para restaurações exclusivamente de hash, quando isso representar naturalmente o
 legado. Use `override-region` quando houver restauração de `summary`, isolada ou
 junto de `hash`.
+
+## A autoridade histórica materializada
+
+A Issue #384 materializou 13 snapshots e 1 receita em `.pinker/projections/`.
+
+### Identificadores
+
+Os identificadores vêm da **identidade histórica** do marco que cada estado
+representa — o gate que o mede — e nunca de uma medida. Um identificador que
+carregasse `regions`, `length` ou o FNV mudaria de nome sempre que a medida
+fosse recalculada, o que é exatamente o oposto de identidade.
+
+| id canônico | significado histórico |
+|---|---|
+| `onda-8f-anterior` | estado anterior à evidência da Onda 8F (backend textual) |
+| `onda-8g-anterior` | estado anterior à evidência da Onda 8G (backend-s textual) |
+| `onda-8h-anterior` | estado anterior à evidência da Onda 8H (toolchain externa) |
+| `onda-8i-anterior` | estado anterior à evidência da Onda 8I (backend nativo) |
+| `onda-8j-anterior` | estado anterior à evidência da Onda 8J (runtime interno) |
+| `onda-8-convergencia` | conjunto convergido da Onda 8 |
+| `capsula-nav-catalog` | estado completo da cápsula nav-catalog |
+| `capsula-doc-catalog` | estado completo da cápsula doc-catalog |
+| `capsula-trama-query` | estado completo da cápsula trama-query |
+| `onda-pink-agente-a` | Onda A do agente Pinker |
+| `onda-pink-agente-b` | Onda B do agente Pinker |
+| `onda-pink-agente-c` | Onda C do agente Pinker |
+| `onda-pink-agente-d` | Onda D do agente Pinker |
+
+### Seis eras, treze snapshots
+
+Os 13 estados se organizam em **6 eras temporais**. A primeira era concentra
+oito deles: são recortes de escopo do mesmo momento histórico, medidos por gates
+diferentes, cada um excluindo as regiões da própria evidência. Eras não reduzem
+a contagem de snapshots — um recorte com medida própria é um estado próprio.
+
+Isso é o que separa as duas relações na prática: dentro da primeira era todos
+compartilham `base_snapshot` e nenhum tem `predecessor`, porque não houve
+mudança de era entre eles.
+
+### A receita de normalização
+
+`normalizacao-corrente-para-historico` remove as 23 regiões acrescentadas depois
+de todo o acervo histórico (524 → 501 regiões). Ela é declarada por **um único
+snapshot**, o terminal, cuja reconstrução parte do catálogo corrente. Os demais
+herdam o efeito por `base_snapshot`; reaplicá-la abortaria por consumo zero, e a
+composição simplesmente não tenta.
+
+### Proveniência das medidas
+
+As três medidas de todos os 13 snapshots são **literais históricos migrados**:
+`regions`, `length` e `fnv1a64` já existiam no legado. Nenhuma foi derivada da
+reconstrução.
+
+O registro anterior falava em nove contagens derivadas. Esse número vinha de um
+inventário que só inspecionava a tupla do assert de projeção; as outras nove
+contagens existiam como asserções de `len()` separadas, no mesmo estado. Vale
+como lembrete de que "não encontrei" e "não existe" são afirmações diferentes.
+
+### Coexistência temporária
+
+Neste checkpoint de migração o mecanismo legado de reconstrução **permanece
+presente** em `tests/nav_cartography_tests.rs`, ao lado da autoridade nova. A
+duplicação é material de migração, não arquitetura: existe para permitir a
+comparação direta byte a byte entre as duas autoridades, e sai no cutover.
 <!-- @pinker-doc:end development.projection-snapshots-contract.composicao -->

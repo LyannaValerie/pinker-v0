@@ -1,0 +1,126 @@
+schema = 3
+id = "onda-pink-agente-b"
+state = "FROZEN"
+predecessor = "onda-pink-agente-a"
+justification = "Onda B do agente Pinker: integridade e dogfood operacional, medida pelo gate onda_pink_agente_b_verifica_integridade_e_dogfood_operacional."
+
+[reconstruction]
+base_snapshot = "onda-pink-agente-c"
+expected_overrides = 9
+expected_exclusions = 6
+
+[measures]
+regions = 470
+length = 208737
+fnv1a64 = "fnv1a64:ed11e65e5f18f151"
+
+[[rules]]
+op = "exclude-key"
+key = "development.agent.pr-body"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "development.agent.publication"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "development.agent.remote-checks"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "development.agent.resume"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-file"
+file = "tests/trama_projection_tests.rs"
+expected_matches = 5
+
+[[rules]]
+op = "exclude-file"
+file = "tests/trama_scale_tests.rs"
+expected_matches = 4
+
+[[rules]]
+op = "override-hash"
+key = "cli.ajuda.usage"
+from = "fnv1a64:ce2fe9866dbdcd8f"
+to = "fnv1a64:fe90d283bfb17400"
+expect_file = "src/main.rs"
+expect_domain = "ajuda"
+expect_layer = "cli"
+
+[[rules]]
+op = "override-hash"
+key = "cli.config.modelos"
+from = "fnv1a64:76a2365574c8b339"
+to = "fnv1a64:279c348850bae6ef"
+expect_file = "src/main.rs"
+expect_domain = "config"
+expect_layer = "cli"
+
+[[rules]]
+op = "override-hash"
+key = "cli.execucao.entrada"
+from = "fnv1a64:f33da0bc4b2931c0"
+to = "fnv1a64:af0ecbd3d9ab714b"
+expect_file = "src/main.rs"
+expect_domain = "execucao"
+expect_layer = "cli"
+
+[[rules]]
+op = "override-hash"
+key = "cli.parsing.subcomandos"
+from = "fnv1a64:52d92432d1b2f696"
+to = "fnv1a64:119fe4d0c208d5f0"
+expect_file = "src/main.rs"
+expect_domain = "parsing"
+expect_layer = "cli"
+
+[[rules]]
+op = "override-hash"
+key = "development.agent.paths"
+from = "fnv1a64:ea6bdf7ca0de5880"
+to = "fnv1a64:aff4b96491482ffa"
+expect_file = "src/agent.rs"
+expect_domain = "development"
+expect_layer = "agent"
+
+[[rules]]
+op = "override-hash"
+key = "development.agent.spec"
+from = "fnv1a64:33af6004dd72d2f5"
+to = "fnv1a64:3ed685ed0e8f60e9"
+expect_file = "src/agent.rs"
+expect_domain = "development"
+expect_layer = "agent"
+
+[[rules]]
+op = "override-hash"
+key = "evidencia.agent.cli-spec"
+from = "fnv1a64:49ad4168f39edac3"
+to = "fnv1a64:07a26a5415117243"
+expect_file = "tests/agent_cli_tests.rs"
+expect_domain = "development"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-hash"
+key = "evidencia.agent.limits"
+from = "fnv1a64:e5485edb563d1bdf"
+to = "fnv1a64:f7c43d286e2773d8"
+expect_file = "tests/agent_limits_tests.rs"
+expect_domain = "development"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-hash"
+key = "evidencia.agent.runner"
+from = "fnv1a64:f787347d37732812"
+to = "fnv1a64:0cad49e5ebaf479e"
+expect_file = "tests/agent_runner_tests.rs"
+expect_domain = "development"
+expect_layer = "evidencia"

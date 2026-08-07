@@ -1,0 +1,175 @@
+schema = 3
+id = "onda-pink-agente-a"
+state = "FROZEN"
+predecessor = "capsula-trama-query"
+justification = "Onda A do agente Pinker: núcleo e primeiro dogfood, medida pelo gate onda_pink_agente_a_cartografa_nucleo_e_primeiro_dogfood."
+
+[reconstruction]
+base_snapshot = "onda-pink-agente-b"
+expected_overrides = 10
+expected_exclusions = 14
+
+[measures]
+regions = 456
+length = 204698
+fnv1a64 = "fnv1a64:d450b85df4649586"
+
+[[rules]]
+op = "exclude-key"
+key = "development.agent.git-diff"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "development.agent.marker-only"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "development.agent.projection"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "development.agent.sensitivity"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.trama.manifest.enum-validation"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.trama.manifest.fixture-config"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.trama.manifest.idempotence-immutability"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.trama.manifest.process-support"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.trama.manifest.unknown-field"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.trama.sync.atomic-write"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.trama.sync.fixture-config"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.trama.sync.invalid-source"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.trama.sync.preserve-last-valid"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.trama.sync.process-support"
+expected_matches = 1
+
+[[rules]]
+op = "override-hash"
+key = "cli.ajuda.usage"
+from = "fnv1a64:fe90d283bfb17400"
+to = "fnv1a64:0b83cc2867f57a67"
+expect_file = "src/main.rs"
+expect_domain = "ajuda"
+expect_layer = "cli"
+
+[[rules]]
+op = "override-hash"
+key = "cli.config.modelos"
+from = "fnv1a64:279c348850bae6ef"
+to = "fnv1a64:e9f2fa1d60a02231"
+expect_file = "src/main.rs"
+expect_domain = "config"
+expect_layer = "cli"
+
+[[rules]]
+op = "override-hash"
+key = "cli.execucao.entrada"
+from = "fnv1a64:af0ecbd3d9ab714b"
+to = "fnv1a64:2bb1696e4bd2e0a8"
+expect_file = "src/main.rs"
+expect_domain = "execucao"
+expect_layer = "cli"
+
+[[rules]]
+op = "override-hash"
+key = "cli.parsing.subcomandos"
+from = "fnv1a64:119fe4d0c208d5f0"
+to = "fnv1a64:54b0515fa81ebb9e"
+expect_file = "src/main.rs"
+expect_domain = "parsing"
+expect_layer = "cli"
+
+[[rules]]
+op = "override-hash"
+key = "development.agent.lifecycle"
+from = "fnv1a64:6b167f957b7e4fae"
+to = "fnv1a64:49f66af7f537b27d"
+expect_file = "src/agent.rs"
+expect_domain = "development"
+expect_layer = "agent"
+
+[[rules]]
+op = "override-hash"
+key = "development.agent.paths"
+from = "fnv1a64:aff4b96491482ffa"
+to = "fnv1a64:b87b935704fb83be"
+expect_file = "src/agent.rs"
+expect_domain = "development"
+expect_layer = "agent"
+
+[[rules]]
+op = "override-hash"
+key = "development.agent.spec"
+from = "fnv1a64:3ed685ed0e8f60e9"
+to = "fnv1a64:77cf383bb9045c21"
+expect_file = "src/agent.rs"
+expect_domain = "development"
+expect_layer = "agent"
+
+[[rules]]
+op = "override-hash"
+key = "evidencia.agent.cli-spec"
+from = "fnv1a64:07a26a5415117243"
+to = "fnv1a64:6f1fbe9b891aab9b"
+expect_file = "tests/agent_cli_tests.rs"
+expect_domain = "development"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-hash"
+key = "evidencia.agent.limits"
+from = "fnv1a64:f7c43d286e2773d8"
+to = "fnv1a64:9590a1ee3b6819e9"
+expect_file = "tests/agent_limits_tests.rs"
+expect_domain = "development"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-hash"
+key = "evidencia.agent.runner"
+from = "fnv1a64:0cad49e5ebaf479e"
+to = "fnv1a64:8165e1937f5620fd"
+expect_file = "tests/agent_runner_tests.rs"
+expect_domain = "development"
+expect_layer = "evidencia"

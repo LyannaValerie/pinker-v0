@@ -6,10 +6,14 @@
 //! escrita, nenhuma rede, nenhuma operação Git e nenhuma dependência do root
 //! absoluto.
 //!
-//! Todas as fixtures são sintéticas. Este estágio não migra medida histórica
-//! real, não cria snapshot em disco e não expõe superfície de CLI.
+//! Todas as fixtures deste arquivo são sintéticas: ele exercita o contrato, não
+//! o acervo. A autoridade histórica real materializada pela Issue #384 é coberta
+//! por `nav_projection_authority_tests.rs`; aqui só verificamos que ela não
+//! prolifera além dos artefatos autorizados. Este estágio segue sem expor
+//! superfície de CLI.
 
 use pinker_v0::nav::CodeRegion;
+use pinker_v0::nav_projection_recipe::RECIPES_DIR;
 use pinker_v0::nav_projection_snapshot::{
     fnv1a64, human_report, json_report, measure, parse, reconstruct, render, stable_projection,
     verify, HarnessFailure, Measures, Outcome, ProjectionSnapshot, Rule, SnapshotState, FNV_PREFIX,
@@ -1127,12 +1131,64 @@ fn o_estagio_nao_expoe_lifecycle_mutavel_nem_cli() {
     );
 }
 
+/// A guarda de proliferação da autoridade histórica.
+///
+/// No estágio somente leitura ela exigia que `.pinker/projections/` **não
+/// existisse**. A materialização da Issue #384 criou a autoridade autorizada, e
+/// a guarda passou a exigir o que a substitui: exatamente os artefatos
+/// aprovados, nem um a mais. O propósito não mudou — impedir que snapshots
+/// apareçam sem decisão humana; mudou o que conta como estado correto.
 #[test]
-fn nenhum_snapshot_real_foi_criado_neste_estagio() {
+fn a_autoridade_historica_tem_exatamente_os_arquivos_autorizados() {
     let raiz = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let diretorio = raiz.join(SNAPSHOTS_DIR);
     assert!(
-        !diretorio.exists(),
-        "o estágio somente leitura não pode criar {SNAPSHOTS_DIR}"
+        diretorio.exists(),
+        "a autoridade histórica materializada vive em {SNAPSHOTS_DIR}"
+    );
+
+    let mut snapshots: Vec<String> = std::fs::read_dir(&diretorio)
+        .expect("diretório de snapshots legível")
+        .map(|entrada| entrada.expect("entrada").path())
+        .filter(|caminho| caminho.is_file())
+        .map(|caminho| {
+            caminho
+                .file_name()
+                .expect("nome")
+                .to_str()
+                .expect("utf-8")
+                .to_string()
+        })
+        .collect();
+    snapshots.sort();
+    assert_eq!(
+        snapshots.len(),
+        13,
+        "exatamente treze snapshots históricos: {snapshots:?}"
+    );
+    assert!(
+        snapshots.iter().all(|nome| nome.ends_with(".toml")),
+        "somente TOML na raiz da autoridade: {snapshots:?}"
+    );
+
+    let receitas = raiz.join(RECIPES_DIR);
+    let mut nomes: Vec<String> = std::fs::read_dir(receitas)
+        .expect("diretório de receitas legível")
+        .map(|entrada| entrada.expect("entrada").path())
+        .filter(|caminho| caminho.is_file())
+        .map(|caminho| {
+            caminho
+                .file_name()
+                .expect("nome")
+                .to_str()
+                .expect("utf-8")
+                .to_string()
+        })
+        .collect();
+    nomes.sort();
+    assert_eq!(
+        nomes,
+        vec!["normalizacao-corrente-para-historico.toml".to_string()],
+        "uma única receita técnica de normalização"
     );
 }

@@ -1,0 +1,56 @@
+schema = 3
+id = "onda-pink-agente-c"
+state = "FROZEN"
+predecessor = "onda-pink-agente-b"
+justification = "Onda C do agente Pinker: publicação, retomada e trama restante, medida pelo gate onda_pink_agente_c_publica_retoma_e_cartografa_trama_restante."
+
+[reconstruction]
+base_snapshot = "onda-pink-agente-d"
+expected_overrides = 4
+expected_exclusions = 1
+
+[measures]
+regions = 483
+length = 212658
+fnv1a64 = "fnv1a64:93eee583780ed7bd"
+
+[[rules]]
+op = "exclude-key"
+key = "development.agent.contract-v1"
+expected_matches = 1
+
+[[rules]]
+op = "override-hash"
+key = "development.agent.lifecycle"
+from = "fnv1a64:692e86d6d62cb4ff"
+to = "fnv1a64:6b167f957b7e4fae"
+expect_file = "src/agent.rs"
+expect_domain = "development"
+expect_layer = "agent"
+
+[[rules]]
+op = "override-hash"
+key = "development.agent.pr-body"
+from = "fnv1a64:214373cb652be125"
+to = "fnv1a64:f8e7afd3d267c91a"
+expect_file = "src/agent.rs"
+expect_domain = "development"
+expect_layer = "agent"
+
+[[rules]]
+op = "override-hash"
+key = "evidencia.agent.cli-spec"
+from = "fnv1a64:6ad868d5804dc9a8"
+to = "fnv1a64:49ad4168f39edac3"
+expect_file = "tests/agent_cli_tests.rs"
+expect_domain = "development"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-hash"
+key = "evidencia.agent.runner"
+from = "fnv1a64:ef95a558251ab9eb"
+to = "fnv1a64:f787347d37732812"
+expect_file = "tests/agent_runner_tests.rs"
+expect_domain = "development"
+expect_layer = "evidencia"

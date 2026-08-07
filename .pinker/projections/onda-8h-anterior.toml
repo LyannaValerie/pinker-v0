@@ -1,0 +1,84 @@
+schema = 3
+id = "onda-8h-anterior"
+state = "FROZEN"
+justification = "Estado anterior à evidência da Onda 8H (toolchain externa), medido pelo gate onda_8h_cartografa_evidencias_da_toolchain_externa."
+
+[reconstruction]
+base_snapshot = "capsula-doc-catalog"
+expected_overrides = 0
+expected_exclusions = 14
+
+[measures]
+regions = 381
+length = 172687
+fnv1a64 = "fnv1a64:35ed3ef314acc35d"
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.backend-s-externo.execucao-real-abi-frame-interprocedural"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.backend-s-externo.execucao-real-recortes-versionados"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.backend-s-externo.fronteira-conversao-virar"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.backend-s-externo.fronteira-ninho-heterogeneo"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.backend-s-externo.fronteira-subset-textual"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.backend-s-externo.pipeline-helper"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.backend-s-externo.renderizacao-quebrar-continuar"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.backend-s-externo.renderizacao-recortes-versionados"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.backend-s-externo.renderizacao-verso-rodata"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.backend-s-externo.validacao-estrutural-sintetica"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key-prefix"
+prefix = "evidencia.backend-nativo."
+expected_matches = 14
+
+[[rules]]
+op = "exclude-key-prefix"
+prefix = "evidencia.runtime."
+expected_matches = 11
+
+[[rules]]
+op = "exclude-file"
+file = "tests/doc_catalog_tests.rs"
+expected_matches = 6
+
+[[rules]]
+op = "exclude-file"
+file = "tests/nav_catalog_tests.rs"
+expected_matches = 6
