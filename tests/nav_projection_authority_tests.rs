@@ -381,3 +381,121 @@ fn o_acervo_usa_a_versao_corrente_de_cada_formato() {
         );
     }
 }
+
+// ---------------------------------------------------------------------------
+// Guarda de autoridade única das projeções históricas
+// ---------------------------------------------------------------------------
+
+/// Mapeamento provado dos 31 casos comportamentais históricos para os 13
+/// snapshots canônicos.
+///
+/// É uma tabela de **identidade** — caso → snapshot — e nada mais: não contém
+/// `regions`, `length`, `fnv1a64` nem regra de reconstrução. Essas vivem
+/// exclusivamente nos TOML de `.pinker/projections/`.
+const DISTRIBUICAO_CANONICA: [(&str, usize); 13] = [
+    ("capsula-doc-catalog", 4),
+    ("capsula-nav-catalog", 5),
+    ("capsula-trama-query", 3),
+    ("onda-8-convergencia", 6),
+    ("onda-8f-anterior", 1),
+    ("onda-8g-anterior", 1),
+    ("onda-8h-anterior", 1),
+    ("onda-8i-anterior", 1),
+    ("onda-8j-anterior", 1),
+    ("onda-pink-agente-a", 2),
+    ("onda-pink-agente-b", 3),
+    ("onda-pink-agente-c", 2),
+    ("onda-pink-agente-d", 1),
+];
+
+const CASOS_HISTORICOS: usize = 31;
+const HARNESS: &str = include_str!("nav_cartography_tests.rs");
+
+/// Identificadores citados por `verifica_snapshot_canonico("…")` no harness.
+fn referencias_canonicas() -> Vec<&'static str> {
+    let mut achados = Vec::new();
+    let mut resto = HARNESS;
+    while let Some(pos) = resto.find("verifica_snapshot_canonico(\"") {
+        let depois = &resto[pos + "verifica_snapshot_canonico(\"".len()..];
+        let fim = depois.find('"').expect("literal de identificador fechado");
+        achados.push(&depois[..fim]);
+        resto = &depois[fim..];
+    }
+    achados
+}
+
+#[test]
+fn os_casos_historicos_referenciam_a_autoridade_canonica_por_id() {
+    let refs = referencias_canonicas();
+    assert_eq!(
+        refs.len(),
+        CASOS_HISTORICOS,
+        "a cartografia deve referenciar exatamente {CASOS_HISTORICOS} casos \
+         históricos; achados {}",
+        refs.len()
+    );
+    let unicos: BTreeSet<&str> = refs.iter().copied().collect();
+    assert_eq!(
+        unicos.len(),
+        SNAPSHOTS_ESPERADOS,
+        "os casos devem cobrir os {SNAPSHOTS_ESPERADOS} snapshots distintos"
+    );
+
+    // Distribuição exata: impede tanto a perda de um caso quanto a repetição
+    // artificial de outro para recompor a cardinalidade.
+    for (id, esperado) in DISTRIBUICAO_CANONICA {
+        let achado = refs.iter().filter(|candidato| **candidato == id).count();
+        assert_eq!(
+            achado, esperado,
+            "{id}: esperados {esperado} casos históricos, achados {achado}"
+        );
+    }
+    let declarado: usize = DISTRIBUICAO_CANONICA.iter().map(|(_, n)| n).sum();
+    assert_eq!(declarado, CASOS_HISTORICOS);
+
+    // Nenhum identificador inventado: todos resolvem na biblioteca real.
+    let library = biblioteca();
+    for id in &unicos {
+        assert!(
+            library.snapshot(id).is_some(),
+            "identificador citado pela cartografia não existe na autoridade: {id}"
+        );
+    }
+}
+
+#[test]
+fn a_cartografia_nao_mantem_segunda_autoridade_de_projecao() {
+    for proibido in [
+        "fn stable_region_projection",
+        "stable_region_projection(",
+        "fn fnv1a64",
+    ] {
+        assert!(
+            !HARNESS.contains(proibido),
+            "a cartografia voltou a calcular projeção/FNV histórico: {proibido}"
+        );
+    }
+    // O harness estrutural residual não restaura campos históricos.
+    for proibido in ["region.hash =", "region.summary ="] {
+        assert!(
+            !HARNESS.contains(proibido),
+            "o harness estrutural voltou a restaurar campo histórico: {proibido}"
+        );
+    }
+    // E não guarda medidas: nenhum literal de comprimento das 13 projeções.
+    let snapshots = carrega_snapshots();
+    assert_eq!(snapshots.len(), SNAPSHOTS_ESPERADOS);
+    for (_, modelo) in snapshots {
+        let comprimento = modelo.measures.length.to_string();
+        assert!(
+            !HARNESS.contains(&comprimento),
+            "{}: o comprimento congelado reapareceu no harness",
+            modelo.id
+        );
+        assert!(
+            !HARNESS.contains(&modelo.measures.fnv1a64_canonical()),
+            "{}: o FNV congelado reapareceu no harness",
+            modelo.id
+        );
+    }
+}

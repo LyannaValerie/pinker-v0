@@ -565,10 +565,54 @@ A equivalência com a autoridade nova é medida em
 realmente existem para comparar byte a byte. "Sítio", sozinho, deixou de ser
 termo aceitável.
 
-### Coexistência temporária
+### Cutover concluído
 
-Neste checkpoint de migração o mecanismo legado de reconstrução **permanece
-presente** em `tests/nav_cartography_tests.rs`, ao lado da autoridade nova. A
-duplicação é material de migração, não arquitetura: existe para permitir a
-comparação direta byte a byte entre as duas autoridades, e sai no cutover.
+O cutover da autoridade de projeções está feito. Os **31 casos históricos** da
+cartografia consultam os 13 snapshots por identificador; nenhum recalcula
+projeção estável, comprimento ou FNV. Os únicos valores de `regions`, `length` e
+`fnv1a64` vivem nos TOML.
+
+O mecanismo procedural que reconstruía aquelas projeções saiu: 17 helpers
+históricos, `stable_region_projection` e o FNV local do harness foram removidos
+por não terem mais consumidor.
+
+### O harness estrutural histórico
+
+Sobrou um resíduo *test-only*, e ele não é uma segunda autoridade.
+
+Nove gates das ondas afirmam propriedades estruturais sobre estados históricos
+que **nunca tiveram medida congelada** — por exemplo, quantas regiões de
+evidência existiam na Onda 8E. Esses estados não são snapshots e não vão virar
+snapshots: fabricar uma medida que a história não produziu seria pior que o
+problema.
+
+Para eles ficaram três funções de *membresia*:
+
+```
+retain_membership_base
+historical_membership_onda_8e
+historical_membership_pre_onda_8f
+```
+
+Elas só removem regiões. Está provado que nenhuma das asserções independentes
+desses nove gates observa `hash` ou `summary` — os dois campos que a
+reconstrução antiga também restaurava —, então essas restaurações não
+sobreviveram ao cutover. O harness não calcula FNV, não calcula comprimento, não
+verifica snapshot, não tem medidas e não participa de lifecycle.
+
+A fronteira é verificada, não prometida: uma guarda permanente exige os 31 casos
+com a distribuição exata por snapshot, recusa identificador inexistente, e falha
+se o harness voltar a conter cálculo de projeção, FNV, ou restauração de `hash`
+ou `summary`.
+
+### Por que a distribuição, e não só a contagem
+
+A guarda fixa quantos casos cabem a cada snapshot, não apenas que somam 31.
+
+O motivo é uma regressão real desta migração: uma limpeza de código morto apagou
+oito verificações canônicas junto com as cadeias que as cercavam, e a suíte
+continuou **inteiramente verde** — nenhum teste falha por existir em menor
+número. A contagem total teria sido recomposta por qualquer repetição; a
+distribuição não.
+
 <!-- @pinker-doc:end development.projection-snapshots-contract.composicao -->
