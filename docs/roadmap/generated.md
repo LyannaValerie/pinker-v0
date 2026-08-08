@@ -46,4 +46,5 @@ mão. Regenere com `pink doc sincronizar`.
 | #426 | — | 20 | Adiciona o contrato somente leitura dos snapshots históricos de projeção | completed |
 | #428 | — | 20 | Adiciona o núcleo determinístico e somente leitura das automações internas | completed |
 | #429 | — | 20 | Adiciona descoberta de root, política de paths e aplicação local atômica | completed |
+| #432 | — | 20 | Completa o lifecycle de CANDIDATE e a CLI de projeções no Stage E | completed |
 <!-- @pinker-generated:end roadmap.generated -->
