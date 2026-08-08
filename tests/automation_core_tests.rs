@@ -843,7 +843,7 @@ fn o_nucleo_nao_depende_de_estado_nao_deterministico() {
 }
 
 #[test]
-fn o_estagio_nao_expoe_apply_root_nem_cli() {
+fn o_nucleo_puro_nao_expoe_apply_root_nem_cli() {
     for (nome, fonte) in FONTES {
         for proibido in [
             "pub fn apply",
@@ -861,10 +861,20 @@ fn o_estagio_nao_expoe_apply_root_nem_cli() {
         }
     }
     let cli = include_str!("../src/main.rs");
-    assert!(
-        !cli.contains("automation"),
-        "a CLI não consome o núcleo neste estágio"
-    );
+    // O Stage E é o primeiro consumidor real, mas a CLI continua sem montar,
+    // observar, autorizar ou aplicar Plan diretamente.
+    for proibido in [
+        "automation::Plan",
+        "automation::observe(",
+        "automation::check(",
+        "automation::Authorization",
+        "automation::apply(",
+    ] {
+        assert!(
+            !cli.contains(proibido),
+            "a CLI assumiu responsabilidade do núcleo puro: {proibido}"
+        );
+    }
 }
 
 #[test]

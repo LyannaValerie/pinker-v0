@@ -40,7 +40,8 @@ use crate::nav::CodeRegion;
 use crate::nav_projection_snapshot::{
     apply_rules, build_rule, measure, optional_list, parse_raw, reject_unknown, render_rule_body,
     require_integer, require_text, sort_rules, toml_escape, validate_id, HarnessFailure, Measures,
-    ProjectionSnapshot, Rule, RuleConsumption, SchemaAuthority, SnapshotState,
+    Outcome, ProjectionSnapshot, Rule, RuleConsumption, SchemaAuthority, SnapshotState,
+    VerifyReport,
 };
 use std::collections::BTreeMap;
 
@@ -498,31 +499,124 @@ fn ciclo(visitando: &[String], repetida: &str) -> String {
 /// regra — o que é uma consequência de não lhes darmos estado, não uma exceção.
 pub fn verify_frozen_dependencies(library: &Library) -> Result<(), HarnessFailure> {
     for id in library.snapshot_ids() {
-        let snapshot = library.snapshot(id).expect("id vindo da própria coleção");
-        if snapshot.state != SnapshotState::Frozen {
-            continue;
-        }
-        let mut atual: Option<String> = snapshot.base_snapshot.clone();
-        let mut visitados: Vec<String> = vec![id.to_string()];
-        while let Some(base_id) = atual.take() {
-            if visitados.contains(&base_id) {
-                return Err(HarnessFailure::CompositionCycle {
-                    path: ciclo(&visitados, &base_id),
-                });
-            }
-            let Some(base) = library.snapshot(&base_id) else {
-                return Err(HarnessFailure::BaseSnapshotMissing { id: base_id });
-            };
-            if base.state == SnapshotState::Candidate {
-                return Err(HarnessFailure::FrozenDependsOnCandidate {
-                    frozen: id.to_string(),
-                    candidate: base_id,
-                });
-            }
-            visitados.push(base_id);
-            atual.clone_from(&base.base_snapshot);
-        }
+        verify_snapshot_dependencies(library, id)?;
     }
     Ok(())
+}
+
+/// Verifica a política de dependências apenas para um alvo e sua cadeia.
+pub fn verify_snapshot_dependencies(library: &Library, id: &str) -> Result<(), HarnessFailure> {
+    let Some(snapshot) = library.snapshot(id) else {
+        return Err(HarnessFailure::BaseSnapshotMissing { id: id.to_string() });
+    };
+    if snapshot.state != SnapshotState::Frozen {
+        return Ok(());
+    }
+    let mut atual: Option<String> = snapshot.base_snapshot.clone();
+    let mut visitados: Vec<String> = vec![id.to_string()];
+    while let Some(base_id) = atual.take() {
+        if visitados.contains(&base_id) {
+            return Err(HarnessFailure::CompositionCycle {
+                path: ciclo(&visitados, &base_id),
+            });
+        }
+        let Some(base) = library.snapshot(&base_id) else {
+            return Err(HarnessFailure::BaseSnapshotMissing { id: base_id });
+        };
+        if base.state == SnapshotState::Candidate {
+            return Err(HarnessFailure::FrozenDependsOnCandidate {
+                frozen: id.to_string(),
+                candidate: base_id,
+            });
+        }
+        visitados.push(base_id);
+        atual.clone_from(&base.base_snapshot);
+    }
+    Ok(())
+}
+
+/// Verifica um snapshot pela composição real (`base_snapshot`, recipes e
+/// regras locais), reutilizando [`resolve`] como única autoridade.
+pub fn verify_composed(library: &Library, id: &str, catalog: &[CodeRegion]) -> VerifyReport {
+    let Some(snapshot) = library.snapshot(id) else {
+        return missing_report(id);
+    };
+    if let Err(failure) = verify_snapshot_dependencies(library, id) {
+        return failure_report(snapshot, failure);
+    }
+    let composition = match resolve(library, id, catalog) {
+        Ok(composition) => composition,
+        Err(failure) => return failure_report(snapshot, failure),
+    };
+    let observed = composition.measures();
+    let mut divergences = Vec::new();
+    if observed.regions != snapshot.measures.regions {
+        divergences.push(crate::nav_projection_snapshot::Divergence {
+            measure: "regions",
+            expected: snapshot.measures.regions.to_string(),
+            observed: observed.regions.to_string(),
+        });
+    }
+    if observed.length != snapshot.measures.length {
+        divergences.push(crate::nav_projection_snapshot::Divergence {
+            measure: "length",
+            expected: snapshot.measures.length.to_string(),
+            observed: observed.length.to_string(),
+        });
+    }
+    if observed.fnv1a64 != snapshot.measures.fnv1a64 {
+        divergences.push(crate::nav_projection_snapshot::Divergence {
+            measure: "fnv1a64",
+            expected: snapshot.measures.fnv1a64_canonical(),
+            observed: observed.fnv1a64_canonical(),
+        });
+    }
+    VerifyReport {
+        snapshot_id: snapshot.id.clone(),
+        state: snapshot.state,
+        predecessor: snapshot.predecessor.clone(),
+        expected: snapshot.measures,
+        observed: Some(observed),
+        outcome: if divergences.is_empty() {
+            Outcome::Match
+        } else {
+            Outcome::Drift(divergences)
+        },
+        ledger: composition
+            .ledger
+            .into_iter()
+            .flat_map(|scope| scope.entries)
+            .collect(),
+    }
+}
+
+fn failure_report(snapshot: &ProjectionSnapshot, failure: HarnessFailure) -> VerifyReport {
+    VerifyReport {
+        snapshot_id: snapshot.id.clone(),
+        state: snapshot.state,
+        predecessor: snapshot.predecessor.clone(),
+        expected: snapshot.measures,
+        observed: None,
+        outcome: Outcome::HarnessFailure(failure),
+        ledger: Vec::new(),
+    }
+}
+
+fn missing_report(id: &str) -> VerifyReport {
+    VerifyReport {
+        snapshot_id: id.to_string(),
+        state: SnapshotState::Candidate,
+        predecessor: None,
+        expected: Measures {
+            regions: 0,
+            length: 0,
+            fnv1a64: 0,
+        },
+        observed: None,
+        outcome: Outcome::HarnessFailure(HarnessFailure::BaseSnapshotMissing {
+            id: id.to_string(),
+        }),
+        ledger: Vec::new(),
+    }
 }
 // @pinker-nav:end trama.snapshots.biblioteca

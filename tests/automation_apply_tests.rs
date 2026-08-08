@@ -1117,12 +1117,28 @@ fn o_estagio_de_apply_nao_usa_rede_processos_nem_git() {
 }
 
 #[test]
-fn o_estagio_de_apply_nao_expoe_cli() {
+fn o_primeiro_consumidor_nao_transfere_apply_para_a_cli() {
     let cli = include_str!("../src/main.rs");
-    assert!(
-        !cli.contains("automation"),
-        "a CLI não consome o núcleo neste estágio"
-    );
+    let lifecycle = include_str!("../src/nav_projection_lifecycle.rs");
+
+    // Stage E é o primeiro consumidor real do núcleo. A CLI pode descobrir a
+    // raiz e classificar falhas, mas desired state, Plan, digest, autorização,
+    // stale protection e escrita permanecem no adaptador de lifecycle.
+    for proibido in [
+        "apply_plan(",
+        "authorize(",
+        "check_plan(",
+        "observe_plan(",
+        "Plan::new(",
+    ] {
+        assert!(
+            !cli.contains(proibido),
+            "a CLI assumiu responsabilidade do automation core: {proibido}"
+        );
+    }
+    assert!(cli.contains("nav_projection_lifecycle::apply_prepare("));
+    assert!(cli.contains("nav_projection_lifecycle::apply_accept("));
+    assert!(lifecycle.contains("let report = apply("));
 }
 
 #[test]

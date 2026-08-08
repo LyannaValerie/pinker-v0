@@ -26,10 +26,11 @@ catálogo de navegação, implementado em `src/nav_projection_snapshot.rs` sob a
 segunda capacidade da janela auxiliar
 (`janela-infraestrutura-deterministica.md`, Issue #384).
 
-A **implementação** continua somente leitura: o módulo não escreve em disco, não
-descobre root e não expõe CLI. O **acervo**, esse já existe — 13 snapshots e 1
-receita materializados em `.pinker/projections/`. Somente leitura descreve o que
-o código faz, não se os arquivos existem.
+A implementação possui agora duas fronteiras explícitas. O resolvedor e o store
+continuam somente leitura; o lifecycle calcula estado desejado e delega toda
+observação, autorização, proteção stale e escrita ao automation core. O acervo
+continua com 13 snapshots FROZEN e 1 receita histórica em
+`.pinker/projections/`: implementar o lifecycle não registra um marco real.
 
 <!-- @pinker-doc:start
 id: development.projection-snapshots-contract.schema
@@ -123,10 +124,10 @@ tabela hash ou endereço de memória.
 
 ## Estados
 
-Só existem dois. `FROZEN` é imutável e nunca é atualizado implicitamente.
-`CANDIDATE` existe no modelo, mas nada o prepara nem o aceita ainda: o ciclo de
-vida mutável e a superfície de CLI seguem pertencendo a etapas posteriores. Os 13
-snapshots materializados são todos `FROZEN`.
+Só existem dois. `FROZEN` é byte-imutável e nunca é recalibrado.
+`CANDIDATE` é uma proposta versionada de novo marco, preparada e aceita somente
+por comandos explícitos. Os 13 snapshots materializados continuam todos
+`FROZEN`; candidates usados por testes vivem apenas em fixtures temporárias.
 <!-- @pinker-doc:end development.projection-snapshots-contract.schema -->
 
 <!-- @pinker-doc:start
@@ -173,22 +174,97 @@ observada: sem reconstrução válida não há o que observar.
 Os relatórios são determinísticos, derivados do mesmo modelo, sem códigos ANSI e
 sem qualquer path absoluto.
 
-## Fora deste recorte
+## Lifecycle explícito de CANDIDATE
 
-- preparação e aceitação de candidatos, e o ciclo de vida mutável;
-- escrita em disco, descoberta de root e temporários;
-- superfície de CLI;
-- qualquer alteração do contrato congelado `pink-agent-v1`.
+A superfície final é `pink nav projecao`, com cinco comandos:
 
-A criação dos snapshots reais e a migração das medidas históricas **estavam**
-nesta lista e saíram: foram entregues. Os 13 snapshots e a receita de
-normalização vivem em `.pinker/projections/`, e as medidas congeladas são
-literais migrados do mecanismo legado. Ver "A autoridade histórica
-materializada", no fim deste documento.
+```text
+listar
+mostrar <id> [--observado]
+verificar [<id>]
+preparar <id> --justificativa <texto> --predecessor <id> [--autorizar <digest>]
+aceitar <id> [--autorizar <digest>]
+```
 
-Os artefatos foram escritos por um gerador descartável, fora do produto. A
-ausência de escrita continua sendo propriedade do módulo, não consequência de o
-acervo estar vazio.
+`listar` inventaria definições sem reconstruí-las. `mostrar` separa sempre
+`definicao` de `observado`; medidas congeladas e observadas nunca ocupam o mesmo
+objeto ambíguo. `verificar` usa a composição real (`base_snapshot`, recipes e
+regras locais), continua depois de falhas independentes e agrupa um drift de
+base com os descendentes bloqueados por `BaseMeasuresDiverged`.
+
+### Preparar
+
+`--predecessor` é obrigatório, não inferido, e precisa nomear um FROZEN distinto
+do candidate. Um candidate novo é uma raiz (`base_snapshot` ausente), carrega
+justificativa não vazia, zero regras e a recipe própria
+`normalizacao-corrente-para-<id>`. As três medidas são calculadas pelo resolvedor
+real sobre o catálogo corrente; nunca entram como argumento da CLI.
+
+A recipe própria nasce em
+`.pinker/projections/recipes/normalizacao-corrente-para-<id>.toml`, vazia e na
+forma de `render_recipe()`. Repreparar um CANDIDATE recalcula seu snapshot. A
+recipe ausente é criada; uma recipe vazia canônica é preservada byte a byte;
+qualquer step, regra, contador, id ou forma canônica divergente é violação de
+política. O lifecycle nunca sobrescreve manutenção semântica humana. Preparar
+um ID já FROZEN também é violação de política.
+
+Sem `--autorizar`, o comando recalcula o estado, observa os dois targets,
+executa check e publica somente resumo e digest. Com autorização, todo o cálculo
+é repetido; o plano anterior não é lido nem desserializado. A allowlist contém
+exatamente o snapshot e sua recipe. Atomicidade é por arquivo: progresso parcial
+fica explícito e o rerun converge por nova observação e novo digest, sem rollback
+global.
+
+### Aceitar
+
+Aceitar exige candidate e recipe próprios válidos e canônicos, predecessor
+FROZEN, biblioteca válida, dependências FROZEN seguras, reconstrução válida e
+medidas `MATCH`. Harness failure sai antes de qualquer plano; reconstrução válida
+com medidas divergentes é `DRIFT`.
+
+A transição possui exatamente um target e muda semanticamente somente
+`state = "CANDIDATE"` para `state = "FROZEN"` no mesmo arquivo. ID,
+predecessor, justificativa, base, recipes, contadores, regras e medidas são
+preservados. Aceitar não cria nem modifica recipe e não recalcula nada. Depois
+do apply, o arquivo é reaberto, reparseado e resolvido; a recipe é comparada byte
+a byte. Uma segunda aceitação é recusada por lifecycle e não produz delta.
+
+### Automation core, exits e schemas
+
+O adaptador de domínio não escreve diretamente. Descoberta de root,
+`RelativePath`, allowlist, plano, observação, check, digest, autorização, apply,
+stale protection, escrita atômica por arquivo e `ApplyReport` pertencem ao
+automation core.
+
+| exit | significado |
+|---:|---|
+| 0 | `MATCH`, `NO_CHANGE`, planos, candidate preparado ou FROZEN aceito |
+| 1 | I/O ou falha de verificação pós-apply |
+| 2 | uso inválido |
+| 3 | autoridade ou catálogo ilegível |
+| 4 | ID inexistente |
+| 5 | `DRIFT` |
+| 6 | `HARNESS_FAILURE` |
+| 7 | `POLICY_VIOLATION` |
+| 8 | `STALE_PLAN` |
+
+O JSON de `pink nav projecao` usa `PROJECTION_CLI_SCHEMA = 1`. O relatório
+histórico de `json_report()` usa `SNAPSHOT_REPORT_SCHEMA = 1`. Ambos são
+protocolos de relatório, separados do `SNAPSHOT_SCHEMA = 3` do artefato TOML.
+Saídas são de uma linha, determinísticas, sem ANSI, root absoluto, timestamp,
+PID ou payload completo do plano.
+
+### Evolução futura
+
+Recipes não recebem lifecycle. Quando o catálogo evolui, manutenção semântica
+é edição humana deliberada: regras estritas e, quando apropriado, composição por
+`steps`. Nenhum FROZEN ou medida é recalibrado. Recipe consegue excluir regiões
+posteriores e adaptar campos com precondições; não consegue fabricar região
+histórica removida. Falha de consumo continua `HARNESS_FAILURE`, nunca drift.
+
+Continuam fora deste contrato: comando de manutenção automática de recipes,
+transação multi-arquivo, rollback global, novo executor e qualquer alteração de
+`pink-agent-v1`.
 <!-- @pinker-doc:end development.projection-snapshots-contract.reconstrucao -->
 
 <!-- @pinker-doc:start
@@ -526,11 +602,12 @@ mudança de era entre eles.
 
 ### A receita de normalização
 
-`normalizacao-corrente-para-historico` remove as 23 regiões acrescentadas depois
-de todo o acervo histórico (524 → 501 regiões). Ela é declarada por **um único
-snapshot**, o terminal, cuja reconstrução parte do catálogo corrente. Os demais
-herdam o efeito por `base_snapshot`; reaplicá-la abortaria por consumo zero, e a
-composição simplesmente não tenta.
+`normalizacao-corrente-para-historico` remove as 27 regiões acrescentadas depois
+de todo o acervo histórico (528 → 501 regiões) e restaura estritamente os cinco
+hashes de regiões da CLI cujo corpo mudou para integrar o Stage E. Ela é
+declarada por **um único snapshot**, o terminal, cuja reconstrução parte do
+catálogo corrente. Os demais herdam o efeito por `base_snapshot`; reaplicá-la
+abortaria por consumo zero, e a composição simplesmente não tenta.
 
 ### Proveniência das medidas
 

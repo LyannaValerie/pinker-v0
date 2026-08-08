@@ -18,6 +18,9 @@ use pinker_v0::ir;
 use pinker_v0::ir_validate;
 use pinker_v0::lexer::Lexer;
 use pinker_v0::nav;
+use pinker_v0::nav_projection_lifecycle::{self, ProjectionError};
+use pinker_v0::nav_projection_report;
+use pinker_v0::nav_projection_store::ProjectionStore;
 use pinker_v0::parser::Parser;
 use pinker_v0::printer;
 use pinker_v0::projection;
@@ -41,6 +44,9 @@ const EXIT_USAGE: i32 = 2;
 const EXIT_CATALOG: i32 = 3;
 const EXIT_NORESULT: i32 = 4;
 const EXIT_SOURCE: i32 = 5;
+const EXIT_HARNESS: i32 = 6;
+const EXIT_POLICY: i32 = 7;
+const EXIT_STALE: i32 = 8;
 
 /// Limites de resultados por subcomando (§7).
 const LIMIT_MIN: usize = 1;
@@ -146,6 +152,28 @@ enum NavSub {
     Mapa { filtro: Option<String> },
     Sincronizar,
     Verificar,
+    Projecao(ProjectionSub),
+}
+
+enum ProjectionSub {
+    Listar,
+    Mostrar {
+        id: String,
+        observado: bool,
+    },
+    Verificar {
+        id: Option<String>,
+    },
+    Preparar {
+        id: String,
+        justificativa: Option<String>,
+        predecessor: Option<String>,
+        autorizar: Option<String>,
+    },
+    Aceitar {
+        id: String,
+        autorizar: Option<String>,
+    },
 }
 
 struct NavConfigCli {
@@ -256,6 +284,7 @@ fn nav_usage(binary: &str) -> String {
            mapa [FILTRO]       agrupa regiões por arquivo\n\
            sincronizar         regenera o catálogo src/navigation.jsonl\n\
            verificar           valida os marcadores e o catálogo (não corrige)\n\
+           projecao            lifecycle dos snapshots históricos de navegação\n\
          \n\
          Opções:\n\
            --repo      raiz do repositório (padrão: .)\n\
@@ -263,8 +292,36 @@ fn nav_usage(binary: &str) -> String {
            --limite N  máximo de resultados (1..20; buscar=10)\n\
          \n\
          Códigos de saída: 0 sucesso · 2 uso inválido · 3 catálogo ausente/inválido\n\
-                           · 4 sem resultado · 5 fonte/âncora divergente\n",
+                           · 4 sem resultado · 5 fonte/âncora ou drift\n\
+                           · 6 harness · 7 política · 8 plano obsoleto\n",
     )
+}
+
+fn projection_usage(binary: &str) -> String {
+    format!(
+        "Uso: {binary} nav projecao SUBCOMANDO [--repo DIRETÓRIO] [--json]\n\
+         \n\
+         Subcomandos:\n\
+           listar\n\
+           mostrar ID [--observado]\n\
+           verificar [ID]\n\
+           preparar ID --justificativa TEXTO --predecessor ID [--autorizar DIGEST]\n\
+           aceitar ID [--autorizar DIGEST]\n\
+         \n\
+         Sem --autorizar, preparar e aceitar exibem plano e digest sem escrever.\n\
+         Códigos adicionais: 6 harness · 7 política · 8 plano obsoleto\n"
+    )
+}
+
+fn projection_subcommand_usage(binary: &str, command: &str) -> String {
+    match command {
+        "listar" => format!("Uso: {binary} nav projecao listar [--repo DIRETÓRIO] [--json]\n"),
+        "mostrar" => format!("Uso: {binary} nav projecao mostrar ID [--observado] [--repo DIRETÓRIO] [--json]\n"),
+        "verificar" => format!("Uso: {binary} nav projecao verificar [ID] [--repo DIRETÓRIO] [--json]\n"),
+        "preparar" => format!("Uso: {binary} nav projecao preparar ID --justificativa TEXTO --predecessor ID [--autorizar DIGEST] [--repo DIRETÓRIO] [--json]\n"),
+        "aceitar" => format!("Uso: {binary} nav projecao aceitar ID [--autorizar DIGEST] [--repo DIRETÓRIO] [--json]\n"),
+        _ => projection_usage(binary),
+    }
 }
 
 fn doc_usage(binary: &str) -> String {
@@ -625,6 +682,10 @@ fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String>
     let mut repo = ".".to_string();
     let mut json = false;
     let mut limite: Option<usize> = None;
+    let mut observado = false;
+    let mut justificativa: Option<String> = None;
+    let mut predecessor: Option<String> = None;
+    let mut autorizar: Option<String> = None;
     let mut subcommand: Option<String> = None;
     let mut positionals: Vec<String> = Vec::new();
     let mut i = 0usize;
@@ -644,6 +705,37 @@ fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String>
                 repo.clone_from(&args[i]);
             }
             "--json" => json = true,
+            "--observado" => observado = true,
+            "--justificativa" => {
+                i += 1;
+                if i >= args.len() {
+                    return Err(format!(
+                        "Flag '--justificativa' requer um valor.\n\n{}",
+                        projection_usage(binary)
+                    ));
+                }
+                justificativa = Some(args[i].clone());
+            }
+            "--predecessor" => {
+                i += 1;
+                if i >= args.len() {
+                    return Err(format!(
+                        "Flag '--predecessor' requer um valor.\n\n{}",
+                        projection_usage(binary)
+                    ));
+                }
+                predecessor = Some(args[i].clone());
+            }
+            "--autorizar" => {
+                i += 1;
+                if i >= args.len() {
+                    return Err(format!(
+                        "Flag '--autorizar' requer um valor.\n\n{}",
+                        projection_usage(binary)
+                    ));
+                }
+                autorizar = Some(args[i].clone());
+            }
             "--limite" => {
                 i += 1;
                 if i >= args.len() {
@@ -705,6 +797,8 @@ fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String>
         Ok(())
     };
 
+    let has_projection_options =
+        observado || justificativa.is_some() || predecessor.is_some() || autorizar.is_some();
     let sub = match subcommand.as_str() {
         "mostrar" => NavSub::Mostrar {
             key: require_one("mostrar")?,
@@ -738,6 +832,84 @@ fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String>
             require_none("verificar")?;
             NavSub::Verificar
         }
+        "projecao" => {
+            if limite.is_some() {
+                return Err(format!(
+                    "A opção '--limite' não pertence a nav projecao.\n\n{}",
+                    projection_usage(binary)
+                ));
+            }
+            let Some(command) = positionals.first() else {
+                return Err(projection_usage(binary));
+            };
+            let arguments = &positionals[1..];
+            let require_projection_id = || -> Result<String, String> {
+                if arguments.len() != 1 {
+                    return Err(format!(
+                        "O subcomando '{}' requer exatamente um ID.\n\n{}",
+                        command,
+                        projection_subcommand_usage(binary, command)
+                    ));
+                }
+                Ok(arguments[0].clone())
+            };
+            let projection = match command.as_str() {
+                "listar" => {
+                    if !arguments.is_empty() || has_projection_options {
+                        return Err(projection_subcommand_usage(binary, command));
+                    }
+                    ProjectionSub::Listar
+                }
+                "mostrar" => {
+                    if justificativa.is_some() || predecessor.is_some() || autorizar.is_some() {
+                        return Err(projection_subcommand_usage(binary, command));
+                    }
+                    ProjectionSub::Mostrar {
+                        id: require_projection_id()?,
+                        observado,
+                    }
+                }
+                "verificar" => {
+                    if has_projection_options {
+                        return Err(projection_subcommand_usage(binary, command));
+                    }
+                    if arguments.len() > 1 {
+                        return Err(projection_subcommand_usage(binary, command));
+                    }
+                    ProjectionSub::Verificar {
+                        id: arguments.first().cloned(),
+                    }
+                }
+                "preparar" => {
+                    if observado {
+                        return Err(projection_subcommand_usage(binary, command));
+                    }
+                    ProjectionSub::Preparar {
+                        id: require_projection_id()?,
+                        justificativa,
+                        predecessor,
+                        autorizar,
+                    }
+                }
+                "aceitar" => {
+                    if observado || justificativa.is_some() || predecessor.is_some() {
+                        return Err(projection_subcommand_usage(binary, command));
+                    }
+                    ProjectionSub::Aceitar {
+                        id: require_projection_id()?,
+                        autorizar,
+                    }
+                }
+                _ => {
+                    return Err(format!(
+                        "Subcomando nav projecao desconhecido: '{}'.\n\n{}",
+                        command,
+                        projection_usage(binary)
+                    ))
+                }
+            };
+            NavSub::Projecao(projection)
+        }
         other => {
             return Err(format!(
                 "Subcomando nav desconhecido: '{}'\n\n{}",
@@ -746,6 +918,14 @@ fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String>
             ));
         }
     };
+
+    if !matches!(sub, NavSub::Projecao(_)) && has_projection_options {
+        return Err(format!(
+            "Opção exclusiva de nav projecao usada em '{}'.\n\n{}",
+            subcommand,
+            nav_usage(binary)
+        ));
+    }
 
     Ok(NavConfigCli {
         repo,
@@ -870,6 +1050,21 @@ fn parse_args() -> Result<CliCommand, String> {
     }
 
     if let Some(cmd) = flag_args.first() {
+        if cmd == "nav"
+            && flag_args.get(1).map(String::as_str) == Some("projecao")
+            && flag_args[2..]
+                .iter()
+                .any(|arg| matches!(arg.as_str(), "--help" | "-h"))
+        {
+            let help = flag_args
+                .get(2)
+                .filter(|value| !value.starts_with('-'))
+                .map_or_else(
+                    || projection_usage(&program),
+                    |command| projection_subcommand_usage(&program, command),
+                );
+            return Ok(CliCommand::Help(help));
+        }
         if let Some(help) = help_for_command(&program, cmd) {
             if flag_args[1..]
                 .iter()
@@ -1046,9 +1241,324 @@ fn run_nav(config: NavConfigCli) -> i32 {
         NavSub::Mapa { filtro } => run_nav_mapa(repo_root, filtro.as_deref(), config.json),
         NavSub::Sincronizar => run_nav_sincronizar(repo_root),
         NavSub::Verificar => run_nav_verificar(repo_root),
+        NavSub::Projecao(command) => run_nav_projecao(repo_root, config.json, command),
     }
 }
 // @pinker-nav:end cli.execucao.entrada
+
+// @pinker-nav:start cli.nav.projecao
+// @pinker-nav:domain projecoes
+// @pinker-nav:layer cli
+// @pinker-nav:summary Adaptador final `pink nav projecao`: despacha listar, mostrar, verificar, preparar e aceitar; descobre root pelo automation core, deriva texto e JSON dos mesmos modelos, recalcula planos antes de toda autorização e preserva exits distintos para drift, harness, política e stale.
+fn run_nav_projecao(repo: &Path, json: bool, command: ProjectionSub) -> i32 {
+    let root = match pinker_v0::automation::RepoRoot::discover(repo) {
+        Ok(root) => root,
+        Err(error) => {
+            return print_projection_error("projecao", json, &ProjectionError::Automation(error))
+        }
+    };
+    match command {
+        ProjectionSub::Listar => {
+            let store = match ProjectionStore::load(root.path()) {
+                Ok(store) => store,
+                Err(error) => {
+                    return print_projection_error(
+                        "listar",
+                        json,
+                        &ProjectionError::Authority(error),
+                    )
+                }
+            };
+            if json {
+                println!("{}", nav_projection_report::render_inventory_json(&store));
+            } else {
+                print!("{}", nav_projection_report::render_inventory_human(&store));
+            }
+            if store.errors().is_empty() {
+                EXIT_OK
+            } else {
+                EXIT_HARNESS
+            }
+        }
+        ProjectionSub::Mostrar { id, observado } => {
+            run_projection_show(&root, json, &id, observado)
+        }
+        ProjectionSub::Verificar { id } => run_projection_verify(&root, json, id.as_deref()),
+        ProjectionSub::Preparar {
+            id,
+            justificativa,
+            predecessor,
+            autorizar,
+        } => {
+            let Some(justification) = justificativa else {
+                return print_projection_error(
+                    "preparar",
+                    json,
+                    &ProjectionError::Policy {
+                        message: "--justificativa é obrigatória".to_string(),
+                    },
+                );
+            };
+            let Some(predecessor) = predecessor else {
+                return print_projection_error(
+                    "preparar",
+                    json,
+                    &ProjectionError::Policy {
+                        message: "--predecessor é obrigatório".to_string(),
+                    },
+                );
+            };
+            let catalog = match load_projection_catalog(&root) {
+                Ok(catalog) => catalog,
+                Err(error) => return print_projection_error("preparar", json, &error),
+            };
+            let planning = match nav_projection_lifecycle::plan_prepare(
+                &root,
+                &catalog.regions,
+                &id,
+                &predecessor,
+                &justification,
+            ) {
+                Ok(planning) => planning,
+                Err(error) => return print_projection_error("preparar", json, &error),
+            };
+            match autorizar {
+                None => {
+                    if json {
+                        println!(
+                            "{}",
+                            nav_projection_report::render_plan_json("preparar", &planning)
+                        );
+                    } else {
+                        print!("{}", nav_projection_report::render_plan_human(&planning));
+                    }
+                    EXIT_OK
+                }
+                Some(digest) => match nav_projection_lifecycle::apply_prepare(
+                    &root,
+                    &catalog.regions,
+                    &planning,
+                    &digest,
+                ) {
+                    Ok(applied) => {
+                        if json {
+                            println!(
+                                "{}",
+                                nav_projection_report::render_apply_json("preparar", &applied)
+                            );
+                        } else {
+                            print!("{}", nav_projection_report::render_apply_human(&applied));
+                        }
+                        EXIT_OK
+                    }
+                    Err(error) => print_projection_error("preparar", json, &error),
+                },
+            }
+        }
+        ProjectionSub::Aceitar { id, autorizar } => {
+            let catalog = match load_projection_catalog(&root) {
+                Ok(catalog) => catalog,
+                Err(error) => return print_projection_error("aceitar", json, &error),
+            };
+            let planning = match nav_projection_lifecycle::plan_accept(&root, &catalog.regions, &id)
+            {
+                Ok(planning) => planning,
+                Err(error) => return print_projection_error("aceitar", json, &error),
+            };
+            match autorizar {
+                None => {
+                    if json {
+                        println!(
+                            "{}",
+                            nav_projection_report::render_plan_json("aceitar", &planning)
+                        );
+                    } else {
+                        print!("{}", nav_projection_report::render_plan_human(&planning));
+                    }
+                    EXIT_OK
+                }
+                Some(digest) => match nav_projection_lifecycle::apply_accept(
+                    &root,
+                    &catalog.regions,
+                    &planning,
+                    &digest,
+                ) {
+                    Ok(applied) => {
+                        if json {
+                            println!(
+                                "{}",
+                                nav_projection_report::render_apply_json("aceitar", &applied)
+                            );
+                        } else {
+                            print!("{}", nav_projection_report::render_apply_human(&applied));
+                        }
+                        EXIT_OK
+                    }
+                    Err(error) => print_projection_error("aceitar", json, &error),
+                },
+            }
+        }
+    }
+}
+
+fn run_projection_show(
+    root: &pinker_v0::automation::RepoRoot,
+    json: bool,
+    id: &str,
+    observed: bool,
+) -> i32 {
+    let store = match ProjectionStore::load(root.path()) {
+        Ok(store) => store,
+        Err(error) => {
+            return print_projection_error("mostrar", json, &ProjectionError::Authority(error))
+        }
+    };
+    if let Some(error) = store.snapshot_error(id) {
+        return print_projection_error(
+            "mostrar",
+            json,
+            &ProjectionError::Harness {
+                path: Some(error.path.clone()),
+                message: error.message.clone(),
+            },
+        );
+    }
+    let Some(stored) = store.snapshot(id) else {
+        return print_projection_error(
+            "mostrar",
+            json,
+            &ProjectionError::NotFound { id: id.to_string() },
+        );
+    };
+    let verification = if observed {
+        let catalog = match load_projection_catalog(root) {
+            Ok(catalog) => catalog,
+            Err(error) => return print_projection_error("mostrar", json, &error),
+        };
+        match nav_projection_report::verify_one(&store, id, &catalog.regions) {
+            Ok(item) => Some(item.report),
+            Err(error) => return print_projection_error("mostrar", json, &error),
+        }
+    } else {
+        None
+    };
+    if json {
+        println!(
+            "{}",
+            nav_projection_report::render_show_json(stored, verification.as_ref())
+        );
+    } else {
+        print!(
+            "{}",
+            nav_projection_report::render_show_human(stored, verification.as_ref())
+        );
+    }
+    match verification.as_ref().map(|report| &report.outcome) {
+        Some(pinker_v0::nav_projection_snapshot::Outcome::Drift(_)) => EXIT_SOURCE,
+        Some(pinker_v0::nav_projection_snapshot::Outcome::HarnessFailure(_)) => EXIT_HARNESS,
+        _ => EXIT_OK,
+    }
+}
+
+fn run_projection_verify(
+    root: &pinker_v0::automation::RepoRoot,
+    json: bool,
+    id: Option<&str>,
+) -> i32 {
+    let store = match ProjectionStore::load(root.path()) {
+        Ok(store) => store,
+        Err(error) => {
+            return print_projection_error("verificar", json, &ProjectionError::Authority(error))
+        }
+    };
+    let catalog = match load_projection_catalog(root) {
+        Ok(catalog) => catalog,
+        Err(error) => return print_projection_error("verificar", json, &error),
+    };
+    let batch = if let Some(id) = id {
+        let item = match nav_projection_report::verify_one(&store, id, &catalog.regions) {
+            Ok(item) => item,
+            Err(error) => return print_projection_error("verificar", json, &error),
+        };
+        nav_projection_report::VerificationBatch {
+            results: vec![item],
+            causes: Vec::new(),
+            errors: Vec::new(),
+        }
+    } else {
+        nav_projection_report::verify_all(&store, &catalog.regions)
+    };
+    if json {
+        println!(
+            "{}",
+            nav_projection_report::render_verification_json(&batch)
+        );
+    } else {
+        print!(
+            "{}",
+            nav_projection_report::render_verification_human(&batch)
+        );
+    }
+    match batch.outcome() {
+        "MATCH" => EXIT_OK,
+        "DRIFT" => EXIT_SOURCE,
+        _ => EXIT_HARNESS,
+    }
+}
+
+fn load_projection_catalog(
+    root: &pinker_v0::automation::RepoRoot,
+) -> Result<nav::CodeCatalog, ProjectionError> {
+    nav::CodeCatalog::load(&root.path().join("src/navigation.jsonl")).map_err(|error| {
+        ProjectionError::Harness {
+            path: Some("src/navigation.jsonl".to_string()),
+            message: error.to_string(),
+        }
+    })
+}
+
+fn print_projection_error(command: &str, json: bool, error: &ProjectionError) -> i32 {
+    if json {
+        println!(
+            "{}",
+            nav_projection_report::render_error_json(command, error)
+        );
+    } else {
+        eprintln!("{error}");
+    }
+    projection_error_exit(error)
+}
+
+fn projection_error_exit(error: &ProjectionError) -> i32 {
+    use pinker_v0::automation::Failure;
+    let failure_exit = |failure: &Failure| match failure {
+        Failure::HarnessFailure(pinker_v0::automation::HarnessCause::RootNotFound { .. }) => {
+            EXIT_CATALOG
+        }
+        Failure::HarnessFailure(_) => EXIT_HARNESS,
+        Failure::PolicyViolation(_) => EXIT_POLICY,
+        Failure::StalePlan { .. } => EXIT_STALE,
+        Failure::IoFailure { .. } | Failure::VerifyAfterApplyFailure { .. } => EXIT_FAILURE,
+    };
+    match error {
+        ProjectionError::Authority(_) => EXIT_CATALOG,
+        ProjectionError::NotFound { .. } => EXIT_NORESULT,
+        ProjectionError::Harness { path, .. }
+            if path.as_deref() == Some("src/navigation.jsonl") =>
+        {
+            EXIT_CATALOG
+        }
+        ProjectionError::Harness { .. } => EXIT_HARNESS,
+        ProjectionError::Policy { .. } => EXIT_POLICY,
+        ProjectionError::Drift { .. } => EXIT_SOURCE,
+        ProjectionError::Automation(failure) => failure_exit(failure),
+        ProjectionError::Apply(report) => {
+            report.failure.as_ref().map_or(EXIT_FAILURE, failure_exit)
+        }
+        ProjectionError::VerifyAfterApply { .. } => EXIT_FAILURE,
+    }
+}
+// @pinker-nav:end cli.nav.projecao
 
 // @pinker-nav:start cli.nav.consulta
 // @pinker-nav:domain nav

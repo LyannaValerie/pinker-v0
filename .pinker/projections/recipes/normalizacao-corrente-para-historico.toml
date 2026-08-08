@@ -2,8 +2,8 @@ schema = 2
 id = "normalizacao-corrente-para-historico"
 
 [reconstruction]
-expected_overrides = 0
-expected_exclusions = 23
+expected_overrides = 5
+expected_exclusions = 27
 
 [[rules]]
 op = "exclude-key"
@@ -67,6 +67,26 @@ expected_matches = 1
 
 [[rules]]
 op = "exclude-key"
+key = "cli.nav.projecao"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "trama.projecoes.lifecycle"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "trama.projecoes.relatorios"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "trama.projecoes.store"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
 key = "trama.snapshots.biblioteca"
 expected_matches = 1
 
@@ -119,3 +139,33 @@ expected_matches = 1
 op = "exclude-key"
 key = "trama.snapshots.verificacao"
 expected_matches = 1
+
+[[rules]]
+op = "override-hash"
+key = "cli.ajuda.usage"
+from = "fnv1a64:51f5aca361f84fde"
+to = "fnv1a64:ce2fe9866dbdcd8f"
+
+[[rules]]
+op = "override-hash"
+key = "cli.config.modelos"
+from = "fnv1a64:6c68096886a9c88b"
+to = "fnv1a64:76a2365574c8b339"
+
+[[rules]]
+op = "override-hash"
+key = "cli.execucao.entrada"
+from = "fnv1a64:3ce736ce46fb6fcd"
+to = "fnv1a64:f33da0bc4b2931c0"
+
+[[rules]]
+op = "override-hash"
+key = "cli.parsing.roteamento"
+from = "fnv1a64:e0d3ac86e81801a4"
+to = "fnv1a64:7a87c07efc0fa102"
+
+[[rules]]
+op = "override-hash"
+key = "cli.parsing.subcomandos"
+from = "fnv1a64:06516767ed8407bc"
+to = "fnv1a64:52d92432d1b2f696"

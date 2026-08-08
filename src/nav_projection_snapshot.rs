@@ -68,6 +68,9 @@ pub const SNAPSHOT_SCHEMA_V3: u64 = 3;
 /// Versão máxima aceita do formato de snapshot.
 pub const SNAPSHOT_SCHEMA: u64 = SNAPSHOT_SCHEMA_V3;
 
+/// Schema do relatório de verificação, distinto do schema do artefato TOML.
+pub const SNAPSHOT_REPORT_SCHEMA: u64 = 1;
+
 /// Prefixo canônico do hash FNV-1a 64 usado pela Trama.
 pub const FNV_PREFIX: &str = "fnv1a64:";
 
@@ -2531,7 +2534,7 @@ fn measures_json(measures: &Measures) -> String {
 /// absoluto: o modelo só carrega identificadores e paths repo-relativos.
 pub fn json_report(report: &VerifyReport) -> String {
     let mut out = String::new();
-    out.push_str(&format!("{{\"schema\":{}", SNAPSHOT_SCHEMA));
+    out.push_str(&format!("{{\"schema\":{}", SNAPSHOT_REPORT_SCHEMA));
     out.push_str(&format!(
         ",\"snapshot\":{}",
         json_string(&report.snapshot_id)

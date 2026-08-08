@@ -63,4 +63,5 @@ mão. Regenere com `pink doc sincronizar`.
 | #426 | parallel-phase | — | 20 | Adiciona o contrato somente leitura dos snapshots históricos de projeção | completed |
 | #428 | parallel-phase | — | 20 | Adiciona o núcleo determinístico e somente leitura das automações internas | completed |
 | #429 | parallel-phase | — | 20 | Adiciona descoberta de root, política de paths e aplicação local atômica | completed |
+| #432 | parallel-phase | — | 20 | Completa o lifecycle de CANDIDATE e a CLI de projeções no Stage E | completed |
 <!-- @pinker-generated:end change.history -->
