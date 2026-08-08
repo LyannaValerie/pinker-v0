@@ -63,8 +63,12 @@ trivialmente sem escrita porque não tem filesystem para escrever. A camada loca
 é o único ponto em que o disco entra e sai, e ela atravessa sempre o
 confinamento.
 
-Fora do núcleo continuam CLI, consumidor real, processos, rede, Git e qualquer
-alteração do contrato congelado `pink-agent-v1`.
+Fora do núcleo continuam CLI, regras de domínio, processos, rede, Git e qualquer
+alteração do contrato congelado `pink-agent-v1`. O primeiro consumidor real é o
+lifecycle de snapshots de projeção: ele calcula bytes desejados para preparar e
+aceitar candidates, mas delega integralmente ao núcleo root, paths, allowlists,
+observação, digest, autorização, stale protection, apply e relatório de
+progresso. Essa adoção não amplia a autoridade do core.
 
 ## O plano é efêmero
 
@@ -73,7 +77,7 @@ Ele é calculado pelo adaptador, usado e descartado: **não é canônico, não �
 versionado no repositório e nunca é lido de volta.**
 
 Por isso existe serialização canônica e **não existe parser**. A autorização de
-uma escrita futura compara o digest de um plano recalculado pelo adaptador,
+uma escrita compara o digest de um plano recalculado pelo adaptador,
 jamais um plano desserializado; não escrever o parser elimina uma superfície
 inteira de entrada para um formato que nunca é persistido.
 

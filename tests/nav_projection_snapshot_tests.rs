@@ -1109,7 +1109,7 @@ fn o_modulo_nao_depende_de_estado_nao_deterministico() {
 }
 
 #[test]
-fn o_estagio_nao_expoe_lifecycle_mutavel_nem_cli() {
+fn o_nucleo_de_snapshot_nao_expoe_lifecycle_mutavel() {
     for proibido in [
         "pub fn prepare",
         "pub fn preparar",
@@ -1125,10 +1125,19 @@ fn o_estagio_nao_expoe_lifecycle_mutavel_nem_cli() {
         );
     }
     let cli = include_str!("../src/main.rs");
-    assert!(
-        !cli.contains("nav_projection_snapshot"),
-        "a CLI não consome o domínio de snapshots neste estágio"
-    );
+    // Stage E pode classificar Outcome na borda, mas parsing, renderização,
+    // medidas e reconstrução continuam fora do adaptador CLI.
+    for proibido in [
+        "parse_snapshot(",
+        "render_snapshot(",
+        "measure(",
+        "apply_rules(",
+    ] {
+        assert!(
+            !cli.contains(proibido),
+            "a CLI assumiu autoridade do núcleo de snapshot: {proibido}"
+        );
+    }
 }
 
 /// A guarda de proliferação da autoridade histórica.

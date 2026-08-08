@@ -49,8 +49,10 @@ janela_auxiliar:
   status: ACTIVE
   completed:
     - Etapa 1 da Issue #414 (PR #420)
+    - Issue #385 — núcleo determinístico puro e apply local (PRs #428 e #429)
+    - Issue #384 — autoridade histórica materializada (PR #430)
   extraordinary_interruption: HF-9 — memória pública e contenção do host
-  next_delivery_after_hotfix_merge: Issue #384 — snapshots e projeções
+  current_delivery: Issue #384 — lifecycle explícito e CLI de projeções (Stage E)
 
 Eixo_A:
   status: PAUSED_BY_EXPLICIT_HUMAN_DECISION
