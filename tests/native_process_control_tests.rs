@@ -19,6 +19,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(1);
+const ROOT_SWAP_OPERATIONAL_DEADLINE: Duration = Duration::from_secs(60);
 
 fn fixture_id() -> String {
     format!(
@@ -26,6 +27,42 @@ fn fixture_id() -> String {
         std::process::id(),
         NEXT_FIXTURE.fetch_add(1, Ordering::SeqCst)
     )
+}
+
+fn root_swap_timeout(
+    started: Instant,
+    stage: &str,
+    fixture: &str,
+    probe: &LifecycleProbe,
+    cause: impl std::fmt::Display,
+) -> ! {
+    panic!(
+        "root-swap prazo operacional atingido: stage={stage} deadline={}s elapsed_ms={} controller_pid={} fixture={fixture} lifecycle={:?} cause={cause}",
+        ROOT_SWAP_OPERATIONAL_DEADLINE.as_secs(),
+        started.elapsed().as_millis(),
+        std::process::id(),
+        probe.records(),
+    );
+}
+
+fn root_swap_remaining(
+    started: Instant,
+    deadline: Instant,
+    stage: &str,
+    fixture: &str,
+    probe: &LifecycleProbe,
+) -> Duration {
+    let remaining = deadline.saturating_duration_since(Instant::now());
+    if remaining.is_zero() {
+        root_swap_timeout(
+            started,
+            stage,
+            fixture,
+            probe,
+            "deadline absoluto consumido antes da espera",
+        );
+    }
+    remaining
 }
 
 fn execution_dirs_at(repo_root: &Path) -> usize {
@@ -679,6 +716,8 @@ fn execution_root_symlink_e_entradas_symlink_nunca_escapam() {
 
 #[test]
 fn troca_da_raiz_antes_do_cleanup_falha_fechada_e_preserva_conteudo() {
+    let started = Instant::now();
+    let deadline = started + ROOT_SWAP_OPERATIONAL_DEADLINE;
     let repo = FakeRepo::new();
     let sentinel = repo.root.join("external-sentinel");
     fs::write(&sentinel, "preservar").expect("sentinela");
@@ -688,33 +727,40 @@ fn troca_da_raiz_antes_do_cleanup_falha_fechada_e_preserva_conteudo() {
     let _controller_guard = SocketPathGuard(controller_path.clone());
     let _guest_guard = SocketPathGuard(guest_path.clone());
     let controller_socket = UnixDatagram::bind(&controller_path).expect("canal root-swap");
-    controller_socket
-        .set_read_timeout(Some(Duration::from_secs(5)))
-        .expect("timeout root-swap");
     let probe = LifecycleProbe::default();
     let runner_probe = probe.clone();
     let repo_root = repo.root.clone();
+    let runner_id = id.clone();
+    let command_timeout = root_swap_remaining(started, deadline, "controlled_command", &id, &probe);
     let runner = std::thread::spawn(move || {
         ControlledCommand::new(std::env::current_exe().expect("test binary"))
             .args(["--exact", "root_swap_entry", "--ignored", "--nocapture"])
             .env("PINKER_ROOT_SWAP_CONTROLLER", controller_path)
             .env("PINKER_ROOT_SWAP_GUEST", guest_path)
+            .env("PINKER_ROOT_SWAP_FIXTURE", runner_id)
+            .timeout(command_timeout)
             .lifecycle_probe_for_test(&runner_probe)
             .execution_repo_root_for_test(repo_root)
             .output()
     });
+    controller_socket
+        .set_read_timeout(Some(root_swap_remaining(
+            started, deadline, "ready", &id, &probe,
+        )))
+        .expect("configura deadline root-swap");
     let mut ready = [0_u8; 16];
     let (size, guest_address) = controller_socket
         .recv_from(&mut ready)
-        .expect("guest publica prontidão para root-swap");
+        .unwrap_or_else(|error| root_swap_timeout(started, "ready", &id, &probe, error));
     assert_eq!(&ready[..size], b"ready");
+    let sandbox_remaining = root_swap_remaining(started, deadline, "sandbox_running", &id, &probe);
     probe
         .wait_for_test(
             "sandbox_running antes de root-swap",
-            Duration::from_secs(5),
+            sandbox_remaining,
             |event| matches!(event, LifecycleEvent::SandboxRunning),
         )
-        .expect("marker running concluído antes da troca");
+        .unwrap_or_else(|error| root_swap_timeout(started, "sandbox_running", &id, &probe, error));
     controller_socket
         .send_to(
             b"go",
@@ -741,17 +787,29 @@ fn root_swap_entry() {
     let Some(guest_path) = std::env::var_os("PINKER_ROOT_SWAP_GUEST") else {
         return;
     };
+    let fixture =
+        std::env::var("PINKER_ROOT_SWAP_FIXTURE").unwrap_or_else(|_| "unknown".to_string());
     let socket = UnixDatagram::bind(guest_path).expect("canal guest root-swap");
     socket
-        .set_read_timeout(Some(Duration::from_secs(20)))
+        .set_read_timeout(Some(ROOT_SWAP_OPERATIONAL_DEADLINE))
         .expect("prazo operacional root-swap");
     socket
         .send_to(b"ready", Path::new(&controller_path))
-        .expect("publica prontidão root-swap");
+        .unwrap_or_else(|error| {
+            panic!(
+                "root-swap handshake falhou: stage=ready deadline={}s guest_pid={} fixture={fixture} lifecycle=unavailable cause={error}",
+                ROOT_SWAP_OPERATIONAL_DEADLINE.as_secs(),
+                std::process::id(),
+            )
+        });
     let mut release = [0_u8; 2];
-    let size = socket
-        .recv(&mut release)
-        .expect("aguarda liberação root-swap");
+    let size = socket.recv(&mut release).unwrap_or_else(|error| {
+        panic!(
+            "root-swap handshake falhou: stage=go deadline={}s guest_pid={} fixture={fixture} lifecycle=unavailable cause={error}",
+            ROOT_SWAP_OPERATIONAL_DEADLINE.as_secs(),
+            std::process::id(),
+        )
+    });
     assert_eq!(&release[..size], b"go");
     let execution_dir =
         PathBuf::from(std::env::var_os("PINKER_EXECUTION_DIR").expect("sandbox da execução"));

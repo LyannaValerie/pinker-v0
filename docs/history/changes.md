@@ -65,4 +65,5 @@ mão. Regenere com `pink doc sincronizar`.
 | #429 | parallel-phase | — | 20 | Adiciona descoberta de root, política de paths e aplicação local atômica | completed |
 | #432 | parallel-phase | — | 20 | Completa o lifecycle de CANDIDATE e a CLI de projeções no Stage E | completed |
 | #433 | parallel-phase | — | 20 | Expõe o estado consolidado somente leitura da Pinker | completed |
+| #437 | hotfix | — | — | Estabilizar handshake root-swap sob contenção no CI | completed |
 <!-- @pinker-generated:end change.history -->
