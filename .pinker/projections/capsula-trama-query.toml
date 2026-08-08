@@ -1,0 +1,90 @@
+schema = 3
+id = "capsula-trama-query"
+state = "FROZEN"
+predecessor = "capsula-doc-catalog"
+justification = "Estado completo da cápsula trama-query, medido pelo gate capsula_trama_query_cartografa_suporte_e_dez_testes."
+
+[reconstruction]
+base_snapshot = "onda-pink-agente-a"
+expected_overrides = 5
+expected_exclusions = 6
+
+[measures]
+regions = 437
+length = 198426
+fnv1a64 = "fnv1a64:3c11c888567c3757"
+
+[[rules]]
+op = "exclude-file"
+file = "src/agent.rs"
+expected_matches = 5
+
+[[rules]]
+op = "exclude-file"
+file = "tests/agent_cli_tests.rs"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-file"
+file = "tests/agent_limits_tests.rs"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-file"
+file = "tests/agent_runner_tests.rs"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-file"
+file = "tests/trama_ci_tests.rs"
+expected_matches = 7
+
+[[rules]]
+op = "exclude-file"
+file = "tests/trama_template_tests.rs"
+expected_matches = 4
+
+[[rules]]
+op = "override-hash"
+key = "cli.ajuda.usage"
+from = "fnv1a64:0b83cc2867f57a67"
+to = "fnv1a64:e113d106c5deb0fb"
+expect_file = "src/main.rs"
+expect_domain = "ajuda"
+expect_layer = "cli"
+
+[[rules]]
+op = "override-hash"
+key = "cli.config.modelos"
+from = "fnv1a64:e9f2fa1d60a02231"
+to = "fnv1a64:2283afca0ebd2802"
+expect_file = "src/main.rs"
+expect_domain = "config"
+expect_layer = "cli"
+
+[[rules]]
+op = "override-hash"
+key = "cli.execucao.entrada"
+from = "fnv1a64:2bb1696e4bd2e0a8"
+to = "fnv1a64:35d79f4547ac200b"
+expect_file = "src/main.rs"
+expect_domain = "execucao"
+expect_layer = "cli"
+
+[[rules]]
+op = "override-hash"
+key = "cli.parsing.roteamento"
+from = "fnv1a64:7a87c07efc0fa102"
+to = "fnv1a64:7dfa8a6f46dbe881"
+expect_file = "src/main.rs"
+expect_domain = "parsing"
+expect_layer = "cli"
+
+[[rules]]
+op = "override-hash"
+key = "cli.parsing.subcomandos"
+from = "fnv1a64:54b0515fa81ebb9e"
+to = "fnv1a64:c4ac5c32759f34c7"
+expect_file = "src/main.rs"
+expect_domain = "parsing"
+expect_layer = "cli"

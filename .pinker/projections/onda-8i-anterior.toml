@@ -1,0 +1,99 @@
+schema = 3
+id = "onda-8i-anterior"
+state = "FROZEN"
+justification = "Estado anterior à evidência da Onda 8I (paridade do backend nativo), medido pelo gate onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo."
+
+[reconstruction]
+base_snapshot = "capsula-doc-catalog"
+expected_overrides = 0
+expected_exclusions = 17
+
+[measures]
+regions = 391
+length = 179196
+fnv1a64 = "fnv1a64:f9583cc58d20330c"
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.backend-nativo.emissao-abi-e-fluxo-textual"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.backend-nativo.emissao-init-runtime"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.backend-nativo.emissao-simbolos-runtime-textual"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.backend-nativo.execucao-exit-controle-fluxo"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.backend-nativo.execucao-exit-fumaca-abi"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.backend-nativo.paridade-argv"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.backend-nativo.paridade-marco-b11"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.backend-nativo.paridade-stdout-colecoes"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.backend-nativo.paridade-stdout-fases-avancadas"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.backend-nativo.paridade-stdout-programas-maiores"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.backend-nativo.suporte-driver-c"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.backend-nativo.suporte-lowering-memoria"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.backend-nativo.suporte-matriz-paridade-b11"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.backend-nativo.suporte-paridade-stdout"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key-prefix"
+prefix = "evidencia.runtime."
+expected_matches = 11
+
+[[rules]]
+op = "exclude-file"
+file = "tests/doc_catalog_tests.rs"
+expected_matches = 6
+
+[[rules]]
+op = "exclude-file"
+file = "tests/nav_catalog_tests.rs"
+expected_matches = 6

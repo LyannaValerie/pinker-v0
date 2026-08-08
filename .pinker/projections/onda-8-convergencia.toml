@@ -1,0 +1,24 @@
+schema = 3
+id = "onda-8-convergencia"
+state = "FROZEN"
+justification = "Conjunto histórico convergido da Onda 8, fechado pelo gate onda_8_convergencia_fecha_cadeia_8a_8j."
+
+[reconstruction]
+base_snapshot = "capsula-doc-catalog"
+expected_overrides = 0
+expected_exclusions = 2
+
+[measures]
+regions = 416
+length = 192709
+fnv1a64 = "fnv1a64:6dd6fef55bf7eeac"
+
+[[rules]]
+op = "exclude-file"
+file = "tests/doc_catalog_tests.rs"
+expected_matches = 6
+
+[[rules]]
+op = "exclude-file"
+file = "tests/nav_catalog_tests.rs"
+expected_matches = 6

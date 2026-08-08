@@ -1,0 +1,79 @@
+schema = 3
+id = "onda-8j-anterior"
+state = "FROZEN"
+justification = "Estado anterior à evidência da Onda 8J (interna do runtime), medido pelo gate onda_8j_cartografa_evidencias_internas_do_runtime."
+
+[reconstruction]
+base_snapshot = "capsula-doc-catalog"
+expected_overrides = 0
+expected_exclusions = 13
+
+[measures]
+regions = 405
+length = 186892
+fnv1a64 = "fnv1a64:a77974535bcb999c"
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.runtime.cota-identidades-publicas"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.runtime.inicializacao-abi"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.runtime.leques-carga"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.runtime.listas-dinamicas"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.runtime.mapas-dinamicos"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.runtime.mapas-iterador-snapshot"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.runtime.memoria-alocador"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.runtime.sigpipe-disposicao"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.runtime.texto-verso"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.runtime.unioes-snapshot"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.runtime.validacao-acesso-publico"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-file"
+file = "tests/doc_catalog_tests.rs"
+expected_matches = 6
+
+[[rules]]
+op = "exclude-file"
+file = "tests/nav_catalog_tests.rs"
+expected_matches = 6

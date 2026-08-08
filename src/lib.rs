@@ -26,6 +26,7 @@ pub mod jsonl;
 pub mod layout;
 pub mod lexer;
 pub mod nav;
+pub mod nav_projection_recipe;
 pub mod nav_projection_snapshot;
 pub mod palette;
 pub mod parser;

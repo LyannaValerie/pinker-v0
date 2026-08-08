@@ -1,0 +1,19 @@
+schema = 3
+id = "capsula-nav-catalog"
+state = "FROZEN"
+justification = "Estado completo da cápsula nav-catalog, medido pelo gate capsula_nav_catalog_cartografa_suporte_e_seis_testes."
+
+[reconstruction]
+base_snapshot = "capsula-doc-catalog"
+expected_overrides = 0
+expected_exclusions = 1
+
+[measures]
+regions = 422
+length = 194446
+fnv1a64 = "fnv1a64:65e32e1a20e72e85"
+
+[[rules]]
+op = "exclude-file"
+file = "tests/doc_catalog_tests.rs"
+expected_matches = 6

@@ -1,0 +1,911 @@
+schema = 3
+id = "onda-pink-agente-d"
+state = "FROZEN"
+predecessor = "onda-pink-agente-c"
+justification = "Onda D do agente Pinker: congelamento do contract-v1 sem fechar a Trama, medida pelo gate onda_pink_agente_d_congela_v1_sem_fechar_trama."
+
+[reconstruction]
+recipes = ["normalizacao-corrente-para-historico"]
+expected_overrides = 89
+expected_exclusions = 17
+
+[measures]
+regions = 484
+length = 213110
+fnv1a64 = "fnv1a64:82f01949c23e3019"
+
+[[rules]]
+op = "exclude-key"
+key = "backend-s.lowering.objetos-trato-nativos"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.backend-nativo.objetos-trato-fase244"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.cfg.objetos-trato-fase244"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.cfg.validacao-objetos-trato-fase244"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.interpreter.objetos-trato-fase244"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.ir.lowering-objetos-trato-fase244"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.ir.validacao-objetos-trato-fase244"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.leques.carga-lista-abi-runtime"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.leques.carga-lista-estrutura-ir"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.leques.carga-lista-matriz-negativa"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.leques.carga-lista-matriz-positiva"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.machine.objetos-trato-fase244"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.machine.validacao-objetos-trato-fase244"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.select.objetos-trato-fase244"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.semantica.objetos-trato-fase244"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "leque.carga.classificacao"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-file-prefix"
+prefix = "apps/"
+expected_matches = 1
+
+[[rules]]
+op = "override-hash"
+key = "ast.expressoes.representacao"
+from = "fnv1a64:324ef29194ba8823"
+to = "fnv1a64:da804ed63d673f55"
+expect_file = "src/ast.rs"
+expect_domain = "expressoes"
+expect_layer = "ast"
+
+[[rules]]
+op = "override-hash"
+key = "ast.tipos.representacao"
+from = "fnv1a64:fac0cf972f4b746d"
+to = "fnv1a64:b8fb394499b2a481"
+expect_file = "src/ast.rs"
+expect_domain = "tipos"
+expect_layer = "ast"
+
+[[rules]]
+op = "override-hash"
+key = "backend-s.abi.blocos-terminadores"
+from = "fnv1a64:48d71c0490589bff"
+to = "fnv1a64:a8d2372351ec4e50"
+expect_file = "src/backend_s.rs"
+expect_domain = "abi"
+expect_layer = "backend-s"
+
+[[rules]]
+op = "override-hash"
+key = "backend-s.lowering.funcoes-frames"
+from = "fnv1a64:4ee82be358d7923e"
+to = "fnv1a64:632d2467ea61bc42"
+expect_file = "src/backend_s.rs"
+expect_domain = "lowering"
+expect_layer = "backend-s"
+
+[[rules]]
+op = "override-hash"
+key = "backend-s.lowering.operacoes-memoria"
+from = "fnv1a64:418968ebf5b24297"
+to = "fnv1a64:c62f2129802b2958"
+expect_file = "src/backend_s.rs"
+expect_domain = "lowering"
+expect_layer = "backend-s"
+
+[[rules]]
+op = "override-hash"
+key = "backend-s.lowering.operandos-slots"
+from = "fnv1a64:d00ea77a945ca952"
+to = "fnv1a64:6af7fbe9063cb0c8"
+expect_file = "src/backend_s.rs"
+expect_domain = "lowering"
+expect_layer = "backend-s"
+
+[[rules]]
+op = "override-hash"
+key = "backend-s.modelo.callconv-externa"
+from = "fnv1a64:1d7822e80f79c585"
+to = "fnv1a64:29486a656eecfca9"
+expect_file = "src/backend_s.rs"
+expect_domain = "modelo"
+expect_layer = "backend-s"
+
+[[rules]]
+op = "override-hash"
+key = "backend-s.pipeline.toolchain-externa"
+from = "fnv1a64:129d271bb9be53db"
+to = "fnv1a64:1eb060fae788eaa4"
+expect_file = "src/backend_s.rs"
+expect_domain = "pipeline"
+expect_layer = "backend-s"
+
+[[rules]]
+op = "override-hash"
+key = "backend-s.renderizacao.abi-textual-componentes"
+from = "fnv1a64:191ff8cc8233ad26"
+to = "fnv1a64:0464b9d795e0aa44"
+expect_file = "src/backend_s.rs"
+expect_domain = "renderizacao"
+expect_layer = "backend-s"
+
+[[rules]]
+op = "override-hash"
+key = "backend-s.renderizacao.abi-textual-instrucoes"
+from = "fnv1a64:e9674c25c2a03ab6"
+to = "fnv1a64:0a590b2e77dbfb15"
+expect_file = "src/backend_s.rs"
+expect_domain = "renderizacao"
+expect_layer = "backend-s"
+
+[[rules]]
+op = "override-hash"
+key = "backend-s.renderizacao.callconv-programa"
+from = "fnv1a64:d30b872db28b84d7"
+to = "fnv1a64:3d5385e439951278"
+expect_file = "src/backend_s.rs"
+expect_domain = "renderizacao"
+expect_layer = "backend-s"
+
+[[rules]]
+op = "override-hash"
+key = "backend-s.runtime.simbolos-intrinsecas"
+from = "fnv1a64:aa19b9df868fec36"
+to = "fnv1a64:7f8a8f2be50a1bbd"
+expect_file = "src/backend_s.rs"
+expect_domain = "runtime"
+expect_layer = "backend-s"
+
+[[rules]]
+op = "override-hash"
+key = "backend-s.validacao.labels-tipos"
+from = "fnv1a64:833e794ca8842a7c"
+to = "fnv1a64:579f72d433484a3a"
+expect_file = "src/backend_s.rs"
+expect_domain = "validacao"
+expect_layer = "backend-s"
+
+[[rules]]
+op = "override-hash"
+key = "backend-text.lowering.cfg-programa"
+from = "fnv1a64:5d217911dce9898a"
+to = "fnv1a64:93528cc54e763546"
+expect_file = "src/backend_text.rs"
+expect_domain = "lowering"
+expect_layer = "backend-text"
+
+[[rules]]
+op = "override-hash"
+key = "backend-text.lowering.instrucoes-selecionadas"
+from = "fnv1a64:bae9d6ce2c15c1db"
+to = "fnv1a64:c04a574bce4cc7cc"
+expect_file = "src/backend_text.rs"
+expect_domain = "lowering"
+expect_layer = "backend-text"
+
+[[rules]]
+op = "override-hash"
+key = "backend-text.lowering.selecao-programa"
+from = "fnv1a64:00ac7061b90e8bfb"
+to = "fnv1a64:298221f680ddacb3"
+expect_file = "src/backend_text.rs"
+expect_domain = "lowering"
+expect_layer = "backend-text"
+
+[[rules]]
+op = "override-hash"
+key = "backend-text.modelo.representacao"
+from = "fnv1a64:8517fda69f95da1e"
+to = "fnv1a64:e055818d614b62fc"
+expect_file = "src/backend_text.rs"
+expect_domain = "modelo"
+expect_layer = "backend-text"
+
+[[rules]]
+op = "override-hash"
+key = "backend-text.renderizacao.componentes"
+from = "fnv1a64:e9e9694b0cad0b44"
+to = "fnv1a64:e5f0c347d6d3239d"
+expect_file = "src/backend_text.rs"
+expect_domain = "renderizacao"
+expect_layer = "backend-text"
+
+[[rules]]
+op = "override-hash"
+key = "backend-text.renderizacao.instrucoes"
+from = "fnv1a64:66125a144cf90481"
+to = "fnv1a64:eb347ee5260997af"
+expect_file = "src/backend_text.rs"
+expect_domain = "renderizacao"
+expect_layer = "backend-text"
+
+[[rules]]
+op = "override-hash"
+key = "backend-text.validacao.invariantes"
+from = "fnv1a64:ad312368b650a040"
+to = "fnv1a64:ff3e3a203666620c"
+expect_file = "src/backend_text_validate.rs"
+expect_domain = "validacao"
+expect_layer = "backend-text"
+
+[[rules]]
+op = "override-hash"
+key = "cfg.logica.slot-logico"
+from = "fnv1a64:e28b48fc4786b7ae"
+to = "fnv1a64:51ae0f06d8c5c23a"
+expect_file = "src/cfg_ir.rs"
+expect_domain = "logica"
+expect_layer = "cfg"
+
+[[rules]]
+op = "override-hash"
+key = "cfg.lowering.constantes"
+from = "fnv1a64:0f182f2cdb0bd440"
+to = "fnv1a64:0bb4340bac011227"
+expect_file = "src/cfg_ir.rs"
+expect_domain = "lowering"
+expect_layer = "cfg"
+
+[[rules]]
+op = "override-hash"
+key = "cfg.lowering.funcoes-blocos"
+from = "fnv1a64:8a72bb6215ad2f71"
+to = "fnv1a64:de71c3894ecbb008"
+expect_file = "src/cfg_ir.rs"
+expect_domain = "lowering"
+expect_layer = "cfg"
+
+[[rules]]
+op = "override-hash"
+key = "cfg.modelo.representacao"
+from = "fnv1a64:0db686033f361462"
+to = "fnv1a64:56c9542a9a52f8d7"
+expect_file = "src/cfg_ir.rs"
+expect_domain = "modelo"
+expect_layer = "cfg"
+
+[[rules]]
+op = "override-hash"
+key = "cfg.renderizacao.componentes"
+from = "fnv1a64:c1b25321f62c162b"
+to = "fnv1a64:0902a548373992c6"
+expect_file = "src/cfg_ir.rs"
+expect_domain = "renderizacao"
+expect_layer = "cfg"
+
+[[rules]]
+op = "override-hash"
+key = "cfg.validacao.invariantes"
+from = "fnv1a64:a04d71e86d77a520"
+to = "fnv1a64:99c4dd1a5a26a992"
+expect_file = "src/cfg_ir_validate.rs"
+expect_domain = "validacao"
+expect_layer = "cfg"
+
+[[rules]]
+op = "override-hash"
+key = "evidencia.interpreter.diagnostico-runtime-avaliacao-e-chamadas"
+from = "fnv1a64:4bbdf7d86163e5b9"
+to = "fnv1a64:80f44c45d93c8f6a"
+expect_file = "tests/interpreter_tests.rs"
+expect_domain = "interpreter"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-hash"
+key = "evidencia.interpreter.diagnostico-stack-trace-truncamento"
+from = "fnv1a64:1cfaae737044f04d"
+to = "fnv1a64:2b15cb72928bce61"
+expect_file = "tests/interpreter_tests.rs"
+expect_domain = "interpreter"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-hash"
+key = "evidencia.ir.validacao-aceitacao-basica"
+from = "fnv1a64:f3d8724360bebcf3"
+to = "fnv1a64:ee43abb63ba62314"
+expect_file = "tests/ir_validate_tests.rs"
+expect_domain = "ir"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-hash"
+key = "evidencia.ir.validacao-chamadas-e-nulo"
+from = "fnv1a64:87b10c41da951fee"
+to = "fnv1a64:5a5dab78c4638060"
+expect_file = "tests/ir_validate_tests.rs"
+expect_domain = "ir"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-hash"
+key = "evidencia.ir.validacao-estrutura-e-diagnostico"
+from = "fnv1a64:4eaacb94311841e8"
+to = "fnv1a64:70056fcef9941da0"
+expect_file = "tests/ir_validate_tests.rs"
+expect_domain = "ir"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-hash"
+key = "evidencia.ir.validacao-retorno-e-condicao"
+from = "fnv1a64:fc19411ee293890a"
+to = "fnv1a64:d5d3c9137e407ddc"
+expect_file = "tests/ir_validate_tests.rs"
+expect_domain = "ir"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-hash"
+key = "evidencia.parser.ast-basica-e-spans"
+from = "fnv1a64:98354c789ee8c94f"
+to = "fnv1a64:d608cd9dada7f65b"
+expect_file = "tests/parser_tests.rs"
+expect_domain = "parser"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-hash"
+key = "evidencia.semantica.closures-captura-imutavel"
+from = "fnv1a64:f4ab798d771cbcd7"
+to = "fnv1a64:487606b2a8dd6d0f"
+expect_file = "tests/semantic_tests.rs"
+expect_domain = "semantica"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-hash"
+key = "evidencia.semantica.leques-com-carga"
+from = "fnv1a64:ca6faf37ce196bed"
+to = "fnv1a64:fceb96c8479eae07"
+expect_file = "tests/semantic_tests.rs"
+expect_domain = "semantica"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-hash"
+key = "evidencia.semantica.leques-recursivos-e-multiplas-cargas"
+from = "fnv1a64:b2404c1ccefdce8d"
+to = "fnv1a64:a672e43adf1d84fd"
+expect_file = "tests/semantic_tests.rs"
+expect_domain = "semantica"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-hash"
+key = "evidencia.semantica.ponteiros-e-aritmetica"
+from = "fnv1a64:c9a1d6e1bf8680bc"
+to = "fnv1a64:25a2a400718eb9fc"
+expect_file = "tests/semantic_tests.rs"
+expect_domain = "semantica"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-hash"
+key = "evidencia.trama.nav-catalog.process-support"
+from = "fnv1a64:231fbb3fb0c9bf8c"
+to = "fnv1a64:2b39fc9e06f64423"
+expect_file = "tests/nav_catalog_tests.rs"
+expect_domain = "trama"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-hash"
+key = "evidencia.trama.nav-catalog.unbalanced-marker"
+from = "fnv1a64:9506f41cd50a66ab"
+to = "fnv1a64:ba425a1a3a31b921"
+expect_file = "tests/nav_catalog_tests.rs"
+expect_domain = "trama"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-hash"
+key = "evidencia.trama.query.process-support"
+from = "fnv1a64:d6652fcad61da5bd"
+to = "fnv1a64:c81fea660ddac6c2"
+expect_file = "tests/trama_query_tests.rs"
+expect_domain = "trama"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-hash"
+key = "interpreter.diagnostico.stack-trace"
+from = "fnv1a64:edd1b8d0cdf33021"
+to = "fnv1a64:718dfb2f20e334be"
+expect_file = "src/interpreter.rs"
+expect_domain = "diagnostico"
+expect_layer = "interpreter"
+
+[[rules]]
+op = "override-hash"
+key = "interpreter.execucao.funcoes-fluxo"
+from = "fnv1a64:37e3c1f43fcda840"
+to = "fnv1a64:bfb81897ca967281"
+expect_file = "src/interpreter.rs"
+expect_domain = "execucao"
+expect_layer = "interpreter"
+
+[[rules]]
+op = "override-hash"
+key = "interpreter.execucao.instrucoes-pilha"
+from = "fnv1a64:4a1eb75501e92acd"
+to = "fnv1a64:487e50b84b8db0f4"
+expect_file = "src/interpreter.rs"
+expect_domain = "execucao"
+expect_layer = "interpreter"
+
+[[rules]]
+op = "override-hash"
+key = "interpreter.execucao.programa-globais"
+from = "fnv1a64:754d05bd987bc90d"
+to = "fnv1a64:28b88d44ef113b99"
+expect_file = "src/interpreter.rs"
+expect_domain = "execucao"
+expect_layer = "interpreter"
+
+[[rules]]
+op = "override-hash"
+key = "interpreter.intrinsecos.leques"
+from = "fnv1a64:0cbfd8e8a6afdd07"
+to = "fnv1a64:5bb330b2ee2da4b8"
+expect_file = "src/interpreter.rs"
+expect_domain = "intrinsecos"
+expect_layer = "interpreter"
+
+[[rules]]
+op = "override-hash"
+key = "interpreter.modelo.valores-estado"
+from = "fnv1a64:d2dfa8e688cd4aba"
+to = "fnv1a64:bb92bae9203294f9"
+expect_file = "src/interpreter.rs"
+expect_domain = "modelo"
+expect_layer = "interpreter"
+
+[[rules]]
+op = "override-hash"
+key = "ir.lowering.assinaturas-intrinsecos"
+from = "fnv1a64:4c474d5f9416a278"
+to = "fnv1a64:5cef6cdde8f448ef"
+expect_file = "src/ir.rs"
+expect_domain = "lowering"
+expect_layer = "ir"
+
+[[rules]]
+op = "override-hash"
+key = "ir.lowering.comandos-controle"
+from = "fnv1a64:e0eb77d15f211f25"
+to = "fnv1a64:e1f45118551394f9"
+expect_file = "src/ir.rs"
+expect_domain = "lowering"
+expect_layer = "ir"
+
+[[rules]]
+op = "override-hash"
+key = "ir.lowering.contexto-declaracoes"
+from = "fnv1a64:587de18af35ae201"
+to = "fnv1a64:5a3886a51d4f003d"
+expect_file = "src/ir.rs"
+expect_domain = "lowering"
+expect_layer = "ir"
+
+[[rules]]
+op = "override-hash"
+key = "ir.lowering.expressoes-valores"
+from = "fnv1a64:3c769049c0570637"
+to = "fnv1a64:cbc18bbf5f284b49"
+expect_file = "src/ir.rs"
+expect_domain = "lowering"
+expect_layer = "ir"
+
+[[rules]]
+op = "override-hash"
+key = "ir.lowering.funcoes-blocos"
+from = "fnv1a64:3459205ceb2898ee"
+to = "fnv1a64:3c8fad9752bbbcaa"
+expect_file = "src/ir.rs"
+expect_domain = "lowering"
+expect_layer = "ir"
+
+[[rules]]
+op = "override-hash"
+key = "ir.lowering.identidade-resolvida"
+from = "fnv1a64:f060842d0e1fb6c2"
+to = "fnv1a64:9c819db88a036e81"
+expect_file = "src/ir.rs"
+expect_domain = "lowering"
+expect_layer = "ir"
+
+[[rules]]
+op = "override-hash"
+key = "ir.lowering.programa-orquestracao"
+from = "fnv1a64:4e1d3b50087502d1"
+to = "fnv1a64:ad78bc409d0ac322"
+expect_file = "src/ir.rs"
+expect_domain = "lowering"
+expect_layer = "ir"
+
+[[rules]]
+op = "override-hash"
+key = "ir.modelo.representacao"
+from = "fnv1a64:995a7c30b1f597cb"
+to = "fnv1a64:3f0baf9240f11083"
+expect_file = "src/ir.rs"
+expect_domain = "modelo"
+expect_layer = "ir"
+
+[[rules]]
+op = "override-hash"
+key = "ir.renderizacao.textual"
+from = "fnv1a64:ce0ae85272f3c2c6"
+to = "fnv1a64:e5231b7b852a2209"
+expect_file = "src/ir.rs"
+expect_domain = "renderizacao"
+expect_layer = "ir"
+
+[[rules]]
+op = "override-hash"
+key = "ir.tipos.conversao-ast"
+from = "fnv1a64:c5a3f05b164488c5"
+to = "fnv1a64:289552cef54a1dda"
+expect_file = "src/ir.rs"
+expect_domain = "tipos"
+expect_layer = "ir"
+
+[[rules]]
+op = "override-hash"
+key = "ir.tipos.identidade-resolvida"
+from = "fnv1a64:00d8c60625a2256f"
+to = "fnv1a64:ee7b723531ffdac3"
+expect_file = "src/ir.rs"
+expect_domain = "modelo"
+expect_layer = "ir"
+
+[[rules]]
+op = "override-hash"
+key = "ir.validacao.invariantes"
+from = "fnv1a64:47a92ced0f93d4c2"
+to = "fnv1a64:76ea7cbc067e8c75"
+expect_file = "src/ir_validate.rs"
+expect_domain = "validacao"
+expect_layer = "ir"
+
+[[rules]]
+op = "override-hash"
+key = "machine.lowering.instrucoes-pilha"
+from = "fnv1a64:872d3d3029a96031"
+to = "fnv1a64:741e193beb59992f"
+expect_file = "src/abstract_machine.rs"
+expect_domain = "lowering"
+expect_layer = "machine"
+
+[[rules]]
+op = "override-hash"
+key = "machine.lowering.operandos-slots"
+from = "fnv1a64:ed0572c7a88c2f8e"
+to = "fnv1a64:e465a25b6c0e93b6"
+expect_file = "src/abstract_machine.rs"
+expect_domain = "lowering"
+expect_layer = "machine"
+
+[[rules]]
+op = "override-hash"
+key = "machine.lowering.programa-blocos"
+from = "fnv1a64:e24f017e27b177c7"
+to = "fnv1a64:e5113599ca1426da"
+expect_file = "src/abstract_machine.rs"
+expect_domain = "lowering"
+expect_layer = "machine"
+
+[[rules]]
+op = "override-hash"
+key = "machine.modelo.representacao"
+from = "fnv1a64:b999c91e5ad9e5ff"
+to = "fnv1a64:97ea7ac31c79d0e2"
+expect_file = "src/abstract_machine.rs"
+expect_domain = "modelo"
+expect_layer = "machine"
+
+[[rules]]
+op = "override-hash"
+key = "machine.renderizacao.componentes"
+from = "fnv1a64:14a605cd6135685b"
+to = "fnv1a64:4845b2e2d566f268"
+expect_file = "src/abstract_machine.rs"
+expect_domain = "renderizacao"
+expect_layer = "machine"
+
+[[rules]]
+op = "override-hash"
+key = "machine.validacao.invariantes"
+from = "fnv1a64:cd850bda3ceda0e7"
+to = "fnv1a64:eacb3338038c6c30"
+expect_file = "src/abstract_machine_validate.rs"
+expect_domain = "validacao"
+expect_layer = "machine"
+
+[[rules]]
+op = "override-hash"
+key = "parser.closures.expressao"
+from = "fnv1a64:f374c2b2eb1b9d4c"
+to = "fnv1a64:b23071555a8ec5de"
+expect_file = "src/parser.rs"
+expect_domain = "closures"
+expect_layer = "parser"
+
+[[rules]]
+op = "override-hash"
+key = "parser.comandos.bloco"
+from = "fnv1a64:22c221b7e494492f"
+to = "fnv1a64:a8a93efbb629a17c"
+expect_file = "src/parser.rs"
+expect_domain = "comandos"
+expect_layer = "parser"
+
+[[rules]]
+op = "override-hash"
+key = "parser.declaracoes.tipos"
+from = "fnv1a64:8ab3fad4f2eb8d1c"
+to = "fnv1a64:ab66333ca6bb9b12"
+expect_file = "src/parser.rs"
+expect_domain = "declaracoes"
+expect_layer = "parser"
+
+[[rules]]
+op = "override-hash"
+key = "parser.encaixe.expressao"
+from = "fnv1a64:a57b831878d2376a"
+to = "fnv1a64:a741c39f7ba7b71a"
+expect_file = "src/parser.rs"
+expect_domain = "encaixe"
+expect_layer = "parser"
+
+[[rules]]
+op = "override-hash"
+key = "parser.expressoes.postfix"
+from = "fnv1a64:a0e90b7e07211b9b"
+to = "fnv1a64:c310971ad11474f6"
+expect_file = "src/parser.rs"
+expect_domain = "expressoes"
+expect_layer = "parser"
+
+[[rules]]
+op = "override-hash"
+key = "parser.fluxo.nucleo"
+from = "fnv1a64:904e0a8186ab4ceb"
+to = "fnv1a64:24f0a67ac2da71c6"
+expect_file = "src/parser.rs"
+expect_domain = "fluxo"
+expect_layer = "parser"
+
+[[rules]]
+op = "override-hash"
+key = "parser.funcoes.declaracao"
+from = "fnv1a64:15f94e918c6d7a0c"
+to = "fnv1a64:2bc2f428ad08d030"
+expect_file = "src/parser.rs"
+expect_domain = "funcoes"
+expect_layer = "parser"
+
+[[rules]]
+op = "override-hash"
+key = "parser.resultado.tentar-propagar"
+from = "fnv1a64:5111f2f6558b0afb"
+to = "fnv1a64:71ee3ce2bfbb5214"
+expect_file = "src/parser.rs"
+expect_domain = "resultado"
+expect_layer = "parser"
+
+[[rules]]
+op = "override-hash"
+key = "parser.tipos.gramatica"
+from = "fnv1a64:8d27c9909a335c72"
+to = "fnv1a64:231ef95c4c5c6b7b"
+expect_file = "src/parser.rs"
+expect_domain = "tipos"
+expect_layer = "parser"
+
+[[rules]]
+op = "override-hash"
+key = "select.lowering.instrucoes"
+from = "fnv1a64:09cff58eb4613ac8"
+to = "fnv1a64:3df58f5e0c562311"
+expect_file = "src/instr_select.rs"
+expect_domain = "lowering"
+expect_layer = "select"
+
+[[rules]]
+op = "override-hash"
+key = "select.modelo.representacao"
+from = "fnv1a64:819ef620d2596479"
+to = "fnv1a64:487b2bf52a4dff45"
+expect_file = "src/instr_select.rs"
+expect_domain = "modelo"
+expect_layer = "select"
+
+[[rules]]
+op = "override-hash"
+key = "select.renderizacao.componentes"
+from = "fnv1a64:bf1f52ab55b1dfa8"
+to = "fnv1a64:abf3c2011ece1f0e"
+expect_file = "src/instr_select.rs"
+expect_domain = "renderizacao"
+expect_layer = "select"
+
+[[rules]]
+op = "override-hash"
+key = "select.validacao.invariantes"
+from = "fnv1a64:37825a825f3010d8"
+to = "fnv1a64:ba018d7d399cc9c6"
+expect_file = "src/instr_select_validate.rs"
+expect_domain = "validacao"
+expect_layer = "select"
+
+[[rules]]
+op = "override-hash"
+key = "semantic.chamadas.despacho"
+from = "fnv1a64:a8827e62c602194b"
+to = "fnv1a64:33724c5cb6062770"
+expect_file = "src/semantic.rs"
+expect_domain = "chamadas"
+expect_layer = "semantic"
+
+[[rules]]
+op = "override-hash"
+key = "semantic.expressoes.verificacao"
+from = "fnv1a64:40b2c5ab7f697f05"
+to = "fnv1a64:688a7ca21a133d44"
+expect_file = "src/semantic.rs"
+expect_domain = "expressoes"
+expect_layer = "semantic"
+
+[[rules]]
+op = "override-hash"
+key = "semantic.funcoes.verificacao"
+from = "fnv1a64:e3bfef29a6eb8153"
+to = "fnv1a64:d7e6803745b059aa"
+expect_file = "src/semantic.rs"
+expect_domain = "funcoes"
+expect_layer = "semantic"
+
+[[rules]]
+op = "override-hash"
+key = "semantic.programa.duas-passagens"
+from = "fnv1a64:097aba3793947db9"
+to = "fnv1a64:50930bac579f4fc8"
+expect_file = "src/semantic.rs"
+expect_domain = "programa"
+expect_layer = "semantic"
+
+[[rules]]
+op = "override-hash"
+key = "semantic.tipos.sistema"
+from = "fnv1a64:e2e6ae70f660ea24"
+to = "fnv1a64:31bf37c76a8b0b05"
+expect_file = "src/semantic.rs"
+expect_domain = "tipos"
+expect_layer = "semantic"
+
+[[rules]]
+op = "override-hash"
+key = "semantic.tratos.contratos"
+from = "fnv1a64:9d5468beece98d4d"
+to = "fnv1a64:7c7152cbb24b7891"
+expect_file = "src/semantic.rs"
+expect_domain = "tratos"
+expect_layer = "semantic"
+
+[[rules]]
+op = "override-hash"
+key = "trama.codigo.raizes"
+from = "fnv1a64:3a8e0d44ce7c090d"
+to = "fnv1a64:32ea588c126f700b"
+expect_file = "src/nav.rs"
+expect_domain = "navegacao"
+expect_layer = "trama"
+
+[[rules]]
+op = "override-region"
+key = "ast.closures.identificadores-livres"
+from_hash = "fnv1a64:b2e5a7bf5b9fb4f6"
+to_hash = "fnv1a64:9f42348c66b7ddab"
+from_summary = "Fase 243: varredura sintática pura (sem informação de tipo) que lista, em ordem determinística de primeira referência, os identificadores usados em posição de valor no corpo de uma função que não são parâmetros nem locais `nova` declarados antes do uso no mesmo escopo léxico (block-scoped). A consulta simples usada pelo parser mantém nomes de callee direto fora; a consulta transitiva usada por semantic/IR inclui esses nomes como candidatos para distinguir callables locais capturados de funções top-level. Cabe ao chamador filtrar candidatos que não resolvem para binding local."
+to_summary = "Fase 243: varredura sintática pura (sem informação de tipo) que lista, em ordem determinística de primeira referência, os identificadores usados em posição de valor no corpo de uma função que não são parâmetros nem locais `nova` declarados antes do uso no mesmo escopo léxico (block-scoped). Nome de callee direto em `Call(Ident(nome), args)` não conta (resolvido por `self.funcs`, não por valor). Usada tanto pelo parser (aproximação conservadora para decidir elegibilidade do caminho rápido da Fase 238/239) quanto pelo semantic (resolução real contra escopo léxico vigente na Fase 243) — a lista pode conter nomes que na resolução real não são captura alguma (função top-level, constante, variante de leque); cabe ao chamador filtrar."
+expect_file = "src/ast.rs"
+expect_domain = "closures"
+expect_layer = "ast"
+
+[[rules]]
+op = "override-region"
+key = "backend-s.lowering.blocos-terminadores"
+from_hash = "fnv1a64:8d528489ad225f7f"
+to_hash = "fnv1a64:58a3f30cf870076a"
+from_summary = "Abertura do laço de blocos e seleção do terminador de cada bloco: `SelectedTerminator::Jmp` → `ExternalCallConvTerminator::Jmp`; `Ret(Some(value))` materializa literais `verso` de retorno em `.rodata` (`register_rodata_strings_for_operand`) e vira `Ret`; `Ret(None)` vira `RetVoid` para funções/métodos `nulo`; `Br` copia condição e rótulos. Constrói o `terminator` antes do corpo do bloco."
+to_summary = "Abertura do laço de blocos e seleção do terminador de cada bloco: `SelectedTerminator::Jmp` → `ExternalCallConvTerminator::Jmp`; `Ret(Some(value))` materializa literais `verso` de retorno em `.rodata` (`register_rodata_strings_for_operand`) e vira `Ret`; `Br` copia condição e rótulos; demais terminadores são recusados. Constrói o `terminator` antes do corpo do bloco."
+expect_file = "src/backend_s.rs"
+expect_domain = "lowering"
+expect_layer = "backend-s"
+
+[[rules]]
+op = "override-region"
+key = "backend-s.lowering.chamadas-sysv"
+from_hash = "fnv1a64:28ac356c35861d2e"
+to_hash = "fnv1a64:41573bf652654758"
+from_summary = "Lowering de chamadas no corpo do bloco (ABI SysV): `Call` com destino trata `__ternario` de braços trivialmente puros como seleção por `cmpq`+`cmoveq`; ternários com efeitos já chegam como ramos CFG lazy. Demais chamadas resolvem intrínsecas por aridade (`runtime_intrinsic_symbol_por_aridade`) e por nome (`runtime_intrinsic_symbol`) ou chamam função Pinker por símbolo direto, passam os 6 primeiros argumentos em `ARG_REGS`, empilham o 7º+ do último ao primeiro com padding de alinhamento e limpam a pilha após o `call`, guardando `%rax` no slot de destino. Símbolo desconhecido é recusado."
+to_summary = "Lowering de chamadas no corpo do bloco (ABI SysV): `Call` com destino — trata `__ternario` como seleção por `cmpq`+`cmoveq` (sem `call` real, ambos os lados avaliados eager), resolve intrínsecas por aridade (`runtime_intrinsic_symbol_por_aridade`) e por nome (`runtime_intrinsic_symbol`) ou chama função Pinker por símbolo direto, passa os 6 primeiros argumentos em `ARG_REGS`, empilha o 7º+ do último ao primeiro com padding de alinhamento e limpa a pilha após o `call`, guardando `%rax` no slot de destino — e `CallVoid` (mesma ABI, sem store de retorno). Símbolo desconhecido de função inexistente é recusado."
+expect_file = "src/backend_s.rs"
+expect_domain = "lowering"
+expect_layer = "backend-s"
+
+[[rules]]
+op = "override-region"
+key = "cfg.lowering.valores-temporarios"
+from_hash = "fnv1a64:09ab47bd97f2c65e"
+to_hash = "fnv1a64:5e03d7774c5821b2"
+from_summary = "Lineariza `ValueIR` em operandos e instruções CFG no bloco corrente: literais, locais (`%nome#N`) e globais viram operandos diretos; unários, dereferência, binários não lógicos, chamadas e casts emitem instruções cujo resultado recebe um `TempIR` (`%tN`); `lower_expr_stmt` descarta o retorno de chamadas `nulo` e rejeita chamada `nulo` usada como valor. Pode avançar para outro bloco quando curto-circuito ou ternário lazy altera o fluxo. Temporários têm escopo de função — não são registradores físicos nem SSA de slots."
+to_summary = "Lineariza `ValueIR` em operandos e instruções CFG no bloco corrente: literais, locais (`%nome#N`) e globais viram operandos diretos; unários, dereferência, binários não lógicos, chamadas e casts emitem instruções cujo resultado recebe um `TempIR` (`%tN`); `lower_expr_stmt` descarta o retorno de chamadas `nulo` e rejeita chamada `nulo` usada como valor. Pode avançar para outro bloco quando uma subexpressão lógica altera o fluxo (delega o curto-circuito). Temporários têm escopo de função — não são registradores físicos nem SSA de slots."
+expect_file = "src/cfg_ir.rs"
+expect_domain = "lowering"
+expect_layer = "cfg"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.backend-nativo.emissao-abi-e-fluxo-textual"
+from_hash = "fnv1a64:e7997c6cc081ba94"
+to_hash = "fnv1a64:f9435a27f680cb46"
+from_summary = "Cinco testes que chamam emit_external_toolchain_subset — caminho HOSPEDADO, runtime_init=false — e verificam apenas o texto emitido para a ABI SysV (seis registradores de argumento e passagem por pilha), o padding de alinhamento de pilha, a recursão direta, o `cmov` de ternário com braços puros e os saltos dos construtos de controle de fluxo. Nenhuma toolchain externa é invocada, nenhum runtime é ligado e nada é executado."
+to_summary = "Cinco testes que chamam emit_external_toolchain_subset — caminho HOSPEDADO, runtime_init=false — e verificam apenas o texto emitido para a ABI SysV (seis registradores de argumento e passagem por pilha), o padding de alinhamento de pilha, a recursão direta, o `cmov` do ternário e os saltos dos construtos de controle de fluxo. Nenhuma toolchain externa é invocada, nenhum runtime é ligado e nada é executado."
+expect_file = "tests/backend_nativo_tests.rs"
+expect_domain = "backend-s"
+expect_layer = "evidencia"

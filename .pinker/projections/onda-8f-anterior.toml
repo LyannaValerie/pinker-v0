@@ -1,0 +1,84 @@
+schema = 3
+id = "onda-8f-anterior"
+state = "FROZEN"
+justification = "Estado anterior à evidência da Onda 8F (backend textual), medido pelo gate onda_8f_cartografa_evidencias_do_backend_textual."
+
+[reconstruction]
+base_snapshot = "capsula-doc-catalog"
+expected_overrides = 0
+expected_exclusions = 14
+
+[measures]
+regions = 365
+length = 166075
+fnv1a64 = "fnv1a64:42dde50750133512"
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.backend-text.apresentacao-cli-helper"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.backend-text.apresentacao-cli-pseudo-asm"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.backend-text.pipeline-helper"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.backend-text.renderizacao-chamada-binaria"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.backend-text.renderizacao-chamada-void-retorno-nulo"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.backend-text.renderizacao-controle-fluxo"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.backend-text.renderizacao-globais"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.backend-text.renderizacao-programa-minimo"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key-prefix"
+prefix = "evidencia.backend-nativo."
+expected_matches = 14
+
+[[rules]]
+op = "exclude-key-prefix"
+prefix = "evidencia.backend-s-externo."
+expected_matches = 10
+
+[[rules]]
+op = "exclude-key-prefix"
+prefix = "evidencia.backend-s."
+expected_matches = 8
+
+[[rules]]
+op = "exclude-key-prefix"
+prefix = "evidencia.runtime."
+expected_matches = 11
+
+[[rules]]
+op = "exclude-file"
+file = "tests/doc_catalog_tests.rs"
+expected_matches = 6
+
+[[rules]]
+op = "exclude-file"
+file = "tests/nav_catalog_tests.rs"
+expected_matches = 6

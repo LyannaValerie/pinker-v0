@@ -1,0 +1,121 @@
+schema = 2
+id = "normalizacao-corrente-para-historico"
+
+[reconstruction]
+expected_overrides = 0
+expected_exclusions = 23
+
+[[rules]]
+op = "exclude-key"
+key = "automation.comparacao.classificacao"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "automation.contrato.autorizacao"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "automation.contrato.resultados"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "automation.filesystem.aplicacao"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "automation.filesystem.confinamento"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "automation.filesystem.observacao"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "automation.paths.politica-lexical"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "automation.plano.modelo"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "automation.plano.serializacao"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "automation.raiz.descoberta"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "automation.relatorio.aplicacao"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "automation.relatorio.renderizacao"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "trama.snapshots.biblioteca"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "trama.snapshots.erros"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "trama.snapshots.medidas"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "trama.snapshots.modelo"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "trama.snapshots.parser"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "trama.snapshots.receita"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "trama.snapshots.receita-serializacao"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "trama.snapshots.reconstrucao"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "trama.snapshots.relatorio"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "trama.snapshots.renderizacao"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "trama.snapshots.verificacao"
+expected_matches = 1
