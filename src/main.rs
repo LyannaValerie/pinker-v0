@@ -28,6 +28,7 @@ use pinker_v0::project_state_report;
 use pinker_v0::projection;
 use pinker_v0::repl;
 use pinker_v0::semantic;
+use pinker_v0::symbol_index;
 use pinker_v0::token::Span;
 use pinker_v0::{ast, error::PinkerError};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
@@ -150,6 +151,7 @@ struct DocConfigCli {
 enum NavSub {
     Mostrar { key: String },
     Buscar { consulta: String },
+    Localizar { symbol: String },
     Listar { seletor: String },
     Mapa { filtro: Option<String> },
     Sincronizar,
@@ -308,6 +310,7 @@ fn nav_usage(binary: &str) -> String {
          Subcomandos:\n\
            mostrar CHAVE       extrai a região de código pela chave\n\
            buscar CONSULTA     busca regiões por chave, domínio, camada, resumo\n\
+           localizar SÍMBOLO   resolve identidade estrutural e vínculos explícitos\n\
            listar SELETOR      lista regiões de uma camada (layer) ou domínio\n\
            mapa [FILTRO]       agrupa regiões por arquivo\n\
            sincronizar         regenera o catálogo src/navigation.jsonl\n\
@@ -316,7 +319,7 @@ fn nav_usage(binary: &str) -> String {
          \n\
          Opções:\n\
            --repo      raiz do repositório (padrão: .)\n\
-           --json      saída estável em JSON (mostrar/buscar/listar/mapa)\n\
+           --json      saída estável em JSON (mostrar/buscar/localizar/listar/mapa)\n\
            --limite N  máximo de resultados (1..20; buscar=10)\n\
          \n\
          Códigos de saída: 0 sucesso · 2 uso inválido · 3 catálogo ausente/inválido\n\
@@ -846,6 +849,17 @@ fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String>
                 consulta: positionals.join(" "),
             }
         }
+        "localizar" => {
+            if limite.is_some() {
+                return Err(format!(
+                    "A opção '--limite' não pertence a nav localizar.\n\n{}",
+                    nav_usage(binary)
+                ));
+            }
+            NavSub::Localizar {
+                symbol: require_one("localizar")?,
+            }
+        }
         "mapa" => NavSub::Mapa {
             filtro: if positionals.is_empty() {
                 None
@@ -1366,6 +1380,7 @@ fn run_nav(config: NavConfigCli) -> i32 {
         NavSub::Buscar { consulta } => {
             run_nav_buscar(repo_root, &consulta, config.json, config.limite)
         }
+        NavSub::Localizar { symbol } => run_nav_localizar(repo_root, &symbol, config.json),
         NavSub::Listar { seletor } => run_nav_listar(repo_root, &seletor, config.json),
         NavSub::Mapa { filtro } => run_nav_mapa(repo_root, filtro.as_deref(), config.json),
         NavSub::Sincronizar => run_nav_sincronizar(repo_root),
@@ -1692,7 +1707,8 @@ fn projection_error_exit(error: &ProjectionError) -> i32 {
 // @pinker-nav:start cli.nav.consulta
 // @pinker-nav:domain nav
 // @pinker-nav:layer cli
-// @pinker-nav:summary load_code_catalog lê o catálogo gerado (nav::CodeCatalog::load) sem escrever; run_nav_mostrar extrai e valida uma região pela fonte; run_nav_buscar/listar/mapa consultam somente o catálogo em memória. Mapa seleciona caminho exato ou reutiliza a busca textual integral, agrupa por arquivo e renderiza texto/JSON determinísticos sem ler fontes.
+// @pinker-nav:related-symbol pinker_v0::symbol_index::locate
+// @pinker-nav:summary load_code_catalog lê o catálogo gerado (nav::CodeCatalog::load) sem escrever; mostrar extrai e valida uma região; buscar/listar/mapa consultam o catálogo em memória; localizar deriva do catálogo de código e da autoridade documental o modelo único de símbolos, renderizado como texto ou JSON determinísticos sem mutar o repositório.
 /// Carrega o catálogo de código versionado (superfície de consulta — §5).
 fn load_code_catalog(repo_root: &Path) -> Result<nav::CodeCatalog, i32> {
     let doc_config = load_doc_config(repo_root);
@@ -1846,6 +1862,42 @@ fn run_nav_buscar(repo_root: &Path, consulta: &str, json: bool, limite: Option<u
         }
     }
     EXIT_OK
+}
+
+fn run_nav_localizar(repo_root: &Path, symbol: &str, json: bool) -> i32 {
+    let code = match load_code_catalog(repo_root) {
+        Ok(catalog) => catalog,
+        Err(code) => return code,
+    };
+    let doc_config = load_doc_config(repo_root);
+    let doc_path = repo_root.join(doc_config.generated.docs_index);
+    let docs = match doc_index::DocCatalog::load(&doc_path) {
+        Ok(catalog) => Some(catalog),
+        Err(doc_index::CatalogError::Missing { .. }) => None,
+        Err(error) => {
+            eprintln!("{error}");
+            return EXIT_CATALOG;
+        }
+    };
+    let report = match symbol_index::locate(&code, docs.as_ref(), symbol) {
+        Ok(report) => report,
+        Err(error) => {
+            eprintln!("{error}");
+            return EXIT_CATALOG;
+        }
+    };
+    if json {
+        println!("{}", symbol_index::render_json(&report));
+    } else if report.found() {
+        print!("{}", symbol_index::render_human(&report));
+    } else {
+        eprint!("{}", symbol_index::render_human(&report));
+    }
+    if report.found() {
+        EXIT_OK
+    } else {
+        EXIT_NORESULT
+    }
 }
 
 fn run_nav_listar(repo_root: &Path, seletor: &str, json: bool) -> i32 {
@@ -2059,7 +2111,7 @@ fn run_nav_mapa(repo_root: &Path, filtro: Option<&str>, json: bool) -> i32 {
 // @pinker-nav:start cli.nav.sincronizacao-verificacao
 // @pinker-nav:domain nav
 // @pinker-nav:layer cli
-// @pinker-nav:summary run_nav_sincronizar reescaneia e grava o catálogo somente após validação; run_nav_verificar renderiza o modelo somente leitura de nav::verify_repository, preservando o mesmo comportamento e códigos da CLI sem duplicar a autoridade observacional.
+// @pinker-nav:summary run_nav_sincronizar reescaneia e grava o catálogo somente após validação; run_nav_verificar reutiliza nav::verify_repository e valida em memória os vínculos estruturados do índice de símbolos contra os catálogos de código e documentação, sem escrever e sem duplicar autoridade.
 fn run_nav_sincronizar(repo_root: &Path) -> i32 {
     let doc_config = load_doc_config(repo_root);
     let index = scan_code(repo_root);
@@ -2098,26 +2150,54 @@ fn run_nav_verificar(repo_root: &Path) -> i32 {
             return EXIT_FAILURE;
         }
     };
-    if verification.is_ok() {
-        println!("Marcadores e catálogo de código verificados: ok.");
-        return EXIT_OK;
-    }
-    eprintln!(
-        "E-NAV-VERIFY: {} divergência(s) encontrada(s):",
-        verification.total_errors()
-    );
-    for error in &verification.source_errors {
-        eprintln!("  - {error}");
-    }
-    if verification.catalog_out_of_date {
+    if !verification.is_ok() {
         eprintln!(
-            "  - {}",
-            nav::NavVerifyError::IndexOutOfDate {
-                path: doc_config.generated.code_index
-            }
+            "E-NAV-VERIFY: {} divergência(s) encontrada(s):",
+            verification.total_errors()
         );
+        for error in &verification.source_errors {
+            eprintln!("  - {error}");
+        }
+        if verification.catalog_out_of_date {
+            eprintln!(
+                "  - {}",
+                nav::NavVerifyError::IndexOutOfDate {
+                    path: doc_config.generated.code_index.clone()
+                }
+            );
+        }
+        return EXIT_SOURCE;
     }
-    EXIT_SOURCE
+
+    let code = match nav::CodeCatalog::load(&repo_root.join(&doc_config.generated.code_index)) {
+        Ok(catalog) => catalog,
+        Err(error) => {
+            eprintln!("{error}");
+            return EXIT_CATALOG;
+        }
+    };
+    let requires_docs = code
+        .regions
+        .iter()
+        .any(|region| !region.symbol_docs.is_empty());
+    let docs = if requires_docs {
+        match doc_index::DocCatalog::load(&repo_root.join(&doc_config.generated.docs_index)) {
+            Ok(catalog) => Some(catalog),
+            Err(error) => {
+                eprintln!("{error}");
+                return EXIT_CATALOG;
+            }
+        }
+    } else {
+        None
+    };
+    if let Err(error) = symbol_index::locate(&code, docs.as_ref(), "") {
+        eprintln!("E-NAV-VERIFY: vínculo explícito de símbolo inválido:\n  - {error}");
+        return EXIT_SOURCE;
+    }
+
+    println!("Marcadores, vínculos e catálogo de código verificados: ok.");
+    EXIT_OK
 }
 // @pinker-nav:end cli.nav.sincronizacao-verificacao
 

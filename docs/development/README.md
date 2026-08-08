@@ -42,6 +42,9 @@ humanos e catálogos JSONL para agentes. Fluxo de consulta:
 2. `pink doc mostrar <id>` para extrair só a seção necessária;
 3. `pink nav buscar "<conceito>"` e `pink nav mostrar <chave>` para o código.
 
+Quando a intenção já é um símbolo estruturado, use `pink nav localizar
+SÍMBOLO`; ele não substitui a busca textual de regiões.
+
 Sincronização (`pink doc sincronizar`, `pink nav sincronizar`) regenera os
 catálogos a partir das fontes marcadas; `make ci` valida sem corrigir. Mudanças
 posteriores ao marco #330 carregam o bloco `pinker-change` e viram manifestos em
@@ -83,6 +86,8 @@ janela auxiliar autorizada pela Issue #417 tem autoridade operacional própria e
   classificação e relatórios do núcleo comum de automação;
 - `consolidated-project-state-contract.md` — modelo versionado, fontes,
   disponibilidade parcial e CLI somente leitura do estado consolidado;
+- `symbol-index.md` — símbolos suportados, vínculos explícitos, schema e CLI
+  somente leitura de localização;
 
 | Necessidade | Documento |
 |---|---|
@@ -94,6 +99,7 @@ janela auxiliar autorizada pela Issue #417 tem autoridade operacional própria e
 | snapshots históricos de projeção | `projection-snapshots-contract.md` |
 | núcleo comum de automação | `automation-core-contract.md` |
 | estado consolidado somente leitura | `consolidated-project-state-contract.md` |
+| índice derivado de símbolos | `symbol-index.md` |
 
 ## Rotas de leitura
 

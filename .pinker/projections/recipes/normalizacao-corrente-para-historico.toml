@@ -2,8 +2,8 @@ schema = 2
 id = "normalizacao-corrente-para-historico"
 
 [reconstruction]
-expected_overrides = 10
-expected_exclusions = 33
+expected_overrides = 13
+expected_exclusions = 39
 
 [[rules]]
 op = "exclude-key"
@@ -77,6 +77,11 @@ expected_matches = 1
 
 [[rules]]
 op = "exclude-key"
+key = "evidencia.symbol-index.cli"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
 key = "project-state.coleta"
 expected_matches = 1
 
@@ -88,6 +93,16 @@ expected_matches = 1
 [[rules]]
 op = "exclude-key"
 key = "project-state.renderizacao"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "trama.codigo.metadados-simbolos"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "trama.codigo.modelo-indice-simbolos"
 expected_matches = 1
 
 [[rules]]
@@ -113,6 +128,21 @@ expected_matches = 1
 [[rules]]
 op = "exclude-key"
 key = "trama.projecoes.store"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "trama.simbolos.derivacao"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "trama.simbolos.modelo"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "trama.simbolos.renderizacao"
 expected_matches = 1
 
 [[rules]]
@@ -182,7 +212,7 @@ expect_layer = "cli"
 [[rules]]
 op = "override-region"
 key = "cli.ajuda.usage"
-from_hash = "fnv1a64:141bdb4d15282906"
+from_hash = "fnv1a64:1e28b115333298b3"
 to_hash = "fnv1a64:ce2fe9866dbdcd8f"
 from_summary = "program_name reduz argv[0] ao componente final, preserva nomes alternativos e usa pink como fallback; as funções de ajuda consomem somente esse nome e formatam a ajuda principal ou dos sete comandos existentes, sem side effects."
 to_summary = "program_name reduz argv[0] ao componente final, preserva nomes alternativos e usa pink como fallback; as funções de ajuda consomem somente esse nome e formatam a ajuda principal ou dos seis comandos existentes, sem side effects."
@@ -193,7 +223,7 @@ expect_layer = "cli"
 [[rules]]
 op = "override-region"
 key = "cli.config.modelos"
-from_hash = "fnv1a64:f83c33a1fd7b1fc3"
+from_hash = "fnv1a64:f86f7196c7d565ef"
 to_hash = "fnv1a64:76a2365574c8b339"
 from_summary = "Constantes de códigos de saída e limites de paginação, helpers JSON, structs de configuração por subcomando — inclusive StateConfigCli — e enums usados pelo parsing e roteamento determinísticos da CLI."
 to_summary = "Constantes de códigos de saída (EXIT_OK/EXIT_USAGE/EXIT_CATALOG/EXIT_NORESULT/EXIT_SOURCE) e limites de paginação (LIMIT_MIN/MAX, LIMIT_DEFAULT_ROTA/BUSCAR); clamp_limit ajusta um Option<usize> aos limites via .clamp; json_escape escapa aspas/barra/controle para JSON; json_string_array serializa Vec<String>. Structs de configuração por subcomando (Config, BuildConfig, EditorConfig, ReplConfig, DocConfigCli, NavConfigCli) e os enums de subcomando (DocSub, NavSub, CliCommand) usados pelo parsing e roteamento a seguir."
@@ -226,7 +256,7 @@ expect_layer = "cli"
 [[rules]]
 op = "override-region"
 key = "cli.execucao.entrada"
-from_hash = "fnv1a64:c5ddf7f64e5dbfc5"
+from_hash = "fnv1a64:eb97f6220c60014b"
 to_hash = "fnv1a64:f33da0bc4b2931c0"
 from_summary = "try_or_exit! encerra falhas operacionais com EXIT_FAILURE; main imprime ajuda em stdout, versão determinística do pacote em stdout, erros de invocação em stderr com EXIT_USAGE e preserva os códigos de domínio ao despachar análise, build, editor, repl, doc, nav, agente e estado."
 to_summary = "try_or_exit! encerra falhas operacionais com EXIT_FAILURE; main imprime ajuda em stdout, versão determinística do pacote em stdout, erros de invocação em stderr com EXIT_USAGE e preserva os códigos de domínio ao despachar análise, build, editor, repl, doc, nav e agente."
@@ -236,10 +266,21 @@ expect_layer = "cli"
 
 [[rules]]
 op = "override-region"
+key = "cli.nav.consulta"
+from_hash = "fnv1a64:98c55f2722f56d21"
+to_hash = "fnv1a64:5427c227378dad57"
+from_summary = "load_code_catalog lê o catálogo gerado (nav::CodeCatalog::load) sem escrever; mostrar extrai e valida uma região; buscar/listar/mapa consultam o catálogo em memória; localizar deriva do catálogo de código e da autoridade documental o modelo único de símbolos, renderizado como texto ou JSON determinísticos sem mutar o repositório."
+to_summary = "load_code_catalog lê o catálogo gerado (nav::CodeCatalog::load) sem escrever; run_nav_mostrar extrai e valida uma região pela fonte; run_nav_buscar/listar/mapa consultam somente o catálogo em memória. Mapa seleciona caminho exato ou reutiliza a busca textual integral, agrupa por arquivo e renderiza texto/JSON determinísticos sem ler fontes."
+expect_file = "src/main.rs"
+expect_domain = "nav"
+expect_layer = "cli"
+
+[[rules]]
+op = "override-region"
 key = "cli.nav.sincronizacao-verificacao"
-from_hash = "fnv1a64:25eaad837593da31"
+from_hash = "fnv1a64:6537ae65d6a5b0d6"
 to_hash = "fnv1a64:b4fd83f527fef1f2"
-from_summary = "run_nav_sincronizar reescaneia e grava o catálogo somente após validação; run_nav_verificar renderiza o modelo somente leitura de nav::verify_repository, preservando o mesmo comportamento e códigos da CLI sem duplicar a autoridade observacional."
+from_summary = "run_nav_sincronizar reescaneia e grava o catálogo somente após validação; run_nav_verificar reutiliza nav::verify_repository e valida em memória os vínculos estruturados do índice de símbolos contra os catálogos de código e documentação, sem escrever e sem duplicar autoridade."
 to_summary = "run_nav_sincronizar reescaneia o repositório (scan_code), roda index.verify() e só grava src/navigation.jsonl via write_atomic quando não há divergências (senão retorna EXIT_SOURCE sem tocar o arquivo); run_nav_verificar também reescaneia e roda verify(), compara o conteúdo renderizado com o arquivo em disco e reporta divergências em stderr, mas não escreve — é somente leitura, retornando EXIT_SOURCE em caso de erro e EXIT_OK caso contrário."
 expect_file = "src/main.rs"
 expect_domain = "nav"
@@ -259,7 +300,7 @@ expect_layer = "cli"
 [[rules]]
 op = "override-region"
 key = "cli.parsing.subcomandos"
-from_hash = "fnv1a64:670f31542ef5a258"
+from_hash = "fnv1a64:862c6f6be636c6de"
 to_hash = "fnv1a64:52d92432d1b2f696"
 from_summary = "Parsers estritos dos subcomandos, incluindo estado: reconhecem somente flags e posicionais próprios, rejeitam valores ausentes, desconhecidos e duplicatas ambíguas e devolvem modelos tipados ou a mensagem de uso correspondente."
 to_summary = "Parsers de argumentos por subcomando (parse_build_args, parse_editor_args, parse_repl_args, parse_doc_args, parse_nav_args): percorrem `args: &[String]` reconhecendo flags (--out-dir, --nativo, --repo, --corpo, --check, --json, --limite, --help/-h) e o argumento posicional de entrada/subcomando, retornando Result<Config..., String> com a mensagem de uso correspondente em caso de flag desconhecida ou argumento ausente."
@@ -277,3 +318,25 @@ to_summary = "Ciclo iniciar/executar/verificar/status/relatorio: snapshots Git, 
 expect_file = "src/agent.rs"
 expect_domain = "development"
 expect_layer = "agent"
+
+[[rules]]
+op = "override-region"
+key = "trama.codigo.catalogo"
+from_hash = "fnv1a64:664dd2fd08c2c1b8"
+to_hash = "fnv1a64:c67f4df96b1a634c"
+from_summary = "Gera o catálogo de navegação pelas raízes controladas e marcadores @pinker-nav: monta regiões e vínculos explícitos, calcula hashes, renderiza JSONL determinístico e valida chaves, marcadores, sobreposição, consistência de identidade, destinos e camada dos testes antes da escrita."
+to_summary = "Gera o catálogo de navegação de código varrendo as raízes controladas do repositório (§ trama.codigo.raizes) pelos marcadores `@pinker-nav`: monta as regiões, calcula o hash do conteúdo, renderiza JSONL determinístico e valida chaves únicas, marcadores balanceados e ausência de sobreposição."
+expect_file = "src/nav.rs"
+expect_domain = "navegacao"
+expect_layer = "trama"
+
+[[rules]]
+op = "override-region"
+key = "trama.codigo.consulta"
+from_hash = "fnv1a64:91d61d203f8a6a17"
+to_hash = "fnv1a64:c5af4400c7a070c8"
+from_summary = "Reconstrói do JSONL versionado as regiões e seus vínculos explícitos de símbolo, documentação e teste; serve mostrar/buscar/listar/mapa/localizar sem revarrer raízes e, ao extrair uma região, valida marcadores e hash, recusando drift."
+to_summary = "Reconstrói o catálogo de código do JSONL versionado e serve as consultas (`mostrar`/`buscar`/`listar`/`mapa`) sem revarrer raízes; `mapa` prioriza caminho literal e reutiliza a busca textual integral. Ao extrair uma região, valida marcadores e hash, recusando drift."
+expect_file = "src/nav.rs"
+expect_domain = "navegacao"
+expect_layer = "trama"

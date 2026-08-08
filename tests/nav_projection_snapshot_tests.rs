@@ -39,6 +39,10 @@ fn region(key: &str, file: &str, hash: &str) -> CodeRegion {
         summary: format!("Resumo de {key}."),
         hash: hash.to_string(),
         status: "active".to_string(),
+        symbols: Vec::new(),
+        related_symbols: Vec::new(),
+        test_for: Vec::new(),
+        symbol_docs: Vec::new(),
     }
 }
 
