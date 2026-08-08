@@ -23,6 +23,8 @@ use pinker_v0::nav_projection_report;
 use pinker_v0::nav_projection_store::ProjectionStore;
 use pinker_v0::parser::Parser;
 use pinker_v0::printer;
+use pinker_v0::project_state;
+use pinker_v0::project_state_report;
 use pinker_v0::projection;
 use pinker_v0::repl;
 use pinker_v0::semantic;
@@ -36,7 +38,7 @@ use std::path::{Path, PathBuf};
 // @pinker-nav:start cli.config.modelos
 // @pinker-nav:domain config
 // @pinker-nav:layer cli
-// @pinker-nav:summary Constantes de códigos de saída (EXIT_OK/EXIT_USAGE/EXIT_CATALOG/EXIT_NORESULT/EXIT_SOURCE) e limites de paginação (LIMIT_MIN/MAX, LIMIT_DEFAULT_ROTA/BUSCAR); clamp_limit ajusta um Option<usize> aos limites via .clamp; json_escape escapa aspas/barra/controle para JSON; json_string_array serializa Vec<String>. Structs de configuração por subcomando (Config, BuildConfig, EditorConfig, ReplConfig, DocConfigCli, NavConfigCli) e os enums de subcomando (DocSub, NavSub, CliCommand) usados pelo parsing e roteamento a seguir.
+// @pinker-nav:summary Constantes de códigos de saída e limites de paginação, helpers JSON, structs de configuração por subcomando — inclusive StateConfigCli — e enums usados pelo parsing e roteamento determinísticos da CLI.
 /// Códigos de saída públicos da CLI e das consultas da Trama (especificação §7.4).
 const EXIT_OK: i32 = 0;
 const EXIT_FAILURE: i32 = 1;
@@ -199,6 +201,12 @@ struct AgentConfigCli {
     sub: AgentSub,
 }
 
+struct StateConfigCli {
+    repo: String,
+    json: bool,
+    agent_spec: Option<PathBuf>,
+}
+
 enum CliCommand {
     Help(String),
     Version,
@@ -209,13 +217,14 @@ enum CliCommand {
     Doc(DocConfigCli),
     Nav(NavConfigCli),
     Agent(AgentConfigCli),
+    State(StateConfigCli),
 }
 // @pinker-nav:end cli.config.modelos
 
 // @pinker-nav:start cli.ajuda.usage
 // @pinker-nav:domain ajuda
 // @pinker-nav:layer cli
-// @pinker-nav:summary program_name reduz argv[0] ao componente final, preserva nomes alternativos e usa pink como fallback; as funções de ajuda consomem somente esse nome e formatam a ajuda principal ou dos seis comandos existentes, sem side effects.
+// @pinker-nav:summary program_name reduz argv[0] ao componente final, preserva nomes alternativos e usa pink como fallback; as funções de ajuda consomem somente esse nome e formatam a ajuda principal ou dos sete comandos existentes, sem side effects.
 fn program_name(argv0: Option<&String>) -> String {
     argv0
         .and_then(|raw| Path::new(raw).file_name())
@@ -253,7 +262,26 @@ fn usage(program: &str) -> String {
           repl        abre o REPL mínimo auditável (Fase 167)\n\
           doc         ferramenta documental da Trama Pinker (marco / importação)\n\
           nav         navegação semântica do código da Trama Pinker\n\
-          agente      runner local auditável para tarefas operacionais\n"
+          agente      runner local auditável para tarefas operacionais\n\
+          estado      estado consolidado somente leitura do projeto\n"
+    )
+}
+
+fn state_usage(binary: &str) -> String {
+    format!(
+        "Uso: {binary} estado [--repo DIRETÓRIO] [--agente-spec ARQUIVO] [--json]\n\
+         \n\
+         Comando:\n\
+           estado      consolida autoridades locais sem escrever nem usar rede\n\
+         \n\
+         Opções:\n\
+           --repo DIRETÓRIO       ponto de partida para descobrir o repositório\n\
+           --agente-spec ARQUIVO  spec explícita do pink agente (opcional)\n\
+           --json                 JSON determinístico com schema público 1\n\
+           -h, --help             exibe esta ajuda e termina com sucesso\n\
+         \n\
+         Códigos de saída: 0 relatório produzido · 1 falha interna\n\
+                           · 2 uso inválido · 3 root/autoridade mínima ausente\n"
     )
 }
 
@@ -412,6 +440,7 @@ fn help_for_command(program: &str, command: &str) -> Option<String> {
         "doc" => Some(doc_usage(program)),
         "nav" => Some(nav_usage(program)),
         "agente" => Some(agent_usage(program)),
+        "estado" => Some(state_usage(program)),
         _ => None,
     }
 }
@@ -420,7 +449,7 @@ fn help_for_command(program: &str, command: &str) -> Option<String> {
 // @pinker-nav:start cli.parsing.subcomandos
 // @pinker-nav:domain parsing
 // @pinker-nav:layer cli
-// @pinker-nav:summary Parsers de argumentos por subcomando (parse_build_args, parse_editor_args, parse_repl_args, parse_doc_args, parse_nav_args): percorrem `args: &[String]` reconhecendo flags (--out-dir, --nativo, --repo, --corpo, --check, --json, --limite, --help/-h) e o argumento posicional de entrada/subcomando, retornando Result<Config..., String> com a mensagem de uso correspondente em caso de flag desconhecida ou argumento ausente.
+// @pinker-nav:summary Parsers estritos dos subcomandos, incluindo estado: reconhecem somente flags e posicionais próprios, rejeitam valores ausentes, desconhecidos e duplicatas ambíguas e devolvem modelos tipados ou a mensagem de uso correspondente.
 fn parse_build_args(binary: &str, args: &[String]) -> Result<BuildConfig, String> {
     let mut input: Option<String> = None;
     let mut out_dir = "build".to_string();
@@ -972,12 +1001,85 @@ fn parse_agent_args(binary: &str, args: &[String]) -> Result<AgentConfigCli, Str
         sub,
     })
 }
+
+fn parse_state_args(binary: &str, args: &[String]) -> Result<StateConfigCli, String> {
+    let mut repo: Option<String> = None;
+    let mut agent_spec: Option<PathBuf> = None;
+    let mut json = false;
+    let mut i = 0usize;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--help" | "-h" => return Err(state_usage(binary)),
+            "--repo" => {
+                if repo.is_some() {
+                    return Err(format!(
+                        "A opção '--repo' não pode ser repetida.\n\n{}",
+                        state_usage(binary)
+                    ));
+                }
+                i += 1;
+                if i >= args.len() || args[i].starts_with('-') {
+                    return Err(format!(
+                        "Flag '--repo' requer um valor.\n\n{}",
+                        state_usage(binary)
+                    ));
+                }
+                repo = Some(args[i].clone());
+            }
+            "--agente-spec" => {
+                if agent_spec.is_some() {
+                    return Err(format!(
+                        "A opção '--agente-spec' não pode ser repetida.\n\n{}",
+                        state_usage(binary)
+                    ));
+                }
+                i += 1;
+                if i >= args.len() || args[i].starts_with('-') {
+                    return Err(format!(
+                        "Flag '--agente-spec' requer um valor.\n\n{}",
+                        state_usage(binary)
+                    ));
+                }
+                agent_spec = Some(PathBuf::from(&args[i]));
+            }
+            "--json" => {
+                if json {
+                    return Err(format!(
+                        "A opção '--json' não pode ser repetida.\n\n{}",
+                        state_usage(binary)
+                    ));
+                }
+                json = true;
+            }
+            value if value.starts_with('-') => {
+                return Err(format!(
+                    "Flag desconhecida no comando estado: '{}'.\n\n{}",
+                    value,
+                    state_usage(binary)
+                ));
+            }
+            value => {
+                return Err(format!(
+                    "O comando estado não aceita argumento posicional: '{}'.\n\n{}",
+                    value,
+                    state_usage(binary)
+                ));
+            }
+        }
+        i += 1;
+    }
+    Ok(StateConfigCli {
+        repo: repo.unwrap_or_else(|| ".".to_string()),
+        json,
+        agent_spec,
+    })
+}
 // @pinker-nav:end cli.parsing.subcomandos
 
 // @pinker-nav:start cli.parsing.roteamento
 // @pinker-nav:domain parsing
 // @pinker-nav:layer cli
-// @pinker-nav:summary parse_args reduz argv[0] via program_name, resolve ajuda principal/help COMANDO/COMANDO --help e versão antes do parsing operacional, separa flag_args do runtime_tail e despacha os seis comandos existentes ou o modo de análise; erros de invocação retornam Err(String) para saída uniforme com EXIT_USAGE.
+// @pinker-nav:summary parse_args reduz argv[0] via program_name, resolve ajuda principal/help COMANDO/COMANDO --help e versão antes do parsing operacional, separa flag_args do runtime_tail e despacha os sete comandos existentes ou o modo de análise; erros de invocação retornam Err(String) para saída uniforme com EXIT_USAGE.
 fn parse_args() -> Result<CliCommand, String> {
     let mut input: Option<String> = None;
     let mut print_tokens = false;
@@ -1091,6 +1193,15 @@ fn parse_args() -> Result<CliCommand, String> {
         if cmd == "agente" {
             return parse_agent_args(&program, &flag_args[1..]).map(CliCommand::Agent);
         }
+        if cmd == "estado" {
+            if cli_tail_start < cli_args.len() {
+                return Err(format!(
+                    "O comando estado não aceita argumentos após '--'.\n\n{}",
+                    state_usage(&program)
+                ));
+            }
+            return parse_state_args(&program, &flag_args[1..]).map(CliCommand::State);
+        }
     }
 
     for arg in flag_args {
@@ -1166,7 +1277,7 @@ fn parse_args() -> Result<CliCommand, String> {
 // @pinker-nav:start cli.execucao.entrada
 // @pinker-nav:domain execucao
 // @pinker-nav:layer cli
-// @pinker-nav:summary try_or_exit! encerra falhas operacionais com EXIT_FAILURE; main imprime ajuda em stdout, versão determinística do pacote em stdout, erros de invocação em stderr com EXIT_USAGE e preserva os códigos de domínio ao despachar análise, build, editor, repl, doc, nav e agente.
+// @pinker-nav:summary try_or_exit! encerra falhas operacionais com EXIT_FAILURE; main imprime ajuda em stdout, versão determinística do pacote em stdout, erros de invocação em stderr com EXIT_USAGE e preserva os códigos de domínio ao despachar análise, build, editor, repl, doc, nav, agente e estado.
 /// Macro para encurtar o padrão "try or exit(1)" repetido no pipeline.
 macro_rules! try_or_exit {
     ($result:expr, $source:expr) => {
@@ -1216,6 +1327,24 @@ fn main() {
                     std::process::exit(agent::EXIT_BLOCKED);
                 }
             }
+        }
+        CliCommand::State(config) => std::process::exit(run_state(config)),
+    }
+}
+
+fn run_state(config: StateConfigCli) -> i32 {
+    match project_state::collect(Path::new(&config.repo), config.agent_spec.as_deref()) {
+        Ok(state) => {
+            if config.json {
+                println!("{}", project_state_report::render_json(&state));
+            } else {
+                print!("{}", project_state_report::render_human(&state));
+            }
+            EXIT_OK
+        }
+        Err(project_state::CollectError::Root(error)) => {
+            eprintln!("E-STATE-ROOT: {error}");
+            EXIT_CATALOG
         }
     }
 }
@@ -1930,7 +2059,7 @@ fn run_nav_mapa(repo_root: &Path, filtro: Option<&str>, json: bool) -> i32 {
 // @pinker-nav:start cli.nav.sincronizacao-verificacao
 // @pinker-nav:domain nav
 // @pinker-nav:layer cli
-// @pinker-nav:summary run_nav_sincronizar reescaneia o repositório (scan_code), roda index.verify() e só grava src/navigation.jsonl via write_atomic quando não há divergências (senão retorna EXIT_SOURCE sem tocar o arquivo); run_nav_verificar também reescaneia e roda verify(), compara o conteúdo renderizado com o arquivo em disco e reporta divergências em stderr, mas não escreve — é somente leitura, retornando EXIT_SOURCE em caso de erro e EXIT_OK caso contrário.
+// @pinker-nav:summary run_nav_sincronizar reescaneia e grava o catálogo somente após validação; run_nav_verificar renderiza o modelo somente leitura de nav::verify_repository, preservando o mesmo comportamento e códigos da CLI sem duplicar a autoridade observacional.
 fn run_nav_sincronizar(repo_root: &Path) -> i32 {
     let doc_config = load_doc_config(repo_root);
     let index = scan_code(repo_root);
@@ -1962,26 +2091,31 @@ fn run_nav_sincronizar(repo_root: &Path) -> i32 {
 
 fn run_nav_verificar(repo_root: &Path) -> i32 {
     let doc_config = load_doc_config(repo_root);
-    let index = scan_code(repo_root);
-    let mut errors = index.verify();
-    let path = repo_root.join(&doc_config.generated.code_index);
-    let rendered = index.render_jsonl();
-    let on_disk = fs::read_to_string(path).unwrap_or_default();
-    if on_disk != rendered {
-        errors.push(nav::NavVerifyError::IndexOutOfDate {
-            path: doc_config.generated.code_index.clone(),
-        });
-    }
-    if errors.is_empty() {
+    let verification = match nav::verify_repository(repo_root, &doc_config.generated.code_index) {
+        Ok(verification) => verification,
+        Err(error) => {
+            eprintln!("{error}");
+            return EXIT_FAILURE;
+        }
+    };
+    if verification.is_ok() {
         println!("Marcadores e catálogo de código verificados: ok.");
         return EXIT_OK;
     }
     eprintln!(
         "E-NAV-VERIFY: {} divergência(s) encontrada(s):",
-        errors.len()
+        verification.total_errors()
     );
-    for error in &errors {
+    for error in &verification.source_errors {
         eprintln!("  - {error}");
+    }
+    if verification.catalog_out_of_date {
+        eprintln!(
+            "  - {}",
+            nav::NavVerifyError::IndexOutOfDate {
+                path: doc_config.generated.code_index
+            }
+        );
     }
     EXIT_SOURCE
 }
@@ -2452,7 +2586,7 @@ fn run_doc_sincronizar(repo_root: &Path, config: &doc::DocConfig) -> i32 {
     );
     println!(
         "Histórico mecânico sincronizado: {} ({} manifesto(s)).",
-        LEDGER_REL,
+        doc::CHANGE_LEDGER_RELATIVE_PATH,
         manifests.changes.len()
     );
     if !plan.writes.is_empty() {
@@ -2465,12 +2599,10 @@ fn run_doc_sincronizar(repo_root: &Path, config: &doc::DocConfig) -> i32 {
 // @pinker-nav:start cli.doc.mudancas
 // @pinker-nav:domain doc
 // @pinker-nav:layer cli
-// @pinker-nav:summary LEDGER_REL é o caminho fixo do histórico mecânico (.pinker/changes/index.jsonl); write_ledger renderiza os manifestos e grava via write_atomic, ou remove o arquivo quando não há manifestos; run_doc_importar lê, valida e serializa canonicamente um bloco novo e, para manifesto existente, preserva o fast path byte a byte ou compara o modelo semântico completo sem reescrever o artefato; mudanças estruturais e manifestos existentes inválidos retornam change::immutable_error.
-const LEDGER_REL: &str = ".pinker/changes/index.jsonl";
-
+// @pinker-nav:summary CHANGE_LEDGER_RELATIVE_PATH é o caminho canônico do histórico mecânico; write_ledger renderiza os manifestos e grava via write_atomic, ou remove o arquivo quando não há manifestos; run_doc_importar lê, valida e serializa canonicamente um bloco novo e preserva manifestos existentes byte a byte.
 fn write_ledger(repo_root: &Path, manifests: &change::Manifests) -> Result<(), i32> {
     let rendered = manifests.render_ledger();
-    let path = repo_root.join(LEDGER_REL);
+    let path = repo_root.join(doc::CHANGE_LEDGER_RELATIVE_PATH);
     if rendered.is_empty() {
         // Zero manifestos: não materializa arquivo (mantém a árvore limpa).
         let _ = fs::remove_file(&path);
@@ -2588,70 +2720,47 @@ fn run_doc_importar(
 // @pinker-nav:start cli.doc.verificacao
 // @pinker-nav:domain doc
 // @pinker-nav:layer cli
-// @pinker-nav:summary run_doc_verificar reescaneia docs/ e manifestos, recomputa o catálogo, o ledger e o plano de projeções em memória e compara cada um com o conteúdo em disco (incluindo o baseline_gate por PR), acumulando divergências em `errors`/`manifest_errors`; não escreve em nenhum arquivo — reporta 'ok' ou a lista de divergências e retorna EXIT_OK/EXIT_SOURCE conforme o resultado.
+// @pinker-nav:summary run_doc_verificar renderiza o modelo somente leitura de doc::verify_repository, preservando diagnósticos estruturais, drift de catálogo, ledger e projeções e os mesmos códigos da CLI sem duplicar a autoridade observacional.
 fn run_doc_verificar(repo_root: &Path, config: &doc::DocConfig) -> i32 {
-    let index = scan_docs(repo_root);
-    let mut errors = index.verify();
-
-    let path = repo_root.join(&config.generated.docs_index);
-    let rendered = index.render_jsonl();
-    let on_disk = fs::read_to_string(path).unwrap_or_default();
-    if on_disk != rendered {
-        errors.push(doc_index::DocVerifyError::CatalogOutOfDate {
-            path: config.generated.docs_index.clone(),
-        });
-    }
-
-    // Manifestos de mudança (Etapa 4): esquema, número, baseline e histórico.
-    let mut manifest_errors: Vec<String> = Vec::new();
-    let changes_dir = repo_root.join(".pinker/changes");
-    let manifests = change::Manifests::load(&changes_dir);
-    for problem in &manifests.problems {
-        manifest_errors.push(problem.to_string());
-    }
-    for manifest in &manifests.changes {
-        if let Some(source) = &manifest.source {
-            if let Err(rejection) = config.baseline_gate(source.number) {
-                manifest_errors.push(format!(
-                    "manifesto pr-{} anterior ou igual ao marco #{}",
-                    source.number, rejection.baseline_pr
-                ));
-            }
-        } else {
-            manifest_errors.push(format!("manifesto '{}' sem source.number", manifest.title));
+    let verification = match doc::verify_repository(repo_root, config) {
+        Ok(verification) => verification,
+        Err(error) => {
+            eprintln!("{error}");
+            return EXIT_FAILURE;
         }
-    }
-    let ledger_rendered = manifests.render_ledger();
-    let ledger_on_disk = fs::read_to_string(repo_root.join(LEDGER_REL)).unwrap_or_default();
-    if ledger_on_disk != ledger_rendered {
-        manifest_errors.push(format!(
-            "histórico mecânico '{}' dessincronizado; rode `pink doc sincronizar`",
-            LEDGER_REL
-        ));
-    }
-
-    // Projeções documentais (§12): compara o versionado com o gerado em memória.
-    if manifests.problems.is_empty() {
-        match projection::plan(repo_root, config, &manifests) {
-            Ok(plan) => {
-                for drift in plan.drift() {
-                    manifest_errors.push(drift);
-                }
-            }
-            Err(err) => manifest_errors.push(err.to_string()),
-        }
-    }
-
-    if errors.is_empty() && manifest_errors.is_empty() {
+    };
+    if verification.is_ok() {
         println!("Documentação, catálogo, manifestos e projeções verificados: ok.");
         return EXIT_OK;
     }
-    let total = errors.len() + manifest_errors.len();
-    eprintln!("E-DOC-VERIFY: {} divergência(s) encontrada(s):", total);
-    for error in &errors {
+    eprintln!(
+        "E-DOC-VERIFY: {} divergência(s) encontrada(s):",
+        verification.total_errors()
+    );
+    for error in &verification.source_errors {
         eprintln!("  - {error}");
     }
-    for error in &manifest_errors {
+    if verification.catalog_out_of_date {
+        eprintln!(
+            "  - {}",
+            doc_index::DocVerifyError::CatalogOutOfDate {
+                path: config.generated.docs_index.clone()
+            }
+        );
+    }
+    for error in &verification.manifest_errors {
+        eprintln!("  - {error}");
+    }
+    if verification.ledger_out_of_date {
+        eprintln!(
+            "  - histórico mecânico '{}' dessincronizado; rode `pink doc sincronizar`",
+            doc::CHANGE_LEDGER_RELATIVE_PATH
+        );
+    }
+    for drift in &verification.projection_drifts {
+        eprintln!("  - {drift}");
+    }
+    if let Some(error) = &verification.projection_error {
         eprintln!("  - {error}");
     }
     EXIT_SOURCE

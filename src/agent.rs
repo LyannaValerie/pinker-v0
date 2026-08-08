@@ -3578,7 +3578,7 @@ fn replace_bytes(input: &[u8], search: &[u8], replacement: &[u8]) -> Vec<u8> {
 // @pinker-nav:start development.agent.lifecycle
 // @pinker-nav:domain development
 // @pinker-nav:layer agent
-// @pinker-nav:summary Ciclo iniciar/executar/verificar/status/relatorio: snapshots Git, execução fail-fast com NOT_RUN, validação de escopo exato, estados ACCEPTED/BLOCKED, códigos de saída mecânicos e emissão dos artefatos terminais canônicos.
+// @pinker-nav:summary Ciclo iniciar/executar/verificar/status/relatorio com artefatos terminais canônicos; status e publicação expõem modelos observacionais somente leitura reutilizados pela CLI existente e pelo estado consolidado sem parsear stdout.
 fn git_output(worktree: &Path, args: &[&str]) -> Result<String, String> {
     let output = Command::new(trusted_system_executable("git")?)
         .arg("-C")
@@ -3808,26 +3808,116 @@ pub fn verificar(spec_path: &Path) -> Result<i32, String> {
     Ok(if passed { EXIT_ACCEPTED } else { EXIT_BLOCKED })
 }
 
-pub fn status(spec_path: &Path, json: bool) -> Result<i32, String> {
+/// Estado terminal observado pela autoridade congelada `pink-agent-v1`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AgentTerminalStatus {
+    Accepted,
+    Blocked,
+    NeedsHumanDecision,
+}
+
+impl AgentTerminalStatus {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            AgentTerminalStatus::Accepted => "ACCEPTED",
+            AgentTerminalStatus::Blocked => "BLOCKED",
+            AgentTerminalStatus::NeedsHumanDecision => "NEEDS_HUMAN_DECISION",
+        }
+    }
+
+    pub fn exit_code(self) -> i32 {
+        match self {
+            AgentTerminalStatus::Accepted => EXIT_ACCEPTED,
+            AgentTerminalStatus::Blocked => EXIT_BLOCKED,
+            AgentTerminalStatus::NeedsHumanDecision => EXIT_NEEDS_HUMAN,
+        }
+    }
+}
+
+/// Modelo observacional reutilizável do mesmo fato exibido por
+/// `pink agente status`. O JSON original permanece privado ao modelo para que o
+/// contrato público antigo possa ser renderizado byte a byte sem reparsear
+/// stdout.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AgentStatusObservation {
+    pub terminal: AgentTerminalStatus,
+    pub checks: Vec<AgentCheckObservation>,
+    result_json: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AgentCheckObservation {
+    pub id: String,
+    pub status: String,
+}
+
+impl AgentStatusObservation {
+    pub fn result_json(&self) -> &str {
+        &self.result_json
+    }
+}
+
+/// Estado local de publicação já persistido pelo lifecycle do agente.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AgentPublicationObservation {
+    pub status: String,
+}
+
+/// Coleta, sem escrita e sem rede, o estado terminal que já era autoridade de
+/// `pink agente status`.
+pub fn observe_status(spec_path: &Path) -> Result<AgentStatusObservation, String> {
     let spec = load_spec(spec_path)?;
     let result = fs::read_to_string(spec.delegated_root.join("artefatos/resultado.json"))
         .map_err(|err| err.to_string())?;
-    if json {
-        print!("{result}");
-    } else if result.contains("\"status\": \"ACCEPTED\"") {
-        println!("ACCEPTED");
+    let terminal = if result.contains("\"status\": \"ACCEPTED\"") {
+        AgentTerminalStatus::Accepted
     } else if result.contains("NEEDS_HUMAN_DECISION") {
-        println!("NEEDS_HUMAN_DECISION");
+        AgentTerminalStatus::NeedsHumanDecision
     } else {
-        println!("BLOCKED");
-    }
-    Ok(if result.contains("\"status\": \"ACCEPTED\"") {
-        EXIT_ACCEPTED
-    } else if result.contains("NEEDS_HUMAN_DECISION") {
-        EXIT_NEEDS_HUMAN
-    } else {
-        EXIT_BLOCKED
+        AgentTerminalStatus::Blocked
+    };
+    let checks = result
+        .lines()
+        .filter_map(|line| {
+            Some(AgentCheckObservation {
+                id: json_text_field(line, "id")?,
+                status: json_text_field(line, "status")?,
+            })
+        })
+        .collect();
+    Ok(AgentStatusObservation {
+        terminal,
+        checks,
+        result_json: result,
     })
+}
+
+/// Observa o lifecycle local de publicação quando ele já existe. Ausência é
+/// `None`; nenhum estado é descoberto por rede ou inferido por heurística.
+pub fn observe_publication(
+    spec_path: &Path,
+) -> Result<Option<AgentPublicationObservation>, String> {
+    let spec = load_spec(spec_path)?;
+    if !publication_state_path(&spec)
+        .try_exists()
+        .map_err(|error| error.to_string())?
+    {
+        return Ok(None);
+    }
+    let state = load_publication_state(&spec)?;
+    Ok(Some(AgentPublicationObservation {
+        status: state.status,
+    }))
+}
+
+pub fn status(spec_path: &Path, json: bool) -> Result<i32, String> {
+    let observation = observe_status(spec_path)?;
+    if json {
+        print!("{}", observation.result_json());
+    } else {
+        println!("{}", observation.terminal.as_str());
+    }
+    Ok(observation.terminal.exit_code())
 }
 
 pub fn relatorio(spec_path: &Path) -> Result<i32, String> {

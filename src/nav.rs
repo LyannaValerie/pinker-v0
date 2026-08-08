@@ -267,6 +267,49 @@ impl CodeIndex {
 }
 // @pinker-nav:end trama.codigo.catalogo
 
+// @pinker-nav:start trama.codigo.verificacao-reutilizavel
+// @pinker-nav:domain navegacao
+// @pinker-nav:layer trama
+// @pinker-nav:summary Modelo somente leitura compartilhado por pink nav verificar e consumidores internos: reescaneia as raízes oficiais, valida as regiões e compara o catálogo renderizado com o arquivo versionado.
+
+/// Estado observacional produzido pela mesma autoridade de `pink nav
+/// verificar`, sem impressão e sem escrita.
+#[derive(Debug)]
+pub struct RepositoryVerification {
+    pub index: CodeIndex,
+    pub source_errors: Vec<NavVerifyError>,
+    pub catalog_out_of_date: bool,
+}
+
+impl RepositoryVerification {
+    pub fn is_ok(&self) -> bool {
+        self.source_errors.is_empty() && !self.catalog_out_of_date
+    }
+
+    pub fn total_errors(&self) -> usize {
+        self.source_errors.len() + usize::from(self.catalog_out_of_date)
+    }
+}
+
+/// Executa integralmente a verificação do catálogo de código em memória.
+pub fn verify_repository(
+    repo_root: &Path,
+    catalog_relative_path: &str,
+) -> Result<RepositoryVerification, ScanError> {
+    let index = CodeIndex::scan_repo(repo_root)?;
+    let source_errors = index.verify();
+    let rendered = index.render_jsonl();
+    let catalog_out_of_date =
+        fs::read_to_string(repo_root.join(catalog_relative_path)).unwrap_or_default() != rendered;
+    Ok(RepositoryVerification {
+        index,
+        source_errors,
+        catalog_out_of_date,
+    })
+}
+
+// @pinker-nav:end trama.codigo.verificacao-reutilizavel
+
 /// Pontuação de código (§7.3). Prioridade mínima: chave exata, chave parcial,
 /// domínio/camada exatos, termos no resumo, caminho. Devolve
 /// `(região, pontuação, cobertura)` ordenado por (pontuação, cobertura, chave).

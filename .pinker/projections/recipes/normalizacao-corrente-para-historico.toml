@@ -2,8 +2,8 @@ schema = 2
 id = "normalizacao-corrente-para-historico"
 
 [reconstruction]
-expected_overrides = 5
-expected_exclusions = 27
+expected_overrides = 10
+expected_exclusions = 33
 
 [[rules]]
 op = "exclude-key"
@@ -68,6 +68,36 @@ expected_matches = 1
 [[rules]]
 op = "exclude-key"
 key = "cli.nav.projecao"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.project-state.contrato"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "project-state.coleta"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "project-state.modelo"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "project-state.renderizacao"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "trama.codigo.verificacao-reutilizavel"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "trama.documentos.verificacao-reutilizavel"
 expected_matches = 1
 
 [[rules]]
@@ -142,30 +172,108 @@ expected_matches = 1
 
 [[rules]]
 op = "override-hash"
+key = "cli.doc.sincronizacao"
+from = "fnv1a64:498c636af046ee73"
+to = "fnv1a64:60b049063e3eae51"
+expect_file = "src/main.rs"
+expect_domain = "doc"
+expect_layer = "cli"
+
+[[rules]]
+op = "override-region"
 key = "cli.ajuda.usage"
-from = "fnv1a64:51f5aca361f84fde"
-to = "fnv1a64:ce2fe9866dbdcd8f"
+from_hash = "fnv1a64:141bdb4d15282906"
+to_hash = "fnv1a64:ce2fe9866dbdcd8f"
+from_summary = "program_name reduz argv[0] ao componente final, preserva nomes alternativos e usa pink como fallback; as funções de ajuda consomem somente esse nome e formatam a ajuda principal ou dos sete comandos existentes, sem side effects."
+to_summary = "program_name reduz argv[0] ao componente final, preserva nomes alternativos e usa pink como fallback; as funções de ajuda consomem somente esse nome e formatam a ajuda principal ou dos seis comandos existentes, sem side effects."
+expect_file = "src/main.rs"
+expect_domain = "ajuda"
+expect_layer = "cli"
 
 [[rules]]
-op = "override-hash"
+op = "override-region"
 key = "cli.config.modelos"
-from = "fnv1a64:6c68096886a9c88b"
-to = "fnv1a64:76a2365574c8b339"
+from_hash = "fnv1a64:f83c33a1fd7b1fc3"
+to_hash = "fnv1a64:76a2365574c8b339"
+from_summary = "Constantes de códigos de saída e limites de paginação, helpers JSON, structs de configuração por subcomando — inclusive StateConfigCli — e enums usados pelo parsing e roteamento determinísticos da CLI."
+to_summary = "Constantes de códigos de saída (EXIT_OK/EXIT_USAGE/EXIT_CATALOG/EXIT_NORESULT/EXIT_SOURCE) e limites de paginação (LIMIT_MIN/MAX, LIMIT_DEFAULT_ROTA/BUSCAR); clamp_limit ajusta um Option<usize> aos limites via .clamp; json_escape escapa aspas/barra/controle para JSON; json_string_array serializa Vec<String>. Structs de configuração por subcomando (Config, BuildConfig, EditorConfig, ReplConfig, DocConfigCli, NavConfigCli) e os enums de subcomando (DocSub, NavSub, CliCommand) usados pelo parsing e roteamento a seguir."
+expect_file = "src/main.rs"
+expect_domain = "config"
+expect_layer = "cli"
 
 [[rules]]
-op = "override-hash"
+op = "override-region"
+key = "cli.doc.mudancas"
+from_hash = "fnv1a64:11e0eba000b44d75"
+to_hash = "fnv1a64:8366c8b8c939c016"
+from_summary = "CHANGE_LEDGER_RELATIVE_PATH é o caminho canônico do histórico mecânico; write_ledger renderiza os manifestos e grava via write_atomic, ou remove o arquivo quando não há manifestos; run_doc_importar lê, valida e serializa canonicamente um bloco novo e preserva manifestos existentes byte a byte."
+to_summary = "LEDGER_REL é o caminho fixo do histórico mecânico (.pinker/changes/index.jsonl); write_ledger renderiza os manifestos e grava via write_atomic, ou remove o arquivo quando não há manifestos; run_doc_importar lê, valida e serializa canonicamente um bloco novo e, para manifesto existente, preserva o fast path byte a byte ou compara o modelo semântico completo sem reescrever o artefato; mudanças estruturais e manifestos existentes inválidos retornam change::immutable_error."
+expect_file = "src/main.rs"
+expect_domain = "doc"
+expect_layer = "cli"
+
+[[rules]]
+op = "override-region"
+key = "cli.doc.verificacao"
+from_hash = "fnv1a64:4ee83781c89da2f1"
+to_hash = "fnv1a64:fdca2dee5d33ab41"
+from_summary = "run_doc_verificar renderiza o modelo somente leitura de doc::verify_repository, preservando diagnósticos estruturais, drift de catálogo, ledger e projeções e os mesmos códigos da CLI sem duplicar a autoridade observacional."
+to_summary = "run_doc_verificar reescaneia docs/ e manifestos, recomputa o catálogo, o ledger e o plano de projeções em memória e compara cada um com o conteúdo em disco (incluindo o baseline_gate por PR), acumulando divergências em `errors`/`manifest_errors`; não escreve em nenhum arquivo — reporta 'ok' ou a lista de divergências e retorna EXIT_OK/EXIT_SOURCE conforme o resultado."
+expect_file = "src/main.rs"
+expect_domain = "doc"
+expect_layer = "cli"
+
+[[rules]]
+op = "override-region"
 key = "cli.execucao.entrada"
-from = "fnv1a64:3ce736ce46fb6fcd"
-to = "fnv1a64:f33da0bc4b2931c0"
+from_hash = "fnv1a64:c5ddf7f64e5dbfc5"
+to_hash = "fnv1a64:f33da0bc4b2931c0"
+from_summary = "try_or_exit! encerra falhas operacionais com EXIT_FAILURE; main imprime ajuda em stdout, versão determinística do pacote em stdout, erros de invocação em stderr com EXIT_USAGE e preserva os códigos de domínio ao despachar análise, build, editor, repl, doc, nav, agente e estado."
+to_summary = "try_or_exit! encerra falhas operacionais com EXIT_FAILURE; main imprime ajuda em stdout, versão determinística do pacote em stdout, erros de invocação em stderr com EXIT_USAGE e preserva os códigos de domínio ao despachar análise, build, editor, repl, doc, nav e agente."
+expect_file = "src/main.rs"
+expect_domain = "execucao"
+expect_layer = "cli"
 
 [[rules]]
-op = "override-hash"
+op = "override-region"
+key = "cli.nav.sincronizacao-verificacao"
+from_hash = "fnv1a64:25eaad837593da31"
+to_hash = "fnv1a64:b4fd83f527fef1f2"
+from_summary = "run_nav_sincronizar reescaneia e grava o catálogo somente após validação; run_nav_verificar renderiza o modelo somente leitura de nav::verify_repository, preservando o mesmo comportamento e códigos da CLI sem duplicar a autoridade observacional."
+to_summary = "run_nav_sincronizar reescaneia o repositório (scan_code), roda index.verify() e só grava src/navigation.jsonl via write_atomic quando não há divergências (senão retorna EXIT_SOURCE sem tocar o arquivo); run_nav_verificar também reescaneia e roda verify(), compara o conteúdo renderizado com o arquivo em disco e reporta divergências em stderr, mas não escreve — é somente leitura, retornando EXIT_SOURCE em caso de erro e EXIT_OK caso contrário."
+expect_file = "src/main.rs"
+expect_domain = "nav"
+expect_layer = "cli"
+
+[[rules]]
+op = "override-region"
 key = "cli.parsing.roteamento"
-from = "fnv1a64:e0d3ac86e81801a4"
-to = "fnv1a64:7a87c07efc0fa102"
+from_hash = "fnv1a64:ccef27743bee82ca"
+to_hash = "fnv1a64:7a87c07efc0fa102"
+from_summary = "parse_args reduz argv[0] via program_name, resolve ajuda principal/help COMANDO/COMANDO --help e versão antes do parsing operacional, separa flag_args do runtime_tail e despacha os sete comandos existentes ou o modo de análise; erros de invocação retornam Err(String) para saída uniforme com EXIT_USAGE."
+to_summary = "parse_args reduz argv[0] via program_name, resolve ajuda principal/help COMANDO/COMANDO --help e versão antes do parsing operacional, separa flag_args do runtime_tail e despacha os seis comandos existentes ou o modo de análise; erros de invocação retornam Err(String) para saída uniforme com EXIT_USAGE."
+expect_file = "src/main.rs"
+expect_domain = "parsing"
+expect_layer = "cli"
 
 [[rules]]
-op = "override-hash"
+op = "override-region"
 key = "cli.parsing.subcomandos"
-from = "fnv1a64:06516767ed8407bc"
-to = "fnv1a64:52d92432d1b2f696"
+from_hash = "fnv1a64:670f31542ef5a258"
+to_hash = "fnv1a64:52d92432d1b2f696"
+from_summary = "Parsers estritos dos subcomandos, incluindo estado: reconhecem somente flags e posicionais próprios, rejeitam valores ausentes, desconhecidos e duplicatas ambíguas e devolvem modelos tipados ou a mensagem de uso correspondente."
+to_summary = "Parsers de argumentos por subcomando (parse_build_args, parse_editor_args, parse_repl_args, parse_doc_args, parse_nav_args): percorrem `args: &[String]` reconhecendo flags (--out-dir, --nativo, --repo, --corpo, --check, --json, --limite, --help/-h) e o argumento posicional de entrada/subcomando, retornando Result<Config..., String> com a mensagem de uso correspondente em caso de flag desconhecida ou argumento ausente."
+expect_file = "src/main.rs"
+expect_domain = "parsing"
+expect_layer = "cli"
+
+[[rules]]
+op = "override-region"
+key = "development.agent.lifecycle"
+from_hash = "fnv1a64:b7040d3c1fb6c2f9"
+to_hash = "fnv1a64:692e86d6d62cb4ff"
+from_summary = "Ciclo iniciar/executar/verificar/status/relatorio com artefatos terminais canônicos; status e publicação expõem modelos observacionais somente leitura reutilizados pela CLI existente e pelo estado consolidado sem parsear stdout."
+to_summary = "Ciclo iniciar/executar/verificar/status/relatorio: snapshots Git, execução fail-fast com NOT_RUN, validação de escopo exato, estados ACCEPTED/BLOCKED, códigos de saída mecânicos e emissão dos artefatos terminais canônicos."
+expect_file = "src/agent.rs"
+expect_domain = "development"
+expect_layer = "agent"

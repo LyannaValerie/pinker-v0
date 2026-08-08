@@ -81,6 +81,8 @@ janela auxiliar autorizada pela Issue #417 tem autoridade operacional própria e
   classificação dos snapshots históricos de projeção do catálogo de navegação;
 - `automation-core-contract.md` — fronteira, plano efêmero, digest, limites,
   classificação e relatórios do núcleo comum de automação;
+- `consolidated-project-state-contract.md` — modelo versionado, fontes,
+  disponibilidade parcial e CLI somente leitura do estado consolidado;
 
 | Necessidade | Documento |
 |---|---|
@@ -91,6 +93,7 @@ janela auxiliar autorizada pela Issue #417 tem autoridade operacional própria e
 | janela auxiliar de infraestrutura determinística | `janela-infraestrutura-deterministica.md` |
 | snapshots históricos de projeção | `projection-snapshots-contract.md` |
 | núcleo comum de automação | `automation-core-contract.md` |
+| estado consolidado somente leitura | `consolidated-project-state-contract.md` |
 
 ## Rotas de leitura
 

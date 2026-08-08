@@ -87,7 +87,7 @@ inválido escrevem em stderr e terminam com código `2`.
 | Comando | Uso |
 |---|---|
 | `pink --help`, `pink -h`, `pink help` | Ajuda principal |
-| `pink help COMANDO` | Ajuda de `build`, `editor`, `repl`, `doc`, `nav` ou `agente` |
+| `pink help COMANDO` | Ajuda de `build`, `editor`, `repl`, `doc`, `nav`, `agente` ou `estado` |
 | `pink COMANDO --help`, `pink COMANDO -h` | Forma equivalente de ajuda do comando |
 | `pink --version`, `pink -V` | Versão determinística do pacote |
 | `pink arquivo.pink` | Compila/checka o arquivo pelo caminho padrão |
@@ -102,6 +102,7 @@ inválido escrevem em stderr e terminam com código `2`.
 | `pink nav projecao verificar [ID]` | Verificação composta, com drift e harness distintos |
 | `pink nav projecao preparar ID ...` | Planeja/prepara CANDIDATE por digest explícito |
 | `pink nav projecao aceitar ID ...` | Planeja/aceita a transição única para FROZEN |
+| `pink estado [--repo DIRETÓRIO] [--agente-spec ARQUIVO] [--json]` | Estado consolidado, determinístico e somente leitura do projeto |
 
 Os códigos públicos distinguem `0` (sucesso, ajuda ou versão), `1` (falha
 operacional genérica) e `2` (invocação inválida). `doc` e `nav` preservam os
@@ -114,8 +115,12 @@ preservando `5` para drift. A versão humana contém apenas
 reservados a uma possível saída estruturada futura, ainda sem contrato nesta
 etapa.
 
+`pink estado` separa o estado observado do sucesso da consulta: um relatório
+`WARNING`, `BLOCKED` ou `PARTIAL` termina com `0`; `1` é falha interna, `2` é
+uso inválido e `3` indica que nenhuma raiz mínima pôde ser estabelecida.
+
 Os comandos raiz existentes são somente `build`, `editor`, `repl`, `doc`,
-`nav` e `agente`. Propostas como `pink comandos`, `pink env`, `pink doctor` e
+`nav`, `agente` e `estado`. Propostas como `pink comandos`, `pink env`, `pink doctor` e
 `pink listar` não estão implementadas; `listar` existe apenas dentro das
 gramáticas próprias de `doc` e `nav`.
 
