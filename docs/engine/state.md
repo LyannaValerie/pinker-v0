@@ -66,7 +66,7 @@ Conteúdo abaixo é **propriedade da ferramenta** (projeção `state`); não edi
 mão. Regenere com `pink doc sincronizar`.
 
 <!-- @pinker-generated:start engine.state.generated -->
-- Manifestos processados: 16
-- Última mudança: PR #432 — Completa o lifecycle de CANDIDATE e a CLI de projeções no Stage E (fase —, bloco 20)
+- Manifestos processados: 17
+- Última mudança: PR #433 — Expõe o estado consolidado somente leitura da Pinker (fase —, bloco 20)
 - Seções implementadas: —
 <!-- @pinker-generated:end engine.state.generated -->
