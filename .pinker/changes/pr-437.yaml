@@ -1,0 +1,18 @@
+schema: 1
+source:
+  type: github-pr
+  number: 437
+  repository: "LyannaValerie/pinker-v0"
+kind: hotfix
+title: "Estabilizar handshake root-swap sob contenção no CI"
+area:
+  - development.native-execution-host-containment
+  - development.test-harness
+status: completed
+updates:
+  state: false
+  history: false
+  roadmap: false
+validation:
+  required:
+    - make ci
