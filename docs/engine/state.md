@@ -66,7 +66,7 @@ Conteúdo abaixo é **propriedade da ferramenta** (projeção `state`); não edi
 mão. Regenere com `pink doc sincronizar`.
 
 <!-- @pinker-generated:start engine.state.generated -->
-- Manifestos processados: 18
+- Manifestos processados: 19
 - Última mudança: PR #437 — Estabilizar handshake root-swap sob contenção no CI (fase —, bloco —)
 - Seções implementadas: —
 <!-- @pinker-generated:end engine.state.generated -->
