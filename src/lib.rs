@@ -34,6 +34,8 @@ pub mod nav_projection_store;
 pub mod palette;
 pub mod parser;
 pub mod printer;
+pub mod project_state;
+pub mod project_state_report;
 pub mod projection;
 pub mod repl;
 pub mod semantic;

@@ -602,9 +602,10 @@ mudança de era entre eles.
 
 ### A receita de normalização
 
-`normalizacao-corrente-para-historico` remove as 27 regiões acrescentadas depois
-de todo o acervo histórico (528 → 501 regiões) e restaura estritamente os cinco
-hashes de regiões da CLI cujo corpo mudou para integrar o Stage E. Ela é
+`normalizacao-corrente-para-historico` remove as 33 regiões acrescentadas depois
+de todo o acervo histórico (534 → 501 regiões) e restaura estritamente dez
+regiões existentes cujo corpo ou resumo mudou ao integrar o Stage E e a consulta
+consolidada da Issue #387. Ela é
 declarada por **um único snapshot**, o terminal, cuja reconstrução parte do
 catálogo corrente. Os demais herdam o efeito por `base_snapshot`; reaplicá-la
 abortaria por consumo zero, e a composição simplesmente não tenta.

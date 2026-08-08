@@ -128,12 +128,18 @@ fn retain_membership_base(catalog: &mut CodeCatalog) {
                 | "automation.raiz.descoberta"
                 | "automation.relatorio.aplicacao"
                 | "automation.relatorio.renderizacao"
+                | "evidencia.project-state.contrato"
                 | "evidencia.leques.carga-lista-abi-runtime"
                 | "evidencia.leques.carga-lista-estrutura-ir"
                 | "evidencia.leques.carga-lista-matriz-negativa"
                 | "evidencia.leques.carga-lista-matriz-positiva"
                 | "evidencia.semantica.objetos-trato-fase244"
                 | "leque.carga.classificacao"
+                | "project-state.coleta"
+                | "project-state.modelo"
+                | "project-state.renderizacao"
+                | "trama.codigo.verificacao-reutilizavel"
+                | "trama.documentos.verificacao-reutilizavel"
                 | "trama.snapshots.biblioteca"
                 | "trama.snapshots.erros"
                 | "trama.snapshots.medidas"
@@ -559,12 +565,13 @@ fn catalogo_real_cartografa_o_guardiao_pinker_da_onda_9() {
     // outras seis, entre raiz canônica, confinamento, observação, aplicação,
     // autorização e relatório de aplicação. O congelamento do contrato de
     // composição do estágio D acrescenta três: receita, sua serialização e a
-    // biblioteca que resolve o grafo. Este é o único total vivo desta suíte; todos os
+    // biblioteca que resolve o grafo. O estado consolidado da Issue #387 soma
+    // seis regiões observacionais exatas. Este é o único total vivo desta suíte; todos os
     // demais são reconstruções históricas e continuam com os literais
     // congelados, porque `project_pre_automation_core` e
     // `project_pre_projection_snapshot_contract` removem as regiões novas antes
     // de qualquer reconstrução.
-    assert_eq!(index.regions.len(), 528);
+    assert_eq!(index.regions.len(), 534);
 
     // Exatamente uma região Pinker, a do Guardião, com metadados congelados.
     let guardiao: Vec<_> = index
@@ -579,7 +586,7 @@ fn catalogo_real_cartografa_o_guardiao_pinker_da_onda_9() {
     assert_eq!(g.layer.as_deref(), Some("apps"));
     assert!(g.content_end > g.content_start);
 
-    // Contagens históricas por camada preservadas.
+    // Contagens vivas por camada após a evidência consolidada da Issue #387.
     let by_layer = |layer: &str| {
         index
             .regions
@@ -587,7 +594,7 @@ fn catalogo_real_cartografa_o_guardiao_pinker_da_onda_9() {
             .filter(|r| r.layer.as_deref() == Some(layer))
             .count()
     };
-    assert_eq!(by_layer("evidencia"), 268);
+    assert_eq!(by_layer("evidencia"), 269);
     assert_eq!(by_layer("runtime"), 16);
     assert_eq!(by_layer("apps"), 1);
 }

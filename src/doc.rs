@@ -18,6 +18,9 @@ use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+/// Ledger mecânico derivado dos manifestos de mudança.
+pub const CHANGE_LEDGER_RELATIVE_PATH: &str = ".pinker/changes/index.jsonl";
+
 /// Caminho da configuração canônica, relativo à raiz do repositório.
 pub const CONFIG_RELATIVE_PATH: &str = ".pinker/doc.toml";
 
@@ -229,6 +232,107 @@ impl DocConfig {
     }
 }
 // @pinker-nav:end trama.documentos.marco
+
+// @pinker-nav:start trama.documentos.verificacao-reutilizavel
+// @pinker-nav:domain documentos
+// @pinker-nav:layer trama
+// @pinker-nav:summary Modelo somente leitura compartilhado por pink doc verificar e consumidores internos: reescaneia documentos e manifestos, compara catálogo, ledger e projeções em memória e preserva drift separado de falha estrutural.
+
+/// Estado observacional produzido pela mesma autoridade de `pink doc
+/// verificar`, sem impressão e sem escrita.
+#[derive(Debug)]
+pub struct RepositoryVerification {
+    pub index: crate::doc_index::DocIndex,
+    pub source_errors: Vec<crate::doc_index::DocVerifyError>,
+    pub catalog_out_of_date: bool,
+    pub manifest_errors: Vec<String>,
+    pub ledger_out_of_date: bool,
+    pub projection_drifts: Vec<String>,
+    pub projection_error: Option<String>,
+}
+
+impl RepositoryVerification {
+    pub fn is_ok(&self) -> bool {
+        self.source_errors.is_empty()
+            && !self.catalog_out_of_date
+            && self.manifest_errors.is_empty()
+            && !self.ledger_out_of_date
+            && self.projection_drifts.is_empty()
+            && self.projection_error.is_none()
+    }
+
+    pub fn total_errors(&self) -> usize {
+        self.source_errors.len()
+            + usize::from(self.catalog_out_of_date)
+            + self.manifest_errors.len()
+            + usize::from(self.ledger_out_of_date)
+            + self.projection_drifts.len()
+            + usize::from(self.projection_error.is_some())
+    }
+
+    pub fn drift_count(&self) -> usize {
+        usize::from(self.catalog_out_of_date)
+            + usize::from(self.ledger_out_of_date)
+            + self.projection_drifts.len()
+    }
+}
+
+/// Executa integralmente a verificação documental em memória.
+pub fn verify_repository(
+    repo_root: &Path,
+    config: &DocConfig,
+) -> Result<RepositoryVerification, crate::doc_index::ScanError> {
+    let index = crate::doc_index::DocIndex::scan(&repo_root.join("docs"))?;
+    let source_errors = index.verify();
+    let rendered = index.render_jsonl();
+    let catalog_path = repo_root.join(&config.generated.docs_index);
+    let catalog_out_of_date = fs::read_to_string(catalog_path).unwrap_or_default() != rendered;
+
+    let changes_dir = repo_root.join(".pinker/changes");
+    let manifests = crate::change::Manifests::load(&changes_dir);
+    let mut manifest_errors = manifests
+        .problems
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>();
+    for manifest in &manifests.changes {
+        if let Some(source) = &manifest.source {
+            if let Err(rejection) = config.baseline_gate(source.number) {
+                manifest_errors.push(format!(
+                    "manifesto pr-{} anterior ou igual ao marco #{}",
+                    source.number, rejection.baseline_pr
+                ));
+            }
+        } else {
+            manifest_errors.push(format!("manifesto '{}' sem source.number", manifest.title));
+        }
+    }
+
+    let ledger_on_disk =
+        fs::read_to_string(repo_root.join(CHANGE_LEDGER_RELATIVE_PATH)).unwrap_or_default();
+    let ledger_out_of_date = ledger_on_disk != manifests.render_ledger();
+
+    let (projection_drifts, projection_error) = if manifests.problems.is_empty() {
+        match crate::projection::plan(repo_root, config, &manifests) {
+            Ok(plan) => (plan.drift(), None),
+            Err(error) => (Vec::new(), Some(error.to_string())),
+        }
+    } else {
+        (Vec::new(), None)
+    };
+
+    Ok(RepositoryVerification {
+        index,
+        source_errors,
+        catalog_out_of_date,
+        manifest_errors,
+        ledger_out_of_date,
+        projection_drifts,
+        projection_error,
+    })
+}
+
+// @pinker-nav:end trama.documentos.verificacao-reutilizavel
 
 /// Leitor mínimo e determinístico de um subconjunto de TOML.
 ///
