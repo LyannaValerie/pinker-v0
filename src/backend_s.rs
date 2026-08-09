@@ -1121,12 +1121,13 @@ fn extract_external_callconv_program(
                             }
                         }
                     }
-                    // Fase 243: materializa uma closure — aloca em heap
-                    // (`pinker_alocar`) o ambiente (1 palavra por captura,
-                    // ou nenhuma alocação quando `captures` é vazio: o
-                    // corpo nunca dereferencia `__env` nesse caso) e um
-                    // descritor dinâmico {code_ptr, env_ptr}, distinto do
-                    // descritor ESTÁTICO em `.rodata` de `FunctionRef`.
+                    // Fase 243/D3: materializa uma closure em uma única
+                    // alocação possuída pelo descritor dinâmico
+                    // {code_ptr, env_ptr}. O ambiente, quando existe, ocupa o
+                    // storage trailing (uma palavra por captura), eliminando
+                    // a falha parcial entre ambiente e descritor. Continua
+                    // distinto do descritor ESTÁTICO em `.rodata` de
+                    // `FunctionRef`.
                     SelectedInstr::MakeClosure {
                         dest,
                         function_name,
@@ -1145,18 +1146,14 @@ fn extract_external_callconv_program(
                             );
                         }
                         let dest_offset = slot_offsets[&temp_key(*dest)];
-                        if captures.is_empty() {
-                            body.push("movq $0, %rax".to_string());
-                        } else {
-                            body.push(format!("movabsq ${}, %rdi", captures.len() * 8));
-                            body.push("call pinker_alocar".to_string());
-                        }
-                        // Guarda temporariamente env_ptr no próprio slot de
-                        // destino (será sobrescrito com o endereço final do
-                        // descritor ao final).
+                        body.push(format!("movabsq ${}, %rdi", captures.len()));
+                        body.push("call pinker_callable_alocar".to_string());
+                        // O slot já recebe a identidade final do descritor;
+                        // `8(descriptor)` contém o ambiente possuído.
                         body.push(format!("movq %rax, -{}(%rbp)", dest_offset));
                         for (index, capture) in captures.iter().enumerate() {
                             body.push(format!("movq -{}(%rbp), %r10", dest_offset));
+                            body.push("movq 8(%r10), %r10".to_string());
                             body.extend(load_operand(
                                 "%r11",
                                 capture,
@@ -1165,14 +1162,9 @@ fn extract_external_callconv_program(
                             )?);
                             body.push(format!("movq %r11, {}(%r10)", index * 8));
                         }
-                        body.push("movabsq $16, %rdi".to_string());
-                        body.push("call pinker_alocar".to_string());
-                        body.push("movq %rax, %r11".to_string());
+                        body.push(format!("movq -{}(%rbp), %r11", dest_offset));
                         body.push(format!("leaq {}(%rip), %r10", function_name));
                         body.push("movq %r10, (%r11)".to_string());
-                        body.push(format!("movq -{}(%rbp), %r10", dest_offset));
-                        body.push("movq %r10, 8(%r11)".to_string());
-                        body.push(format!("movq %r11, -{}(%rbp)", dest_offset));
                     }
                     // Call sem destino (intrínsecas de efeito, Fase 216/B5):
                     // mesma ABI do call comum, sem o movq de retorno.

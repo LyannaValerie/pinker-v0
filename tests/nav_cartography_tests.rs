@@ -2924,7 +2924,7 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
     // fronteira futura de suíte para a Onda 8G vigiar. A proteção não foi removida:
     // a cobertura completa daquele arquivo passou para
     // onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo, que exige as 14
-    // regiões, o ownership [2,5,7,2,3,1,7,1,1,18] e os 47 testes.
+    // regiões, o ownership vigente e os 63 testes.
     let backend_nativo = "tests/backend_nativo_tests.rs";
     let backend_nativo_regions = catalog
         .regions
@@ -2944,8 +2944,8 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
             .lines()
             .filter(|line| line.trim() == "#[test]")
             .count(),
-        74,
-        "{backend_nativo} deve manter exatamente 74 #[test]"
+        75,
+        "{backend_nativo} deve manter exatamente 75 #[test]"
     );
 
     for future_without_owner in [
@@ -4438,8 +4438,8 @@ fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
             .lines()
             .filter(|line| line.trim() == "#[test]")
             .count(),
-        74,
-        "{nativo} deve manter exatamente 74 testes"
+        75,
+        "{nativo} deve manter exatamente 75 testes"
     );
     assert_eq!(
         catalog
@@ -4523,7 +4523,7 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
         (
             "evidencia.backend-nativo.emissao-abi-e-fluxo-textual",
             false,
-            11,
+            12,
         ),
         (
             "evidencia.backend-nativo.emissao-simbolos-runtime-textual",
@@ -4596,13 +4596,13 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
     let expected_ownership: Vec<usize> = evidence_regions.iter().map(|entry| entry.1).collect();
     assert_eq!(
         expected_ownership,
-        vec![2usize, 11, 7, 2, 3, 1, 7, 1, 1, 27],
-        "o ownership aprovado da Onda 8I é [2,11,7,2,3,1,7,1,1,27]"
+        vec![2usize, 12, 7, 2, 3, 1, 7, 1, 1, 27],
+        "o ownership aprovado da Onda 8I é [2,12,7,2,3,1,7,1,1,27]"
     );
     assert_eq!(
         expected_ownership.iter().sum::<usize>(),
-        62,
-        "a soma do ownership 8I deve ser 62"
+        63,
+        "a soma do ownership 8I deve ser 63"
     );
 
     // Catálogo: total absoluto novo, sem chaves duplicadas.
@@ -4764,7 +4764,7 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
         "toda linha de marcador em {central} deve ser um comentário canônico"
     );
 
-    // Ownership estrutural: 47 testes, cada um pertencente a exatamente uma região.
+    // Ownership estrutural: 63 testes, cada um pertencente a exatamente uma região.
     let test_lines: Vec<usize> = central_lines
         .iter()
         .enumerate()
@@ -4773,8 +4773,8 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
         .collect();
     assert_eq!(
         test_lines.len(),
-        62,
-        "{central} deve manter exatamente 48 testes"
+        63,
+        "{central} deve manter exatamente 63 testes"
     );
 
     let mut unowned_tests: Vec<usize> = Vec::new();
@@ -4925,18 +4925,18 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
 
     assert_eq!(
         count(&|text| !processual(text)),
-        20,
-        "devem existir 17 testes exclusivamente em memória"
+        21,
+        "devem existir 21 testes exclusivamente em memória"
     );
     assert_eq!(
         count(&processual),
         42,
-        "devem existir 37 testes processuais"
+        "devem existir 42 testes processuais"
     );
     assert_eq!(
         count(&|text| !processual(text)) + count(&processual),
-        62,
-        "as duas classes devem particionar os 54 testes"
+        63,
+        "as duas classes devem particionar os 63 testes"
     );
 
     // Classificação das catorze regiões: 3 de evidência exclusivamente textual,
@@ -5009,8 +5009,8 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
         "deve existir exatamente uma chamada direta ao emissor nativo"
     );
     assert_eq!(
-        chamadas_hospedadas, 19,
-        "devem existir exatamente 14 chamadas diretas ao emissor hospedado"
+        chamadas_hospedadas, 20,
+        "devem existir exatamente 20 chamadas diretas ao emissor hospedado"
     );
 
     // Os sete testes de símbolos do runtime percorrem o caminho HOSPEDADO.
@@ -5191,7 +5191,7 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
 /// único, ordem física, contiguidade, ausência de sobreposição e de teste sem
 /// dono), ownership `[12,2,3,5,4,3,1]`, classificação (camada `evidencia`,
 /// evidência local controlada, arquivo do runtime), preservação da produção (as
-/// 16 chaves, 222 símbolos produtivos com ownership único, símbolos de ABI
+/// 16 chaves, 243 símbolos produtivos com ownership único, símbolos de ABI
 /// recontados após a validação de regiões públicas) e
 /// congelamento das 379 regiões anteriores.
 ///
@@ -5220,7 +5220,7 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
     // (4 -> 6): o domínio interno de união não consome identidade pública e a
     // extração nativa escreve em destino do chamador.
     let expected_regions: [(&str, &str, usize); 11] = [
-        ("evidencia.runtime.memoria-alocador", "memoria", 16),
+        ("evidencia.runtime.memoria-alocador", "memoria", 18),
         ("evidencia.runtime.validacao-acesso-publico", "memoria", 9),
         ("evidencia.runtime.cota-identidades-publicas", "memoria", 6),
         ("evidencia.runtime.inicializacao-abi", "inicializacao", 3),
@@ -5243,13 +5243,13 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
     let expected_ownership: Vec<usize> = expected_regions.iter().map(|entry| entry.2).collect();
     assert_eq!(
         expected_ownership,
-        vec![16usize, 9, 6, 3, 3, 3, 5, 4, 3, 1, 14],
-        "o ownership aprovado da Onda 8J é [16,9,6,3,3,3,5,4,3,1,14]"
+        vec![18usize, 9, 6, 3, 3, 3, 5, 4, 3, 1, 14],
+        "o ownership aprovado da Onda 8J é [18,9,6,3,3,3,5,4,3,1,14]"
     );
     assert_eq!(
         expected_ownership.iter().sum::<usize>(),
-        67,
-        "a soma do ownership 8J deve ser 67"
+        69,
+        "a soma do ownership 8J deve ser 69"
     );
 
     // 1. CATÁLOGO.
@@ -5469,8 +5469,8 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
         .collect();
     assert_eq!(
         test_lines.len(),
-        67,
-        "{central} deve manter exatamente 67 testes"
+        69,
+        "{central} deve manter exatamente 69 testes"
     );
     assert!(
         test_lines
@@ -5524,8 +5524,8 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
     );
     assert_eq!(
         observed_ownership.iter().sum::<usize>(),
-        67,
-        "ownership_sum deve ser 67"
+        69,
+        "ownership_sum deve ser 69"
     );
 
     // Os helpers aprovados sustentam as regressões de verso, subprocesso,
@@ -5623,7 +5623,7 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
         "{central} deve registrar 24 regiões (16 de produção + 8 de evidência)"
     );
 
-    // 222 símbolos produtivos: 214 definições textuais antes do bloco de testes
+    // 243 símbolos produtivos: 235 definições textuais antes do bloco de testes
     // mais os 8 wrappers `pinker_formatar_verso_1..8` gerados por
     // `formatar_wrappers!`. Cada definição textual pertence a exatamente uma das
     // dezesseis regiões produtivas. Contagem estrutural; não resolve macros.
@@ -5657,14 +5657,14 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
         .collect();
     assert_eq!(
         definicoes.len(),
-        232,
-        "a produção do runtime deve manter 232 definições textuais"
+        235,
+        "a produção do runtime deve manter 235 definições textuais"
     );
     let wrappers_gerados = 8usize;
     assert_eq!(
         definicoes.len() + wrappers_gerados,
-        240,
-        "232 definições textuais + 8 wrappers gerados = 240 símbolos produtivos"
+        243,
+        "235 definições textuais + 8 wrappers gerados = 243 símbolos produtivos"
     );
     let mut definicoes_sem_dono: Vec<usize> = Vec::new();
     let mut definicoes_com_dono_duplo: Vec<usize> = Vec::new();
@@ -5684,7 +5684,7 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
         "os 158 símbolos produtivos devem manter ownership único, obteve sem dono {definicoes_sem_dono:?} e duplicados {definicoes_com_dono_duplo:?}"
     );
 
-    // 107 símbolos de ABI: 99 `extern "C" fn` nomeadas na produção mais os 8
+    // 113 símbolos de ABI: 105 `extern "C" fn` nomeadas na produção mais os 8
     // wrappers gerados pela macro.
     let producao = central_lines[..(ordered[0].0 - 1)].join("\n");
     let abi_nomeadas_correntes = producao
@@ -5702,13 +5702,13 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
             .match_indices("extern \"C\" fn pinker_falar_pedaco_inteiro")
             .count();
     assert_eq!(
-        abi_nomeadas, 104,
-        "a produção do runtime deve manter 104 funções extern \"C\" nomeadas"
+        abi_nomeadas, 105,
+        "a produção do runtime deve manter 105 funções extern \"C\" nomeadas"
     );
     assert_eq!(
         abi_nomeadas + wrappers_gerados,
-        112,
-        "104 funções ABI diretas + 8 wrappers gerados = 112 símbolos de ABI"
+        113,
+        "105 funções ABI diretas + 8 wrappers gerados = 113 símbolos de ABI"
     );
     assert_eq!(
         producao.matches("formatar_wrappers!(").count(),

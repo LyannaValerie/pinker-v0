@@ -212,7 +212,7 @@ fn fase242_funcao_indireta_pilha_impar_aplica_padding_de_alinhamento() {
 }
 
 #[test]
-fn fase243_closure_com_captura_emite_pinker_alocar_para_ambiente_e_descritor() {
+fn d3_closure_com_captura_emite_uma_alocacao_possuida_e_atomica() {
     let code = r#"
         pacote main;
         carinho fabricar(base: bombom) -> carinho() -> bombom {
@@ -224,13 +224,58 @@ fn fase243_closure_com_captura_emite_pinker_alocar_para_ambiente_e_descritor() {
     "#;
     let selected = lower_to_selected(code);
     let asm = backend_s::emit_external_toolchain_subset(&selected).expect("emit");
-    // Duas chamadas a pinker_alocar por instância: bloco de capturas (1
-    // palavra) e descritor {code_ptr, env_ptr} (2 palavras).
+    // O helper recebe a quantidade de capturas e devolve uma única alocação:
+    // descritor {code_ptr, env_ptr} seguido pelo ambiente possuído.
     assert!(
-        asm.matches("call pinker_alocar").count() >= 2,
-        "esperava ao menos 2 chamadas a pinker_alocar (ambiente + descritor) em:\n{}",
+        asm.lines().any(|line| line.trim() == "movabsq $1, %rdi")
+            && asm
+                .lines()
+                .any(|line| line.trim() == "call pinker_callable_alocar"),
+        "esperava uma criação checked para uma captura em:\n{}",
         asm
     );
+    assert_eq!(
+        asm.matches("call pinker_callable_alocar").count(),
+        1,
+        "cada instância deve publicar exatamente uma alocação possuída:\n{asm}"
+    );
+    assert!(
+        !asm.contains("call pinker_alocar"),
+        "o lowering de closure não pode manter a antiga alocação parcial:\n{asm}"
+    );
+    assert!(
+        asm.contains("movq 8(%r10), %r10"),
+        "capturas devem ser gravadas pelo env_ptr do descritor:\n{asm}"
+    );
+}
+
+#[test]
+fn d3_layout_de_tres_capturas_transporta_contagem_ao_owner_nativo() {
+    let code = r#"
+        pacote main;
+        carinho fabricar(a: bombom, b: bombom, c: bombom) -> carinho() -> bombom {
+            mimo carinho() -> bombom { mimo a + b + c; };
+        }
+        carinho principal() -> bombom {
+            nova soma: carinho() -> bombom = fabricar(1, 2, 3);
+            mimo soma();
+        }
+    "#;
+    let selected = lower_to_selected(code);
+    let asm = backend_s::emit_external_toolchain_subset(&selected).expect("emit");
+    assert!(
+        asm.lines().any(|line| line.trim() == "movabsq $3, %rdi")
+            && asm
+                .lines()
+                .any(|line| line.trim() == "call pinker_callable_alocar"),
+        "o owner deve receber exatamente três palavras de ambiente:\n{asm}"
+    );
+    for offset in [0, 8, 16] {
+        assert!(
+            asm.contains(&format!("movq %r11, {offset}(%r10)")),
+            "captura no offset {offset} ausente:\n{asm}"
+        );
+    }
 }
 
 #[test]

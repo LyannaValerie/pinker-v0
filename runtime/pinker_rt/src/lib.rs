@@ -161,6 +161,47 @@ pub unsafe extern "C" fn pinker_liberar(ptr: *mut u8) {
     }
 }
 
+/// Tamanho do descritor público de callable `{code_ptr, env_ptr}`.
+const CALLABLE_DESCRIPTOR_BYTES: u64 = 16;
+
+fn callable_allocation_bytes(capture_count: u64) -> Option<u64> {
+    capture_count
+        .checked_mul(8)
+        .and_then(|environment_bytes| CALLABLE_DESCRIPTOR_BYTES.checked_add(environment_bytes))
+}
+
+/// Materializa atomicamente o storage possuído por uma closure dinâmica.
+///
+/// O descritor ocupa as duas primeiras palavras. Quando há capturas, `env_ptr`
+/// aponta para o storage trailing da mesma alocação; quando não há, permanece
+/// nulo. Assim não existe uma segunda alocação capaz de falhar depois de o
+/// ambiente já ter sido criado e ficado sem owner alcançável.
+#[no_mangle]
+pub extern "C" fn pinker_callable_alocar(capture_count: u64) -> *mut u8 {
+    let total = callable_allocation_bytes(capture_count).unwrap_or_else(|| {
+        erro_fatal("E-RUNTIME-CALLABLE-ALLOCATION: overflow no layout da closure")
+    });
+    if usize::try_from(total).is_err() {
+        erro_fatal("E-RUNTIME-CALLABLE-ALLOCATION: layout da closure excede a plataforma");
+    }
+
+    let descriptor = pinker_alocar(total);
+    if descriptor.is_null() {
+        erro_fatal("E-RUNTIME-CALLABLE-ALLOCATION: runtime não pôde alocar a closure");
+    }
+
+    unsafe {
+        (descriptor as *mut u64).write(0);
+        let environment = if capture_count == 0 {
+            0
+        } else {
+            descriptor.add(CALLABLE_DESCRIPTOR_BYTES as usize) as u64
+        };
+        (descriptor.add(8) as *mut u64).write(environment);
+    }
+    descriptor
+}
+
 #[derive(Clone, Copy)]
 struct AlocacaoPublica {
     identidade: u64,
@@ -2925,10 +2966,40 @@ pub unsafe extern "C" fn pinker_processo_pipeline(
 // @pinker-nav:start evidencia.runtime.memoria-alocador
 // @pinker-nav:domain memoria
 // @pinker-nav:layer evidencia
-// @pinker-nav:summary Abertura do módulo de testes internos do runtime nativo e evidência em memória do alocador: alinhamento e usabilidade do bloco devolvido por `pinker_alocar`, não sobreposição entre alocações independentes, alocação de zero bytes e tolerância a `pinker_liberar` sobre ponteiro nulo.
+// @pinker-nav:summary Abertura do módulo de testes internos do runtime nativo e evidência em memória do alocador: alinhamento e usabilidade do bloco devolvido por `pinker_alocar`, não sobreposição entre alocações independentes, layout possuído e checked de closures, alocação de zero bytes e tolerância a `pinker_liberar` sobre ponteiro nulo.
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn d3_layout_callable_e_checked_e_inclui_ambiente_trailing() {
+        assert_eq!(callable_allocation_bytes(0), Some(16));
+        assert_eq!(callable_allocation_bytes(3), Some(40));
+        assert_eq!(callable_allocation_bytes(u64::MAX), None);
+    }
+
+    #[test]
+    fn d3_callable_aloca_um_owner_para_descritor_e_tres_capturas() {
+        let descriptor = pinker_callable_alocar(3);
+        assert!(!descriptor.is_null());
+        assert_eq!((descriptor as usize) % ALINHAMENTO, 0);
+
+        unsafe {
+            assert_eq!((descriptor as *const u64).read(), 0);
+            let environment = (descriptor.add(8) as *const u64).read() as *mut u64;
+            assert_eq!(environment as *mut u8, descriptor.add(16));
+            environment.write(11);
+            environment.add(1).write(22);
+            environment.add(2).write(33);
+            assert_eq!(environment.read(), 11);
+            assert_eq!(environment.add(1).read(), 22);
+            assert_eq!(environment.add(2).read(), 33);
+
+            let total_with_allocator_header = (descriptor.sub(CABECALHO) as *const u64).read();
+            assert_eq!(total_with_allocator_header, 40 + CABECALHO as u64);
+            pinker_liberar(descriptor);
+        }
+    }
 
     #[cfg(unix)]
     fn filho_stdout(modo: &str) -> std::process::Child {
