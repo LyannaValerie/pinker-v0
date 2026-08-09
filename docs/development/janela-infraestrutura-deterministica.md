@@ -52,8 +52,9 @@ janela_auxiliar:
     - Issue #385 — núcleo determinístico puro e apply local (PRs #428 e #429)
     - Issue #384 — snapshots, autoridade histórica e lifecycle (PRs #426, #430 e #432)
     - Issue #387 — estado consolidado somente leitura (PR #433, merge 97ee0226a617439a48e33b73779d7c60caa534e3)
+    - Issue #434 — índice derivado de símbolos e pink nav localizar (PR #435, merge d6cb0febe5cb0ad8419503303aa5959a5ad79af0)
   extraordinary_interruption: HF-9 — memória pública e contenção do host
-  current_delivery: Issue #434 — índice derivado de símbolos e pink nav localizar
+  current_delivery: Issue #438 — cobertura de diff somente leitura
 
 Eixo_A:
   status: PAUSED_BY_EXPLICIT_HUMAN_DECISION

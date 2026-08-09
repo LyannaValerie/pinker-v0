@@ -78,6 +78,9 @@ Referência rápida para localizar a camada certa antes de editar.
 - índice derivado de símbolos: metadata e catálogo em `src/nav.rs`, modelo,
   derivação e renderização em `src/symbol_index.rs`, adaptador CLI em
   `src/main.rs` e contrato processual em `tests/symbol_index_cli_tests.rs`
+- cobertura de diff somente leitura: parser, modelo, derivação e renderização
+  em `src/diff_coverage.rs`, adaptador stdin/CLI em `src/main.rs` e contrato
+  processual em `tests/diff_coverage_cli_tests.rs`
 - CLI/saída: `tests/output_tests.rs`, `tests/editor_tui_tests.rs`
 
 ## Docs que costumam acompanhar mudança funcional

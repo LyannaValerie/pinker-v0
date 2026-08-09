@@ -7,6 +7,7 @@ use pinker_v0::backend_text_validate;
 use pinker_v0::cfg_ir;
 use pinker_v0::cfg_ir_validate;
 use pinker_v0::change;
+use pinker_v0::diff_coverage;
 use pinker_v0::doc;
 use pinker_v0::doc_index;
 use pinker_v0::editor_tui::EditorTui;
@@ -34,6 +35,7 @@ use pinker_v0::{ast, error::PinkerError};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::env;
 use std::fs;
+use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 
 // @pinker-nav:start cli.config.modelos
@@ -152,6 +154,7 @@ enum NavSub {
     Mostrar { key: String },
     Buscar { consulta: String },
     Localizar { symbol: String },
+    CoberturaDiff,
     Listar { seletor: String },
     Mapa { filtro: Option<String> },
     Sincronizar,
@@ -311,6 +314,7 @@ fn nav_usage(binary: &str) -> String {
            mostrar CHAVE       extrai a região de código pela chave\n\
            buscar CONSULTA     busca regiões por chave, domínio, camada, resumo\n\
            localizar SÍMBOLO   resolve identidade estrutural e vínculos explícitos\n\
+           cobertura-diff      relaciona unified diff de stdin a superfícies explícitas\n\
            listar SELETOR      lista regiões de uma camada (layer) ou domínio\n\
            mapa [FILTRO]       agrupa regiões por arquivo\n\
            sincronizar         regenera o catálogo src/navigation.jsonl\n\
@@ -319,7 +323,7 @@ fn nav_usage(binary: &str) -> String {
          \n\
          Opções:\n\
            --repo      raiz do repositório (padrão: .)\n\
-           --json      saída estável em JSON (mostrar/buscar/localizar/listar/mapa)\n\
+           --json      saída estável em JSON (mostrar/buscar/localizar/cobertura-diff/listar/mapa)\n\
            --limite N  máximo de resultados (1..20; buscar=10)\n\
          \n\
          Códigos de saída: 0 sucesso · 2 uso inválido · 3 catálogo ausente/inválido\n\
@@ -860,6 +864,16 @@ fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String>
                 symbol: require_one("localizar")?,
             }
         }
+        "cobertura-diff" => {
+            if limite.is_some() {
+                return Err(format!(
+                    "A opção '--limite' não pertence a nav cobertura-diff.\n\n{}",
+                    nav_usage(binary)
+                ));
+            }
+            require_none("cobertura-diff")?;
+            NavSub::CoberturaDiff
+        }
         "mapa" => NavSub::Mapa {
             filtro: if positionals.is_empty() {
                 None
@@ -1381,6 +1395,7 @@ fn run_nav(config: NavConfigCli) -> i32 {
             run_nav_buscar(repo_root, &consulta, config.json, config.limite)
         }
         NavSub::Localizar { symbol } => run_nav_localizar(repo_root, &symbol, config.json),
+        NavSub::CoberturaDiff => run_nav_cobertura_diff(repo_root, config.json),
         NavSub::Listar { seletor } => run_nav_listar(repo_root, &seletor, config.json),
         NavSub::Mapa { filtro } => run_nav_mapa(repo_root, filtro.as_deref(), config.json),
         NavSub::Sincronizar => run_nav_sincronizar(repo_root),
@@ -1708,7 +1723,8 @@ fn projection_error_exit(error: &ProjectionError) -> i32 {
 // @pinker-nav:domain nav
 // @pinker-nav:layer cli
 // @pinker-nav:related-symbol pinker_v0::symbol_index::locate
-// @pinker-nav:summary load_code_catalog lê o catálogo gerado (nav::CodeCatalog::load) sem escrever; mostrar extrai e valida uma região; buscar/listar/mapa consultam o catálogo em memória; localizar deriva do catálogo de código e da autoridade documental o modelo único de símbolos, renderizado como texto ou JSON determinísticos sem mutar o repositório.
+// @pinker-nav:related-symbol pinker_v0::diff_coverage::analyze
+// @pinker-nav:summary load_code_catalog lê o catálogo gerado sem escrever; mostrar extrai e valida uma região; buscar/listar/mapa consultam o catálogo em memória; localizar deriva vínculos de símbolos; cobertura-diff lê stdin e autoridades locais para renderizar superfícies afetadas sem mutar o repositório.
 /// Carrega o catálogo de código versionado (superfície de consulta — §5).
 fn load_code_catalog(repo_root: &Path) -> Result<nav::CodeCatalog, i32> {
     let doc_config = load_doc_config(repo_root);
@@ -1898,6 +1914,89 @@ fn run_nav_localizar(repo_root: &Path, symbol: &str, json: bool) -> i32 {
     } else {
         EXIT_NORESULT
     }
+}
+
+fn run_nav_cobertura_diff(repo_root: &Path, json: bool) -> i32 {
+    let root = match pinker_v0::automation::RepoRoot::discover(repo_root) {
+        Ok(root) => root,
+        Err(error) => {
+            eprintln!("E-DIFF-ROOT\n{error}");
+            return EXIT_HARNESS;
+        }
+    };
+    let mut bytes = Vec::new();
+    if let Err(error) = io::stdin()
+        .take((diff_coverage::MAX_DIFF_BYTES + 1) as u64)
+        .read_to_end(&mut bytes)
+    {
+        eprintln!("E-DIFF-IO\nFalha ao ler stdin: {error}");
+        return EXIT_HARNESS;
+    }
+    if bytes.len() > diff_coverage::MAX_DIFF_BYTES {
+        eprintln!(
+            "{}",
+            diff_coverage::CoverageError::TooLarge {
+                bytes: bytes.len(),
+                limit: diff_coverage::MAX_DIFF_BYTES,
+            }
+        );
+        return EXIT_HARNESS;
+    }
+    let input = match std::str::from_utf8(&bytes) {
+        Ok(input) => input,
+        Err(_) => {
+            eprintln!("{}", diff_coverage::CoverageError::InvalidUtf8);
+            return EXIT_HARNESS;
+        }
+    };
+    let config = match doc::DocConfig::load(root.path()) {
+        Ok(config) => config,
+        Err(error) => {
+            eprintln!("{error}");
+            return EXIT_CATALOG;
+        }
+    };
+    let code_path = root.path().join(&config.generated.code_index);
+    let code = match nav::CodeCatalog::load(&code_path) {
+        Ok(code) => code,
+        Err(error) => {
+            eprintln!("{error}");
+            return EXIT_CATALOG;
+        }
+    };
+    let docs_path = root.path().join(&config.generated.docs_index);
+    let docs = match doc_index::DocCatalog::load(&docs_path) {
+        Ok(docs) => Some(docs),
+        Err(doc_index::CatalogError::Missing { .. }) => None,
+        Err(error) => {
+            eprintln!("{error}");
+            return EXIT_CATALOG;
+        }
+    };
+    let projection_store = ProjectionStore::load(root.path()).ok();
+    let manifests = change::Manifests::load(&root.path().join(".pinker/changes"));
+    let report = match diff_coverage::analyze(
+        input,
+        diff_coverage::CoverageAuthorities {
+            code: &code,
+            docs: docs.as_ref(),
+            projection_store: projection_store.as_ref(),
+            doc_config: Some(&config),
+            manifests: Some(&manifests),
+        },
+    ) {
+        Ok(report) => report,
+        Err(error) => {
+            eprintln!("{error}");
+            return EXIT_HARNESS;
+        }
+    };
+    if json {
+        println!("{}", diff_coverage::render_json(&report));
+    } else {
+        print!("{}", diff_coverage::render_human(&report));
+    }
+    EXIT_OK
 }
 
 fn run_nav_listar(repo_root: &Path, seletor: &str, json: bool) -> i32 {

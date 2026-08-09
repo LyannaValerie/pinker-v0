@@ -10,6 +10,7 @@ pub mod boot;
 pub mod cfg_ir;
 pub mod cfg_ir_validate;
 pub mod change;
+pub mod diff_coverage;
 pub mod doc;
 pub mod doc_index;
 pub mod editor_tui;

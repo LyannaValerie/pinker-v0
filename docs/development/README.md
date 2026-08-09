@@ -88,6 +88,8 @@ janela auxiliar autorizada pela Issue #417 tem autoridade operacional própria e
   disponibilidade parcial e CLI somente leitura do estado consolidado;
 - `symbol-index.md` — símbolos suportados, vínculos explícitos, schema e CLI
   somente leitura de localização;
+- `diff-coverage.md` — unified diff, autoridades, ausências, schema e CLI
+  somente leitura de cobertura;
 
 | Necessidade | Documento |
 |---|---|
@@ -100,6 +102,7 @@ janela auxiliar autorizada pela Issue #417 tem autoridade operacional própria e
 | núcleo comum de automação | `automation-core-contract.md` |
 | estado consolidado somente leitura | `consolidated-project-state-contract.md` |
 | índice derivado de símbolos | `symbol-index.md` |
+| cobertura de diff somente leitura | `diff-coverage.md` |
 
 ## Rotas de leitura
 

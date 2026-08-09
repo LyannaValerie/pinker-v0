@@ -40,8 +40,8 @@ cuja autoridade operacional está em
 
 - D1 adulta foi concluída pela PR #418, merge
   `09b7456fd57c2efcf71e54895b938a6a69d77307`;
-- quatro entregas da janela foram concluídas; a quinta, Issue #434, implementa
-  o índice derivado de símbolos e `pink nav localizar`;
+- cinco entregas da janela foram concluídas; a sexta, Issue #438, implementa
+  a cobertura de diff somente leitura;
 - a janela não altera nem renumera os 52 itens;
 - a janela não cria nova faixa, Fase ou Eixo;
 - D2 permanece `NOT_STARTED` e é o próximo item funcional após o encerramento;

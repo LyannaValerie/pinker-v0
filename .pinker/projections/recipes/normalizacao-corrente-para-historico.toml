@@ -3,7 +3,7 @@ id = "normalizacao-corrente-para-historico"
 
 [reconstruction]
 expected_overrides = 13
-expected_exclusions = 39
+expected_exclusions = 44
 
 [[rules]]
 op = "exclude-key"
@@ -72,6 +72,11 @@ expected_matches = 1
 
 [[rules]]
 op = "exclude-key"
+key = "evidencia.diff-cobertura.cli"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
 key = "evidencia.project-state.contrato"
 expected_matches = 1
 
@@ -108,6 +113,26 @@ expected_matches = 1
 [[rules]]
 op = "exclude-key"
 key = "trama.codigo.verificacao-reutilizavel"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "trama.diff-cobertura.derivacao"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "trama.diff-cobertura.modelo"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "trama.diff-cobertura.parser"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "trama.diff-cobertura.renderizacao"
 expected_matches = 1
 
 [[rules]]
@@ -212,7 +237,7 @@ expect_layer = "cli"
 [[rules]]
 op = "override-region"
 key = "cli.ajuda.usage"
-from_hash = "fnv1a64:1e28b115333298b3"
+from_hash = "fnv1a64:1de8faf06e8ddc7d"
 to_hash = "fnv1a64:ce2fe9866dbdcd8f"
 from_summary = "program_name reduz argv[0] ao componente final, preserva nomes alternativos e usa pink como fallback; as funções de ajuda consomem somente esse nome e formatam a ajuda principal ou dos sete comandos existentes, sem side effects."
 to_summary = "program_name reduz argv[0] ao componente final, preserva nomes alternativos e usa pink como fallback; as funções de ajuda consomem somente esse nome e formatam a ajuda principal ou dos seis comandos existentes, sem side effects."
@@ -223,7 +248,7 @@ expect_layer = "cli"
 [[rules]]
 op = "override-region"
 key = "cli.config.modelos"
-from_hash = "fnv1a64:f86f7196c7d565ef"
+from_hash = "fnv1a64:2f7d17d30e756995"
 to_hash = "fnv1a64:76a2365574c8b339"
 from_summary = "Constantes de códigos de saída e limites de paginação, helpers JSON, structs de configuração por subcomando — inclusive StateConfigCli — e enums usados pelo parsing e roteamento determinísticos da CLI."
 to_summary = "Constantes de códigos de saída (EXIT_OK/EXIT_USAGE/EXIT_CATALOG/EXIT_NORESULT/EXIT_SOURCE) e limites de paginação (LIMIT_MIN/MAX, LIMIT_DEFAULT_ROTA/BUSCAR); clamp_limit ajusta um Option<usize> aos limites via .clamp; json_escape escapa aspas/barra/controle para JSON; json_string_array serializa Vec<String>. Structs de configuração por subcomando (Config, BuildConfig, EditorConfig, ReplConfig, DocConfigCli, NavConfigCli) e os enums de subcomando (DocSub, NavSub, CliCommand) usados pelo parsing e roteamento a seguir."
@@ -256,7 +281,7 @@ expect_layer = "cli"
 [[rules]]
 op = "override-region"
 key = "cli.execucao.entrada"
-from_hash = "fnv1a64:eb97f6220c60014b"
+from_hash = "fnv1a64:fcd7e132581e458a"
 to_hash = "fnv1a64:f33da0bc4b2931c0"
 from_summary = "try_or_exit! encerra falhas operacionais com EXIT_FAILURE; main imprime ajuda em stdout, versão determinística do pacote em stdout, erros de invocação em stderr com EXIT_USAGE e preserva os códigos de domínio ao despachar análise, build, editor, repl, doc, nav, agente e estado."
 to_summary = "try_or_exit! encerra falhas operacionais com EXIT_FAILURE; main imprime ajuda em stdout, versão determinística do pacote em stdout, erros de invocação em stderr com EXIT_USAGE e preserva os códigos de domínio ao despachar análise, build, editor, repl, doc, nav e agente."
@@ -267,9 +292,9 @@ expect_layer = "cli"
 [[rules]]
 op = "override-region"
 key = "cli.nav.consulta"
-from_hash = "fnv1a64:98c55f2722f56d21"
+from_hash = "fnv1a64:0c62fddec2a49635"
 to_hash = "fnv1a64:5427c227378dad57"
-from_summary = "load_code_catalog lê o catálogo gerado (nav::CodeCatalog::load) sem escrever; mostrar extrai e valida uma região; buscar/listar/mapa consultam o catálogo em memória; localizar deriva do catálogo de código e da autoridade documental o modelo único de símbolos, renderizado como texto ou JSON determinísticos sem mutar o repositório."
+from_summary = "load_code_catalog lê o catálogo gerado sem escrever; mostrar extrai e valida uma região; buscar/listar/mapa consultam o catálogo em memória; localizar deriva vínculos de símbolos; cobertura-diff lê stdin e autoridades locais para renderizar superfícies afetadas sem mutar o repositório."
 to_summary = "load_code_catalog lê o catálogo gerado (nav::CodeCatalog::load) sem escrever; run_nav_mostrar extrai e valida uma região pela fonte; run_nav_buscar/listar/mapa consultam somente o catálogo em memória. Mapa seleciona caminho exato ou reutiliza a busca textual integral, agrupa por arquivo e renderiza texto/JSON determinísticos sem ler fontes."
 expect_file = "src/main.rs"
 expect_domain = "nav"
@@ -300,7 +325,7 @@ expect_layer = "cli"
 [[rules]]
 op = "override-region"
 key = "cli.parsing.subcomandos"
-from_hash = "fnv1a64:862c6f6be636c6de"
+from_hash = "fnv1a64:d5105abd7433140a"
 to_hash = "fnv1a64:52d92432d1b2f696"
 from_summary = "Parsers estritos dos subcomandos, incluindo estado: reconhecem somente flags e posicionais próprios, rejeitam valores ausentes, desconhecidos e duplicatas ambíguas e devolvem modelos tipados ou a mensagem de uso correspondente."
 to_summary = "Parsers de argumentos por subcomando (parse_build_args, parse_editor_args, parse_repl_args, parse_doc_args, parse_nav_args): percorrem `args: &[String]` reconhecendo flags (--out-dir, --nativo, --repo, --corpo, --check, --json, --limite, --help/-h) e o argumento posicional de entrada/subcomando, retornando Result<Config..., String> com a mensagem de uso correspondente em caso de flag desconhecida ou argumento ausente."
