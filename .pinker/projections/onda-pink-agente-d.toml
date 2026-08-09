@@ -6,7 +6,7 @@ justification = "Onda D do agente Pinker: congelamento do contract-v1 sem fechar
 
 [reconstruction]
 recipes = ["normalizacao-corrente-para-historico"]
-expected_overrides = 89
+expected_overrides = 91
 expected_exclusions = 17
 
 [measures]
@@ -335,18 +335,27 @@ expect_layer = "cfg"
 
 [[rules]]
 op = "override-hash"
-key = "evidencia.interpreter.diagnostico-runtime-avaliacao-e-chamadas"
-from = "fnv1a64:4bbdf7d86163e5b9"
-to = "fnv1a64:80f44c45d93c8f6a"
+key = "evidencia.interpreter.diagnostico-stack-trace-truncamento"
+from = "fnv1a64:417cd4ceeb74fd00"
+to = "fnv1a64:2b15cb72928bce61"
 expect_file = "tests/interpreter_tests.rs"
 expect_domain = "interpreter"
 expect_layer = "evidencia"
 
 [[rules]]
 op = "override-hash"
-key = "evidencia.interpreter.diagnostico-stack-trace-truncamento"
-from = "fnv1a64:1cfaae737044f04d"
-to = "fnv1a64:2b15cb72928bce61"
+key = "evidencia.interpreter.execucao-recursao-e-fluxo-interpretador-e-cli"
+from = "fnv1a64:c410b84f079daee4"
+to = "fnv1a64:81c404cb9d2275b8"
+expect_file = "tests/interpreter_tests.rs"
+expect_domain = "interpreter"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-hash"
+key = "evidencia.interpreter.execucao-repl-e-render-erro-fonte"
+from = "fnv1a64:f6e15bf75ce67819"
+to = "fnv1a64:2b0c3c4a62d2a810"
 expect_file = "tests/interpreter_tests.rs"
 expect_domain = "interpreter"
 expect_layer = "evidencia"
@@ -462,7 +471,7 @@ expect_layer = "evidencia"
 [[rules]]
 op = "override-hash"
 key = "interpreter.diagnostico.stack-trace"
-from = "fnv1a64:edd1b8d0cdf33021"
+from = "fnv1a64:5241985c63db5854"
 to = "fnv1a64:718dfb2f20e334be"
 expect_file = "src/interpreter.rs"
 expect_domain = "diagnostico"
@@ -471,7 +480,7 @@ expect_layer = "interpreter"
 [[rules]]
 op = "override-hash"
 key = "interpreter.execucao.funcoes-fluxo"
-from = "fnv1a64:37e3c1f43fcda840"
+from = "fnv1a64:0df7a4d25380fe09"
 to = "fnv1a64:bfb81897ca967281"
 expect_file = "src/interpreter.rs"
 expect_domain = "execucao"
@@ -480,7 +489,7 @@ expect_layer = "interpreter"
 [[rules]]
 op = "override-hash"
 key = "interpreter.execucao.instrucoes-pilha"
-from = "fnv1a64:4a1eb75501e92acd"
+from = "fnv1a64:420763a1c7029410"
 to = "fnv1a64:487e50b84b8db0f4"
 expect_file = "src/interpreter.rs"
 expect_domain = "execucao"
@@ -489,7 +498,7 @@ expect_layer = "interpreter"
 [[rules]]
 op = "override-hash"
 key = "interpreter.execucao.programa-globais"
-from = "fnv1a64:754d05bd987bc90d"
+from = "fnv1a64:4bcf9740160a2715"
 to = "fnv1a64:28b88d44ef113b99"
 expect_file = "src/interpreter.rs"
 expect_domain = "execucao"
@@ -507,7 +516,7 @@ expect_layer = "interpreter"
 [[rules]]
 op = "override-hash"
 key = "interpreter.modelo.valores-estado"
-from = "fnv1a64:d2dfa8e688cd4aba"
+from = "fnv1a64:c211281462e738b4"
 to = "fnv1a64:bb92bae9203294f9"
 expect_file = "src/interpreter.rs"
 expect_domain = "modelo"
@@ -908,4 +917,15 @@ from_summary = "Cinco testes que chamam emit_external_toolchain_subset — camin
 to_summary = "Cinco testes que chamam emit_external_toolchain_subset — caminho HOSPEDADO, runtime_init=false — e verificam apenas o texto emitido para a ABI SysV (seis registradores de argumento e passagem por pilha), o padding de alinhamento de pilha, a recursão direta, o `cmov` do ternário e os saltos dos construtos de controle de fluxo. Nenhuma toolchain externa é invocada, nenhum runtime é ligado e nada é executado."
 expect_file = "tests/backend_nativo_tests.rs"
 expect_domain = "backend-s"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.interpreter.diagnostico-runtime-avaliacao-e-chamadas"
+from_hash = "fnv1a64:af57dd805f8e2dfb"
+to_hash = "fnv1a64:80f44c45d93c8f6a"
+from_summary = "Espera falhas de avaliação e chamadas no runtime — divisão/módulo por zero, stack trace em chamada e recursão finita profunda, slot não inicializado e call sem valor — verificando categoria e trechos por contains."
+to_summary = "Espera falhas de avaliação e chamadas no runtime — divisão/módulo por zero, stack trace em chamada/recursão, limite de recursão, slot não inicializado e call sem valor — verificando categoria e trechos por contains."
+expect_file = "tests/interpreter_tests.rs"
+expect_domain = "interpreter"
 expect_layer = "evidencia"

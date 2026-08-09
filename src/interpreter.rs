@@ -26,8 +26,6 @@ use std::io::{self, Write};
 use std::process::{Command, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-const MAX_CALL_DEPTH: usize = 64;
-
 /// Snapshot imutável do payload de uma união (HR3).
 ///
 /// O descritor **nunca** referencia o storage do chamador: escalares e handles
@@ -573,6 +571,36 @@ struct RuntimeFrame {
     future_span: Option<Span>,
 }
 
+#[derive(Debug, Clone, Copy)]
+enum CallResultTarget {
+    DirectValue,
+    DirectVoid,
+    IndirectValue,
+    Raw { has_return: bool },
+    Trait { has_return: bool },
+}
+
+struct PendingCall {
+    fn_name: String,
+    args: Vec<RuntimeValue>,
+    result_target: CallResultTarget,
+}
+
+enum InstrControl {
+    Continue,
+    Call(PendingCall),
+}
+
+struct ExecutionFrame {
+    function_index: usize,
+    slots: HashMap<String, RuntimeValue>,
+    stack: Vec<RuntimeValue>,
+    labels: HashMap<String, usize>,
+    current_label: String,
+    next_instr: usize,
+    result_target: Option<CallResultTarget>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RuntimeValue {
     Int(u64),
@@ -744,9 +772,96 @@ fn build_memory(
     Ok(memory)
 }
 
-// Executa uma função pelo nome com os argumentos fornecidos.
-// O call_stack acumula os nomes ativos para montar o stack trace em erros.
-// Retorna `None` para funções void, `Some(valor)` caso contrário.
+fn prepare_execution_frame(
+    fn_name: &str,
+    args: Vec<RuntimeValue>,
+    result_target: Option<CallResultTarget>,
+    program: &MachineProgram,
+) -> Result<ExecutionFrame, PinkerError> {
+    let function = find_function(fn_name, program)?;
+    if function.params.len() != args.len() {
+        return Err(runtime_err(&format!(
+            "[{}] chamada com aridade inválida",
+            fn_name
+        )));
+    }
+
+    let function_index = program
+        .functions
+        .iter()
+        .position(|candidate| candidate.name == fn_name)
+        .expect("find_function confirmou a existência da função");
+    let labels = function
+        .blocks
+        .iter()
+        .enumerate()
+        .map(|(index, block)| (block.label.clone(), index))
+        .collect();
+
+    let mut slots = HashMap::new();
+    for (slot, value) in function.params.iter().cloned().zip(args.into_iter()) {
+        let coerced = if let Some(ty) = function.slot_types.get(&slot) {
+            coerce_runtime_value_to_type(value, *ty)?
+        } else {
+            value
+        };
+        slots.insert(slot, coerced);
+    }
+
+    Ok(ExecutionFrame {
+        function_index,
+        slots,
+        stack: Vec::new(),
+        labels,
+        current_label: "entry".to_string(),
+        next_instr: 0,
+        result_target,
+    })
+}
+
+fn accept_call_result(
+    target: CallResultTarget,
+    result: Option<RuntimeValue>,
+    stack: &mut Vec<RuntimeValue>,
+) -> Result<(), PinkerError> {
+    match (target, result) {
+        (CallResultTarget::DirectValue, Some(value))
+        | (CallResultTarget::IndirectValue, Some(value))
+        | (CallResultTarget::Raw { has_return: true }, Some(value))
+        | (CallResultTarget::Trait { has_return: true }, Some(value)) => stack.push(value),
+        (CallResultTarget::DirectValue, None) => {
+            return Err(runtime_err("call exige função com retorno"));
+        }
+        (CallResultTarget::DirectVoid, Some(_)) => {
+            return Err(runtime_err("call_void exige função sem retorno"));
+        }
+        (CallResultTarget::DirectVoid, None) => {}
+        (CallResultTarget::IndirectValue, None) => {
+            return Err(runtime_err(
+                "call_indirect exige callable com retorno (tipo função público nunca é nulo)",
+            ));
+        }
+        (CallResultTarget::Raw { has_return: true }, None) => {
+            return Err(runtime_err("call_raw esperava retorno com valor"));
+        }
+        (CallResultTarget::Raw { has_return: false }, None) => {}
+        (CallResultTarget::Raw { has_return: false }, Some(_)) => {
+            return Err(runtime_err("call_raw nulo recebeu retorno com valor"));
+        }
+        (CallResultTarget::Trait { has_return: false }, None) => {}
+        (CallResultTarget::Trait { has_return: false }, Some(_)) => {
+            return Err(runtime_err("trait_call nulo recebeu retorno inesperado"));
+        }
+        (CallResultTarget::Trait { has_return: true }, None) => {
+            return Err(runtime_err("trait_call com retorno recebeu função nulo"));
+        }
+    }
+    Ok(())
+}
+
+// Executa funções numa pilha explícita de frames. Chamadas Pinker suspendem o
+// frame atual e empilham outro; somente intrínsecas hospedadas executam inline.
+// O call_stack permanece separado para preservar o stack trace observável.
 #[allow(clippy::too_many_arguments)]
 // @pinker-nav:end interpreter.execucao.programa-globais
 
@@ -769,12 +884,7 @@ fn call_function(
     trait_object_state: &mut TraitObjectState,
     call_stack: &mut Vec<RuntimeFrame>,
 ) -> Result<Option<RuntimeValue>, PinkerError> {
-    if call_stack.len() >= MAX_CALL_DEPTH {
-        return Err(runtime_err(&format!(
-            "limite preventivo de recursão excedido: profundidade máxima de chamadas ({MAX_CALL_DEPTH}) atingida ao entrar em '{fn_name}'"
-        )));
-    }
-
+    let call_stack_base = call_stack.len();
     call_stack.push(RuntimeFrame {
         fn_name: fn_name.to_string(),
         block_label: None,
@@ -782,40 +892,38 @@ fn call_function(
         future_span: None,
     });
 
-    // Encapsula a execução numa closure para poder anexar o trace no retorno.
     let result = (|| {
-        let function = find_function(fn_name, program)?;
-
-        if function.params.len() != args.len() {
-            return Err(runtime_err(&format!(
-                "[{}] chamada com aridade inválida",
-                fn_name
-            )));
-        }
-
-        let mut labels = HashMap::new();
-        for (idx, block) in function.blocks.iter().enumerate() {
-            labels.insert(block.label.clone(), idx);
-        }
-
-        let mut slots: HashMap<String, RuntimeValue> = HashMap::new();
-        for (slot, value) in function.params.iter().cloned().zip(args.into_iter()) {
-            let coerced = if let Some(ty) = function.slot_types.get(&slot) {
-                coerce_runtime_value_to_type(value, *ty)?
-            } else {
-                value
-            };
-            slots.insert(slot, coerced);
-        }
-
-        let mut stack: Vec<RuntimeValue> = Vec::new();
-        let mut current_label = "entry".to_string();
+        let initial = prepare_execution_frame(fn_name, args, None, program)?;
+        let mut execution_stack = vec![initial];
 
         loop {
-            let Some(&block_idx) = labels.get(&current_label) else {
+            if io_state.exit_status.is_some() {
+                let completed = execution_stack
+                    .pop()
+                    .expect("a pilha de execução contém ao menos o frame raiz");
+                let _ = call_stack.pop();
+                let Some(parent) = execution_stack.last_mut() else {
+                    return Ok(None);
+                };
+                accept_call_result(
+                    completed
+                        .result_target
+                        .expect("somente o frame raiz não possui destino de retorno"),
+                    None,
+                    &mut parent.stack,
+                )?;
+                set_current_instr(call_stack, None);
+                continue;
+            }
+
+            let frame_index = execution_stack.len() - 1;
+            let function_index = execution_stack[frame_index].function_index;
+            let function = &program.functions[function_index];
+            let current_label = execution_stack[frame_index].current_label.clone();
+            let Some(&block_idx) = execution_stack[frame_index].labels.get(&current_label) else {
                 return Err(runtime_err(&format!(
                     "[{}] label de execução inexistente: {}",
-                    fn_name, current_label
+                    function.name, current_label
                 )));
             };
             let block = &function.blocks[block_idx];
@@ -823,73 +931,121 @@ fn call_function(
                 frame.block_label = Some(block.label.clone());
             }
 
-            for instr in &block.code {
+            if execution_stack[frame_index].next_instr < block.code.len() {
+                let instr_index = execution_stack[frame_index].next_instr;
+                let instr = &block.code[instr_index];
                 set_current_instr(call_stack, Some(machine_instr_name(instr)));
-                exec_instr(
-                    instr,
-                    &mut slots,
-                    &mut stack,
-                    program,
-                    globals,
-                    memory,
-                    public_memory_state,
-                    io_state,
-                    list_state,
-                    map_state,
-                    random_state,
-                    callable_state,
-                    trait_object_state,
-                    call_stack,
-                )?;
-                set_current_instr(call_stack, None);
-                if io_state.exit_status.is_some() {
-                    return Ok(None);
+                let control = {
+                    let frame = &mut execution_stack[frame_index];
+                    exec_instr(
+                        instr,
+                        &mut frame.slots,
+                        &mut frame.stack,
+                        program,
+                        globals,
+                        memory,
+                        public_memory_state,
+                        io_state,
+                        list_state,
+                        map_state,
+                        random_state,
+                        callable_state,
+                        trait_object_state,
+                        call_stack,
+                    )?
+                };
+
+                execution_stack[frame_index].next_instr += 1;
+                match control {
+                    InstrControl::Continue => set_current_instr(call_stack, None),
+                    InstrControl::Call(pending) => {
+                        call_stack.push(RuntimeFrame {
+                            fn_name: pending.fn_name.clone(),
+                            block_label: None,
+                            current_instr: None,
+                            future_span: None,
+                        });
+                        let next = prepare_execution_frame(
+                            &pending.fn_name,
+                            pending.args,
+                            Some(pending.result_target),
+                            program,
+                        )?;
+                        execution_stack.push(next);
+                    }
                 }
+                continue;
             }
 
-            match &block.terminator {
+            let completed_result = match block.terminator.clone() {
                 MachineTerminator::Jmp(target) => {
-                    current_label.clone_from(target);
+                    execution_stack[frame_index].current_label = target;
+                    execution_stack[frame_index].next_instr = 0;
+                    None
                 }
                 MachineTerminator::BrTrue {
                     then_label,
                     else_label,
                 } => {
-                    let cond = pop_bool(&mut stack, "br_true requer bool no topo")?;
-                    current_label = if cond {
-                        then_label.clone()
-                    } else {
-                        else_label.clone()
-                    };
+                    let cond = pop_bool(
+                        &mut execution_stack[frame_index].stack,
+                        "br_true requer bool no topo",
+                    )?;
+                    execution_stack[frame_index].current_label =
+                        if cond { then_label } else { else_label };
+                    execution_stack[frame_index].next_instr = 0;
+                    None
                 }
                 MachineTerminator::Ret => {
-                    if stack.len() != 1 {
+                    if execution_stack[frame_index].stack.len() != 1 {
                         return Err(runtime_err(&format!(
                             "[{}] ret inválido: pilha deve ter 1 valor",
-                            fn_name
+                            function.name
                         )));
                     }
-                    let value = stack.pop().expect("len checked");
-                    return Ok(Some(coerce_runtime_value_to_type(
+                    let value = execution_stack[frame_index]
+                        .stack
+                        .pop()
+                        .expect("len checked");
+                    Some(Some(coerce_runtime_value_to_type(
                         value,
                         function.ret_type,
-                    )?));
+                    )?))
                 }
                 MachineTerminator::RetVoid => {
-                    if !stack.is_empty() {
+                    if !execution_stack[frame_index].stack.is_empty() {
                         return Err(runtime_err(&format!(
                             "[{}] ret_void inválido: pilha deve estar vazia",
-                            fn_name
+                            function.name
                         )));
                     }
-                    return Ok(None);
+                    Some(None)
                 }
-            }
+            };
+
+            let Some(completed_result) = completed_result else {
+                continue;
+            };
+            let completed = execution_stack
+                .pop()
+                .expect("o frame concluído está no topo da pilha");
+            let _ = call_stack.pop();
+            let Some(parent) = execution_stack.last_mut() else {
+                return Ok(completed_result);
+            };
+            accept_call_result(
+                completed
+                    .result_target
+                    .expect("somente o frame raiz não possui destino de retorno"),
+                completed_result,
+                &mut parent.stack,
+            )?;
+            set_current_instr(call_stack, None);
         }
     })();
 
     let result = result.map_err(|err| attach_runtime_trace(err, call_stack));
-    let _ = call_stack.pop();
+    call_stack.truncate(call_stack_base);
     result
 }
 
@@ -936,8 +1092,8 @@ fn exec_instr(
     random_state: &mut RuntimeRandomState,
     callable_state: &mut CallableState,
     trait_object_state: &mut TraitObjectState,
-    call_stack: &mut Vec<RuntimeFrame>,
-) -> Result<(), PinkerError> {
+    call_stack: &mut [RuntimeFrame],
+) -> Result<InstrControl, PinkerError> {
     match instr {
         MachineInstr::PushInt(v) => stack.push(RuntimeValue::Int(*v)),
         MachineInstr::PushBool(v) => stack.push(RuntimeValue::Bool(*v)),
@@ -1021,7 +1177,7 @@ fn exec_instr(
                 crate::ir::TypeIR::FixedArray { .. } | crate::ir::TypeIR::Struct
             ) {
                 stack.push(RuntimeValue::Ptr(addr));
-                return Ok(());
+                return Ok(InstrControl::Continue);
             }
             let width = runtime_type_width(*ty);
             let public_region = public_memory_access_region(public_memory_state, addr, width)?;
@@ -1096,7 +1252,7 @@ fn exec_instr(
             if public_region.is_some() {
                 let coerced = coerce_runtime_value_to_type(value, *ty)?;
                 public_memory_store_bytes(&mut public_memory_state.payload, addr, *ty, coerced)?;
-                return Ok(());
+                return Ok(InstrControl::Continue);
             }
             if !memory.contains_key(&addr) {
                 return Err(runtime_err(
@@ -1411,21 +1567,13 @@ fn exec_instr(
                 random_state,
             )? {
                 IntrinsicCall::Done(value) => value,
-                IntrinsicCall::NotIntrinsic => call_function(
-                    callee,
-                    args,
-                    program,
-                    globals,
-                    memory,
-                    public_memory_state,
-                    io_state,
-                    list_state,
-                    map_state,
-                    random_state,
-                    callable_state,
-                    trait_object_state,
-                    call_stack,
-                )?,
+                IntrinsicCall::NotIntrinsic => {
+                    return Ok(InstrControl::Call(PendingCall {
+                        fn_name: callee.clone(),
+                        args,
+                        result_target: CallResultTarget::DirectValue,
+                    }));
+                }
             };
             let Some(value) = result else {
                 return Err(runtime_err("call exige função com retorno"));
@@ -1444,21 +1592,13 @@ fn exec_instr(
                 random_state,
             )? {
                 IntrinsicCall::Done(value) => value,
-                IntrinsicCall::NotIntrinsic => call_function(
-                    callee,
-                    args,
-                    program,
-                    globals,
-                    memory,
-                    public_memory_state,
-                    io_state,
-                    list_state,
-                    map_state,
-                    random_state,
-                    callable_state,
-                    trait_object_state,
-                    call_stack,
-                )?,
+                IntrinsicCall::NotIntrinsic => {
+                    return Ok(InstrControl::Call(PendingCall {
+                        fn_name: callee.clone(),
+                        args,
+                        result_target: CallResultTarget::DirectVoid,
+                    }));
+                }
             };
             if result.is_some() {
                 return Err(runtime_err("call_void exige função sem retorno"));
@@ -1509,27 +1649,11 @@ fn exec_instr(
             let env_value = RuntimeValue::Ptr(descriptor.env_addr.unwrap_or(0));
             let mut combined_args = user_args;
             combined_args.push(env_value);
-            let result = call_function(
-                &function_name,
-                combined_args,
-                program,
-                globals,
-                memory,
-                public_memory_state,
-                io_state,
-                list_state,
-                map_state,
-                random_state,
-                callable_state,
-                trait_object_state,
-                call_stack,
-            )?;
-            let Some(value) = result else {
-                return Err(runtime_err(
-                    "call_indirect exige callable com retorno (tipo função público nunca é nulo)",
-                ));
-            };
-            stack.push(value);
+            return Ok(InstrControl::Call(PendingCall {
+                fn_name: function_name,
+                args: combined_args,
+                result_target: CallResultTarget::IndirectValue,
+            }));
         }
         MachineInstr::CallRaw { argc, has_return } => {
             let Some(callee_value) = stack.pop() else {
@@ -1544,31 +1668,13 @@ fn exec_instr(
             let function_name = raw_function_name(program, address)
                 .ok_or_else(|| runtime_err("call_raw com endereço de função inválido"))?;
             let args = pop_args(stack, *argc)?;
-            let result = call_function(
-                function_name,
+            return Ok(InstrControl::Call(PendingCall {
+                fn_name: function_name.to_string(),
                 args,
-                program,
-                globals,
-                memory,
-                public_memory_state,
-                io_state,
-                list_state,
-                map_state,
-                random_state,
-                callable_state,
-                trait_object_state,
-                call_stack,
-            )?;
-            match (*has_return, result) {
-                (true, Some(value)) => stack.push(value),
-                (true, None) => {
-                    return Err(runtime_err("call_raw esperava retorno com valor"));
-                }
-                (false, None) => {}
-                (false, Some(_)) => {
-                    return Err(runtime_err("call_raw nulo recebeu retorno com valor"));
-                }
-            }
+                result_target: CallResultTarget::Raw {
+                    has_return: *has_return,
+                },
+            }));
         }
         MachineInstr::MakeTraitObject {
             trait_name,
@@ -1628,32 +1734,13 @@ fn exec_instr(
             combined_args.push(receiver);
             combined_args.extend(user_args);
 
-            let result = call_function(
-                &function_name,
-                combined_args,
-                program,
-                globals,
-                memory,
-                public_memory_state,
-                io_state,
-                list_state,
-                map_state,
-                random_state,
-                callable_state,
-                trait_object_state,
-                call_stack,
-            )?;
-
-            if *ret_type == crate::ir::TypeIR::Nulo {
-                if result.is_some() {
-                    return Err(runtime_err("trait_call nulo recebeu retorno inesperado"));
-                }
-            } else {
-                let Some(value) = result else {
-                    return Err(runtime_err("trait_call com retorno recebeu função nulo"));
-                };
-                stack.push(value);
-            }
+            return Ok(InstrControl::Call(PendingCall {
+                fn_name: function_name,
+                args: combined_args,
+                result_target: CallResultTarget::Trait {
+                    has_return: *ret_type != crate::ir::TypeIR::Nulo,
+                },
+            }));
         }
         MachineInstr::PrintIntInline => {
             match pop_numeric(stack, "print_int_inline exige inteiro no topo")? {
@@ -1695,7 +1782,7 @@ fn exec_instr(
         }
     }
 
-    Ok(())
+    Ok(InstrControl::Continue)
 }
 
 // @pinker-nav:end interpreter.execucao.instrucoes-pilha
@@ -6390,14 +6477,7 @@ fn enrich_runtime_msg(msg: &str) -> String {
 }
 
 fn classify_runtime_msg(msg: &str) -> (&'static str, Option<&'static str>) {
-    if msg.contains("limite preventivo de recursão excedido") {
-        (
-            "limite_recursao_excedido",
-            Some(
-                "revise o caso-base da função recursiva para garantir término antes do limite interno",
-            ),
-        )
-    } else if msg.contains("divisão por zero") {
+    if msg.contains("divisão por zero") {
         (
             "divisao_por_zero",
             Some("verifique se o divisor é diferente de 0 antes da operação '/'"),
