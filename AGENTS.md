@@ -85,7 +85,7 @@ Mapa curto por feature: `docs/code_map.md`.
 - Preservar continuidade factual do workspace e trilha ativa.
 - Tarefa operacional não abre fase, Doc, FE ou HF.
 - Não tocar docs canônicos por inércia: `docs/history.md`, `docs/handoff_codex.md`, `docs/roadmap.md`, `docs/future.md`, `docs/phases.md`.
-- Mudança funcional real exige evidência em código, testes e docs canônicos apropriados.
+- Fora do regime temporário de congelamento documental descrito abaixo, mudança funcional real exige evidência em código, testes e docs canônicos apropriados.
 - Não reverter mudanças do usuário sem pedido explícito.
 - Vulnerabilidades devem usar o relato privado descrito em `SECURITY.md`, nunca Issues públicas.
 - Discussions é espaço exploratório e não autoriza roadmap ou implementação.
@@ -96,12 +96,92 @@ Mapa curto por feature: `docs/code_map.md`.
   determinística da Issue #417 foi encerrada após suas seis capacidades; seu
   inventário e seus limites permanecem históricos em
   `docs/development/janela-infraestrutura-deterministica.md`, sem autorizar
-  novas tarefas por analogia. D2 é a próxima prioridade funcional, ainda não
-  iniciada. Mudança semântica da linguagem, novo executor, auto-merge ou
-  modificação automática de fontes continuam fora dessa autoridade histórica.
+  novas tarefas por analogia. D2 foi restaurada como prioridade após #417, mas a
+  Founder autorizou em seguida uma campanha extraordinária de maturação adulta
+  que incorpora D2–D12 e outras expansões explícitas antes da retomada ordinária
+  do Eixo A. Mudança semântica fora da Issue dessa campanha, novo executor,
+  auto-merge ou modificação automática de fontes continuam sem autorização.
 - Validar com `build`, `test`, `fmt-check` e `clippy` antes de encerrar.
 
+## Regime temporário — maturação adulta e modularização
+
+Por decisão explícita da Founder, a progressão ordinária do **Eixo A do Bloco 20** fica congelada durante duas campanhas consecutivas:
+
+1. campanha de maturação funcional adulta;
+2. campanha posterior de modularização seletiva.
+
+A Issue executiva da primeira campanha é criada separadamente e delimita as unidades autorizadas. A segunda campanha exige autoridade própria posterior.
+
+### Congelamento documental
+
+Durante as duas campanhas, a documentação canônica da Pinker está formalmente congelada.
+
+Sem exceção humana explícita, NÃO criar, remover, renomear, reorganizar ou editar por acompanhamento de implementação:
+
+- `docs/**`;
+- `README.md`;
+- `MANUAL.md`;
+- inventários e índices documentais;
+- roadmap, handoff e histórico;
+- documentação de famílias, intrínsecas e exemplos.
+
+Quando uma obrigação de `docs/doc_rules.md` exigir atualização apenas porque uma Task autorizada alterou código, runtime, testes ou estrutura durante esse período, a obrigação fica `DEFERRED_UNTIL_DOCUMENTATION_REBUILD`, não cancelada. Não editar docs apenas para deixar o estado antigo parecendo atual.
+
+O congelamento não dispensa validação de código, testes, backend/runtime, segurança, determinismo, `git diff --check`, fresh environment, `pinker-change` ou catálogos de código exigidos pela implementação. Se um gate exigir mutação documental exclusivamente por causa do freeze, pare, identifique a causa e use somente uma exceção estreita e reversível autorizada pela campanha; não mascare falha não relacionada.
+
+### Registro mínimo de implementação
+
+Durante o freeze, o registro narrativo preferido em cada PR é deliberadamente curto:
+
+```text
+O que foi feito?
+Onde foi feito?
+Como foi feito?
+Por que foi feito?
+```
+
+Fim. Responder de forma breve e factual. Validação executada e o bloco estruturado `pinker-change` continuam obrigatórios quando aplicáveis.
+
+Não transformar corpo de PR, commit ou checkpoint em nova documentação paralela da Pinker.
+
+### Memória operacional de dificuldades e ferramentas
+
+O registro operacional mais valioso para agentes durante essas campanhas vive fora da documentação congelada, em:
+
+```text
+/pinker/msg/campanhas/<campanha>/<task-id>.md
+```
+
+Para a primeira campanha use:
+
+```text
+/pinker/msg/campanhas/maturacao-adulta/<task-id>.md
+```
+
+O arquivo deve ser curto e conter apenas o que possuir valor de reutilização:
+
+```markdown
+# Dificuldades
+- sintoma / bloqueio
+- causa confirmada ou hipótese explicitamente marcada
+- resolução, workaround ou decisão de parar
+- lição reutilizável, quando houver
+
+# Ferramentas auxiliares
+- ferramenta usada, criada ou atualizada
+- lifecycle: USE | UPGRADE | CREATE
+- caminho
+- finalidade
+- destino: RETAINED | DISCARDED | PROMOTED
+```
+
+Se não houve dificuldade material ou ferramenta auxiliar, registrar `nenhuma` na seção correspondente. Não registrar narrativa de rotina, cadeia de pensamento, log bruto volumoso ou repetição de testes comuns.
+
+Checkpoints e `/pinker/artifacts/tasks/<task-id>/` continuam responsáveis por estado de retomada, evidência detalhada e resultados de validação. `/pinker/msg` registra memória operacional humana/agente, não substitui checkpoint nem artifact.
+
 ## O que sempre checar em mudança funcional
+
+Mesmo durante o freeze, estes arquivos podem ser lidos para contexto, mas não devem ser atualizados sem exceção humana explícita:
 
 - `README.md`
 - `MANUAL.md`
@@ -122,18 +202,20 @@ Mapa curto por feature: `docs/code_map.md`.
 
 ## Fluxo curto recomendado
 
-1. Ler `README.md`, `docs/atlas.md`, `docs/handoff_codex.md`, `docs/doc_rules.md`.
+1. Ler `README.md`, `docs/atlas.md`, `docs/handoff_codex.md`, `docs/doc_rules.md` apenas na medida necessária para contexto.
 2. Rodar `make ci`.
 3. Localizar a camada afetada em `docs/code_map.md`.
 4. Escolher um exemplo/teste próximo em `docs/examples_index.md`.
-5. Fazer o menor diff auditável.
-6. Revalidar. Só atualizar docs canônicos se tarefa for funcional/documental de verdade.
+5. Fazer o menor diff auditável que cumpra o contrato adulto da Task.
+6. Revalidar. Durante o freeze, não atualizar docs canônicos; registrar somente o resumo mínimo da PR e a memória operacional em `/pinker/msg`.
 
 ## Checklist de fechamento
 
 - código alterado no menor recorte útil
 - testes/exemplos ajustados, se aplicável
-- docs canônicos atualizados apenas se aplicável
+- documentação canônica preservada durante o freeze ou atualizada apenas sob exceção humana explícita
+- registro mínimo da PR: o quê, onde, como e por quê
+- dificuldades e ferramentas auxiliares registradas em `/pinker/msg`, quando aplicável
 - `make ci` executado
 - diff auditável
 - continuidade preservada

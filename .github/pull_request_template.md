@@ -1,31 +1,47 @@
 <!--
 Template de PR da Trama Pinker (especificação §13).
 
-O corpo narrativo abaixo é voltado a HUMANOS. O bloco ```pinker-change``` no
-final é voltado à AUTOMAÇÃO e deve permanecer separado da narrativa. Para PRs
-posteriores ao marco #330, importe o bloco com:
+Durante o regime temporário de maturação adulta + modularização, a documentação
+canônica permanece congelada. O corpo narrativo da PR deve ser curto: o quê,
+onde, como e por quê. Dificuldades reutilizáveis e ferramentas auxiliares ficam
+em /pinker/msg, conforme AGENTS.md.
+
+O bloco ```pinker-change``` no final é voltado à AUTOMAÇÃO e deve permanecer
+separado da narrativa. Para PRs posteriores ao marco #330, importe o bloco com:
 
     ./ci_env.sh cargo run --bin pink -- doc importar-pr <n> --corpo <arquivo>
 
 O CI valida em modo somente leitura (`--check`); ele não sincroniza nem cria
-commits. Sincronizar catálogos e projeções é responsabilidade de quem abre o PR.
+commits.
 -->
 
-## Resumo
+## Registro mínimo
 
-<!-- O que este PR faz e por que a mudança é necessária, em linguagem humana. -->
+- **O que:** <!-- mudança realizada -->
+- **Onde:** <!-- arquivos/módulos/superfícies afetados -->
+- **Como:** <!-- abordagem técnica, em poucas linhas -->
+- **Por quê:** <!-- causa/necessidade que justifica a mudança -->
 
-## Detalhes e limites
-
-<!-- Como foi implementado, decisões relevantes, o que NÃO faz e limitações honestas. Para uma correção pequena, seja breve. -->
+<!-- Seja breve. Não transforme a PR em documentação paralela. -->
 
 ## Validação
 
-<!-- Consulte CONTRIBUTING.md e CODE_OF_CONDUCT.md. Marque somente comandos realmente executados; deixe os demais desmarcados e explique limitações. O CI executará make ci. -->
+<!-- Marque somente comandos realmente executados e registre limitações reais. -->
 
 - [ ] `make ci`
-- [ ] `./ci_env.sh cargo run --bin pink -- doc verificar`
-- [ ] `./ci_env.sh cargo run --bin pink -- nav verificar`
+- [ ] `git diff --check`
+
+## Memória operacional
+
+<!--
+Durante as campanhas temporárias, registre dificuldades materiais e lifecycle de
+ferramentas auxiliares em:
+/pinker/msg/campanhas/<campanha>/<task-id>.md
+
+Aqui basta indicar o caminho, quando existir. Não copie o diário para a PR.
+-->
+
+- Registro: `nenhum`
 
 ## Bloco estruturado
 
