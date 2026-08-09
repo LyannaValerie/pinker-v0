@@ -19,8 +19,8 @@
 | Último bloco encerrado | **18** — core nobre e bibliotecas temáticas (Fase 207) |
 | Frente pausada | editor/TUI oficial da Pinker (Fase 136) |
 | Última expansão funcional paralela | **D1 adulta**, concluída pela PR #418 |
-| Trabalho ativo | Quinta entrega da janela #417 — Issue #434, índice derivado de símbolos e `pink nav localizar` |
-| Última entrega da janela | **Issue #387 concluída e mergeada** — PR #433, merge `97ee0226a617439a48e33b73779d7c60caa534e3` |
+| Trabalho ativo | Sexta entrega da janela #417 — Issue #438, cobertura de diff somente leitura |
+| Última entrega da janela | **Issue #434 concluída e mergeada** — PR #435, merge `d6cb0febe5cb0ad8419503303aa5959a5ad79af0` |
 
 ### Estado operacional estruturado
 
@@ -50,8 +50,9 @@ janela_auxiliar:
     - Issue #385 — núcleo determinístico puro e apply local (PRs #428 e #429)
     - Issue #384 — snapshots, autoridade histórica e lifecycle (PRs #426, #430 e #432)
     - Issue #387 — estado consolidado somente leitura (PR #433, merge 97ee0226a617439a48e33b73779d7c60caa534e3)
+    - Issue #434 — índice derivado de símbolos e pink nav localizar (PR #435, merge d6cb0febe5cb0ad8419503303aa5959a5ad79af0)
   extraordinary_interruption: HF-9 unidade 2 PR #422 contencao do host
-  current_delivery: Issue #434 — índice derivado de símbolos e pink nav localizar
+  current_delivery: Issue #438 — cobertura de diff somente leitura
 D2:
   status: NOT_STARTED
   next_functional_item_after_window: true
@@ -131,9 +132,9 @@ Histórico completo por fase: `docs/history/phases/`.
 - **Ativação da janela auxiliar da Issue #417 — 1 de agosto de 2026**.
 - D1 adulta foi concluída antes da ativação pela PR #418, merge
   `09b7456fd57c2efcf71e54895b938a6a69d77307`.
-- O trabalho ativo é a quinta entrega da janela auxiliar: Issue #434, índice
-  derivado de símbolos e `pink nav localizar`. A quarta entrega, Issue #387,
-  foi concluída e mergeada pela PR #433.
+- O trabalho ativo é a sexta entrega da janela auxiliar: Issue #438, cobertura
+  de diff somente leitura. A quinta entrega, Issue #434, foi concluída e
+  mergeada pela PR #435.
 - O Eixo A está pausado por decisão humana explícita, continua sendo a
   prioridade funcional soberana e retorna em D2 após o encerramento da janela.
 - A autoridade e a lista fechada de seis capacidades estão em
@@ -220,9 +221,9 @@ Histórico completo por fase: `docs/history/phases/`.
 | Geral | Compatibilidade global legada preservada integralmente |
 
 ## 5. Próximo passo
-- O trabalho ativo é a quinta entrega da janela auxiliar da Issue #417, sob a
-  Issue #434. A sexta entrega, cobertura de diff somente leitura, permanece
-  futura e não foi iniciada.
+- O trabalho ativo é a sexta entrega da janela auxiliar da Issue #417, sob a
+  Issue #438. Mesmo após seu merge humano, o retorno para D2 depende da PR
+  documental específica de encerramento da janela.
 - D2 está `NOT_STARTED` e é o próximo item funcional somente depois do merge
   humano de uma PR específica de encerramento da janela.
 - Estrutura do Bloco 20 formalizada em dois eixos (Doc-41), padrão pós-Eixo B registrado na Doc-42 e convergência bare-metal formalizada na Doc-46: **Eixo A — linguagem** retoma com implementações adultas orientadas por `docs/expandir.md`, não por “mínimo” automático; **Eixo B — backend nativo** está encerrado; a trilha BM permanece documental e não implementada.

@@ -10,6 +10,7 @@ Nota factual de estilo: a Fase 172 uniformizou visualmente um primeiro lote pequ
 
 | Área | Exemplo(s) | Teste(s) | Cobertura |
 |---|---|---|---|
+| cobertura de diff | `git diff --unified=0 \| pink nav cobertura-diff` | `tests/diff_coverage_cli_tests.rs` | arquivos, spans de regiões, docs, projeções, testes, `UNKNOWN`, determinismo e read-only |
 | parser / AST | `examples/principal_valida.pink`, `examples/principal_invalida.pink` | `tests/parser_tests.rs` | parse básico, erros de sintaxe |
 | semântica base | `examples/mut_ok.pink`, `examples/mut_falho.pink` | `tests/semantic_tests.rs` | `principal`, tipos, mutabilidade, aridade |
 | módulos / imports | `examples/fase60_modulos_valido.pink`, `examples/fase60_modulo_ausente.pink` | `tests/interpreter_tests.rs`, `tests/semantic_tests.rs` | `trazer`, símbolo ausente, integração CLI |

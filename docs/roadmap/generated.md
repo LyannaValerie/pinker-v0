@@ -50,4 +50,5 @@ mão. Regenere com `pink doc sincronizar`.
 | #433 | — | 20 | Expõe o estado consolidado somente leitura da Pinker | completed |
 | #435 | — | 20 | Adiciona índice derivado de símbolos e pink nav localizar | completed |
 | #437 | — | — | Estabilizar handshake root-swap sob contenção no CI | completed |
+| #439 | — | 20 | Adiciona cobertura de diff somente leitura | completed |
 <!-- @pinker-generated:end roadmap.generated -->

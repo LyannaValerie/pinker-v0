@@ -1,0 +1,20 @@
+schema: 1
+source:
+  type: github-pr
+  number: 439
+  repository: "LyannaValerie/pinker-v0"
+kind: parallel-phase
+block: 20
+title: "Adiciona cobertura de diff somente leitura"
+area:
+  - development.diff-coverage
+  - development.trama
+  - development.deterministic-infrastructure-window
+status: completed
+updates:
+  state: true
+  history: true
+  roadmap: false
+validation:
+  required:
+    - make ci
