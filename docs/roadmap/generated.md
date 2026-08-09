@@ -51,4 +51,5 @@ mão. Regenere com `pink doc sincronizar`.
 | #435 | — | 20 | Adiciona índice derivado de símbolos e pink nav localizar | completed |
 | #437 | — | — | Estabilizar handshake root-swap sob contenção no CI | completed |
 | #439 | — | 20 | Adiciona cobertura de diff somente leitura | completed |
+| #440 | — | 20 | Encerra a janela auxiliar da Issue 417 e restaura D2 | completed |
 <!-- @pinker-generated:end roadmap.generated -->

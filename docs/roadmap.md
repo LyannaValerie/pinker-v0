@@ -41,20 +41,20 @@ Uma futura modularização deve priorizar inicialmente arquivos com mais de 5.00
 linhas, sem tratar tamanho como critério único. Arquivos menores só entram nesse
 trabalho quando houver justificativa arquitetural material.
 
-## Janela auxiliar de infraestrutura determinística
+## Janela auxiliar de infraestrutura determinística — encerrada
 
 A Issue #417 autorizou uma exceção estreita ao portão pré-Eixo A, ativada por
-esta governança depois da conclusão de D1. A janela está `ACTIVE`; o Eixo A está
-`PAUSED_BY_EXPLICIT_HUMAN_DECISION`, sem defeito técnico e sem declaração de
-conclusão. Cinco entregas foram concluídas; a sexta é a cobertura de diff
-somente leitura, sob a Issue #438. D2 permanece
-`NOT_STARTED` e é o próximo trabalho funcional após a PR explícita de
-encerramento da janela.
+esta governança depois da conclusão de D1. As seis capacidades foram concluídas,
+incluindo o índice derivado de símbolos pela PR #435 e a cobertura de diff
+somente leitura pela PR #439. A PR documental específica encerra a janela como
+`CLOSED / COMPLETE`, sem declarar o Eixo A concluído. D2 é novamente a
+`NEXT_FUNCTIONAL_PRIORITY` e sua implementação permanece `NOT_STARTED`.
 
 A janela não abre Fase, Faixa ou Eixo, não altera os 52 itens e não conta como
-progresso funcional do Bloco 20. Somente as seis capacidades enumeradas em
-`docs/development/janela-infraestrutura-deterministica.md` estão autorizadas;
-todo o restante do portão pós-Trama continua vigente.
+progresso funcional do Bloco 20. Seu inventário final permanece em
+`docs/development/janela-infraestrutura-deterministica.md`; o encerramento não
+autoriza novas capacidades e todo o restante do portão pós-Trama continua
+vigente.
 
 ## Bloco ativo atual
 
@@ -82,9 +82,9 @@ independente da ordem de execução, validação de acesso por ponteiro fabricad
 partir de inteiro, cota vitalícia de identidades públicas documentada e
 diagnóstico de clone raso — sem abrir fase funcional nova. Nenhum achado dessas
 revisões permanece em correção. D1 adulta foi concluída pela PR #418. A
-progressão funcional está pausada pela janela da Issue #417; D2 permanece não
-iniciado e retorna como próximo item funcional somente após o encerramento
-explícito da janela.
+janela da Issue #417 foi encerrada depois de seis capacidades concluídas; D2 é
+a próxima prioridade funcional e permanece não iniciado por esta transição
+documental.
 
 O contrato de ambientes da Fase 243 usa hoje uma palavra por captura (`quantidade * palavra`, com overflow verificado). Uma futura representação multi-palavra deverá alocar o tamanho final alinhado do layout, derivado do tamanho, alinhamento, offset e padding de cada captura e do alinhamento final, com overflow verificado em cada passo; soma simples de tamanhos e teste apenas funcional não atendem ao gate direto de underallocation.
 

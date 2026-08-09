@@ -3,7 +3,7 @@ pinker-doc: 1
 id: development.deterministic-infrastructure-window
 domain: development
 kind: reference
-status: active
+status: reference
 parent: development
 audience:
   - human
@@ -19,26 +19,26 @@ related:
 
 - **Classe:** Engine
 - **Papel:** governança operacional
-- **Status:** ativo
+- **Status:** referência histórica
 
-Este documento transforma em autoridade operacional a decisão humana da
-Issue #417. A Issue permanece a origem da decisão; este documento passa a ser a
-fonte canônica para agentes, gates e roadmap enquanto a janela estiver ativa.
+Este documento preserva a autoridade operacional e o inventário final da
+decisão humana da Issue #417. A janela foi temporária, concluiu as seis
+capacidades autorizadas e não constitui mais exceção ativa ao portão pós-Trama.
 
 <!-- @pinker-doc:start
 id: development.deterministic-infrastructure-window.current
-tags: [desenvolvimento, governanca, infraestrutura, determinismo, eixo-a]
+tags: [desenvolvimento, governanca, infraestrutura, determinismo, eixo-a, encerramento]
 aliases:
   - janela auxiliar
   - janela de infraestrutura deterministica
   - excecao pre eixo a
-summary: Estado, autoridade e limites da janela auxiliar autorizada pela Issue #417.
+summary: Inventário final, limites históricos e encerramento da janela auxiliar da Issue #417, com D2 restaurado como próxima prioridade funcional.
 -->
 ## Estado canônico
 
 ```yaml
 Issue_417:
-  decision: ACTIVE
+  decision: CLOSED_COMPLETE
 
 D1:
   status: COMPLETE
@@ -46,48 +46,55 @@ D1:
   merge: 09b7456fd57c2efcf71e54895b938a6a69d77307
 
 janela_auxiliar:
-  status: ACTIVE
+  status: CLOSED
   completed:
-    - Etapa 1 da Issue #414 (PR #420)
-    - Issue #385 — núcleo determinístico puro e apply local (PRs #428 e #429)
-    - Issue #384 — snapshots, autoridade histórica e lifecycle (PRs #426, #430 e #432)
-    - Issue #387 — estado consolidado somente leitura (PR #433, merge 97ee0226a617439a48e33b73779d7c60caa534e3)
-    - Issue #434 — índice derivado de símbolos e pink nav localizar (PR #435, merge d6cb0febe5cb0ad8419503303aa5959a5ad79af0)
-  extraordinary_interruption: HF-9 — memória pública e contenção do host
-  current_delivery: Issue #438 — cobertura de diff somente leitura
+    - capacidade 1 — descoberta, ajuda e versão (PR #420, merge a22735385fde0a55b2cd1b3a010a9a6063600bda)
+    - capacidade 2 — snapshots, autoridade histórica e lifecycle (PRs #426, #430 e #432; merges d5a4008692e612618bf6b3188575e0bbcab3afaa, bcdcaf90635fa302a46e0de41fbe67688bdb2dc3 e 36efa31c96157fbf10ace812eae4906f888a417d)
+    - capacidade 3 — núcleo determinístico observacional (PRs #428 e #429; merges bd2107e1c3403cc5b550365dcbd67bafe534f39f e 7be6ca3205741dd674af1cc08d0b6ea06c3ad488)
+    - capacidade 4 — estado consolidado somente leitura (Issue #387, PR #433, merge 97ee0226a617439a48e33b73779d7c60caa534e3)
+    - capacidade 5 — índice derivado de símbolos e pink nav localizar (Issue #434, PR #435, merge d6cb0febe5cb0ad8419503303aa5959a5ad79af0)
+    - capacidade 6 — cobertura de diff somente leitura (Issue #438, PR #439, merge a1c656b7a243c1d5526ea256cc56aa7e65acab54)
+  not_executed: []
+  extraordinary_interruption: HF-9 — memória pública e contenção do host (PRs #421 e #422)
+  current_delivery: none
 
 Eixo_A:
-  status: PAUSED_BY_EXPLICIT_HUMAN_DECISION
-  next_functional_item_after_window: D2
+  status: INCOMPLETE
+  next_functional_priority: D2
 
 D2:
-  status: NOT_STARTED
+  status: NEXT_FUNCTIONAL_PRIORITY
+  implementation: NOT_STARTED
 ```
 
-A pausa do Eixo A não caracteriza defeito nem bloqueio técnico. É uma decisão
-explícita e temporária de prioridade, com retorno determinado para D2 após o
-encerramento da janela. O Eixo A continua sendo a prioridade funcional soberana:
-qualquer conflito material de escopo ou regressão favorece o Eixo A.
+A pausa temporária do Eixo A durante a janela não caracterizou defeito nem
+bloqueio técnico. Com o encerramento, D2 volta a ser a próxima prioridade
+funcional, ainda sem implementação iniciada. O Eixo A continua incompleto e
+soberano; esta transição não o declara `COMPLETE`.
 
 O HF-9 foi autorizado diretamente pela mantenedora depois do merge humano da
 PR #420. Sua unidade 1 é a memória pública da PR #421; a unidade 2 é a contenção
 do host da PR #422. A interrupção extraordinária não ocupa uma das seis
 entregas, não altera sua ordem e não inicia D2. Depois do merge humano da
-unidade 2, a entrega
-corrente volta a ser a segunda capacidade, snapshots e projeções da Issue #384.
+unidade 2, a entrega corrente voltou a ser a segunda capacidade, snapshots e
+projeções da Issue #384.
 
-## Ativação e efeito
+## Ativação, vigência e encerramento
 
 ```yaml
 activation_condition: PR de governança mergeada sobre main contendo D1
 activation_effect: exceção estreita ao portão pré-Eixo A
 not_an_effect: revogação geral do portão pós-Trama
+closure_condition: seis capacidades concluídas e PR documental mergeada
+closure_effect: D2 restaurado como próxima prioridade funcional
 ```
 
 A condição de ativação exige D1 concluída antes da vigência da janela. D1 foi
 concluída pela PR #418 e está contida na `main` pelo merge
 `09b7456fd57c2efcf71e54895b938a6a69d77307`. A presença deste documento na
-`main`, por merge humano da PR de governança, efetiva a decisão como `ACTIVE`.
+`main`, por merge humano da PR de governança, efetivou a decisão durante sua
+vigência. O merge humano da PR documental de encerramento torna o estado acima
+`CLOSED` e fecha a Issue #417 pelo vínculo `Closes #417`.
 
 A janela não abre Fase, Faixa ou Eixo, não reabre a Trama Pinker V1, não
 constitui Trama Nova e não declara `Eixo A — linguagem: COMPLETE`. Todas as
@@ -97,24 +104,27 @@ capacidades pós-Trama não enumeradas abaixo continuam adiadas.
 
 O propósito é permitir um conjunto fechado de infraestrutura determinística e
 observacional que reduza o custo das entregas restantes do Eixo A, sem competir
-com a evolução funcional da linguagem. Este documento governa propósito,
-estado, capacidades, escrita, ordem, limites por PR, suspensão, encerramento e
-retorno a D2.
+com a evolução funcional da linguagem. Este documento preserva propósito,
+estado histórico, capacidades entregues, escrita, ordem, limites por PR,
+suspensão, encerramento e retorno a D2.
 
 Em caso de divergência:
 
 1. a Issue #417 preserva a decisão humana de origem;
-2. este documento define sua aplicação operacional no repositório;
+2. este documento preserva sua aplicação operacional e seu encerramento;
 3. `docs/development/tramas-v1.md`, `AGENTS.md`, roadmap e handoff refletem esta
    autoridade;
 4. capacidades não enumeradas não podem ser inferidas, agregadas ou liberadas
    por analogia.
 
-## Capacidades autorizadas
+## Capacidades autorizadas e concluídas
 
-A autorização é exaustiva e contém exatamente seis entregas.
+A autorização foi exaustiva e todas as seis entregas foram concluídas. Nenhuma
+entrega autorizada foi omitida ou interrompida.
 
 ### 1. Etapa 1 da Issue #414
+
+Concluída pela PR #420.
 
 - ajuda;
 - versão;
@@ -127,6 +137,8 @@ Somente a Etapa 1 está autorizada; nenhuma etapa posterior da Issue #414 entra
 na janela por inferência.
 
 ### 2. Issue #384 — snapshots e projeções
+
+Concluída pelas PRs #426, #430 e #432.
 
 - snapshots históricos congelados;
 - projeção candidata;
@@ -143,6 +155,8 @@ cegamente.
 
 ### 3. Recorte observacional da Issue #385
 
+Concluído pelas PRs #428 e #429.
+
 - descoberta canônica do root;
 - paths repo-relativos;
 - modelo comum de relatório;
@@ -153,6 +167,8 @@ cegamente.
 - escrita explícita somente de artefatos derivados.
 
 ### 4. Recorte somente leitura da Issue #387
+
+Concluído pela PR #433.
 
 - estado dos catálogos;
 - drift;
@@ -166,11 +182,15 @@ cegamente.
 
 ### 5. Índice derivado de símbolos e `pink nav localizar`
 
+Concluído pela Issue #434 e PR #435.
+
 O índice deve ser derivado das autoridades existentes e a operação deve ser
 somente leitura, com saída humana e schema público versionado quando houver
 contrato estruturado.
 
 ### 6. Cobertura de diff somente leitura
+
+Concluída pela Issue #438 e PR #439.
 
 A cobertura relaciona diffs a superfícies afetadas por autoridades explícitas,
 sem editar fontes, aplicar correções ou apresentar inferência heurística como
@@ -178,7 +198,8 @@ certeza.
 
 ## Capacidades que continuam adiadas
 
-Permanecem fora da janela e nas listas históricas de trabalho futuro:
+Permanecem adiadas pelo portão pós-Trama e não foram liberadas pelo
+encerramento:
 
 - Trama Nova como programa completo;
 - Trama Viva;
@@ -199,7 +220,7 @@ Permanecem fora da janela e nas listas históricas de trabalho futuro:
 - auto-merge;
 - qualquer mudança da semântica da linguagem.
 
-## Política de escrita
+## Política de escrita preservada
 
 ### Modo padrão
 
@@ -226,7 +247,7 @@ explícito. Toda escrita exige:
 - auto-merge;
 - modificação de branches de trabalho de linguagem.
 
-## Ordem das entregas
+## Ordem executada das entregas
 
 1. Etapa 1 da Issue #414;
 2. snapshots e projeções da Issue #384;
@@ -235,12 +256,12 @@ explícito. Toda escrita exige:
 5. índice derivado de símbolos e `pink nav localizar`;
 6. cobertura de diff somente leitura.
 
-A ordem só pode mudar por decisão humana registrada. D2 não começa durante a
-janela e permanece o próximo item funcional depois de seu encerramento.
+A ordem não mudou. D2 não começou durante a janela e agora é a próxima
+prioridade funcional, sem implementação iniciada por esta PR documental.
 
-## Limites por PR
+## Limites aplicados por PR
 
-- uma PR de implementação da janela ativa por vez;
+- durante a vigência, uma PR de implementação da janela ativa por vez;
 - uma capacidade coerente por PR;
 - exatamente um bloco `pinker-change`;
 - nenhum novo requisito obrigatório para D2 sem decisão humana separada;
@@ -257,7 +278,7 @@ janela e permanece o próximo item funcional depois de seu encerramento.
 Cada PR deve fechar um único contrato operacional auditável e não pode misturar
 duas capacidades autorizadas.
 
-## Critérios de suspensão
+## Critérios de suspensão preservados
 
 Uma entrega deve parar e retornar para decisão humana quando:
 
@@ -274,18 +295,17 @@ Uma entrega deve parar e retornar para decisão humana quando:
 
 ## Encerramento e retorno
 
-O encerramento exige uma PR documental específica, mesmo quando antecipado por
-decisão humana. Essa PR deve:
+O encerramento foi preparado por esta PR documental específica depois da
+conclusão das seis capacidades. Ela:
 
-- registrar o inventário final;
-- marcar entregas concluídas;
-- registrar entregas omitidas ou interrompidas;
-- atualizar roadmap e handoff;
-- restaurar D2 como prioridade ativa;
-- preservar capacidades não autorizadas como adiadas;
-- não declarar o Eixo A completo.
+- registra o inventário final;
+- marca as seis entregas como concluídas e nenhuma como omitida;
+- atualiza roadmap e handoff;
+- restaura D2 como próxima prioridade funcional, sem iniciá-lo;
+- preserva capacidades não autorizadas como adiadas;
+- mantém o Eixo A explicitamente incompleto.
 
-A janela pode terminar após as seis entregas, ser encerrada antecipadamente por
-decisão humana ou parar diante de limitação arquitetural. Até o merge humano da
-PR de encerramento, seu estado canônico permanece `ACTIVE`.
+A janela termina pelo merge humano desta PR documental. Na branch da PR, a
+Issue #417 permanece aberta; o merge aplica `Closes #417`, publica este estado
+`CLOSED` na `main` e mantém D2 como `NEXT_FUNCTIONAL_PRIORITY`.
 <!-- @pinker-doc:end development.deterministic-infrastructure-window.current -->

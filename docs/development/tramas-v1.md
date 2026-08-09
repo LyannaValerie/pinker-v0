@@ -73,7 +73,7 @@ função; alocador; protótipo bare-metal; ou conclusão parcial do Bloco 20. El
 satisfeito somente quando o roadmap canônico declarar explicitamente
 `Eixo A — linguagem: COMPLETE`.
 
-## Exceção estreita da Issue #417
+## Exceção estreita encerrada da Issue #417
 
 O portão geral até `Eixo A — linguagem: COMPLETE` continua vigente. Depois de
 D1 adulta, concluída pela PR #418, a decisão humana da Issue #417 autorizou uma
@@ -81,11 +81,11 @@ janela auxiliar nominal e temporária. Sua autoridade operacional, lista fechada
 de seis capacidades, ordem, política de escrita, suspensão e encerramento estão
 em `janela-infraestrutura-deterministica.md`.
 
-A janela não constitui Trama Nova, não reabre a Trama Pinker V1 e não altera as
-listas históricas de trabalho futuro. Conflitos materiais favorecem o Eixo A,
-que permanece a prioridade funcional soberana. A exceção termina somente por
-encerramento explícito; toda capacidade não enumerada continua bloqueada pelo
-portão geral.
+A janela concluiu as seis capacidades e foi encerrada pela PR documental
+específica prevista em seu contrato. Ela não constituiu Trama Nova, não reabriu
+a Trama Pinker V1 e não alterou as listas históricas de trabalho futuro. D2 foi
+restaurado como próxima prioridade funcional, ainda não iniciado; toda
+capacidade não enumerada continua bloqueada pelo portão geral.
 
 ## Tramas futuras
 
@@ -100,9 +100,9 @@ Adiados até depois do Eixo A:
 - Trama Nova;
 - Trama Viva;
 - pós-Trama;
-- índice de símbolos;
-- `pink nav localizar`;
-- cobertura de diff;
+- expansão geral do índice de símbolos além do recorte derivado entregue;
+- expansão de `pink nav localizar` além do contrato entregue;
+- expansão da cobertura de diff além do contrato somente leitura entregue;
 - edição transacional;
 - split/merge assistido;
 - grafo de código;
@@ -111,9 +111,9 @@ Adiados até depois do Eixo A:
 - evolução do Supervisor;
 - endurecimento pós-Trama de paridade nativa.
 
-Esta lista preserva o portão histórico. Durante a janela da Issue #417, somente
-os recortes expressamente enumerados no documento canônico da janela são
-excepcionados; isso não libera os programas completos listados acima.
+Esta lista preserva o portão histórico. Os recortes expressamente enumerados na
+Issue #417 foram entregues e a exceção terminou; isso não libera os programas
+completos nem expansões dos contratos entregues.
 
 ## Capacidades já cobertas
 
@@ -144,10 +144,9 @@ todos os campos do schema e mantém a ordem declarada de listas e atualizações
 
 ## Capacidades reconsideráveis depois do Eixo A
 
-- índice de símbolos;
-- símbolo → região;
-- `pink nav localizar`;
-- `pink nav cobertura-diff`;
+- expansões do índice de símbolos e de símbolo → região;
+- expansões de `pink nav localizar`;
+- expansões de `pink nav cobertura-diff`;
 - planos `ADD`, `REMOVE`, `MODIFY`;
 - aplicação transacional;
 - split/merge;
@@ -182,8 +181,8 @@ todos os campos do schema e mantém a ordem declarada de listas e atualizações
 - Não conclui a Issue #384.
 - Permanece inalterada.
 - Não deve ser rebaseada, atualizada ou mergeada.
-- A janela da Issue #417 permite uma implementação nova de snapshots somente a
-  partir de novo inventário sobre a `main` pós-D1.
+- A janela da Issue #417 permitiu a implementação nova de snapshots a partir de
+  inventário sobre a `main` pós-D1; essa autorização está encerrada.
 - Ideias podem ser reaproveitadas após inspeção; commits não devem ser
   transplantados cegamente.
 
@@ -199,9 +198,10 @@ Trama_Pinker_V1:
   functional_expansion: false
 
 Eixo_A_Bloco_20:
-  resume_after_closure: true
+  status: INCOMPLETE
+  next_functional_priority: D2
   priority_over_future_Tramas: functional_sovereign
-  temporary_exception: development.deterministic-infrastructure-window
+  temporary_exception: CLOSED_HISTORICAL
 
 future_Tramas:
   start_before_Eixo_A_complete: false

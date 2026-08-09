@@ -93,11 +93,12 @@ Mapa curto por feature: `docs/code_map.md`.
 - A Trama Pinker V1 está formalmente concluída. Trama Nova, pós-Trama, TUI,
   edição transacional e expansões de orquestração permanecem adiados até
   `Eixo A — linguagem: COMPLETE`. A janela auxiliar de infraestrutura
-  determinística é exceção estreita apenas para as capacidades enumeradas em
-  `docs/development/janela-infraestrutura-deterministica.md`; agentes devem
-  bloquear qualquer tarefa da janela que exceda essa lista fechada.
-  A janela não autoriza mudança semântica da
-  linguagem, novo executor, auto-merge ou modificação automática de fontes.
+  determinística da Issue #417 foi encerrada após suas seis capacidades; seu
+  inventário e seus limites permanecem históricos em
+  `docs/development/janela-infraestrutura-deterministica.md`, sem autorizar
+  novas tarefas por analogia. D2 é a próxima prioridade funcional, ainda não
+  iniciada. Mudança semântica da linguagem, novo executor, auto-merge ou
+  modificação automática de fontes continuam fora dessa autoridade histórica.
 - Validar com `build`, `test`, `fmt-check` e `clippy` antes de encerrar.
 
 ## O que sempre checar em mudança funcional
