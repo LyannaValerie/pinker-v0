@@ -70,9 +70,9 @@ sem varrer `src/` ou `examples/` indiscriminadamente.
 ## Autoridade
 
 O Desenvolvimento é proprietário das convenções de apps internas e do índice de
-exemplos. O mapa de código aponta, mas não substitui, a navegação `pink nav`. A
-janela auxiliar autorizada pela Issue #417 tem autoridade operacional própria em
-`janela-infraestrutura-deterministica.md`.
+exemplos. O mapa de código aponta, mas não substitui, a navegação `pink nav`. O
+inventário e os limites históricos da janela auxiliar encerrada da Issue #417
+permanecem em `janela-infraestrutura-deterministica.md`.
 
 ## Mapa
 
@@ -97,7 +97,7 @@ janela auxiliar autorizada pela Issue #417 tem autoridade operacional própria e
 | índice de exemplos e testes | `../examples_index.md` |
 | mapa de código por feature | `../code_map.md` |
 | navegação semântica do código | `pink nav buscar "<conceito>"` |
-| janela auxiliar de infraestrutura determinística | `janela-infraestrutura-deterministica.md` |
+| janela encerrada de infraestrutura determinística | `janela-infraestrutura-deterministica.md` |
 | snapshots históricos de projeção | `projection-snapshots-contract.md` |
 | núcleo comum de automação | `automation-core-contract.md` |
 | estado consolidado somente leitura | `consolidated-project-state-contract.md` |
@@ -133,5 +133,6 @@ junto com a feature, e os marcadores `@pinker-nav` acompanham o código.
 
 O contrato de conclusão da Trama Pinker V1 e a ordem das futuras Tramas
 estão em `tramas-v1.md`. Nenhuma Trama posterior entra antes de o roadmap
-declarar `Eixo A — linguagem: COMPLETE`. A única exceção corrente é a janela
-estreita e nominal definida em `janela-infraestrutura-deterministica.md`.
+declarar `Eixo A — linguagem: COMPLETE`. A exceção estreita da Issue #417 está
+encerrada; suas entregas permanecem factuais, mas nenhuma expansão adicional é
+autorizada por ela.
