@@ -1667,7 +1667,7 @@ fn cli_run_global_funciona() {
 // @pinker-nav:start evidencia.interpreter.diagnostico-runtime-avaliacao-e-chamadas
 // @pinker-nav:domain interpreter
 // @pinker-nav:layer evidencia
-// @pinker-nav:summary Espera falhas de avaliação e chamadas no runtime — divisão/módulo por zero, stack trace em chamada/recursão, limite de recursão, slot não inicializado e call sem valor — verificando categoria e trechos por contains.
+// @pinker-nav:summary Espera falhas de avaliação e chamadas no runtime — divisão/módulo por zero, stack trace em chamada e recursão finita profunda, slot não inicializado e call sem valor — verificando categoria e trechos por contains.
 #[test]
 fn run_falha_divisao_por_zero() {
     let program = MachineProgram {
@@ -1793,46 +1793,13 @@ fn run_falha_runtime_em_recursao_tem_stack_trace() {
 }
 
 #[test]
-fn run_falha_limite_recursao_excedido_tem_categoria_e_trace() {
-    // As threads criadas pelo harness de testes possuem uma pilha menor que
-    // a thread principal de um processo Pinker. A ampliação do estado do
-    // interpretador na Fase 244 aumentou o frame hospedado, mas o contrato
-    // preventivo continua sendo exatamente 64 chamadas.
-    let err = std::thread::Builder::new()
-        .name("pinker-recursion-limit-test".to_string())
-        .stack_size(8 * 1024 * 1024)
-        .spawn(|| {
-            run_code(
-                "pacote main; carinho loop() -> bombom { mimo loop(); } carinho principal() -> bombom { mimo loop(); }",
-            )
-            .unwrap_err()
-        })
-        .expect("falha ao criar thread do teste de recursão")
-        .join()
-        .expect("thread do teste de recursão entrou em pânico");
+fn run_recursao_terminante_atravessa_teto_historico() {
+    let result = run_code(
+        "pacote main; carinho descer(n: bombom) -> bombom { talvez n == 0 { mimo 42; } senao { mimo descer(n - 1); } } carinho principal() -> bombom { mimo descer(80); }",
+    )
+    .unwrap();
 
-    assert!(
-        err.contains("[runtime::limite_recursao_excedido]"),
-        "mensagem: {}",
-        err
-    );
-    assert!(
-        err.contains("limite preventivo de recursão excedido"),
-        "mensagem: {}",
-        err
-    );
-    assert!(
-        err.contains("profundidade máxima de chamadas (64)"),
-        "mensagem: {}",
-        err
-    );
-    assert!(err.contains("stack trace:"), "mensagem: {}", err);
-    assert!(
-        err.contains("at principal [bloco: entry] [instr: call]"),
-        "mensagem: {}",
-        err
-    );
-    assert!(err.contains("at loop"), "mensagem: {}", err);
+    assert_eq!(result, Some(RuntimeValue::Int(42)));
 }
 
 #[test]
@@ -2280,6 +2247,24 @@ fn run_cli_example(path: &str) -> std::process::Output {
         .unwrap()
 }
 
+fn run_cli_source(name: &str, source: &str) -> std::process::Output {
+    let path = std::env::temp_dir().join(format!("{name}-{}.pink", std::process::id()));
+    fs::write(&path, source).expect("gravar fonte temporário");
+    let output = Command::new(env!("CARGO_BIN_EXE_pink"))
+        .arg("--run")
+        .arg(&path)
+        .output()
+        .expect("executar fonte temporário");
+    fs::remove_file(path).expect("remover fonte temporário");
+    output
+}
+
+fn deep_runtime_failure_source(depth: u64) -> String {
+    format!(
+        "pacote main; carinho queda(n: bombom) -> bombom {{ talvez n == 0 {{ mimo 10 / 0; }} senao {{ mimo queda(n - 1); }} }} carinho principal() -> bombom {{ mimo queda({depth}); }}"
+    )
+}
+
 fn run_cli_example_with_args(path: &str, args: &[&str]) -> std::process::Output {
     Command::new(env!("CARGO_BIN_EXE_pink"))
         .arg("--run")
@@ -2604,25 +2589,21 @@ fn cli_repl_sem_arquivo_rejeita_argumento_posicional() {
 }
 
 #[test]
-fn cli_run_erro_runtime_limite_recursao_tem_saida_previsivel() {
-    let out = run_cli_example("examples/run_recursao_limite_cli.pink");
+fn cli_run_erro_runtime_profundo_tem_saida_previsivel() {
+    let source = deep_runtime_failure_source(128);
+    let out = run_cli_source("pinker_run_erro_profundo", &source);
     assert!(!out.status.success());
     assert!(String::from_utf8_lossy(&out.stdout).is_empty());
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(stderr.contains("Erro Runtime:"), "stderr: {}", stderr);
     assert!(
-        stderr.contains("[runtime::limite_recursao_excedido]"),
-        "stderr: {}",
-        stderr
-    );
-    assert!(
-        stderr.contains("limite preventivo de recursão excedido"),
+        stderr.contains("[runtime::divisao_por_zero]"),
         "stderr: {}",
         stderr
     );
     assert!(stderr.contains("stack trace:"), "stderr: {}", stderr);
     assert!(stderr.contains("at principal"), "stderr: {}", stderr);
-    assert!(stderr.contains("at loop"), "stderr: {}", stderr);
+    assert!(stderr.contains("at queda"), "stderr: {}", stderr);
     assert!(stderr.contains("[instr: call]"), "stderr: {}", stderr);
     assert!(
         stderr.contains("  localização: indisponível"),
@@ -2709,20 +2690,7 @@ fn run_trace_curto_sem_truncamento() {
 
 #[test]
 fn run_trace_longo_e_truncado() {
-    // Recursão infinita atinge MAX_CALL_DEPTH e produz trace com dezenas de frames.
-    // O trace deve ser resumido com linha de omissão.
-    let err = std::thread::Builder::new()
-        .name("pinker-trace-long-truncated-test".to_string())
-        .stack_size(8 * 1024 * 1024)
-        .spawn(|| {
-            run_code(
-                "pacote main; carinho loop() -> bombom { mimo loop(); } carinho principal() -> bombom { mimo loop(); }",
-            )
-            .unwrap_err()
-        })
-        .expect("falha ao criar thread do teste de trace longo")
-        .join()
-        .expect("thread do teste de trace longo entrou em pânico");
+    let err = run_code(&deep_runtime_failure_source(128)).unwrap_err();
 
     assert!(err.contains("stack trace:"), "mensagem: {}", err);
     assert!(
@@ -2736,24 +2704,12 @@ fn run_trace_longo_e_truncado() {
         "principal deve aparecer: {}",
         err
     );
-    assert!(err.contains("at loop"), "loop deve aparecer: {}", err);
+    assert!(err.contains("at queda"), "queda deve aparecer: {}", err);
 }
 
 #[test]
 fn run_trace_longo_preserva_frames_iniciais_e_finais() {
-    // Verifica que o trace resumido contém frames do início e do final.
-    let err = std::thread::Builder::new()
-        .name("pinker-trace-long-boundaries-test".to_string())
-        .stack_size(8 * 1024 * 1024)
-        .spawn(|| {
-            run_code(
-                "pacote main; carinho loop() -> bombom { mimo loop(); } carinho principal() -> bombom { mimo loop(); }",
-            )
-            .unwrap_err()
-        })
-        .expect("falha ao criar thread do teste de trace longo")
-        .join()
-        .expect("thread do teste de trace longo entrou em pânico");
+    let err = run_code(&deep_runtime_failure_source(96)).unwrap_err();
 
     // Frames iniciais: principal (frame 0) e loop (frame 1+) devem aparecer
     assert!(
@@ -2761,10 +2717,10 @@ fn run_trace_longo_preserva_frames_iniciais_e_finais() {
         "frame inicial principal deve aparecer: {}",
         err
     );
-    // Frames finais: loop deve aparecer (nos últimos 5)
+    // Frames finais: queda deve aparecer (nos últimos 5)
     assert!(
-        err.contains("at loop"),
-        "frames finais de loop devem aparecer: {}",
+        err.contains("at queda"),
+        "frames finais de queda devem aparecer: {}",
         err
     );
     // Linha de omissão com contagem explícita
@@ -2776,13 +2732,13 @@ fn run_trace_longo_preserva_frames_iniciais_e_finais() {
 }
 
 #[test]
-fn cli_run_limite_recursao_trace_truncado_na_saida() {
-    // CLI: trace longo de recursão deve aparecer truncado no stderr.
-    let out = run_cli_example("examples/run_recursao_limite_cli.pink");
+fn cli_run_erro_profundo_trace_truncado_na_saida() {
+    let source = deep_runtime_failure_source(128);
+    let out = run_cli_source("pinker_run_trace_profundo", &source);
     assert!(!out.status.success());
     let stderr = String::from_utf8_lossy(&out.stderr);
     assert!(
-        stderr.contains("[runtime::limite_recursao_excedido]"),
+        stderr.contains("[runtime::divisao_por_zero]"),
         "stderr: {}",
         stderr
     );
@@ -2796,7 +2752,11 @@ fn cli_run_limite_recursao_trace_truncado_na_saida() {
         "principal deve aparecer: {}",
         stderr
     );
-    assert!(stderr.contains("at loop"), "loop deve aparecer: {}", stderr);
+    assert!(
+        stderr.contains("at queda"),
+        "queda deve aparecer: {}",
+        stderr
+    );
 }
 
 // @pinker-nav:end evidencia.interpreter.diagnostico-stack-trace-truncamento

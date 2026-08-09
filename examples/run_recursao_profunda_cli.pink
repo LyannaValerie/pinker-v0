@@ -1,0 +1,14 @@
+pacote main;
+
+carinho descer(restantes: bombom) -> bombom {
+    talvez restantes == 0 {
+        mimo 42;
+    } senao {
+        mimo descer(restantes - 1);
+    }
+}
+
+carinho principal() -> bombom {
+    falar(descer(128));
+    mimo 0;
+}
