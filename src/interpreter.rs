@@ -192,10 +192,11 @@ struct CallableState {
     // Memoiza o handle de cada função top-level não capturante referenciada
     // como valor, para não recriar descritor a cada `PushFunctionRef`.
     static_by_name: HashMap<String, u64>,
-    // Fase 243: contador de endereços simulados para ambientes de closure em
-    // heap. Base bem acima de qualquer endereço estático (`build_memory`
-    // começa em 1) para nunca colidir.
-    next_heap_addr: usize,
+    // Fase 243/D3: contador de endereços simulados para a alocação possuída
+    // pelo descritor dinâmico. O ambiente começa 16 bytes depois do descritor,
+    // igual ao bloco contíguo do runtime nativo. A base fica bem acima de
+    // qualquer endereço estático (`build_memory` começa em 1).
+    next_allocation_addr: usize,
 }
 
 impl CallableState {
@@ -204,7 +205,7 @@ impl CallableState {
             table: HashMap::new(),
             next_handle: 1,
             static_by_name: HashMap::new(),
-            next_heap_addr: 0x1000_0000,
+            next_allocation_addr: 0x1000_0000,
         }
     }
 
@@ -231,9 +232,46 @@ impl CallableState {
     // do literal `carinho`) tem seu próprio ambiente, mesmo para o mesmo
     // `function_name` (duas chamadas de `fabricar_somador` produzem duas
     // closures com o mesmo código e ambientes distintos).
-    fn create_closure_instance(&mut self, function_name: &str, env_addr: Option<usize>) -> u64 {
+    fn create_closure_instance(
+        &mut self,
+        function_name: &str,
+        captured: Vec<RuntimeValue>,
+        memory: &mut HashMap<usize, RuntimeValue>,
+    ) -> Result<u64, PinkerError> {
+        const DESCRIPTOR_BYTES: usize = 16;
+
+        let environment_bytes = captured
+            .len()
+            .checked_mul(8)
+            .ok_or_else(|| runtime_err("E-RUNTIME-CALLABLE-ALLOCATION: overflow no ambiente"))?;
+        let allocation_bytes = DESCRIPTOR_BYTES
+            .checked_add(environment_bytes)
+            .ok_or_else(|| runtime_err("E-RUNTIME-CALLABLE-ALLOCATION: overflow no layout"))?;
+        let allocation_addr = self.next_allocation_addr;
+        let next_allocation_addr =
+            allocation_addr
+                .checked_add(allocation_bytes)
+                .ok_or_else(|| {
+                    runtime_err("E-RUNTIME-CALLABLE-ALLOCATION: espaço de endereços esgotado")
+                })?;
         let handle = self.next_handle;
-        self.next_handle += 1;
+        let next_handle = handle.checked_add(1).ok_or_else(|| {
+            runtime_err("E-RUNTIME-CALLABLE-ALLOCATION: espaço de handles esgotado")
+        })?;
+
+        self.table.try_reserve(1).map_err(|_| {
+            runtime_err("E-RUNTIME-CALLABLE-ALLOCATION: descritor não pôde ser reservado")
+        })?;
+        memory.try_reserve(captured.len()).map_err(|_| {
+            runtime_err("E-RUNTIME-CALLABLE-ALLOCATION: ambiente não pôde ser reservado")
+        })?;
+
+        let env_addr = (!captured.is_empty()).then_some(allocation_addr + DESCRIPTOR_BYTES);
+        if let Some(base) = env_addr {
+            for (index, value) in captured.into_iter().enumerate() {
+                memory.insert(base + index * 8, value);
+            }
+        }
         self.table.insert(
             handle,
             CallableDescriptor {
@@ -241,16 +279,9 @@ impl CallableState {
                 env_addr,
             },
         );
-        handle
-    }
-
-    // Fase 243: reserva `count` endereços contíguos em `memory` para um novo
-    // ambiente de closure; devolve o endereço base (offset 0 == captura 0),
-    // igual ao layout `env_ptr + i*8` do IR/backend nativo.
-    fn allocate_env(&mut self, count: usize) -> usize {
-        let base = self.next_heap_addr;
-        self.next_heap_addr += count.max(1) * 8;
-        base
+        self.next_handle = next_handle;
+        self.next_allocation_addr = next_allocation_addr;
+        Ok(handle)
     }
 }
 
@@ -1619,16 +1650,7 @@ fn exec_instr(
             capture_count,
         } => {
             let captured = pop_args(stack, *capture_count)?;
-            let env_addr = if captured.is_empty() {
-                None
-            } else {
-                let base = callable_state.allocate_env(captured.len());
-                for (index, value) in captured.into_iter().enumerate() {
-                    memory.insert(base + index * 8, value);
-                }
-                Some(base)
-            };
-            let handle = callable_state.create_closure_instance(function_name, env_addr);
+            let handle = callable_state.create_closure_instance(function_name, captured, memory)?;
             stack.push(RuntimeValue::Callable(handle));
         }
         MachineInstr::CallIndirect { argc } => {
@@ -6746,6 +6768,62 @@ mod fase244_trait_runtime_tests {
             state.table.get(&alias).unwrap().data_addr,
             state.table.get(&first).unwrap().data_addr
         );
+    }
+}
+
+#[cfg(test)]
+mod d3_callable_lifetime_tests {
+    use super::*;
+
+    #[test]
+    fn descritor_possui_ambiente_trailing_e_instancias_sao_independentes() {
+        let mut state = CallableState::new();
+        let mut memory = HashMap::new();
+
+        let first = state
+            .create_closure_instance(
+                "closure",
+                vec![RuntimeValue::Int(11), RuntimeValue::Int(22)],
+                &mut memory,
+            )
+            .expect("primeira closure");
+        let second = state
+            .create_closure_instance(
+                "closure",
+                vec![RuntimeValue::Int(33), RuntimeValue::Int(44)],
+                &mut memory,
+            )
+            .expect("segunda closure");
+
+        let first_env = state.table[&first].env_addr.expect("ambiente 1");
+        let second_env = state.table[&second].env_addr.expect("ambiente 2");
+        assert_eq!(first_env, 0x1000_0000 + 16);
+        assert_eq!(second_env, 0x1000_0000 + 32 + 16);
+        assert_eq!(memory[&first_env], RuntimeValue::Int(11));
+        assert_eq!(memory[&(first_env + 8)], RuntimeValue::Int(22));
+        assert_eq!(memory[&second_env], RuntimeValue::Int(33));
+        assert_eq!(memory[&(second_env + 8)], RuntimeValue::Int(44));
+
+        let alias = first;
+        assert_eq!(state.table[&alias].env_addr, Some(first_env));
+    }
+
+    #[test]
+    fn falha_de_endereco_nao_publica_handle_nem_ambiente_parcial() {
+        let mut state = CallableState::new();
+        state.next_allocation_addr = usize::MAX - 7;
+        let mut memory = HashMap::new();
+
+        let error = state
+            .create_closure_instance("closure", vec![RuntimeValue::Int(1)], &mut memory)
+            .expect_err("layout deve exceder o espaço de endereços")
+            .to_string();
+
+        assert!(error.contains("E-RUNTIME-CALLABLE-ALLOCATION"), "{error}");
+        assert!(state.table.is_empty(), "nenhum handle pode ser publicado");
+        assert!(memory.is_empty(), "nenhum ambiente parcial pode permanecer");
+        assert_eq!(state.next_handle, 1);
+        assert_eq!(state.next_allocation_addr, usize::MAX - 7);
     }
 }
 

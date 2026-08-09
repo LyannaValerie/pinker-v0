@@ -6,7 +6,7 @@ justification = "Onda D do agente Pinker: congelamento do contract-v1 sem fechar
 
 [reconstruction]
 recipes = ["normalizacao-corrente-para-historico"]
-expected_overrides = 91
+expected_overrides = 93
 expected_exclusions = 17
 
 [measures]
@@ -489,7 +489,7 @@ expect_layer = "interpreter"
 [[rules]]
 op = "override-hash"
 key = "interpreter.execucao.instrucoes-pilha"
-from = "fnv1a64:420763a1c7029410"
+from = "fnv1a64:06ab103a1237b184"
 to = "fnv1a64:487e50b84b8db0f4"
 expect_file = "src/interpreter.rs"
 expect_domain = "execucao"
@@ -516,7 +516,7 @@ expect_layer = "interpreter"
 [[rules]]
 op = "override-hash"
 key = "interpreter.modelo.valores-estado"
-from = "fnv1a64:c211281462e738b4"
+from = "fnv1a64:e30c064309fd29d3"
 to = "fnv1a64:bb92bae9203294f9"
 expect_file = "src/interpreter.rs"
 expect_domain = "modelo"
@@ -767,6 +767,15 @@ expect_layer = "parser"
 
 [[rules]]
 op = "override-hash"
+key = "runtime.memoria.alocador"
+from = "fnv1a64:4f3d41965dcbd394"
+to = "fnv1a64:c4a30b5462bb8003"
+expect_file = "runtime/pinker_rt/src/lib.rs"
+expect_domain = "memoria"
+expect_layer = "runtime"
+
+[[rules]]
+op = "override-hash"
 key = "select.lowering.instrucoes"
 from = "fnv1a64:09cff58eb4613ac8"
 to = "fnv1a64:3df58f5e0c562311"
@@ -889,7 +898,7 @@ expect_layer = "backend-s"
 [[rules]]
 op = "override-region"
 key = "backend-s.lowering.chamadas-sysv"
-from_hash = "fnv1a64:28ac356c35861d2e"
+from_hash = "fnv1a64:9bcbd95ce8c3a26f"
 to_hash = "fnv1a64:41573bf652654758"
 from_summary = "Lowering de chamadas no corpo do bloco (ABI SysV): `Call` com destino trata `__ternario` de braços trivialmente puros como seleção por `cmpq`+`cmoveq`; ternários com efeitos já chegam como ramos CFG lazy. Demais chamadas resolvem intrínsecas por aridade (`runtime_intrinsic_symbol_por_aridade`) e por nome (`runtime_intrinsic_symbol`) ou chamam função Pinker por símbolo direto, passam os 6 primeiros argumentos em `ARG_REGS`, empilham o 7º+ do último ao primeiro com padding de alinhamento e limpam a pilha após o `call`, guardando `%rax` no slot de destino. Símbolo desconhecido é recusado."
 to_summary = "Lowering de chamadas no corpo do bloco (ABI SysV): `Call` com destino — trata `__ternario` como seleção por `cmpq`+`cmoveq` (sem `call` real, ambos os lados avaliados eager), resolve intrínsecas por aridade (`runtime_intrinsic_symbol_por_aridade`) e por nome (`runtime_intrinsic_symbol`) ou chama função Pinker por símbolo direto, passa os 6 primeiros argumentos em `ARG_REGS`, empilha o 7º+ do último ao primeiro com padding de alinhamento e limpa a pilha após o `call`, guardando `%rax` no slot de destino — e `CallVoid` (mesma ABI, sem store de retorno). Símbolo desconhecido de função inexistente é recusado."
@@ -911,7 +920,7 @@ expect_layer = "cfg"
 [[rules]]
 op = "override-region"
 key = "evidencia.backend-nativo.emissao-abi-e-fluxo-textual"
-from_hash = "fnv1a64:e7997c6cc081ba94"
+from_hash = "fnv1a64:9632ca5ae7fa02e3"
 to_hash = "fnv1a64:f9435a27f680cb46"
 from_summary = "Cinco testes que chamam emit_external_toolchain_subset — caminho HOSPEDADO, runtime_init=false — e verificam apenas o texto emitido para a ABI SysV (seis registradores de argumento e passagem por pilha), o padding de alinhamento de pilha, a recursão direta, o `cmov` de ternário com braços puros e os saltos dos construtos de controle de fluxo. Nenhuma toolchain externa é invocada, nenhum runtime é ligado e nada é executado."
 to_summary = "Cinco testes que chamam emit_external_toolchain_subset — caminho HOSPEDADO, runtime_init=false — e verificam apenas o texto emitido para a ABI SysV (seis registradores de argumento e passagem por pilha), o padding de alinhamento de pilha, a recursão direta, o `cmov` do ternário e os saltos dos construtos de controle de fluxo. Nenhuma toolchain externa é invocada, nenhum runtime é ligado e nada é executado."
@@ -928,4 +937,15 @@ from_summary = "Espera falhas de avaliação e chamadas no runtime — divisão/
 to_summary = "Espera falhas de avaliação e chamadas no runtime — divisão/módulo por zero, stack trace em chamada/recursão, limite de recursão, slot não inicializado e call sem valor — verificando categoria e trechos por contains."
 expect_file = "tests/interpreter_tests.rs"
 expect_domain = "interpreter"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.runtime.memoria-alocador"
+from_hash = "fnv1a64:6a55d0547cdd5ba2"
+to_hash = "fnv1a64:f58cb980bcf776e6"
+from_summary = "Abertura do módulo de testes internos do runtime nativo e evidência em memória do alocador: alinhamento e usabilidade do bloco devolvido por `pinker_alocar`, não sobreposição entre alocações independentes, layout possuído e checked de closures, alocação de zero bytes e tolerância a `pinker_liberar` sobre ponteiro nulo."
+to_summary = "Abertura do módulo de testes internos do runtime nativo e evidência em memória do alocador: alinhamento e usabilidade do bloco devolvido por `pinker_alocar`, não sobreposição entre alocações independentes, alocação de zero bytes e tolerância a `pinker_liberar` sobre ponteiro nulo."
+expect_file = "runtime/pinker_rt/src/lib.rs"
+expect_domain = "memoria"
 expect_layer = "evidencia"
