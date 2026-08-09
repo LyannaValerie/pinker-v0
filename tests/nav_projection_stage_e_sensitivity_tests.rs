@@ -56,6 +56,10 @@ fn region(key: &str) -> CodeRegion {
         summary: key.to_string(),
         hash: "fnv1a64:0000000000000001".to_string(),
         status: "active".to_string(),
+        symbols: Vec::new(),
+        related_symbols: Vec::new(),
+        test_for: Vec::new(),
+        symbol_docs: Vec::new(),
     }
 }
 

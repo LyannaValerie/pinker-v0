@@ -50,9 +50,10 @@ janela_auxiliar:
   completed:
     - Etapa 1 da Issue #414 (PR #420)
     - Issue #385 — núcleo determinístico puro e apply local (PRs #428 e #429)
-    - Issue #384 — snapshots, autoridade histórica e lifecycle (PRs #430 e #432)
+    - Issue #384 — snapshots, autoridade histórica e lifecycle (PRs #426, #430 e #432)
+    - Issue #387 — estado consolidado somente leitura (PR #433, merge 97ee0226a617439a48e33b73779d7c60caa534e3)
   extraordinary_interruption: HF-9 — memória pública e contenção do host
-  current_delivery: Issue #387 — estado consolidado somente leitura
+  current_delivery: Issue #434 — índice derivado de símbolos e pink nav localizar
 
 Eixo_A:
   status: PAUSED_BY_EXPLICIT_HUMAN_DECISION

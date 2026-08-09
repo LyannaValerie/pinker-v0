@@ -102,6 +102,7 @@ inválido escrevem em stderr e terminam com código `2`.
 | `pink nav projecao verificar [ID]` | Verificação composta, com drift e harness distintos |
 | `pink nav projecao preparar ID ...` | Planeja/prepara CANDIDATE por digest explícito |
 | `pink nav projecao aceitar ID ...` | Planeja/aceita a transição única para FROZEN |
+| `pink nav localizar SÍMBOLO [--json]` | Resolve símbolos e vínculos explícitos pelo índice derivado |
 | `pink estado [--repo DIRETÓRIO] [--agente-spec ARQUIVO] [--json]` | Estado consolidado, determinístico e somente leitura do projeto |
 
 Os códigos públicos distinguem `0` (sucesso, ajuda ou versão), `1` (falha

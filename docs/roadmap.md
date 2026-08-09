@@ -46,7 +46,8 @@ trabalho quando houver justificativa arquitetural material.
 A Issue #417 autorizou uma exceção estreita ao portão pré-Eixo A, ativada por
 esta governança depois da conclusão de D1. A janela está `ACTIVE`; o Eixo A está
 `PAUSED_BY_EXPLICIT_HUMAN_DECISION`, sem defeito técnico e sem declaração de
-conclusão. A primeira entrega é a Etapa 1 da Issue #414. D2 permanece
+conclusão. Quatro entregas foram concluídas; a quinta é o índice derivado de
+símbolos e `pink nav localizar`, sob a Issue #434. D2 permanece
 `NOT_STARTED` e é o próximo trabalho funcional após a PR explícita de
 encerramento da janela.
 

@@ -175,11 +175,13 @@ fn retain_membership_base(catalog: &mut CodeCatalog) {
 /// Membresia histórica observada pelos gates da Onda 8E.
 fn historical_membership_onda_8e(catalog: &mut CodeCatalog) {
     retain_membership_base(catalog);
+    remove_symbol_index_membership(catalog);
 }
 
 /// Membresia histórica observada pelos gates anteriores à Onda 8F.
 fn historical_membership_pre_onda_8f(catalog: &mut CodeCatalog) {
     retain_membership_base(catalog);
+    remove_symbol_index_membership(catalog);
     // Fronteira da Fase 244 pós-semântica: as regiões que a fase acrescentou.
     catalog.regions.retain(|region| {
         !matches!(
@@ -200,6 +202,23 @@ fn historical_membership_pre_onda_8f(catalog: &mut CodeCatalog) {
     catalog
         .regions
         .retain(|region| region.key != "evidencia.trama.query.nav-map");
+}
+
+fn remove_symbol_index_membership(catalog: &mut CodeCatalog) {
+    // A quinta entrega da janela #417 é posterior a todas as ondas históricas:
+    // as seis regiões novas do índice de símbolos são removidas antes de cada
+    // reconstrução, em paridade com a recipe canônica de projeções.
+    catalog.regions.retain(|region| {
+        !matches!(
+            region.key.as_str(),
+            "evidencia.symbol-index.cli"
+                | "trama.codigo.metadados-simbolos"
+                | "trama.codigo.modelo-indice-simbolos"
+                | "trama.simbolos.derivacao"
+                | "trama.simbolos.modelo"
+                | "trama.simbolos.renderizacao"
+        )
+    });
 }
 
 fn sha256_hex(bytes: &[u8]) -> String {
@@ -571,7 +590,7 @@ fn catalogo_real_cartografa_o_guardiao_pinker_da_onda_9() {
     // congelados, porque `project_pre_automation_core` e
     // `project_pre_projection_snapshot_contract` removem as regiões novas antes
     // de qualquer reconstrução.
-    assert_eq!(index.regions.len(), 534);
+    assert_eq!(index.regions.len(), 540);
 
     // Exatamente uma região Pinker, a do Guardião, com metadados congelados.
     let guardiao: Vec<_> = index
@@ -594,7 +613,7 @@ fn catalogo_real_cartografa_o_guardiao_pinker_da_onda_9() {
             .filter(|r| r.layer.as_deref() == Some(layer))
             .count()
     };
-    assert_eq!(by_layer("evidencia"), 269);
+    assert_eq!(by_layer("evidencia"), 270);
     assert_eq!(by_layer("runtime"), 16);
     assert_eq!(by_layer("apps"), 1);
 }

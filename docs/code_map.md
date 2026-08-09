@@ -75,6 +75,9 @@ Referência rápida para localizar a camada certa antes de editar.
   `tests/core_dump_policy_tests.rs`; runner finito e evidência automática em
   `scripts/pinker-flake-runner.sh`
 - expansão D1 de cargas `lista<E>` em leques: `tests/d1_leque_carga_lista_tests.rs` (matrizes positiva/negativa, IR, validadores, ABI e paridade)
+- índice derivado de símbolos: metadata e catálogo em `src/nav.rs`, modelo,
+  derivação e renderização em `src/symbol_index.rs`, adaptador CLI em
+  `src/main.rs` e contrato processual em `tests/symbol_index_cli_tests.rs`
 - CLI/saída: `tests/output_tests.rs`, `tests/editor_tui_tests.rs`
 
 ## Docs que costumam acompanhar mudança funcional

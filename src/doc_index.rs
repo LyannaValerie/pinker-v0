@@ -917,6 +917,9 @@ fn json_string(value: &str) -> String {
 // @pinker-nav:start trama.documentos.consulta
 // @pinker-nav:domain documentos
 // @pinker-nav:layer trama
+// @pinker-nav:symbol pinker_v0::doc_index::CatalogError|CatalogError|rust-type|declaration
+// @pinker-nav:symbol pinker_v0::doc_index::CatalogError|CatalogError|rust-type|implementation
+// @pinker-nav:symbol-doc pinker_v0::doc_index::CatalogError|development.symbol-index
 // @pinker-nav:summary Reconstrói o catálogo documental a partir do JSONL versionado e serve as consultas (`mostrar`/`listar`/`buscar`/`rota`) sem revarrer `docs/`; ao extrair uma seção, reescaneia a fonte apontada e recusa a resposta se a âncora divergir.
 /// Falha ao carregar o catálogo documental versionado.
 #[derive(Debug, Clone, PartialEq, Eq)]

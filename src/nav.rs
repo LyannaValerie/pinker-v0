@@ -34,14 +34,78 @@ pub struct CodeRegion {
     pub summary: String,
     pub hash: String,
     pub status: String,
+    pub symbols: Vec<RegionSymbol>,
+    pub related_symbols: Vec<String>,
+    pub test_for: Vec<String>,
+    pub symbol_docs: Vec<SymbolDocLink>,
+}
+
+/// Categoria estrutural publicada explicitamente por uma região da Trama.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum SymbolKind {
+    RustFunction,
+    RustType,
+    PinkerFunction,
+    Unknown,
+}
+
+impl SymbolKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            SymbolKind::RustFunction => "rust-function",
+            SymbolKind::RustType => "rust-type",
+            SymbolKind::PinkerFunction => "pinker-function",
+            SymbolKind::Unknown => "UNKNOWN",
+        }
+    }
+}
+
+/// Papel da região em relação a um símbolo explicitamente identificado.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum SymbolRole {
+    Declaration,
+    Implementation,
+}
+
+impl SymbolRole {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            SymbolRole::Declaration => "declaration",
+            SymbolRole::Implementation => "implementation",
+        }
+    }
+}
+
+/// Binding canônico `identidade | nome | categoria | papel` mantido no próprio
+/// marcador da região; o catálogo apenas deriva e serializa este valor.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct RegionSymbol {
+    pub identity: String,
+    pub name: String,
+    pub kind: SymbolKind,
+    pub role: SymbolRole,
+}
+
+/// Vínculo documental explícito `identidade | id documental`.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct SymbolDocLink {
+    pub identity: String,
+    pub document: String,
 }
 
 /// Índice de código em memória.
+// @pinker-nav:start trama.codigo.modelo-indice-simbolos
+// @pinker-nav:domain navegacao
+// @pinker-nav:layer trama
+// @pinker-nav:symbol pinker_v0::nav::CodeIndex|CodeIndex|rust-type|declaration
+// @pinker-nav:symbol-doc pinker_v0::nav::CodeIndex|development.symbol-index
+// @pinker-nav:summary Declara CodeIndex, autoridade em memória das regiões e metadados explícitos dos símbolos; a implementação permanece na região trama.codigo.catalogo.
 #[derive(Debug, Clone, Default)]
 pub struct CodeIndex {
     pub regions: Vec<CodeRegion>,
     pub scan_problems: Vec<NavVerifyError>,
 }
+// @pinker-nav:end trama.codigo.modelo-indice-simbolos
 
 #[derive(Debug)]
 pub enum ScanError {
@@ -137,6 +201,20 @@ pub enum NavVerifyError {
         file: String,
         field: String,
     },
+    ConflictingSymbolIdentity {
+        identity: String,
+        regions: Vec<String>,
+    },
+    MissingSymbolTarget {
+        region: String,
+        field: String,
+        identity: String,
+    },
+    InvalidTestLink {
+        region: String,
+        identity: String,
+        layer: Option<String>,
+    },
     IndexOutOfDate {
         path: String,
     },
@@ -181,6 +259,32 @@ impl fmt::Display for NavVerifyError {
                 "metadado malformado na região '{}' em {}: campo '{}'",
                 key, file, field
             ),
+            NavVerifyError::ConflictingSymbolIdentity { identity, regions } => write!(
+                f,
+                "identidade de símbolo '{}' possui nome ou categoria conflitante em: {}",
+                identity,
+                regions.join(", ")
+            ),
+            NavVerifyError::MissingSymbolTarget {
+                region,
+                field,
+                identity,
+            } => write!(
+                f,
+                "região '{}' referencia símbolo inexistente '{}' em '{}'",
+                region, identity, field
+            ),
+            NavVerifyError::InvalidTestLink {
+                region,
+                identity,
+                layer,
+            } => write!(
+                f,
+                "vínculo de teste da região '{}' para '{}' exige layer evidencia; encontrado {}",
+                region,
+                identity,
+                layer.as_deref().unwrap_or("sem layer")
+            ),
             NavVerifyError::IndexOutOfDate { path } => write!(
                 f,
                 "catálogo '{}' dessincronizado; rode `pink nav sincronizar`",
@@ -193,7 +297,8 @@ impl fmt::Display for NavVerifyError {
 // @pinker-nav:start trama.codigo.catalogo
 // @pinker-nav:domain navegacao
 // @pinker-nav:layer trama
-// @pinker-nav:summary Gera o catálogo de navegação de código varrendo as raízes controladas do repositório (§ trama.codigo.raizes) pelos marcadores `@pinker-nav`: monta as regiões, calcula o hash do conteúdo, renderiza JSONL determinístico e valida chaves únicas, marcadores balanceados e ausência de sobreposição.
+// @pinker-nav:symbol pinker_v0::nav::CodeIndex|CodeIndex|rust-type|implementation
+// @pinker-nav:summary Gera o catálogo de navegação pelas raízes controladas e marcadores @pinker-nav: monta regiões e vínculos explícitos, calcula hashes, renderiza JSONL determinístico e valida chaves, marcadores, sobreposição, consistência de identidade, destinos e camada dos testes antes da escrita.
 impl CodeIndex {
     /// Varre uma única raiz (uso em fixtures/testes; compatibilidade
     /// histórica). Delega à varredura multi-raiz (§ trama.codigo.raizes)
@@ -240,6 +345,64 @@ impl CodeIndex {
                     key: key.to_string(),
                     files,
                 });
+            }
+        }
+        let mut identities: BTreeMap<&str, (&str, SymbolKind, Vec<String>)> = BTreeMap::new();
+        for region in &self.regions {
+            for symbol in &region.symbols {
+                match identities.get_mut(symbol.identity.as_str()) {
+                    Some((name, kind, regions)) => {
+                        regions.push(region.key.clone());
+                        if *name != symbol.name || *kind != symbol.kind {
+                            errors.push(NavVerifyError::ConflictingSymbolIdentity {
+                                identity: symbol.identity.clone(),
+                                regions: regions.clone(),
+                            });
+                        }
+                    }
+                    None => {
+                        identities.insert(
+                            &symbol.identity,
+                            (&symbol.name, symbol.kind, vec![region.key.clone()]),
+                        );
+                    }
+                }
+            }
+        }
+        for region in &self.regions {
+            for (field, identity) in region
+                .related_symbols
+                .iter()
+                .map(|identity| ("related-symbol", identity))
+                .chain(
+                    region
+                        .test_for
+                        .iter()
+                        .map(|identity| ("test-for", identity)),
+                )
+                .chain(
+                    region
+                        .symbol_docs
+                        .iter()
+                        .map(|link| ("symbol-doc", &link.identity)),
+                )
+            {
+                if !identities.contains_key(identity.as_str()) {
+                    errors.push(NavVerifyError::MissingSymbolTarget {
+                        region: region.key.clone(),
+                        field: field.to_string(),
+                        identity: identity.clone(),
+                    });
+                }
+            }
+            if region.layer.as_deref() != Some("evidencia") {
+                for identity in &region.test_for {
+                    errors.push(NavVerifyError::InvalidTestLink {
+                        region: region.key.clone(),
+                        identity: identity.clone(),
+                        layer: region.layer.clone(),
+                    });
+                }
             }
         }
         errors
@@ -629,6 +792,10 @@ struct OpenRegion {
     content_end: usize,
     content_lines: Vec<String>,
     in_meta: bool,
+    symbols: Vec<RegionSymbol>,
+    related_symbols: Vec<String>,
+    test_for: Vec<String>,
+    symbol_docs: Vec<SymbolDocLink>,
 }
 
 fn scan_file(rel_path: &str, text: &str, dialect: MarkerDialect, index: &mut CodeIndex) {
@@ -671,6 +838,10 @@ fn scan_file(rel_path: &str, text: &str, dialect: MarkerDialect, index: &mut Cod
                 content_end: line_no,
                 content_lines: Vec::new(),
                 in_meta: true,
+                symbols: Vec::new(),
+                related_symbols: Vec::new(),
+                test_for: Vec::new(),
+                symbol_docs: Vec::new(),
             });
             continue;
         }
@@ -1017,9 +1188,17 @@ fn finish_region(
         summary: open.summary,
         hash,
         status: open.status,
+        symbols: open.symbols,
+        related_symbols: open.related_symbols,
+        test_for: open.test_for,
+        symbol_docs: open.symbol_docs,
     });
 }
 
+// @pinker-nav:start trama.codigo.metadados-simbolos
+// @pinker-nav:domain simbolos
+// @pinker-nav:layer trama
+// @pinker-nav:summary Interpreta e valida os bindings symbol, related-symbol, test-for e symbol-doc dentro da autoridade @pinker-nav, com categorias e papéis fechados, identidade qualificada, destinos canônicos e duplicidade recusada antes da serialização derivada.
 fn apply_meta(
     open: &mut OpenRegion,
     rel_path: &str,
@@ -1041,6 +1220,24 @@ fn apply_meta(
                 field: "phase".to_string(),
             }),
         },
+        "symbol" => match parse_symbol(value) {
+            Some(symbol) if !open.symbols.contains(&symbol) => open.symbols.push(symbol),
+            _ => malformed_meta(open, rel_path, "symbol", index),
+        },
+        "related-symbol" => match parse_symbol_identity(value) {
+            Some(identity) if !open.related_symbols.contains(&identity) => {
+                open.related_symbols.push(identity)
+            }
+            _ => malformed_meta(open, rel_path, "related-symbol", index),
+        },
+        "test-for" => match parse_symbol_identity(value) {
+            Some(identity) if !open.test_for.contains(&identity) => open.test_for.push(identity),
+            _ => malformed_meta(open, rel_path, "test-for", index),
+        },
+        "symbol-doc" => match parse_symbol_doc(value) {
+            Some(link) if !open.symbol_docs.contains(&link) => open.symbol_docs.push(link),
+            _ => malformed_meta(open, rel_path, "symbol-doc", index),
+        },
         other => index.scan_problems.push(NavVerifyError::MalformedMeta {
             key: open.key.clone(),
             file: rel_path.to_string(),
@@ -1048,6 +1245,76 @@ fn apply_meta(
         }),
     }
 }
+
+fn malformed_meta(open: &OpenRegion, rel_path: &str, field: &str, index: &mut CodeIndex) {
+    index.scan_problems.push(NavVerifyError::MalformedMeta {
+        key: open.key.clone(),
+        file: rel_path.to_string(),
+        field: field.to_string(),
+    });
+}
+
+fn parse_symbol(value: &str) -> Option<RegionSymbol> {
+    let parts = value.split('|').map(str::trim).collect::<Vec<_>>();
+    if parts.len() != 4 {
+        return None;
+    }
+    let identity = parse_symbol_identity(parts[0])?;
+    let name = parse_symbol_name(parts[1])?;
+    let kind = match parts[2] {
+        "rust-function" => SymbolKind::RustFunction,
+        "rust-type" => SymbolKind::RustType,
+        "pinker-function" => SymbolKind::PinkerFunction,
+        "UNKNOWN" => SymbolKind::Unknown,
+        _ => return None,
+    };
+    let role = match parts[3] {
+        "declaration" => SymbolRole::Declaration,
+        "implementation" => SymbolRole::Implementation,
+        _ => return None,
+    };
+    Some(RegionSymbol {
+        identity,
+        name,
+        kind,
+        role,
+    })
+}
+
+fn parse_symbol_doc(value: &str) -> Option<SymbolDocLink> {
+    let parts = value.split('|').map(str::trim).collect::<Vec<_>>();
+    if parts.len() != 2 || !valid_key(parts[1]) {
+        return None;
+    }
+    Some(SymbolDocLink {
+        identity: parse_symbol_identity(parts[0])?,
+        document: parts[1].to_string(),
+    })
+}
+
+fn parse_symbol_identity(value: &str) -> Option<String> {
+    let segments = value.split("::").collect::<Vec<_>>();
+    if segments.len() < 2
+        || segments
+            .iter()
+            .any(|segment| parse_symbol_name(segment).is_none())
+    {
+        return None;
+    }
+    Some(value.to_string())
+}
+
+fn parse_symbol_name(value: &str) -> Option<String> {
+    let mut chars = value.chars();
+    let first = chars.next()?;
+    if !(first.is_ascii_alphabetic() || first == '_')
+        || !chars.all(|ch| ch.is_ascii_alphanumeric() || ch == '_')
+    {
+        return None;
+    }
+    Some(value.to_string())
+}
+// @pinker-nav:end trama.codigo.metadados-simbolos
 
 /// Extrai a chave após um marcador (`@pinker-nav:start`/`:end`) em uma linha
 /// que deve ser um comentário `//`.
@@ -1149,8 +1416,54 @@ fn render_region_json(r: &CodeRegion) -> String {
     }
     out.push_str(&format!(",\"hash\":{}", json_string(&r.hash)));
     out.push_str(&format!(",\"status\":{}", json_string(&r.status)));
+    if !r.symbols.is_empty() {
+        let values = r.symbols.iter().map(render_symbol).collect::<Vec<_>>();
+        out.push_str(&format!(",\"symbols\":{}", json_string_array(&values)));
+    }
+    if !r.related_symbols.is_empty() {
+        out.push_str(&format!(
+            ",\"related_symbols\":{}",
+            json_string_array(&r.related_symbols)
+        ));
+    }
+    if !r.test_for.is_empty() {
+        out.push_str(&format!(",\"test_for\":{}", json_string_array(&r.test_for)));
+    }
+    if !r.symbol_docs.is_empty() {
+        let values = r
+            .symbol_docs
+            .iter()
+            .map(render_symbol_doc)
+            .collect::<Vec<_>>();
+        out.push_str(&format!(",\"symbol_docs\":{}", json_string_array(&values)));
+    }
     out.push('}');
     out
+}
+
+fn render_symbol(symbol: &RegionSymbol) -> String {
+    format!(
+        "{}|{}|{}|{}",
+        symbol.identity,
+        symbol.name,
+        symbol.kind.as_str(),
+        symbol.role.as_str()
+    )
+}
+
+fn render_symbol_doc(link: &SymbolDocLink) -> String {
+    format!("{}|{}", link.identity, link.document)
+}
+
+fn json_string_array(values: &[String]) -> String {
+    format!(
+        "[{}]",
+        values
+            .iter()
+            .map(|value| json_string(value))
+            .collect::<Vec<_>>()
+            .join(",")
+    )
 }
 
 fn json_string(value: &str) -> String {
@@ -1178,7 +1491,10 @@ fn json_string(value: &str) -> String {
 // @pinker-nav:start trama.codigo.consulta
 // @pinker-nav:domain navegacao
 // @pinker-nav:layer trama
-// @pinker-nav:summary Reconstrói o catálogo de código do JSONL versionado e serve as consultas (`mostrar`/`buscar`/`listar`/`mapa`) sem revarrer raízes; `mapa` prioriza caminho literal e reutiliza a busca textual integral. Ao extrair uma região, valida marcadores e hash, recusando drift.
+// @pinker-nav:symbol pinker_v0::nav::CatalogError|CatalogError|rust-type|declaration
+// @pinker-nav:symbol pinker_v0::nav::CatalogError|CatalogError|rust-type|implementation
+// @pinker-nav:symbol-doc pinker_v0::nav::CatalogError|development.symbol-index
+// @pinker-nav:summary Reconstrói do JSONL versionado as regiões e seus vínculos explícitos de símbolo, documentação e teste; serve mostrar/buscar/listar/mapa/localizar sem revarrer raízes e, ao extrair uma região, valida marcadores e hash, recusando drift.
 /// Falha ao carregar o catálogo de código versionado.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CatalogError {
@@ -1325,6 +1641,50 @@ fn parse_region_record(
             .ok_or_else(|| invalid(format!("região sem inteiro '{}'", key)))
     };
     let opt_str = |key: &str| obj.get(key).and_then(|v| v.as_str()).map(str::to_string);
+    let opt_list = |key: &str| -> Result<Vec<String>, CatalogError> {
+        match obj.get(key) {
+            Some(value) => value
+                .as_str_array()
+                .ok_or_else(|| invalid(format!("campo '{}' deve ser lista de strings", key))),
+            None => Ok(Vec::new()),
+        }
+    };
+    let symbols = opt_list("symbols")?
+        .iter()
+        .map(|value| {
+            parse_symbol(value).ok_or_else(|| invalid("binding de símbolo inválido".to_string()))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let symbol_docs = opt_list("symbol_docs")?
+        .iter()
+        .map(|value| {
+            parse_symbol_doc(value)
+                .ok_or_else(|| invalid("vínculo documental de símbolo inválido".to_string()))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let related_symbols = opt_list("related_symbols")?
+        .iter()
+        .map(|value| {
+            parse_symbol_identity(value)
+                .ok_or_else(|| invalid("identidade relacionada inválida".to_string()))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let test_for = opt_list("test_for")?
+        .iter()
+        .map(|value| {
+            parse_symbol_identity(value)
+                .ok_or_else(|| invalid("identidade de teste inválida".to_string()))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if has_duplicates(&symbols)
+        || has_duplicates(&symbol_docs)
+        || has_duplicates(&related_symbols)
+        || has_duplicates(&test_for)
+    {
+        return Err(invalid(
+            "metadado de símbolo duplicado no registro de região".to_string(),
+        ));
+    }
     Ok(CodeRegion {
         key: req_str("key")?,
         kind: opt_str("kind").unwrap_or_else(|| "region".to_string()),
@@ -1339,7 +1699,16 @@ fn parse_region_record(
         summary: opt_str("summary").unwrap_or_default(),
         hash: opt_str("hash").unwrap_or_default(),
         status: opt_str("status").unwrap_or_else(|| "active".to_string()),
+        symbols,
+        related_symbols,
+        test_for,
+        symbol_docs,
     })
+}
+
+fn has_duplicates<T: Ord>(values: &[T]) -> bool {
+    let mut seen = BTreeSet::new();
+    values.iter().any(|value| !seen.insert(value))
 }
 
 /// Extrai as linhas de conteúdo de uma região a partir do texto-fonte atual,

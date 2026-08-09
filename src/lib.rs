@@ -39,6 +39,7 @@ pub mod project_state_report;
 pub mod projection;
 pub mod repl;
 pub mod semantic;
+pub mod symbol_index;
 pub mod text_norm;
 pub mod token;
 pub mod union_canon;
