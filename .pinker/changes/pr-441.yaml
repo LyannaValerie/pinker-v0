@@ -1,0 +1,19 @@
+schema: 1
+source:
+  type: github-pr
+  number: 441
+  repository: LyannaValerie/pinker-v0
+kind: documentation
+block: 20
+title: Formaliza a maturação adulta e o congelamento documental temporário
+area:
+  - development.agent-policy
+  - development.documentation-freeze
+status: completed
+updates:
+  state: false
+  history: false
+  roadmap: false
+validation:
+  required:
+    - make ci
