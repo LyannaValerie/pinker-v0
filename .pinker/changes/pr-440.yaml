@@ -1,0 +1,20 @@
+schema: 1
+source:
+  type: github-pr
+  number: 440
+  repository: "LyannaValerie/pinker-v0"
+kind: documentation
+block: 20
+title: "Encerra a janela auxiliar da Issue 417 e restaura D2"
+area:
+  - development.deterministic-infrastructure-window
+  - development.tramas-policy
+  - roadmap.block-20
+status: completed
+updates:
+  state: true
+  history: true
+  roadmap: true
+validation:
+  required:
+    - make ci

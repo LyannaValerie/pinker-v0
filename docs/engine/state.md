@@ -66,7 +66,7 @@ Conteúdo abaixo é **propriedade da ferramenta** (projeção `state`); não edi
 mão. Regenere com `pink doc sincronizar`.
 
 <!-- @pinker-generated:start engine.state.generated -->
-- Manifestos processados: 20
-- Última mudança: PR #439 — Adiciona cobertura de diff somente leitura (fase —, bloco 20)
+- Manifestos processados: 21
+- Última mudança: PR #440 — Encerra a janela auxiliar da Issue 417 e restaura D2 (fase —, bloco 20)
 - Seções implementadas: —
 <!-- @pinker-generated:end engine.state.generated -->
