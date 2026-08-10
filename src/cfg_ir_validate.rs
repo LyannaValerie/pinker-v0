@@ -1636,6 +1636,43 @@ fn validate_block(
                 }
                 temp_types.insert(*dest, result);
             }
+            InstructionCfgIR::PointerOffset {
+                dest,
+                pointer,
+                offset,
+                pointer_type,
+                element_size,
+                element_align,
+            } => {
+                let actual_pointer = infer_operand_type(
+                    pointer,
+                    slot_types,
+                    &temp_types,
+                    global_consts,
+                    function.span,
+                )?;
+                let actual_offset = infer_operand_type(
+                    offset,
+                    slot_types,
+                    &temp_types,
+                    global_consts,
+                    function.span,
+                )?;
+                if actual_pointer != *pointer_type
+                    || !matches!(pointer_type, TypeIR::Pointer { .. })
+                    || actual_offset != TypeIR::Bombom
+                    || *element_size == 0
+                    || *element_align == 0
+                    || !element_align.is_power_of_two()
+                    || *element_size % *element_align != 0
+                {
+                    return Err(cfg_error(
+                        "pointer_offset tipado inválido na CFG",
+                        function.span,
+                    ));
+                }
+                temp_types.insert(*dest, *pointer_type);
+            }
             InstructionCfgIR::Call {
                 dest,
                 callee,

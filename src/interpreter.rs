@@ -1491,6 +1491,65 @@ fn exec_instr(
             validar_derivacao_memoria_publica(public_memory_state, origem, &resultado)?;
             stack.push(resultado);
         }
+        MachineInstr::PointerOffset {
+            element_size,
+            element_align,
+        } => {
+            let offset = pop(stack, "pointer_offset exige deslocamento no topo")?;
+            let pointer = pop(
+                stack,
+                "pointer_offset exige ponteiro abaixo do deslocamento",
+            )?;
+            let RuntimeValue::Ptr(source) = pointer else {
+                return Err(runtime_err("pointer_offset exige operando seta<T>"));
+            };
+            if source == 0 {
+                return Err(runtime_err(
+                    "E-RUNTIME-POINTER-NULL-ARITHMETIC: aritmética sobre ponteiro nulo",
+                ));
+            }
+            let RuntimeValue::Int(offset) = offset else {
+                return Err(runtime_err(
+                    "pointer_offset exige deslocamento bombom não negativo",
+                ));
+            };
+            if *element_size == 0
+                || *element_align == 0
+                || !element_align.is_power_of_two()
+                || *element_size % *element_align != 0
+            {
+                return Err(runtime_err(
+                    "E-RUNTIME-POINTER-LAYOUT: layout de elemento inválido",
+                ));
+            }
+            let byte_delta = offset.checked_mul(*element_size).ok_or_else(|| {
+                runtime_err("E-RUNTIME-POINTER-OFFSET-OVERFLOW: overflow ao escalar deslocamento")
+            })?;
+            let byte_delta = usize::try_from(byte_delta).map_err(|_| {
+                runtime_err("E-RUNTIME-POINTER-OFFSET-OVERFLOW: deslocamento excede a plataforma")
+            })?;
+            // A memória simulada histórica usa handles de slot (1, 2, 3...),
+            // não endereços de byte. Para essa origem interna o offset é
+            // aplicado em elementos; regiões públicas e endereços fabricados
+            // continuam usando o delta em bytes, como o nativo.
+            let physical_delta = if public_memory_region(public_memory_state, source).is_none()
+                && memory.contains_key(&source)
+            {
+                usize::try_from(offset).map_err(|_| {
+                    runtime_err(
+                        "E-RUNTIME-POINTER-OFFSET-OVERFLOW: deslocamento excede a plataforma",
+                    )
+                })?
+            } else {
+                byte_delta
+            };
+            let derived = source.checked_add(physical_delta).ok_or_else(|| {
+                runtime_err("E-RUNTIME-POINTER-ADDRESS-OVERFLOW: overflow ao derivar endereço")
+            })?;
+            let result = RuntimeValue::Ptr(derived);
+            validar_derivacao_memoria_publica(public_memory_state, Some(source), &result)?;
+            stack.push(result);
+        }
         MachineInstr::Sub { ty } => {
             let rhs = pop(stack, "underflow em sub")?;
             let lhs = pop(stack, "underflow em sub")?;
@@ -6642,6 +6701,7 @@ fn machine_instr_name(instr: &MachineInstr) -> &'static str {
         MachineInstr::Shl { .. } => "shl",
         MachineInstr::Shr { .. } => "shr",
         MachineInstr::Add { .. } => "add",
+        MachineInstr::PointerOffset { .. } => "pointer_offset",
         MachineInstr::Sub { .. } => "sub",
         MachineInstr::Mul { .. } => "mul",
         MachineInstr::Div { .. } => "div",

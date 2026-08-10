@@ -1450,6 +1450,35 @@ fn apply_instr_effect(
             }
             stack.push(type_to_stack(*payload_type));
         }
+        MachineInstr::PointerOffset {
+            element_size,
+            element_align,
+        } => {
+            let pair = pop_typed(
+                f,
+                label,
+                stack,
+                2,
+                "underflow em pointer_offset",
+                Some("instr='pointer_offset'"),
+            )?;
+            ensure_compatible(
+                f,
+                label,
+                pair[1],
+                StackValueType::Bombom,
+                "deslocamento inválido em pointer_offset",
+                Some("instr='pointer_offset'"),
+            )?;
+            if *element_size == 0
+                || *element_align == 0
+                || !element_align.is_power_of_two()
+                || *element_size % *element_align != 0
+            {
+                return Err(err_ctx(f, Some(label), "layout inválido em pointer_offset"));
+            }
+            stack.push(StackValueType::Unknown);
+        }
         MachineInstr::Add { ty }
         | MachineInstr::BitAnd { ty }
         | MachineInstr::BitOr { ty }
@@ -1928,6 +1957,7 @@ fn instr_name(i: &MachineInstr) -> &'static str {
         MachineInstr::Shl { .. } => "shl",
         MachineInstr::Shr { .. } => "shr",
         MachineInstr::Add { .. } => "add",
+        MachineInstr::PointerOffset { .. } => "pointer_offset",
         MachineInstr::Sub { .. } => "sub",
         MachineInstr::Mul { .. } => "mul",
         MachineInstr::Div { .. } => "div",

@@ -3011,7 +3011,7 @@ impl SemanticChecker {
 
                 if matches!(op, BinaryOp::Add | BinaryOp::Sub) {
                     if let Some(pointer_result) =
-                        Self::check_pointer_arithmetic(expr.span, *op, &lhs_ty, &rhs_ty)
+                        self.check_pointer_arithmetic(expr.span, *op, &lhs_ty, &rhs_ty, rhs)
                     {
                         return pointer_result;
                     }
@@ -3232,30 +3232,101 @@ impl SemanticChecker {
     }
 
     fn check_pointer_arithmetic(
+        &self,
         expr_span: Span,
         op: BinaryOp,
         lhs_ty: &Type,
         rhs_ty: &Type,
+        rhs_expr: &Expr,
     ) -> Option<Result<Type, PinkerError>> {
-        let is_ptr_bombom = |ty: &Type| {
-            matches!(
-                ty,
-                Type::Pointer { base, .. } if matches!(base.as_ref(), Type::Bombom(_))
-            )
-        };
         let is_bombom = |ty: &Type| matches!(ty, Type::Bombom(_));
 
-        if is_ptr_bombom(lhs_ty) && is_bombom(rhs_ty) {
-            return Some(Ok(lhs_ty.with_span(expr_span)));
+        if let Type::Pointer { base, .. } = lhs_ty {
+            if is_bombom(rhs_ty) {
+                if op == BinaryOp::Sub {
+                    return Some(if matches!(base.as_ref(), Type::Bombom(_)) {
+                        Ok(lhs_ty.with_span(expr_span))
+                    } else {
+                        Err(PinkerError::Semantic {
+                            msg: "subtração de ponteiro preserva somente o contrato legado 'seta<bombom> - bombom'; D5 não amplia esta operação".to_string(),
+                            span: expr_span,
+                        })
+                    });
+                }
+
+                if matches!(rhs_expr.kind, ExprKind::Unary(UnaryOp::Neg, _)) {
+                    return Some(Err(PinkerError::Semantic {
+                        msg: "deslocamento de seta<T> deve ser 'bombom' não negativo".to_string(),
+                        span: rhs_expr.span,
+                    }));
+                }
+
+                let supported = matches!(
+                    base.as_ref(),
+                    Type::Bombom(_)
+                        | Type::U8(_)
+                        | Type::U16(_)
+                        | Type::U32(_)
+                        | Type::U64(_)
+                        | Type::I8(_)
+                        | Type::I16(_)
+                        | Type::I32(_)
+                        | Type::I64(_)
+                        | Type::Logica(_)
+                        | Type::Struct { .. }
+                ) || matches!(
+                    base.as_ref(),
+                    Type::FixedArray { element, .. }
+                        if matches!(element.as_ref(), Type::Bombom(_))
+                );
+                if !supported {
+                    return Some(Err(PinkerError::Semantic {
+                        msg: format!(
+                            "aritmética de seta<T> exige elemento com layout e acesso coerentes; '{}' não participa de D5",
+                            base.name()
+                        ),
+                        span: expr_span,
+                    }));
+                }
+
+                let element_layout =
+                    match layout::layout_of_type(base, &self.type_aliases, &self.structs) {
+                        Ok(layout) => layout,
+                        Err(msg) => {
+                            return Some(Err(PinkerError::Semantic {
+                                msg: format!(
+                                    "aritmética de seta<T> exige layout canônico conhecido: {}",
+                                    msg
+                                ),
+                                span: expr_span,
+                            }))
+                        }
+                    };
+                if element_layout.size == 0
+                    || element_layout.align == 0
+                    || element_layout.size % element_layout.align != 0
+                {
+                    return Some(Err(PinkerError::Semantic {
+                        msg: "layout de elemento inválido para aritmética de seta<T>".to_string(),
+                        span: expr_span,
+                    }));
+                }
+                if let ExprKind::IntLit(offset) = rhs_expr.kind {
+                    if offset.checked_mul(element_layout.size).is_none() {
+                        return Some(Err(PinkerError::Semantic {
+                            msg: "E-POINTER-OFFSET-OVERFLOW: overflow ao escalar deslocamento de seta<T>"
+                                .to_string(),
+                            span: rhs_expr.span,
+                        }));
+                    }
+                }
+                return Some(Ok(lhs_ty.with_span(expr_span)));
+            }
         }
-        if is_bombom(lhs_ty) && is_ptr_bombom(rhs_ty) {
+        if is_bombom(lhs_ty) && matches!(rhs_ty, Type::Pointer { .. }) {
             let msg = match op {
-                BinaryOp::Add => {
-                    "aritmética de ponteiro nesta fase suporta apenas 'ptr + bombom' e 'ptr - bombom'"
-                }
-                BinaryOp::Sub => {
-                    "subtração de ponteiro nesta fase suporta apenas 'ptr - bombom'"
-                }
+                BinaryOp::Add => "aritmética de ponteiro suporta apenas 'seta<T> + bombom'",
+                BinaryOp::Sub => "subtração de ponteiro nesta fase suporta apenas 'ptr - bombom'",
                 _ => unreachable!("check_pointer_arithmetic só recebe add/sub"),
             };
             return Some(Err(PinkerError::Semantic {
@@ -3265,7 +3336,7 @@ impl SemanticChecker {
         }
         if matches!(lhs_ty, Type::Pointer { .. }) || matches!(rhs_ty, Type::Pointer { .. }) {
             let msg = match op {
-                BinaryOp::Add => "aritmética de ponteiro nesta fase exige 'seta<bombom> + bombom'",
+                BinaryOp::Add => "aritmética de ponteiro exige 'seta<T> + bombom'",
                 BinaryOp::Sub => "aritmética de ponteiro nesta fase exige 'seta<bombom> - bombom'",
                 _ => unreachable!("check_pointer_arithmetic só recebe add/sub"),
             };

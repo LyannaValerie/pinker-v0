@@ -8,6 +8,24 @@ use common::{
 use std::fs;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+// Estas fixtures da Fase 246 codificam o contrato histórico em bytes por meio
+// de `seta<bombom> + n`. D5 torna `n` um deslocamento de elementos; durante o
+// freeze, os exemplos não podem ser reescritos nem renomeados. A matriz adulta
+// de #449 cobre os equivalentes válidos e negativos com scaling tipado.
+const FIXTURES_COM_OFFSET_EM_BYTES_CONGELADAS: &[&str] = &[
+    "examples/fase246_memoria_explicita_valido.pink",
+    "examples/fase246_tamanhos_alinhamentos_valido.pink",
+    "examples/fase246_inicializacao_zerada_valido.pink",
+    "examples/fase246_escalares_fronteiras_aliases_valido.pink",
+    "examples/fase246_limite_multibyte_invalido.pink",
+    "examples/fase246_um_depois_invalido.pink",
+    "examples/fase246_desalinhado_invalido.pink",
+];
+
+fn fixture_com_offset_em_bytes_congelada(path: &str) -> bool {
+    FIXTURES_COM_OFFSET_EM_BYTES_CONGELADAS.contains(&path)
+}
+
 #[test]
 fn fase245_atravessa_pipeline_com_representacao_crua_distinta() {
     let code = include_str!("../examples/fase245_ponteiro_funcao_valido.pink");
@@ -200,6 +218,9 @@ fn fase246_interpretador_detecta_zero_double_free_estrangeiro_e_uaf() {
             "chamada nula por ponteiro cru",
         ),
     ] {
+        if fixture_com_offset_em_bytes_congelada(path) {
+            continue;
+        }
         let output = Command::new(env!("CARGO_BIN_EXE_pink"))
             .args(["--run", path])
             .output()
@@ -265,6 +286,9 @@ fn fase246_tamanhos_alinhamentos_e_integracao_245_tem_paridade_interpretada() {
             "252\n",
         ),
     ] {
+        if fixture_com_offset_em_bytes_congelada(path) {
+            continue;
+        }
         let output = Command::new(env!("CARGO_BIN_EXE_pink"))
             .args(["--run", path])
             .output()
@@ -326,6 +350,9 @@ fn fases245_246_elf_real_tem_paridade_de_stdout_e_exit() {
         "examples/fase246_closure_captura_ponteiro_valido.pink",
         "examples/fases245_246_integracao_valido.pink",
     ] {
+        if fixture_com_offset_em_bytes_congelada(example) {
+            continue;
+        }
         let out_dir = native_output_dir("phase245_246_parity");
         let executable = build_native(example, &out_dir);
         if example.ends_with("fase246_escalares_fronteiras_aliases_valido.pink") {
@@ -405,6 +432,9 @@ fn fases245_246_erros_de_runtime_tem_paridade_nativa() {
             "maior bloco representável",
         ),
     ] {
+        if fixture_com_offset_em_bytes_congelada(example) {
+            continue;
+        }
         let out_dir = native_output_dir("phase245_246_native_errors");
         let executable = build_native(example, &out_dir);
         let native = Command::new(&executable)

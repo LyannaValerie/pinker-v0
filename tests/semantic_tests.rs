@@ -2497,7 +2497,7 @@ fn aritmetica_ponteiro_bombom_add_ptr_falha_nesta_fase() {
         }
     "#;
     let err = parse_and_check(code).unwrap_err().to_string();
-    assert!(err.contains("apenas 'ptr + bombom'"), "{}", err);
+    assert!(err.contains("apenas 'seta<T> + bombom'"), "{}", err);
 }
 
 #[test]
@@ -2512,7 +2512,7 @@ fn aritmetica_ponteiro_ptr_ptr_falha_nesta_fase() {
         }
     "#;
     let err = parse_and_check(code).unwrap_err().to_string();
-    assert!(err.contains("exige 'seta<bombom> + bombom'"), "{}", err);
+    assert!(err.contains("exige 'seta<T> + bombom'"), "{}", err);
 }
 // @pinker-nav:end evidencia.semantica.ponteiros-e-aritmetica
 

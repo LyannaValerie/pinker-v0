@@ -134,6 +134,14 @@ pub enum InstructionCfgIR {
         rhs: OperandIR,
         ty: TypeIR,
     },
+    PointerOffset {
+        dest: TempIR,
+        pointer: OperandIR,
+        offset: OperandIR,
+        pointer_type: TypeIR,
+        element_size: u64,
+        element_align: u64,
+    },
     Call {
         dest: Option<TempIR>,
         callee: String,
@@ -1088,6 +1096,30 @@ impl FunctionLowerer {
                     Ok((OperandIR::Temp(dest), rhs_current))
                 }
             },
+            ValueIR::PointerOffset {
+                pointer,
+                offset,
+                pointer_type,
+                element_size,
+                element_align,
+            } => {
+                let (pointer, pointer_current) =
+                    self.lower_value_operand(pointer, current, span)?;
+                let (offset, offset_current) =
+                    self.lower_value_operand(offset, pointer_current, span)?;
+                let dest = self.next_temp();
+                self.blocks[offset_current]
+                    .instructions
+                    .push(InstructionCfgIR::PointerOffset {
+                        dest,
+                        pointer,
+                        offset,
+                        pointer_type: *pointer_type,
+                        element_size: *element_size,
+                        element_align: *element_align,
+                    });
+                Ok((OperandIR::Temp(dest), offset_current))
+            }
             ValueIR::Call {
                 callee,
                 args,
@@ -1967,6 +1999,21 @@ fn render_instruction(inst: &InstructionCfgIR) -> String {
             ty.name(),
             render_operand(lhs),
             render_operand(rhs)
+        ),
+        InstructionCfgIR::PointerOffset {
+            dest,
+            pointer,
+            offset,
+            element_size,
+            element_align,
+            ..
+        } => format!(
+            "{} = pointer_offset<size={},align={}> {}, {}",
+            render_temp(*dest),
+            element_size,
+            element_align,
+            render_operand(pointer),
+            render_operand(offset)
         ),
         InstructionCfgIR::DerefLoad {
             dest,

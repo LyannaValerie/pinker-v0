@@ -1984,6 +1984,12 @@ fn validate_union_operations_value(
             validate_union_operations_value(lhs, unions, span)?;
             validate_union_operations_value(rhs, unions, span)
         }
+        ValueIR::PointerOffset {
+            pointer, offset, ..
+        } => {
+            validate_union_operations_value(pointer, unions, span)?;
+            validate_union_operations_value(offset, unions, span)
+        }
         ValueIR::Call { args, .. } | ValueIR::MakeClosure { captures: args, .. } => {
             for arg in args {
                 validate_union_operations_value(arg, unions, span)?;
@@ -2181,6 +2187,30 @@ fn infer_value_type(
                 ));
             }
             Ok(inferred)
+        }
+        ValueIR::PointerOffset {
+            pointer,
+            offset,
+            pointer_type,
+            element_size,
+            element_align,
+        } => {
+            let actual_pointer = infer_value_type(pointer, slots, consts, funcs, span)?;
+            let actual_offset = infer_value_type(offset, slots, consts, funcs, span)?;
+            if actual_pointer != *pointer_type
+                || !matches!(pointer_type, TypeIR::Pointer { .. })
+                || actual_offset != TypeIR::Bombom
+                || *element_size == 0
+                || *element_align == 0
+                || !element_align.is_power_of_two()
+                || *element_size % *element_align != 0
+            {
+                return Err(ir_validation_error(
+                    "pointer_offset tipado possui tipos ou layout inconsistentes",
+                    span,
+                ));
+            }
+            Ok(*pointer_type)
         }
         ValueIR::Call {
             callee,

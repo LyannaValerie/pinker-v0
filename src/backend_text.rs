@@ -56,6 +56,13 @@ pub enum BackendTextInstruction {
         lhs: OperandIR,
         rhs: OperandIR,
     },
+    PointerOffset {
+        dest: crate::cfg_ir::TempIR,
+        pointer: OperandIR,
+        offset: OperandIR,
+        element_size: u64,
+        element_align: u64,
+    },
     Call {
         dest: Option<crate::cfg_ir::TempIR>,
         callee: String,
@@ -238,6 +245,20 @@ pub fn lower_program(program: &ProgramCfgIR) -> Result<BackendTextProgram, Pinke
                                 op: *op,
                                 lhs: lhs.clone(),
                                 rhs: rhs.clone(),
+                            }),
+                            InstructionCfgIR::PointerOffset {
+                                dest,
+                                pointer,
+                                offset,
+                                element_size,
+                                element_align,
+                                ..
+                            } => Ok(BackendTextInstruction::PointerOffset {
+                                dest: *dest,
+                                pointer: pointer.clone(),
+                                offset: offset.clone(),
+                                element_size: *element_size,
+                                element_align: *element_align,
                             }),
                             InstructionCfgIR::Call {
                                 dest,
@@ -537,6 +558,20 @@ fn map_selected_instr(i: &SelectedInstr) -> Result<BackendTextInstruction, Pinke
             lhs: lhs.clone(),
             rhs: rhs.clone(),
         }),
+        SelectedInstr::PointerOffset {
+            dest,
+            pointer,
+            offset,
+            element_size,
+            element_align,
+            ..
+        } => Ok(BackendTextInstruction::PointerOffset {
+            dest: *dest,
+            pointer: pointer.clone(),
+            offset: offset.clone(),
+            element_size: *element_size,
+            element_align: *element_align,
+        }),
         SelectedInstr::Sub { dest, lhs, rhs, .. } => Ok(BackendTextInstruction::Binary {
             dest: *dest,
             op: BinaryOpIR::Sub,
@@ -828,6 +863,20 @@ fn render_instruction(inst: &BackendTextInstruction) -> String {
             binop_name(*op),
             render_operand(lhs),
             render_operand(rhs)
+        ),
+        BackendTextInstruction::PointerOffset {
+            dest,
+            pointer,
+            offset,
+            element_size,
+            element_align,
+        } => format!(
+            "pointer_offset {}, {}, {}, size={}, align={}",
+            render_temp(*dest),
+            render_operand(pointer),
+            render_operand(offset),
+            element_size,
+            element_align
         ),
         BackendTextInstruction::Call {
             dest,

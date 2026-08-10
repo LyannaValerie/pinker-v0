@@ -644,6 +644,44 @@ pub extern "C" fn pinker_publico_validar_derivacao(origem: *const u8, derivado: 
     }
 }
 
+/// Deriva um ponteiro por uma quantidade de **elementos**, sem converter o
+/// ponteiro em um inteiro sem tipo no contrato da linguagem. Proveniência e
+/// bounds públicos são validados separadamente pelo chamador, após esta
+/// aritmética checada.
+#[no_mangle]
+pub extern "C" fn pinker_ponteiro_derivar_tipado(
+    origem: *const u8,
+    deslocamento: u64,
+    tamanho_elemento: u64,
+    alinhamento_elemento: u64,
+) -> *const u8 {
+    if origem.is_null() {
+        erro_memoria_publica("E-RUNTIME-POINTER-NULL-ARITHMETIC: aritmética sobre ponteiro nulo");
+    }
+    if tamanho_elemento == 0
+        || alinhamento_elemento == 0
+        || !alinhamento_elemento.is_power_of_two()
+        || tamanho_elemento % alinhamento_elemento != 0
+    {
+        erro_memoria_publica("E-RUNTIME-POINTER-LAYOUT: layout de elemento inválido");
+    }
+    let delta = deslocamento
+        .checked_mul(tamanho_elemento)
+        .unwrap_or_else(|| {
+            erro_memoria_publica(
+                "E-RUNTIME-POINTER-OFFSET-OVERFLOW: overflow ao escalar deslocamento",
+            )
+        });
+    let delta = usize::try_from(delta).unwrap_or_else(|_| {
+        erro_memoria_publica("E-RUNTIME-POINTER-OFFSET-OVERFLOW: deslocamento excede a plataforma")
+    });
+    let derivado = origem.wrapping_add(delta);
+    if derivado < origem {
+        erro_memoria_publica("E-RUNTIME-POINTER-ADDRESS-OVERFLOW: overflow ao derivar endereço")
+    }
+    derivado
+}
+
 #[no_mangle]
 pub extern "C" fn pinker_publico_validar_ponteiro_funcao(endereco: usize) {
     if endereco == 0 {

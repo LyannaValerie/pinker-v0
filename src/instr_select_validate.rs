@@ -385,6 +385,26 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
                         check_operand(rhs, &slots, &temps, &globals)?;
                         temps.insert(*dest);
                     }
+                    SelectedInstr::PointerOffset {
+                        dest,
+                        pointer,
+                        offset,
+                        pointer_type,
+                        element_size,
+                        element_align,
+                    } => {
+                        check_operand(pointer, &slots, &temps, &globals)?;
+                        check_operand(offset, &slots, &temps, &globals)?;
+                        if !matches!(pointer_type, TypeIR::Pointer { .. })
+                            || *element_size == 0
+                            || *element_align == 0
+                            || !element_align.is_power_of_two()
+                            || *element_size % *element_align != 0
+                        {
+                            return Err(err("selected pointer_offset possui layout inválido"));
+                        }
+                        temps.insert(*dest);
+                    }
                     SelectedInstr::Call {
                         dest,
                         callee,

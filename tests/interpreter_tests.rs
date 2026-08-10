@@ -5223,7 +5223,7 @@ fn cli_check_aritmetica_ponteiro_invalida_falha_com_exemplo_versionado() {
     );
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("apenas 'ptr + bombom'"),
+        stderr.contains("apenas 'seta<T> + bombom'"),
         "mensagem inesperada: {}",
         stderr
     );
