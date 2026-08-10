@@ -166,6 +166,26 @@ fn validate_function(
                     };
                     temps.insert(*dest, result);
                 }
+                BackendTextInstruction::PointerOffset {
+                    dest,
+                    pointer,
+                    offset,
+                    element_size,
+                    element_align,
+                } => {
+                    let pointer_ty = infer_operand(pointer, &slots, &temps, globals)?;
+                    let offset_ty = infer_operand(offset, &slots, &temps, globals)?;
+                    if !matches!(pointer_ty, TypeIR::Pointer { .. })
+                        || offset_ty != TypeIR::Bombom
+                        || *element_size == 0
+                        || *element_align == 0
+                        || !element_align.is_power_of_two()
+                        || *element_size % *element_align != 0
+                    {
+                        return Err(err("pointer_offset textual inválido"));
+                    }
+                    temps.insert(*dest, pointer_ty);
+                }
                 BackendTextInstruction::Call {
                     dest,
                     callee,

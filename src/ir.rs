@@ -277,6 +277,15 @@ pub enum ValueIR {
         rhs: Box<ValueIR>,
         ty: TypeIR,
     },
+    /// Derivação tipada de ponteiro. `offset` está em elementos; tamanho e
+    /// alinhamento vêm exclusivamente de `layout::layout_of_type`.
+    PointerOffset {
+        pointer: Box<ValueIR>,
+        offset: Box<ValueIR>,
+        pointer_type: TypeIR,
+        element_size: u64,
+        element_align: u64,
+    },
     Call {
         callee: String,
         args: Vec<ValueIR>,
@@ -3473,6 +3482,72 @@ impl<'a> FunctionLowerer<'a> {
         Some((pointee, representation))
     }
 
+    fn pointer_element_layout(
+        &self,
+        pointer: &TypedValueIR,
+        span: Span,
+    ) -> Result<layout::TypeLayout, PinkerError> {
+        let (pointee, representation) =
+            self.pointee_identity_of(pointer)
+                .ok_or_else(|| PinkerError::Ir {
+                    msg: "E-IR-POINTER-LAYOUT: identidade do elemento de seta<T> foi perdida"
+                        .to_string(),
+                    span,
+                })?;
+        let nominal_name = self
+            .context
+            .resolved_types
+            .borrow()
+            .get(pointee)
+            .and_then(|entry| entry.nominal_name.clone());
+        let element = match representation {
+            TypeIR::Bombom => Type::Bombom(span),
+            TypeIR::U8 => Type::U8(span),
+            TypeIR::U16 => Type::U16(span),
+            TypeIR::U32 => Type::U32(span),
+            TypeIR::U64 => Type::U64(span),
+            TypeIR::I8 => Type::I8(span),
+            TypeIR::I16 => Type::I16(span),
+            TypeIR::I32 => Type::I32(span),
+            TypeIR::I64 => Type::I64(span),
+            TypeIR::Logica => Type::Logica(span),
+            TypeIR::FixedArray {
+                element: ScalarTypeIR::Bombom,
+                size,
+            } => Type::FixedArray {
+                element: Box::new(Type::Bombom(span)),
+                size,
+                span,
+            },
+            TypeIR::Struct => Type::Struct {
+                name: nominal_name.ok_or_else(|| PinkerError::Ir {
+                    msg: "E-IR-POINTER-LAYOUT: identidade nominal do ninho apontado foi perdida"
+                        .to_string(),
+                    span,
+                })?,
+                span,
+            },
+            _ => {
+                return Err(PinkerError::Ir {
+                    msg: format!(
+                        "E-IR-POINTER-LAYOUT: tipo '{}' não participa da aritmética D5",
+                        representation.name()
+                    ),
+                    span,
+                })
+            }
+        };
+        layout::layout_of_type(
+            &element,
+            &self.context.type_aliases,
+            &self.context.struct_decls,
+        )
+        .map_err(|msg| PinkerError::Ir {
+            msg: format!("E-IR-POINTER-LAYOUT: {}", msg),
+            span,
+        })
+    }
+
     /// Nome nominal (`ninho`/`leque`) da identidade de um valor, se houver.
     fn nominal_name_of_value(&self, typed: &TypedValueIR) -> Option<String> {
         let resolved = typed.resolved?;
@@ -5406,6 +5481,24 @@ impl<'a> FunctionLowerer<'a> {
                 let lhs_is_int_lit = matches!(lhs.kind, ExprKind::IntLit(_));
                 let lhs = self.lower_value(lhs)?;
                 let rhs = self.lower_value(rhs)?;
+                if *op == BinaryOp::Add && matches!(lhs.ty, TypeIR::Pointer { .. }) {
+                    let element_layout = self.pointer_element_layout(&lhs, expr.span)?;
+                    let result_type = lhs.ty;
+                    let result_resolved = lhs.resolved;
+                    let result_array_size = lhs.ptr_array_bombom_size;
+                    return Ok(TypedValueIR {
+                        value: ValueIR::PointerOffset {
+                            pointer: Box::new(lhs.value),
+                            offset: Box::new(rhs.value),
+                            pointer_type: result_type,
+                            element_size: element_layout.size,
+                            element_align: element_layout.align,
+                        },
+                        ty: result_type,
+                        resolved: result_resolved,
+                        ptr_array_bombom_size: result_array_size,
+                    });
+                }
                 let operation_type = if lhs_is_int_lit && rhs.ty.is_integer() {
                     rhs.ty
                 } else {
@@ -6240,7 +6333,10 @@ impl<'a> FunctionLowerer<'a> {
                         target_type,
                     },
                     ty: target_type,
-                    resolved: None,
+                    // O cast continua sem fabricar proveniência; esta identidade
+                    // descreve somente o tipo-alvo e permite que uma operação
+                    // tipada posterior recupere o layout de `seta<T>`.
+                    resolved: Some(self.context.resolved_identity(target)?),
                     ptr_array_bombom_size: None,
                 })
             }
@@ -6647,6 +6743,19 @@ fn render_value(value: &ValueIR) -> String {
                 render_value(rhs)
             )
         }
+        ValueIR::PointerOffset {
+            pointer,
+            offset,
+            element_size,
+            element_align,
+            ..
+        } => format!(
+            "pointer_offset<size={},align={}>({}, {})",
+            element_size,
+            element_align,
+            render_value(pointer),
+            render_value(offset)
+        ),
         ValueIR::Call {
             callee,
             args,

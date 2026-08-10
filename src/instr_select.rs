@@ -143,6 +143,14 @@ pub enum SelectedInstr {
         rhs: OperandIR,
         ty: TypeIR,
     },
+    PointerOffset {
+        dest: crate::cfg_ir::TempIR,
+        pointer: OperandIR,
+        offset: OperandIR,
+        pointer_type: TypeIR,
+        element_size: u64,
+        element_align: u64,
+    },
     Sub {
         dest: crate::cfg_ir::TempIR,
         lhs: OperandIR,
@@ -503,6 +511,21 @@ fn select_instruction(inst: &InstructionCfgIR) -> Result<SelectedInstr, PinkerEr
             canonical_member_key: canonical_member_key.clone(),
             payload_type: *payload_type,
             payload_layout: *payload_layout,
+        }),
+        InstructionCfgIR::PointerOffset {
+            dest,
+            pointer,
+            offset,
+            pointer_type,
+            element_size,
+            element_align,
+        } => Ok(SelectedInstr::PointerOffset {
+            dest: *dest,
+            pointer: pointer.clone(),
+            offset: offset.clone(),
+            pointer_type: *pointer_type,
+            element_size: *element_size,
+            element_align: *element_align,
         }),
         InstructionCfgIR::Binary {
             dest,
@@ -939,6 +962,21 @@ fn render_instr(inst: &SelectedInstr) -> String {
             render_temp(*dest),
             render_operand(lhs),
             render_operand(rhs)
+        ),
+        SelectedInstr::PointerOffset {
+            dest,
+            pointer,
+            offset,
+            element_size,
+            element_align,
+            ..
+        } => format!(
+            "pointer_offset {}, {}, {}, size={}, align={}",
+            render_temp(*dest),
+            render_operand(pointer),
+            render_operand(offset),
+            element_size,
+            element_align
         ),
         SelectedInstr::Sub { dest, lhs, rhs, .. } => format!(
             "sub {}, {}, {}",

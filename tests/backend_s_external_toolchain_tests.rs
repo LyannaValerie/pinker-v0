@@ -80,7 +80,8 @@ fn asm_s_external_subset_fase116_exemplo_versionado_emite_deref_load_minimo() {
     let out = render_backend_s_external_subset(code).unwrap();
     assert!(out.contains(".globl soma_par_minimo"));
     assert!(out.contains("movq (%rax), %rax"));
-    assert!(out.contains("movabsq $8, %r10"));
+    assert!(out.contains("call pinker_ponteiro_derivar_tipado"));
+    assert!(out.contains("movq $8, %rdx"));
 }
 
 #[test]
@@ -88,7 +89,8 @@ fn asm_s_external_subset_fase117_exemplo_versionado_emite_offset_explicito_em_lo
     let code = include_str!("../examples/fase117_compostos_minimos_camada2_valida.pink");
     let out = render_backend_s_external_subset(code).unwrap();
     assert!(out.contains(".globl soma_par_offset_local"));
-    assert!(out.contains("movabsq $8, %r10"));
+    assert!(out.contains("call pinker_ponteiro_derivar_tipado"));
+    assert!(out.contains("movq $8, %rdx"));
     assert!(out.matches("movq (%rax), %rax").count() >= 2);
 }
 
@@ -108,8 +110,8 @@ fn asm_s_external_subset_fase119_exemplo_versionado_consolida_par_homogeneo_mini
     assert!(out.contains(".globl consolida_par_homogeneo_minimo"));
     assert!(out.matches("movq %r10, (%rax)").count() >= 2);
     assert!(out.matches("movq (%rax), %rax").count() >= 4);
-    assert!(out.contains("movabsq $8, %r10"));
-    assert!(out.contains("movabsq $16, %r10"));
+    assert!(out.matches("call pinker_ponteiro_derivar_tipado").count() >= 2);
+    assert!(out.contains("movq $8, %rdx"));
 }
 
 #[test]

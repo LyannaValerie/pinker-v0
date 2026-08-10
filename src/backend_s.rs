@@ -440,6 +440,24 @@ fn extract_external_callconv_program(
                             slot_offsets[&temp_key(*dest)]
                         ));
                     }
+                    SelectedInstr::PointerOffset {
+                        dest,
+                        pointer,
+                        offset,
+                        element_size,
+                        element_align,
+                        ..
+                    } => {
+                        body.extend(lower_typed_pointer_offset(
+                            function,
+                            *dest,
+                            pointer,
+                            offset,
+                            (*element_size, *element_align),
+                            &slot_offsets,
+                            &rodata_strings,
+                        )?);
+                    }
                     SelectedInstr::Add { dest, lhs, rhs, ty } => {
                         body.extend(lower_linear_binop(
                             "addq",
@@ -1694,6 +1712,12 @@ fn collect_function_refs_in_function(
                     note(ptr, out);
                     note(value, out);
                 }
+                SelectedInstr::PointerOffset {
+                    pointer, offset, ..
+                } => {
+                    note(pointer, out);
+                    note(offset, out);
+                }
                 SelectedInstr::Cast { value, .. } => note(value, out),
                 SelectedInstr::UnionInject { value, .. }
                 | SelectedInstr::UnionTag { value, .. }
@@ -1831,6 +1855,45 @@ fn render_external_x86_64_linux_callconv_impl(
         }
     }
     line(&mut out, 0, ".text");
+    let needs_standalone_typed_pointer_offset = !runtime_init
+        && program.functions.iter().any(|function| {
+            function.blocks.iter().any(|block| {
+                block
+                    .body
+                    .iter()
+                    .any(|stmt| stmt == "call pinker_ponteiro_derivar_tipado")
+            })
+        });
+    if needs_standalone_typed_pointer_offset {
+        // O subset hospedado continua deliberadamente linkável sem `libpinker_rt`.
+        // Esta implementação local conserva os mesmos checks de null e overflow
+        // do helper do runtime; layouts inválidos já foram barrados no lowering.
+        line(
+            &mut out,
+            0,
+            ".type pinker_ponteiro_derivar_tipado, @function",
+        );
+        line(&mut out, 0, "pinker_ponteiro_derivar_tipado:");
+        line(&mut out, 1, "testq %rdi, %rdi");
+        line(&mut out, 1, "jz .Lpinker_ponteiro_derivar_invalido");
+        line(&mut out, 1, "movq %rdx, %r8");
+        line(&mut out, 1, "movq %rsi, %rax");
+        line(&mut out, 1, "mulq %r8");
+        line(&mut out, 1, "jo .Lpinker_ponteiro_derivar_invalido");
+        line(&mut out, 1, "addq %rdi, %rax");
+        line(&mut out, 1, "jc .Lpinker_ponteiro_derivar_invalido");
+        line(&mut out, 1, "ret");
+        line(&mut out, 0, ".Lpinker_ponteiro_derivar_invalido:");
+        line(&mut out, 1, "movq $60, %rax");
+        line(&mut out, 1, "movq $1, %rdi");
+        line(&mut out, 1, "syscall");
+        line(&mut out, 1, "ud2");
+        line(
+            &mut out,
+            0,
+            ".size pinker_ponteiro_derivar_tipado, .-pinker_ponteiro_derivar_tipado",
+        );
+    }
     for adapter in &program.trait_adapters {
         line(&mut out, 0, &format!(".type {}, @function", adapter.symbol));
         line(&mut out, 0, &format!("{}:", adapter.symbol));
@@ -2243,6 +2306,42 @@ fn lower_public_pointer_derivation(
     Ok(body)
 }
 
+fn lower_typed_pointer_offset(
+    function: &crate::instr_select::SelectedFunction,
+    dest: crate::cfg_ir::TempIR,
+    pointer: &OperandIR,
+    offset: &OperandIR,
+    element_layout: (u64, u64),
+    slot_offsets: &HashMap<String, u32>,
+    rodata_strings: &[ExternalCallConvString],
+) -> Result<Vec<String>, PinkerError> {
+    let (element_size, element_align) = element_layout;
+    let mut body = load_operand("%rdi", pointer, slot_offsets, rodata_strings)?;
+    body.extend(load_operand("%rsi", offset, slot_offsets, rodata_strings)?);
+    body.push(format!("movq ${}, %rdx", element_size));
+    body.push(format!("movq ${}, %rcx", element_align));
+    body.push("call pinker_ponteiro_derivar_tipado".to_string());
+    body.push(format!(
+        "movq {}, -{}(%rbp)",
+        REG_RET,
+        slot_offsets[&temp_key(dest)]
+    ));
+
+    let mut visiting_temps = HashSet::new();
+    let mut visiting_slots = HashSet::new();
+    if selected_operand_provenance(function, pointer, &mut visiting_temps, &mut visiting_slots)
+        .requires_access_check()
+    {
+        body.extend(load_operand("%rdi", pointer, slot_offsets, rodata_strings)?);
+        body.push(format!(
+            "movq -{}(%rbp), %rsi",
+            slot_offsets[&temp_key(dest)]
+        ));
+        body.push("call pinker_publico_validar_derivacao".to_string());
+    }
+    Ok(body)
+}
+
 /// Proveniência de um ponteiro, do ponto de vista do validador de acesso do
 /// runtime nativo.
 ///
@@ -2460,6 +2559,9 @@ fn selected_temp_type(
                 {
                     Some(*ty)
                 }
+                SelectedInstr::PointerOffset {
+                    dest, pointer_type, ..
+                } if *dest == temp => Some(*pointer_type),
                 // Destino lógico: `ty` descreve os operandos comparados, nunca o
                 // resultado. Confundir os dois faria uma comparação de ponteiros
                 // parecer um ponteiro.
@@ -2604,6 +2706,9 @@ fn selected_temp_provenance(
                             visiting_temps,
                             visiting_slots,
                         )),
+                ),
+                SelectedInstr::PointerOffset { dest, pointer, .. } if *dest == temp => Some(
+                    selected_operand_provenance(function, pointer, visiting_temps, visiting_slots),
                 ),
                 SelectedInstr::Sub { dest, lhs, .. } if *dest == temp => Some(
                     selected_operand_provenance(function, lhs, visiting_temps, visiting_slots),
@@ -2876,6 +2981,7 @@ fn collect_temp_ids(function: &crate::instr_select::SelectedFunction) -> BTreeSe
                 | SelectedInstr::Shl { dest, .. }
                 | SelectedInstr::Shr { dest, .. }
                 | SelectedInstr::Add { dest, .. }
+                | SelectedInstr::PointerOffset { dest, .. }
                 | SelectedInstr::Sub { dest, .. }
                 | SelectedInstr::Mul { dest, .. }
                 | SelectedInstr::Div { dest, .. }
@@ -3841,6 +3947,20 @@ fn render_instruction(inst: &crate::backend_text::BackendTextInstruction) -> Str
             render_temp(*dest),
             render_operand(lhs),
             render_operand(rhs)
+        ),
+        crate::backend_text::BackendTextInstruction::PointerOffset {
+            dest,
+            pointer,
+            offset,
+            element_size,
+            element_align,
+        } => format!(
+            "pointer_offset {}, {}, {}, size={}, align={}",
+            render_temp(*dest),
+            render_operand(pointer),
+            render_operand(offset),
+            element_size,
+            element_align
         ),
         crate::backend_text::BackendTextInstruction::Call {
             dest,

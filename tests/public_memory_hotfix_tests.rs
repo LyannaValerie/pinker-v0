@@ -240,7 +240,7 @@ fn limites_recuperacao_zero_e_paginas_esparsas_tem_paridade() {
             "2\n",
         ),
         (
-            "examples/hotfix_memoria_publica_paginas_esparsas_valido.pink",
+            "tests/fixtures/issue449_memoria_publica_paginas_esparsas_valido.pink",
             "0\n0\n0\n24\n",
         ),
     ] {

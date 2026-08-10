@@ -135,6 +135,10 @@ pub enum MachineInstr {
     Add {
         ty: TypeIR,
     },
+    PointerOffset {
+        element_size: u64,
+        element_align: u64,
+    },
     Sub {
         ty: TypeIR,
     },
@@ -454,6 +458,22 @@ fn lower_instr(inst: &SelectedInstr, code: &mut Vec<MachineInstr>) -> Result<(),
             emit_load(lhs, code);
             emit_load(rhs, code);
             code.push(MachineInstr::Add { ty: *ty });
+            code.push(MachineInstr::StoreSlot(temp_name(*dest)));
+        }
+        SelectedInstr::PointerOffset {
+            dest,
+            pointer,
+            offset,
+            pointer_type: _,
+            element_size,
+            element_align,
+        } => {
+            emit_load(pointer, code);
+            emit_load(offset, code);
+            code.push(MachineInstr::PointerOffset {
+                element_size: *element_size,
+                element_align: *element_align,
+            });
             code.push(MachineInstr::StoreSlot(temp_name(*dest)));
         }
         SelectedInstr::Sub { dest, lhs, rhs, ty } => {
@@ -1015,6 +1035,16 @@ fn render_instr(i: &MachineInstr) -> String {
         MachineInstr::Add { ty } => {
             with_comment(format!("add<{}>", ty.name()), "soma os dois topos da pilha")
         }
+        MachineInstr::PointerOffset {
+            element_size,
+            element_align,
+        } => with_comment(
+            format!(
+                "pointer_offset<size={},align={}>",
+                element_size, element_align
+            ),
+            "deriva seta<T> por deslocamento em elementos",
+        ),
         MachineInstr::Sub { ty } => {
             with_comment(format!("sub<{}>", ty.name()), "subtrai os dois topos da pilha")
         }

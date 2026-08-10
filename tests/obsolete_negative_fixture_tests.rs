@@ -4,6 +4,13 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+// D5 torna este exemplo historicamente obsoleto: `seta<bombom> + 1` passa a
+// avançar um elemento inteiro, não um byte desalinhado. O freeze documental
+// impede renomear a fixture agora; o caso desalinhado real segue coberto pela
+// matriz negativa específica de #449.
+const FIXTURES_NEGATIVAS_OBSOLETAS_CONGELADAS: &[&str] =
+    &["examples/fase246_desalinhado_invalido.pink"];
+
 #[test]
 fn fixture_invalida_nao_pode_ser_aceita_por_todos_os_modos_relevantes() {
     let tracked = Command::new("git")
@@ -19,6 +26,9 @@ fn fixture_invalida_nao_pode_ser_aceita_por_todos_os_modos_relevantes() {
         .filter(|p| !p.is_empty())
     {
         let path = std::str::from_utf8(raw).expect("caminho de fixture UTF-8");
+        if FIXTURES_NEGATIVAS_OBSOLETAS_CONGELADAS.contains(&path) {
+            continue;
+        }
         if !Command::new(pink)
             .args(["--check", path])
             .status()

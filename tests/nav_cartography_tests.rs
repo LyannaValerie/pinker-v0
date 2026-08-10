@@ -5652,6 +5652,7 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
                 && !source.contains("pinker_publico_alocar")
                 && !source.contains("pinker_publico_liberar")
                 && !source.contains("pinker_publico_validar_derivacao")
+                && !source.contains("pinker_ponteiro_derivar_tipado")
                 && !source.contains("pinker_falar_pedaco_inteiro")
         })
         .collect();
@@ -5700,6 +5701,9 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
             .count()
         - producao
             .match_indices("extern \"C\" fn pinker_falar_pedaco_inteiro")
+            .count()
+        - producao
+            .match_indices("extern \"C\" fn pinker_ponteiro_derivar_tipado")
             .count();
     assert_eq!(
         abi_nomeadas, 105,
