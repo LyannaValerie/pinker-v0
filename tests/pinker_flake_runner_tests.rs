@@ -11,6 +11,11 @@
 //! Também cobrem o veredito por iteração: código zero do harness é
 //! necessário, nunca suficiente.
 //!
+//! A interrupção tem autoridade terminal própria: depois que INT, TERM ou HUP
+//! é congelado, nenhum retorno do `wait` nem trap posterior pode devolver o
+//! controle ao veredito normal. Barreiras causais cobrem o `wait`, o reaping e
+//! o EXIT trap; um trace opt-in prova a ordem sem usar tempo como sincronização.
+//!
 //! Nenhuma dependência externa. O harness é substituído por um binário
 //! falso controlado, e cada caso roda em uma raiz própria para não tocar a
 //! evidência real do repositório.
@@ -2776,6 +2781,8 @@ enum EstagioDeInicializacao {
     DepoisDaIdentidade,
     DepoisDeAtivo,
     DepoisDoMonitor,
+    DuranteReaping,
+    DuranteExitTrap,
 }
 
 impl EstagioDeInicializacao {
@@ -2786,6 +2793,8 @@ impl EstagioDeInicializacao {
             Self::DepoisDaIdentidade => "after-identity",
             Self::DepoisDeAtivo => "after-active",
             Self::DepoisDoMonitor => "after-monitor",
+            Self::DuranteReaping => "reap-begin",
+            Self::DuranteExitTrap => "exit-trap-begin",
         }
     }
 
@@ -2798,7 +2807,10 @@ impl EstagioDeInicializacao {
     fn estado_esperado(self) -> &'static str {
         match self {
             Self::AntesDoSpawn | Self::DepoisDoSpawn | Self::DepoisDaIdentidade => "starting",
-            Self::DepoisDeAtivo | Self::DepoisDoMonitor => "active",
+            Self::DepoisDeAtivo
+            | Self::DepoisDoMonitor
+            | Self::DuranteReaping
+            | Self::DuranteExitTrap => "active",
         }
     }
 }
@@ -2870,6 +2882,10 @@ impl CampanhaNaJanela {
                 gancho.to_str().expect("utf-8").to_string(),
             ),
             ("PINKER_FLAKE_STARTUP_HOOK_STAGES", nomes.join(" ")),
+            (
+                "PINKER_FLAKE_TRACE_FILE",
+                area.join("trace.tsv").to_str().expect("utf-8").to_string(),
+            ),
         ];
         let campanha =
             CampanhaViva::nascer_completo(raiz, modo, execucoes, &ambiente, atraso_segundos);
@@ -2982,6 +2998,34 @@ impl CampanhaNaJanela {
         if self.atual < self.estagios.len() {
             self.aguardar_barreira();
         }
+    }
+
+    /// Libera a barreira e só retorna quando o Bash publicou a entrada no
+    /// `wait` normal e `/proc/<pid>/wchan` confirma `do_wait`. O trace fornece a
+    /// causalidade e `wchan` confirma o estado; tempo nenhum decide o avanço.
+    fn avancar_ate_wait_normal(&mut self) {
+        self.liberar();
+        self.atual += 1;
+        let limite = Instant::now() + PRAZO_DE_CONFIRMACAO;
+        let wchan = PathBuf::from(format!("/proc/{}/wchan", self.campanha.controlador.pid));
+        let trace = self.area.join("trace.tsv");
+        while Instant::now() < limite {
+            let wait_publicado = fs::read_to_string(&trace)
+                .map(|conteudo| conteudo.contains("NORMAL_WAIT_BEGIN"))
+                .unwrap_or(false);
+            let wait_confirmado = fs::read_to_string(&wchan)
+                .map(|estado| estado.trim() == "do_wait")
+                .unwrap_or(false);
+            if wait_publicado && wait_confirmado {
+                return;
+            }
+            if matches!(self.campanha.filho.try_wait(), Ok(Some(_))) {
+                self.campanha.filho_recolhido = true;
+                panic!("o runner terminou antes do wait normal");
+            }
+            std::thread::yield_now();
+        }
+        panic!("o runner não alcançou o wait normal");
     }
 
     /// Libera o que restar da barreira e recolhe o resultado.
@@ -3300,45 +3344,239 @@ fn tres_sinais_durante_starting_preservam_o_primeiro() {
     caso_sinais_repetidos("tres-sinais-starting", SIGHUP, &[SIGINT, SIGTERM], "HUP");
 }
 
-#[test]
-fn sinais_repetidos_durante_o_encerramento_nao_reentram() {
-    // O handler não pode reentrar: um segundo sinal chegando durante o
-    // encerramento reiniciaria a escalada, poderia mover a evidência duas vezes
-    // e substituiria a primeira causa.
-    let caso = "sinais-durante-reaping";
+fn caso_sinais_durante_encerramento(
+    caso: &str,
+    primeiro: i32,
+    rotulo_primeiro: &str,
+    seguintes: &[i32],
+    estagio: EstagioDeInicializacao,
+    evento_do_estagio: &str,
+) {
     let raiz = raiz_isolada(caso);
     let evidencia = raiz.join("target/pinker-flake-evidence");
-    let mut janela = CampanhaNaJanela::nova(&raiz, "modo", EstagioDeInicializacao::DepoisDoMonitor);
+    let mut janela = CampanhaNaJanela::nova_multi(
+        &raiz,
+        "modo",
+        &[EstagioDeInicializacao::DepoisDoMonitor, estagio],
+    );
     janela.confirmar_arvore();
+    let trace = janela.area.join("trace.tsv");
 
     let controlador = janela.campanha.controlador.clone();
-    janela.sinalizar(&[SIGINT]);
-    janela.avancar();
-
-    // Enquanto o runner encerra a própria árvore, mais sinais chegam. Cada envio
-    // revalida a identidade, de modo que nenhum sinal parte para um PID que já
-    // deixou de ser o controlador.
-    //
-    // Este caso **não** fixa qual causa vence, e a distinção importa. Depois de
-    // liberada a barreira, o `INT` já entregue e o primeiro `TERM` deste laço
-    // ficam pendentes ao mesmo tempo, e a ordem em que o Bash despacha dois
-    // traps pendentes não é contrato de que se possa depender: uma execução em
-    // quarenta registrou `TERM`. O que este caso prova é a **não-reentrância** —
-    // exatamente uma causa é congelada, exatamente um diretório é promovido, o
-    // código é 130 e nada sobra. A autoridade da primeira causa é provada pelos
-    // casos de barreira ordenada, onde a ordem é do teste e não do kernel.
-    let limite = Instant::now() + PRAZO_DE_CONFIRMACAO;
-    let mut enviados = 0_u32;
-    while Instant::now() < limite && enviados < 40 {
-        if !sinalizar_identidade(&controlador, SIGTERM) {
-            break;
-        }
-        enviados += 1;
-        std::thread::sleep(Duration::from_millis(5));
+    janela.avancar_ate_wait_normal();
+    janela.sinalizar(&[primeiro]);
+    janela.aguardar_barreira();
+    for sinal in seguintes {
+        assert!(
+            sinalizar_identidade(&controlador, *sinal),
+            "{caso}: sinal posterior precisa alcançar o mesmo runner"
+        );
     }
 
     let relatorio = janela.colher();
-    exigir_interrupcao_limpa(caso, &relatorio, &evidencia, &["INT", "TERM"], "active");
+    exigir_interrupcao_limpa(caso, &relatorio, &evidencia, &[rotulo_primeiro], "active");
+
+    let trace_conteudo = fs::read_to_string(trace).expect("trace causal");
+    let linhas: Vec<Vec<&str>> = trace_conteudo
+        .lines()
+        .map(|linha| linha.split('\t').collect())
+        .collect();
+    assert!(
+        linhas.iter().all(|campos| campos.len() == 9),
+        "{caso}: trace estruturado inválido: {linhas:?}"
+    );
+    for (indice, campos) in linhas.iter().enumerate() {
+        assert_eq!(
+            campos[0].parse::<usize>(),
+            Ok(indice + 1),
+            "{caso}: sequência causal precisa ser contínua"
+        );
+    }
+    let eventos: Vec<&str> = linhas.iter().map(|campos| campos[7]).collect();
+    let posicao = |evento: &str| {
+        eventos
+            .iter()
+            .position(|atual| *atual == evento)
+            .unwrap_or_else(|| panic!("{caso}: evento ausente {evento}: {linhas:?}"))
+    };
+    let latch = posicao("INTERRUPT_LATCHED");
+    let estagio = posicao(evento_do_estagio);
+    let ignorado = posicao("INTERRUPT_IGNORED_ALREADY_IN_PROGRESS");
+    assert!(
+        posicao("NORMAL_WAIT_BEGIN") < latch && latch < estagio && estagio < ignorado,
+        "{caso}: ordem causal inválida: {linhas:?}"
+    );
+    assert_eq!(
+        eventos
+            .iter()
+            .filter(|evento| **evento == "INTERRUPT_LATCHED")
+            .count(),
+        1,
+        "{caso}: exatamente um latch"
+    );
+    assert_eq!(linhas[latch][3], rotulo_primeiro, "{caso}: causa congelada");
+    assert!(
+        !eventos.contains(&"NORMAL_VERDICT_BEGIN"),
+        "{caso}: latch proíbe o veredito normal"
+    );
+    let saida = posicao("PROCESS_EXIT");
+    assert_eq!(linhas[saida][8], EXIT_INTERROMPIDO.to_string());
+    let _ = fs::remove_dir_all(&raiz);
+}
+
+#[test]
+fn sinais_repetidos_durante_o_encerramento_nao_reentram() {
+    caso_sinais_durante_encerramento(
+        "int-term-durante-reaping",
+        SIGINT,
+        "INT",
+        &[SIGTERM],
+        EstagioDeInicializacao::DuranteReaping,
+        "REAP_BEGIN",
+    );
+}
+
+#[test]
+fn term_seguido_de_int_durante_reaping_preserva_term() {
+    caso_sinais_durante_encerramento(
+        "term-int-durante-reaping",
+        SIGTERM,
+        "TERM",
+        &[SIGINT],
+        EstagioDeInicializacao::DuranteReaping,
+        "REAP_BEGIN",
+    );
+}
+
+#[test]
+fn hup_e_sinais_posteriores_durante_reaping_preservam_hup() {
+    caso_sinais_durante_encerramento(
+        "hup-multiplos-durante-reaping",
+        SIGHUP,
+        "HUP",
+        &[SIGINT, SIGTERM],
+        EstagioDeInicializacao::DuranteReaping,
+        "REAP_BEGIN",
+    );
+}
+
+#[test]
+fn sinais_posteriores_durante_exit_trap_nao_mudam_status() {
+    caso_sinais_durante_encerramento(
+        "int-term-durante-exit-trap",
+        SIGINT,
+        "INT",
+        &[SIGTERM],
+        EstagioDeInicializacao::DuranteExitTrap,
+        "EXIT_TRAP_BEGIN",
+    );
+}
+
+fn caso_controle_devolve_ao_wait(
+    caso: &str,
+    remover_commit: bool,
+) -> (PathBuf, PathBuf, RelatorioEncerramento) {
+    let efeito_que_retorna = "    interrupt_in_progress=1\n    cleanup_active\n    return 0\n}\n\n# Processa uma interrupcao";
+    let mut substituicoes = vec![(EFEITO_TERMINAL_DO_HANDLER, efeito_que_retorna)];
+    if remover_commit {
+        substituicoes.push((COMMIT_APOS_WAIT, "    true\n    active_state=reaping"));
+        substituicoes.push((
+            COMMIT_ANTES_DO_VEREDITO,
+            "    true\n    pinker_flake_trace NORMAL_VERDICT_BEGIN",
+        ));
+    }
+    let raiz = raiz_com_runner_variado(caso, &substituicoes);
+    let mut janela = CampanhaNaJanela::nova(&raiz, "modo", EstagioDeInicializacao::DepoisDoMonitor);
+    janela.confirmar_arvore();
+    let trace = janela.area.join("trace.tsv");
+    janela.avancar_ate_wait_normal();
+    janela.sinalizar(&[SIGINT]);
+    let relatorio = janela.colher();
+    (raiz, trace, relatorio)
+}
+
+#[test]
+fn latch_reassume_o_desfecho_se_o_handler_devolve_controle_ao_wait() {
+    let caso = "latch-reassume-depois-do-wait";
+    let (raiz, trace, relatorio) = caso_controle_devolve_ao_wait(caso, false);
+    let evidencia = raiz.join("target/pinker-flake-evidence");
+    exigir_interrupcao_limpa(caso, &relatorio, &evidencia, &["INT"], "active");
+    let trace = fs::read_to_string(trace).expect("trace do commit terminal");
+    let wait = trace.find("NORMAL_WAIT_RETURN").expect("retorno do wait");
+    let finalize = trace[wait..]
+        .find("INTERRUPTED_FINALIZE_BEGIN")
+        .map(|posicao| posicao + wait)
+        .expect("o latch precisa retomar a finalização");
+    assert!(wait < finalize);
+    assert!(!trace.contains("NORMAL_VERDICT_BEGIN"));
+    let _ = fs::remove_dir_all(&raiz);
+}
+
+#[test]
+fn sensibilidade_sem_commit_reassume_veredito_normal_e_sai_um() {
+    let caso = "sem-commit-depois-do-wait";
+    let (raiz, trace, relatorio) = caso_controle_devolve_ao_wait(caso, true);
+    let evidencia = raiz.join("target/pinker-flake-evidence");
+    assert_eq!(
+        relatorio.codigo, 1,
+        "sem ownership terminal o batch reclassifica a interrupção como falha"
+    );
+    assert!(relatorio.filho_recolhido, "o runner ainda é aguardado");
+    assert!(
+        relatorio.sobreviventes_apos_controlador.is_empty()
+            && relatorio.restantes.is_empty()
+            && relatorio.grupo_vazio
+            && relatorio.sessao_vazia,
+        "a reprodução limpa toda a árvore apesar do status errado: {relatorio:?}"
+    );
+    assert!(!evidencia.join(".lock").exists(), "o lock é removido");
+    assert!(
+        evidencia.join("SUMMARY-modo.txt").is_file(),
+        "o defeito alcança e publica a projeção normal"
+    );
+    let trace = fs::read_to_string(trace).expect("trace da sensibilidade");
+    let eventos = [
+        "NORMAL_WAIT_BEGIN",
+        "SIGNAL_RECEIVED",
+        "INTERRUPT_LATCHED",
+        "REAP_BEGIN",
+        "REAP_END",
+        "NORMAL_WAIT_RETURN",
+        "NORMAL_VERDICT_BEGIN",
+        "EXIT_TRAP_BEGIN",
+        "PROCESS_EXIT",
+    ];
+    let mut anterior = 0;
+    for evento in eventos {
+        let posicao = trace[anterior..]
+            .find(evento)
+            .map(|local| local + anterior)
+            .unwrap_or_else(|| panic!("evento causal ausente {evento}: {trace}"));
+        anterior = posicao + evento.len();
+    }
+    let retorno = trace
+        .lines()
+        .find(|linha| linha.contains("NORMAL_WAIT_RETURN"))
+        .expect("retorno normal registrado");
+    assert!(
+        retorno.ends_with("\t130"),
+        "o wait interrompido devolve 130 antes de virar batch failure: {retorno}"
+    );
+    let saida = trace
+        .lines()
+        .find(|linha| linha.contains("PROCESS_EXIT"))
+        .expect("saída registrada");
+    assert!(saida.ends_with("\t1"), "o batch termina em 1: {saida}");
+    let lotes = diretorios_de(&evidencia.join("batches"));
+    assert_eq!(lotes.len(), 1);
+    assert!(
+        diretorios_de(&lotes[0]).iter().all(|diretorio| !diretorio
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .starts_with("INTERRUPTED-")),
+        "o fluxo normal não preserva evidência INTERRUPTED"
+    );
     let _ = fs::remove_dir_all(&raiz);
 }
 
@@ -3475,9 +3713,14 @@ const DEFERRAL_EM_STARTING: &str = "    if [[ $active_state == starting ]]; then
 const CLEANUP_DO_FILHO_DIRETO: &str =
     "    [[ -n $active_pid ]] || return 0\n    active_state=reaping";
 const CAPTURA_DE_IDENTIDADE: &str = "    if ! pinker_flake_capture_identity; then";
-const PRIMEIRA_CAUSA: &str = "    if [[ -z $pending_signal ]]; then";
+const PRIMEIRA_CAUSA: &str = "    if [[ -z $interruption_latched ]]; then";
 const REGISTRO_DA_CAUSA: &str = "        pending_signal=$sinal";
-const GUARDA_DE_REENTRANCIA: &str = "    [[ -z $interrupt_in_progress ]] || return 0";
+const GUARDA_DE_REENTRANCIA: &str = "    if [[ -n $interrupt_in_progress ]]; then";
+const GUARDA_DA_DEFERRAL: &str = "    [[ -z $interrupt_in_progress ]] || return 0";
+const COMMIT_APOS_WAIT: &str = "    pinker_flake_commit_interrupted\n    active_state=reaping";
+const COMMIT_ANTES_DO_VEREDITO: &str =
+    "    pinker_flake_commit_interrupted\n    pinker_flake_trace NORMAL_VERDICT_BEGIN";
+const EFEITO_TERMINAL_DO_HANDLER: &str = "    interrupt_in_progress=1\n    pinker_flake_finish_interrupted\n}\n\n# Processa uma interrupcao";
 const PROMOCAO_PARA_ATIVO: &str = "    active_state=active";
 const CAMPO_START: &str = "    active_start=$start";
 const CAMPO_PGID: &str = "    active_pgid=$pgid";
@@ -4005,7 +4248,7 @@ fn guarda_de_inicializacao(fonte: &str) -> Result<(), String> {
     if !fonte.contains(PRIMEIRA_CAUSA) || !fonte.contains(REGISTRO_DA_CAUSA) {
         return Err(String::from("a primeira causa deixou de ser registrada"));
     }
-    if fonte.matches(GUARDA_DE_REENTRANCIA).count() < 2 {
+    if !fonte.contains(GUARDA_DE_REENTRANCIA) || !fonte.contains(GUARDA_DA_DEFERRAL) {
         return Err(String::from(
             "a guarda de reentrância não cobre handler e deferral",
         ));
@@ -4084,6 +4327,11 @@ fn guarda_de_inicializacao(fonte: &str) -> Result<(), String> {
             "a interrupção deixou de sair com 130 e pode publicar resumo",
         ));
     }
+    if !fonte.contains(COMMIT_APOS_WAIT) || !fonte.contains(COMMIT_ANTES_DO_VEREDITO) {
+        return Err(String::from(
+            "o latch deixou de vedar o veredito normal depois do wait",
+        ));
+    }
     if !fonte.contains("    exit \"$PINKER_FLAKE_EXIT_IDENTITY\"") {
         return Err(String::from("a falha de identidade deixou de ser fechada"));
     }
@@ -4150,6 +4398,19 @@ fn sensibilidade_das_guardas_de_inicializacao_detecta_cada_variacao() {
         (
             "handler reentrante",
             fonte.replace(GUARDA_DE_REENTRANCIA, "    true"),
+        ),
+        (
+            "deferral reentrante",
+            fonte.replace(GUARDA_DA_DEFERRAL, "    true"),
+        ),
+        (
+            "veredito normal reassume autoridade depois do wait",
+            fonte
+                .replace(COMMIT_APOS_WAIT, "    true\n    active_state=reaping")
+                .replace(
+                    COMMIT_ANTES_DO_VEREDITO,
+                    "    true\n    pinker_flake_trace NORMAL_VERDICT_BEGIN",
+                ),
         ),
         (
             "remoção do wait do controlador",
