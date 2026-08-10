@@ -648,8 +648,29 @@ identity_fd=
 pending_signal=
 pending_state=
 pending_controller=no
+interruption_latched=
 interrupt_in_progress=
 interrupt_residual_group=unknown
+pinker_flake_trace_sequence=0
+
+# Registro causal estritamente opt-in para testes de interrupcao. O timestamp e
+# apenas observacao; nenhuma sincronizacao ou decisao depende dele.
+pinker_flake_trace() {
+    local event=${1:-UNKNOWN} signal=${2:-} status=${3:-}
+    [[ -n ${PINKER_FLAKE_TRACE_FILE:-} ]] || return 0
+    pinker_flake_trace_sequence=$((pinker_flake_trace_sequence + 1))
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+        "$pinker_flake_trace_sequence" \
+        "${EPOCHREALTIME:-unknown}" \
+        "$$" \
+        "$signal" \
+        "$active_state" \
+        "${pending_signal:-}" \
+        "${interrupt_in_progress:-}" \
+        "$event" \
+        "$status" >> "$PINKER_FLAKE_TRACE_FILE" 2>/dev/null || true
+    return 0
+}
 
 # Orcamento do anuncio de prontidao. Generoso para uma maquina saturada e
 # finito por principio: espera infinita nao e contencao.
@@ -681,7 +702,7 @@ printf "pinker-flake-identity 1 %s %s %s %s\n" \
 exec "$@"
 '
 
-# Gancho estritamente de teste para congelar pontos da inicializacao.
+# Gancho estritamente de teste para congelar pontos do lifecycle do controlador.
 #
 # Separado de `PINKER_FLAKE_TEST_HOOK` de proposito: ampliar o gancho antigo
 # faria um hook ja existente receber estagios que ele nunca esperou, e o unico
@@ -909,6 +930,8 @@ pinker_flake_await_tree_quiescence() {
 pinker_flake_reap_active_tree() {
     [[ -n $active_pid ]] || return 0
     active_state=reaping
+    pinker_flake_trace REAP_BEGIN
+    pinker_flake_startup_hook reap-begin
     pinker_flake_signal_direct_child TERM
     pinker_flake_signal_group TERM || true
     pinker_flake_await_tree_quiescence || true
@@ -918,11 +941,14 @@ pinker_flake_reap_active_tree() {
         pinker_flake_await_tree_quiescence || true
     fi
     interrupt_residual_group=$(pinker_flake_group_survivors)
+    pinker_flake_trace CONTROLLER_WAIT_BEGIN
     wait "$active_pid" 2>/dev/null || true
+    pinker_flake_trace CONTROLLER_WAIT_END
     active_pid=
     active_start=
     active_pgid=
     active_sid=
+    pinker_flake_trace REAP_END
     return 0
 }
 
@@ -961,6 +987,7 @@ cleanup_active() {
 # Conclui uma interrupcao ja congelada. Nunca retorna.
 pinker_flake_finish_interrupted() {
     local interrupted_name interrupted_dir stopped_at interrupted_duration
+    pinker_flake_trace INTERRUPTED_FINALIZE_BEGIN "${pending_signal:-}"
     cleanup_active
     if [[ -n "${tmp:-}" && -d "${tmp:-}" ]]; then
         interrupted_name=${tmp##*/}
@@ -989,6 +1016,7 @@ pinker_flake_finish_interrupted() {
             printf 'interrupt_residual_group=%s\n' "${interrupt_residual_group:-unknown}"
         } >> "$interrupted_dir/manifest.txt"
     fi
+    pinker_flake_trace INTERRUPTED_EXIT "${pending_signal:-}" "$PINKER_FLAKE_EXIT_INTERRUPTED"
     exit "$PINKER_FLAKE_EXIT_INTERRUPTED"
 }
 
@@ -1000,16 +1028,22 @@ pinker_flake_finish_interrupted() {
 # durante o encerramento nao reinicia a escalada.
 interrupt_runner() {
     local sinal=${1:-UNKNOWN}
-    if [[ -z $pending_signal ]]; then
+    pinker_flake_trace SIGNAL_RECEIVED "$sinal"
+    if [[ -z $interruption_latched ]]; then
+        interruption_latched=1
         pending_signal=$sinal
         pending_state=$active_state
         pending_controller=no
         [[ -n $active_pid ]] && pending_controller=yes
+        pinker_flake_trace INTERRUPT_LATCHED "$sinal"
     fi
     if [[ $active_state == starting ]]; then
         return 0
     fi
-    [[ -z $interrupt_in_progress ]] || return 0
+    if [[ -n $interrupt_in_progress ]]; then
+        pinker_flake_trace INTERRUPT_IGNORED_ALREADY_IN_PROGRESS "$sinal"
+        return 0
+    fi
     interrupt_in_progress=1
     pinker_flake_finish_interrupted
 }
@@ -1017,9 +1051,18 @@ interrupt_runner() {
 # Processa uma interrupcao registrada durante `starting`. Nunca retorna quando
 # ha causa pendente.
 pinker_flake_settle_pending() {
-    [[ -n $pending_signal ]] || return 0
+    [[ -n $interruption_latched ]] || return 0
     [[ -z $interrupt_in_progress ]] || return 0
     interrupt_in_progress=1
+    pinker_flake_finish_interrupted
+}
+
+# O latch e a autoridade do desfecho, enquanto `interrupt_in_progress` descreve
+# apenas um efeito em curso. Se o Bash devolver controle ao `wait` normal depois
+# de despachar traps, a iteracao volta a finalizar a interrupcao; o veredito
+# comum jamais pode reassumir autoridade.
+pinker_flake_commit_interrupted() {
+    [[ -n $interruption_latched ]] || return 0
     pinker_flake_finish_interrupted
 }
 
@@ -1053,7 +1096,17 @@ pinker_flake_fail_identity() {
 # todos por aqui. SIGKILL nao executa trap algum, e por isso o lock registra
 # identidade suficiente para que uma campanha posterior o classifique e o
 # recupere.
-trap 'cleanup_active; pinker_flake_release_lock' EXIT
+pinker_flake_exit_trap() {
+    local process_status=$?
+    pinker_flake_trace EXIT_TRAP_BEGIN "${pending_signal:-}" "$process_status"
+    pinker_flake_startup_hook exit-trap-begin
+    cleanup_active
+    pinker_flake_release_lock
+    pinker_flake_trace PROCESS_EXIT "${pending_signal:-}" "$process_status"
+    return "$process_status"
+}
+
+trap pinker_flake_exit_trap EXIT
 trap 'interrupt_runner INT' INT
 trap 'interrupt_runner TERM' TERM
 trap 'interrupt_runner HUP' HUP
@@ -1199,8 +1252,11 @@ for (( iteration = 1; iteration <= runs; iteration++ )); do
     monitor_pid=$!
     pinker_flake_startup_hook after-monitor
     pinker_flake_settle_pending
+    pinker_flake_trace NORMAL_WAIT_BEGIN
     wait "$controller_pid"
     exit_code=$?
+    pinker_flake_trace NORMAL_WAIT_RETURN "${pending_signal:-}" "$exit_code"
+    pinker_flake_commit_interrupted
     active_state=reaping
     active_pid=
     active_start=
@@ -1224,6 +1280,8 @@ for (( iteration = 1; iteration <= runs; iteration++ )); do
     # efetivamente executado. Qualquer outra combinacao falha fechada e
     # preserva a evidencia.
     # ---------------------------------------------------------------------
+    pinker_flake_commit_interrupted
+    pinker_flake_trace NORMAL_VERDICT_BEGIN "" "$exit_code"
     run_status=pass
     run_reason=ok
     run_executed=0
