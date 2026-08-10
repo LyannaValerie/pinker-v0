@@ -189,10 +189,28 @@ pub enum InstructionIR {
     },
     InlineAsm {
         chunks: Vec<String>,
+        operands: Vec<InlineAsmOperandIR>,
+        clobbers: Vec<crate::inline_asm::AsmClobber>,
         span: Span,
     },
     /// `encaixe` de união já associado ao registry canônico.
     UnionMatch(UnionMatchIR),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum InlineAsmOperandIR {
+    Input {
+        name: String,
+        constraint: crate::inline_asm::AsmConstraint,
+        value: ValueIR,
+        ty: TypeIR,
+    },
+    Output {
+        name: String,
+        constraint: crate::inline_asm::AsmConstraint,
+        slot: String,
+        ty: TypeIR,
+    },
 }
 
 /// Match de união na IR estruturada.
@@ -4835,8 +4853,62 @@ impl<'a> FunctionLowerer<'a> {
         &mut self,
         inline_asm_stmt: &InlineAsmStmt,
     ) -> Result<InstructionIR, PinkerError> {
+        let mut operands = Vec::new();
+        for operand in &inline_asm_stmt.operands {
+            let constraint =
+                crate::inline_asm::parse_constraint(&operand.constraint).map_err(|error| {
+                    PinkerError::Ir {
+                        msg: error.to_string(),
+                        span: operand.span,
+                    }
+                })?;
+            match &operand.direction {
+                crate::ast::InlineAsmDirection::Input => {
+                    let value = self.lower_value(&operand.value)?;
+                    operands.push(InlineAsmOperandIR::Input {
+                        name: operand.name.clone(),
+                        constraint,
+                        value: value.value,
+                        ty: value.ty,
+                    });
+                }
+                crate::ast::InlineAsmDirection::Output => {
+                    let ExprKind::Ident(target) = &operand.value.kind else {
+                        return Err(PinkerError::Ir {
+                            msg: "saida de sussurro perdeu alvo simples validado".to_string(),
+                            span: operand.value.span,
+                        });
+                    };
+                    let binding = self.resolve_binding(target, operand.value.span)?;
+                    operands.push(InlineAsmOperandIR::Output {
+                        name: operand.name.clone(),
+                        constraint,
+                        slot: binding.slot,
+                        ty: binding.ty,
+                    });
+                }
+                crate::ast::InlineAsmDirection::Unknown(direction) => {
+                    return Err(PinkerError::Ir {
+                        msg: format!("direção de operando de sussurro não validada: '{direction}'"),
+                        span: operand.span,
+                    });
+                }
+            }
+        }
+        let clobbers = inline_asm_stmt
+            .clobbers
+            .iter()
+            .map(|clobber| {
+                crate::inline_asm::parse_clobber(&clobber.name).map_err(|error| PinkerError::Ir {
+                    msg: error.to_string(),
+                    span: clobber.span,
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         Ok(InstructionIR::InlineAsm {
             chunks: inline_asm_stmt.chunks.clone(),
+            operands,
+            clobbers,
             span: inline_asm_stmt.span,
         })
     }
@@ -6500,8 +6572,22 @@ fn render_instruction(instruction: &InstructionIR, indent: usize, out: &mut Stri
                 .join(", ");
             line(out, indent, &format!("falar {}", rendered_args));
         }
-        InstructionIR::InlineAsm { chunks, .. } => {
-            line(out, indent, &format!("inline_asm [{}]", chunks.join(" | ")));
+        InstructionIR::InlineAsm {
+            chunks,
+            operands,
+            clobbers,
+            ..
+        } => {
+            line(
+                out,
+                indent,
+                &format!(
+                    "inline_asm [{}] operands={} clobbers={:?}",
+                    chunks.join(" | "),
+                    operands.len(),
+                    clobbers
+                ),
+            );
         }
         InstructionIR::UnionMatch(union_match) => {
             line(

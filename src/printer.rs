@@ -279,6 +279,22 @@ fn render_stmt(stmt: &Stmt, indent: usize, out: &mut String) {
             for chunk in &inline_asm_stmt.chunks {
                 line(out, indent + 1, &format!("chunk \"{}\"", chunk));
             }
+            for operand in &inline_asm_stmt.operands {
+                line(
+                    out,
+                    indent + 1,
+                    &format!(
+                        "operand {} {}:{}",
+                        operand.direction.name(),
+                        operand.name,
+                        operand.constraint
+                    ),
+                );
+                render_expr(&operand.value, indent + 2, out, "value");
+            }
+            for clobber in &inline_asm_stmt.clobbers {
+                line(out, indent + 1, &format!("clobber {}", clobber.name));
+            }
         }
         Stmt::UnionMatch(union_match) => {
             line(

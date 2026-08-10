@@ -982,6 +982,40 @@ impl FalarStmt {
 #[derive(Debug, Clone)]
 pub struct InlineAsmStmt {
     pub chunks: Vec<String>,
+    pub operands: Vec<InlineAsmOperand>,
+    pub clobbers: Vec<InlineAsmClobber>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum InlineAsmDirection {
+    Input,
+    Output,
+    Unknown(String),
+}
+
+impl InlineAsmDirection {
+    pub fn name(&self) -> &str {
+        match self {
+            Self::Input => "entrada",
+            Self::Output => "saida",
+            Self::Unknown(name) => name,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct InlineAsmOperand {
+    pub name: String,
+    pub direction: InlineAsmDirection,
+    pub constraint: String,
+    pub value: Expr,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone)]
+pub struct InlineAsmClobber {
+    pub name: String,
     pub span: Span,
 }
 
@@ -992,6 +1026,21 @@ impl InlineAsmStmt {
         writer.field_span("span", self.span);
         writer.field_array("chunks", &self.chunks, |writer, chunk| {
             writer.value_str(chunk);
+        });
+        writer.field_array("operands", &self.operands, |writer, operand| {
+            writer.begin_object();
+            writer.field_str("name", &operand.name);
+            writer.field_str("direction", operand.direction.name());
+            writer.field_str("constraint", &operand.constraint);
+            writer.field_span("span", operand.span);
+            writer.field_value("value", |writer| operand.value.write_json(writer));
+            writer.end_object();
+        });
+        writer.field_array("clobbers", &self.clobbers, |writer, clobber| {
+            writer.begin_object();
+            writer.field_str("name", &clobber.name);
+            writer.field_span("span", clobber.span);
+            writer.end_object();
         });
         writer.end_object();
     }

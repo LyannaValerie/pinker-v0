@@ -552,10 +552,44 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
                         temps.insert(*dest);
                     }
                     SelectedInstr::Falar { args: _ } => {}
-                    SelectedInstr::InlineAsm { chunks, .. } => {
+                    SelectedInstr::InlineAsm {
+                        chunks,
+                        operands,
+                        clobbers,
+                        ..
+                    } => {
                         if chunks.is_empty() || chunks.iter().any(|chunk| chunk.trim().is_empty()) {
                             return Err(err("selected inline_asm exige chunks não vazios"));
                         }
+                        let mut specs = Vec::new();
+                        for operand in operands {
+                            match operand {
+                                crate::cfg_ir::InlineAsmOperandCfgIR::Input {
+                                    name,
+                                    constraint,
+                                    value,
+                                    ..
+                                } => {
+                                    check_operand(value, &slots, &temps, &globals)?;
+                                    specs.push((name.clone(), *constraint));
+                                }
+                                crate::cfg_ir::InlineAsmOperandCfgIR::Output {
+                                    name,
+                                    constraint,
+                                    slot,
+                                    ..
+                                } => {
+                                    if !slots.contains(slot) {
+                                        return Err(err(
+                                            "selected inline_asm aponta para output inexistente",
+                                        ));
+                                    }
+                                    specs.push((name.clone(), *constraint));
+                                }
+                            }
+                        }
+                        crate::inline_asm::validate_bound_operands(chunks, &specs, clobbers)
+                            .map_err(|failure| err(&failure.to_string()))?;
                     }
                 }
             }
