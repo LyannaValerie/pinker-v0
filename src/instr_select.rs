@@ -265,6 +265,8 @@ pub enum SelectedInstr {
     },
     InlineAsm {
         chunks: Vec<String>,
+        operands: Vec<crate::cfg_ir::InlineAsmOperandCfgIR>,
+        clobbers: Vec<crate::inline_asm::AsmClobber>,
         span: crate::token::Span,
     },
 }
@@ -708,8 +710,15 @@ fn select_instruction(inst: &InstructionCfgIR) -> Result<SelectedInstr, PinkerEr
         InstructionCfgIR::Falar { args } => Ok(SelectedInstr::Falar {
             args: lower_falar_args(args),
         }),
-        InstructionCfgIR::InlineAsm { chunks, span } => Ok(SelectedInstr::InlineAsm {
+        InstructionCfgIR::InlineAsm {
+            chunks,
+            operands,
+            clobbers,
+            span,
+        } => Ok(SelectedInstr::InlineAsm {
             chunks: chunks.clone(),
+            operands: operands.clone(),
+            clobbers: clobbers.clone(),
             span: *span,
         }),
     }
@@ -1126,7 +1135,17 @@ fn render_instr(inst: &SelectedInstr) -> String {
                 .collect::<Vec<_>>()
                 .join(", ")
         ),
-        SelectedInstr::InlineAsm { chunks, .. } => format!("inline_asm {:?}", chunks),
+        SelectedInstr::InlineAsm {
+            chunks,
+            operands,
+            clobbers,
+            ..
+        } => format!(
+            "inline_asm {:?} operands={} clobbers={:?}",
+            chunks,
+            operands.len(),
+            clobbers
+        ),
     }
 }
 

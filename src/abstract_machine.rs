@@ -228,6 +228,8 @@ pub enum MachineInstr {
     PrintNewline,
     InlineAsm {
         chunks: Vec<String>,
+        operands: Vec<crate::cfg_ir::InlineAsmOperandCfgIR>,
+        clobbers: Vec<crate::inline_asm::AsmClobber>,
         span: crate::token::Span,
     },
 }
@@ -636,9 +638,16 @@ fn lower_instr(inst: &SelectedInstr, code: &mut Vec<MachineInstr>) -> Result<(),
             }
             code.push(MachineInstr::PrintNewline);
         }
-        SelectedInstr::InlineAsm { chunks, span } => {
+        SelectedInstr::InlineAsm {
+            chunks,
+            operands,
+            clobbers,
+            span,
+        } => {
             code.push(MachineInstr::InlineAsm {
                 chunks: chunks.clone(),
+                operands: operands.clone(),
+                clobbers: clobbers.clone(),
                 span: *span,
             });
         }
@@ -1136,7 +1145,17 @@ fn render_instr(i: &MachineInstr) -> String {
         ),
         MachineInstr::PrintSpace => with_comment("print_space".to_string(), "imprime espaço"),
         MachineInstr::PrintNewline => with_comment("print_newline".to_string(), "imprime quebra"),
-        MachineInstr::InlineAsm { chunks, .. } => format!("inline_asm {:?}", chunks),
+        MachineInstr::InlineAsm {
+            chunks,
+            operands,
+            clobbers,
+            ..
+        } => format!(
+            "inline_asm {:?} operands={} clobbers={:?}",
+            chunks,
+            operands.len(),
+            clobbers
+        ),
     }
 }
 

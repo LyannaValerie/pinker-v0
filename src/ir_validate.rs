@@ -1572,7 +1572,12 @@ fn validate_block(
                 span: _,
             } => {}
             InstructionIR::Falar { args: _, span: _ } => {}
-            InstructionIR::InlineAsm { chunks, span } => {
+            InstructionIR::InlineAsm {
+                chunks,
+                operands,
+                clobbers,
+                span,
+            } => {
                 if chunks.is_empty() || chunks.iter().any(|chunk| chunk.trim().is_empty()) {
                     return Err(ir_validation_error_ctx(
                         function,
@@ -1582,6 +1587,57 @@ fn validate_block(
                         *span,
                     ));
                 }
+                let mut specs = Vec::new();
+                for operand in operands {
+                    match operand {
+                        crate::ir::InlineAsmOperandIR::Input {
+                            name,
+                            constraint,
+                            value,
+                            ty,
+                        } => {
+                            let inferred = infer_value_type(value, slots, consts, funcs, *span)?;
+                            if inferred != *ty {
+                                return Err(ir_validation_error_ctx(
+                                    function,
+                                    Some(block),
+                                    "tipo de input inline asm divergente",
+                                    Some("instr='inline_asm'"),
+                                    *span,
+                                ));
+                            }
+                            specs.push((name.clone(), *constraint));
+                        }
+                        crate::ir::InlineAsmOperandIR::Output {
+                            name,
+                            constraint,
+                            slot,
+                            ty,
+                        } => {
+                            if slots.get(slot) != Some(ty) {
+                                return Err(ir_validation_error_ctx(
+                                    function,
+                                    Some(block),
+                                    "output inline asm aponta para slot ausente ou de tipo divergente",
+                                    Some("instr='inline_asm'"),
+                                    *span,
+                                ));
+                            }
+                            specs.push((name.clone(), *constraint));
+                        }
+                    }
+                }
+                crate::inline_asm::validate_bound_operands(chunks, &specs, clobbers).map_err(
+                    |failure| {
+                        ir_validation_error_ctx(
+                            function,
+                            Some(block),
+                            &failure.to_string(),
+                            Some("instr='inline_asm'"),
+                            *span,
+                        )
+                    },
+                )?;
             }
             InstructionIR::UnionMatch(union_match) => {
                 let scrutinee_ty = infer_value_type(

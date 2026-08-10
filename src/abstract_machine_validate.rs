@@ -1763,7 +1763,12 @@ fn apply_instr_effect(
         }
         MachineInstr::PrintStrInline(_) | MachineInstr::PrintSpace | MachineInstr::PrintNewline => {
         }
-        MachineInstr::InlineAsm { chunks, .. } => {
+        MachineInstr::InlineAsm {
+            chunks,
+            operands,
+            clobbers,
+            ..
+        } => {
             if chunks.is_empty() || chunks.iter().any(|chunk| chunk.trim().is_empty()) {
                 return Err(err_ctx(
                     f,
@@ -1771,6 +1776,19 @@ fn apply_instr_effect(
                     "inline_asm da máquina exige chunks não vazios",
                 ));
             }
+            let specs = operands
+                .iter()
+                .map(|operand| match operand {
+                    crate::cfg_ir::InlineAsmOperandCfgIR::Input {
+                        name, constraint, ..
+                    }
+                    | crate::cfg_ir::InlineAsmOperandCfgIR::Output {
+                        name, constraint, ..
+                    } => (name.clone(), *constraint),
+                })
+                .collect::<Vec<_>>();
+            crate::inline_asm::validate_bound_operands(chunks, &specs, clobbers)
+                .map_err(|failure| err_ctx(f, Some(label), &failure.to_string()))?;
         }
     }
 

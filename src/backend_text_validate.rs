@@ -275,7 +275,7 @@ fn validate_function(
                     }
                 }
                 BackendTextInstruction::Falar { args: _ } => {}
-                BackendTextInstruction::InlineAsm { chunks } => {
+                BackendTextInstruction::InlineAsm { chunks, .. } => {
                     if chunks.is_empty() || chunks.iter().any(|chunk| chunk.trim().is_empty()) {
                         return Err(err("inline_asm textual exige chunks não vazios"));
                     }

@@ -1397,7 +1397,52 @@ fn extract_external_callconv_program(
                         }
                         body.push("call pinker_falar_fim".to_string());
                     }
-                    SelectedInstr::InlineAsm { chunks, .. } => {
+                    SelectedInstr::InlineAsm {
+                        chunks,
+                        operands,
+                        clobbers,
+                        ..
+                    } => {
+                        let constraint_specs = operands
+                            .iter()
+                            .map(|operand| match operand {
+                                crate::cfg_ir::InlineAsmOperandCfgIR::Input {
+                                    name,
+                                    constraint,
+                                    ..
+                                }
+                                | crate::cfg_ir::InlineAsmOperandCfgIR::Output {
+                                    name,
+                                    constraint,
+                                    ..
+                                } => (name.clone(), *constraint),
+                            })
+                            .collect::<Vec<_>>();
+                        let bindings =
+                            crate::inline_asm::allocate_registers(&constraint_specs, clobbers)
+                                .map_err(|error| err(&error.to_string()))?;
+                        for operand in operands {
+                            if let crate::cfg_ir::InlineAsmOperandCfgIR::Input {
+                                name,
+                                value,
+                                ty,
+                                ..
+                            } = operand
+                            {
+                                let register = bindings[name].att();
+                                body.push(format!(
+                                    "# pinker:sussurro input {name} -> {}",
+                                    bindings[name].intel()
+                                ));
+                                body.extend(load_operand(
+                                    register,
+                                    value,
+                                    &slot_offsets,
+                                    &rodata_strings,
+                                )?);
+                                body.extend(normalize_sysv_scalar_argument(register, *ty)?);
+                            }
+                        }
                         // As sentinelas do envelope são geradas pelo compilador;
                         // nenhum texto delas vem da fonte. O identificador é
                         // determinístico por função e ordem de bloco.
@@ -1410,13 +1455,37 @@ fn extract_external_callconv_program(
                         body.push(crate::inline_asm::INTEL_SYNTAX_WRAPPER.to_string());
                         for (index, chunk) in chunks.iter().enumerate() {
                             body.push(format!("# pinker:sussurro chunk={index}"));
-                            body.extend(chunk.lines().map(str::to_string));
+                            let parts = crate::inline_asm::parse_template(chunk)
+                                .map_err(|error| err(&error.to_string()))?;
+                            let rendered = crate::inline_asm::render_template(&parts, &bindings)
+                                .map_err(|error| err(&error.to_string()))?;
+                            body.extend(rendered.lines().map(str::to_string));
                         }
                         body.push(crate::inline_asm::ATT_SYNTAX_WRAPPER.to_string());
                         body.push(format!(
                             "{}{envelope_id}",
                             crate::inline_asm::SENTINEL_END_PREFIX
                         ));
+                        for operand in operands {
+                            if let crate::cfg_ir::InlineAsmOperandCfgIR::Output {
+                                name,
+                                slot,
+                                ty,
+                                ..
+                            } = operand
+                            {
+                                let register = bindings[name].att();
+                                body.extend(normalize_inline_asm_output(register, *ty)?);
+                                body.push(format!(
+                                    "movq {}, -{}(%rbp)",
+                                    register, slot_offsets[slot]
+                                ));
+                                body.push(format!(
+                                    "# pinker:sussurro output {name} <- {}",
+                                    bindings[name].intel()
+                                ));
+                            }
+                        }
                     }
                     SelectedInstr::UnionInject {
                         dest,
@@ -3091,6 +3160,33 @@ fn normalize_sysv_scalar_argument(register: &str, ty: TypeIR) -> Result<Vec<Stri
     Ok(instruction.into_iter().collect())
 }
 
+fn normalize_inline_asm_output(register: &str, ty: TypeIR) -> Result<Vec<String>, PinkerError> {
+    if ty != TypeIR::Logica {
+        return normalize_sysv_scalar_argument(register, ty);
+    }
+    let byte_register = match register {
+        "%rax" => "%al",
+        "%rdi" => "%dil",
+        "%rsi" => "%sil",
+        "%rdx" => "%dl",
+        "%rcx" => "%cl",
+        "%r8" => "%r8b",
+        "%r9" => "%r9b",
+        "%r10" => "%r10b",
+        "%r11" => "%r11b",
+        _ => {
+            return Err(err(
+                "backend nativo não conhece subregistrador para saída lógica de sussurro",
+            ));
+        }
+    };
+    Ok(vec![
+        format!("testq {register}, {register}"),
+        format!("setne {byte_register}"),
+        format!("movzbq {byte_register}, {register}"),
+    ])
+}
+
 fn sysv_stack_layout(total_args: usize) -> (usize, usize) {
     let stack_args = total_args.saturating_sub(ARG_REGS.len());
     (stack_args, stack_args % 2)
@@ -3852,8 +3948,17 @@ fn render_instruction(inst: &crate::backend_text::BackendTextInstruction) -> Str
                 .collect::<Vec<_>>()
                 .join(", ")
         ),
-        crate::backend_text::BackendTextInstruction::InlineAsm { chunks } => {
-            format!("inline_asm {:?}", chunks)
+        crate::backend_text::BackendTextInstruction::InlineAsm {
+            chunks,
+            operands,
+            clobbers,
+        } => {
+            format!(
+                "inline_asm {:?} operands={} clobbers={:?}",
+                chunks,
+                operands.len(),
+                clobbers
+            )
         }
         crate::backend_text::BackendTextInstruction::UnionInject {
             dest,

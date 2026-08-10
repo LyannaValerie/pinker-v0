@@ -200,7 +200,25 @@ pub enum InstructionCfgIR {
     },
     InlineAsm {
         chunks: Vec<String>,
+        operands: Vec<InlineAsmOperandCfgIR>,
+        clobbers: Vec<crate::inline_asm::AsmClobber>,
         span: Span,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum InlineAsmOperandCfgIR {
+    Input {
+        name: String,
+        constraint: crate::inline_asm::AsmConstraint,
+        value: OperandIR,
+        ty: TypeIR,
+    },
+    Output {
+        name: String,
+        constraint: crate::inline_asm::AsmConstraint,
+        slot: String,
+        ty: TypeIR,
     },
 }
 
@@ -726,14 +744,54 @@ impl FunctionLowerer {
                     .push(InstructionCfgIR::Falar { args: operands });
                 Ok(next_current)
             }
-            InstructionIR::InlineAsm { chunks, span } => {
-                self.blocks[current]
+            InstructionIR::InlineAsm {
+                chunks,
+                operands,
+                clobbers,
+                span,
+            } => {
+                let mut lowered_operands = Vec::new();
+                let mut next_current = current;
+                for operand in operands {
+                    match operand {
+                        crate::ir::InlineAsmOperandIR::Input {
+                            name,
+                            constraint,
+                            value,
+                            ty,
+                        } => {
+                            let (value, after_value) =
+                                self.lower_value_operand(value, next_current, *span)?;
+                            next_current = after_value;
+                            lowered_operands.push(InlineAsmOperandCfgIR::Input {
+                                name: name.clone(),
+                                constraint: *constraint,
+                                value,
+                                ty: *ty,
+                            });
+                        }
+                        crate::ir::InlineAsmOperandIR::Output {
+                            name,
+                            constraint,
+                            slot,
+                            ty,
+                        } => lowered_operands.push(InlineAsmOperandCfgIR::Output {
+                            name: name.clone(),
+                            constraint: *constraint,
+                            slot: slot.clone(),
+                            ty: *ty,
+                        }),
+                    }
+                }
+                self.blocks[next_current]
                     .instructions
                     .push(InstructionCfgIR::InlineAsm {
                         chunks: chunks.clone(),
+                        operands: lowered_operands,
+                        clobbers: clobbers.clone(),
                         span: *span,
                     });
-                Ok(current)
+                Ok(next_current)
             }
             InstructionIR::Continue { span, .. } => {
                 let Some(loop_continue_label) = self.loop_continue_stack.last().cloned() else {
@@ -2122,7 +2180,17 @@ fn render_instruction(inst: &InstructionCfgIR) -> String {
                 .collect::<Vec<_>>()
                 .join(", ")
         ),
-        InstructionCfgIR::InlineAsm { chunks, .. } => format!("inline_asm {:?}", chunks),
+        InstructionCfgIR::InlineAsm {
+            chunks,
+            operands,
+            clobbers,
+            ..
+        } => format!(
+            "inline_asm {:?} operands={} clobbers={:?}",
+            chunks,
+            operands.len(),
+            clobbers
+        ),
     }
 }
 

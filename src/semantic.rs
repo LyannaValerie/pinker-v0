@@ -2322,27 +2322,7 @@ impl SemanticChecker {
                         }
                     }
                 }
-                Stmt::InlineAsm(inline_asm_stmt) => {
-                    if inline_asm_stmt.chunks.is_empty() {
-                        return Err(PinkerError::Semantic {
-                            msg: "'sussurro' exige ao menos uma string literal".to_string(),
-                            span: inline_asm_stmt.span,
-                        });
-                    }
-                    if inline_asm_stmt
-                        .chunks
-                        .iter()
-                        .any(|chunk| chunk.trim().is_empty())
-                    {
-                        return Err(PinkerError::Semantic {
-                            msg: "bloco de 'sussurro' não pode conter string vazia".to_string(),
-                            span: inline_asm_stmt.span,
-                        });
-                    }
-                    for chunk in &inline_asm_stmt.chunks {
-                        validate_inline_asm_chunk(chunk, inline_asm_stmt.span)?;
-                    }
-                }
+                Stmt::InlineAsm(inline_asm_stmt) => self.check_inline_asm(inline_asm_stmt)?,
                 Stmt::UnionMatch(union_match) => self.check_union_match(union_match)?,
                 Stmt::Expr(expr) => {
                     self.check_expr(expr)?;
@@ -2357,6 +2337,166 @@ impl SemanticChecker {
         Ok(())
     }
     // @pinker-nav:end semantic.comandos.verificacao
+
+    fn check_inline_asm(&mut self, stmt: &InlineAsmStmt) -> Result<(), PinkerError> {
+        let semantic_error = |msg: String, span: Span| PinkerError::Semantic { msg, span };
+        if stmt.chunks.is_empty() {
+            return Err(semantic_error(
+                "'sussurro' exige ao menos uma string literal".to_string(),
+                stmt.span,
+            ));
+        }
+        if stmt.chunks.iter().any(|chunk| chunk.trim().is_empty()) {
+            return Err(semantic_error(
+                "bloco de 'sussurro' não pode conter string vazia".to_string(),
+                stmt.span,
+            ));
+        }
+
+        let mut template_references = HashSet::new();
+        for chunk in &stmt.chunks {
+            validate_inline_asm_chunk(chunk, stmt.span)?;
+            let parts = crate::inline_asm::parse_template(chunk)
+                .map_err(|error| semantic_error(error.to_string(), stmt.span))?;
+            for part in parts {
+                if let crate::inline_asm::AsmTemplatePart::Operand(name) = part {
+                    template_references.insert(name);
+                }
+            }
+        }
+
+        let mut clobber_names = HashSet::new();
+        let mut clobbers = Vec::new();
+        for clobber in &stmt.clobbers {
+            if !clobber_names.insert(clobber.name.clone()) {
+                return Err(semantic_error(
+                    format!(
+                        "E-SEMANTIC-ASM-CLOBBER-CONFLICT\nclobber '{}' duplicado em 'sussurro'",
+                        clobber.name
+                    ),
+                    clobber.span,
+                ));
+            }
+            clobbers.push(
+                crate::inline_asm::parse_clobber(&clobber.name)
+                    .map_err(|error| semantic_error(error.to_string(), clobber.span))?,
+            );
+        }
+
+        let mut binding_names = HashSet::new();
+        let mut output_targets = HashSet::new();
+        let mut constraints = Vec::new();
+        for operand in &stmt.operands {
+            if !binding_names.insert(operand.name.clone()) {
+                return Err(semantic_error(
+                    format!(
+                        "E-SEMANTIC-ASM-DUPLICATE-OPERAND\noperando '{}' duplicado em 'sussurro'",
+                        operand.name
+                    ),
+                    operand.span,
+                ));
+            }
+            let constraint = crate::inline_asm::parse_constraint(&operand.constraint)
+                .map_err(|error| semantic_error(error.to_string(), operand.span))?;
+            constraints.push((operand.name.clone(), constraint));
+
+            let ty = match &operand.direction {
+                InlineAsmDirection::Input => self.check_value_expr(
+                    &operand.value,
+                    "resultado de função sem retorno não pode ser operando de entrada de 'sussurro'",
+                )?,
+                InlineAsmDirection::Output => {
+                    let ExprKind::Ident(target) = &operand.value.kind else {
+                        return Err(semantic_error(
+                            "E-SEMANTIC-ASM-INVALID-OUTPUT\nsaida de 'sussurro' exige variável mutável simples como alvo".to_string(),
+                            operand.value.span,
+                        ));
+                    };
+                    let Some(meta) = self.resolve_var(target) else {
+                        return Err(semantic_error(
+                            format!(
+                                "E-SEMANTIC-ASM-INVALID-OUTPUT\nvariável de saída '{}' não declarada",
+                                target
+                            ),
+                            operand.value.span,
+                        ));
+                    };
+                    if !meta.is_mut {
+                        return Err(semantic_error(
+                            format!(
+                                "E-SEMANTIC-ASM-INVALID-OUTPUT\nvariável de saída '{}' não é mutável",
+                                target
+                            ),
+                            operand.value.span,
+                        ));
+                    }
+                    if !output_targets.insert(target.clone()) {
+                        return Err(semantic_error(
+                            format!(
+                                "E-SEMANTIC-ASM-AMBIGUOUS-BINDING\nalvo de saída '{}' aparece mais de uma vez",
+                                target
+                            ),
+                            operand.value.span,
+                        ));
+                    }
+                    meta.ty
+                }
+                InlineAsmDirection::Unknown(direction) => {
+                    return Err(semantic_error(
+                        format!(
+                            "E-SEMANTIC-ASM-DIRECTION\ndireção de operando desconhecida: '{}'",
+                            direction
+                        ),
+                        operand.span,
+                    ));
+                }
+            };
+            let ty = self.resolve_type_or_error(&ty)?;
+            if !is_inline_asm_operand_type(&ty) {
+                return Err(semantic_error(
+                    format!(
+                        "E-SEMANTIC-ASM-UNSUPPORTED-TYPE\ntipo '{}' não possui representação nativa autorizada como operando de 'sussurro'",
+                        ty.name()
+                    ),
+                    operand.value.span,
+                ));
+            }
+        }
+
+        for reference in &template_references {
+            if !binding_names.contains(reference) {
+                return Err(semantic_error(
+                    format!(
+                        "{}\noperando '{{{}}}' não foi declarado em 'sussurro'",
+                        crate::inline_asm::E_ASM_UNKNOWN_OPERAND,
+                        reference
+                    ),
+                    stmt.span,
+                ));
+            }
+        }
+        for binding in &binding_names {
+            if !template_references.contains(binding) {
+                return Err(semantic_error(
+                    format!(
+                        "E-SEMANTIC-ASM-AMBIGUOUS-BINDING\noperando '{}' foi declarado mas não aparece no template",
+                        binding
+                    ),
+                    stmt.span,
+                ));
+            }
+        }
+
+        crate::inline_asm::allocate_registers(&constraints, &clobbers)
+            .map_err(|error| semantic_error(error.to_string(), stmt.span))?;
+        crate::inline_asm::validate_abi_contract(
+            &stmt.chunks,
+            !stmt.operands.is_empty() || !stmt.clobbers.is_empty(),
+            &clobbers,
+        )
+        .map_err(|error| semantic_error(error.to_string(), stmt.span))?;
+        Ok(())
+    }
 
     // @pinker-nav:start semantic.unioes.encaixe
     // @pinker-nav:domain unioes
@@ -7718,6 +7858,23 @@ fn validate_inline_asm_chunk(chunk: &str, span: Span) -> Result<(), PinkerError>
             msg: error.to_string(),
             span,
         })
+}
+
+fn is_inline_asm_operand_type(ty: &Type) -> bool {
+    matches!(
+        ty,
+        Type::Bombom(_)
+            | Type::U8(_)
+            | Type::U16(_)
+            | Type::U32(_)
+            | Type::U64(_)
+            | Type::I8(_)
+            | Type::I16(_)
+            | Type::I32(_)
+            | Type::I64(_)
+            | Type::Logica(_)
+            | Type::Pointer { .. }
+    )
 }
 
 pub fn check_program(program: &Program) -> Result<(), PinkerError> {

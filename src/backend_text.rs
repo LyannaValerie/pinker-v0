@@ -94,6 +94,8 @@ pub enum BackendTextInstruction {
     },
     InlineAsm {
         chunks: Vec<String>,
+        operands: Vec<crate::cfg_ir::InlineAsmOperandCfgIR>,
+        clobbers: Vec<crate::inline_asm::AsmClobber>,
     },
     UnionInject {
         dest: crate::cfg_ir::TempIR,
@@ -313,11 +315,16 @@ pub fn lower_program(program: &ProgramCfgIR) -> Result<BackendTextProgram, Pinke
                             InstructionCfgIR::Falar { args } => Ok(BackendTextInstruction::Falar {
                                 args: map_falar_args_from_cfg(args),
                             }),
-                            InstructionCfgIR::InlineAsm { chunks, .. } => {
-                                Ok(BackendTextInstruction::InlineAsm {
-                                    chunks: chunks.clone(),
-                                })
-                            }
+                            InstructionCfgIR::InlineAsm {
+                                chunks,
+                                operands,
+                                clobbers,
+                                ..
+                            } => Ok(BackendTextInstruction::InlineAsm {
+                                chunks: chunks.clone(),
+                                operands: operands.clone(),
+                                clobbers: clobbers.clone(),
+                            }),
                         })
                         .collect::<Result<Vec<_>, PinkerError>>()?;
                     Ok(BackendTextBlock {
@@ -670,8 +677,15 @@ fn map_selected_instr(i: &SelectedInstr) -> Result<BackendTextInstruction, Pinke
         SelectedInstr::Falar { args } => Ok(BackendTextInstruction::Falar {
             args: map_falar_args_from_selected(args),
         }),
-        SelectedInstr::InlineAsm { chunks, .. } => Ok(BackendTextInstruction::InlineAsm {
+        SelectedInstr::InlineAsm {
+            chunks,
+            operands,
+            clobbers,
+            ..
+        } => Ok(BackendTextInstruction::InlineAsm {
             chunks: chunks.clone(),
+            operands: operands.clone(),
+            clobbers: clobbers.clone(),
         }),
     }
 }
@@ -921,7 +935,16 @@ fn render_instruction(inst: &BackendTextInstruction) -> String {
                 .collect::<Vec<_>>()
                 .join(", ")
         ),
-        BackendTextInstruction::InlineAsm { chunks } => format!("inline_asm {:?}", chunks),
+        BackendTextInstruction::InlineAsm {
+            chunks,
+            operands,
+            clobbers,
+        } => format!(
+            "inline_asm {:?} operands={} clobbers={:?}",
+            chunks,
+            operands.len(),
+            clobbers
+        ),
         BackendTextInstruction::UnionInject {
             dest,
             value,

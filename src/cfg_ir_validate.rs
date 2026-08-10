@@ -2086,13 +2086,60 @@ fn validate_block(
                 temp_types.insert(*dest, TypeIR::Function);
             }
             InstructionCfgIR::Falar { args: _ } => {}
-            InstructionCfgIR::InlineAsm { chunks, .. } => {
+            InstructionCfgIR::InlineAsm {
+                chunks,
+                operands,
+                clobbers,
+                ..
+            } => {
                 if chunks.is_empty() || chunks.iter().any(|chunk| chunk.trim().is_empty()) {
                     return Err(cfg_error(
                         "inline_asm da CFG exige chunks não vazios",
                         function.span,
                     ));
                 }
+                let mut specs = Vec::new();
+                for operand in operands {
+                    match operand {
+                        crate::cfg_ir::InlineAsmOperandCfgIR::Input {
+                            name,
+                            constraint,
+                            value,
+                            ty,
+                        } => {
+                            let inferred = infer_operand_type(
+                                value,
+                                slot_types,
+                                &temp_types,
+                                global_consts,
+                                function.span,
+                            )?;
+                            if inferred != *ty {
+                                return Err(cfg_error(
+                                    "input inline_asm possui tipo divergente",
+                                    function.span,
+                                ));
+                            }
+                            specs.push((name.clone(), *constraint));
+                        }
+                        crate::cfg_ir::InlineAsmOperandCfgIR::Output {
+                            name,
+                            constraint,
+                            slot,
+                            ty,
+                        } => {
+                            if slot_types.get(slot) != Some(ty) {
+                                return Err(cfg_error(
+                                    "output inline_asm aponta para slot ausente ou de tipo divergente",
+                                    function.span,
+                                ));
+                            }
+                            specs.push((name.clone(), *constraint));
+                        }
+                    }
+                }
+                crate::inline_asm::validate_bound_operands(chunks, &specs, clobbers)
+                    .map_err(|failure| cfg_error(&failure.to_string(), function.span))?;
             }
         }
     }

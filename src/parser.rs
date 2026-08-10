@@ -2901,7 +2901,22 @@ impl Parser {
                     .collect(),
                 span: falar.span,
             }),
-            Stmt::InlineAsm(stmt) => Stmt::InlineAsm(stmt.clone()),
+            Stmt::InlineAsm(stmt) => Stmt::InlineAsm(InlineAsmStmt {
+                chunks: stmt.chunks.clone(),
+                operands: stmt
+                    .operands
+                    .iter()
+                    .map(|operand| InlineAsmOperand {
+                        name: operand.name.clone(),
+                        direction: operand.direction.clone(),
+                        constraint: operand.constraint.clone(),
+                        value: Self::substitute_expr(&operand.value, substitutions),
+                        span: operand.span,
+                    })
+                    .collect(),
+                clobbers: stmt.clobbers.clone(),
+                span: stmt.span,
+            }),
             Stmt::UnionMatch(union_match) => Stmt::UnionMatch(UnionMatchStmt {
                 scrutinee: Self::substitute_expr(&union_match.scrutinee, substitutions),
                 arms: union_match
@@ -3103,7 +3118,22 @@ impl Parser {
                     .collect(),
                 span: falar.span,
             }),
-            Stmt::InlineAsm(stmt) => Stmt::InlineAsm(stmt.clone()),
+            Stmt::InlineAsm(stmt) => Stmt::InlineAsm(InlineAsmStmt {
+                chunks: stmt.chunks.clone(),
+                operands: stmt
+                    .operands
+                    .iter()
+                    .map(|operand| InlineAsmOperand {
+                        name: operand.name.clone(),
+                        direction: operand.direction.clone(),
+                        constraint: operand.constraint.clone(),
+                        value: Self::substitute_function_param_expr(&operand.value, replacements),
+                        span: operand.span,
+                    })
+                    .collect(),
+                clobbers: stmt.clobbers.clone(),
+                span: stmt.span,
+            }),
             Stmt::UnionMatch(union_match) => Stmt::UnionMatch(UnionMatchStmt {
                 scrutinee: Self::substitute_function_param_expr(
                     &union_match.scrutinee,
@@ -3516,20 +3546,80 @@ impl Parser {
             let start_span = self.previous().span;
             self.consume(TokenKind::LParen, "(")?;
             let mut chunks = Vec::new();
-            loop {
-                let chunk_token = self.consume(
-                    TokenKind::StringLit,
-                    "string literal em sussurro (ex.: \"mov rax, 60\")",
-                )?;
-                chunks.push(chunk_token.lexeme.clone());
-                if !self.match_token(TokenKind::Comma) {
-                    break;
+            let first_chunk = self.consume(
+                TokenKind::StringLit,
+                "string literal em sussurro (ex.: \"mov rax, 60\")",
+            )?;
+            chunks.push(first_chunk.lexeme.clone());
+            while self.check(TokenKind::Comma) && self.check_at(1, TokenKind::StringLit) {
+                self.advance();
+                let chunk = self
+                    .consume(TokenKind::StringLit, "string literal em sussurro")?
+                    .clone();
+                chunks.push(chunk.lexeme);
+            }
+
+            let mut operands = Vec::new();
+            let mut clobbers = Vec::new();
+            if self.match_token(TokenKind::Semi) {
+                while !self.check(TokenKind::RParen) {
+                    let clause = self
+                        .consume(
+                            TokenKind::Ident,
+                            "'entrada', 'saida' ou 'destroi' em sussurro",
+                        )?
+                        .clone();
+                    if clause.lexeme == "destroi" {
+                        self.consume(TokenKind::LParen, "(")?;
+                        if !self.check(TokenKind::RParen) {
+                            loop {
+                                let clobber = self
+                                    .consume(TokenKind::Ident, "efeito destruído por sussurro")?
+                                    .clone();
+                                clobbers.push(InlineAsmClobber {
+                                    name: clobber.lexeme,
+                                    span: clobber.span,
+                                });
+                                if !self.match_token(TokenKind::Comma) {
+                                    break;
+                                }
+                            }
+                        }
+                        self.consume(TokenKind::RParen, ")")?;
+                    } else {
+                        let direction = match clause.lexeme.as_str() {
+                            "entrada" => InlineAsmDirection::Input,
+                            "saida" => InlineAsmDirection::Output,
+                            _ => InlineAsmDirection::Unknown(clause.lexeme.clone()),
+                        };
+                        let name = self
+                            .consume(TokenKind::Ident, "nome do operando de sussurro")?
+                            .clone();
+                        self.consume(TokenKind::Colon, ":")?;
+                        let constraint = self
+                            .consume(TokenKind::Ident, "constraint do operando de sussurro")?
+                            .clone();
+                        self.consume(TokenKind::Eq, "=")?;
+                        let value = self.parse_expr()?;
+                        operands.push(InlineAsmOperand {
+                            name: name.lexeme,
+                            direction,
+                            constraint: constraint.lexeme,
+                            span: merge_span(clause.span, value.span),
+                            value,
+                        });
+                    }
+                    if !self.match_token(TokenKind::Semi) {
+                        break;
+                    }
                 }
             }
             self.consume(TokenKind::RParen, ")")?;
             self.consume(TokenKind::Semi, ";")?;
             return Ok(Stmt::InlineAsm(InlineAsmStmt {
                 chunks,
+                operands,
+                clobbers,
                 span: merge_span(start_span, self.previous().span),
             }));
         }

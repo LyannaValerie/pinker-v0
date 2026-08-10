@@ -50,8 +50,478 @@ pub const E_ASM_DIRECTIVE: &str = "E-SEMANTIC-ASM-DIRECTIVE";
 pub const E_ASM_NAMED_LABEL: &str = "E-SEMANTIC-ASM-NAMED-LABEL";
 pub const E_ASM_SYMBOL_ASSIGN: &str = "E-SEMANTIC-ASM-SYMBOL-ASSIGN";
 pub const E_ASM_UNEXPECTED_TOKEN: &str = "E-SEMANTIC-ASM-UNEXPECTED-TOKEN";
+pub const E_ASM_UNKNOWN_OPERAND: &str = "E-SEMANTIC-ASM-UNKNOWN-OPERAND";
+pub const E_ASM_TEMPLATE: &str = "E-SEMANTIC-ASM-TEMPLATE";
+pub const E_ASM_INVALID_CONSTRAINT: &str = "E-SEMANTIC-ASM-CONSTRAINT";
+pub const E_ASM_INVALID_CLOBBER: &str = "E-SEMANTIC-ASM-CLOBBER";
+pub const E_ASM_REGISTER_CONFLICT: &str = "E-SEMANTIC-ASM-REGISTER-CONFLICT";
+pub const E_ASM_ABI: &str = "E-SEMANTIC-ASM-ABI";
+pub const E_ASM_CONTROL_FLOW: &str = "E-SEMANTIC-ASM-CONTROL-FLOW";
 pub const E_ASM_ENVELOPE: &str = "E-BACKEND-ASM-ENVELOPE";
 pub const E_ASM_ARTIFACT: &str = "E-BACKEND-ASM-ARTIFACT";
+
+/// Registradores gerais que o contrato D4 pode entregar a um bloco.
+///
+/// Todos são caller-saved no SysV x86-64. `%rsp`, `%rbp` e os callee-saved
+/// nunca entram nesta enumeração, portanto não podem ser obtidos por constraint.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum AsmRegister {
+    Rax,
+    Rcx,
+    Rdx,
+    Rsi,
+    Rdi,
+    R8,
+    R9,
+    R10,
+    R11,
+}
+
+impl AsmRegister {
+    pub const ALLOCATION_ORDER: [Self; 9] = [
+        Self::Rax,
+        Self::Rcx,
+        Self::Rdx,
+        Self::Rsi,
+        Self::Rdi,
+        Self::R8,
+        Self::R9,
+        Self::R10,
+        Self::R11,
+    ];
+
+    pub fn parse(name: &str) -> Option<Self> {
+        Some(
+            match name.trim_start_matches('%').to_ascii_lowercase().as_str() {
+                "rax" | "eax" | "ax" | "al" | "ah" => Self::Rax,
+                "rcx" | "ecx" | "cx" | "cl" | "ch" => Self::Rcx,
+                "rdx" | "edx" | "dx" | "dl" | "dh" => Self::Rdx,
+                "rsi" | "esi" | "si" | "sil" => Self::Rsi,
+                "rdi" | "edi" | "di" | "dil" => Self::Rdi,
+                "r8" | "r8d" | "r8w" | "r8b" => Self::R8,
+                "r9" | "r9d" | "r9w" | "r9b" => Self::R9,
+                "r10" | "r10d" | "r10w" | "r10b" => Self::R10,
+                "r11" | "r11d" | "r11w" | "r11b" => Self::R11,
+                _ => return None,
+            },
+        )
+    }
+
+    pub fn intel(self) -> &'static str {
+        match self {
+            Self::Rax => "rax",
+            Self::Rcx => "rcx",
+            Self::Rdx => "rdx",
+            Self::Rsi => "rsi",
+            Self::Rdi => "rdi",
+            Self::R8 => "r8",
+            Self::R9 => "r9",
+            Self::R10 => "r10",
+            Self::R11 => "r11",
+        }
+    }
+
+    pub fn att(self) -> &'static str {
+        match self {
+            Self::Rax => "%rax",
+            Self::Rcx => "%rcx",
+            Self::Rdx => "%rdx",
+            Self::Rsi => "%rsi",
+            Self::Rdi => "%rdi",
+            Self::R8 => "%r8",
+            Self::R9 => "%r9",
+            Self::R10 => "%r10",
+            Self::R11 => "%r11",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AsmConstraint {
+    Register,
+    Fixed(AsmRegister),
+}
+
+pub fn parse_constraint(name: &str) -> Result<AsmConstraint, AsmPolicyError> {
+    if name == "registrador" {
+        return Ok(AsmConstraint::Register);
+    }
+    AsmRegister::parse(name)
+        .map(AsmConstraint::Fixed)
+        .ok_or_else(|| {
+            AsmPolicyError::new(
+                E_ASM_INVALID_CONSTRAINT,
+                format!("constraint de 'sussurro' desconhecida ou não suportada: '{name}'"),
+            )
+        })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AsmClobber {
+    Flags,
+    Memory,
+    Register(AsmRegister),
+}
+
+pub fn parse_clobber(name: &str) -> Result<AsmClobber, AsmPolicyError> {
+    match name {
+        "flags" => Ok(AsmClobber::Flags),
+        "memoria" => Ok(AsmClobber::Memory),
+        _ => AsmRegister::parse(name)
+            .map(AsmClobber::Register)
+            .ok_or_else(|| {
+                AsmPolicyError::new(
+                    E_ASM_INVALID_CLOBBER,
+                    format!("clobber de 'sussurro' desconhecido ou não suportado: '{name}'"),
+                )
+            }),
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AsmTemplatePart {
+    Text(String),
+    Operand(String),
+}
+
+/// Estrutura referências `{nome}` sem avaliar nem interpolar texto Pinker.
+pub fn parse_template(chunk: &str) -> Result<Vec<AsmTemplatePart>, AsmPolicyError> {
+    let chars: Vec<char> = chunk.chars().collect();
+    let mut parts = Vec::new();
+    let mut text = String::new();
+    let mut index = 0;
+    while index < chars.len() {
+        match chars[index] {
+            '{' if chars.get(index + 1) == Some(&'{') => {
+                text.push('{');
+                index += 2;
+            }
+            '}' if chars.get(index + 1) == Some(&'}') => {
+                text.push('}');
+                index += 2;
+            }
+            '{' => {
+                if !text.is_empty() {
+                    parts.push(AsmTemplatePart::Text(std::mem::take(&mut text)));
+                }
+                let start = index + 1;
+                let Some(relative_end) = chars[start..].iter().position(|ch| *ch == '}') else {
+                    return Err(AsmPolicyError::new(
+                        E_ASM_TEMPLATE,
+                        "referência de operando '{...' não terminada em 'sussurro'",
+                    ));
+                };
+                let end = start + relative_end;
+                let name: String = chars[start..end].iter().collect();
+                if name.is_empty()
+                    || !name.chars().enumerate().all(|(i, ch)| {
+                        ch == '_' || ch.is_ascii_alphanumeric() && (i > 0 || !ch.is_ascii_digit())
+                    })
+                {
+                    return Err(AsmPolicyError::new(
+                        E_ASM_TEMPLATE,
+                        format!("referência de operando inválida '{{{name}}}' em 'sussurro'"),
+                    ));
+                }
+                parts.push(AsmTemplatePart::Operand(name));
+                index = end + 1;
+            }
+            '}' => {
+                return Err(AsmPolicyError::new(
+                    E_ASM_TEMPLATE,
+                    "'}' sem abertura em template de 'sussurro'",
+                ));
+            }
+            ch => {
+                text.push(ch);
+                index += 1;
+            }
+        }
+    }
+    if !text.is_empty() {
+        parts.push(AsmTemplatePart::Text(text));
+    }
+    Ok(parts)
+}
+
+pub fn render_template(
+    parts: &[AsmTemplatePart],
+    bindings: &std::collections::BTreeMap<String, AsmRegister>,
+) -> Result<String, AsmPolicyError> {
+    let mut rendered = String::new();
+    for part in parts {
+        match part {
+            AsmTemplatePart::Text(text) => rendered.push_str(text),
+            AsmTemplatePart::Operand(name) => {
+                let register = bindings.get(name).ok_or_else(|| {
+                    AsmPolicyError::new(
+                        E_ASM_UNKNOWN_OPERAND,
+                        format!("operando '{{{name}}}' não foi ligado em 'sussurro'"),
+                    )
+                })?;
+                rendered.push_str(register.intel());
+            }
+        }
+    }
+    Ok(rendered)
+}
+
+pub fn allocate_registers(
+    operands: &[(String, AsmConstraint)],
+    clobbers: &[AsmClobber],
+) -> Result<std::collections::BTreeMap<String, AsmRegister>, AsmPolicyError> {
+    use std::collections::{BTreeMap, BTreeSet};
+
+    let unavailable: BTreeSet<AsmRegister> = clobbers
+        .iter()
+        .filter_map(|clobber| match clobber {
+            AsmClobber::Register(register) => Some(*register),
+            _ => None,
+        })
+        .collect();
+    let mut used = BTreeSet::new();
+    let mut result = BTreeMap::new();
+
+    for (name, constraint) in operands {
+        let register = match constraint {
+            AsmConstraint::Fixed(register) => *register,
+            AsmConstraint::Register => AsmRegister::ALLOCATION_ORDER
+                .into_iter()
+                .find(|register| !used.contains(register) && !unavailable.contains(register))
+                .ok_or_else(|| {
+                    AsmPolicyError::new(
+                        E_ASM_REGISTER_CONFLICT,
+                        "registradores caller-saved insuficientes para operands de 'sussurro'",
+                    )
+                })?,
+        };
+        if unavailable.contains(&register) || !used.insert(register) {
+            return Err(AsmPolicyError::new(
+                E_ASM_REGISTER_CONFLICT,
+                format!(
+                    "registrador '{}' possui bindings/clobbers conflitantes em 'sussurro'",
+                    register.intel()
+                ),
+            ));
+        }
+        result.insert(name.clone(), register);
+    }
+    Ok(result)
+}
+
+fn register_tokens(text: &str) -> impl Iterator<Item = String> + '_ {
+    text.split(|ch: char| !(ch.is_ascii_alphanumeric() || ch == '_' || ch == '%'))
+        .filter(|token| !token.is_empty())
+        .map(|token| token.trim_start_matches('%').to_ascii_lowercase())
+}
+
+fn is_local_numeric_target(target: &str) -> bool {
+    let target = target.trim().split(',').next().unwrap_or_default().trim();
+    let Some(suffix) = target.chars().last() else {
+        return false;
+    };
+    matches!(suffix, 'f' | 'b')
+        && target[..target.len() - suffix.len_utf8()]
+            .chars()
+            .all(|ch| ch.is_ascii_digit())
+}
+
+/// Fecha a fronteira ABI que o scanner estrutural anterior não modelava.
+///
+/// A forma legada sem operands conserva seus efeitos máximos implícitos, mas
+/// stack/frame, callee-saved e transferência para fora do envelope são sempre
+/// recusados. Na forma adulta, qualquer registrador literal caller-saved deve
+/// aparecer como clobber; valores entram apenas por referências estruturadas.
+pub fn validate_abi_contract(
+    chunks: &[String],
+    explicit_contract: bool,
+    clobbers: &[AsmClobber],
+) -> Result<(), AsmPolicyError> {
+    use std::collections::BTreeSet;
+
+    let declared_registers: BTreeSet<AsmRegister> = clobbers
+        .iter()
+        .filter_map(|clobber| match clobber {
+            AsmClobber::Register(register) => Some(*register),
+            _ => None,
+        })
+        .collect();
+    let memory_declared = clobbers.contains(&AsmClobber::Memory);
+
+    for chunk in chunks {
+        let parts = parse_template(chunk)?;
+        for part in &parts {
+            let AsmTemplatePart::Text(text) = part else {
+                continue;
+            };
+            for token in register_tokens(text) {
+                if matches!(
+                    token.as_str(),
+                    "rsp"
+                        | "esp"
+                        | "sp"
+                        | "spl"
+                        | "rbp"
+                        | "ebp"
+                        | "bp"
+                        | "bpl"
+                        | "rbx"
+                        | "ebx"
+                        | "bx"
+                        | "bl"
+                        | "bh"
+                        | "r12"
+                        | "r12d"
+                        | "r12w"
+                        | "r12b"
+                        | "r13"
+                        | "r13d"
+                        | "r13w"
+                        | "r13b"
+                        | "r14"
+                        | "r14d"
+                        | "r14w"
+                        | "r14b"
+                        | "r15"
+                        | "r15d"
+                        | "r15w"
+                        | "r15b"
+                ) {
+                    return Err(AsmPolicyError::new(
+                        E_ASM_ABI,
+                        format!(
+                            "registrador ABI/stack '{}' não pode ser usado dentro de 'sussurro'",
+                            token
+                        ),
+                    ));
+                }
+                if explicit_contract {
+                    if let Some(register) = AsmRegister::parse(&token) {
+                        if !declared_registers.contains(&register) {
+                            return Err(AsmPolicyError::new(
+                                E_ASM_INVALID_CLOBBER,
+                                format!(
+                                    "registrador literal '{}' exige clobber explícito; use um binding '{{nome}}' para valores Pinker",
+                                    token
+                                ),
+                            ));
+                        }
+                    }
+                    if token.starts_with("xmm")
+                        || token.starts_with("ymm")
+                        || token.starts_with("zmm")
+                        || token.starts_with("st")
+                            && token[2..].chars().all(|ch| ch.is_ascii_digit())
+                        || token.starts_with("cr")
+                            && token[2..].chars().all(|ch| ch.is_ascii_digit())
+                        || token.starts_with("dr")
+                            && token[2..].chars().all(|ch| ch.is_ascii_digit())
+                    {
+                        return Err(AsmPolicyError::new(
+                            E_ASM_ABI,
+                            format!(
+                                "registrador especial '{}' não é modelado por 'sussurro'",
+                                token
+                            ),
+                        ));
+                    }
+                }
+            }
+            if explicit_contract && text.contains('[') && !memory_declared {
+                return Err(AsmPolicyError::new(
+                    E_ASM_INVALID_CLOBBER,
+                    "operando de memória em 'sussurro' exige clobber 'memoria'",
+                ));
+            }
+        }
+
+        for statement in scan_chunk(chunk)? {
+            let Some(mnemonic) = statement.mnemonic else {
+                continue;
+            };
+            let mnemonic = mnemonic.to_ascii_lowercase();
+            if matches!(
+                mnemonic.as_str(),
+                "ret"
+                    | "retq"
+                    | "lret"
+                    | "iret"
+                    | "iretq"
+                    | "leave"
+                    | "enter"
+                    | "call"
+                    | "callq"
+                    | "lcall"
+            ) {
+                return Err(AsmPolicyError::new(
+                    E_ASM_CONTROL_FLOW,
+                    format!(
+                        "instrução '{}' pode escapar do envelope de 'sussurro' e não é permitida",
+                        mnemonic
+                    ),
+                ));
+            }
+            let is_branch = mnemonic == "jmp"
+                || mnemonic.starts_with('j')
+                || matches!(mnemonic.as_str(), "loop" | "loope" | "loopne");
+            if is_branch && !is_local_numeric_target(&statement.operands) {
+                return Err(AsmPolicyError::new(
+                    E_ASM_CONTROL_FLOW,
+                    format!(
+                        "salto '{}' deve ter alvo local numérico dentro do envelope de 'sussurro'",
+                        mnemonic
+                    ),
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Revalida o contrato já resolvido nas fronteiras internas do pipeline.
+pub fn validate_bound_operands(
+    chunks: &[String],
+    operands: &[(String, AsmConstraint)],
+    clobbers: &[AsmClobber],
+) -> Result<(), AsmPolicyError> {
+    use std::collections::BTreeSet;
+
+    let mut names = BTreeSet::new();
+    for (name, _) in operands {
+        if !names.insert(name.clone()) {
+            return Err(AsmPolicyError::new(
+                E_ASM_REGISTER_CONFLICT,
+                format!("binding interno duplicado: '{name}'"),
+            ));
+        }
+    }
+    let mut referenced = BTreeSet::new();
+    for chunk in chunks {
+        for part in parse_template(chunk)? {
+            if let AsmTemplatePart::Operand(name) = part {
+                if !names.contains(&name) {
+                    return Err(AsmPolicyError::new(
+                        E_ASM_UNKNOWN_OPERAND,
+                        format!("operando '{{{name}}}' não possui binding interno"),
+                    ));
+                }
+                referenced.insert(name);
+            }
+        }
+    }
+    if let Some(unused) = names.iter().find(|name| !referenced.contains(*name)) {
+        return Err(AsmPolicyError::new(
+            E_ASM_UNKNOWN_OPERAND,
+            format!("binding interno '{unused}' não aparece no template"),
+        ));
+    }
+    allocate_registers(operands, clobbers)?;
+    validate_abi_contract(
+        chunks,
+        !operands.is_empty() || !clobbers.is_empty(),
+        clobbers,
+    )
+}
 
 /// Um statement de assembler reconhecido estruturalmente.
 #[derive(Debug, Clone, PartialEq, Eq)]
