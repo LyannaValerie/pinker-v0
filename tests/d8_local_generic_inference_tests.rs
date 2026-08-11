@@ -1,5 +1,10 @@
 mod common;
 
+// @pinker-nav:start evidencia.genericos.inferencia-local-d8
+// @pinker-nav:domain genericos
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Evidência D8 da inferência genérica local: cobre id e funções nominalmente distintas, dois parâmetros de tipo, conflito e ausência de fonte, compatibilidade explícita, nesting lista<T>, chamadas não genéricas, sensitivity contra special-case nominal e paridade interpretador/nativo com diagnóstico pré-backend.
+
 use common::{ControlledCommand as Command, NativeArtifactDir};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -256,3 +261,5 @@ fn paridade_interpretador_nativo_e_diagnostico_pre_backend() {
         );
     }
 }
+
+// @pinker-nav:end evidencia.genericos.inferencia-local-d8

@@ -2145,28 +2145,6 @@ impl Parser {
         }
     }
 
-    fn push_value_param_scope(&mut self, params: &[Param]) {
-        self.value_type_scopes.push(
-            params
-                .iter()
-                .map(|param| (param.name.clone(), param.ty.clone()))
-                .collect(),
-        );
-    }
-
-    fn register_value_type(&mut self, name: &str, ty: Type) {
-        if let Some(scope) = self.value_type_scopes.last_mut() {
-            scope.insert(name.to_string(), ty);
-        }
-    }
-
-    fn resolve_value_type(&self, name: &str) -> Option<Type> {
-        self.value_type_scopes
-            .iter()
-            .rev()
-            .find_map(|scope| scope.get(name).cloned())
-    }
-
     // @pinker-nav:start parser.closures.expressao
     // @pinker-nav:domain closures
     // @pinker-nav:layer parser
@@ -2207,9 +2185,7 @@ impl Parser {
             self.register_collection_type(&param.name, &param.ty);
         }
         self.push_callable_param_scope(&params);
-        self.push_value_param_scope(&params);
         let body_result = self.parse_block();
-        self.value_type_scopes.pop();
         self.function_value_scopes.pop();
         let body = body_result?;
         self.collection_types = saved_collection_types;
@@ -2591,6 +2567,43 @@ impl Parser {
             .collect::<Vec<_>>()
             .join("_");
         format!("__gen_{}_{}", name, suffix)
+    }
+
+    fn generic_enum_name(name: &str, type_args: &[Type]) -> String {
+        let suffix = type_args
+            .iter()
+            .map(Self::generic_type_key)
+            .collect::<Vec<_>>()
+            .join("_");
+        format!("__gen_leque_{}_{}", name, suffix)
+    }
+
+    // @pinker-nav:end parser.genericos.identidade-especializacao
+
+    // @pinker-nav:start parser.genericos.inferencia-local
+    // @pinker-nav:domain genericos
+    // @pinker-nav:layer parser
+    // @pinker-nav:summary Inferência genérica local e determinística para chamadas sem argumentos de tipo explícitos: sintetiza somente tipos locais de argumentos, unifica recursivamente posições formais com parâmetros de tipo, exige substituição única, diagnostica conflito/ausência de fonte e registra a mesma instanciação monomórfica usada pelo caminho explícito. Não usa tipo de retorno esperado, não executa coercion e não contém dispatch nominal por função.
+    fn push_value_param_scope(&mut self, params: &[Param]) {
+        self.value_type_scopes.push(
+            params
+                .iter()
+                .map(|param| (param.name.clone(), param.ty.clone()))
+                .collect(),
+        );
+    }
+
+    fn register_value_type(&mut self, name: &str, ty: Type) {
+        if let Some(scope) = self.value_type_scopes.last_mut() {
+            scope.insert(name.to_string(), ty);
+        }
+    }
+
+    fn resolve_value_type(&self, name: &str) -> Option<Type> {
+        self.value_type_scopes
+            .iter()
+            .rev()
+            .find_map(|scope| scope.get(name).cloned())
     }
 
     fn inference_type_eq(lhs: &Type, rhs: &Type) -> bool {
@@ -3105,16 +3118,7 @@ impl Parser {
             .collect())
     }
 
-    fn generic_enum_name(name: &str, type_args: &[Type]) -> String {
-        let suffix = type_args
-            .iter()
-            .map(Self::generic_type_key)
-            .collect::<Vec<_>>()
-            .join("_");
-        format!("__gen_leque_{}_{}", name, suffix)
-    }
-
-    // @pinker-nav:end parser.genericos.identidade-especializacao
+    // @pinker-nav:end parser.genericos.inferencia-local
 
     // @pinker-nav:start parser.genericos.leques-template
     // @pinker-nav:domain genericos
