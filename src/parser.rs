@@ -89,6 +89,13 @@ pub struct Parser {
     /// Aliases locais estáticos de função: `nova f: carinho(...) -> T = carinho(...) -> T { ... };`.
     /// Nesta fase, servem apenas para reescrever `f(...)` como chamada direta.
     function_value_scopes: Vec<HashMap<String, String>>,
+    /// Tipos locais já declarados/sintetizáveis, usados exclusivamente como
+    /// fonte de evidência para inferência genérica local em chamadas.
+    ///
+    /// Esta tabela não substitui a checagem semântica: ela só transporta tipos
+    /// escritos em parâmetros/`nova` (ou literais localmente evidentes) até o
+    /// ponto da chamada. Compatibilidade e coercions continuam no semantic.
+    value_type_scopes: Vec<HashMap<String, Type>>,
     /// Nomes de leques genéricos predeclarados pelo parser (Fase 241, ex.: `Resultado`).
     /// Um nome permanece aqui enquanto ainda for o template sintético; qualquer
     /// declaração do usuário com o mesmo nome o remove daqui e suprime/substitui o
@@ -152,6 +159,7 @@ impl Parser {
             function_param_templates: HashMap::new(),
             function_param_instantiations: Vec::new(),
             function_value_scopes: Vec::new(),
+            value_type_scopes: Vec::new(),
             predeclared_generic_enums: HashSet::new(),
             capturing_anon_functions: HashSet::new(),
         }
@@ -2435,7 +2443,9 @@ impl Parser {
         }
 
         self.push_callable_param_scope(&params);
+        self.push_value_param_scope(&params);
         let body_result = self.parse_block();
+        self.value_type_scopes.pop();
         self.function_value_scopes.pop();
         let mut body = body_result?;
 
@@ -2569,6 +2579,543 @@ impl Parser {
     }
 
     // @pinker-nav:end parser.genericos.identidade-especializacao
+
+    // @pinker-nav:start parser.genericos.inferencia-local
+    // @pinker-nav:domain genericos
+    // @pinker-nav:layer parser
+    // @pinker-nav:summary Inferência genérica local e determinística para chamadas sem argumentos de tipo explícitos: sintetiza somente tipos locais de argumentos, unifica recursivamente posições formais com parâmetros de tipo, exige substituição única, diagnostica conflito/ausência de fonte e registra a mesma instanciação monomórfica usada pelo caminho explícito. Não usa tipo de retorno esperado, não executa coercion e não contém dispatch nominal por função.
+    fn push_value_param_scope(&mut self, params: &[Param]) {
+        self.value_type_scopes.push(
+            params
+                .iter()
+                .map(|param| (param.name.clone(), param.ty.clone()))
+                .collect(),
+        );
+    }
+
+    fn register_value_type(&mut self, name: &str, ty: Type) {
+        if let Some(scope) = self.value_type_scopes.last_mut() {
+            scope.insert(name.to_string(), ty);
+        }
+    }
+
+    fn resolve_value_type(&self, name: &str) -> Option<Type> {
+        self.value_type_scopes
+            .iter()
+            .rev()
+            .find_map(|scope| scope.get(name).cloned())
+    }
+
+    fn inference_type_eq(lhs: &Type, rhs: &Type) -> bool {
+        match (lhs, rhs) {
+            (Type::Bombom(_), Type::Bombom(_))
+            | (Type::U8(_), Type::U8(_))
+            | (Type::U16(_), Type::U16(_))
+            | (Type::U32(_), Type::U32(_))
+            | (Type::U64(_), Type::U64(_))
+            | (Type::I8(_), Type::I8(_))
+            | (Type::I16(_), Type::I16(_))
+            | (Type::I32(_), Type::I32(_))
+            | (Type::I64(_), Type::I64(_))
+            | (Type::Logica(_), Type::Logica(_))
+            | (Type::Verso(_), Type::Verso(_))
+            | (Type::ListBombom(_), Type::ListBombom(_))
+            | (Type::ListVerso(_), Type::ListVerso(_))
+            | (Type::MapVersoBombom(_), Type::MapVersoBombom(_))
+            | (Type::MapVersoVerso(_), Type::MapVersoVerso(_))
+            | (Type::MapBombomBombom(_), Type::MapBombomBombom(_))
+            | (Type::MapBombomVerso(_), Type::MapBombomVerso(_))
+            | (Type::Nulo(_), Type::Nulo(_)) => true,
+            (
+                Type::Alias { name: lhs, .. }
+                | Type::Struct { name: lhs, .. }
+                | Type::Enum { name: lhs, .. },
+                Type::Alias { name: rhs, .. }
+                | Type::Struct { name: rhs, .. }
+                | Type::Enum { name: rhs, .. },
+            ) => lhs == rhs,
+            (Type::ListEnum { element: lhs, .. }, Type::ListEnum { element: rhs, .. }) => {
+                lhs == rhs
+            }
+            (
+                Type::Map {
+                    key: lhs_key,
+                    value: lhs_value,
+                    ..
+                },
+                Type::Map {
+                    key: rhs_key,
+                    value: rhs_value,
+                    ..
+                },
+            ) => {
+                Self::inference_type_eq(lhs_key, rhs_key)
+                    && Self::inference_type_eq(lhs_value, rhs_value)
+            }
+            (
+                Type::FixedArray {
+                    element: lhs,
+                    size: lhs_size,
+                    ..
+                },
+                Type::FixedArray {
+                    element: rhs,
+                    size: rhs_size,
+                    ..
+                },
+            ) => lhs_size == rhs_size && Self::inference_type_eq(lhs, rhs),
+            (
+                Type::Pointer {
+                    base: lhs,
+                    is_volatile: lhs_volatile,
+                    ..
+                },
+                Type::Pointer {
+                    base: rhs,
+                    is_volatile: rhs_volatile,
+                    ..
+                },
+            ) => lhs_volatile == rhs_volatile && Self::inference_type_eq(lhs, rhs),
+            (
+                Type::Function {
+                    params: lhs_params,
+                    ret: lhs_ret,
+                    ..
+                },
+                Type::Function {
+                    params: rhs_params,
+                    ret: rhs_ret,
+                    ..
+                },
+            ) => {
+                lhs_params.len() == rhs_params.len()
+                    && lhs_params
+                        .iter()
+                        .zip(rhs_params)
+                        .all(|(lhs, rhs)| Self::inference_type_eq(lhs, rhs))
+                    && Self::inference_type_eq(lhs_ret, rhs_ret)
+            }
+            (
+                Type::Applied {
+                    name: lhs_name,
+                    args: lhs_args,
+                    ..
+                },
+                Type::Applied {
+                    name: rhs_name,
+                    args: rhs_args,
+                    ..
+                },
+            ) => {
+                lhs_name == rhs_name
+                    && lhs_args.len() == rhs_args.len()
+                    && lhs_args
+                        .iter()
+                        .zip(rhs_args)
+                        .all(|(lhs, rhs)| Self::inference_type_eq(lhs, rhs))
+            }
+            (
+                Type::Union {
+                    members: lhs_members,
+                    ..
+                },
+                Type::Union {
+                    members: rhs_members,
+                    ..
+                },
+            ) => {
+                lhs_members.len() == rhs_members.len()
+                    && lhs_members
+                        .iter()
+                        .zip(rhs_members)
+                        .all(|(lhs, rhs)| Self::inference_type_eq(lhs, rhs))
+            }
+            _ => false,
+        }
+    }
+
+    fn formal_contains_type_param(formal: &Type, type_params: &HashSet<String>) -> bool {
+        match formal {
+            Type::Alias { name, .. } => type_params.contains(name),
+            Type::ListEnum { element, .. } => type_params.contains(element),
+            Type::FixedArray { element, .. } => {
+                Self::formal_contains_type_param(element, type_params)
+            }
+            Type::Pointer { base, .. } => Self::formal_contains_type_param(base, type_params),
+            Type::Function { params, ret, .. } => {
+                params
+                    .iter()
+                    .any(|param| Self::formal_contains_type_param(param, type_params))
+                    || Self::formal_contains_type_param(ret, type_params)
+            }
+            Type::Applied { args, .. } => args
+                .iter()
+                .any(|arg| Self::formal_contains_type_param(arg, type_params)),
+            Type::Map { key, value, .. } => {
+                Self::formal_contains_type_param(key, type_params)
+                    || Self::formal_contains_type_param(value, type_params)
+            }
+            Type::Union { members, .. } => members
+                .iter()
+                .any(|member| Self::formal_contains_type_param(member, type_params)),
+            _ => false,
+        }
+    }
+
+    fn bind_inferred_type(
+        name: &str,
+        actual: &Type,
+        substitutions: &mut HashMap<String, Type>,
+        span: Span,
+    ) -> Result<(), PinkerError> {
+        if let Some(previous) = substitutions.get(name) {
+            if !Self::inference_type_eq(previous, actual) {
+                return Err(PinkerError::Parse {
+                    msg: format!(
+                        "E-GENERIC-CONFLICTING-INFERENCE: parâmetro '{}' recebeu evidências incompatíveis '{}' e '{}'",
+                        name,
+                        previous.display_name(),
+                        actual.display_name()
+                    ),
+                    span,
+                });
+            }
+        } else {
+            substitutions.insert(name.to_string(), actual.clone());
+        }
+        Ok(())
+    }
+
+    fn infer_substitutions_from_types(
+        formal: &Type,
+        actual: &Type,
+        type_params: &HashSet<String>,
+        substitutions: &mut HashMap<String, Type>,
+        span: Span,
+    ) -> Result<(), PinkerError> {
+        if let Type::Alias { name, .. } = formal {
+            if type_params.contains(name) {
+                return Self::bind_inferred_type(name, actual, substitutions, span);
+            }
+        }
+
+        match (formal, actual) {
+            (
+                Type::ListEnum { element, .. },
+                Type::ListBombom(actual_span),
+            ) if type_params.contains(element) => Self::bind_inferred_type(
+                element,
+                &Type::Bombom(*actual_span),
+                substitutions,
+                span,
+            ),
+            (
+                Type::ListEnum { element, .. },
+                Type::ListVerso(actual_span),
+            ) if type_params.contains(element) => Self::bind_inferred_type(
+                element,
+                &Type::Verso(*actual_span),
+                substitutions,
+                span,
+            ),
+            (
+                Type::ListEnum { element, .. },
+                Type::ListEnum {
+                    element: actual_element,
+                    span: actual_span,
+                },
+            ) if type_params.contains(element) => Self::bind_inferred_type(
+                element,
+                &Type::Alias {
+                    name: actual_element.clone(),
+                    span: *actual_span,
+                },
+                substitutions,
+                span,
+            ),
+            (
+                Type::FixedArray {
+                    element: formal_element,
+                    size: formal_size,
+                    ..
+                },
+                Type::FixedArray {
+                    element: actual_element,
+                    size: actual_size,
+                    ..
+                },
+            ) if formal_size == actual_size => Self::infer_substitutions_from_types(
+                formal_element,
+                actual_element,
+                type_params,
+                substitutions,
+                span,
+            ),
+            (
+                Type::Pointer {
+                    base: formal_base,
+                    is_volatile: formal_volatile,
+                    ..
+                },
+                Type::Pointer {
+                    base: actual_base,
+                    is_volatile: actual_volatile,
+                    ..
+                },
+            ) if formal_volatile == actual_volatile => Self::infer_substitutions_from_types(
+                formal_base,
+                actual_base,
+                type_params,
+                substitutions,
+                span,
+            ),
+            (
+                Type::Function {
+                    params: formal_params,
+                    ret: formal_ret,
+                    ..
+                },
+                Type::Function {
+                    params: actual_params,
+                    ret: actual_ret,
+                    ..
+                },
+            ) if formal_params.len() == actual_params.len() => {
+                for (formal, actual) in formal_params.iter().zip(actual_params) {
+                    Self::infer_substitutions_from_types(
+                        formal,
+                        actual,
+                        type_params,
+                        substitutions,
+                        span,
+                    )?;
+                }
+                Self::infer_substitutions_from_types(
+                    formal_ret,
+                    actual_ret,
+                    type_params,
+                    substitutions,
+                    span,
+                )
+            }
+            (
+                Type::Applied {
+                    name: formal_name,
+                    args: formal_args,
+                    ..
+                },
+                Type::Applied {
+                    name: actual_name,
+                    args: actual_args,
+                    ..
+                },
+            ) if formal_name == actual_name && formal_args.len() == actual_args.len() => {
+                for (formal, actual) in formal_args.iter().zip(actual_args) {
+                    Self::infer_substitutions_from_types(
+                        formal,
+                        actual,
+                        type_params,
+                        substitutions,
+                        span,
+                    )?;
+                }
+                Ok(())
+            }
+            (
+                Type::Map {
+                    key: formal_key,
+                    value: formal_value,
+                    ..
+                },
+                Type::Map {
+                    key: actual_key,
+                    value: actual_value,
+                    ..
+                },
+            ) => {
+                Self::infer_substitutions_from_types(
+                    formal_key,
+                    actual_key,
+                    type_params,
+                    substitutions,
+                    span,
+                )?;
+                Self::infer_substitutions_from_types(
+                    formal_value,
+                    actual_value,
+                    type_params,
+                    substitutions,
+                    span,
+                )
+            }
+            (
+                Type::Union {
+                    members: formal_members,
+                    ..
+                },
+                Type::Union {
+                    members: actual_members,
+                    ..
+                },
+            ) if formal_members.len() == actual_members.len() => {
+                for (formal, actual) in formal_members.iter().zip(actual_members) {
+                    Self::infer_substitutions_from_types(
+                        formal,
+                        actual,
+                        type_params,
+                        substitutions,
+                        span,
+                    )?;
+                }
+                Ok(())
+            }
+            _ if !Self::formal_contains_type_param(formal, type_params) => Ok(()),
+            _ => Err(PinkerError::Parse {
+                msg: format!(
+                    "E-GENERIC-NO-INFERENCE-SOURCE: tipo real '{}' não corresponde à estrutura inferível '{}'",
+                    actual.display_name(),
+                    formal.display_name()
+                ),
+                span,
+            }),
+        }
+    }
+
+    fn inferred_generic_result_type(&self, name: &str, span: Span) -> Option<Type> {
+        self.generic_instantiations
+            .iter()
+            .rev()
+            .find_map(|instantiation| {
+                (Self::generic_function_name(&instantiation.name, &instantiation.type_args) == name)
+                    .then(|| {
+                        let template = self.generic_templates.get(&instantiation.name)?;
+                        let substitutions = template
+                            .type_params
+                            .iter()
+                            .cloned()
+                            .zip(instantiation.type_args.iter().cloned())
+                            .collect::<HashMap<_, _>>();
+                        template
+                            .ret_type
+                            .as_ref()
+                            .map(|ret| Self::substitute_type(ret, &substitutions).with_span(span))
+                    })
+                    .flatten()
+            })
+    }
+
+    fn infer_local_expr_type(&self, expr: &Expr) -> Option<Type> {
+        match &expr.kind {
+            ExprKind::IntLit(_) => Some(Type::Bombom(expr.span)),
+            ExprKind::BoolLit(_) => Some(Type::Logica(expr.span)),
+            ExprKind::StringLit(_) => Some(Type::Verso(expr.span)),
+            ExprKind::Ident(name) => self.resolve_value_type(name),
+            ExprKind::Unary(UnaryOp::Not, _) => Some(Type::Logica(expr.span)),
+            ExprKind::Unary(_, inner) => self
+                .infer_local_expr_type(inner)
+                .map(|ty| ty.with_span(expr.span)),
+            ExprKind::AddressOf(inner) => {
+                self.infer_local_expr_type(inner).map(|base| Type::Pointer {
+                    base: Box::new(base),
+                    is_volatile: false,
+                    span: expr.span,
+                })
+            }
+            ExprKind::Cast { target, .. } => Some(target.with_span(expr.span)),
+            ExprKind::SizeOfType { .. } | ExprKind::AlignOfType { .. } => {
+                Some(Type::Bombom(expr.span))
+            }
+            ExprKind::Binary(
+                _,
+                BinaryOp::LogicalAnd
+                | BinaryOp::LogicalOr
+                | BinaryOp::Eq
+                | BinaryOp::Neq
+                | BinaryOp::Lt
+                | BinaryOp::Lte
+                | BinaryOp::Gt
+                | BinaryOp::Gte,
+                _,
+            ) => Some(Type::Logica(expr.span)),
+            ExprKind::Binary(lhs, _, _) => self
+                .infer_local_expr_type(lhs)
+                .map(|ty| ty.with_span(expr.span)),
+            ExprKind::Call(callee, _) => match &callee.kind {
+                ExprKind::Ident(name) => self.inferred_generic_result_type(name, expr.span),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    fn infer_generic_call_type_args(
+        &self,
+        template: &FunctionDecl,
+        args: &[Expr],
+        span: Span,
+    ) -> Result<Vec<Type>, PinkerError> {
+        if args.len() != template.params.len() {
+            return Err(PinkerError::Parse {
+                msg: format!(
+                    "E-GENERIC-CALL-ARITY: função genérica '{}' exige {} argumento(s), recebido {}",
+                    template.name,
+                    template.params.len(),
+                    args.len()
+                ),
+                span,
+            });
+        }
+
+        let type_params = template.type_params.iter().cloned().collect::<HashSet<_>>();
+        let mut substitutions = HashMap::new();
+        for (index, (param, arg)) in template.params.iter().zip(args).enumerate() {
+            if !Self::formal_contains_type_param(&param.ty, &type_params) {
+                continue;
+            }
+            let Some(actual) = self.infer_local_expr_type(arg) else {
+                return Err(PinkerError::Parse {
+                    msg: format!(
+                        "E-GENERIC-NO-INFERENCE-SOURCE: argumento {} da chamada '{}' não possui tipo local sintetizável",
+                        index + 1,
+                        template.name
+                    ),
+                    span: arg.span,
+                });
+            };
+            Self::infer_substitutions_from_types(
+                &param.ty,
+                &actual,
+                &type_params,
+                &mut substitutions,
+                arg.span,
+            )?;
+        }
+
+        let missing = template
+            .type_params
+            .iter()
+            .filter(|param| !substitutions.contains_key(*param))
+            .cloned()
+            .collect::<Vec<_>>();
+        if !missing.is_empty() {
+            return Err(PinkerError::Parse {
+                msg: format!(
+                    "E-GENERIC-NO-INFERENCE-SOURCE: chamada '{}' não fornece evidência para {}",
+                    template.name,
+                    missing.join(", ")
+                ),
+                span,
+            });
+        }
+
+        Ok(template
+            .type_params
+            .iter()
+            .filter_map(|param| substitutions.remove(param))
+            .collect())
+    }
+
+    // @pinker-nav:end parser.genericos.inferencia-local
 
     // @pinker-nav:start parser.genericos.leques-template
     // @pinker-nav:domain genericos
@@ -3432,6 +3979,7 @@ impl Parser {
         let start_span = self.consume(TokenKind::LBrace, "{")?.span;
         let mut stmts = Vec::new();
         self.function_value_scopes.push(HashMap::new());
+        self.value_type_scopes.push(HashMap::new());
 
         while !self.check(TokenKind::RBrace) && self.peek().is_some() {
             if self.check(TokenKind::KwPara) {
@@ -3457,6 +4005,7 @@ impl Parser {
         }
 
         self.consume(TokenKind::RBrace, "}")?;
+        self.value_type_scopes.pop();
         self.function_value_scopes.pop();
         Ok(Block {
             stmts,
@@ -3522,6 +4071,9 @@ impl Parser {
             self.consume(TokenKind::Eq, "=")?;
             let init = self.parse_expr()?;
             self.consume(TokenKind::Semi, ";")?;
+            if let Some(value_ty) = ty.clone().or_else(|| self.infer_local_expr_type(&init)) {
+                self.register_value_type(&name, value_ty);
+            }
             return Ok(Stmt::Let(LetStmt {
                 name,
                 is_mut,
@@ -5384,6 +5936,22 @@ impl Parser {
                     }
                 }
                 self.consume(TokenKind::RParen, ")")?;
+                if let ExprKind::Ident(name) = &expr.kind {
+                    if let Some(template) = self.generic_templates.get(name).cloned() {
+                        let type_args =
+                            self.infer_generic_call_type_args(&template, &args, expr.span)?;
+                        let mono_name = Self::generic_function_name(name, &type_args);
+                        self.generic_instantiations.push(GenericInstantiation {
+                            name: name.clone(),
+                            type_args,
+                            span: expr.span,
+                        });
+                        expr = Expr {
+                            kind: ExprKind::Ident(mono_name),
+                            span: expr.span,
+                        };
+                    }
+                }
                 if let ExprKind::Ident(name) = &expr.kind {
                     let mut bindings = Vec::new();
                     let mut runtime_args = Vec::new();

@@ -2,8 +2,8 @@ schema = 2
 id = "normalizacao-corrente-para-historico"
 
 [reconstruction]
-expected_overrides = 19
-expected_exclusions = 51
+expected_overrides = 22
+expected_exclusions = 53
 
 [[rules]]
 op = "exclude-key"
@@ -82,6 +82,11 @@ expected_matches = 1
 
 [[rules]]
 op = "exclude-key"
+key = "evidencia.genericos.inferencia-local-d8"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
 key = "evidencia.project-state.contrato"
 expected_matches = 1
 
@@ -93,6 +98,11 @@ expected_matches = 1
 [[rules]]
 op = "exclude-key"
 key = "evidencia.tooling.f1.contracts"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "parser.genericos.inferencia-local"
 expected_matches = 1
 
 [[rules]]
@@ -427,6 +437,39 @@ to_summary = "Ciclo iniciar/executar/verificar/status/relatorio: snapshots Git, 
 expect_file = "src/agent.rs"
 expect_domain = "development"
 expect_layer = "agent"
+
+[[rules]]
+op = "override-region"
+key = "parser.comandos.bloco"
+from_hash = "fnv1a64:05b55663d8714ae2"
+to_hash = "fnv1a64:b57c3f39100a2358"
+from_summary = "Blocos e comandos: reconhece `{ ... }`, declarações locais (`nova`/`muda`), atribuições, `mimo` (retorno), `talvez`/`senao`, laços (`sempre`/`repetir`), `quebrar`/`continuar`, `falar` e asm inline, produzindo `ast::Block`/`ast::Stmt`."
+to_summary = "Blocos e comandos: reconhece `{ ... }`, declarações locais (`nova`/`muda`), atribuições, `mimo` (retorno), `talvez`/`senao`, laços (`sempre`/`repetir`), `quebrar`/`continuar`, `falar` e asm inline, produzindo `ast::Block`/`ast::Stmt`."
+expect_file = "src/parser.rs"
+expect_domain = "comandos"
+expect_layer = "parser"
+
+[[rules]]
+op = "override-region"
+key = "parser.expressoes.postfix"
+from_hash = "fnv1a64:1fe158b985837baf"
+to_hash = "fnv1a64:a0e90b7e07211b9b"
+from_summary = "Cadeia postfix de expressão: chamadas, acesso a campo, índice, chamada genérica explícita e sufixo de cast (`virar`), aplicados sobre a expressão base para produzir o `ast::Expr` final."
+to_summary = "Cadeia postfix de expressão: chamadas, acesso a campo, índice, chamada genérica explícita e sufixo de cast (`virar`), aplicados sobre a expressão base para produzir o `ast::Expr` final."
+expect_file = "src/parser.rs"
+expect_domain = "expressoes"
+expect_layer = "parser"
+
+[[rules]]
+op = "override-region"
+key = "parser.funcoes.declaracao"
+from_hash = "fnv1a64:8ada16e27f66636a"
+to_hash = "fnv1a64:ed8f8585939365d0"
+from_summary = "Declaração de função: reconhece `carinho nome<params-de-tipo>(params) -> tipo { corpo }`, incluindo os parâmetros de tipo genéricos opcionais, e produz o nó `ast::FunctionDecl`."
+to_summary = "Declaração de função: reconhece `carinho nome<params-de-tipo>(params) -> tipo { corpo }`, incluindo os parâmetros de tipo genéricos opcionais, e produz o nó `ast::FunctionDecl`."
+expect_file = "src/parser.rs"
+expect_domain = "funcoes"
+expect_layer = "parser"
 
 [[rules]]
 op = "override-region"
