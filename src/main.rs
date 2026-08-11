@@ -31,6 +31,7 @@ use pinker_v0::repl;
 use pinker_v0::semantic;
 use pinker_v0::symbol_index;
 use pinker_v0::token::Span;
+use pinker_v0::tooling;
 use pinker_v0::{ast, error::PinkerError};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::env;
@@ -41,7 +42,7 @@ use std::path::{Path, PathBuf};
 // @pinker-nav:start cli.config.modelos
 // @pinker-nav:domain config
 // @pinker-nav:layer cli
-// @pinker-nav:summary Constantes de códigos de saída e limites de paginação, helpers JSON, structs de configuração por subcomando — inclusive StateConfigCli — e enums usados pelo parsing e roteamento determinísticos da CLI.
+// @pinker-nav:summary Constantes e helpers JSON, modelos dos comandos históricos e configurações de doctor/verificar usados pelo parsing e roteamento determinísticos da CLI.
 /// Códigos de saída públicos da CLI e das consultas da Trama (especificação §7.4).
 const EXIT_OK: i32 = 0;
 const EXIT_FAILURE: i32 = 1;
@@ -125,6 +126,8 @@ enum DocSub {
         pr: u64,
         corpo: Option<String>,
         check: bool,
+        freeze: bool,
+        artifact: Option<String>,
     },
     /// Exibe o marco documental configurado.
     Marco,
@@ -155,6 +158,7 @@ enum NavSub {
     Buscar { consulta: String },
     Localizar { symbol: String },
     CoberturaDiff,
+    Impacto { diff: String },
     Listar { seletor: String },
     Mapa { filtro: Option<String> },
     Sincronizar,
@@ -212,6 +216,19 @@ struct StateConfigCli {
     agent_spec: Option<PathBuf>,
 }
 
+struct DoctorConfigCli {
+    repo: String,
+    json: bool,
+}
+
+struct VerifyConfigCli {
+    repo: String,
+    diff: String,
+    documentation_frozen: bool,
+    corpo: Option<PathBuf>,
+    json: bool,
+}
+
 enum CliCommand {
     Help(String),
     Version,
@@ -223,13 +240,15 @@ enum CliCommand {
     Nav(NavConfigCli),
     Agent(AgentConfigCli),
     State(StateConfigCli),
+    Doctor(DoctorConfigCli),
+    Verify(VerifyConfigCli),
 }
 // @pinker-nav:end cli.config.modelos
 
 // @pinker-nav:start cli.ajuda.usage
 // @pinker-nav:domain ajuda
 // @pinker-nav:layer cli
-// @pinker-nav:summary program_name reduz argv[0] ao componente final, preserva nomes alternativos e usa pink como fallback; as funções de ajuda consomem somente esse nome e formatam a ajuda principal ou dos sete comandos existentes, sem side effects.
+// @pinker-nav:summary program_name reduz argv[0] ao componente final e as funções de ajuda formatam, sem side effects, a superfície principal e os nove comandos incluindo doctor e verificar.
 fn program_name(argv0: Option<&String>) -> String {
     argv0
         .and_then(|raw| Path::new(raw).file_name())
@@ -268,7 +287,9 @@ fn usage(program: &str) -> String {
           doc         ferramenta documental da Trama Pinker (marco / importação)\n\
           nav         navegação semântica do código da Trama Pinker\n\
           agente      runner local auditável para tarefas operacionais\n\
-          estado      estado consolidado somente leitura do projeto\n"
+           estado      estado consolidado somente leitura do projeto\n\
+           doctor      identidade e compatibilidade operacional do pink\n\
+           verificar   preflight estruturado antes da suíte completa\n"
     )
 }
 
@@ -287,6 +308,20 @@ fn state_usage(binary: &str) -> String {
          \n\
          Códigos de saída: 0 relatório produzido · 1 falha interna\n\
                            · 2 uso inválido · 3 root/autoridade mínima ausente\n"
+    )
+}
+
+fn doctor_usage(binary: &str) -> String {
+    format!(
+        "Uso: {binary} doctor [--repo DIRETÓRIO] [--json]\n\
+         Identifica binário/repositório e recomenda a próxima ação determinística.\n"
+    )
+}
+
+fn verify_usage(binary: &str) -> String {
+    format!(
+        "Uso: {binary} verificar --diff REF [--repo DIRETÓRIO] [--documentation-frozen] [--corpo ARQUIVO] --json\n\
+         Compõe doctor, nav impacto, projeções, pinker-change e estado documental.\n"
     )
 }
 
@@ -315,6 +350,7 @@ fn nav_usage(binary: &str) -> String {
            buscar CONSULTA     busca regiões por chave, domínio, camada, resumo\n\
            localizar SÍMBOLO   resolve identidade estrutural e vínculos explícitos\n\
            cobertura-diff      relaciona unified diff de stdin a superfícies explícitas\n\
+           impacto --diff REF  obtém e relaciona um diff Git sem mutar o repositório\n\
            listar SELETOR      lista regiões de uma camada (layer) ou domínio\n\
            mapa [FILTRO]       agrupa regiões por arquivo\n\
            sincronizar         regenera o catálogo src/navigation.jsonl\n\
@@ -323,7 +359,7 @@ fn nav_usage(binary: &str) -> String {
          \n\
          Opções:\n\
            --repo      raiz do repositório (padrão: .)\n\
-           --json      saída estável em JSON (mostrar/buscar/localizar/cobertura-diff/listar/mapa)\n\
+           --json      saída estável em JSON (mostrar/buscar/localizar/cobertura-diff/impacto/listar/mapa)\n\
            --limite N  máximo de resultados (1..20; buscar=10)\n\
          \n\
          Códigos de saída: 0 sucesso · 2 uso inválido · 3 catálogo ausente/inválido\n\
@@ -383,6 +419,8 @@ fn doc_usage(binary: &str) -> String {
            --repo      raiz do repositório (padrão: .)\n\
            --corpo     arquivo com o corpo do PR (para importar-pr)\n\
            --check     valida sem escrever (importar-pr)\n\
+           --freeze    valida e preserva artifact sem mutar documentação canônica\n\
+           --artifact  destino obrigatório da evidência quando --freeze é usado\n\
            --json      saída estável em JSON (mostrar/buscar/rota/listar)\n\
            --limite N  máximo de resultados (1..20; rota=5, buscar=10)\n\
          \n\
@@ -448,6 +486,8 @@ fn help_for_command(program: &str, command: &str) -> Option<String> {
         "nav" => Some(nav_usage(program)),
         "agente" => Some(agent_usage(program)),
         "estado" => Some(state_usage(program)),
+        "doctor" => Some(doctor_usage(program)),
+        "verificar" => Some(verify_usage(program)),
         _ => None,
     }
 }
@@ -456,7 +496,7 @@ fn help_for_command(program: &str, command: &str) -> Option<String> {
 // @pinker-nav:start cli.parsing.subcomandos
 // @pinker-nav:domain parsing
 // @pinker-nav:layer cli
-// @pinker-nav:summary Parsers estritos dos subcomandos, incluindo estado: reconhecem somente flags e posicionais próprios, rejeitam valores ausentes, desconhecidos e duplicatas ambíguas e devolvem modelos tipados ou a mensagem de uso correspondente.
+// @pinker-nav:summary Parsers estritos dos subcomandos, incluindo estado, doctor e verificar: validam flags, posicionais, duplicatas e requisitos cruzados antes de produzir modelos tipados.
 fn parse_build_args(binary: &str, args: &[String]) -> Result<BuildConfig, String> {
     let mut input: Option<String> = None;
     let mut out_dir = "build".to_string();
@@ -564,6 +604,8 @@ fn parse_doc_args(binary: &str, args: &[String]) -> Result<DocConfigCli, String>
     let mut repo = ".".to_string();
     let mut corpo: Option<String> = None;
     let mut check = false;
+    let mut freeze = false;
+    let mut artifact: Option<String> = None;
     let mut json = false;
     let mut limite: Option<usize> = None;
     let mut subcommand: Option<String> = None;
@@ -595,6 +637,17 @@ fn parse_doc_args(binary: &str, args: &[String]) -> Result<DocConfigCli, String>
                 corpo = Some(args[i].clone());
             }
             "--check" => check = true,
+            "--freeze" => freeze = true,
+            "--artifact" => {
+                i += 1;
+                if i >= args.len() {
+                    return Err(format!(
+                        "Flag '--artifact' requer um caminho de arquivo.\n\n{}",
+                        doc_usage(binary)
+                    ));
+                }
+                artifact = Some(args[i].clone());
+            }
             "--json" => json = true,
             "--limite" => {
                 i += 1;
@@ -663,7 +716,31 @@ fn parse_doc_args(binary: &str, args: &[String]) -> Result<DocConfigCli, String>
             let pr = raw.parse::<u64>().map_err(|_| {
                 format!("Número de PR inválido: '{}'\n\n{}", raw, doc_usage(binary))
             })?;
-            DocSub::ImportarPr { pr, corpo, check }
+            if freeze && check {
+                return Err(format!(
+                    "Use --freeze ou --check, não ambos.\n\n{}",
+                    doc_usage(binary)
+                ));
+            }
+            if freeze && (corpo.is_none() || artifact.is_none()) {
+                return Err(format!(
+                    "--freeze exige --corpo e --artifact.\n\n{}",
+                    doc_usage(binary)
+                ));
+            }
+            if !freeze && artifact.is_some() {
+                return Err(format!(
+                    "--artifact exige --freeze.\n\n{}",
+                    doc_usage(binary)
+                ));
+            }
+            DocSub::ImportarPr {
+                pr,
+                corpo,
+                check,
+                freeze,
+                artifact,
+            }
         }
         "marco" => {
             require_none("marco")?;
@@ -722,6 +799,7 @@ fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String>
     let mut justificativa: Option<String> = None;
     let mut predecessor: Option<String> = None;
     let mut autorizar: Option<String> = None;
+    let mut diff: Option<String> = None;
     let mut subcommand: Option<String> = None;
     let mut positionals: Vec<String> = Vec::new();
     let mut i = 0usize;
@@ -741,6 +819,22 @@ fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String>
                 repo.clone_from(&args[i]);
             }
             "--json" => json = true,
+            "--diff" => {
+                i += 1;
+                if i >= args.len() {
+                    return Err(format!(
+                        "Flag '--diff' requer uma referência Git.\n\n{}",
+                        nav_usage(binary)
+                    ));
+                }
+                if diff.is_some() {
+                    return Err(format!(
+                        "A opção '--diff' não pode ser repetida.\n\n{}",
+                        nav_usage(binary)
+                    ));
+                }
+                diff = Some(args[i].clone());
+            }
             "--observado" => observado = true,
             "--justificativa" => {
                 i += 1;
@@ -874,6 +968,19 @@ fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String>
             require_none("cobertura-diff")?;
             NavSub::CoberturaDiff
         }
+        "impacto" => {
+            if limite.is_some() {
+                return Err(format!(
+                    "A opção '--limite' não pertence a nav impacto.\n\n{}",
+                    nav_usage(binary)
+                ));
+            }
+            require_none("impacto")?;
+            let diff = diff
+                .clone()
+                .ok_or_else(|| format!("nav impacto exige --diff REF.\n\n{}", nav_usage(binary)))?;
+            NavSub::Impacto { diff }
+        }
         "mapa" => NavSub::Mapa {
             filtro: if positionals.is_empty() {
                 None
@@ -975,6 +1082,13 @@ fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String>
             ));
         }
     };
+
+    if !matches!(sub, NavSub::Impacto { .. }) && diff.is_some() {
+        return Err(format!(
+            "A opção '--diff' pertence somente a nav impacto.\n\n{}",
+            nav_usage(binary)
+        ));
+    }
 
     if !matches!(sub, NavSub::Projecao(_)) && has_projection_options {
         return Err(format!(
@@ -1102,12 +1216,125 @@ fn parse_state_args(binary: &str, args: &[String]) -> Result<StateConfigCli, Str
         agent_spec,
     })
 }
+
+fn parse_doctor_args(binary: &str, args: &[String]) -> Result<DoctorConfigCli, String> {
+    let mut repo: Option<String> = None;
+    let mut json = false;
+    let mut i = 0usize;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--help" | "-h" => return Err(doctor_usage(binary)),
+            "--repo" => {
+                if repo.is_some() {
+                    return Err(format!(
+                        "A opção '--repo' não pode ser repetida.\n\n{}",
+                        doctor_usage(binary)
+                    ));
+                }
+                i += 1;
+                if i >= args.len() {
+                    return Err(format!(
+                        "Flag '--repo' requer um valor.\n\n{}",
+                        doctor_usage(binary)
+                    ));
+                }
+                repo = Some(args[i].clone());
+            }
+            "--json" if !json => json = true,
+            "--json" => {
+                return Err(format!(
+                    "A opção '--json' não pode ser repetida.\n\n{}",
+                    doctor_usage(binary)
+                ))
+            }
+            value => {
+                return Err(format!(
+                    "Argumento desconhecido em doctor: '{}'.\n\n{}",
+                    value,
+                    doctor_usage(binary)
+                ))
+            }
+        }
+        i += 1;
+    }
+    Ok(DoctorConfigCli {
+        repo: repo.unwrap_or_else(|| ".".to_string()),
+        json,
+    })
+}
+
+fn parse_verify_args(binary: &str, args: &[String]) -> Result<VerifyConfigCli, String> {
+    let mut repo: Option<String> = None;
+    let mut diff: Option<String> = None;
+    let mut corpo: Option<PathBuf> = None;
+    let mut documentation_frozen = false;
+    let mut json = false;
+    let mut i = 0usize;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--help" | "-h" => return Err(verify_usage(binary)),
+            "--repo" | "--diff" | "--corpo" => {
+                let flag = args[i].clone();
+                i += 1;
+                if i >= args.len() {
+                    return Err(format!(
+                        "Flag '{}' requer um valor.\n\n{}",
+                        flag,
+                        verify_usage(binary)
+                    ));
+                }
+                match flag.as_str() {
+                    "--repo" if repo.is_none() => repo = Some(args[i].clone()),
+                    "--diff" if diff.is_none() => diff = Some(args[i].clone()),
+                    "--corpo" if corpo.is_none() => corpo = Some(PathBuf::from(&args[i])),
+                    _ => {
+                        return Err(format!(
+                            "A opção '{}' não pode ser repetida.\n\n{}",
+                            flag,
+                            verify_usage(binary)
+                        ))
+                    }
+                }
+            }
+            "--documentation-frozen" if !documentation_frozen => documentation_frozen = true,
+            "--json" if !json => json = true,
+            "--documentation-frozen" | "--json" => {
+                return Err(format!(
+                    "A opção '{}' não pode ser repetida.\n\n{}",
+                    args[i],
+                    verify_usage(binary)
+                ))
+            }
+            value => {
+                return Err(format!(
+                    "Argumento desconhecido em verificar: '{}'.\n\n{}",
+                    value,
+                    verify_usage(binary)
+                ))
+            }
+        }
+        i += 1;
+    }
+    let diff = diff.ok_or_else(|| {
+        format!(
+            "O comando verificar exige --diff REF.\n\n{}",
+            verify_usage(binary)
+        )
+    })?;
+    Ok(VerifyConfigCli {
+        repo: repo.unwrap_or_else(|| ".".to_string()),
+        diff,
+        documentation_frozen,
+        corpo,
+        json,
+    })
+}
 // @pinker-nav:end cli.parsing.subcomandos
 
 // @pinker-nav:start cli.parsing.roteamento
 // @pinker-nav:domain parsing
 // @pinker-nav:layer cli
-// @pinker-nav:summary parse_args reduz argv[0] via program_name, resolve ajuda principal/help COMANDO/COMANDO --help e versão antes do parsing operacional, separa flag_args do runtime_tail e despacha os sete comandos existentes ou o modo de análise; erros de invocação retornam Err(String) para saída uniforme com EXIT_USAGE.
+// @pinker-nav:summary parse_args resolve ajuda e versão, separa runtime tail e despacha os nove comandos — incluindo doctor e verificar — ou análise, com erros uniformes de uso.
 fn parse_args() -> Result<CliCommand, String> {
     let mut input: Option<String> = None;
     let mut print_tokens = false;
@@ -1230,6 +1457,24 @@ fn parse_args() -> Result<CliCommand, String> {
             }
             return parse_state_args(&program, &flag_args[1..]).map(CliCommand::State);
         }
+        if cmd == "doctor" {
+            if cli_tail_start < cli_args.len() {
+                return Err(format!(
+                    "O comando doctor não aceita argumentos após '--'.\n\n{}",
+                    doctor_usage(&program)
+                ));
+            }
+            return parse_doctor_args(&program, &flag_args[1..]).map(CliCommand::Doctor);
+        }
+        if cmd == "verificar" {
+            if cli_tail_start < cli_args.len() {
+                return Err(format!(
+                    "O comando verificar não aceita argumentos após '--'.\n\n{}",
+                    verify_usage(&program)
+                ));
+            }
+            return parse_verify_args(&program, &flag_args[1..]).map(CliCommand::Verify);
+        }
     }
 
     for arg in flag_args {
@@ -1305,7 +1550,7 @@ fn parse_args() -> Result<CliCommand, String> {
 // @pinker-nav:start cli.execucao.entrada
 // @pinker-nav:domain execucao
 // @pinker-nav:layer cli
-// @pinker-nav:summary try_or_exit! encerra falhas operacionais com EXIT_FAILURE; main imprime ajuda em stdout, versão determinística do pacote em stdout, erros de invocação em stderr com EXIT_USAGE e preserva os códigos de domínio ao despachar análise, build, editor, repl, doc, nav, agente e estado.
+// @pinker-nav:summary main preserva exits de domínio ao despachar análise e os nove comandos, incluindo adaptadores estruturados read-only para doctor, nav impacto e verificar.
 /// Macro para encurtar o padrão "try or exit(1)" repetido no pipeline.
 macro_rules! try_or_exit {
     ($result:expr, $source:expr) => {
@@ -1357,6 +1602,69 @@ fn main() {
             }
         }
         CliCommand::State(config) => std::process::exit(run_state(config)),
+        CliCommand::Doctor(config) => std::process::exit(run_doctor(config)),
+        CliCommand::Verify(config) => std::process::exit(run_verify(config)),
+    }
+}
+
+fn run_doctor(config: DoctorConfigCli) -> i32 {
+    match tooling::collect_doctor(Path::new(&config.repo)) {
+        Ok(report) => {
+            if config.json {
+                println!("{}", tooling::render_doctor_json(&report));
+            } else {
+                println!("pink doctor");
+                println!("  binary: {}", report.binary_path);
+                println!("  version: {}", report.binary_version);
+                println!("  commit: {}", report.binary_commit);
+                println!("  repo: {} ({})", report.repo_root, report.repo_head);
+                println!("  compatibility: {}", report.compatibility.as_str());
+                println!("  navigation: {}", report.navigation_catalog);
+                println!("  projections: {}", report.projection_state);
+                println!("  next: {}", report.recommended_next_action);
+            }
+            if report.compatibility.usable() {
+                EXIT_OK
+            } else {
+                EXIT_FAILURE
+            }
+        }
+        Err(error) => {
+            eprintln!("E-DOCTOR: {error}");
+            EXIT_FAILURE
+        }
+    }
+}
+
+fn run_verify(config: VerifyConfigCli) -> i32 {
+    match tooling::collect_preflight(
+        Path::new(&config.repo),
+        &config.diff,
+        config.documentation_frozen,
+        config.corpo.as_deref(),
+    ) {
+        Ok(report) => {
+            if config.json {
+                println!("{}", tooling::render_preflight_json(&report));
+            } else {
+                println!(
+                    "status: {}",
+                    if report.blocking.is_empty() {
+                        "READY"
+                    } else {
+                        "BLOCKED"
+                    }
+                );
+                println!("blocking: {}", report.blocking.len());
+                println!("warnings: {}", report.warnings.len());
+                println!("expected_deferred: {}", report.expected_deferred.len());
+            }
+            tooling::preflight_exit_code(&report)
+        }
+        Err(error) => {
+            eprintln!("E-PREFLIGHT: {error}");
+            EXIT_FAILURE
+        }
     }
 }
 
@@ -1396,6 +1704,7 @@ fn run_nav(config: NavConfigCli) -> i32 {
         }
         NavSub::Localizar { symbol } => run_nav_localizar(repo_root, &symbol, config.json),
         NavSub::CoberturaDiff => run_nav_cobertura_diff(repo_root, config.json),
+        NavSub::Impacto { diff } => run_nav_impacto(repo_root, &diff, config.json),
         NavSub::Listar { seletor } => run_nav_listar(repo_root, &seletor, config.json),
         NavSub::Mapa { filtro } => run_nav_mapa(repo_root, filtro.as_deref(), config.json),
         NavSub::Sincronizar => run_nav_sincronizar(repo_root),
@@ -1724,7 +2033,7 @@ fn projection_error_exit(error: &ProjectionError) -> i32 {
 // @pinker-nav:layer cli
 // @pinker-nav:related-symbol pinker_v0::symbol_index::locate
 // @pinker-nav:related-symbol pinker_v0::diff_coverage::analyze
-// @pinker-nav:summary load_code_catalog lê o catálogo gerado sem escrever; mostrar extrai e valida uma região; buscar/listar/mapa consultam o catálogo em memória; localizar deriva vínculos de símbolos; cobertura-diff lê stdin e autoridades locais para renderizar superfícies afetadas sem mutar o repositório.
+// @pinker-nav:summary Consultas nav read-only carregam catálogo e símbolos; cobertura-diff analisa stdin e impacto compõe git diff limitado com as autoridades correntes sem mutar o repositório.
 /// Carrega o catálogo de código versionado (superfície de consulta — §5).
 fn load_code_catalog(repo_root: &Path) -> Result<nav::CodeCatalog, i32> {
     let doc_config = load_doc_config(repo_root);
@@ -1997,6 +2306,34 @@ fn run_nav_cobertura_diff(repo_root: &Path, json: bool) -> i32 {
         print!("{}", diff_coverage::render_human(&report));
     }
     EXIT_OK
+}
+
+fn run_nav_impacto(repo_root: &Path, diff: &str, json: bool) -> i32 {
+    match tooling::collect_impact(repo_root, diff) {
+        Ok(report) => {
+            if json {
+                println!("{}", tooling::render_impact_json(&report));
+            } else {
+                println!("pink nav impacto");
+                println!("  diff: {}", report.diff);
+                println!("  changed_files: {}", report.changed_files.len());
+                println!(
+                    "  changed_regions: {}",
+                    report.changed_regions.status.as_str()
+                );
+                println!(
+                    "  projections_affected: {}",
+                    report.projections_affected.status.as_str()
+                );
+                println!("  catalog_status: {}", report.catalog_status);
+            }
+            EXIT_OK
+        }
+        Err(error) => {
+            eprintln!("{error}");
+            EXIT_HARNESS
+        }
+    }
 }
 
 fn run_nav_listar(repo_root: &Path, seletor: &str, json: bool) -> i32 {
@@ -2340,10 +2677,42 @@ fn run_doc(config: DocConfigCli) -> i32 {
             println!("  código:  {}", doc_config.generated.code_index);
             EXIT_OK
         }
-        DocSub::ImportarPr { pr, corpo, check } => {
+        DocSub::ImportarPr {
+            pr,
+            corpo,
+            check,
+            freeze,
+            artifact,
+        } => {
             if let Err(rejection) = doc_config.baseline_gate(pr) {
                 eprintln!("{rejection}");
                 return EXIT_SOURCE;
+            }
+            if freeze {
+                let body = corpo.expect("parser garante --corpo com --freeze");
+                let artifact = artifact.expect("parser garante --artifact com --freeze");
+                let report = tooling::freeze_import(
+                    repo_root,
+                    &doc_config,
+                    pr,
+                    Path::new(&body),
+                    Path::new(&artifact),
+                );
+                if config.json {
+                    println!("{}", tooling::render_freeze_import_json(&report));
+                } else {
+                    println!("{}: {}", report.classification.as_str(), report.detail);
+                    if let Some(path) = &report.artifact {
+                        println!("artifact: {path}");
+                    }
+                }
+                return if report.classification
+                    == tooling::FreezeImportClassification::ValidatedDeferredByFreeze
+                {
+                    EXIT_OK
+                } else {
+                    EXIT_SOURCE
+                };
             }
             match corpo {
                 None => {

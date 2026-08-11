@@ -1,0 +1,149 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+    cat <<'EOF'
+Uso:
+  scripts/pink-baseline build --output DIRETÓRIO
+  sudo scripts/pink-baseline publish --bundle DIRETÓRIO
+
+build cria um bundle release identificado como usuário comum.
+publish valida o bundle e troca /opt/pinker/bin/pink atomicamente como root.
+EOF
+}
+
+fail() {
+    printf 'pink-baseline: %s\n' "$*" >&2
+    exit 1
+}
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "$script_dir/.." && pwd)"
+
+[[ $# -ge 1 ]] || {
+    usage >&2
+    exit 2
+}
+command_name="$1"
+shift
+
+case "$command_name" in
+    --help|-h)
+        usage
+        exit 0
+        ;;
+    build)
+        [[ "${1-}" == "--output" && $# -eq 2 ]] || {
+            usage >&2
+            exit 2
+        }
+        output="$2"
+        [[ -n "$output" ]] || fail "output vazio"
+        [[ -z "$(git -C "$repo_root" status --porcelain)" ]] || fail "worktree deve estar limpo"
+        commit="$(git -C "$repo_root" rev-parse HEAD)"
+        [[ "$commit" =~ ^[0-9a-f]{40}$ ]] || fail "commit de origem inválido"
+        version="$(sed -n 's/^version = "\([^"]*\)"$/\1/p' "$repo_root/Cargo.toml" | head -n 1)"
+        [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "versão inválida"
+        bundle_parent="$(dirname "$output")"
+        mkdir -p "$bundle_parent"
+        temporary="$bundle_parent/.pink-bundle-${commit}-$$"
+        [[ ! -e "$temporary" ]] || fail "staging já existe"
+        mkdir -p "$temporary"
+        trap 'rm -rf "$temporary"' EXIT
+        PINKER_BUILD_COMMIT="$commit" "$repo_root/ci_env.sh" cargo build --locked --release --bin pink
+        target_root="${CARGO_TARGET_DIR:-$repo_root/target}"
+        binary="$target_root/release/pink"
+        [[ -x "$binary" ]] || fail "cargo não produziu $binary"
+        install -m 0755 "$binary" "$temporary/pink"
+        sha256="$(sha256sum "$temporary/pink" | awk '{print $1}')"
+        [[ "$sha256" =~ ^[0-9a-f]{64}$ ]] || fail "SHA-256 inválido"
+        cat >"$temporary/identity.env" <<EOF
+schema=forja-pink-bundle-v1
+version=$version
+commit=$commit
+sha256=$sha256
+source=$repo_root
+EOF
+        identity="$($temporary/pink doctor --repo "$repo_root" --json)"
+        [[ "$identity" == *"\"binary_commit\":\"$commit\""* ]] || fail "binário não declara o commit do bundle"
+        [[ ! -e "$output" ]] || fail "output já existe: $output"
+        mv "$temporary" "$output"
+        trap - EXIT
+        printf 'bundle=%s\ncommit=%s\nsha256=%s\n' "$output" "$commit" "$sha256"
+        ;;
+    publish)
+        [[ "${1-}" == "--bundle" && $# -eq 2 ]] || {
+            usage >&2
+            exit 2
+        }
+        [[ "${EUID:-$(id -u)}" -eq 0 ]] || fail "publish exige root"
+        bundle="$2"
+        [[ -d "$bundle" && -x "$bundle/pink" && -f "$bundle/identity.env" ]] || fail "bundle incompleto"
+        schema=''
+        version=''
+        commit=''
+        expected_sha256=''
+        source=''
+        while IFS='=' read -r key value; do
+            case "$key" in
+                schema) schema="$value" ;;
+                version) version="$value" ;;
+                commit) commit="$value" ;;
+                sha256) expected_sha256="$value" ;;
+                source) source="$value" ;;
+                *) fail "campo desconhecido no bundle: $key" ;;
+            esac
+        done <"$bundle/identity.env"
+        [[ "$schema" == 'forja-pink-bundle-v1' ]] || fail "schema do bundle inválido"
+        [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "versão inválida"
+        [[ "$commit" =~ ^[0-9a-f]{40}$ ]] || fail "commit inválido"
+        [[ "$expected_sha256" =~ ^[0-9a-f]{64}$ ]] || fail "SHA-256 esperado inválido"
+        [[ "$source" =~ ^/[A-Za-z0-9_./-]+$ && -d "$source/.git" || -f "$source/.git" ]] || fail "origem do bundle inválida"
+        observed_sha256="$(sha256sum "$bundle/pink" | awk '{print $1}')"
+        [[ "$observed_sha256" == "$expected_sha256" ]] || fail "checksum do bundle diverge"
+        identity="$($bundle/pink doctor --repo "$source" --json || true)"
+        [[ "$identity" == *"\"binary_commit\":\"$commit\""* ]] || fail "identidade do binário diverge do bundle"
+
+        release_root="/opt/pinker/releases/pink/$commit"
+        release_binary="$release_root/bin/pink"
+        manifest="/opt/pinker/manifests/pink-${version}-${commit:0:12}.json"
+        install -d -o root -g root /opt/pinker/releases/pink /opt/pinker/bin /opt/pinker/manifests
+        if [[ -e "$release_root" ]]; then
+            [[ -x "$release_binary" ]] || fail "release existente está incompleta"
+            existing_sha256="$(sha256sum "$release_binary" | awk '{print $1}')"
+            [[ "$existing_sha256" == "$expected_sha256" ]] || fail "release existente possui checksum divergente"
+        else
+            staging="/opt/pinker/releases/pink/.staging-${commit}-$$"
+            install -d -o root -g root "$staging/bin"
+            install -o root -g root -m 0755 "$bundle/pink" "$staging/bin/pink"
+            mv "$staging" "$release_root"
+        fi
+        cat >"$manifest.tmp-$$" <<EOF
+{
+  "checksums": [{"path": "$release_binary", "sha256": "$expected_sha256"}],
+  "exposed_commands": ["/opt/pinker/bin/pink"],
+  "installation_root": "$release_root",
+  "installed_executables": ["$release_binary"],
+  "name": "Pinker CLI",
+  "ownership_policy": {"group": "root", "owner": "root", "writable_by_non_admin": false},
+  "schema": "forja-software-manifest-v1",
+  "source_or_provenance": {"kind": "repository-release-build", "source": "$source", "commit": "$commit", "bundle_schema": "$schema"},
+  "verification": {"command": ["/opt/pinker/bin/pink", "doctor", "--repo", "$source", "--json"], "expected_contains": "\\\"binary_commit\\\":\\\"$commit\\\""},
+  "version": "$version",
+  "wrappers": []
+}
+EOF
+        install -o root -g root -m 0644 "$manifest.tmp-$$" "$manifest"
+        rm -f "$manifest.tmp-$$"
+        next_link="/opt/pinker/bin/.pink-next-$$"
+        ln -s "$release_binary" "$next_link"
+        mv -Tf "$next_link" /opt/pinker/bin/pink
+        verification="$(/opt/pinker/bin/pink doctor --repo "$source" --json || true)"
+        [[ "$verification" == *"\"binary_commit\":\"$commit\""* ]] || fail "verificação pós-publicação falhou"
+        printf 'status=PUBLISHED\nbinary=/opt/pinker/bin/pink\nrelease=%s\nmanifest=%s\ncommit=%s\n' "$release_root" "$manifest" "$commit"
+        ;;
+    *)
+        usage >&2
+        exit 2
+        ;;
+esac

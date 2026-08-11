@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [[ -z "${PINKER_BUILD_COMMIT-}" ]]; then
+    ci_repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    PINKER_BUILD_COMMIT="$(git -C "$ci_repo_root" rev-parse HEAD 2>/dev/null || printf 'UNKNOWN')"
+    export PINKER_BUILD_COMMIT
+fi
+
 if ! ulimit -S -c 0 2>/dev/null; then
     printf 'ci_env: não foi possível desabilitar core dumps para esta execução\n' >&2
     exit 1
@@ -30,6 +36,7 @@ if [[ "${1-}" == "--preflight" ]]; then
     printf 'cwd=%s\n' "$(pwd)"
     printf 'rustc=%s\n' "$(rustc --version)"
     printf 'cargo=%s\n' "$(cargo --version)"
+    printf 'pinker_build_commit=%s\n' "$PINKER_BUILD_COMMIT"
     if command -v rustup >/dev/null 2>&1; then
         printf 'toolchain=%s\n' "$(rustup show active-toolchain)"
     else
