@@ -787,6 +787,13 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
         },
     );
     function_sigs.insert(
+        "fatiar_verso".to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Verso,
+            params: vec![TypeIR::Verso, TypeIR::Bombom, TypeIR::Bombom],
+        },
+    );
+    function_sigs.insert(
         "contem_verso".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Logica,

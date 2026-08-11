@@ -2,8 +2,8 @@ schema = 2
 id = "normalizacao-corrente-para-historico"
 
 [reconstruction]
-expected_overrides = 22
-expected_exclusions = 53
+expected_overrides = 31
+expected_exclusions = 54
 
 [[rules]]
 op = "exclude-key"
@@ -73,6 +73,11 @@ expected_matches = 1
 [[rules]]
 op = "exclude-key"
 key = "evidencia.diff-cobertura.cli"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.fatiar-verso.d9-unicode"
 expected_matches = 1
 
 [[rules]]
@@ -330,6 +335,24 @@ expect_layer = "backend-s"
 
 [[rules]]
 op = "override-region"
+key = "backend-s.runtime.simbolos-intrinsecas"
+from_hash = "fnv1a64:69db0652444a63cc"
+to_hash = "fnv1a64:e57b8a35f588a616"
+expect_file = "src/backend_s.rs"
+expect_domain = "runtime"
+expect_layer = "backend-s"
+
+[[rules]]
+op = "override-region"
+key = "cfg.validacao.invariantes"
+from_hash = "fnv1a64:582e7ffb859feef2"
+to_hash = "fnv1a64:d09fb8c5cd4c56c5"
+expect_file = "src/cfg_ir_validate.rs"
+expect_domain = "validacao"
+expect_layer = "cfg"
+
+[[rules]]
+op = "override-region"
 key = "cli.ajuda.usage"
 from_hash = "fnv1a64:db893b4a1f3a73a9"
 to_hash = "fnv1a64:ce2fe9866dbdcd8f"
@@ -440,6 +463,42 @@ expect_layer = "agent"
 
 [[rules]]
 op = "override-region"
+key = "interpreter.intrinsecos.io-arquivo-texto"
+from_hash = "fnv1a64:ee59d5bde43fa710"
+to_hash = "fnv1a64:41b06b9dbe9462df"
+expect_file = "src/interpreter.rs"
+expect_domain = "intrinsecos"
+expect_layer = "interpreter"
+
+[[rules]]
+op = "override-region"
+key = "ir.lowering.assinaturas-intrinsecos"
+from_hash = "fnv1a64:9a462496fe036c9a"
+to_hash = "fnv1a64:4c474d5f9416a278"
+expect_file = "src/ir.rs"
+expect_domain = "lowering"
+expect_layer = "ir"
+
+[[rules]]
+op = "override-region"
+key = "ir.validacao.invariantes"
+from_hash = "fnv1a64:3dd62984bf64645a"
+to_hash = "fnv1a64:2a5a15bb37f76889"
+expect_file = "src/ir_validate.rs"
+expect_domain = "validacao"
+expect_layer = "ir"
+
+[[rules]]
+op = "override-region"
+key = "machine.validacao.invariantes"
+from_hash = "fnv1a64:6652f8f748b8f5b5"
+to_hash = "fnv1a64:fa626f77e9a0fa75"
+expect_file = "src/abstract_machine_validate.rs"
+expect_domain = "validacao"
+expect_layer = "machine"
+
+[[rules]]
+op = "override-region"
 key = "parser.comandos.bloco"
 from_hash = "fnv1a64:05b55663d8714ae2"
 to_hash = "fnv1a64:b57c3f39100a2358"
@@ -481,6 +540,33 @@ to_summary = "Núcleo de formatar_verso (placeholders `{}` na ordem, com erro_fa
 expect_file = "runtime/pinker_rt/src/lib.rs"
 expect_domain = "texto"
 expect_layer = "runtime"
+
+[[rules]]
+op = "override-region"
+key = "runtime.texto.operacoes"
+from_hash = "fnv1a64:9d30a67a59aa5155"
+to_hash = "fnv1a64:474abaf1ebd346cd"
+expect_file = "runtime/pinker_rt/src/lib.rs"
+expect_domain = "texto"
+expect_layer = "runtime"
+
+[[rules]]
+op = "override-region"
+key = "select.validacao.invariantes"
+from_hash = "fnv1a64:c502522776ef5a68"
+to_hash = "fnv1a64:c355c9b186e3e67e"
+expect_file = "src/instr_select_validate.rs"
+expect_domain = "validacao"
+expect_layer = "select"
+
+[[rules]]
+op = "override-region"
+key = "semantic.chamadas.despacho"
+from_hash = "fnv1a64:10ad20d520e8c6d4"
+to_hash = "fnv1a64:786f0d551629e7a5"
+expect_file = "src/semantic.rs"
+expect_domain = "chamadas"
+expect_layer = "semantic"
 
 [[rules]]
 op = "override-region"

@@ -2735,6 +2735,10 @@ impl LoweringContext {
             builtin_sig(&mut resolved_types, TypeIR::Verso)?,
         );
         function_sigs.insert(
+            "fatiar_verso".to_string(),
+            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
+        );
+        function_sigs.insert(
             "contem_verso".to_string(),
             builtin_sig(&mut resolved_types, TypeIR::Logica)?,
         );

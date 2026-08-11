@@ -215,6 +215,7 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
     sigs.insert("juntar_verso".to_string(), TypeIR::Verso);
     sigs.insert("tamanho_verso".to_string(), TypeIR::Bombom);
     sigs.insert("indice_verso".to_string(), TypeIR::Verso);
+    sigs.insert("fatiar_verso".to_string(), TypeIR::Verso);
     sigs.insert("contem_verso".to_string(), TypeIR::Logica);
     sigs.insert("comeca_com".to_string(), TypeIR::Logica);
     sigs.insert("termina_com".to_string(), TypeIR::Logica);

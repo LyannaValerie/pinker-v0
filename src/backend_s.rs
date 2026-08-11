@@ -3669,6 +3669,7 @@ fn runtime_intrinsic_symbol(callee: &str) -> Option<&'static str> {
         "igual_verso" => Some("pinker_verso_igual"),
         // Família texto completa (Fase 219/B8).
         "indice_verso" => Some("pinker_verso_indice"),
+        "fatiar_verso" => Some("pinker_verso_fatiar"),
         "contem_verso" => Some("pinker_verso_contem"),
         "comeca_com" => Some("pinker_verso_comeca_com"),
         "termina_com" => Some("pinker_verso_termina_com"),
