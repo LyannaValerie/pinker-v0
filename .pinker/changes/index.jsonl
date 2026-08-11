@@ -19,4 +19,3 @@
 {"schema":1,"pr":437,"kind":"hotfix","title":"Estabilizar handshake root-swap sob contenção no CI","status":"completed","area":["development.native-execution-host-containment","development.test-harness"]}
 {"schema":1,"pr":439,"kind":"parallel-phase","block":20,"title":"Adiciona cobertura de diff somente leitura","status":"completed","area":["development.diff-coverage","development.trama","development.deterministic-infrastructure-window"]}
 {"schema":1,"pr":440,"kind":"documentation","block":20,"title":"Encerra a janela auxiliar da Issue 417 e restaura D2","status":"completed","area":["development.deterministic-infrastructure-window","development.tramas-policy","roadmap.block-20"]}
-{"schema":1,"pr":453,"kind":"parallel-phase","title":"Matura mapas genéricos adultos","status":"completed","area":["language.generic-maps","compiler.semantic","runtime.map","backend.native"]}
