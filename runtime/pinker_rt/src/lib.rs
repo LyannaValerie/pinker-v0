@@ -799,6 +799,47 @@ pub unsafe extern "C" fn pinker_verso_indice(v: *const u8, indice: u64) -> *mut 
     verso_alocar(&ch.to_string())
 }
 
+/// Converte um índice em Unicode scalar values para uma fronteira UTF-8.
+/// Inclui a fronteira final, portanto `index == texto.chars().count()` é válido.
+fn verso_codepoint_byte_offset(texto: &str, index: u64) -> Option<usize> {
+    let mut logical = 0_u64;
+    for (byte_offset, _) in texto.char_indices() {
+        if logical == index {
+            return Some(byte_offset);
+        }
+        logical = logical.checked_add(1)?;
+    }
+    (logical == index).then_some(texto.len())
+}
+
+/// Fatia `texto` por Unicode scalar values no intervalo zero-based `[inicio, fim)`.
+/// Sempre aloca um novo verso, inclusive para a fatia vazia.
+///
+/// # Safety
+/// `texto` deve apontar para um bloco de verso válido com bytes UTF-8.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_verso_fatiar(texto: *const u8, inicio: u64, fim: u64) -> *mut u8 {
+    let texto = verso_str(texto);
+    if inicio > fim {
+        erro_fatal("intervalo inválido em 'fatiar_verso': início maior que fim");
+    }
+    let length = match u64::try_from(texto.chars().count()) {
+        Ok(length) => length,
+        Err(_) => erro_fatal("comprimento textual excede a faixa de índice de 'fatiar_verso'"),
+    };
+    if inicio > length {
+        erro_fatal("índice inicial fora da faixa em 'fatiar_verso'");
+    }
+    if fim > length {
+        erro_fatal("índice final fora da faixa em 'fatiar_verso'");
+    }
+    let inicio_byte = verso_codepoint_byte_offset(texto, inicio)
+        .unwrap_or_else(|| erro_fatal("falha interna ao resolver início de 'fatiar_verso'"));
+    let fim_byte = verso_codepoint_byte_offset(texto, fim)
+        .unwrap_or_else(|| erro_fatal("falha interna ao resolver fim de 'fatiar_verso'"));
+    verso_alocar(&texto[inicio_byte..fim_byte])
+}
+
 /// # Safety
 /// `texto` e `trecho` devem apontar para blocos de verso válidos.
 #[no_mangle]

@@ -648,6 +648,17 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
         ),
     );
     sigs.insert(
+        "fatiar_verso".to_string(),
+        (
+            TypeIR::Verso,
+            vec![
+                StackValueType::Verso,
+                StackValueType::Bombom,
+                StackValueType::Bombom,
+            ],
+        ),
+    );
+    sigs.insert(
         "contem_verso".to_string(),
         (
             TypeIR::Logica,

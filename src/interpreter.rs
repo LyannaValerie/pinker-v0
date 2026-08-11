@@ -4323,6 +4323,64 @@ fn try_call_intrinsic(
             };
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(ch.to_string()))))
         }
+        "fatiar_verso" => {
+            /// Converte um índice em Unicode scalar values para uma fronteira UTF-8,
+            /// incluindo a fronteira final do texto.
+            fn verso_codepoint_byte_offset(texto: &str, index: u64) -> Option<usize> {
+                let mut logical = 0_u64;
+                for (byte_offset, _) in texto.char_indices() {
+                    if logical == index {
+                        return Some(byte_offset);
+                    }
+                    logical = logical.checked_add(1)?;
+                }
+                (logical == index).then_some(texto.len())
+            }
+
+            if args.len() != 3 {
+                return Err(runtime_err(
+                    "intrínseca 'fatiar_verso' exige 3 argumentos (verso, bombom, bombom)",
+                ));
+            }
+            let RuntimeValue::Str(value) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'fatiar_verso' exige primeiro argumento em verso",
+                ));
+            };
+            let RuntimeValue::Int(start) = args[1] else {
+                return Err(runtime_err(
+                    "intrínseca 'fatiar_verso' exige segundo argumento em bombom",
+                ));
+            };
+            let RuntimeValue::Int(end) = args[2] else {
+                return Err(runtime_err(
+                    "intrínseca 'fatiar_verso' exige terceiro argumento em bombom",
+                ));
+            };
+            if start > end {
+                return Err(runtime_err(
+                    "intervalo inválido em 'fatiar_verso': início maior que fim",
+                ));
+            }
+            let length = u64::try_from(value.chars().count()).map_err(|_| {
+                runtime_err("comprimento textual excede a faixa de índice de 'fatiar_verso'")
+            })?;
+            if start > length {
+                return Err(runtime_err(
+                    "índice inicial fora da faixa em 'fatiar_verso'",
+                ));
+            }
+            if end > length {
+                return Err(runtime_err("índice final fora da faixa em 'fatiar_verso'"));
+            }
+            let start_byte = verso_codepoint_byte_offset(value, start)
+                .ok_or_else(|| runtime_err("falha interna ao resolver início de 'fatiar_verso'"))?;
+            let end_byte = verso_codepoint_byte_offset(value, end)
+                .ok_or_else(|| runtime_err("falha interna ao resolver fim de 'fatiar_verso'"))?;
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(
+                value[start_byte..end_byte].to_string(),
+            ))))
+        }
         "contem_verso" => {
             if args.len() != 2 {
                 return Err(runtime_err(

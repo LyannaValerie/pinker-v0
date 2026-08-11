@@ -6945,6 +6945,47 @@ impl SemanticChecker {
             }
             return Ok(Type::Verso(expr_span));
         }
+        if name == "fatiar_verso" {
+            if args.len() != 3 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'fatiar_verso' com aridade inválida: esperado 3, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let texto_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(texto_ty, Type::Verso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'fatiar_verso': esperado 'verso', encontrado '{}'",
+                        texto_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            for (position, arg) in args.iter().enumerate().skip(1) {
+                let index_ty = self.check_value_expr(
+                    arg,
+                    "resultado de função sem retorno não pode ser usado como argumento",
+                )?;
+                if !matches!(index_ty, Type::Bombom(_)) {
+                    return Err(PinkerError::Semantic {
+                        msg: format!(
+                            "tipo inválido no argumento {} da chamada 'fatiar_verso': esperado 'bombom', encontrado '{}'",
+                            position + 1,
+                            index_ty.name()
+                        ),
+                        span: arg.span,
+                    });
+                }
+            }
+            return Ok(Type::Verso(expr_span));
+        }
         if name == "contem_verso" {
             if args.len() != 2 {
                 return Err(PinkerError::Semantic {
