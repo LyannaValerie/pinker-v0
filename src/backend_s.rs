@@ -3456,6 +3456,7 @@ fn is_external_param_type(ty: &TypeIR) -> bool {
         || *ty == TypeIR::MapVersoVerso
         || *ty == TypeIR::MapBombomBombom
         || *ty == TypeIR::MapBombomVerso
+        || matches!(ty, TypeIR::Map { .. })
         || *ty == TypeIR::Struct
         || *ty == TypeIR::Pointer { is_volatile: false }
         || *ty == TypeIR::Function
@@ -3491,6 +3492,7 @@ fn is_external_raw_call_type(ty: &TypeIR) -> bool {
                 | TypeIR::MapVersoVerso
                 | TypeIR::MapBombomBombom
                 | TypeIR::MapBombomVerso
+                | TypeIR::Map { .. }
                 | TypeIR::Pointer { .. }
                 | TypeIR::Function
                 | TypeIR::FunctionPointer
@@ -3541,6 +3543,7 @@ fn is_external_ret_type(ty: &TypeIR) -> bool {
                 | TypeIR::MapVersoVerso
                 | TypeIR::MapBombomBombom
                 | TypeIR::MapBombomVerso
+                | TypeIR::Map { .. }
                 | TypeIR::Pointer { .. }
                 | TypeIR::Function
                 | TypeIR::FunctionPointer
@@ -3645,36 +3648,48 @@ fn runtime_intrinsic_symbol(callee: &str) -> Option<&'static str> {
         "mapa_bombom_bombom_criar" | "mapa_bombom_verso_criar" => {
             Some("pinker_mapa_criar_chave_bombom")
         }
+        "__pinker_internal_mapa_criar_chave_verso" => Some("pinker_mapa_criar_chave_verso"),
+        "__pinker_internal_mapa_criar_chave_bombom" => Some("pinker_mapa_criar_chave_bombom"),
         "mapa_verso_bombom_definir"
         | "mapa_verso_verso_definir"
         | "mapa_bombom_bombom_definir"
         | "mapa_bombom_verso_definir" => Some("pinker_mapa_definir"),
+        "__pinker_internal_mapa_definir" => Some("pinker_mapa_definir"),
         "mapa_verso_bombom_obter"
         | "mapa_verso_verso_obter"
         | "mapa_bombom_bombom_obter"
         | "mapa_bombom_verso_obter" => Some("pinker_mapa_obter"),
+        "__pinker_internal_mapa_obter" => Some("pinker_mapa_obter"),
         "mapa_verso_bombom_tem"
         | "mapa_verso_verso_tem"
         | "mapa_bombom_bombom_tem"
         | "mapa_bombom_verso_tem" => Some("pinker_mapa_tem"),
+        "__pinker_internal_mapa_tem" => Some("pinker_mapa_tem"),
         "mapa_verso_bombom_tamanho"
         | "mapa_verso_verso_tamanho"
         | "mapa_bombom_bombom_tamanho"
         | "mapa_bombom_verso_tamanho" => Some("pinker_mapa_tamanho"),
+        "__pinker_internal_mapa_tamanho" => Some("pinker_mapa_tamanho"),
         "mapa_verso_bombom_remover"
         | "mapa_verso_verso_remover"
         | "mapa_bombom_bombom_remover"
         | "mapa_bombom_verso_remover" => Some("pinker_mapa_remover"),
+        "__pinker_internal_mapa_remover" => Some("pinker_mapa_remover"),
         "__pinker_internal_mapa_verso_bombom_iterador_criar"
         | "__pinker_internal_mapa_verso_verso_iterador_criar"
         | "__pinker_internal_mapa_bombom_bombom_iterador_criar"
         | "__pinker_internal_mapa_bombom_verso_iterador_criar" => {
             Some("pinker_mapa_iterador_criar")
         }
+        "__pinker_internal_mapa_iterador_criar" => Some("pinker_mapa_iterador_criar"),
         "__pinker_internal_mapa_verso_bombom_iterador_proxima_chave"
         | "__pinker_internal_mapa_verso_verso_iterador_proxima_chave"
         | "__pinker_internal_mapa_bombom_bombom_iterador_proxima_chave"
         | "__pinker_internal_mapa_bombom_verso_iterador_proxima_chave" => {
+            Some("pinker_mapa_iterador_proxima")
+        }
+        "__pinker_internal_mapa_iterador_proxima_chave_bombom"
+        | "__pinker_internal_mapa_iterador_proxima_chave_verso" => {
             Some("pinker_mapa_iterador_proxima")
         }
         // Arquivo, caminho, tempo e acaso (Fase 220/B9).

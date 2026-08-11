@@ -13,7 +13,7 @@
 
 use crate::cfg_ir::{InstructionCfgIR, OperandIR, ProgramCfgIR, TempIR, TerminatorIR};
 use crate::error::PinkerError;
-use crate::ir::TypeIR;
+use crate::ir::{MapKeyIR, TypeIR};
 use crate::token::{Position, Span};
 use std::collections::{HashMap, HashSet, VecDeque};
 
@@ -1698,6 +1698,94 @@ fn validate_block(
                             temp_types.insert(*dest, then_ty);
                         }
                         None => {}
+                    }
+                    continue;
+                }
+                if crate::ir::is_generic_map_intrinsic(callee) {
+                    let actual = args
+                        .iter()
+                        .map(|arg| {
+                            infer_operand_type(
+                                arg,
+                                slot_types,
+                                &temp_types,
+                                global_consts,
+                                function.span,
+                            )
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
+                    let invalid = |message: &str| cfg_error(message, function.span);
+                    let map_parts = |ty: TypeIR| match ty {
+                        TypeIR::Map { key, value } => Some((key, value)),
+                        _ => None,
+                    };
+                    let first_map = actual.first().copied().and_then(map_parts);
+                    let valid = match callee.as_str() {
+                        "__pinker_internal_mapa_criar_chave_bombom" => {
+                            actual.is_empty()
+                                && matches!(
+                                    ret_type,
+                                    TypeIR::Map {
+                                        key: MapKeyIR::Bombom,
+                                        ..
+                                    }
+                                )
+                        }
+                        "__pinker_internal_mapa_criar_chave_verso" => {
+                            actual.is_empty()
+                                && matches!(
+                                    ret_type,
+                                    TypeIR::Map {
+                                        key: MapKeyIR::Verso,
+                                        ..
+                                    }
+                                )
+                        }
+                        "__pinker_internal_mapa_definir" => {
+                            first_map.is_some_and(|(key, value)| {
+                                actual.len() == 3
+                                    && actual[1] == key.type_ir()
+                                    && actual[2] == value.type_ir()
+                                    && *ret_type == TypeIR::Nulo
+                            })
+                        }
+                        "__pinker_internal_mapa_obter" => first_map.is_some_and(|(key, value)| {
+                            actual.len() == 2
+                                && actual[1] == key.type_ir()
+                                && *ret_type == value.type_ir()
+                        }),
+                        "__pinker_internal_mapa_tem" => first_map.is_some_and(|(key, _)| {
+                            actual.len() == 2
+                                && actual[1] == key.type_ir()
+                                && *ret_type == TypeIR::Logica
+                        }),
+                        "__pinker_internal_mapa_tamanho" => {
+                            actual.len() == 1 && first_map.is_some() && *ret_type == TypeIR::Bombom
+                        }
+                        "__pinker_internal_mapa_remover" => first_map.is_some_and(|(key, _)| {
+                            actual.len() == 2
+                                && actual[1] == key.type_ir()
+                                && *ret_type == TypeIR::Nulo
+                        }),
+                        "__pinker_internal_mapa_iterador_criar" => {
+                            actual.len() == 1 && first_map.is_some() && *ret_type == TypeIR::Bombom
+                        }
+                        "__pinker_internal_mapa_iterador_proxima_chave_bombom" => {
+                            actual == [TypeIR::Bombom] && *ret_type == TypeIR::Bombom
+                        }
+                        "__pinker_internal_mapa_iterador_proxima_chave_verso" => {
+                            actual == [TypeIR::Bombom] && *ret_type == TypeIR::Verso
+                        }
+                        _ => false,
+                    };
+                    if !valid {
+                        return Err(invalid(&format!(
+                            "intrínseco genérico de mapa '{}' inválido na CFG IR",
+                            callee
+                        )));
+                    }
+                    if let Some(dest) = dest {
+                        temp_types.insert(*dest, *ret_type);
                     }
                     continue;
                 }

@@ -530,6 +530,11 @@ impl TraitObjectState {
 }
 
 struct RuntimeMapState {
+    maps: HashMap<u64, RuntimeGenericMap>,
+    map_iters: HashMap<u64, RuntimeGenericMapIter>,
+    // Adapter legado mantido para consumidores históricos (inclusive JSON).
+    // O dispatch anteposto possui a semântica e espelha/importa estes campos;
+    // handlers antigos abaixo permanecem inalcançáveis pelos entrypoints públicos.
     maps_verso_bombom: HashMap<u64, HashMap<String, u64>>,
     maps_verso_verso: HashMap<u64, HashMap<String, String>>,
     maps_bombom_bombom: HashMap<u64, HashMap<u64, u64>>,
@@ -543,6 +548,22 @@ struct RuntimeMapState {
     // Fases 209–210 — valores de leque com carga: handle -> (tag, cargas).
     enum_values: HashMap<u64, (u64, Vec<RuntimeEnumPayload>)>,
     next_enum_handle: u64,
+}
+
+#[derive(Clone, PartialEq, Eq)]
+enum RuntimeMapKey {
+    Bombom(u64),
+    Verso(String),
+}
+
+struct RuntimeGenericMap {
+    key_is_verso: bool,
+    entries: Vec<(RuntimeMapKey, RuntimeValue)>,
+}
+
+struct RuntimeGenericMapIter {
+    keys_snapshot: Vec<RuntimeValue>,
+    next_index: usize,
 }
 
 enum RuntimeEnumPayload {
@@ -586,6 +607,460 @@ struct RuntimeMapBombomBombomIter {
 struct RuntimeMapBombomVersoIter {
     keys_snapshot: Vec<u64>,
     next_index: usize,
+}
+
+fn generic_map_key(value: &RuntimeValue, key_is_verso: bool) -> Result<RuntimeMapKey, PinkerError> {
+    if key_is_verso {
+        let RuntimeValue::Str(value) = value else {
+            return Err(runtime_err("mapa genérico exige chave 'verso'"));
+        };
+        Ok(RuntimeMapKey::Verso(value.clone()))
+    } else {
+        let RuntimeValue::Int(value) = value else {
+            return Err(runtime_err("mapa genérico exige chave 'bombom'"));
+        };
+        Ok(RuntimeMapKey::Bombom(*value))
+    }
+}
+
+fn map_runtime_handle(value: &RuntimeValue) -> Option<u64> {
+    match value {
+        RuntimeValue::Map(handle)
+        | RuntimeValue::MapVersoBombom(handle)
+        | RuntimeValue::MapVersoVerso(handle)
+        | RuntimeValue::MapBombomBombom(handle)
+        | RuntimeValue::MapBombomVerso(handle) => Some(*handle),
+        _ => None,
+    }
+}
+
+fn ensure_generic_map_from_legacy(
+    state: &mut RuntimeMapState,
+    value: &RuntimeValue,
+) -> Result<u64, PinkerError> {
+    let handle = map_runtime_handle(value).ok_or_else(|| runtime_err("valor não é mapa"))?;
+    if state.maps.contains_key(&handle) {
+        return Ok(handle);
+    }
+    let (key_is_verso, entries) = match value {
+        RuntimeValue::MapVersoBombom(_) => (
+            true,
+            state
+                .maps_verso_bombom
+                .get(&handle)
+                .map(|map| {
+                    map.iter()
+                        .map(|(key, value)| {
+                            (RuntimeMapKey::Verso(key.clone()), RuntimeValue::Int(*value))
+                        })
+                        .collect()
+                })
+                .ok_or_else(|| runtime_err("handle de mapa<verso,bombom> inválido"))?,
+        ),
+        RuntimeValue::MapVersoVerso(_) => (
+            true,
+            state
+                .maps_verso_verso
+                .get(&handle)
+                .map(|map| {
+                    map.iter()
+                        .map(|(key, value)| {
+                            (
+                                RuntimeMapKey::Verso(key.clone()),
+                                RuntimeValue::Str(value.clone()),
+                            )
+                        })
+                        .collect()
+                })
+                .ok_or_else(|| runtime_err("handle de mapa<verso,verso> inválido"))?,
+        ),
+        RuntimeValue::MapBombomBombom(_) => (
+            false,
+            state
+                .maps_bombom_bombom
+                .get(&handle)
+                .map(|map| {
+                    map.iter()
+                        .map(|(key, value)| {
+                            (RuntimeMapKey::Bombom(*key), RuntimeValue::Int(*value))
+                        })
+                        .collect()
+                })
+                .ok_or_else(|| runtime_err("handle de mapa<bombom,bombom> inválido"))?,
+        ),
+        RuntimeValue::MapBombomVerso(_) => (
+            false,
+            state
+                .maps_bombom_verso
+                .get(&handle)
+                .map(|map| {
+                    map.iter()
+                        .map(|(key, value)| {
+                            (
+                                RuntimeMapKey::Bombom(*key),
+                                RuntimeValue::Str(value.clone()),
+                            )
+                        })
+                        .collect()
+                })
+                .ok_or_else(|| runtime_err("handle de mapa<bombom,verso> inválido"))?,
+        ),
+        RuntimeValue::Map(_) => return Err(runtime_err("handle de mapa genérico inválido")),
+        _ => return Err(runtime_err("valor não é mapa")),
+    };
+    state.maps.insert(
+        handle,
+        RuntimeGenericMap {
+            key_is_verso,
+            entries,
+        },
+    );
+    Ok(handle)
+}
+
+fn mirror_generic_map_to_legacy(
+    state: &mut RuntimeMapState,
+    value: &RuntimeValue,
+) -> Result<(), PinkerError> {
+    let Some(handle) = map_runtime_handle(value) else {
+        return Ok(());
+    };
+    let Some(map) = state.maps.get(&handle) else {
+        return Ok(());
+    };
+    match value {
+        RuntimeValue::MapVersoBombom(_) => {
+            let mut legacy = HashMap::new();
+            for (key, value) in &map.entries {
+                let (RuntimeMapKey::Verso(key), RuntimeValue::Int(value)) = (key, value) else {
+                    return Err(runtime_err(
+                        "representação legado verso/bombom incompatível",
+                    ));
+                };
+                legacy.insert(key.clone(), *value);
+            }
+            state.maps_verso_bombom.insert(handle, legacy);
+        }
+        RuntimeValue::MapVersoVerso(_) => {
+            let mut legacy = HashMap::new();
+            for (key, value) in &map.entries {
+                let (RuntimeMapKey::Verso(key), RuntimeValue::Str(value)) = (key, value) else {
+                    return Err(runtime_err("representação legado verso/verso incompatível"));
+                };
+                legacy.insert(key.clone(), value.clone());
+            }
+            state.maps_verso_verso.insert(handle, legacy);
+        }
+        RuntimeValue::MapBombomBombom(_) => {
+            let mut legacy = HashMap::new();
+            for (key, value) in &map.entries {
+                let (RuntimeMapKey::Bombom(key), RuntimeValue::Int(value)) = (key, value) else {
+                    return Err(runtime_err(
+                        "representação legado bombom/bombom incompatível",
+                    ));
+                };
+                legacy.insert(*key, *value);
+            }
+            state.maps_bombom_bombom.insert(handle, legacy);
+        }
+        RuntimeValue::MapBombomVerso(_) => {
+            let mut legacy = HashMap::new();
+            for (key, value) in &map.entries {
+                let (RuntimeMapKey::Bombom(key), RuntimeValue::Str(value)) = (key, value) else {
+                    return Err(runtime_err(
+                        "representação legado bombom/verso incompatível",
+                    ));
+                };
+                legacy.insert(*key, value.clone());
+            }
+            state.maps_bombom_verso.insert(handle, legacy);
+        }
+        RuntimeValue::Map(_) => {}
+        _ => return Err(runtime_err("valor não é mapa")),
+    }
+    Ok(())
+}
+
+fn try_call_map_intrinsic_authority(
+    callee: &str,
+    args: &[RuntimeValue],
+    state: &mut RuntimeMapState,
+) -> Option<Result<IntrinsicCall, PinkerError>> {
+    let create = match callee {
+        "__pinker_internal_mapa_criar_chave_bombom" => Some((false, 0_u8)),
+        "__pinker_internal_mapa_criar_chave_verso" => Some((true, 0)),
+        "mapa_verso_bombom_criar" => Some((true, 1)),
+        "mapa_verso_verso_criar" => Some((true, 2)),
+        "mapa_bombom_bombom_criar" => Some((false, 3)),
+        "mapa_bombom_verso_criar" => Some((false, 4)),
+        _ => None,
+    };
+    if let Some((key_is_verso, wrapper)) = create {
+        return Some((|| {
+            if !args.is_empty() {
+                return Err(runtime_err("mapa_criar exige 0 argumentos"));
+            }
+            let handle = state.next_map_handle;
+            state.next_map_handle = state.next_map_handle.saturating_add(1);
+            state.maps.insert(
+                handle,
+                RuntimeGenericMap {
+                    key_is_verso,
+                    entries: Vec::new(),
+                },
+            );
+            match wrapper {
+                1 => {
+                    state.maps_verso_bombom.insert(handle, HashMap::new());
+                }
+                2 => {
+                    state.maps_verso_verso.insert(handle, HashMap::new());
+                }
+                3 => {
+                    state.maps_bombom_bombom.insert(handle, HashMap::new());
+                }
+                4 => {
+                    state.maps_bombom_verso.insert(handle, HashMap::new());
+                }
+                _ => {}
+            }
+            let value = match wrapper {
+                0 => RuntimeValue::Map(handle),
+                1 => RuntimeValue::MapVersoBombom(handle),
+                2 => RuntimeValue::MapVersoVerso(handle),
+                3 => RuntimeValue::MapBombomBombom(handle),
+                4 => RuntimeValue::MapBombomVerso(handle),
+                _ => unreachable!("wrapper histórico de mapa validado"),
+            };
+            Ok(IntrinsicCall::Done(Some(value)))
+        })());
+    }
+
+    let define = matches!(
+        callee,
+        "__pinker_internal_mapa_definir"
+            | "mapa_verso_bombom_definir"
+            | "mapa_verso_verso_definir"
+            | "mapa_bombom_bombom_definir"
+            | "mapa_bombom_verso_definir"
+    );
+    if define {
+        return Some((|| {
+            if args.len() != 3 {
+                return Err(runtime_err("mapa_definir exige 3 argumentos"));
+            }
+            let handle = ensure_generic_map_from_legacy(state, &args[0])?;
+            let key_is_verso = state
+                .maps
+                .get(&handle)
+                .ok_or_else(|| runtime_err("handle de mapa inválido"))?
+                .key_is_verso;
+            let key = generic_map_key(&args[1], key_is_verso)?;
+            let map = state
+                .maps
+                .get_mut(&handle)
+                .ok_or_else(|| runtime_err("handle de mapa inválido"))?;
+            if let Some((_, current)) = map.entries.iter_mut().find(|(stored, _)| *stored == key) {
+                *current = args[2].clone();
+            } else {
+                map.entries.push((key, args[2].clone()));
+            }
+            mirror_generic_map_to_legacy(state, &args[0])?;
+            Ok(IntrinsicCall::Done(None))
+        })());
+    }
+
+    let obtain = matches!(
+        callee,
+        "__pinker_internal_mapa_obter"
+            | "mapa_verso_bombom_obter"
+            | "mapa_verso_verso_obter"
+            | "mapa_bombom_bombom_obter"
+            | "mapa_bombom_verso_obter"
+    );
+    if obtain {
+        return Some((|| {
+            if args.len() != 2 {
+                return Err(runtime_err("mapa_obter exige 2 argumentos"));
+            }
+            let handle = ensure_generic_map_from_legacy(state, &args[0])?;
+            let map = state
+                .maps
+                .get(&handle)
+                .ok_or_else(|| runtime_err("handle de mapa inválido"))?;
+            let key = generic_map_key(&args[1], map.key_is_verso)?;
+            let value = map
+                .entries
+                .iter()
+                .find(|(stored, _)| *stored == key)
+                .map(|(_, value)| value.clone())
+                .ok_or_else(|| {
+                    if callee.starts_with("mapa_") {
+                        runtime_err(&format!("chave ausente em '{}'", callee))
+                    } else {
+                        runtime_err("chave ausente em leitura de mapa")
+                    }
+                })?;
+            Ok(IntrinsicCall::Done(Some(value)))
+        })());
+    }
+
+    let has = matches!(
+        callee,
+        "__pinker_internal_mapa_tem"
+            | "mapa_verso_bombom_tem"
+            | "mapa_verso_verso_tem"
+            | "mapa_bombom_bombom_tem"
+            | "mapa_bombom_verso_tem"
+    );
+    if has {
+        return Some((|| {
+            if args.len() != 2 {
+                return Err(runtime_err("mapa_tem exige 2 argumentos"));
+            }
+            let handle = ensure_generic_map_from_legacy(state, &args[0])?;
+            let map = state
+                .maps
+                .get(&handle)
+                .ok_or_else(|| runtime_err("handle de mapa inválido"))?;
+            let key = generic_map_key(&args[1], map.key_is_verso)?;
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Bool(
+                map.entries.iter().any(|(stored, _)| *stored == key),
+            ))))
+        })());
+    }
+
+    let size = matches!(
+        callee,
+        "__pinker_internal_mapa_tamanho"
+            | "mapa_verso_bombom_tamanho"
+            | "mapa_verso_verso_tamanho"
+            | "mapa_bombom_bombom_tamanho"
+            | "mapa_bombom_verso_tamanho"
+    );
+    if size {
+        return Some((|| {
+            if args.len() != 1 {
+                return Err(runtime_err("mapa_tamanho exige 1 argumento"));
+            }
+            let handle = ensure_generic_map_from_legacy(state, &args[0])?;
+            let map = state
+                .maps
+                .get(&handle)
+                .ok_or_else(|| runtime_err("handle de mapa inválido"))?;
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(
+                map.entries.len() as u64,
+            ))))
+        })());
+    }
+
+    let remove = matches!(
+        callee,
+        "__pinker_internal_mapa_remover"
+            | "mapa_verso_bombom_remover"
+            | "mapa_verso_verso_remover"
+            | "mapa_bombom_bombom_remover"
+            | "mapa_bombom_verso_remover"
+    );
+    if remove {
+        return Some((|| {
+            if args.len() != 2 {
+                return Err(runtime_err("mapa_remover exige 2 argumentos"));
+            }
+            let handle = ensure_generic_map_from_legacy(state, &args[0])?;
+            let key_is_verso = state
+                .maps
+                .get(&handle)
+                .ok_or_else(|| runtime_err("handle de mapa inválido"))?
+                .key_is_verso;
+            let key = generic_map_key(&args[1], key_is_verso)?;
+            let map = state
+                .maps
+                .get_mut(&handle)
+                .ok_or_else(|| runtime_err("handle de mapa inválido"))?;
+            if let Some(index) = map.entries.iter().position(|(stored, _)| *stored == key) {
+                map.entries.remove(index);
+            }
+            mirror_generic_map_to_legacy(state, &args[0])?;
+            Ok(IntrinsicCall::Done(None))
+        })());
+    }
+
+    let iterator_create = matches!(
+        callee,
+        "__pinker_internal_mapa_iterador_criar"
+            | "__pinker_internal_mapa_verso_bombom_iterador_criar"
+            | "__pinker_internal_mapa_verso_verso_iterador_criar"
+            | "__pinker_internal_mapa_bombom_bombom_iterador_criar"
+            | "__pinker_internal_mapa_bombom_verso_iterador_criar"
+    );
+    if iterator_create {
+        return Some((|| {
+            if args.len() != 1 {
+                return Err(runtime_err("iterador de mapa exige 1 argumento"));
+            }
+            let handle = ensure_generic_map_from_legacy(state, &args[0])?;
+            let map = state
+                .maps
+                .get(&handle)
+                .ok_or_else(|| runtime_err("handle de mapa inválido"))?;
+            let keys_snapshot = map
+                .entries
+                .iter()
+                .map(|(key, _)| match key {
+                    RuntimeMapKey::Bombom(value) => RuntimeValue::Int(*value),
+                    RuntimeMapKey::Verso(value) => RuntimeValue::Str(value.clone()),
+                })
+                .collect();
+            let cursor = state.next_map_iter_handle;
+            state.next_map_iter_handle = state.next_map_iter_handle.saturating_add(1);
+            state.map_iters.insert(
+                cursor,
+                RuntimeGenericMapIter {
+                    keys_snapshot,
+                    next_index: 0,
+                },
+            );
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(cursor))))
+        })());
+    }
+
+    let iterator_next = matches!(
+        callee,
+        "__pinker_internal_mapa_iterador_proxima_chave_bombom"
+            | "__pinker_internal_mapa_iterador_proxima_chave_verso"
+            | "__pinker_internal_mapa_verso_bombom_iterador_proxima_chave"
+            | "__pinker_internal_mapa_verso_verso_iterador_proxima_chave"
+            | "__pinker_internal_mapa_bombom_bombom_iterador_proxima_chave"
+            | "__pinker_internal_mapa_bombom_verso_iterador_proxima_chave"
+    );
+    if iterator_next {
+        return Some((|| {
+            let [RuntimeValue::Int(cursor)] = args else {
+                return Err(runtime_err("próxima chave exige cursor de mapa"));
+            };
+            let iterator = state
+                .map_iters
+                .get_mut(cursor)
+                .ok_or_else(|| runtime_err("cursor de mapa inválido"))?;
+            let value = iterator
+                .keys_snapshot
+                .get(iterator.next_index)
+                .cloned()
+                .ok_or_else(|| runtime_err("cursor de mapa esgotado"))?;
+            iterator.next_index = iterator.next_index.saturating_add(1);
+            Ok(IntrinsicCall::Done(Some(value)))
+        })());
+    }
+
+    None
+}
+
+fn generic_map_key_value(key: &RuntimeMapKey) -> RuntimeValue {
+    match key {
+        RuntimeMapKey::Bombom(value) => RuntimeValue::Int(*value),
+        RuntimeMapKey::Verso(value) => RuntimeValue::Str(value.clone()),
+    }
 }
 
 struct RuntimeOpenFile {
@@ -645,6 +1120,7 @@ pub enum RuntimeValue {
     MapVersoVerso(u64),
     MapBombomBombom(u64),
     MapBombomVerso(u64),
+    Map(u64),
     // Fase 242: handle callable — índice em `CallableState.table`, mesmo
     // padrão de handle já usado por `ListBombom`/`enum_values`.
     Callable(u64),
@@ -706,11 +1182,13 @@ fn run_program_com_estado(
         maps_verso_verso: HashMap::new(),
         maps_bombom_bombom: HashMap::new(),
         maps_bombom_verso: HashMap::new(),
+        maps: HashMap::new(),
         next_map_handle: 1,
         map_iters_verso_bombom: HashMap::new(),
         map_iters_verso_verso: HashMap::new(),
         map_iters_bombom_bombom: HashMap::new(),
         map_iters_bombom_verso: HashMap::new(),
+        map_iters: HashMap::new(),
         next_map_iter_handle: 1,
         enum_values: HashMap::new(),
         next_enum_handle: 1,
@@ -1164,7 +1642,9 @@ fn exec_instr(
                 RuntimeValue::MapVersoBombom(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::MapVersoVerso(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::MapBombomBombom(_) => unreachable!("pop_numeric só retorna inteiro"),
-                RuntimeValue::MapBombomVerso(_) => unreachable!("pop_numeric só retorna inteiro"),
+                RuntimeValue::MapBombomVerso(_) | RuntimeValue::Map(_) => {
+                    unreachable!("pop_numeric só retorna inteiro")
+                }
                 RuntimeValue::Callable(_) => unreachable!("pop_numeric só retorna inteiro"),
             };
             stack.push(normalize_integer(out, *ty)?);
@@ -1186,7 +1666,9 @@ fn exec_instr(
                 RuntimeValue::MapVersoBombom(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::MapVersoVerso(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::MapBombomBombom(_) => unreachable!("pop_numeric só retorna inteiro"),
-                RuntimeValue::MapBombomVerso(_) => unreachable!("pop_numeric só retorna inteiro"),
+                RuntimeValue::MapBombomVerso(_) | RuntimeValue::Map(_) => {
+                    unreachable!("pop_numeric só retorna inteiro")
+                }
                 RuntimeValue::Callable(_) => unreachable!("pop_numeric só retorna inteiro"),
             };
             stack.push(normalize_integer(out, *ty)?);
@@ -1835,7 +2317,9 @@ fn exec_instr(
                 RuntimeValue::MapVersoBombom(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::MapVersoVerso(_) => unreachable!("pop_numeric só retorna inteiro"),
                 RuntimeValue::MapBombomBombom(_) => unreachable!("pop_numeric só retorna inteiro"),
-                RuntimeValue::MapBombomVerso(_) => unreachable!("pop_numeric só retorna inteiro"),
+                RuntimeValue::MapBombomVerso(_) | RuntimeValue::Map(_) => {
+                    unreachable!("pop_numeric só retorna inteiro")
+                }
                 RuntimeValue::Callable(_) => unreachable!("pop_numeric só retorna inteiro"),
             }
         }
@@ -2501,6 +2985,9 @@ fn try_call_intrinsic(
     map_state: &mut RuntimeMapState,
     random_state: &mut RuntimeRandomState,
 ) -> Result<IntrinsicCall, PinkerError> {
+    if let Some(result) = try_call_map_intrinsic_authority(callee, args, map_state) {
+        return result;
+    }
     match callee {
         "alocar" => public_memory_allocate(args, public_memory_state),
         "liberar" => public_memory_free(args, public_memory_state),
@@ -2839,6 +3326,169 @@ fn try_call_intrinsic(
             Ok(IntrinsicCall::Done(None))
         }
         // @pinker-nav:end interpreter.intrinsecos.listas
+
+        // Autoridade hospedada genérica: K escolhe somente a igualdade; V é
+        // preservado como RuntimeValue completo, sem enumeração K × V.
+        "__pinker_internal_mapa_criar_chave_bombom"
+        | "__pinker_internal_mapa_criar_chave_verso" => {
+            if !args.is_empty() {
+                return Err(runtime_err("mapa_criar exige 0 argumentos"));
+            }
+            let handle = map_state.next_map_handle;
+            map_state.next_map_handle = map_state.next_map_handle.saturating_add(1);
+            map_state.maps.insert(
+                handle,
+                RuntimeGenericMap {
+                    key_is_verso: callee.ends_with("_verso"),
+                    entries: Vec::new(),
+                },
+            );
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Map(handle))))
+        }
+        "__pinker_internal_mapa_definir" => {
+            if args.len() != 3 {
+                return Err(runtime_err("mapa_definir exige 3 argumentos"));
+            }
+            let RuntimeValue::Map(handle) = args[0] else {
+                return Err(runtime_err("mapa_definir exige mapa genérico"));
+            };
+            let key_is_verso = map_state
+                .maps
+                .get(&handle)
+                .ok_or_else(|| runtime_err("handle de mapa genérico inválido"))?
+                .key_is_verso;
+            let key = generic_map_key(&args[1], key_is_verso)?;
+            let value = args[2].clone();
+            let map = map_state
+                .maps
+                .get_mut(&handle)
+                .ok_or_else(|| runtime_err("handle de mapa genérico inválido"))?;
+            if let Some((_, current)) = map.entries.iter_mut().find(|(stored, _)| *stored == key) {
+                *current = value;
+            } else {
+                map.entries.push((key, value));
+            }
+            Ok(IntrinsicCall::Done(None))
+        }
+        "__pinker_internal_mapa_obter" => {
+            if args.len() != 2 {
+                return Err(runtime_err("mapa_obter exige 2 argumentos"));
+            }
+            let RuntimeValue::Map(handle) = args[0] else {
+                return Err(runtime_err("mapa_obter exige mapa genérico"));
+            };
+            let map = map_state
+                .maps
+                .get(&handle)
+                .ok_or_else(|| runtime_err("handle de mapa genérico inválido"))?;
+            let key = generic_map_key(&args[1], map.key_is_verso)?;
+            let value = map
+                .entries
+                .iter()
+                .find(|(stored, _)| *stored == key)
+                .map(|(_, value)| value.clone())
+                .ok_or_else(|| runtime_err("chave ausente em leitura de mapa"))?;
+            Ok(IntrinsicCall::Done(Some(value)))
+        }
+        "__pinker_internal_mapa_tem" => {
+            if args.len() != 2 {
+                return Err(runtime_err("mapa_tem exige 2 argumentos"));
+            }
+            let RuntimeValue::Map(handle) = args[0] else {
+                return Err(runtime_err("mapa_tem exige mapa genérico"));
+            };
+            let map = map_state
+                .maps
+                .get(&handle)
+                .ok_or_else(|| runtime_err("handle de mapa genérico inválido"))?;
+            let key = generic_map_key(&args[1], map.key_is_verso)?;
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Bool(
+                map.entries.iter().any(|(stored, _)| *stored == key),
+            ))))
+        }
+        "__pinker_internal_mapa_tamanho" => {
+            if args.len() != 1 {
+                return Err(runtime_err("mapa_tamanho exige 1 argumento"));
+            }
+            let RuntimeValue::Map(handle) = args[0] else {
+                return Err(runtime_err("mapa_tamanho exige mapa genérico"));
+            };
+            let map = map_state
+                .maps
+                .get(&handle)
+                .ok_or_else(|| runtime_err("handle de mapa genérico inválido"))?;
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(
+                map.entries.len() as u64,
+            ))))
+        }
+        "__pinker_internal_mapa_remover" => {
+            if args.len() != 2 {
+                return Err(runtime_err("mapa_remover exige 2 argumentos"));
+            }
+            let RuntimeValue::Map(handle) = args[0] else {
+                return Err(runtime_err("mapa_remover exige mapa genérico"));
+            };
+            let key_is_verso = map_state
+                .maps
+                .get(&handle)
+                .ok_or_else(|| runtime_err("handle de mapa genérico inválido"))?
+                .key_is_verso;
+            let key = generic_map_key(&args[1], key_is_verso)?;
+            let map = map_state
+                .maps
+                .get_mut(&handle)
+                .ok_or_else(|| runtime_err("handle de mapa genérico inválido"))?;
+            if let Some(index) = map.entries.iter().position(|(stored, _)| *stored == key) {
+                map.entries.remove(index);
+            }
+            Ok(IntrinsicCall::Done(None))
+        }
+        "__pinker_internal_mapa_iterador_criar" => {
+            if args.len() != 1 {
+                return Err(runtime_err("iterador de mapa exige 1 argumento"));
+            }
+            let RuntimeValue::Map(handle) = args[0] else {
+                return Err(runtime_err("iterador exige mapa genérico"));
+            };
+            let map = map_state
+                .maps
+                .get(&handle)
+                .ok_or_else(|| runtime_err("handle de mapa genérico inválido"))?;
+            let iter_handle = map_state.next_map_iter_handle;
+            map_state.next_map_iter_handle = map_state.next_map_iter_handle.saturating_add(1);
+            map_state.map_iters.insert(
+                iter_handle,
+                RuntimeGenericMapIter {
+                    keys_snapshot: map
+                        .entries
+                        .iter()
+                        .map(|(key, _)| generic_map_key_value(key))
+                        .collect(),
+                    next_index: 0,
+                },
+            );
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(iter_handle))))
+        }
+        "__pinker_internal_mapa_iterador_proxima_chave_bombom"
+        | "__pinker_internal_mapa_iterador_proxima_chave_verso" => {
+            if args.len() != 1 {
+                return Err(runtime_err("avanço de iterador de mapa exige 1 argumento"));
+            }
+            let RuntimeValue::Int(iter_handle) = args[0] else {
+                return Err(runtime_err("cursor de mapa exige bombom"));
+            };
+            let iter = map_state
+                .map_iters
+                .get_mut(&iter_handle)
+                .ok_or_else(|| runtime_err("cursor de mapa inválido"))?;
+            let key = iter
+                .keys_snapshot
+                .get(iter.next_index)
+                .cloned()
+                .ok_or_else(|| runtime_err("cursor de mapa esgotado"))?;
+            iter.next_index = iter.next_index.saturating_add(1);
+            Ok(IntrinsicCall::Done(Some(key)))
+        }
 
         // @pinker-nav:start interpreter.intrinsecos.mapas-verso-bombom
         // @pinker-nav:domain intrinsecos
@@ -6107,7 +6757,7 @@ fn pop_numeric(stack: &mut Vec<RuntimeValue>, msg: &str) -> Result<RuntimeValue,
         RuntimeValue::MapVersoBombom(_) => Err(runtime_err(msg)),
         RuntimeValue::MapVersoVerso(_) => Err(runtime_err(msg)),
         RuntimeValue::MapBombomBombom(_) => Err(runtime_err(msg)),
-        RuntimeValue::MapBombomVerso(_) => Err(runtime_err(msg)),
+        RuntimeValue::MapBombomVerso(_) | RuntimeValue::Map(_) => Err(runtime_err(msg)),
         RuntimeValue::Callable(_) => Err(runtime_err(msg)),
     }
 }
@@ -6124,7 +6774,7 @@ fn pop_bool(stack: &mut Vec<RuntimeValue>, msg: &str) -> Result<bool, PinkerErro
         RuntimeValue::MapVersoBombom(_) => Err(runtime_err(msg)),
         RuntimeValue::MapVersoVerso(_) => Err(runtime_err(msg)),
         RuntimeValue::MapBombomBombom(_) => Err(runtime_err(msg)),
-        RuntimeValue::MapBombomVerso(_) => Err(runtime_err(msg)),
+        RuntimeValue::MapBombomVerso(_) | RuntimeValue::Map(_) => Err(runtime_err(msg)),
         RuntimeValue::Callable(_) => Err(runtime_err(msg)),
     }
 }
@@ -6328,6 +6978,9 @@ fn coerce_runtime_value_to_type(
                 "ponteiro em runtime requer valor inteiro de endereço",
             )),
             RuntimeValue::MapBombomVerso(_) => Err(runtime_err(
+                "ponteiro em runtime requer valor inteiro de endereço",
+            )),
+            RuntimeValue::Map(_) => Err(runtime_err(
                 "ponteiro em runtime requer valor inteiro de endereço",
             )),
             RuntimeValue::Callable(_) => Err(runtime_err(

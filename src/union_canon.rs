@@ -122,6 +122,9 @@ pub fn member_key_text(ty: &Type) -> String {
         Type::MapVersoVerso(_) => "mapa<verso,verso>".to_string(),
         Type::MapBombomBombom(_) => "mapa<bombom,bombom>".to_string(),
         Type::MapBombomVerso(_) => "mapa<bombom,verso>".to_string(),
+        Type::Map { key, value, .. } => {
+            format!("mapa<{},{}>", member_key_text(key), member_key_text(value))
+        }
         Type::Struct { name, .. } => format!("struct:{}:{name}", name.len()),
         Type::Enum { name, .. } => format!("enum:{}:{name}", name.len()),
         Type::Pointer {

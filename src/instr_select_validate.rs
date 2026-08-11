@@ -5,6 +5,40 @@ use crate::ir::TypeIR;
 use crate::token::{Position, Span};
 use std::collections::{HashMap, HashSet};
 
+fn generic_map_intrinsic_ret_matches(callee: &str, ret_type: TypeIR) -> bool {
+    match callee {
+        "__pinker_internal_mapa_criar_chave_bombom" => matches!(
+            ret_type,
+            TypeIR::Map {
+                key: crate::ir::MapKeyIR::Bombom,
+                ..
+            }
+        ),
+        "__pinker_internal_mapa_criar_chave_verso" => matches!(
+            ret_type,
+            TypeIR::Map {
+                key: crate::ir::MapKeyIR::Verso,
+                ..
+            }
+        ),
+        "__pinker_internal_mapa_obter" => !matches!(ret_type, TypeIR::Nulo),
+        "__pinker_internal_mapa_tem" => ret_type == TypeIR::Logica,
+        "__pinker_internal_mapa_tamanho" | "__pinker_internal_mapa_iterador_criar" => {
+            ret_type == TypeIR::Bombom
+        }
+        "__pinker_internal_mapa_iterador_proxima_chave_bombom" => ret_type == TypeIR::Bombom,
+        "__pinker_internal_mapa_iterador_proxima_chave_verso" => ret_type == TypeIR::Verso,
+        _ => false,
+    }
+}
+
+fn generic_map_intrinsic_void(callee: &str) -> bool {
+    matches!(
+        callee,
+        "__pinker_internal_mapa_definir" | "__pinker_internal_mapa_remover"
+    )
+}
+
 // @pinker-nav:start select.validacao.invariantes
 // @pinker-nav:domain validacao
 // @pinker-nav:layer select
@@ -414,7 +448,9 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
                         for a in args {
                             check_operand(a, &slots, &temps, &globals)?;
                         }
-                        if callee != "__ternario" {
+                        if callee != "__ternario"
+                            && !generic_map_intrinsic_ret_matches(callee, *ret_type)
+                        {
                             let Some(sig) = sigs.get(callee) else {
                                 return Err(err("selected call para função inexistente"));
                             };
@@ -550,6 +586,9 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
                     SelectedInstr::CallVoid { callee, args } => {
                         for a in args {
                             check_operand(a, &slots, &temps, &globals)?;
+                        }
+                        if generic_map_intrinsic_void(callee) {
+                            continue;
                         }
                         let Some(sig) = sigs.get(callee) else {
                             return Err(err("selected call_void para função inexistente"));

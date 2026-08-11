@@ -16,6 +16,35 @@ use crate::ir::TypeIR;
 use crate::token::{Position, Span};
 use std::collections::{HashMap, HashSet, VecDeque};
 
+fn generic_map_intrinsic_arity(callee: &str, returns_value: bool) -> Option<usize> {
+    match (callee, returns_value) {
+        ("__pinker_internal_mapa_criar_chave_bombom", true)
+        | ("__pinker_internal_mapa_criar_chave_verso", true) => Some(0),
+        ("__pinker_internal_mapa_obter", true) | ("__pinker_internal_mapa_tem", true) => Some(2),
+        ("__pinker_internal_mapa_tamanho", true)
+        | ("__pinker_internal_mapa_iterador_criar", true)
+        | ("__pinker_internal_mapa_iterador_proxima_chave_bombom", true)
+        | ("__pinker_internal_mapa_iterador_proxima_chave_verso", true) => Some(1),
+        ("__pinker_internal_mapa_definir", false) => Some(3),
+        ("__pinker_internal_mapa_remover", false) => Some(2),
+        _ => None,
+    }
+}
+
+fn generic_map_intrinsic_stack_return(callee: &str) -> Option<StackValueType> {
+    match callee {
+        "__pinker_internal_mapa_criar_chave_bombom"
+        | "__pinker_internal_mapa_criar_chave_verso"
+        | "__pinker_internal_mapa_obter" => Some(StackValueType::Unknown),
+        "__pinker_internal_mapa_tem" => Some(StackValueType::Logica),
+        "__pinker_internal_mapa_tamanho"
+        | "__pinker_internal_mapa_iterador_criar"
+        | "__pinker_internal_mapa_iterador_proxima_chave_bombom" => Some(StackValueType::Bombom),
+        "__pinker_internal_mapa_iterador_proxima_chave_verso" => Some(StackValueType::Verso),
+        _ => None,
+    }
+}
+
 // Tipo de valor de pilha inferido estaticamente.
 // `Unknown` representa tipo não resolvido (e.g. slot sem anotação ainda);
 // é compatível com qualquer tipo para não bloquear caminhos sem informação.
@@ -947,6 +976,16 @@ fn validate_function(
                         }
                         continue;
                     }
+                    if let Some(expected) = generic_map_intrinsic_arity(callee, true) {
+                        if *argc != expected {
+                            return Err(err_ctx(
+                                f,
+                                Some(&b.label),
+                                "call de mapa genérico com aridade inválida",
+                            ));
+                        }
+                        continue;
+                    }
                     if let Some((ret, param_types)) = sigs.get(callee) {
                         if *ret == TypeIR::Nulo {
                             return Err(err_ctx(
@@ -1023,6 +1062,16 @@ fn validate_function(
                     }
                 }
                 MachineInstr::CallVoid { callee, argc } => {
+                    if let Some(expected) = generic_map_intrinsic_arity(callee, false) {
+                        if *argc != expected {
+                            return Err(err_ctx(
+                                f,
+                                Some(&b.label),
+                                "call_void de mapa genérico com aridade inválida",
+                            ));
+                        }
+                        continue;
+                    }
                     if let Some((ret, param_types)) = sigs.get(callee) {
                         if *ret != TypeIR::Nulo {
                             return Err(err_ctx(
@@ -1578,6 +1627,10 @@ fn apply_instr_effect(
                 stack.push(type_to_stack(ret));
                 return Ok(());
             }
+            if let Some(ret) = generic_map_intrinsic_stack_return(callee) {
+                stack.push(ret);
+                return Ok(());
+            }
             if let Some((_ret, param_types)) = sigs.get(callee) {
                 for (arg, expected) in args.iter().zip(param_types.iter().rev()) {
                     ensure_compatible(
@@ -1616,6 +1669,9 @@ fn apply_instr_effect(
                 return Ok(());
             }
             if callee == "afirmar" && *argc == 2 {
+                return Ok(());
+            }
+            if generic_map_intrinsic_arity(callee, false).is_some() {
                 return Ok(());
             }
             if let Some((_ret, param_types)) = sigs.get(callee) {
@@ -2018,6 +2074,7 @@ fn type_to_stack(ty: TypeIR) -> StackValueType {
         TypeIR::MapVersoVerso => StackValueType::Unknown,
         TypeIR::MapBombomBombom => StackValueType::Unknown,
         TypeIR::MapBombomVerso => StackValueType::Unknown,
+        TypeIR::Map { .. } => StackValueType::Unknown,
         TypeIR::FixedArray { .. } => StackValueType::Unknown,
         TypeIR::Struct => StackValueType::Unknown,
         TypeIR::Pointer { .. } => StackValueType::Unknown,

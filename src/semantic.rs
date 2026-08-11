@@ -186,6 +186,9 @@ impl SemanticChecker {
             Type::Applied { .. } => Self::trait_object_name(ty)
                 .map(|trait_name| format!("trato<{}>", trait_name))
                 .unwrap_or_else(|| ty.name().to_string()),
+            Type::Map { key, value, .. } => {
+                format!("mapa<{},{}>", Self::type_key(key), Self::type_key(value))
+            }
             _ => ty.name().to_string(),
         }
     }
@@ -210,6 +213,7 @@ impl SemanticChecker {
             | Type::MapVersoVerso(_)
             | Type::MapBombomBombom(_)
             | Type::MapBombomVerso(_)
+            | Type::Map { .. }
             | Type::Enum { .. }
             | Type::Union { .. }
             | Type::Pointer { .. }
@@ -389,6 +393,21 @@ impl SemanticChecker {
                 },
             ) => lhs_element == rhs_element,
             (
+                Type::Map {
+                    key: lhs_key,
+                    value: lhs_value,
+                    ..
+                },
+                Type::Map {
+                    key: rhs_key,
+                    value: rhs_value,
+                    ..
+                },
+            ) => {
+                Self::check_type_match(lhs_key, rhs_key)
+                    && Self::check_type_match(lhs_value, rhs_value)
+            }
+            (
                 Type::FixedArray {
                     element: lhs_element,
                     size: lhs_size,
@@ -512,6 +531,47 @@ impl SemanticChecker {
                 Ok(Type::FixedArray {
                     element: Box::new(resolved_element),
                     size: *size,
+                    span: *span,
+                })
+            }
+            Type::Map { key, value, span } => {
+                let key = self.resolve_type_named(key, resolving)?;
+                let value = self.resolve_type_named(value, resolving)?;
+                if !matches!(key, Type::Bombom(_) | Type::Verso(_)) {
+                    return Err(PinkerError::Semantic {
+                        msg: format!(
+                            "tipo de chave de mapa incompatível: '{}' não possui igualdade e representação estáveis no contrato vigente",
+                            Self::type_key(&key)
+                        ),
+                        span: key.span(),
+                    });
+                }
+                if !matches!(
+                    value,
+                    Type::Bombom(_)
+                        | Type::U8(_)
+                        | Type::U16(_)
+                        | Type::U32(_)
+                        | Type::U64(_)
+                        | Type::I8(_)
+                        | Type::I16(_)
+                        | Type::I32(_)
+                        | Type::I64(_)
+                        | Type::Logica(_)
+                        | Type::Verso(_)
+                        | Type::Enum { .. }
+                ) {
+                    return Err(PinkerError::Semantic {
+                        msg: format!(
+                            "representação de valor de mapa não suportada: '{}' não possui armazenamento/lifetime aprovado",
+                            Self::type_key(&value)
+                        ),
+                        span: value.span(),
+                    });
+                }
+                Ok(Type::Map {
+                    key: Box::new(key),
+                    value: Box::new(value),
                     span: *span,
                 })
             }
@@ -715,6 +775,7 @@ impl SemanticChecker {
                 | Type::MapVersoVerso(_)
                 | Type::MapBombomBombom(_)
                 | Type::MapBombomVerso(_)
+                | Type::Map { .. }
         )
     }
 
@@ -3942,6 +4003,64 @@ impl SemanticChecker {
                 };
                 return self.check_call_expr(expr_span, &mono_callee, args);
             }
+            if let Type::Map { key, value, .. } = &map_ty {
+                let expected_arity = match name.as_str() {
+                    "mapa_definir" => 3,
+                    "mapa_tamanho" => 1,
+                    _ => 2,
+                };
+                if args.len() != expected_arity {
+                    return Err(PinkerError::Semantic {
+                        msg: format!(
+                            "chamada de '{}' com aridade inválida: esperado {}, recebido {}",
+                            name,
+                            expected_arity,
+                            args.len()
+                        ),
+                        span: expr_span,
+                    });
+                }
+                if expected_arity >= 2 {
+                    let actual_key = self.check_value_expr(
+                        &args[1],
+                        "resultado sem retorno não pode ser usado como chave de mapa",
+                    )?;
+                    if !Self::check_type_match(key, &actual_key) {
+                        return Err(PinkerError::Semantic {
+                            msg: format!(
+                                "chave incompatível em '{}': esperado '{}', encontrado '{}'",
+                                name,
+                                Self::type_key(key),
+                                Self::type_key(&actual_key)
+                            ),
+                            span: args[1].span,
+                        });
+                    }
+                }
+                if name == "mapa_definir" {
+                    let actual_value = self.check_value_expr(
+                        &args[2],
+                        "resultado sem retorno não pode ser armazenado em mapa",
+                    )?;
+                    if !Self::check_type_match(value, &actual_value) {
+                        return Err(PinkerError::Semantic {
+                            msg: format!(
+                                "valor incompatível em 'mapa_definir': esperado '{}', encontrado '{}'",
+                                Self::type_key(value),
+                                Self::type_key(&actual_value)
+                            ),
+                            span: args[2].span,
+                        });
+                    }
+                }
+                return Ok(match name.as_str() {
+                    "mapa_obter" => value.with_span(expr_span),
+                    "mapa_tem" => Type::Logica(expr_span),
+                    "mapa_tamanho" => Type::Bombom(expr_span),
+                    "mapa_definir" | "mapa_remover" => Type::Nulo(expr_span),
+                    _ => unreachable!(),
+                });
+            }
             return Err(PinkerError::Semantic {
                 msg: format!(
                     "operação genérica '{}' exige mapa como primeiro argumento; encontrado '{}'",
@@ -3949,6 +4068,57 @@ impl SemanticChecker {
                     map_ty.name()
                 ),
                 span: first_arg.span,
+            });
+        }
+
+        if name == "__pinker_internal_mapa_iterador_criar" {
+            if args.len() != 1 {
+                return Err(PinkerError::Semantic {
+                    msg: "iterador interno de mapa exige 1 argumento".to_string(),
+                    span: expr_span,
+                });
+            }
+            let map_ty = self.check_value_expr(
+                &args[0],
+                "resultado sem retorno não pode ser iterado como mapa",
+            )?;
+            if !matches!(map_ty, Type::Map { .. }) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "iterador interno exige mapa genérico; encontrado '{}'",
+                        Self::type_key(&map_ty)
+                    ),
+                    span: args[0].span,
+                });
+            }
+            return Ok(Type::Bombom(expr_span));
+        }
+
+        if matches!(
+            name.as_str(),
+            "__pinker_internal_mapa_iterador_proxima_chave_bombom"
+                | "__pinker_internal_mapa_iterador_proxima_chave_verso"
+        ) {
+            if args.len() != 1 {
+                return Err(PinkerError::Semantic {
+                    msg: "avanço de iterador interno de mapa exige 1 argumento".to_string(),
+                    span: expr_span,
+                });
+            }
+            let cursor_ty = self.check_value_expr(
+                &args[0],
+                "resultado sem retorno não pode ser cursor de mapa",
+            )?;
+            if !matches!(cursor_ty, Type::Bombom(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: "cursor interno de mapa exige 'bombom'".to_string(),
+                    span: args[0].span,
+                });
+            }
+            return Ok(if name.ends_with("_verso") {
+                Type::Verso(expr_span)
+            } else {
+                Type::Bombom(expr_span)
             });
         }
 
