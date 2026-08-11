@@ -287,6 +287,9 @@ struct FunctionLowerer {
     ternary_locals: Vec<crate::ir::LocalIR>,
     loop_exit_stack: Vec<String>,
     loop_continue_stack: Vec<String>,
+    /// Blocos alcançados somente por um discriminante impossível depois de
+    /// uma seleção que a semântica provou exaustiva.
+    impossible_fallthrough_blocks: std::collections::HashSet<usize>,
     /// Slots que recebem o payload `ninho` de um braço de `encaixe`.
     ///
     /// HR3: esse binding **é** o endereço do seu storage próprio e não tem
@@ -474,6 +477,7 @@ fn lower_function(function: &FunctionIR) -> Result<FunctionCfgIR, PinkerError> {
         ternary_locals: Vec::new(),
         loop_exit_stack: Vec::new(),
         loop_continue_stack: Vec::new(),
+        impossible_fallthrough_blocks: std::collections::HashSet::new(),
         union_aggregate_bindings: {
             let mut slots = std::collections::HashSet::new();
             collect_union_aggregate_bindings(&function.entry, &mut slots);
@@ -493,6 +497,9 @@ fn lower_function(function: &FunctionIR) -> Result<FunctionCfgIR, PinkerError> {
     if !lowerer.blocks[current].is_terminated() {
         if function.ret_type == TypeIR::Nulo {
             lowerer.blocks[current].terminator = Some(TerminatorIR::Return(None));
+        } else if lowerer.impossible_fallthrough_blocks.contains(&current) {
+            let impossible = lowerer.blocks[current].label.clone();
+            lowerer.blocks[current].terminator = Some(TerminatorIR::Jump(impossible));
         } else {
             return Err(PinkerError::Ir {
                 msg: "lowering CFG IR encontrou bloco sem terminador e função não-nulo".to_string(),
@@ -821,6 +828,174 @@ impl FunctionLowerer {
             InstructionIR::UnionMatch(union_match) => {
                 self.lower_union_match(union_match, current, function_ret)
             }
+            InstructionIR::EnumMatch(enum_match) => {
+                self.lower_enum_match(enum_match, current, function_ret)
+            }
+        }
+    }
+
+    fn lower_enum_match(
+        &mut self,
+        enum_match: &crate::ir::EnumMatchIR,
+        current: usize,
+        function_ret: TypeIR,
+    ) -> Result<usize, PinkerError> {
+        let (scrutinee, current) =
+            self.lower_value_operand(&enum_match.scrutinee, current, enum_match.span)?;
+        let scrutinee_slot = enum_match.scrutinee_binding.slot.clone();
+        self.blocks[current]
+            .instructions
+            .push(InstructionCfgIR::Let {
+                slot: scrutinee_slot.clone(),
+                value: scrutinee,
+            });
+
+        let mut test_current = current;
+        let mut successful_ends = Vec::with_capacity(enum_match.arms.len() + 1);
+        for arm in &enum_match.arms {
+            let failure_label = self.next_label("enum_match_next_pattern");
+            let failure_idx = self.fresh_block(failure_label.clone());
+            let mut pending_bindings = Vec::new();
+            let success_current = self.lower_enum_pattern(
+                &arm.pattern,
+                OperandIR::Local(scrutinee_slot.clone()),
+                test_current,
+                &failure_label,
+                &mut pending_bindings,
+            )?;
+            for (binding, value) in pending_bindings {
+                self.blocks[success_current]
+                    .instructions
+                    .push(InstructionCfgIR::Let {
+                        slot: binding.slot,
+                        value,
+                    });
+            }
+            let mut arm_current = success_current;
+            for instruction in &arm.body.instructions {
+                arm_current = self.lower_instruction(instruction, arm_current, function_ret)?;
+            }
+            successful_ends.push(arm_current);
+            test_current = failure_idx;
+        }
+
+        if let Some(otherwise) = &enum_match.otherwise {
+            let mut otherwise_current = test_current;
+            for instruction in &otherwise.instructions {
+                otherwise_current =
+                    self.lower_instruction(instruction, otherwise_current, function_ret)?;
+            }
+            successful_ends.push(otherwise_current);
+        }
+
+        let has_fallthrough = successful_ends
+            .iter()
+            .any(|end| !self.blocks[*end].is_terminated());
+        if !has_fallthrough {
+            // Sem `senao`, a semântica já provou cobertura exaustiva. A aresta
+            // residual só representa um discriminante impossível; mantenha-a
+            // fechada sem executar um braço nem acessar payload indevido.
+            if enum_match.otherwise.is_none() && !self.blocks[test_current].is_terminated() {
+                self.impossible_fallthrough_blocks.insert(test_current);
+            }
+            return Ok(test_current);
+        }
+
+        let join_label = self.next_label("enum_match_join");
+        let join_idx = self.fresh_block(join_label.clone());
+        if !self.blocks[test_current].is_terminated() {
+            self.blocks[test_current].terminator = Some(TerminatorIR::Jump(join_label.clone()));
+        }
+        for end in successful_ends {
+            if !self.blocks[end].is_terminated() {
+                self.blocks[end].terminator = Some(TerminatorIR::Jump(join_label.clone()));
+            }
+        }
+        Ok(join_idx)
+    }
+
+    fn lower_enum_pattern(
+        &mut self,
+        pattern: &crate::ir::EnumPatternIR,
+        value: OperandIR,
+        current: usize,
+        failure_label: &str,
+        pending_bindings: &mut Vec<(crate::ir::BindingIR, OperandIR)>,
+    ) -> Result<usize, PinkerError> {
+        match pattern {
+            crate::ir::EnumPatternIR::Binding { binding, .. } => {
+                pending_bindings.push((binding.clone(), value));
+                Ok(current)
+            }
+            crate::ir::EnumPatternIR::Variant {
+                discriminant,
+                has_payload,
+                payloads,
+                ..
+            } => {
+                let tag = if *has_payload {
+                    let tag = self.next_temp();
+                    self.blocks[current]
+                        .instructions
+                        .push(InstructionCfgIR::Call {
+                            dest: Some(tag),
+                            callee: "__pinker_internal_leque_tag".to_string(),
+                            args: vec![value.clone()],
+                            ret_type: TypeIR::Bombom,
+                        });
+                    OperandIR::Temp(tag)
+                } else {
+                    value.clone()
+                };
+                let matches = self.next_temp();
+                self.blocks[current]
+                    .instructions
+                    .push(InstructionCfgIR::Binary {
+                        dest: matches,
+                        op: BinaryOpIR::Eq,
+                        lhs: tag,
+                        rhs: OperandIR::Int(*discriminant),
+                        ty: TypeIR::Bombom,
+                    });
+                let matched_label = self.next_label("enum_pattern_matched");
+                let matched_idx = self.fresh_block(matched_label.clone());
+                self.blocks[current].terminator = Some(TerminatorIR::Branch {
+                    cond: OperandIR::Temp(matches),
+                    then_label: matched_label,
+                    else_label: failure_label.to_string(),
+                });
+
+                let mut nested_current = matched_idx;
+                for payload in payloads {
+                    let extracted = self.next_temp();
+                    self.blocks[nested_current]
+                        .instructions
+                        .push(InstructionCfgIR::Call {
+                            dest: Some(extracted),
+                            callee: payload.extract_intrinsic.clone(),
+                            args: vec![
+                                value.clone(),
+                                OperandIR::Int(*discriminant),
+                                OperandIR::Int(payload.index),
+                            ],
+                            ret_type: payload.operational_type,
+                        });
+                    self.blocks[nested_current]
+                        .instructions
+                        .push(InstructionCfgIR::Let {
+                            slot: payload.extracted_binding.slot.clone(),
+                            value: OperandIR::Temp(extracted),
+                        });
+                    nested_current = self.lower_enum_pattern(
+                        &payload.pattern,
+                        OperandIR::Local(payload.extracted_binding.slot.clone()),
+                        nested_current,
+                        failure_label,
+                        pending_bindings,
+                    )?;
+                }
+                Ok(nested_current)
+            }
         }
     }
 
@@ -917,11 +1092,20 @@ impl FunctionLowerer {
             test_current = self.fresh_block(next_test_label);
         }
 
+        let has_fallthrough = arm_ends
+            .iter()
+            .any(|end| !self.blocks[*end].is_terminated());
+        if !has_fallthrough {
+            // A cobertura é exata e as tags vêm do registry. Não há caminho
+            // válido até o último teste falho, que fica fechado sem escolher
+            // arbitrariamente um dos payloads.
+            self.impossible_fallthrough_blocks.insert(test_current);
+            return Ok(test_current);
+        }
+
         let join_label = self.next_label("union_match_join");
         let join_idx = self.fresh_block(join_label);
         let join = self.blocks[join_idx].label.clone();
-        // A cobertura é exata e as tags vêm do registry: o último teste falho é
-        // inalcançável, mas o bloco permanece terminado para o validador.
         self.blocks[test_current].terminator = Some(TerminatorIR::Jump(join.clone()));
         for end in arm_ends {
             if !self.blocks[end].is_terminated() {

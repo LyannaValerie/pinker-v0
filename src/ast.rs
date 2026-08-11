@@ -772,6 +772,102 @@ impl AssignStmt {
     }
 }
 
+/// Pattern recursivo de `encaixe` sobre `leque`.
+///
+/// Cada nó de variante preserva a identidade nominal escrita e seus payloads;
+/// cada folha de binding recebe o tipo exato durante a análise semântica. A
+/// árvore não é dessugarada no parser, para que identidade, cobertura e ordem
+/// de materialização permaneçam verificáveis nas camadas seguintes.
+#[derive(Debug, Clone)]
+pub enum EnumPattern {
+    Binding {
+        name: String,
+        span: Span,
+    },
+    Variant {
+        enum_name: String,
+        variant: String,
+        payloads: Vec<EnumPattern>,
+        span: Span,
+    },
+}
+
+impl EnumPattern {
+    pub fn span(&self) -> Span {
+        match self {
+            Self::Binding { span, .. } | Self::Variant { span, .. } => *span,
+        }
+    }
+
+    fn write_json(&self, writer: &mut JsonWriter<'_>) {
+        match self {
+            Self::Binding { name, span } => {
+                writer.begin_object();
+                writer.field_str("node", "EnumPatternBinding");
+                writer.field_span("span", *span);
+                writer.field_str("name", name);
+                writer.end_object();
+            }
+            Self::Variant {
+                enum_name,
+                variant,
+                payloads,
+                span,
+            } => {
+                writer.begin_object();
+                writer.field_str("node", "EnumPatternVariant");
+                writer.field_span("span", *span);
+                writer.field_str("enum_name", enum_name);
+                writer.field_str("variant", variant);
+                writer.field_array("payloads", payloads, |writer, payload| {
+                    payload.write_json(writer)
+                });
+                writer.end_object();
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct EnumMatchStmt {
+    pub scrutinee: Expr,
+    pub arms: Vec<EnumMatchArm>,
+    pub otherwise: Option<Block>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone)]
+pub struct EnumMatchArm {
+    pub pattern: EnumPattern,
+    pub body: Block,
+    pub span: Span,
+}
+
+impl EnumMatchStmt {
+    fn write_json(&self, writer: &mut JsonWriter<'_>) {
+        writer.begin_object();
+        writer.field_str("node", "EnumMatchStmt");
+        writer.field_span("span", self.span);
+        writer.field_value("scrutinee", |writer| self.scrutinee.write_json(writer));
+        writer.field_array("arms", &self.arms, |writer, arm| arm.write_json(writer));
+        if let Some(otherwise) = &self.otherwise {
+            writer.field_value("otherwise", |writer| otherwise.write_json(writer));
+        }
+        writer.end_object();
+    }
+}
+
+impl EnumMatchArm {
+    fn write_json(&self, writer: &mut JsonWriter<'_>) {
+        writer.begin_object();
+        writer.field_str("node", "EnumMatchArm");
+        writer.field_span("span", self.span);
+        writer.field_value("pattern", |writer| self.pattern.write_json(writer));
+        writer.field_value("body", |writer| self.body.write_json(writer));
+        writer.end_object();
+    }
+}
+
 /// `encaixe` sobre uma união estrutural, preservado como construto tipado.
 ///
 /// O parser não calcula tags, não ordena braços e não resolve apelidos: guarda
@@ -829,6 +925,7 @@ pub enum Stmt {
     Continue(ContinueStmt),
     Falar(FalarStmt),
     InlineAsm(InlineAsmStmt),
+    EnumMatch(EnumMatchStmt),
     UnionMatch(UnionMatchStmt),
     Expr(Expr),
 }
@@ -845,6 +942,7 @@ impl Stmt {
             Stmt::Continue(stmt) => stmt.span,
             Stmt::Falar(stmt) => stmt.span,
             Stmt::InlineAsm(stmt) => stmt.span,
+            Stmt::EnumMatch(stmt) => stmt.span,
             Stmt::UnionMatch(stmt) => stmt.span,
             Stmt::Expr(expr) => expr.span,
         }
@@ -861,6 +959,7 @@ impl Stmt {
             Stmt::Continue(stmt) => stmt.write_json(writer),
             Stmt::Falar(stmt) => stmt.write_json(writer),
             Stmt::InlineAsm(stmt) => stmt.write_json(writer),
+            Stmt::EnumMatch(stmt) => stmt.write_json(writer),
             Stmt::UnionMatch(stmt) => stmt.write_json(writer),
             Stmt::Expr(expr) => {
                 writer.begin_object();
@@ -1735,6 +1834,25 @@ fn scan_stmt_free_idents(
             scan_block_free_idents(&while_stmt.body, bound, free, seen, include_direct_callees);
         }
         Stmt::Break(_) | Stmt::Continue(_) | Stmt::InlineAsm(_) => {}
+        Stmt::EnumMatch(enum_match) => {
+            scan_expr_free_idents(
+                &enum_match.scrutinee,
+                bound,
+                free,
+                seen,
+                include_direct_callees,
+            );
+            for arm in &enum_match.arms {
+                let mut bindings = HashSet::new();
+                collect_enum_pattern_bindings(&arm.pattern, &mut bindings);
+                bound.push(bindings);
+                scan_block_free_idents(&arm.body, bound, free, seen, include_direct_callees);
+                bound.pop();
+            }
+            if let Some(otherwise) = &enum_match.otherwise {
+                scan_block_free_idents(otherwise, bound, free, seen, include_direct_callees);
+            }
+        }
         Stmt::UnionMatch(union_match) => {
             scan_expr_free_idents(
                 &union_match.scrutinee,
@@ -1757,6 +1875,19 @@ fn scan_stmt_free_idents(
             }
         }
         Stmt::Expr(expr) => scan_expr_free_idents(expr, bound, free, seen, include_direct_callees),
+    }
+}
+
+fn collect_enum_pattern_bindings(pattern: &EnumPattern, bindings: &mut HashSet<String>) {
+    match pattern {
+        EnumPattern::Binding { name, .. } => {
+            bindings.insert(name.clone());
+        }
+        EnumPattern::Variant { payloads, .. } => {
+            for payload in payloads {
+                collect_enum_pattern_bindings(payload, bindings);
+            }
+        }
     }
 }
 

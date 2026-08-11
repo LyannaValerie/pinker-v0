@@ -160,6 +160,7 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
         .map_err(|message| ir_validation_error(&message, default_span()))?;
     validate_resolved_identities(program)?;
     validate_enum_variant_metadata(program)?;
+    validate_enum_pattern_operations(program)?;
     validate_union_operations(program)?;
     let mut consts = HashMap::new();
     for konst in &program.consts {
@@ -1172,6 +1173,165 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
     Ok(())
 }
 
+fn validate_enum_pattern_operations(program: &ProgramIR) -> Result<(), PinkerError> {
+    for function in &program.functions {
+        validate_enum_pattern_block(&function.entry, program)?;
+    }
+    Ok(())
+}
+
+fn validate_enum_pattern_block(block: &BlockIR, program: &ProgramIR) -> Result<(), PinkerError> {
+    for instruction in &block.instructions {
+        match instruction {
+            InstructionIR::EnumMatch(enum_match) => {
+                for arm in &enum_match.arms {
+                    validate_enum_pattern(&arm.pattern, None, program)?;
+                    validate_enum_pattern_block(&arm.body, program)?;
+                }
+                if let Some(otherwise) = &enum_match.otherwise {
+                    validate_enum_pattern_block(otherwise, program)?;
+                }
+            }
+            InstructionIR::If {
+                then_block,
+                else_block,
+                ..
+            } => {
+                validate_enum_pattern_block(then_block, program)?;
+                if let Some(else_block) = else_block {
+                    validate_enum_pattern_block(else_block, program)?;
+                }
+            }
+            InstructionIR::While { body_block, .. } => {
+                validate_enum_pattern_block(body_block, program)?;
+            }
+            InstructionIR::UnionMatch(union_match) => {
+                for arm in &union_match.arms {
+                    validate_enum_pattern_block(&arm.body, program)?;
+                }
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+fn validate_enum_pattern(
+    pattern: &crate::ir::EnumPatternIR,
+    expected: Option<crate::ir::ResolvedTypeId>,
+    program: &ProgramIR,
+) -> Result<(), PinkerError> {
+    match pattern {
+        crate::ir::EnumPatternIR::Binding { binding, span } => {
+            if expected != binding.resolved {
+                return Err(ir_validation_error(
+                    "E-IR-ENUM-PATTERN-IDENTITY: binding diverge da identidade da carga",
+                    *span,
+                ));
+            }
+        }
+        crate::ir::EnumPatternIR::Variant {
+            enum_name,
+            expected_type_id,
+            variant_name,
+            discriminant,
+            has_payload,
+            payloads,
+            span,
+        } => {
+            if let Some(expected) = expected {
+                if expected != *expected_type_id {
+                    return Err(ir_validation_error(
+                        "E-IR-ENUM-PATTERN-IDENTITY: pattern aninhado diverge da carga pai",
+                        *span,
+                    ));
+                }
+            }
+            let identity = program
+                .resolved_types
+                .get(expected_type_id.0 as usize)
+                .filter(|entry| entry.id == *expected_type_id)
+                .ok_or_else(|| {
+                    ir_validation_error(
+                        "E-IR-ENUM-PATTERN-IDENTITY: identidade esperada ausente",
+                        *span,
+                    )
+                })?;
+            let canonical = crate::union_canon::canonical_type_key(&crate::ast::Type::Enum {
+                name: enum_name.clone(),
+                span: *span,
+            });
+            if identity.canonical_key != canonical || identity.representation != TypeIR::Bombom {
+                return Err(ir_validation_error(
+                    "E-IR-ENUM-PATTERN-IDENTITY: identidade nominal do leque divergente",
+                    *span,
+                ));
+            }
+            let meta = program
+                .enum_variants
+                .iter()
+                .find(|meta| meta.enum_name == *enum_name && meta.variant_name == *variant_name)
+                .ok_or_else(|| {
+                    ir_validation_error("E-IR-ENUM-PATTERN-METADATA: variante ausente", *span)
+                })?;
+            if meta.discriminant != *discriminant || meta.payloads.len() != payloads.len() {
+                return Err(ir_validation_error(
+                    "E-IR-ENUM-PATTERN-METADATA: tag ou aridade divergente",
+                    *span,
+                ));
+            }
+            let expected_has_payload = program.enum_variants.iter().any(|candidate| {
+                candidate.enum_name == *enum_name && !candidate.payloads.is_empty()
+            });
+            if *has_payload != expected_has_payload {
+                return Err(ir_validation_error(
+                    "E-IR-ENUM-PATTERN-METADATA: representação do leque divergente",
+                    *span,
+                ));
+            }
+            for (index, (payload, payload_meta)) in payloads.iter().zip(&meta.payloads).enumerate()
+            {
+                let expected_intrinsic = match payload_meta.class {
+                    crate::enum_payload::EnumPayloadClass::ImmediateDiscriminant => {
+                        crate::enum_payload::CARGA_IMEDIATO
+                    }
+                    crate::enum_payload::EnumPayloadClass::Verso => {
+                        crate::enum_payload::CARGA_VERSO
+                    }
+                    crate::enum_payload::EnumPayloadClass::OpaqueWordHandle
+                        if payload_meta.operational_type == TypeIR::ListVerso =>
+                    {
+                        crate::enum_payload::CARGA_LISTA_VERSO
+                    }
+                    crate::enum_payload::EnumPayloadClass::OpaqueWordHandle => {
+                        crate::enum_payload::CARGA_LISTA_BOMBOM
+                    }
+                };
+                if payload.index != index as u64
+                    || payload.operational_type != payload_meta.operational_type
+                    || payload.class != payload_meta.class
+                    || payload.canonical_key != payload_meta.canonical_key
+                    || payload.resolved_type_id != payload_meta.resolved_type_id
+                    || payload.extract_intrinsic != expected_intrinsic
+                    || payload.extracted_binding.ty != payload_meta.operational_type
+                    || payload.extracted_binding.resolved != Some(payload_meta.resolved_type_id)
+                {
+                    return Err(ir_validation_error(
+                        "E-IR-ENUM-PATTERN-METADATA: carga do pattern diverge da variante",
+                        *span,
+                    ));
+                }
+                validate_enum_pattern(
+                    &payload.pattern,
+                    Some(payload_meta.resolved_type_id),
+                    program,
+                )?;
+            }
+        }
+    }
+    Ok(())
+}
+
 fn validate_function(
     function: &FunctionIR,
     consts: &HashMap<String, TypeIR>,
@@ -1646,6 +1806,37 @@ fn validate_block(
                     },
                 )?;
             }
+            InstructionIR::EnumMatch(enum_match) => {
+                let scrutinee_ty =
+                    infer_value_type(&enum_match.scrutinee, slots, consts, funcs, enum_match.span)?;
+                if slots.get(&enum_match.scrutinee_binding.slot) != Some(&scrutinee_ty)
+                    || enum_match.scrutinee_binding.ty != scrutinee_ty
+                {
+                    return Err(ir_validation_error_ctx(
+                        function,
+                        Some(block),
+                        "slot do scrutinee de enum_match ausente ou com tipo divergente",
+                        Some("instr='enum_match'"),
+                        enum_match.span,
+                    ));
+                }
+                if enum_match.arms.is_empty() {
+                    return Err(ir_validation_error_ctx(
+                        function,
+                        Some(block),
+                        "enum_match sem braços",
+                        Some("instr='enum_match'"),
+                        enum_match.span,
+                    ));
+                }
+                for arm in &enum_match.arms {
+                    validate_enum_pattern_bindings(&arm.pattern, function, block, slots)?;
+                    validate_block(&arm.body, function, slots, consts, funcs)?;
+                }
+                if let Some(otherwise) = &enum_match.otherwise {
+                    validate_block(otherwise, function, slots, consts, funcs)?;
+                }
+            }
             InstructionIR::UnionMatch(union_match) => {
                 let scrutinee_ty = infer_value_type(
                     &union_match.scrutinee,
@@ -1743,6 +1934,33 @@ fn validate_block(
     Ok(())
 }
 
+fn validate_enum_pattern_bindings(
+    pattern: &crate::ir::EnumPatternIR,
+    function: &FunctionIR,
+    block: &BlockIR,
+    slots: &HashMap<String, TypeIR>,
+) -> Result<(), PinkerError> {
+    match pattern {
+        crate::ir::EnumPatternIR::Binding { binding, span } => {
+            if slots.get(&binding.slot) != Some(&binding.ty) {
+                return Err(ir_validation_error_ctx(
+                    function,
+                    Some(block),
+                    "binding de enum_pattern sem slot local tipado",
+                    Some(&format!("instr='enum_match', slot='{}'", binding.slot)),
+                    *span,
+                ));
+            }
+        }
+        crate::ir::EnumPatternIR::Variant { payloads, .. } => {
+            for payload in payloads {
+                validate_enum_pattern_bindings(&payload.pattern, function, block, slots)?;
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Confere que nenhuma identidade semântica foi perdida em parâmetro ou local.
 ///
 /// Um slot cuja representação já é a identidade completa (escalares, `verso`,
@@ -1821,6 +2039,15 @@ fn validate_union_operations_block(
 ) -> Result<(), PinkerError> {
     for instruction in &block.instructions {
         match instruction {
+            InstructionIR::EnumMatch(enum_match) => {
+                validate_union_operations_value(&enum_match.scrutinee, unions, enum_match.span)?;
+                for arm in &enum_match.arms {
+                    validate_union_operations_block(&arm.body, unions)?;
+                }
+                if let Some(otherwise) = &enum_match.otherwise {
+                    validate_union_operations_block(otherwise, unions)?;
+                }
+            }
             InstructionIR::UnionMatch(union_match) => {
                 validate_union_operations_value(&union_match.scrutinee, unions, union_match.span)?;
                 let arm_keys = union_match
