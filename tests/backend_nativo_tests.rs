@@ -406,7 +406,7 @@ fn leques_com_carga_emitem_calls_unificados_de_runtime() {
 }
 
 #[test]
-fn texto_nativo_emite_calls_de_runtime_e_formatar_por_aridade() {
+fn texto_nativo_emite_calls_de_runtime_e_formatar_por_pack() {
     let code = include_str!("../examples/fase219_texto_nativo_valido.pink");
     let selected = lower_to_selected(code);
     let asm = backend_s::emit_external_toolchain_subset(&selected).expect("emit");
@@ -428,10 +428,11 @@ fn texto_nativo_emite_calls_de_runtime_e_formatar_por_aridade() {
         "call pinker_bombom_para_verso",
         "call pinker_verso_vazio",
         "call pinker_verso_nao_vazio",
-        "call pinker_formatar_verso_2",
+        "call pinker_formatar_verso_pack",
     ] {
         assert!(asm.contains(symbol), "faltou {} em:\n{}", symbol, asm);
     }
+    assert!(!asm.contains("call pinker_formatar_verso_2"), "{}", asm);
     assert!(!asm.contains("call formatar_verso"), "{}", asm);
 }
 

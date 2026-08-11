@@ -2,8 +2,8 @@ schema = 2
 id = "normalizacao-corrente-para-historico"
 
 [reconstruction]
-expected_overrides = 14
-expected_exclusions = 50
+expected_overrides = 19
+expected_exclusions = 51
 
 [[rules]]
 op = "exclude-key"
@@ -73,6 +73,11 @@ expected_matches = 1
 [[rules]]
 op = "exclude-key"
 key = "evidencia.diff-cobertura.cli"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.formatar-verso.d7-pack"
 expected_matches = 1
 
 [[rules]]
@@ -274,6 +279,46 @@ expect_domain = "doc"
 expect_layer = "cli"
 
 [[rules]]
+op = "override-hash"
+key = "evidencia.backend-nativo.emissao-simbolos-runtime-textual"
+from = "fnv1a64:a7d5942406d04e79"
+to = "fnv1a64:46982ffe859870ec"
+expect_file = "tests/backend_nativo_tests.rs"
+expect_domain = "backend-s"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-hash"
+key = "evidencia.runtime.memoria-alocador"
+from = "fnv1a64:99aeee940a8e36ba"
+to = "fnv1a64:6a55d0547cdd5ba2"
+expect_file = "runtime/pinker_rt/src/lib.rs"
+expect_domain = "memoria"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "backend-s.lowering.chamadas-sysv"
+from_hash = "fnv1a64:02720fd7a19167d7"
+to_hash = "fnv1a64:9bcbd95ce8c3a26f"
+from_summary = "Lowering de chamadas no corpo do bloco (ABI SysV): `Call` com destino trata `__ternario` puro por `cmoveq`; `formatar_verso` materializa um pack contíguo de handles `verso` na pilha e chama a autoridade única `pinker_formatar_verso_pack(modelo,count,entries)`; demais chamadas resolvem intrínsecas legadas por aridade/nome ou função Pinker, usando registradores e pilha SysV com alinhamento e cleanup."
+to_summary = "Lowering de chamadas no corpo do bloco (ABI SysV): `Call` com destino trata `__ternario` de braços trivialmente puros como seleção por `cmpq`+`cmoveq`; ternários com efeitos já chegam como ramos CFG lazy. Demais chamadas resolvem intrínsecas por aridade (`runtime_intrinsic_symbol_por_aridade`) e por nome (`runtime_intrinsic_symbol`) ou chamam função Pinker por símbolo direto, passam os 6 primeiros argumentos em `ARG_REGS`, empilham o 7º+ do último ao primeiro com padding de alinhamento e limpam a pilha após o `call`, guardando `%rax` no slot de destino. Símbolo desconhecido é recusado."
+expect_file = "src/backend_s.rs"
+expect_domain = "lowering"
+expect_layer = "backend-s"
+
+[[rules]]
+op = "override-region"
+key = "backend-s.runtime.intrinsecas-por-aridade"
+from_hash = "fnv1a64:e25add1627479da2"
+to_hash = "fnv1a64:0d01ccd51cab2d1f"
+from_summary = "Resolução legada das intrínsecas de processo cuja ABI ainda varia por aridade (`executar_processo`, capturas e entrada), recusando aridades fora do recorte. `formatar_verso` não participa: D7 usa `pinker_formatar_verso_pack` para qualquer count representável."
+to_summary = "Resolução de intrínsecas de aridade variável por número de argumentos: `runtime_intrinsic_symbol_por_aridade` (escolhe o wrapper `pinker_formatar_verso_N`, `pinker_processo_executar_N`, etc., recusando aridade fora do recorte) e `is_arity_runtime_intrinsic` (nomes que usam essa resolução). Símbolos resolvidos no link com `libpinker_rt.a`."
+expect_file = "src/backend_s.rs"
+expect_domain = "runtime"
+expect_layer = "backend-s"
+
+[[rules]]
 op = "override-region"
 key = "cli.ajuda.usage"
 from_hash = "fnv1a64:db893b4a1f3a73a9"
@@ -382,6 +427,17 @@ to_summary = "Ciclo iniciar/executar/verificar/status/relatorio: snapshots Git, 
 expect_file = "src/agent.rs"
 expect_domain = "development"
 expect_layer = "agent"
+
+[[rules]]
+op = "override-region"
+key = "runtime.texto.formatacao"
+from_hash = "fnv1a64:8c0d51b2fc8c7187"
+to_hash = "fnv1a64:f9cfb4b04e796e27"
+from_summary = "Autoridade geral `pinker_formatar_verso_pack(modelo,count,entries)`: valida count/size/ponteiros e formata um slice homogêneo de handles `verso`; wrappers 0..8 permanecem somente como adapters ABI legados que encaminham ao pack."
+to_summary = "Núcleo de formatar_verso (placeholders `{}` na ordem, com erro_fatal em contagem ou placeholder malformado) e as variantes pinker_formatar_verso_0..8 geradas pela macro formatar_wrappers!, cada uma com aridade fixa (0 a 8 argumentos) — não há variante para aridade maior."
+expect_file = "runtime/pinker_rt/src/lib.rs"
+expect_domain = "texto"
+expect_layer = "runtime"
 
 [[rules]]
 op = "override-region"

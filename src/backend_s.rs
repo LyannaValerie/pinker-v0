@@ -844,7 +844,7 @@ fn extract_external_callconv_program(
                     // @pinker-nav:start backend-s.lowering.chamadas-sysv
                     // @pinker-nav:domain lowering
                     // @pinker-nav:layer backend-s
-                    // @pinker-nav:summary Lowering de chamadas no corpo do bloco (ABI SysV): `Call` com destino trata `__ternario` de braços trivialmente puros como seleção por `cmpq`+`cmoveq`; ternários com efeitos já chegam como ramos CFG lazy. Demais chamadas resolvem intrínsecas por aridade (`runtime_intrinsic_symbol_por_aridade`) e por nome (`runtime_intrinsic_symbol`) ou chamam função Pinker por símbolo direto, passam os 6 primeiros argumentos em `ARG_REGS`, empilham o 7º+ do último ao primeiro com padding de alinhamento e limpam a pilha após o `call`, guardando `%rax` no slot de destino. Símbolo desconhecido é recusado.
+                    // @pinker-nav:summary Lowering de chamadas no corpo do bloco (ABI SysV): `Call` com destino trata `__ternario` puro por `cmoveq`; `formatar_verso` materializa um pack contíguo de handles `verso` na pilha e chama a autoridade única `pinker_formatar_verso_pack(modelo,count,entries)`; demais chamadas resolvem intrínsecas legadas por aridade/nome ou função Pinker, usando registradores e pilha SysV com alinhamento e cleanup.
                     SelectedInstr::Call {
                         dest,
                         callee,
@@ -893,6 +893,71 @@ fn extract_external_callconv_program(
                             )?);
                             body.push("cmpq $0, %r11".to_string());
                             body.push(format!("cmoveq %r10, {}", REG_RET));
+                            body.push(format!(
+                                "movq {}, -{}(%rbp)",
+                                REG_RET,
+                                slot_offsets[&temp_key(*dest)]
+                            ));
+                            continue;
+                        }
+                        // D7: a IR já converte todos os argumentos de
+                        // substituição para handles `verso`. Materializamos
+                        // um pack contíguo e passamos modelo/count/entries à
+                        // autoridade única do runtime, independentemente da
+                        // quantidade de argumentos.
+                        if callee == "formatar_verso" {
+                            if args.len() < 2 {
+                                return Err(err(
+                                    "subset externo montável exige ao menos uma substituição em formatar_verso",
+                                ));
+                            }
+                            for arg in args {
+                                register_rodata_strings_for_operand(
+                                    arg,
+                                    &mut rodata_string_labels,
+                                    &mut rodata_strings,
+                                );
+                            }
+                            let substitutions = args.len() - 1;
+                            let pack_bytes = substitutions.checked_mul(8).ok_or_else(|| {
+                                err("pack de formatar_verso excede a representação da plataforma")
+                            })?;
+                            if pack_bytes > isize::MAX as usize {
+                                return Err(err(
+                                    "pack de formatar_verso excede a representação da plataforma",
+                                ));
+                            }
+                            let pad_words = substitutions % 2;
+                            if pad_words == 1 {
+                                body.push("subq $8, %rsp".to_string());
+                            }
+                            for arg in args.iter().skip(1).rev() {
+                                body.extend(load_operand(
+                                    REG_TMP,
+                                    arg,
+                                    &slot_offsets,
+                                    &rodata_strings,
+                                )?);
+                                body.push(format!("pushq {}", REG_TMP));
+                            }
+                            body.extend(load_operand(
+                                ARG_REGS[0],
+                                &args[0],
+                                &slot_offsets,
+                                &rodata_strings,
+                            )?);
+                            body.push(format!("movq ${}, {}", substitutions, ARG_REGS[1]));
+                            body.push(format!("movq %rsp, {}", ARG_REGS[2]));
+                            body.push("call pinker_formatar_verso_pack".to_string());
+                            let cleanup_bytes = pack_bytes
+                                .checked_add(pad_words * 8)
+                                .filter(|bytes| *bytes <= isize::MAX as usize)
+                                .ok_or_else(|| {
+                                    err("pack de formatar_verso excede a representação da plataforma")
+                                })?;
+                            if cleanup_bytes > 0 {
+                                body.push(format!("addq ${}, %rsp", cleanup_bytes));
+                            }
                             body.push(format!(
                                 "movq {}, -{}(%rbp)",
                                 REG_RET,
@@ -3563,18 +3628,11 @@ fn is_external_call_ret_type(ty: &TypeIR) -> bool {
 // @pinker-nav:start backend-s.runtime.intrinsecas-por-aridade
 // @pinker-nav:domain runtime
 // @pinker-nav:layer backend-s
-// @pinker-nav:summary Resolução de intrínsecas de aridade variável por número de argumentos: `runtime_intrinsic_symbol_por_aridade` (escolhe o wrapper `pinker_formatar_verso_N`, `pinker_processo_executar_N`, etc., recusando aridade fora do recorte) e `is_arity_runtime_intrinsic` (nomes que usam essa resolução). Símbolos resolvidos no link com `libpinker_rt.a`.
+// @pinker-nav:summary Resolução legada das intrínsecas de processo cuja ABI ainda varia por aridade (`executar_processo`, capturas e entrada), recusando aridades fora do recorte. `formatar_verso` não participa: D7 usa `pinker_formatar_verso_pack` para qualquer count representável.
 /// Intrínsecas de aridade variável (Fases 219/B8 e 221/B10): o símbolo do
 /// runtime é escolhido pela quantidade de argumentos no call site.
 fn runtime_intrinsic_symbol_por_aridade(callee: &str, argc: usize) -> Option<String> {
     match (callee, argc) {
-        ("formatar_verso", n) if n >= 1 => {
-            let substituicoes = n - 1;
-            if substituicoes > 8 {
-                return None;
-            }
-            Some(format!("pinker_formatar_verso_{}", substituicoes))
-        }
         ("executar_processo", 1 | 2) => Some(format!("pinker_processo_executar_{}", argc)),
         ("capturar_stdout", 1 | 2) => Some(format!("pinker_processo_capturar_stdout_{}", argc)),
         ("capturar_stderr", 1 | 2) => Some(format!("pinker_processo_capturar_stderr_{}", argc)),
@@ -3586,11 +3644,7 @@ fn runtime_intrinsic_symbol_por_aridade(callee: &str, argc: usize) -> Option<Str
 fn is_arity_runtime_intrinsic(callee: &str) -> bool {
     matches!(
         callee,
-        "formatar_verso"
-            | "executar_processo"
-            | "capturar_stdout"
-            | "capturar_stderr"
-            | "executar_com_entrada"
+        "executar_processo" | "capturar_stdout" | "capturar_stderr" | "executar_com_entrada"
     )
 }
 // @pinker-nav:end backend-s.runtime.intrinsecas-por-aridade
