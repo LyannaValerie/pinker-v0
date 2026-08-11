@@ -1337,7 +1337,7 @@ impl SemanticChecker {
             }
         }
 
-        self.validate_impl_contracts()?;
+        self.validate_impl_contracts(program)?;
         self.validate_trait_contracts()?;
 
         // --- Passagem 2: verificação de corpos ---
@@ -1379,8 +1379,16 @@ impl SemanticChecker {
     // @pinker-nav:domain tratos
     // @pinker-nav:layer semantic
     // @pinker-nav:summary Contratos de tratos e implementações: agrupa os métodos `__impl_*` por (trato, tipo-alvo) e exige cobertura exata do trato (sem método estranho, sem duplicata, sem faltante), garante que todo trato tenha método compatível declarado no topo e confere aridade e tipos de parâmetros/retorno entre a assinatura do trato e a função.
-    fn validate_impl_contracts(&self) -> Result<(), PinkerError> {
+    fn validate_impl_contracts(&self, program: &Program) -> Result<(), PinkerError> {
         let mut groups: HashMap<(String, String), Vec<&ImplMethodMeta>> = HashMap::new();
+        for impl_decl in &program.impls {
+            groups
+                .entry((
+                    impl_decl.trait_name.clone(),
+                    Self::type_key(&impl_decl.target_ty),
+                ))
+                .or_default();
+        }
         for meta in &self.impl_methods {
             groups
                 .entry((meta.trait_name.clone(), meta.target_type.clone()))
