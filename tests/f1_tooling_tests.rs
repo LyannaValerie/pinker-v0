@@ -66,6 +66,16 @@ fn doctor_json_declara_identidades_e_proxima_acao() {
 }
 
 #[test]
+fn identidade_binaria_json_independe_de_repositorio() {
+    let output = run(&["--version-json"]);
+    assert!(output.status.success());
+    let json = stdout(&output);
+    for field in ["binary_path", "binary_version", "binary_commit"] {
+        assert!(json.contains(&format!("\"{field}\":")), "{field}: {json}");
+    }
+}
+
+#[test]
 fn doctor_repo_invalido_falha_cedo() {
     let missing = temp("missing");
     let output = run(&["doctor", "--repo", &missing.to_string_lossy(), "--json"]);
@@ -305,6 +315,7 @@ fn baseline_script_exige_release_identidade_e_publicacao_atomica() {
     for required in [
         "cargo build --locked --release --bin pink",
         "PINKER_BUILD_COMMIT",
+        "--version-json",
         "forja-pink-bundle-v1",
         "forja-software-manifest-v1",
         "/opt/pinker/releases/pink/$commit",

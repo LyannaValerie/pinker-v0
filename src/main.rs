@@ -232,6 +232,7 @@ struct VerifyConfigCli {
 enum CliCommand {
     Help(String),
     Version,
+    VersionJson,
     Analyze(Config),
     Build(BuildConfig),
     Editor(EditorConfig),
@@ -267,6 +268,7 @@ fn usage(program: &str) -> String {
          Opções principais:\n\
            -h, --help  exibe esta ajuda e termina com sucesso\n\
            -V, --version  exibe a versão do pacote e termina com sucesso\n\
+           --version-json  exibe path, versão e commit do binário em JSON\n\
            --tokens    imprime a lista de tokens com spans\n\
            --ast       imprime a AST textual legível\n\
            --json-ast  imprime a AST em JSON estável\n\
@@ -1381,6 +1383,15 @@ fn parse_args() -> Result<CliCommand, String> {
             usage(&program)
         ));
     }
+    if flag_args.first().map(String::as_str) == Some("--version-json") {
+        if flag_args.len() == 1 && runtime_tail.is_empty() {
+            return Ok(CliCommand::VersionJson);
+        }
+        return Err(format!(
+            "A opção de identidade não aceita argumentos.\n\n{}",
+            usage(&program)
+        ));
+    }
     if flag_args.first().map(String::as_str) == Some("version") {
         return Err(format!(
             "Comando 'version' desconhecido. Use '--version' ou '-V'.\n\n{}",
@@ -1576,6 +1587,13 @@ fn main() {
     match command {
         CliCommand::Help(help) => print!("{help}"),
         CliCommand::Version => println!("pink {}", env!("CARGO_PKG_VERSION")),
+        CliCommand::VersionJson => match tooling::render_binary_identity_json() {
+            Ok(identity) => println!("{identity}"),
+            Err(error) => {
+                eprintln!("E-IDENTITY: {error}");
+                std::process::exit(EXIT_FAILURE);
+            }
+        },
         CliCommand::Analyze(config) => run_analyze(config),
         CliCommand::Build(config) => run_build(config),
         CliCommand::Editor(config) => run_editor(config),

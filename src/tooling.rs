@@ -41,6 +41,17 @@ pub fn binary_commit() -> &'static str {
     option_env!("PINKER_BUILD_COMMIT").unwrap_or("UNKNOWN")
 }
 
+pub fn render_binary_identity_json() -> Result<String, String> {
+    let binary_path = std::env::current_exe()
+        .map_err(|error| format!("não foi possível resolver o executável atual: {error}"))?;
+    Ok(format!(
+        "{{\"schema\":{TOOLING_SCHEMA},\"binary_path\":{},\"binary_version\":{},\"binary_commit\":{}}}",
+        json_string(&binary_path.to_string_lossy()),
+        json_string(env!("CARGO_PKG_VERSION")),
+        json_string(binary_commit()),
+    ))
+}
+
 fn json_string(value: &str) -> String {
     let mut out = String::from("\"");
     for ch in value.chars() {

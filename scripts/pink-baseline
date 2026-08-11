@@ -64,7 +64,7 @@ commit=$commit
 sha256=$sha256
 source=$repo_root
 EOF
-        identity="$($temporary/pink doctor --repo "$repo_root" --json)"
+        identity="$($temporary/pink --version-json)"
         [[ "$identity" == *"\"binary_commit\":\"$commit\""* ]] || fail "binário não declara o commit do bundle"
         [[ ! -e "$output" ]] || fail "output já existe: $output"
         mv "$temporary" "$output"
@@ -101,7 +101,7 @@ EOF
         [[ "$source" =~ ^/[A-Za-z0-9_./-]+$ && -d "$source/.git" || -f "$source/.git" ]] || fail "origem do bundle inválida"
         observed_sha256="$(sha256sum "$bundle/pink" | awk '{print $1}')"
         [[ "$observed_sha256" == "$expected_sha256" ]] || fail "checksum do bundle diverge"
-        identity="$($bundle/pink doctor --repo "$source" --json || true)"
+        identity="$($bundle/pink --version-json || true)"
         [[ "$identity" == *"\"binary_commit\":\"$commit\""* ]] || fail "identidade do binário diverge do bundle"
 
         release_root="/opt/pinker/releases/pink/$commit"
@@ -128,7 +128,7 @@ EOF
   "ownership_policy": {"group": "root", "owner": "root", "writable_by_non_admin": false},
   "schema": "forja-software-manifest-v1",
   "source_or_provenance": {"kind": "repository-release-build", "source": "$source", "commit": "$commit", "bundle_schema": "$schema"},
-  "verification": {"command": ["/opt/pinker/bin/pink", "doctor", "--repo", "$source", "--json"], "expected_contains": "\\\"binary_commit\\\":\\\"$commit\\\""},
+  "verification": {"command": ["/opt/pinker/bin/pink", "--version-json"], "expected_contains": "\\\"binary_commit\\\":\\\"$commit\\\""},
   "version": "$version",
   "wrappers": []
 }
@@ -138,7 +138,7 @@ EOF
         next_link="/opt/pinker/bin/.pink-next-$$"
         ln -s "$release_binary" "$next_link"
         mv -Tf "$next_link" /opt/pinker/bin/pink
-        verification="$(/opt/pinker/bin/pink doctor --repo "$source" --json || true)"
+        verification="$(/opt/pinker/bin/pink --version-json || true)"
         [[ "$verification" == *"\"binary_commit\":\"$commit\""* ]] || fail "verificação pós-publicação falhou"
         printf 'status=PUBLISHED\nbinary=/opt/pinker/bin/pink\nrelease=%s\nmanifest=%s\ncommit=%s\n' "$release_root" "$manifest" "$commit"
         ;;
