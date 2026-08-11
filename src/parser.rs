@@ -3025,21 +3025,18 @@ impl Parser {
             ExprKind::SizeOfType { .. } | ExprKind::AlignOfType { .. } => {
                 Some(Type::Bombom(expr.span))
             }
-            ExprKind::Binary(_, op, _)
-                if matches!(
-                    op,
-                    BinaryOp::LogicalAnd
-                        | BinaryOp::LogicalOr
-                        | BinaryOp::Eq
-                        | BinaryOp::Neq
-                        | BinaryOp::Lt
-                        | BinaryOp::Lte
-                        | BinaryOp::Gt
-                        | BinaryOp::Gte
-                ) =>
-            {
-                Some(Type::Logica(expr.span))
-            }
+            ExprKind::Binary(
+                _,
+                BinaryOp::LogicalAnd
+                | BinaryOp::LogicalOr
+                | BinaryOp::Eq
+                | BinaryOp::Neq
+                | BinaryOp::Lt
+                | BinaryOp::Lte
+                | BinaryOp::Gt
+                | BinaryOp::Gte,
+                _,
+            ) => Some(Type::Logica(expr.span)),
             ExprKind::Binary(lhs, _, _) => self
                 .infer_local_expr_type(lhs)
                 .map(|ty| ty.with_span(expr.span)),
