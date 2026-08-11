@@ -138,6 +138,12 @@ fn retain_membership_base(catalog: &mut CodeCatalog) {
                 | "project-state.coleta"
                 | "project-state.modelo"
                 | "project-state.renderizacao"
+                | "evidencia.tooling.f1.contracts"
+                | "tooling.f1.bundle-identity"
+                | "tooling.f1.doctor"
+                | "tooling.f1.freeze-import"
+                | "tooling.f1.impact"
+                | "tooling.f1.unified-preflight"
                 | "trama.codigo.verificacao-reutilizavel"
                 | "trama.documentos.verificacao-reutilizavel"
                 | "trama.snapshots.biblioteca"
@@ -591,12 +597,13 @@ fn catalogo_real_cartografa_o_guardiao_pinker_da_onda_9() {
     // composição do estágio D acrescenta três: receita, sua serialização e a
     // biblioteca que resolve o grafo. O estado consolidado da Issue #387 soma
     // seis regiões observacionais exatas. O índice de símbolos soma seis e a
-    // cobertura de diff soma cinco. Este é o único total vivo desta suíte;
+    // cobertura de diff soma cinco. A F1 acrescenta cinco regiões da composição
+    // operacional e uma região de evidência. Este é o único total vivo desta suíte;
     // todos os demais são reconstruções históricas e continuam com os literais
     // congelados, porque `project_pre_automation_core` e
     // `project_pre_projection_snapshot_contract` removem as regiões novas antes
     // de qualquer reconstrução.
-    assert_eq!(index.regions.len(), 545);
+    assert_eq!(index.regions.len(), 551);
 
     // Exatamente uma região Pinker, a do Guardião, com metadados congelados.
     let guardiao: Vec<_> = index
