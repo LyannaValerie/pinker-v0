@@ -976,7 +976,7 @@ pub extern "C" fn pinker_bombom_para_verso(valor: u64) -> *mut u8 {
 // @pinker-nav:start runtime.texto.formatacao
 // @pinker-nav:domain texto
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Núcleo de formatar_verso (placeholders `{}` na ordem, com erro_fatal em contagem ou placeholder malformado) e as variantes pinker_formatar_verso_0..8 geradas pela macro formatar_wrappers!, cada uma com aridade fixa (0 a 8 argumentos) — não há variante para aridade maior.
+// @pinker-nav:summary Autoridade geral `pinker_formatar_verso_pack(modelo,count,entries)`: valida count/size/ponteiros e formata um slice homogêneo de handles `verso`; wrappers 0..8 permanecem somente como adapters ABI legados que encaminham ao pack.
 /// Núcleo do `formatar_verso`: placeholders `{}` na ordem, com validação de
 /// contagem e de placeholders malformados — espelha o interpretador. Todos os
 /// argumentos já chegam como versos (a IR converte `bombom` antes).
@@ -1024,6 +1024,45 @@ unsafe fn formatar_verso_nucleo(modelo: *const u8, args: &[*const u8]) -> *mut u
     verso_alocar(&saida)
 }
 
+fn formatar_verso_pack_len(count: u64) -> Option<usize> {
+    let count = usize::try_from(count).ok()?;
+    let bytes = count.checked_mul(std::mem::size_of::<*const u8>())?;
+    (bytes <= isize::MAX as usize).then_some(count)
+}
+
+/// Formata um pack homogêneo de handles `verso`.
+///
+/// A análise semântica aceita somente `bombom | verso` e a IR converte
+/// `bombom` para `verso` antes deste ABI. Assim cada entry possui a mesma
+/// representação tipada, sem apagar words de famílias arbitrárias.
+///
+/// # Safety
+/// `modelo` deve apontar para um bloco de verso válido. Quando `count > 0`,
+/// `args` deve apontar para `count` handles de verso válidos durante a chamada.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_formatar_verso_pack(
+    modelo: *const u8,
+    count: u64,
+    args: *const *const u8,
+) -> *mut u8 {
+    let len = formatar_verso_pack_len(count).unwrap_or_else(|| {
+        erro_fatal("E-RUNTIME-FORMAT-PACK: count excede a representação da plataforma")
+    });
+    let args = if len == 0 {
+        &[]
+    } else {
+        if args.is_null() {
+            erro_fatal("E-RUNTIME-FORMAT-PACK: ponteiro de entries nulo");
+        }
+        let entries = std::slice::from_raw_parts(args, len);
+        if entries.iter().any(|entry| entry.is_null()) {
+            erro_fatal("E-RUNTIME-FORMAT-PACK: handle de verso nulo");
+        }
+        entries
+    };
+    formatar_verso_nucleo(modelo, args)
+}
+
 macro_rules! formatar_wrappers {
     ($(($nome:ident, $($arg:ident),*)),* $(,)?) => {
         $(
@@ -1031,7 +1070,8 @@ macro_rules! formatar_wrappers {
             /// Todos os ponteiros devem apontar para blocos de verso válidos.
             #[no_mangle]
             pub unsafe extern "C" fn $nome(modelo: *const u8, $($arg: *const u8),*) -> *mut u8 {
-                formatar_verso_nucleo(modelo, &[$($arg),*])
+                let args = [$($arg),*];
+                pinker_formatar_verso_pack(modelo, args.len() as u64, args.as_ptr())
             }
         )*
     };
@@ -1041,7 +1081,7 @@ macro_rules! formatar_wrappers {
 /// `modelo` deve apontar para um bloco de verso válido.
 #[no_mangle]
 pub unsafe extern "C" fn pinker_formatar_verso_0(modelo: *const u8) -> *mut u8 {
-    formatar_verso_nucleo(modelo, &[])
+    pinker_formatar_verso_pack(modelo, 0, std::ptr::null())
 }
 
 formatar_wrappers!(
@@ -3008,6 +3048,53 @@ pub unsafe extern "C" fn pinker_processo_pipeline(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn d7_pack_valida_count_size_e_limite_isize() {
+        assert_eq!(formatar_verso_pack_len(0), Some(0));
+        assert_eq!(formatar_verso_pack_len(13), Some(13));
+        let first_invalid = (isize::MAX as u64 / std::mem::size_of::<*const u8>() as u64) + 1;
+        assert_eq!(formatar_verso_pack_len(first_invalid), None);
+        assert_eq!(formatar_verso_pack_len(u64::MAX), None);
+    }
+
+    #[test]
+    fn d7_pack_vazio_e_wrappers_legados_usam_a_mesma_autoridade() {
+        let modelo_vazio = verso_alocar("sem substituições");
+        let resultado_vazio =
+            unsafe { pinker_formatar_verso_pack(modelo_vazio.cast_const(), 0, std::ptr::null()) };
+        assert_eq!(
+            unsafe { verso_str(resultado_vazio.cast_const()) },
+            "sem substituições"
+        );
+
+        let modelo = verso_alocar("{}={}");
+        let chave = verso_alocar("idade");
+        let valor = verso_alocar("7");
+        let direto = unsafe {
+            let args = [chave.cast_const(), valor.cast_const()];
+            pinker_formatar_verso_pack(modelo.cast_const(), 2, args.as_ptr())
+        };
+        let legado = unsafe {
+            pinker_formatar_verso_2(modelo.cast_const(), chave.cast_const(), valor.cast_const())
+        };
+        assert_eq!(unsafe { verso_str(direto.cast_const()) }, "idade=7");
+        assert_eq!(unsafe { verso_str(legado.cast_const()) }, "idade=7");
+
+        unsafe {
+            for ptr in [
+                modelo_vazio,
+                resultado_vazio,
+                modelo,
+                chave,
+                valor,
+                direto,
+                legado,
+            ] {
+                pinker_liberar(ptr);
+            }
+        }
+    }
 
     #[test]
     fn d3_layout_callable_e_checked_e_inclui_ambiente_trailing() {
