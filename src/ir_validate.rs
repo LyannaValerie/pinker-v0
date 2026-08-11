@@ -10,7 +10,7 @@
 
 use crate::error::PinkerError;
 use crate::ir::{
-    BinaryOpIR, BlockIR, FunctionIR, InstructionIR, ProgramIR, TypeIR, UnaryOpIR, ValueIR,
+    BinaryOpIR, BlockIR, FunctionIR, InstructionIR, MapKeyIR, ProgramIR, TypeIR, UnaryOpIR, ValueIR,
 };
 use crate::token::{Position, Span};
 use std::collections::{HashMap, HashSet};
@@ -2270,6 +2270,140 @@ fn infer_value_type(
             if callee == "afirmar" && !(args.len() == 1 || args.len() == 2) {
                 return Err(ir_validation_error("aridade de chamada inválida", span));
             }
+            if crate::ir::is_generic_map_intrinsic(callee) {
+                let actual = args
+                    .iter()
+                    .map(|arg| infer_value_type(arg, slots, consts, funcs, span))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let ensure = |condition: bool, message: &str| {
+                    condition
+                        .then_some(())
+                        .ok_or_else(|| ir_validation_error(message, span))
+                };
+                match callee.as_str() {
+                    "__pinker_internal_mapa_criar_chave_bombom" => {
+                        ensure(
+                            args.is_empty(),
+                            "mapa_criar genérico possui aridade inválida",
+                        )?;
+                        ensure(
+                            matches!(
+                                ret_type,
+                                TypeIR::Map {
+                                    key: MapKeyIR::Bombom,
+                                    ..
+                                }
+                            ),
+                            "mapa_criar bombom possui retorno incompatível",
+                        )?;
+                    }
+                    "__pinker_internal_mapa_criar_chave_verso" => {
+                        ensure(
+                            args.is_empty(),
+                            "mapa_criar genérico possui aridade inválida",
+                        )?;
+                        ensure(
+                            matches!(
+                                ret_type,
+                                TypeIR::Map {
+                                    key: MapKeyIR::Verso,
+                                    ..
+                                }
+                            ),
+                            "mapa_criar verso possui retorno incompatível",
+                        )?;
+                    }
+                    "__pinker_internal_mapa_definir"
+                    | "__pinker_internal_mapa_obter"
+                    | "__pinker_internal_mapa_tem"
+                    | "__pinker_internal_mapa_remover" => {
+                        let expected_arity = if callee.ends_with("_definir") { 3 } else { 2 };
+                        ensure(
+                            actual.len() == expected_arity,
+                            "operação genérica de mapa possui aridade inválida",
+                        )?;
+                        let TypeIR::Map { key, value } = actual[0] else {
+                            return Err(ir_validation_error(
+                                "operação genérica exige mapa no primeiro argumento",
+                                span,
+                            ));
+                        };
+                        let expected_key = match key {
+                            MapKeyIR::Bombom => TypeIR::Bombom,
+                            MapKeyIR::Verso => TypeIR::Verso,
+                        };
+                        ensure(
+                            actual[1].is_compatible_with(expected_key),
+                            "tipo de chave genérica de mapa inválido",
+                        )?;
+                        if callee.ends_with("_definir") {
+                            ensure(
+                                actual[2].is_compatible_with(value.type_ir()),
+                                "tipo de valor genérico de mapa inválido",
+                            )?;
+                        }
+                        let expected_ret = if callee.ends_with("_obter") {
+                            value.type_ir()
+                        } else if callee.ends_with("_tem") {
+                            TypeIR::Logica
+                        } else {
+                            TypeIR::Nulo
+                        };
+                        ensure(
+                            ret_type.is_compatible_with(expected_ret),
+                            "retorno de operação genérica de mapa inválido",
+                        )?;
+                    }
+                    "__pinker_internal_mapa_tamanho" => {
+                        ensure(
+                            actual.len() == 1 && matches!(actual[0], TypeIR::Map { .. }),
+                            "mapa_tamanho genérico possui argumento inválido",
+                        )?;
+                        ensure(
+                            *ret_type == TypeIR::Bombom,
+                            "mapa_tamanho possui retorno inválido",
+                        )?;
+                    }
+                    "__pinker_internal_mapa_iterador_criar" => {
+                        ensure(
+                            actual.len() == 1 && matches!(actual[0], TypeIR::Map { .. }),
+                            "iterador genérico possui argumento inválido",
+                        )?;
+                        ensure(
+                            *ret_type == TypeIR::Bombom,
+                            "iterador genérico possui retorno inválido",
+                        )?;
+                    }
+                    "__pinker_internal_mapa_iterador_proxima_chave_bombom" => {
+                        ensure(
+                            actual == [TypeIR::Bombom],
+                            "cursor genérico possui argumento inválido",
+                        )?;
+                        ensure(
+                            *ret_type == TypeIR::Bombom,
+                            "cursor bombom possui retorno inválido",
+                        )?;
+                    }
+                    "__pinker_internal_mapa_iterador_proxima_chave_verso" => {
+                        ensure(
+                            actual == [TypeIR::Bombom],
+                            "cursor genérico possui argumento inválido",
+                        )?;
+                        ensure(
+                            *ret_type == TypeIR::Verso,
+                            "cursor verso possui retorno inválido",
+                        )?;
+                    }
+                    _ => {
+                        return Err(ir_validation_error(
+                            "intrínseca interna de mapa desconhecida",
+                            span,
+                        ))
+                    }
+                }
+                return Ok(*ret_type);
+            }
+
             let sig = funcs
                 .get(callee)
                 .ok_or_else(|| ir_validation_error("chamada para função inexistente", span))?;

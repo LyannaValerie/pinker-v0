@@ -305,6 +305,7 @@ fn classify_representation(
         | Type::MapVersoVerso(_)
         | Type::MapBombomBombom(_)
         | Type::MapBombomVerso(_)
+        | Type::Map { .. }
         | Type::Pointer { .. }
         | Type::Function { .. }
         | Type::Union { .. } => Ok(UnionPayloadRepresentation::OpaqueHandle),

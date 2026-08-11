@@ -406,6 +406,87 @@ pub enum ValueIR {
 /// Tipos do sistema de tipos da v0. `Nulo` representa ausência de retorno (funções sem `-> tipo`);
 /// não é exposto como tipo de usuário — apenas interno ao pipeline.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MapKeyIR {
+    Bombom,
+    Verso,
+}
+
+impl MapKeyIR {
+    pub(crate) fn type_ir(self) -> TypeIR {
+        match self {
+            Self::Bombom => TypeIR::Bombom,
+            Self::Verso => TypeIR::Verso,
+        }
+    }
+}
+
+pub(crate) fn is_generic_map_intrinsic(name: &str) -> bool {
+    matches!(
+        name,
+        "__pinker_internal_mapa_criar_chave_bombom"
+            | "__pinker_internal_mapa_criar_chave_verso"
+            | "__pinker_internal_mapa_definir"
+            | "__pinker_internal_mapa_obter"
+            | "__pinker_internal_mapa_tem"
+            | "__pinker_internal_mapa_tamanho"
+            | "__pinker_internal_mapa_remover"
+            | "__pinker_internal_mapa_iterador_criar"
+            | "__pinker_internal_mapa_iterador_proxima_chave_bombom"
+            | "__pinker_internal_mapa_iterador_proxima_chave_verso"
+    )
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MapValueIR {
+    Bombom,
+    U8,
+    U16,
+    U32,
+    U64,
+    I8,
+    I16,
+    I32,
+    I64,
+    Logica,
+    Verso,
+}
+
+impl MapValueIR {
+    pub(crate) fn type_ir(self) -> TypeIR {
+        match self {
+            Self::Bombom => TypeIR::Bombom,
+            Self::U8 => TypeIR::U8,
+            Self::U16 => TypeIR::U16,
+            Self::U32 => TypeIR::U32,
+            Self::U64 => TypeIR::U64,
+            Self::I8 => TypeIR::I8,
+            Self::I16 => TypeIR::I16,
+            Self::I32 => TypeIR::I32,
+            Self::I64 => TypeIR::I64,
+            Self::Logica => TypeIR::Logica,
+            Self::Verso => TypeIR::Verso,
+        }
+    }
+
+    fn from_type_ir(ty: TypeIR) -> Option<Self> {
+        Some(match ty {
+            TypeIR::Bombom => Self::Bombom,
+            TypeIR::U8 => Self::U8,
+            TypeIR::U16 => Self::U16,
+            TypeIR::U32 => Self::U32,
+            TypeIR::U64 => Self::U64,
+            TypeIR::I8 => Self::I8,
+            TypeIR::I16 => Self::I16,
+            TypeIR::I32 => Self::I32,
+            TypeIR::I64 => Self::I64,
+            TypeIR::Logica => Self::Logica,
+            TypeIR::Verso => Self::Verso,
+            _ => return None,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TypeIR {
     Bombom,
     U8,
@@ -424,6 +505,7 @@ pub enum TypeIR {
     MapVersoVerso,
     MapBombomBombom,
     MapBombomVerso,
+    Map { key: MapKeyIR, value: MapValueIR },
     FixedArray { element: ScalarTypeIR, size: u64 },
     Struct,
     Pointer { is_volatile: bool },
@@ -1034,6 +1116,7 @@ fn expected_key_for_representation(ty: TypeIR) -> Option<&'static str> {
         TypeIR::MapBombomVerso => "mapa<bombom,verso>",
         TypeIR::Nulo => "nulo",
         TypeIR::Struct
+        | TypeIR::Map { .. }
         | TypeIR::Pointer { .. }
         | TypeIR::FunctionPointer
         | TypeIR::Function
@@ -3123,6 +3206,7 @@ impl LoweringContext {
                 )
             }
             TypeIR::Struct
+            | TypeIR::Map { .. }
             | TypeIR::Pointer { .. }
             | TypeIR::FunctionPointer
             | TypeIR::Function
@@ -4001,6 +4085,7 @@ impl<'a> FunctionLowerer<'a> {
             | TypeIR::MapVersoVerso
             | TypeIR::MapBombomBombom
             | TypeIR::MapBombomVerso
+            | TypeIR::Map { .. }
             | TypeIR::Pointer { .. }
             | TypeIR::Function
             | TypeIR::Union(_)
@@ -5022,6 +5107,14 @@ impl<'a> FunctionLowerer<'a> {
                     TypeIR::MapVersoVerso => "mapa_verso_verso_criar",
                     TypeIR::MapBombomBombom => "mapa_bombom_bombom_criar",
                     TypeIR::MapBombomVerso => "mapa_bombom_verso_criar",
+                    TypeIR::Map {
+                        key: MapKeyIR::Bombom,
+                        ..
+                    } => "__pinker_internal_mapa_criar_chave_bombom",
+                    TypeIR::Map {
+                        key: MapKeyIR::Verso,
+                        ..
+                    } => "__pinker_internal_mapa_criar_chave_verso",
                     _ => {
                         return Err(PinkerError::Ir {
                             msg: format!(
@@ -5929,6 +6022,53 @@ impl<'a> FunctionLowerer<'a> {
                             ptr_array_bombom_size: None,
                         });
                     }
+                    if let TypeIR::Map { value, .. } = first_arg.ty {
+                        let ret_type = match name.as_str() {
+                            "mapa_obter" => value.type_ir(),
+                            "mapa_tem" => TypeIR::Logica,
+                            "mapa_tamanho" => TypeIR::Bombom,
+                            "mapa_definir" | "mapa_remover" => TypeIR::Nulo,
+                            _ => unreachable!(),
+                        };
+                        let ir_args = typed_args.into_iter().map(|typed| typed.value).collect();
+                        return Ok(TypedValueIR {
+                            value: ValueIR::Call {
+                                callee: format!("__pinker_internal_{name}"),
+                                args: ir_args,
+                                ret_type,
+                            },
+                            ty: ret_type,
+                            resolved: None,
+                            ptr_array_bombom_size: None,
+                        });
+                    }
+                }
+
+                if matches!(
+                    name.as_str(),
+                    "__pinker_internal_mapa_iterador_criar"
+                        | "__pinker_internal_mapa_iterador_proxima_chave_bombom"
+                        | "__pinker_internal_mapa_iterador_proxima_chave_verso"
+                ) {
+                    let typed_args = args
+                        .iter()
+                        .map(|arg| self.lower_value(arg))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    let ret_type = if name.ends_with("_verso") {
+                        TypeIR::Verso
+                    } else {
+                        TypeIR::Bombom
+                    };
+                    return Ok(TypedValueIR {
+                        value: ValueIR::Call {
+                            callee: name.clone(),
+                            args: typed_args.into_iter().map(|typed| typed.value).collect(),
+                            ret_type,
+                        },
+                        ty: ret_type,
+                        resolved: None,
+                        ptr_array_bombom_size: None,
+                    });
                 }
 
                 // `formatar_verso` (Fase 219/B8): argumentos `bombom` são
@@ -6975,6 +7115,28 @@ impl TypeIR {
             Type::MapVersoVerso(_) => Ok(TypeIR::MapVersoVerso),
             Type::MapBombomBombom(_) => Ok(TypeIR::MapBombomBombom),
             Type::MapBombomVerso(_) => Ok(TypeIR::MapBombomVerso),
+            Type::Map {
+                key, value, span, ..
+            } => {
+                let key = match Self::from_ast_inner(key, aliases, struct_names, resolving)? {
+                    TypeIR::Bombom => MapKeyIR::Bombom,
+                    TypeIR::Verso => MapKeyIR::Verso,
+                    _ => {
+                        return Err(PinkerError::Ir {
+                            msg: "tipo de chave de mapa genérico escapou da validação semântica"
+                                .to_string(),
+                            span: *span,
+                        })
+                    }
+                };
+                let value_ty = Self::from_ast_inner(value, aliases, struct_names, resolving)?;
+                let value = MapValueIR::from_type_ir(value_ty).ok_or_else(|| PinkerError::Ir {
+                    msg: "representação de valor de mapa genérico escapou da validação semântica"
+                        .to_string(),
+                    span: *span,
+                })?;
+                Ok(TypeIR::Map { key, value })
+            }
             // Tipos leque são nominais apenas na semântica; na IR o valor é o
             // discriminante inteiro.
             Type::Enum { .. } => Ok(TypeIR::Bombom),
@@ -7100,6 +7262,7 @@ impl TypeIR {
             TypeIR::MapVersoVerso => "mapa<verso,verso>",
             TypeIR::MapBombomBombom => "mapa<bombom,bombom>",
             TypeIR::MapBombomVerso => "mapa<bombom,verso>",
+            TypeIR::Map { .. } => "mapa",
             TypeIR::FixedArray { .. } => "array",
             TypeIR::Struct => "struct",
             TypeIR::Pointer { .. } => "seta",
@@ -7132,6 +7295,14 @@ impl TypeIR {
             TypeIR::MapVersoVerso => "mapa<verso,verso>".to_string(),
             TypeIR::MapBombomBombom => "mapa<bombom,bombom>".to_string(),
             TypeIR::MapBombomVerso => "mapa<bombom,verso>".to_string(),
+            TypeIR::Map { key, value } => format!(
+                "mapa<{},{}>",
+                match key {
+                    MapKeyIR::Bombom => "bombom",
+                    MapKeyIR::Verso => "verso",
+                },
+                value.type_ir().name()
+            ),
             _ => self.name().to_string(),
         }
     }
@@ -7157,6 +7328,7 @@ impl ScalarTypeIR {
             | TypeIR::MapVersoVerso
             | TypeIR::MapBombomBombom
             | TypeIR::MapBombomVerso
+            | TypeIR::Map { .. }
             | TypeIR::FixedArray { .. }
             | TypeIR::Union(_)
             | TypeIR::Struct

@@ -105,6 +105,7 @@ fn render_value(value: &RuntimeValue) -> String {
         RuntimeValue::MapVersoVerso(handle) => format!("<mapa:verso,verso:{handle}>"),
         RuntimeValue::MapBombomBombom(handle) => format!("<mapa:bombom,bombom:{handle}>"),
         RuntimeValue::MapBombomVerso(handle) => format!("<mapa:bombom,verso:{handle}>"),
+        RuntimeValue::Map(handle) => format!("<mapa:generico:{handle}>"),
         RuntimeValue::Callable(handle) => format!("<carinho:{handle}>"),
     }
 }

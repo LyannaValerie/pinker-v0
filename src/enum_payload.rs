@@ -359,6 +359,7 @@ pub fn classify_enum_payload(
         | Type::MapVersoVerso(_)
         | Type::MapBombomBombom(_)
         | Type::MapBombomVerso(_)
+        | Type::Map { .. }
         | Type::FixedArray { .. }
         | Type::Pointer { .. }
         | Type::Function { .. }

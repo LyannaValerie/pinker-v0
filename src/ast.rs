@@ -376,6 +376,13 @@ pub enum Type {
     MapVersoVerso(Span),
     MapBombomBombom(Span),
     MapBombomVerso(Span),
+    /// Autoridade genérica adulta de mapa. As variantes nominais acima ficam
+    /// apenas para compatibilidade com entrypoints históricos.
+    Map {
+        key: Box<Type>,
+        value: Box<Type>,
+        span: Span,
+    },
     FixedArray {
         element: Box<Type>,
         size: u64,
@@ -477,6 +484,14 @@ impl PartialEq for Type {
             ) => n1 == n2 && a1 == a2,
             (Type::ListEnum { element: e1, .. }, Type::ListEnum { element: e2, .. }) => e1 == e2,
             (
+                Type::Map {
+                    key: k1, value: v1, ..
+                },
+                Type::Map {
+                    key: k2, value: v2, ..
+                },
+            ) => k1 == k2 && v1 == v2,
+            (
                 Type::Function {
                     params: p1,
                     ret: r1,
@@ -525,6 +540,7 @@ impl Type {
             | Type::FixedArray { span, .. }
             | Type::Pointer { span, .. }
             | Type::Function { span, .. } => *span,
+            Type::Map { span, .. } => *span,
         }
     }
 
@@ -547,6 +563,7 @@ impl Type {
             Type::MapVersoVerso(_) => "mapa<verso,verso>",
             Type::MapBombomBombom(_) => "mapa<bombom,bombom>",
             Type::MapBombomVerso(_) => "mapa<bombom,verso>",
+            Type::Map { .. } => "mapa",
             Type::FixedArray { .. } => "array",
             Type::Pointer { .. } => "seta",
             Type::Function { .. } => "carinho",
@@ -568,6 +585,9 @@ impl Type {
     /// existe justamente para distinguir identidades, use este nome.
     pub fn display_name(&self) -> String {
         match self {
+            Type::Map { key, value, .. } => {
+                format!("mapa<{},{}>", key.display_name(), value.display_name())
+            }
             Type::ListEnum { element, .. } => format!("lista<{element}>"),
             Type::Enum { name, .. } | Type::Struct { name, .. } | Type::Alias { name, .. } => {
                 name.clone()
@@ -595,6 +615,11 @@ impl Type {
             Type::MapVersoVerso(_) => Type::MapVersoVerso(span),
             Type::MapBombomBombom(_) => Type::MapBombomBombom(span),
             Type::MapBombomVerso(_) => Type::MapBombomVerso(span),
+            Type::Map { key, value, .. } => Type::Map {
+                key: key.clone(),
+                value: value.clone(),
+                span,
+            },
             Type::FixedArray { element, size, .. } => Type::FixedArray {
                 element: element.clone(),
                 size: *size,
