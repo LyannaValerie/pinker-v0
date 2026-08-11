@@ -2,7 +2,7 @@ schema = 2
 id = "normalizacao-corrente-para-historico"
 
 [reconstruction]
-expected_overrides = 47
+expected_overrides = 49
 expected_exclusions = 55
 
 [[rules]]
@@ -282,6 +282,15 @@ expected_matches = 1
 
 [[rules]]
 op = "override-hash"
+key = "ast.programa.estrutura"
+from = "fnv1a64:dadb0ffd36419836"
+to = "fnv1a64:cfb11086f045d187"
+expect_file = "src/ast.rs"
+expect_domain = "programa"
+expect_layer = "ast"
+
+[[rules]]
+op = "override-hash"
 key = "cli.doc.consulta"
 from = "fnv1a64:c4012d311cb61d35"
 to = "fnv1a64:b538942c8ee175c8"
@@ -315,6 +324,15 @@ to = "fnv1a64:6a55d0547cdd5ba2"
 expect_file = "runtime/pinker_rt/src/lib.rs"
 expect_domain = "memoria"
 expect_layer = "evidencia"
+
+[[rules]]
+op = "override-hash"
+key = "parser.programa.estrutura"
+from = "fnv1a64:4017ded67c997a82"
+to = "fnv1a64:c8ac56b28a5a6113"
+expect_file = "src/parser.rs"
+expect_domain = "programa"
+expect_layer = "parser"
 
 [[rules]]
 op = "override-region"
@@ -643,7 +661,7 @@ expect_layer = "parser"
 [[rules]]
 op = "override-region"
 key = "parser.funcoes.declaracao"
-from_hash = "fnv1a64:8ada16e27f66636a"
+from_hash = "fnv1a64:3b5d7ae9df38d88f"
 to_hash = "fnv1a64:ed8f8585939365d0"
 from_summary = "Declaração de função: reconhece `carinho nome<params-de-tipo>(params) -> tipo { corpo }`, incluindo os parâmetros de tipo genéricos opcionais, e produz o nó `ast::FunctionDecl`."
 to_summary = "Declaração de função: reconhece `carinho nome<params-de-tipo>(params) -> tipo { corpo }`, incluindo os parâmetros de tipo genéricos opcionais, e produz o nó `ast::FunctionDecl`."
