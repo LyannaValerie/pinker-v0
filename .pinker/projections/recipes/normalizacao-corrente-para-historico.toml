@@ -77,17 +77,17 @@ expected_matches = 1
 
 [[rules]]
 op = "exclude-key"
-key = "evidencia.tooling.f1.contracts"
-expected_matches = 1
-
-[[rules]]
-op = "exclude-key"
 key = "evidencia.project-state.contrato"
 expected_matches = 1
 
 [[rules]]
 op = "exclude-key"
 key = "evidencia.symbol-index.cli"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.tooling.f1.contracts"
 expected_matches = 1
 
 [[rules]]
