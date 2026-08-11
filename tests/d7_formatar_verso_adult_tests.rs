@@ -19,7 +19,7 @@ use std::time::Duration;
 // @pinker-nav:start evidencia.formatar-verso.d7-pack
 // @pinker-nav:domain texto
 // @pinker-nav:layer evidencia
-// @pinker-nav:summary Prova adulta D7 de pack geral para formatar_verso: aridades 9/13 pelo mesmo ABI, tipos normalizados, placeholders/Unicode/lifetime, sensitivity contra helpers numéricos e paridade interpretador-nativo sob envelope.
+// @pinker-nav:summary Prova adulta D7 de pack geral para formatar_verso: aridades 9/13 pelo mesmo ABI, tipos normalizados, placeholders/Unicode/lifetime, sensitivity estrutural contra dispatch/helper por quantidade e paridade interpretador-nativo sob envelope.
 const POSITIVE_SOURCE: &str = r#"
 pacote main;
 
@@ -143,6 +143,9 @@ fn aridades_9_e_13_atravessam_o_mesmo_pack_geral() {
     assert!(asm.contains("movq $13, %rsi"), "{asm}");
     assert!(asm.contains("addq $80, %rsp"), "{asm}");
     assert!(asm.contains("addq $112, %rsp"), "{asm}");
+    let contracts = pack_call_contracts(&asm);
+    assert!(contracts.contains(&(9, Some(80))), "{contracts:?}\n{asm}");
+    assert!(contracts.contains(&(13, Some(112))), "{contracts:?}\n{asm}");
     for arity in 0..=32 {
         assert!(
             !asm.contains(&format!("call pinker_formatar_verso_{arity}")),
@@ -229,23 +232,175 @@ fn wrappers_numericos(source: &str) -> Vec<u32> {
         .collect()
 }
 
+fn pack_call_contracts(asm: &str) -> Vec<(u64, Option<u64>)> {
+    let lines: Vec<_> = asm.lines().map(str::trim).collect();
+    lines
+        .iter()
+        .enumerate()
+        .filter(|(_, line)| **line == "call pinker_formatar_verso_pack")
+        .map(|(index, _)| {
+            let count = lines[index.saturating_sub(4)..index]
+                .iter()
+                .rev()
+                .find_map(|line| {
+                    line.strip_prefix("movq $")
+                        .and_then(|rest| rest.strip_suffix(", %rsi"))
+                        .and_then(|value| value.parse().ok())
+                })
+                .expect("count deve alimentar %rsi imediatamente antes do pack");
+            let cleanup = lines.get(index + 1).and_then(|line| {
+                line.strip_prefix("addq $")
+                    .and_then(|rest| rest.strip_suffix(", %rsp"))
+                    .and_then(|value| value.parse().ok())
+            });
+            (count, cleanup)
+        })
+        .collect()
+}
+
+fn compact(source: &str) -> String {
+    source.chars().filter(|ch| !ch.is_whitespace()).collect()
+}
+
+fn formatar_lowering_block(source: &str) -> &str {
+    source
+        .split_once("if callee == \"formatar_verso\" {")
+        .expect("fronteira D7 no backend")
+        .1
+        .split_once("// Intrínsecas de aridade variável usam wrappers por")
+        .expect("fim da fronteira D7 no backend")
+        .0
+}
+
+fn runtime_pack_block(source: &str) -> &str {
+    source
+        .split_once("pub unsafe extern \"C\" fn pinker_formatar_verso_pack(")
+        .expect("autoridade pack no runtime")
+        .1
+        .split_once("macro_rules! formatar_wrappers")
+        .expect("fim da autoridade pack no runtime")
+        .0
+}
+
+fn backend_tem_dispatch_manual_por_aridade(block: &str) -> bool {
+    let source = compact(block);
+    let forbidden = [
+        "matchsubstitutions",
+        "matchargs.len()",
+        "ifsubstitutions==",
+        "ifsubstitutions!=",
+        "ifsubstitutions<",
+        "ifsubstitutions>",
+        "ifargs.len()==",
+        "ifargs.len()!=",
+        "ifargs.len()<=",
+        "ifargs.len()>=",
+        "ifargs.len()>",
+    ];
+    forbidden.iter().any(|needle| source.contains(needle))
+        || source.matches("ifargs.len()<").count() != 1
+        || !source.contains("ifargs.len()<2{")
+}
+
+fn runtime_tem_dispatch_manual_por_count(block: &str) -> bool {
+    let source = compact(block);
+    let forbidden = [
+        "matchcount",
+        "matchlen",
+        "ifcount",
+        "iflen!=",
+        "iflen<=",
+        "iflen>=",
+        "iflen<",
+        "iflen>",
+    ];
+    forbidden.iter().any(|needle| source.contains(needle))
+        || source.matches("iflen==").count() != 1
+        || !source.contains("iflen==0{")
+}
+
+fn call_targets(source: &str) -> Vec<&str> {
+    source
+        .match_indices("call ")
+        .map(|(offset, _)| {
+            let start = offset + "call ".len();
+            let end = source[start..]
+                .find(|ch: char| !(ch.is_ascii_alphanumeric() || ch == '_'))
+                .map_or(source.len(), |relative| start + relative);
+            &source[start..end]
+        })
+        .collect()
+}
+
+fn formatar_symbol_suffixes(source: &str) -> Vec<&str> {
+    let prefix = "pinker_formatar_verso_";
+    source
+        .match_indices(prefix)
+        .map(|(offset, _)| {
+            let start = offset + prefix.len();
+            let end = source[start..]
+                .find(|ch: char| !(ch.is_ascii_alphanumeric() || ch == '_'))
+                .map_or(source.len(), |relative| start + relative);
+            &source[start..end]
+        })
+        .collect()
+}
+
 #[test]
 fn sensitivity_recusa_helper_ou_dispatch_novo_por_aridade() {
     let backend = include_str!("../src/backend_s.rs");
     let runtime = include_str!("../runtime/pinker_rt/src/lib.rs");
-    assert!(backend.contains("call pinker_formatar_verso_pack"));
+    let lowering = formatar_lowering_block(backend);
+    let pack = runtime_pack_block(runtime);
+
+    assert_eq!(
+        call_targets(lowering),
+        ["pinker_formatar_verso_pack"],
+        "a fronteira D7 deve emitir um único alvo de call"
+    );
+    assert!(!backend_tem_dispatch_manual_por_aridade(lowering));
+    assert!(!runtime_tem_dispatch_manual_por_count(pack));
     assert!(runtime.contains("pub unsafe extern \"C\" fn pinker_formatar_verso_pack"));
     assert!(runtime.contains("*const *const u8"));
-    assert!(!backend.contains("(\"formatar_verso\", n)"));
-    assert!(!backend.contains("pinker_formatar_verso_{}"));
-    let wrappers = wrappers_numericos(runtime);
-    assert!(!wrappers.is_empty(), "adapters ABI legados desapareceram");
+
+    let arity_authority = backend
+        .split_once("fn runtime_intrinsic_symbol_por_aridade")
+        .expect("autoridade legada por aridade")
+        .1
+        .split_once("fn is_arity_runtime_intrinsic")
+        .expect("fim da autoridade legada por aridade")
+        .0;
+    assert!(!arity_authority.contains("formatar_verso"));
+
+    let mut wrappers = wrappers_numericos(runtime);
+    wrappers.sort_unstable();
+    wrappers.dedup();
+    assert_eq!(wrappers, (0..=8).collect::<Vec<_>>());
     assert!(
         wrappers.iter().all(|arity| *arity <= 8),
         "novo helper numérico detectado: {wrappers:?}"
     );
-    let mutation = "call pinker_formatar_verso_9; call pinker_formatar_verso_13";
-    assert_eq!(wrappers_numericos(mutation), vec![9, 13]);
+
+    let combined_sources = format!("{backend}\n{runtime}");
+    let suffixes = formatar_symbol_suffixes(&combined_sources);
+    assert!(suffixes.iter().all(|suffix| {
+        *suffix == "pack" || suffix.parse::<u32>().is_ok_and(|arity| arity <= 8)
+    }));
+
+    let mutation_match = format!(
+        "{lowering}\nmatch substitutions {{ 9 => helper_nove(), 13 => helper_treze(), _ => pack() }}"
+    );
+    let mutation_if = format!("{lowering}\nif substitutions == 9 {{ helper_nove() }}");
+    let mutation_len = format!("{pack}\nif len == 13 {{ helper_treze() }}");
+    let mutation_symbol = format!("{lowering}\ncall pinker_formatar_verso_nove");
+    assert!(backend_tem_dispatch_manual_por_aridade(&mutation_match));
+    assert!(backend_tem_dispatch_manual_por_aridade(&mutation_if));
+    assert!(runtime_tem_dispatch_manual_por_count(&mutation_len));
+    assert_ne!(
+        call_targets(&mutation_symbol),
+        ["pinker_formatar_verso_pack"]
+    );
+    assert!(formatar_symbol_suffixes(&mutation_symbol).contains(&"nove"));
 }
 
 #[test]
