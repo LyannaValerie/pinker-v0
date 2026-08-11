@@ -12,8 +12,9 @@
 
 use crate::ast::{
     transitive_free_identifiers_in_function, AssignTarget, BinaryOp, Block, BreakStmt, ConstDecl,
-    ContinueStmt, ElseBlock, Expr, ExprKind, FalarStmt, FunctionDecl, IfStmt, InlineAsmStmt, Item,
-    LetStmt, Program, ReturnStmt, Stmt, StructDecl, Type, UnaryOp, UnionMatchStmt, WhileStmt,
+    ContinueStmt, ElseBlock, EnumMatchStmt, EnumPattern, Expr, ExprKind, FalarStmt, FunctionDecl,
+    IfStmt, InlineAsmStmt, Item, LetStmt, Program, ReturnStmt, Stmt, StructDecl, Type, UnaryOp,
+    UnionMatchStmt, WhileStmt,
 };
 use crate::error::PinkerError;
 use crate::layout;
@@ -193,8 +194,57 @@ pub enum InstructionIR {
         clobbers: Vec<crate::inline_asm::AsmClobber>,
         span: Span,
     },
+    /// `encaixe` de leque preservando a árvore recursiva de patterns.
+    EnumMatch(EnumMatchIR),
     /// `encaixe` de união já associado ao registry canônico.
     UnionMatch(UnionMatchIR),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EnumMatchIR {
+    pub scrutinee: ValueIR,
+    pub scrutinee_binding: BindingIR,
+    pub arms: Vec<EnumMatchArmIR>,
+    pub otherwise: Option<BlockIR>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EnumMatchArmIR {
+    pub pattern: EnumPatternIR,
+    pub body: BlockIR,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EnumPatternIR {
+    Binding {
+        binding: BindingIR,
+        span: Span,
+    },
+    Variant {
+        enum_name: String,
+        expected_type_id: ResolvedTypeId,
+        variant_name: String,
+        discriminant: u64,
+        has_payload: bool,
+        payloads: Vec<EnumPatternPayloadIR>,
+        span: Span,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EnumPatternPayloadIR {
+    pub index: u64,
+    pub operational_type: TypeIR,
+    pub class: crate::enum_payload::EnumPayloadClass,
+    pub canonical_key: String,
+    pub resolved_type_id: ResolvedTypeId,
+    pub extract_intrinsic: String,
+    /// Slot interno de staging. A extração pode ocorrer após o pai casar, mas
+    /// o binding de fonte só é materializado quando a árvore inteira casar.
+    pub extracted_binding: BindingIR,
+    pub pattern: Box<EnumPatternIR>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -863,7 +913,7 @@ pub enum BinaryOpIR {
 // @pinker-nav:start ir.tipos.identidade-resolvida
 // @pinker-nav:domain modelo
 // @pinker-nav:layer ir
-// @pinker-nav:summary Identidade semântica resolvida de tipos: `ResolvedTypeId` interna a identidade completa (`ResolvedTypeIR` = chave canônica de `union_canon` + representação operacional + identidade nominal + componentes internos `pointee`/`element`/`signature`/`union_members`), `TypeRefIR` acopla representação e identidade em um único contrato transportável, `ResolvedTypeTable` interna por chave canônica em `BTreeMap` e recusa qualquer divergência de representação, identidade nominal ou estrutura interna sob a mesma chave, `into_types` entrega a tabela sem renumeração tardia, e `validate_resolved_type_table`/`validate_resolved_type_structure`/`validate_resolved_type_reference`/`validate_union_registry_identities` confirmam densidade, unicidade, ausência de chave envenenada, coerência de representação, coerência nominal e coerência entre membros de união e a tabela. `TypeIR` continua sendo apenas a categoria operacional; as duas noções nunca se substituem.
+// @pinker-nav:summary Identidade semântica resolvida de tipos: `ResolvedTypeId` interna a identidade completa (`ResolvedTypeIR` = chave canônica de `union_canon` + representação operacional + identidade nominal + componentes internos `pointee`/`element`/`signature`/`union_members`; `element` também transporta o tipo de valor de mapa genérico), `TypeRefIR` acopla representação e identidade em um único contrato transportável, `ResolvedTypeTable` interna por chave canônica em `BTreeMap` e recusa qualquer divergência de representação, identidade nominal ou estrutura interna sob a mesma chave, `into_types` entrega a tabela sem renumeração tardia, e os validadores confirmam densidade, unicidade, ausência de chave envenenada, coerência de representação, coerência nominal e componentes estruturais. `TypeIR` continua sendo apenas a categoria operacional; as duas noções nunca se substituem.
 /// Identidade semântica completa de um tipo, internada no programa.
 ///
 /// **Não** é a categoria operacional: `ninho Alfa` e `ninho Beta` compartilham
@@ -1390,6 +1440,24 @@ fn validate_resolved_type_structure(
                 ));
             };
             expect(format!("lista<leque>:{}:{name}", name.len()))
+        }
+        TypeIR::Map { key, .. } => {
+            if entry.pointee.is_some() || entry.signature.is_some() || entry.union_members.is_some()
+            {
+                return Err(format!(
+                    "identidade de mapa '{}' carrega componentes incompatíveis",
+                    entry.canonical_key
+                ));
+            }
+            let Some(value) = entry.element else {
+                return Err(format!(
+                    "identidade de mapa '{}' sem identidade do valor",
+                    entry.canonical_key
+                ));
+            };
+            let key = key.type_ir().name();
+            let value = key_of(value)?;
+            expect(format!("mapa<{key},{value}>"))
         }
         TypeIR::Union(_) => {
             let Some(members) = entry.union_members.as_ref() else {
@@ -2968,7 +3036,7 @@ impl LoweringContext {
     // @pinker-nav:start ir.lowering.identidade-resolvida
     // @pinker-nav:domain lowering
     // @pinker-nav:layer ir
-    // @pinker-nav:summary Internação da identidade semântica no lowering: `resolved_identity` resolve integralmente apelidos e interna a identidade completa de um tipo AST, `intern_resolved_ast` recorre por ponteiro/array/assinatura/união internando os componentes antes do agregado, `repr_identity` cobre apenas as categorias cuja identidade é integralmente derivável da representação (escalares, verso, listas, mapas, arrays de escalar, nulo e uniões já internadas) e recusa as categorias nominais com `E-IR-TYPE-IDENTITY-LOST`, e `internal_identity` interna identidades sintéticas do próprio lowering. Nenhuma destas funções deriva identidade de `TypeIR::name()`, de nome de apelido, de span ou de ordem de mapa.
+    // @pinker-nav:summary Internação da identidade semântica no lowering: `resolved_identity` resolve apelidos em profundidade e interna a identidade completa do tipo AST; `intern_resolved_ast` interna primeiro componentes de containers, ponteiros, arrays, assinaturas e uniões; `repr_identity` cobre somente categorias cuja identidade é derivável da representação e recusa nominais com `E-IR-TYPE-IDENTITY-LOST`; `internal_identity` reserva identidades sintéticas. Nenhuma função deriva identidade nominal de `TypeIR::name()`, span ou ordem de mapa.
     /// Interna a identidade semântica completa de um tipo escrito na fonte.
     ///
     /// Apelidos são resolvidos integralmente antes da chave: `apelido X = Alfa`
@@ -3032,6 +3100,12 @@ impl LoweringContext {
                     },
                     span,
                 )?);
+            }
+            // Mapas genéricos podem transportar leques sob a representação
+            // operacional `bombom`; a identidade do valor precisa sobreviver
+            // para usos diretos como scrutinee de `encaixe`.
+            Type::Map { value, .. } => {
+                parts.element = Some(self.intern_resolved_ast(value, span)?);
             }
             Type::Union { members, .. } => {
                 let mut member_ids = Vec::with_capacity(members.len());
@@ -3381,6 +3455,33 @@ impl LoweringContext {
                 size: *size,
                 span: *span,
             }),
+            Type::Map { key, value, span } => Ok(Type::Map {
+                key: Box::new(self.resolve_union_ast_type(key, resolving)?),
+                value: Box::new(self.resolve_union_ast_type(value, resolving)?),
+                span: *span,
+            }),
+            Type::ListEnum { element, span } => {
+                let resolved_element = self.resolve_union_ast_type(
+                    &Type::Alias {
+                        name: element.clone(),
+                        span: *span,
+                    },
+                    resolving,
+                )?;
+                let Type::Enum { name, .. } = resolved_element else {
+                    return Err(PinkerError::Ir {
+                        msg: format!(
+                            "elemento '{}' de lista de leque não resolveu para leque",
+                            element
+                        ),
+                        span: *span,
+                    });
+                };
+                Ok(Type::ListEnum {
+                    element: name,
+                    span: *span,
+                })
+            }
             _ => Ok(ty.clone()),
         }
     }
@@ -4857,7 +4958,174 @@ impl<'a> FunctionLowerer<'a> {
             Stmt::Continue(continue_stmt) => self.lower_continue(continue_stmt),
             Stmt::Falar(falar_stmt) => self.lower_falar(falar_stmt),
             Stmt::InlineAsm(inline_asm_stmt) => self.lower_inline_asm(inline_asm_stmt),
+            Stmt::EnumMatch(enum_match) => self.lower_enum_match(enum_match),
             Stmt::UnionMatch(union_match) => self.lower_union_match(union_match),
+        }
+    }
+
+    fn lower_enum_match(
+        &mut self,
+        enum_match: &EnumMatchStmt,
+    ) -> Result<InstructionIR, PinkerError> {
+        let scrutinee = self.lower_value(&enum_match.scrutinee)?;
+        let scrutinee_identity = scrutinee.identity(self.context, enum_match.scrutinee.span)?;
+
+        self.push_scope();
+        let scrutinee_binding = self.allocate_binding(
+            "encaixe_leque_alvo",
+            scrutinee.ty,
+            Some(scrutinee_identity),
+            None,
+            Some(false),
+        )?;
+        self.pop_scope();
+
+        let mut arms = Vec::with_capacity(enum_match.arms.len());
+        for arm in &enum_match.arms {
+            self.push_scope();
+            let pattern = self.lower_enum_pattern(&arm.pattern, scrutinee_identity)?;
+            let body_label = self.next_block_label("encaixe_leque_braco");
+            let body = self.lower_block(&arm.body, body_label, false);
+            self.pop_scope();
+            arms.push(EnumMatchArmIR {
+                pattern,
+                body: body?,
+                span: arm.span,
+            });
+        }
+        let otherwise = enum_match
+            .otherwise
+            .as_ref()
+            .map(|block| {
+                let label = self.next_block_label("encaixe_leque_senao");
+                self.lower_block(block, label, true)
+            })
+            .transpose()?;
+
+        Ok(InstructionIR::EnumMatch(EnumMatchIR {
+            scrutinee: scrutinee.value,
+            scrutinee_binding,
+            arms,
+            otherwise,
+            span: enum_match.span,
+        }))
+    }
+
+    fn lower_enum_pattern(
+        &mut self,
+        pattern: &EnumPattern,
+        expected_type_id: ResolvedTypeId,
+    ) -> Result<EnumPatternIR, PinkerError> {
+        match pattern {
+            EnumPattern::Binding { name, span } => Err(PinkerError::Ir {
+                msg: format!(
+                    "binding raiz '{}' não é permitido em 'encaixe' de leque",
+                    name
+                ),
+                span: *span,
+            }),
+            EnumPattern::Variant {
+                enum_name,
+                variant,
+                payloads,
+                span,
+            } => {
+                let enum_info = self
+                    .context
+                    .enum_variants
+                    .get(enum_name)
+                    .cloned()
+                    .ok_or_else(|| PinkerError::Ir {
+                        msg: format!("leque '{}' do padrão ausente na IR", enum_name),
+                        span: *span,
+                    })?;
+                let enum_identity = self.context.resolved_identity(&Type::Enum {
+                    name: enum_info.declared_name.clone(),
+                    span: *span,
+                })?;
+                if enum_identity != expected_type_id {
+                    return Err(PinkerError::Ir {
+                        msg: format!(
+                            "INVALID_NESTED_PATTERN_TYPE: identidade esperada {} difere do leque '{}' ({})",
+                            expected_type_id.0, enum_info.declared_name, enum_identity.0
+                        ),
+                        span: *span,
+                    });
+                }
+                let (discriminant, declared_payloads) = enum_info
+                    .variants
+                    .get(variant)
+                    .cloned()
+                    .ok_or_else(|| PinkerError::Ir {
+                        msg: format!(
+                            "variante '{}.{}' do padrão ausente na IR",
+                            enum_info.declared_name, variant
+                        ),
+                        span: *span,
+                    })?;
+                if declared_payloads.len() != payloads.len() {
+                    return Err(PinkerError::Ir {
+                        msg: format!(
+                            "INVALID_PATTERN_PAYLOAD_ARITY: '{}.{}' exige {}, padrão possui {}",
+                            enum_info.declared_name,
+                            variant,
+                            declared_payloads.len(),
+                            payloads.len()
+                        ),
+                        span: *span,
+                    });
+                }
+
+                let mut lowered_payloads = Vec::with_capacity(payloads.len());
+                for (index, (payload, declared)) in
+                    payloads.iter().zip(declared_payloads).enumerate()
+                {
+                    let resolved_type_id = self
+                        .context
+                        .intern_resolved_ast(&declared.shape.resolved, payload.span())?;
+                    let lowered_pattern = match payload {
+                        EnumPattern::Binding { name, span } => EnumPatternIR::Binding {
+                            binding: self.allocate_binding(
+                                name,
+                                declared.operational_type,
+                                Some(resolved_type_id),
+                                None,
+                                Some(false),
+                            )?,
+                            span: *span,
+                        },
+                        EnumPattern::Variant { .. } => {
+                            self.lower_enum_pattern(payload, resolved_type_id)?
+                        }
+                    };
+                    lowered_payloads.push(EnumPatternPayloadIR {
+                        index: index as u64,
+                        operational_type: declared.operational_type,
+                        class: declared.shape.class,
+                        canonical_key: declared.shape.canonical_key(),
+                        resolved_type_id,
+                        extract_intrinsic: declared.shape.carga_intrinsic().to_string(),
+                        extracted_binding: self.allocate_binding(
+                            "encaixe_leque_carga",
+                            declared.operational_type,
+                            Some(resolved_type_id),
+                            None,
+                            Some(false),
+                        )?,
+                        pattern: Box::new(lowered_pattern),
+                    });
+                }
+
+                Ok(EnumPatternIR::Variant {
+                    enum_name: enum_info.declared_name,
+                    expected_type_id: enum_identity,
+                    variant_name: variant.clone(),
+                    discriminant,
+                    has_payload: enum_info.has_payload,
+                    payloads: lowered_payloads,
+                    span: *span,
+                })
+            }
         }
     }
 
@@ -5090,7 +5358,7 @@ impl<'a> FunctionLowerer<'a> {
                 let binding = self.allocate_binding(
                     &let_stmt.name,
                     slot_ty,
-                    None,
+                    Some(self.context.resolved_identity(annotated_ty)?),
                     None,
                     Some(let_stmt.is_mut),
                 )?;
@@ -5132,7 +5400,7 @@ impl<'a> FunctionLowerer<'a> {
                 let binding = self.allocate_binding(
                     &let_stmt.name,
                     slot_ty,
-                    None,
+                    Some(self.context.resolved_identity(annotated_ty)?),
                     None,
                     Some(let_stmt.is_mut),
                 )?;
@@ -5347,7 +5615,7 @@ impl<'a> FunctionLowerer<'a> {
     // @pinker-nav:start ir.lowering.expressoes-valores
     // @pinker-nav:domain lowering
     // @pinker-nav:layer ir
-    // @pinker-nav:summary Grande despachante que abaixa expressões AST para `TypedValueIR` (valor + `TypeIR` + nome de struct + metadados de ponteiro-para-array): literais, identificadores locais e constantes globais, operadores unários/binários, dereferência, chamadas diretas (com tipo de retorno vindo do catálogo de assinaturas), métodos de `impl` e qualificados, intrínsecas genéricas de lista/mapa direcionadas ao nome monomórfico, construção/leitura de leque (discriminante/handle), acesso a campo e offset de struct, indexação, cast, `peso` e `alinhamento`. Consome informação já validada; não executa a expressão nem seleciona instruções de máquina.
+    // @pinker-nav:summary Grande despachante que abaixa expressões AST para `TypedValueIR` (valor, representação e identidade resolvida): literais, bindings/globais, operadores, dereferência, chamadas, métodos, intrínsecas genéricas, construção/leitura de leque, campos, índices, cast, `peso` e `alinhamento`. Operações de lista/mapa que devolvem elemento preservam a identidade exata do container, inclusive leques representados como `bombom`; não executa nem seleciona instruções de máquina.
     fn lower_value(&mut self, expr: &Expr) -> Result<TypedValueIR, PinkerError> {
         match &expr.kind {
             ExprKind::IntLit(value) => Ok(TypedValueIR {
@@ -5957,6 +6225,20 @@ impl<'a> FunctionLowerer<'a> {
                     };
                     let suffix = name.strip_prefix("lista").unwrap_or_default();
                     let mono_name = format!("{}{}", prefix, suffix);
+                    let element_identity =
+                        if matches!(name.as_str(), "lista_obter" | "lista_tirar_ultimo") {
+                            typed_args.first().and_then(|list| {
+                                list.resolved.and_then(|identity| {
+                                    self.context
+                                        .resolved_types
+                                        .borrow()
+                                        .get(identity)
+                                        .and_then(|entry| entry.element)
+                                })
+                            })
+                        } else {
+                            None
+                        };
                     let ret_type = self
                         .context
                         .function_sigs
@@ -5978,7 +6260,7 @@ impl<'a> FunctionLowerer<'a> {
                             ret_type,
                         },
                         ty: ret_type,
-                        resolved: None,
+                        resolved: element_identity,
                         ptr_array_bombom_size: None,
                     });
                 }
@@ -6027,6 +6309,25 @@ impl<'a> FunctionLowerer<'a> {
                         });
                     }
                     if let TypeIR::Map { value, .. } = first_arg.ty {
+                        let value_identity = if name == "mapa_obter" {
+                            let map_identity = first_arg.identity(self.context, expr.span)?;
+                            let table = self.context.resolved_types.borrow();
+                            let map_entry =
+                                table.get(map_identity).ok_or_else(|| PinkerError::Ir {
+                                    msg: format!(
+                                        "identidade {} do mapa genérico ausente no lowering",
+                                        map_identity.0
+                                    ),
+                                    span: expr.span,
+                                })?;
+                            Some(map_entry.element.ok_or_else(|| PinkerError::Ir {
+                                msg: "identidade do valor de mapa genérico perdida antes de mapa_obter"
+                                    .to_string(),
+                                span: expr.span,
+                            })?)
+                        } else {
+                            None
+                        };
                         let ret_type = match name.as_str() {
                             "mapa_obter" => value.type_ir(),
                             "mapa_tem" => TypeIR::Logica,
@@ -6042,7 +6343,7 @@ impl<'a> FunctionLowerer<'a> {
                                 ret_type,
                             },
                             ty: ret_type,
-                            resolved: None,
+                            resolved: value_identity,
                             ptr_array_bombom_size: None,
                         });
                     }
@@ -6829,6 +7130,25 @@ fn render_instruction(instruction: &InstructionIR, indent: usize, out: &mut Stri
                 ),
             );
         }
+        InstructionIR::EnumMatch(enum_match) => {
+            line(
+                out,
+                indent,
+                &format!(
+                    "enum_match alvo={} {}",
+                    enum_match.scrutinee_binding.slot,
+                    render_value(&enum_match.scrutinee)
+                ),
+            );
+            for arm in &enum_match.arms {
+                render_enum_pattern(&arm.pattern, indent + 1, out);
+                render_block(&arm.body, indent + 2, out);
+            }
+            if let Some(otherwise) = &enum_match.otherwise {
+                line(out, indent + 1, "otherwise");
+                render_block(otherwise, indent + 2, out);
+            }
+        }
         InstructionIR::UnionMatch(union_match) => {
             line(
                 out,
@@ -6854,6 +7174,44 @@ fn render_instruction(instruction: &InstructionIR, indent: usize, out: &mut Stri
                     ),
                 );
                 render_block(&arm.body, indent + 2, out);
+            }
+        }
+    }
+}
+
+fn render_enum_pattern(pattern: &EnumPatternIR, indent: usize, out: &mut String) {
+    match pattern {
+        EnumPatternIR::Binding { binding, .. } => {
+            line(out, indent, &format!("bind {}", binding.slot));
+        }
+        EnumPatternIR::Variant {
+            enum_name,
+            variant_name,
+            discriminant,
+            payloads,
+            ..
+        } => {
+            line(
+                out,
+                indent,
+                &format!(
+                    "pattern {}.{} tag={}",
+                    enum_name, variant_name, discriminant
+                ),
+            );
+            for payload in payloads {
+                line(
+                    out,
+                    indent + 1,
+                    &format!(
+                        "payload {} {} {} via {}",
+                        payload.index,
+                        payload.operational_type.render_name(),
+                        payload.canonical_key,
+                        payload.extract_intrinsic
+                    ),
+                );
+                render_enum_pattern(&payload.pattern, indent + 2, out);
             }
         }
     }

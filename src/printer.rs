@@ -296,6 +296,29 @@ fn render_stmt(stmt: &Stmt, indent: usize, out: &mut String) {
                 line(out, indent + 1, &format!("clobber {}", clobber.name));
             }
         }
+        Stmt::EnumMatch(enum_match) => {
+            line(
+                out,
+                indent,
+                &format!("EnumMatch {}", format_span(enum_match.span)),
+            );
+            render_expr(&enum_match.scrutinee, indent + 1, out, "scrutinee");
+            for arm in &enum_match.arms {
+                line(
+                    out,
+                    indent + 1,
+                    &format!(
+                        "arm {} {}",
+                        format_enum_pattern(&arm.pattern),
+                        format_span(arm.span)
+                    ),
+                );
+                render_block(&arm.body, indent + 2, out, "body");
+            }
+            if let Some(otherwise) = &enum_match.otherwise {
+                render_block(otherwise, indent + 1, out, "otherwise");
+            }
+        }
         Stmt::UnionMatch(union_match) => {
             line(
                 out,
@@ -320,6 +343,32 @@ fn render_stmt(stmt: &Stmt, indent: usize, out: &mut String) {
         Stmt::Expr(expr) => {
             line(out, indent, &format!("ExprStmt {}", format_span(expr.span)));
             render_expr(expr, indent + 1, out, "expr");
+        }
+    }
+}
+
+fn format_enum_pattern(pattern: &EnumPattern) -> String {
+    match pattern {
+        EnumPattern::Binding { name, .. } => name.clone(),
+        EnumPattern::Variant {
+            enum_name,
+            variant,
+            payloads,
+            ..
+        } => {
+            let mut rendered = format!("{}.{}", enum_name, variant);
+            if !payloads.is_empty() {
+                rendered.push('(');
+                rendered.push_str(
+                    &payloads
+                        .iter()
+                        .map(format_enum_pattern)
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                );
+                rendered.push(')');
+            }
+            rendered
         }
     }
 }

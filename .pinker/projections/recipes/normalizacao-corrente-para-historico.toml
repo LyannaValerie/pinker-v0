@@ -2,8 +2,8 @@ schema = 2
 id = "normalizacao-corrente-para-historico"
 
 [reconstruction]
-expected_overrides = 31
-expected_exclusions = 54
+expected_overrides = 47
+expected_exclusions = 55
 
 [[rules]]
 op = "exclude-key"
@@ -73,6 +73,11 @@ expected_matches = 1
 [[rules]]
 op = "exclude-key"
 key = "evidencia.diff-cobertura.cli"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.encaixe.d10-patterns-aninhados"
 expected_matches = 1
 
 [[rules]]
@@ -313,6 +318,24 @@ expect_layer = "evidencia"
 
 [[rules]]
 op = "override-region"
+key = "ast.closures.identificadores-livres"
+from_hash = "fnv1a64:70f3faa1d4737582"
+to_hash = "fnv1a64:b2e5a7bf5b9fb4f6"
+expect_file = "src/ast.rs"
+expect_domain = "closures"
+expect_layer = "ast"
+
+[[rules]]
+op = "override-region"
+key = "ast.comandos.representacao"
+from_hash = "fnv1a64:2030049f99e2be32"
+to_hash = "fnv1a64:bfbb7ac8bdd2c678"
+expect_file = "src/ast.rs"
+expect_domain = "comandos"
+expect_layer = "ast"
+
+[[rules]]
+op = "override-region"
 key = "backend-s.lowering.chamadas-sysv"
 from_hash = "fnv1a64:02720fd7a19167d7"
 to_hash = "fnv1a64:9bcbd95ce8c3a26f"
@@ -341,6 +364,24 @@ to_hash = "fnv1a64:e57b8a35f588a616"
 expect_file = "src/backend_s.rs"
 expect_domain = "runtime"
 expect_layer = "backend-s"
+
+[[rules]]
+op = "override-region"
+key = "cfg.lowering.funcoes-blocos"
+from_hash = "fnv1a64:2385d1c8fc062d5f"
+to_hash = "fnv1a64:8a72bb6215ad2f71"
+expect_file = "src/cfg_ir.rs"
+expect_domain = "lowering"
+expect_layer = "cfg"
+
+[[rules]]
+op = "override-region"
+key = "cfg.lowering.instrucoes-controle"
+from_hash = "fnv1a64:d16eebdbb6092544"
+to_hash = "fnv1a64:a745b15d02a48b90"
+expect_file = "src/cfg_ir.rs"
+expect_domain = "lowering"
+expect_layer = "cfg"
 
 [[rules]]
 op = "override-region"
@@ -481,8 +522,68 @@ expect_layer = "ir"
 
 [[rules]]
 op = "override-region"
+key = "ir.lowering.comandos-controle"
+from_hash = "fnv1a64:d1b576f170dd4832"
+to_hash = "fnv1a64:52b480889073481b"
+expect_file = "src/ir.rs"
+expect_domain = "lowering"
+expect_layer = "ir"
+
+[[rules]]
+op = "override-region"
+key = "ir.lowering.expressoes-valores"
+from_hash = "fnv1a64:fba68970f58e4a6d"
+to_hash = "fnv1a64:6db653d36e8d840b"
+from_summary = "Grande despachante que abaixa expressões AST para `TypedValueIR` (valor, representação e identidade resolvida): literais, bindings/globais, operadores, dereferência, chamadas, métodos, intrínsecas genéricas, construção/leitura de leque, campos, índices, cast, `peso` e `alinhamento`. Operações de lista/mapa que devolvem elemento preservam a identidade exata do container, inclusive leques representados como `bombom`; não executa nem seleciona instruções de máquina."
+to_summary = "Grande despachante que abaixa expressões AST para `TypedValueIR` (valor + `TypeIR` + nome de struct + metadados de ponteiro-para-array): literais, identificadores locais e constantes globais, operadores unários/binários, dereferência, chamadas diretas (com tipo de retorno vindo do catálogo de assinaturas), métodos de `impl` e qualificados, intrínsecas genéricas de lista/mapa direcionadas ao nome monomórfico, construção/leitura de leque (discriminante/handle), acesso a campo e offset de struct, indexação, cast, `peso` e `alinhamento`. Consome informação já validada; não executa a expressão nem seleciona instruções de máquina."
+expect_file = "src/ir.rs"
+expect_domain = "lowering"
+expect_layer = "ir"
+
+[[rules]]
+op = "override-region"
+key = "ir.lowering.identidade-resolvida"
+from_hash = "fnv1a64:0957ea12f66f3aed"
+to_hash = "fnv1a64:082b4d3e42e1bd53"
+from_summary = "Internação da identidade semântica no lowering: `resolved_identity` resolve apelidos em profundidade e interna a identidade completa do tipo AST; `intern_resolved_ast` interna primeiro componentes de containers, ponteiros, arrays, assinaturas e uniões; `repr_identity` cobre somente categorias cuja identidade é derivável da representação e recusa nominais com `E-IR-TYPE-IDENTITY-LOST`; `internal_identity` reserva identidades sintéticas. Nenhuma função deriva identidade nominal de `TypeIR::name()`, span ou ordem de mapa."
+to_summary = "Internação da identidade semântica no lowering: `resolved_identity` resolve integralmente apelidos e interna a identidade completa de um tipo AST, `intern_resolved_ast` recorre por ponteiro/array/assinatura/união internando os componentes antes do agregado, `repr_identity` cobre apenas as categorias cuja identidade é integralmente derivável da representação (escalares, verso, listas, mapas, arrays de escalar, nulo e uniões já internadas) e recusa as categorias nominais com `E-IR-TYPE-IDENTITY-LOST`, e `internal_identity` interna identidades sintéticas do próprio lowering. Nenhuma destas funções deriva identidade de `TypeIR::name()`, de nome de apelido, de span ou de ordem de mapa."
+expect_file = "src/ir.rs"
+expect_domain = "lowering"
+expect_layer = "ir"
+
+[[rules]]
+op = "override-region"
+key = "ir.modelo.representacao"
+from_hash = "fnv1a64:905ecff94a9dc61e"
+to_hash = "fnv1a64:a2c610ce2a27255e"
+expect_file = "src/ir.rs"
+expect_domain = "modelo"
+expect_layer = "ir"
+
+[[rules]]
+op = "override-region"
+key = "ir.renderizacao.textual"
+from_hash = "fnv1a64:b3dcb0692dbbf7b9"
+to_hash = "fnv1a64:4f0f1b3967ac6cf5"
+expect_file = "src/ir.rs"
+expect_domain = "renderizacao"
+expect_layer = "ir"
+
+[[rules]]
+op = "override-region"
+key = "ir.tipos.identidade-resolvida"
+from_hash = "fnv1a64:997e3c40c05a040e"
+to_hash = "fnv1a64:7c6d1b7975d7c6d0"
+from_summary = "Identidade semântica resolvida de tipos: `ResolvedTypeId` interna a identidade completa (`ResolvedTypeIR` = chave canônica de `union_canon` + representação operacional + identidade nominal + componentes internos `pointee`/`element`/`signature`/`union_members`; `element` também transporta o tipo de valor de mapa genérico), `TypeRefIR` acopla representação e identidade em um único contrato transportável, `ResolvedTypeTable` interna por chave canônica em `BTreeMap` e recusa qualquer divergência de representação, identidade nominal ou estrutura interna sob a mesma chave, `into_types` entrega a tabela sem renumeração tardia, e os validadores confirmam densidade, unicidade, ausência de chave envenenada, coerência de representação, coerência nominal e componentes estruturais. `TypeIR` continua sendo apenas a categoria operacional; as duas noções nunca se substituem."
+to_summary = "Identidade semântica resolvida de tipos: `ResolvedTypeId` interna a identidade completa (`ResolvedTypeIR` = chave canônica de `union_canon` + representação operacional + identidade nominal + componentes internos `pointee`/`element`/`signature`/`union_members`), `TypeRefIR` acopla representação e identidade em um único contrato transportável, `ResolvedTypeTable` interna por chave canônica em `BTreeMap` e recusa qualquer divergência de representação, identidade nominal ou estrutura interna sob a mesma chave, `into_types` entrega a tabela sem renumeração tardia, e `validate_resolved_type_table`/`validate_resolved_type_structure`/`validate_resolved_type_reference`/`validate_union_registry_identities` confirmam densidade, unicidade, ausência de chave envenenada, coerência de representação, coerência nominal e coerência entre membros de união e a tabela. `TypeIR` continua sendo apenas a categoria operacional; as duas noções nunca se substituem."
+expect_file = "src/ir.rs"
+expect_domain = "modelo"
+expect_layer = "ir"
+
+[[rules]]
+op = "override-region"
 key = "ir.validacao.invariantes"
-from_hash = "fnv1a64:3dd62984bf64645a"
+from_hash = "fnv1a64:bab9686c12e9ebe7"
 to_hash = "fnv1a64:2a5a15bb37f76889"
 expect_file = "src/ir_validate.rs"
 expect_domain = "validacao"
@@ -499,13 +600,33 @@ expect_layer = "machine"
 
 [[rules]]
 op = "override-region"
+key = "parser.callbacks.substituicao-estatica"
+from_hash = "fnv1a64:8245197860c9bcc6"
+to_hash = "fnv1a64:bfadb05ce80674d6"
+expect_file = "src/parser.rs"
+expect_domain = "callbacks"
+expect_layer = "parser"
+
+[[rules]]
+op = "override-region"
 key = "parser.comandos.bloco"
-from_hash = "fnv1a64:05b55663d8714ae2"
+from_hash = "fnv1a64:0de14968934bf507"
 to_hash = "fnv1a64:b57c3f39100a2358"
 from_summary = "Blocos e comandos: reconhece `{ ... }`, declarações locais (`nova`/`muda`), atribuições, `mimo` (retorno), `talvez`/`senao`, laços (`sempre`/`repetir`), `quebrar`/`continuar`, `falar` e asm inline, produzindo `ast::Block`/`ast::Stmt`."
 to_summary = "Blocos e comandos: reconhece `{ ... }`, declarações locais (`nova`/`muda`), atribuições, `mimo` (retorno), `talvez`/`senao`, laços (`sempre`/`repetir`), `quebrar`/`continuar`, `falar` e asm inline, produzindo `ast::Block`/`ast::Stmt`."
 expect_file = "src/parser.rs"
 expect_domain = "comandos"
+expect_layer = "parser"
+
+[[rules]]
+op = "override-region"
+key = "parser.encaixe.expressao"
+from_hash = "fnv1a64:eddad8459b267274"
+to_hash = "fnv1a64:a57b831878d2376a"
+from_summary = "Parser de `encaixe`: preserva leques como `EnumMatchStmt` com `EnumPattern` recursivo (variantes e bindings) e mantém uniões estruturais no `UnionMatchStmt` vigente; tipo, exaustividade, duplicatas e unreachable patterns pertencem à semântica."
+to_summary = "Desugaring de `encaixe` (pattern matching sobre leques): reconhece os `caso Variante(bind) { ... }` e o `senao`, exige exaustividade e produz uma âncora `nova` seguida de cadeia `talvez`/`senao` comparando tags — nós `ast::Stmt`."
+expect_file = "src/parser.rs"
+expect_domain = "encaixe"
 expect_layer = "parser"
 
 [[rules]]
@@ -529,6 +650,24 @@ to_summary = "Declaração de função: reconhece `carinho nome<params-de-tipo>(
 expect_file = "src/parser.rs"
 expect_domain = "funcoes"
 expect_layer = "parser"
+
+[[rules]]
+op = "override-region"
+key = "parser.genericos.substituicao-ast"
+from_hash = "fnv1a64:b14ab57558bd6729"
+to_hash = "fnv1a64:2cbfde20708dd7f9"
+expect_file = "src/parser.rs"
+expect_domain = "genericos"
+expect_layer = "parser"
+
+[[rules]]
+op = "override-region"
+key = "printer.ast.renderizacao"
+from_hash = "fnv1a64:661b906f85d5d4e1"
+to_hash = "fnv1a64:b84752baa2afebcf"
+expect_file = "src/printer.rs"
+expect_domain = "ast"
+expect_layer = "printer"
 
 [[rules]]
 op = "override-region"
@@ -566,6 +705,26 @@ from_hash = "fnv1a64:10ad20d520e8c6d4"
 to_hash = "fnv1a64:786f0d551629e7a5"
 expect_file = "src/semantic.rs"
 expect_domain = "chamadas"
+expect_layer = "semantic"
+
+[[rules]]
+op = "override-region"
+key = "semantic.comandos.verificacao"
+from_hash = "fnv1a64:25fcb34b29feae71"
+to_hash = "fnv1a64:1a8779bbb2a3e64f"
+expect_file = "src/semantic.rs"
+expect_domain = "comandos"
+expect_layer = "semantic"
+
+[[rules]]
+op = "override-region"
+key = "semantic.fluxo.retornos"
+from_hash = "fnv1a64:33f15cbd2f0750c9"
+to_hash = "fnv1a64:b5ad0bb16507db91"
+from_summary = "Fluxo e retornos: verificação de ramo `talvez`/`senão` aninhado com escopo próprio, checagem de `mimo` de retorno contra o tipo declarado (presença/ausência de valor, tipo e faixa) e análise superficial de alcançabilidade — um bloco retorna se contém `mimo` direto ou uma seleção exaustiva (`talvez`/`senão` ou `encaixe`) em que todos os braços retornam."
+to_summary = "Fluxo e retornos: verificação de ramo `talvez`/`senão` aninhado com escopo próprio, checagem de `mimo` de retorno contra o tipo declarado (presença/ausência de valor, tipo e faixa) e análise superficial de alcançabilidade — um bloco retorna se contém `mimo` direto ou um `talvez`/`senão` em que ambos os ramos retornam."
+expect_file = "src/semantic.rs"
+expect_domain = "fluxo"
 expect_layer = "semantic"
 
 [[rules]]

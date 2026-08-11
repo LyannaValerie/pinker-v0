@@ -2384,6 +2384,7 @@ impl SemanticChecker {
                     }
                 }
                 Stmt::InlineAsm(inline_asm_stmt) => self.check_inline_asm(inline_asm_stmt)?,
+                Stmt::EnumMatch(enum_match) => self.check_enum_match(enum_match)?,
                 Stmt::UnionMatch(union_match) => self.check_union_match(union_match)?,
                 Stmt::Expr(expr) => {
                     self.check_expr(expr)?;
@@ -2559,6 +2560,360 @@ impl SemanticChecker {
         Ok(())
     }
 
+    fn check_enum_match(&mut self, enum_match: &EnumMatchStmt) -> Result<(), PinkerError> {
+        if let Some(EnumPattern::Variant {
+            enum_name, span, ..
+        }) = enum_match.arms.first().map(|arm| &arm.pattern)
+        {
+            if self.resolve_enum_base_name(enum_name).is_none() {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "encaixe usa leque '{}' não declarado antes deste ponto",
+                        enum_name
+                    ),
+                    span: *span,
+                });
+            }
+        }
+        let scrutinee_ty = self.check_value_expr(
+            &enum_match.scrutinee,
+            "resultado de função sem retorno não pode ser inspecionado por 'encaixe'",
+        )?;
+        let scrutinee_ty = self.resolve_type_or_error(&scrutinee_ty)?;
+        if !matches!(scrutinee_ty, Type::Enum { .. }) {
+            return Err(PinkerError::Semantic {
+                msg: format!(
+                    "PATTERN_NOT_APPLICABLE_TO_PAYLOAD: 'encaixe' de leque exige scrutinee de leque; encontrado '{}'",
+                    scrutinee_ty.name()
+                ),
+                span: enum_match.scrutinee.span,
+            });
+        }
+
+        let mut previous = Vec::<&EnumPattern>::new();
+        for arm in &enum_match.arms {
+            let mut bindings = Vec::new();
+            let mut binding_names = HashSet::new();
+            self.check_enum_pattern(
+                &arm.pattern,
+                &scrutinee_ty,
+                &mut bindings,
+                &mut binding_names,
+                0,
+            )?;
+            if let Some(earlier) = previous
+                .iter()
+                .find(|earlier| Self::enum_pattern_covers(earlier, &arm.pattern))
+            {
+                let message = if Self::enum_pattern_covers(&arm.pattern, earlier) {
+                    let variant = match &arm.pattern {
+                        EnumPattern::Variant { variant, .. } => variant.as_str(),
+                        EnumPattern::Binding { .. } => "_",
+                    };
+                    format!("variante '{}' repetida no encaixe", variant)
+                } else {
+                    "UNREACHABLE_PATTERN: padrão de 'caso' já coberto por braço anterior"
+                        .to_string()
+                };
+                return Err(PinkerError::Semantic {
+                    msg: message,
+                    span: arm.span,
+                });
+            }
+            previous.push(&arm.pattern);
+
+            self.push_scope();
+            let checked = bindings
+                .into_iter()
+                .try_for_each(|(name, ty, span)| self.declare_var(&name, ty, false, span))
+                .and_then(|()| self.check_block(&arm.body, true));
+            self.pop_scope();
+            checked?;
+        }
+
+        if enum_match.otherwise.is_none() {
+            if let Some(gap) = self.enum_pattern_coverage_gap(&scrutinee_ty, &previous)? {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "NON_EXHAUSTIVE_NESTED_MATCH: encaixe não cobre {gap}; adicione o caso ou um 'senao'"
+                    ),
+                    span: enum_match.span,
+                });
+            }
+        }
+        if let Some(otherwise) = &enum_match.otherwise {
+            self.check_block(otherwise, false)?;
+        }
+        Ok(())
+    }
+
+    fn check_enum_pattern(
+        &self,
+        pattern: &EnumPattern,
+        expected: &Type,
+        bindings: &mut Vec<(String, Type, Span)>,
+        binding_names: &mut HashSet<String>,
+        depth: usize,
+    ) -> Result<(), PinkerError> {
+        match pattern {
+            EnumPattern::Binding { name, span } => {
+                if !binding_names.insert(name.clone()) {
+                    return Err(PinkerError::Semantic {
+                        msg: format!(
+                            "UNREACHABLE_PATTERN: binding '{}' repetido no mesmo padrão",
+                            name
+                        ),
+                        span: *span,
+                    });
+                }
+                bindings.push((name.clone(), expected.clone().with_span(*span), *span));
+                Ok(())
+            }
+            EnumPattern::Variant {
+                enum_name,
+                variant,
+                payloads,
+                span,
+            } => {
+                let expected = self.resolve_type_or_error(expected)?;
+                let Type::Enum {
+                    name: expected_name,
+                    ..
+                } = expected
+                else {
+                    return Err(PinkerError::Semantic {
+                        msg: format!(
+                            "PATTERN_NOT_APPLICABLE_TO_PAYLOAD: padrão '{}.{}' não se aplica à carga '{}'",
+                            enum_name,
+                            variant,
+                            expected.name()
+                        ),
+                        span: *span,
+                    });
+                };
+                let Some(pattern_enum_name) = self.resolve_enum_base_name(enum_name) else {
+                    return Err(PinkerError::Semantic {
+                        msg: format!(
+                            "INVALID_NESTED_PATTERN_TYPE: leque '{}' do padrão não declarado",
+                            enum_name
+                        ),
+                        span: *span,
+                    });
+                };
+                let expected_enum_name = self
+                    .resolve_enum_base_name(&expected_name)
+                    .unwrap_or(expected_name.clone());
+                if pattern_enum_name != expected_enum_name {
+                    if depth == 0 {
+                        return Err(PinkerError::Semantic {
+                            msg: format!(
+                                "encaixe mistura leques diferentes: '{}' e '{}'",
+                                expected_enum_name, enum_name
+                            ),
+                            span: *span,
+                        });
+                    }
+                    return Err(PinkerError::Semantic {
+                        msg: format!(
+                            "INVALID_NESTED_PATTERN_TYPE: esperado padrão do leque '{}', encontrado '{}.{}'",
+                            expected_enum_name, enum_name, variant
+                        ),
+                        span: *span,
+                    });
+                }
+                let enum_decl = self
+                    .enums
+                    .get(&expected_enum_name)
+                    .expect("nome de leque resolvido acima");
+                let Some(variant_decl) = enum_decl
+                    .variants
+                    .iter()
+                    .find(|candidate| candidate.name == *variant)
+                else {
+                    return Err(PinkerError::Semantic {
+                        msg: format!(
+                            "INVALID_NESTED_PATTERN_TYPE: variante '{}' não existe no leque '{}'",
+                            variant, expected_enum_name
+                        ),
+                        span: *span,
+                    });
+                };
+                if variant_decl.payloads.len() != payloads.len() {
+                    let legacy_message = if depth == 0 {
+                        match (variant_decl.payloads.len(), payloads.len()) {
+                        (0, actual) if actual > 0 => Some(format!(
+                            "variante '{}' não carrega valor; use 'caso {}.{}' sem parênteses",
+                            variant, expected_enum_name, variant
+                        )),
+                        (expected, 0) if expected > 0 => Some(format!(
+                            "variante '{}' carrega {} valor(es); use 'caso {}.{}(...)' com {} nome(s)",
+                            variant, expected, expected_enum_name, variant, expected
+                        )),
+                        (expected, actual)
+                            if payloads
+                                .iter()
+                                .all(|payload| matches!(payload, EnumPattern::Binding { .. })) =>
+                        {
+                            Some(format!(
+                                "variante '{}' carrega {} valor(es), mas o caso liga {} nome(s)",
+                                variant, expected, actual
+                            ))
+                        }
+                        _ => None,
+                        }
+                    } else {
+                        None
+                    };
+                    return Err(PinkerError::Semantic {
+                        msg: legacy_message.unwrap_or_else(|| format!(
+                                "INVALID_PATTERN_PAYLOAD_ARITY: variante '{}.{}' carrega {} valor(es), mas o padrão possui {}",
+                                expected_enum_name,
+                                variant,
+                                variant_decl.payloads.len(),
+                                payloads.len()
+                            )),
+                        span: *span,
+                    });
+                }
+                if payloads.len() > 1
+                    && payloads
+                        .iter()
+                        .any(|payload| matches!(payload, EnumPattern::Variant { .. }))
+                {
+                    return Err(PinkerError::Semantic {
+                        msg: "PATTERN_NOT_APPLICABLE_TO_PAYLOAD: decomposição aninhada de variante com múltiplas cargas permanece fora do contrato D10"
+                            .to_string(),
+                        span: *span,
+                    });
+                }
+                for (payload, payload_ty) in payloads.iter().zip(&variant_decl.payloads) {
+                    let shape = self.classify_enum_payload(payload_ty).map_err(|rejection| {
+                        PinkerError::Semantic {
+                            msg: format!(
+                                "PATTERN_NOT_APPLICABLE_TO_PAYLOAD: carga de '{}.{}' não é decomponível: {}",
+                                expected_enum_name,
+                                variant,
+                                rejection.message()
+                            ),
+                            span: payload.span(),
+                        }
+                    })?;
+                    self.check_enum_pattern(
+                        payload,
+                        &shape.resolved,
+                        bindings,
+                        binding_names,
+                        depth + 1,
+                    )?;
+                }
+                Ok(())
+            }
+        }
+    }
+
+    fn enum_pattern_covers(earlier: &EnumPattern, later: &EnumPattern) -> bool {
+        match (earlier, later) {
+            (EnumPattern::Binding { .. }, _) => true,
+            (
+                EnumPattern::Variant {
+                    variant: earlier_variant,
+                    payloads: earlier_payloads,
+                    ..
+                },
+                EnumPattern::Variant {
+                    variant: later_variant,
+                    payloads: later_payloads,
+                    ..
+                },
+            ) => {
+                earlier_variant == later_variant
+                    && earlier_payloads.len() == later_payloads.len()
+                    && earlier_payloads
+                        .iter()
+                        .zip(later_payloads)
+                        .all(|(earlier, later)| Self::enum_pattern_covers(earlier, later))
+            }
+            _ => false,
+        }
+    }
+
+    fn enum_pattern_coverage_gap(
+        &self,
+        expected: &Type,
+        patterns: &[&EnumPattern],
+    ) -> Result<Option<String>, PinkerError> {
+        if patterns
+            .iter()
+            .any(|pattern| matches!(pattern, EnumPattern::Binding { .. }))
+        {
+            return Ok(None);
+        }
+        let expected = self.resolve_type_or_error(expected)?;
+        let Type::Enum { name, .. } = expected else {
+            return Ok(Some(format!("a carga de tipo '{}'", expected.name())));
+        };
+        let enum_name = self.resolve_enum_base_name(&name).unwrap_or(name);
+        let enum_decl = self
+            .enums
+            .get(&enum_name)
+            .expect("nome de leque resolvido para cobertura");
+        for variant_decl in &enum_decl.variants {
+            let matching = patterns
+                .iter()
+                .filter_map(|pattern| match pattern {
+                    EnumPattern::Variant {
+                        variant, payloads, ..
+                    } if *variant == variant_decl.name => Some(payloads),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            if matching.is_empty() {
+                return Ok(Some(format!(
+                    "a variante '{}' do leque '{}'",
+                    variant_decl.name, enum_name
+                )));
+            }
+            if variant_decl.payloads.is_empty()
+                || matching.iter().any(|payloads| {
+                    payloads
+                        .iter()
+                        .all(|payload| matches!(payload, EnumPattern::Binding { .. }))
+                })
+            {
+                continue;
+            }
+            if variant_decl.payloads.len() == 1 {
+                let shape = self
+                    .classify_enum_payload(&variant_decl.payloads[0])
+                    .map_err(|rejection| PinkerError::Semantic {
+                        msg: format!(
+                            "PATTERN_NOT_APPLICABLE_TO_PAYLOAD: cobertura de '{}.{}': {}",
+                            enum_name,
+                            variant_decl.name,
+                            rejection.message()
+                        ),
+                        span: variant_decl.span,
+                    })?;
+                let children = matching
+                    .iter()
+                    .filter_map(|payloads| payloads.first())
+                    .collect::<Vec<_>>();
+                if let Some(inner) = self.enum_pattern_coverage_gap(&shape.resolved, &children)? {
+                    return Ok(Some(format!(
+                        "o subpadrão '{}.{} -> {}'",
+                        enum_name, variant_decl.name, inner
+                    )));
+                }
+            } else {
+                return Ok(Some(format!(
+                    "todas as cargas da variante '{}.{}'",
+                    enum_name, variant_decl.name
+                )));
+            }
+        }
+        Ok(None)
+    }
+
     // @pinker-nav:start semantic.unioes.encaixe
     // @pinker-nav:domain unioes
     // @pinker-nav:layer semantic
@@ -2644,7 +2999,7 @@ impl SemanticChecker {
     // @pinker-nav:start semantic.fluxo.retornos
     // @pinker-nav:domain fluxo
     // @pinker-nav:layer semantic
-    // @pinker-nav:summary Fluxo e retornos: verificação de ramo `talvez`/`senão` aninhado com escopo próprio, checagem de `mimo` de retorno contra o tipo declarado (presença/ausência de valor, tipo e faixa) e análise superficial de alcançabilidade — um bloco retorna se contém `mimo` direto ou um `talvez`/`senão` em que ambos os ramos retornam.
+    // @pinker-nav:summary Fluxo e retornos: verificação de ramo `talvez`/`senão` aninhado com escopo próprio, checagem de `mimo` de retorno contra o tipo declarado (presença/ausência de valor, tipo e faixa) e análise superficial de alcançabilidade — um bloco retorna se contém `mimo` direto ou uma seleção exaustiva (`talvez`/`senão` ou `encaixe`) em que todos os braços retornam.
     fn check_if_as_nested_branch(&mut self, if_stmt: &IfStmt) -> Result<(), PinkerError> {
         self.push_scope();
         let cond_ty = self.check_value_expr(
@@ -2707,13 +3062,17 @@ impl SemanticChecker {
     }
 
     // Análise de alcançabilidade de retorno superficial: verifica se o bloco
-    // contém um `mimo` direto ou um `talvez/senão` onde ambos os ramos retornam.
+    // contém um `mimo` direto ou uma seleção exaustiva onde todos os ramos retornam.
     // Não analisa fluxo complexo nem condições de laço — suficiente para a v0.
     fn block_returns(&self, block: &Block) -> bool {
         for stmt in &block.stmts {
             match stmt {
                 Stmt::Return(_) => return true,
                 Stmt::If(if_stmt) if self.if_returns(if_stmt) => return true,
+                Stmt::EnumMatch(enum_match) if self.enum_match_returns(enum_match) => return true,
+                Stmt::UnionMatch(union_match) if self.union_match_returns(union_match) => {
+                    return true;
+                }
                 _ => {}
             }
         }
@@ -2728,6 +3087,27 @@ impl SemanticChecker {
             None => false,
         };
         then_returns && else_returns
+    }
+
+    fn enum_match_returns(&self, enum_match: &EnumMatchStmt) -> bool {
+        let arms_return = !enum_match.arms.is_empty()
+            && enum_match
+                .arms
+                .iter()
+                .all(|arm| self.block_returns(&arm.body));
+        let otherwise_returns = match &enum_match.otherwise {
+            Some(otherwise) => self.block_returns(otherwise),
+            None => true,
+        };
+        arms_return && otherwise_returns
+    }
+
+    fn union_match_returns(&self, union_match: &UnionMatchStmt) -> bool {
+        !union_match.arms.is_empty()
+            && union_match
+                .arms
+                .iter()
+                .all(|arm| self.block_returns(&arm.body))
     }
     // @pinker-nav:end semantic.fluxo.retornos
 

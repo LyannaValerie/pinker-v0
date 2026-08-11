@@ -1095,8 +1095,8 @@ impl Parser {
     // @pinker-nav:start parser.encaixe.expressao
     // @pinker-nav:domain encaixe
     // @pinker-nav:layer parser
-    // @pinker-nav:summary Desugaring de `encaixe` (pattern matching sobre leques): reconhece os `caso Variante(bind) { ... }` e o `senao`, exige exaustividade e produz uma âncora `nova` seguida de cadeia `talvez`/`senao` comparando tags — nós `ast::Stmt`.
-    /// Desugaring de `encaixe` (pattern matching mínimo sobre leques).
+    // @pinker-nav:summary Parser de `encaixe`: preserva leques como `EnumMatchStmt` com `EnumPattern` recursivo (variantes e bindings) e mantém uniões estruturais no `UnionMatchStmt` vigente; tipo, exaustividade, duplicatas e unreachable patterns pertencem à semântica.
+    /// Parse de `encaixe` sobre leques e uniões estruturais.
     ///
     /// ```text
     /// encaixe expr {
@@ -1106,10 +1106,9 @@ impl Parser {
     /// }
     /// ```
     ///
-    /// vira uma âncora `nova __encaixe_alvo_N: Leque = expr;` seguida de cadeia
-    /// `talvez`/`senao` comparando tags. Exaustividade é exigida no parse: ou
-    /// todas as variantes aparecem, ou há `senao`.
-    fn parse_encaixe_desugared(&mut self) -> Result<Vec<Stmt>, PinkerError> {
+    /// Patterns de leque permanecem recursivos na AST; este estágio não calcula
+    /// tags, não extrai payloads e não decide exaustividade.
+    fn parse_encaixe(&mut self) -> Result<Vec<Stmt>, PinkerError> {
         self.consume(TokenKind::KwEncaixe, "encaixe")?;
         let start_span = self.previous().span;
         let scrutinee = self.parse_expr()?;
@@ -1118,76 +1117,21 @@ impl Parser {
             return self.parse_union_encaixe_after_header(start_span, scrutinee);
         }
 
-        struct EncaixeArm {
-            variant: String,
-            bindings: Option<Vec<String>>,
-            body: Block,
-            span: Span,
-        }
-
-        let mut enum_name: Option<String> = None;
-        let mut arms: Vec<EncaixeArm> = Vec::new();
-        let mut default_block: Option<Block> = None;
-
+        let mut arms = Vec::new();
+        let mut otherwise = None;
         while !self.check(TokenKind::RBrace) && self.peek().is_some() {
             if self.match_token(TokenKind::KwCaso) {
-                let caso_span = self.previous().span;
-                let base = self
-                    .consume(TokenKind::Ident, "nome do leque no padrão do caso")?
-                    .lexeme
-                    .clone();
-                self.consume(TokenKind::Dot, ".")?;
-                let variant = self
-                    .consume(TokenKind::Ident, "nome da variante no padrão do caso")?
-                    .lexeme
-                    .clone();
-                let bindings = if self.match_token(TokenKind::LParen) {
-                    let mut names = Vec::new();
-                    loop {
-                        names.push(
-                            self.consume(TokenKind::Ident, "nome da variável de carga do caso")?
-                                .lexeme
-                                .clone(),
-                        );
-                        if !self.match_token(TokenKind::Comma) {
-                            break;
-                        }
-                    }
-                    self.consume(TokenKind::RParen, ")")?;
-                    Some(names)
-                } else {
-                    None
-                };
-                match &enum_name {
-                    None => enum_name = Some(base),
-                    Some(existing) if *existing == base => {}
-                    Some(existing) => {
-                        return Err(PinkerError::Parse {
-                            msg: format!(
-                                "encaixe mistura leques diferentes: '{}' e '{}'",
-                                existing, base
-                            ),
-                            span: caso_span,
-                        });
-                    }
-                }
-                // As cargas precisam estar registradas **antes** de o corpo do
-                // braço ser lido: `para cada` e as operações genéricas de lista
-                // são desaçucaradas durante o parse, e sem o tipo do binding
-                // cairiam no caminho padrão de `lista<bombom>`.
-                if let (Some(names), Some(base)) = (bindings.as_ref(), enum_name.as_ref()) {
-                    let base = base.clone();
-                    self.register_payload_binding_collections(&base, &variant, names);
-                }
+                let arm_span = self.previous().span;
+                let pattern = self.parse_enum_pattern()?;
+                self.register_enum_pattern_collections(&pattern);
                 let body = self.parse_block()?;
-                arms.push(EncaixeArm {
-                    variant,
-                    bindings,
+                arms.push(EnumMatchArm {
+                    pattern,
                     body,
-                    span: caso_span,
+                    span: arm_span,
                 });
             } else if self.match_token(TokenKind::KwSenao) {
-                default_block = Some(self.parse_block()?);
+                otherwise = Some(self.parse_block()?);
                 break;
             } else {
                 return Err(PinkerError::Parse {
@@ -1197,237 +1141,109 @@ impl Parser {
             }
         }
         self.consume(TokenKind::RBrace, "}")?;
-        let end_span = self.previous().span;
-        let helper_span = merge_span(start_span, end_span);
-
-        let Some(enum_name) = enum_name else {
+        let match_span = merge_span(start_span, self.previous().span);
+        if arms.is_empty() {
             return Err(PinkerError::Parse {
                 msg: "encaixe exige ao menos um 'caso Leque.Variante'".to_string(),
-                span: helper_span,
+                span: match_span,
             });
-        };
-        let Some(declared_variants) = self.enum_decls.get(&enum_name).cloned() else {
-            return Err(PinkerError::Parse {
-                msg: format!(
-                    "encaixe usa leque '{}' não declarado antes deste ponto",
-                    enum_name
-                ),
-                span: helper_span,
-            });
-        };
-        let has_payload = declared_variants
-            .iter()
-            .any(|(_, payloads)| !payloads.is_empty());
-
-        // Validação dos braços contra a declaração do leque.
-        let mut seen: Vec<&str> = Vec::new();
-        for arm in &arms {
-            let Some((_, payloads)) = declared_variants
-                .iter()
-                .find(|(name, _)| *name == arm.variant)
-            else {
-                return Err(PinkerError::Parse {
-                    msg: format!(
-                        "variante '{}' não existe no leque '{}'",
-                        arm.variant, enum_name
-                    ),
-                    span: arm.span,
-                });
-            };
-            if seen.contains(&arm.variant.as_str()) {
-                return Err(PinkerError::Parse {
-                    msg: format!("variante '{}' repetida no encaixe", arm.variant),
-                    span: arm.span,
-                });
-            }
-            seen.push(arm.variant.as_str());
-            match (payloads.len(), &arm.bindings) {
-                (0, Some(_)) => {
-                    return Err(PinkerError::Parse {
-                        msg: format!(
-                            "variante '{}' não carrega valor; use 'caso {}.{}' sem parênteses",
-                            arm.variant, enum_name, arm.variant
-                        ),
-                        span: arm.span,
-                    });
-                }
-                (n, None) if n > 0 => {
-                    return Err(PinkerError::Parse {
-                        msg: format!(
-                            "variante '{}' carrega {} valor(es); use 'caso {}.{}(...)' com {} nome(s)",
-                            arm.variant, n, enum_name, arm.variant, n
-                        ),
-                        span: arm.span,
-                    });
-                }
-                (n, Some(names)) if n != names.len() => {
-                    return Err(PinkerError::Parse {
-                        msg: format!(
-                            "variante '{}' carrega {} valor(es), mas o caso liga {} nome(s)",
-                            arm.variant,
-                            n,
-                            names.len()
-                        ),
-                        span: arm.span,
-                    });
-                }
-                _ => {}
-            }
-        }
-        if default_block.is_none() {
-            for (variant_name, _) in &declared_variants {
-                if !seen.contains(&variant_name.as_str()) {
-                    return Err(PinkerError::Parse {
-                        msg: format!(
-                            "encaixe não cobre a variante '{}' do leque '{}'; adicione o caso ou um 'senao'",
-                            variant_name, enum_name
-                        ),
-                        span: helper_span,
-                    });
-                }
-            }
         }
 
-        // Âncora única do valor sob análise.
-        self.synthetic_counter += 1;
-        let target_name = format!("__encaixe_alvo_{}", self.synthetic_counter);
-        let target_stmt = Stmt::Let(LetStmt {
-            name: target_name.clone(),
-            is_mut: false,
-            ty: Some(Type::Alias {
-                name: enum_name.clone(),
-                span: helper_span,
-            }),
-            init: scrutinee,
-            span: helper_span,
-        });
-        let target_ident = |span: Span| Expr {
-            kind: ExprKind::Ident(target_name.clone()),
-            span,
-        };
-
-        // Condição de cada braço: leque com carga compara tag via intrínseca;
-        // leque sem carga compara o próprio valor imediato.
-        let mut else_branch: Option<ElseBlock> = default_block.map(ElseBlock::Block);
-        for arm in arms.into_iter().rev() {
-            let tag = declared_variants
-                .iter()
-                .position(|(name, _)| *name == arm.variant)
-                .expect("variante validada acima") as u64;
-            let condition = if has_payload {
-                Expr {
-                    kind: ExprKind::Binary(
-                        Box::new(Expr {
-                            kind: ExprKind::Call(
-                                Box::new(Expr {
-                                    kind: ExprKind::Ident(
-                                        "__pinker_internal_leque_tag".to_string(),
-                                    ),
-                                    span: arm.span,
-                                }),
-                                vec![target_ident(arm.span)],
-                            ),
-                            span: arm.span,
-                        }),
-                        BinaryOp::Eq,
-                        Box::new(Expr {
-                            kind: ExprKind::IntLit(tag),
-                            span: arm.span,
-                        }),
-                    ),
-                    span: arm.span,
-                }
-            } else {
-                Expr {
-                    kind: ExprKind::Binary(
-                        Box::new(target_ident(arm.span)),
-                        BinaryOp::Eq,
-                        Box::new(Expr {
-                            kind: ExprKind::FieldAccess {
-                                base: Box::new(Expr {
-                                    kind: ExprKind::Ident(enum_name.clone()),
-                                    span: arm.span,
-                                }),
-                                field: arm.variant.clone(),
-                            },
-                            span: arm.span,
-                        }),
-                    ),
-                    span: arm.span,
-                }
-            };
-
-            let mut body_stmts = Vec::new();
-            if let Some(bind_names) = arm.bindings {
-                let payload_types = declared_variants
-                    .iter()
-                    .find(|(name, _)| *name == arm.variant)
-                    .map(|(_, payloads)| payloads.clone())
-                    .expect("variante validada acima");
-                for (index, (bind_name, payload_ty)) in
-                    bind_names.into_iter().zip(payload_types).enumerate()
-                {
-                    let (carga_fn, binding_ty) = self.payload_binding(&payload_ty, arm.span);
-                    // O binding herda o tipo exato da carga: sem registrá-lo,
-                    // as operações genéricas de lista sobre ele cairiam no
-                    // caminho padrão de `lista<bombom>`.
-                    self.register_collection_type(&bind_name, &binding_ty);
-                    body_stmts.push(Stmt::Let(LetStmt {
-                        name: bind_name,
-                        is_mut: false,
-                        ty: Some(binding_ty),
-                        init: Expr {
-                            kind: ExprKind::Call(
-                                Box::new(Expr {
-                                    kind: ExprKind::Ident(carga_fn.to_string()),
-                                    span: arm.span,
-                                }),
-                                vec![
-                                    target_ident(arm.span),
-                                    Expr {
-                                        kind: ExprKind::IntLit(tag),
-                                        span: arm.span,
-                                    },
-                                    Expr {
-                                        kind: ExprKind::IntLit(index as u64),
-                                        span: arm.span,
-                                    },
-                                ],
-                            ),
-                            span: arm.span,
-                        },
-                        span: arm.span,
-                    }));
-                }
-            }
-            body_stmts.extend(arm.body.stmts);
-            let then_branch = Block {
-                stmts: body_stmts,
-                span: arm.body.span,
-            };
-
-            let if_stmt = IfStmt {
-                condition,
-                then_branch,
-                else_branch,
-                span: helper_span,
-            };
-            else_branch = Some(ElseBlock::If(Box::new(if_stmt)));
-        }
-
-        let Some(ElseBlock::If(root_if)) = else_branch else {
-            unreachable!("encaixe tem ao menos um caso validado acima");
-        };
-
-        Ok(vec![target_stmt, Stmt::If(*root_if)])
+        Ok(vec![Stmt::EnumMatch(EnumMatchStmt {
+            scrutinee,
+            arms,
+            otherwise,
+            span: match_span,
+        })])
     }
 
-    /// Reconhece `encaixe` sobre união estrutural e **preserva** o construto.
-    ///
-    /// O parser não conhece tags: não resolve apelidos, não ordena braços, não
-    /// gera literais de tag, não gera `talvez` aninhado e não fabrica chamadas
-    /// internas. A identidade semântica de cada braço é atribuída depois, pela
-    /// semântica e pelo lowering, a partir do tipo resolvido do membro.
+    fn parse_enum_pattern(&mut self) -> Result<EnumPattern, PinkerError> {
+        let enum_token = self.consume(TokenKind::Ident, "nome do leque no padrão do caso")?;
+        let enum_name = enum_token.lexeme.clone();
+        let start_span = enum_token.span;
+        self.consume(TokenKind::Dot, ".")?;
+        let variant_token = self.consume(TokenKind::Ident, "nome da variante no padrão do caso")?;
+        let variant = variant_token.lexeme.clone();
+        let mut end_span = variant_token.span;
+        let mut payloads = Vec::new();
+
+        if self.match_token(TokenKind::LParen) {
+            if !self.check(TokenKind::RParen) {
+                loop {
+                    let payload =
+                        if self.check(TokenKind::Ident) && self.check_at(1, TokenKind::Dot) {
+                            self.parse_enum_pattern()?
+                        } else {
+                            let binding = self.consume(
+                                TokenKind::Ident,
+                                "binding ou padrão aninhado da carga do caso",
+                            )?;
+                            EnumPattern::Binding {
+                                name: binding.lexeme.clone(),
+                                span: binding.span,
+                            }
+                        };
+                    payloads.push(payload);
+                    if !self.match_token(TokenKind::Comma) {
+                        break;
+                    }
+                }
+            }
+            self.consume(TokenKind::RParen, ")")?;
+            end_span = self.previous().span;
+        }
+
+        Ok(EnumPattern::Variant {
+            enum_name,
+            variant,
+            payloads,
+            span: merge_span(start_span, end_span),
+        })
+    }
+
+    fn register_enum_pattern_collections(&mut self, pattern: &EnumPattern) {
+        let EnumPattern::Variant {
+            enum_name,
+            variant,
+            payloads,
+            ..
+        } = pattern
+        else {
+            return;
+        };
+        if payloads
+            .iter()
+            .all(|payload| matches!(payload, EnumPattern::Binding { .. }))
+        {
+            let names = payloads
+                .iter()
+                .filter_map(|payload| match payload {
+                    EnumPattern::Binding { name, .. } => Some(name.clone()),
+                    EnumPattern::Variant { .. } => None,
+                })
+                .collect::<Vec<_>>();
+            self.register_payload_binding_collections(enum_name, variant, &names);
+            return;
+        }
+        let Some(payload_types) = self.enum_decls.get(enum_name).and_then(|variants| {
+            variants
+                .iter()
+                .find(|(name, _)| name == variant)
+                .map(|(_, payloads)| payloads.clone())
+        }) else {
+            return;
+        };
+
+        for (payload, payload_ty) in payloads.iter().zip(payload_types) {
+            match payload {
+                EnumPattern::Binding { name, span } => {
+                    let (_, binding_ty) = self.payload_binding(&payload_ty, *span);
+                    self.register_collection_type(name, &binding_ty);
+                }
+                EnumPattern::Variant { .. } => self.register_enum_pattern_collections(payload),
+            }
+        }
+    }
     fn parse_union_encaixe_after_header(
         &mut self,
         start_span: Span,
@@ -3490,6 +3306,23 @@ impl Parser {
                 clobbers: stmt.clobbers.clone(),
                 span: stmt.span,
             }),
+            Stmt::EnumMatch(enum_match) => Stmt::EnumMatch(EnumMatchStmt {
+                scrutinee: Self::substitute_expr(&enum_match.scrutinee, substitutions),
+                arms: enum_match
+                    .arms
+                    .iter()
+                    .map(|arm| EnumMatchArm {
+                        pattern: arm.pattern.clone(),
+                        body: Self::substitute_block(&arm.body, substitutions),
+                        span: arm.span,
+                    })
+                    .collect(),
+                otherwise: enum_match
+                    .otherwise
+                    .as_ref()
+                    .map(|block| Self::substitute_block(block, substitutions)),
+                span: enum_match.span,
+            }),
             Stmt::UnionMatch(union_match) => Stmt::UnionMatch(UnionMatchStmt {
                 scrutinee: Self::substitute_expr(&union_match.scrutinee, substitutions),
                 arms: union_match
@@ -3706,6 +3539,26 @@ impl Parser {
                     .collect(),
                 clobbers: stmt.clobbers.clone(),
                 span: stmt.span,
+            }),
+            Stmt::EnumMatch(enum_match) => Stmt::EnumMatch(EnumMatchStmt {
+                scrutinee: Self::substitute_function_param_expr(
+                    &enum_match.scrutinee,
+                    replacements,
+                ),
+                arms: enum_match
+                    .arms
+                    .iter()
+                    .map(|arm| EnumMatchArm {
+                        pattern: arm.pattern.clone(),
+                        body: Self::substitute_function_param_block(&arm.body, replacements),
+                        span: arm.span,
+                    })
+                    .collect(),
+                otherwise: enum_match
+                    .otherwise
+                    .as_ref()
+                    .map(|block| Self::substitute_function_param_block(block, replacements)),
+                span: enum_match.span,
             }),
             Stmt::UnionMatch(union_match) => Stmt::UnionMatch(UnionMatchStmt {
                 scrutinee: Self::substitute_function_param_expr(
@@ -3985,7 +3838,7 @@ impl Parser {
             if self.check(TokenKind::KwPara) {
                 stmts.extend(self.parse_for_stmt_desugared()?);
             } else if self.check(TokenKind::KwEncaixe) {
-                stmts.extend(self.parse_encaixe_desugared()?);
+                stmts.extend(self.parse_encaixe()?);
             } else if self.check(TokenKind::KwTentar) {
                 stmts.extend(self.parse_tentar_desugared()?);
             } else if self.check(TokenKind::KwPropagar) {
