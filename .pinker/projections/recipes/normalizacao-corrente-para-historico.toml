@@ -619,7 +619,7 @@ expect_layer = "machine"
 [[rules]]
 op = "override-region"
 key = "parser.callbacks.substituicao-estatica"
-from_hash = "fnv1a64:8245197860c9bcc6"
+from_hash = "fnv1a64:25b803853504120f"
 to_hash = "fnv1a64:bfadb05ce80674d6"
 expect_file = "src/parser.rs"
 expect_domain = "callbacks"

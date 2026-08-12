@@ -298,6 +298,88 @@ fn corpo_default_semanticamente_invalido_falha_como_funcao_materializada() {
 }
 
 #[test]
+fn corpo_default_invalido_nao_escapa_quando_override_vence() {
+    let code = r#"
+        pacote main;
+        trato A {
+            carinho valor(item: si) -> bombom { mimo inexistente; }
+        }
+        impl A para bombom {
+            carinho valor(item: bombom) -> bombom { mimo 1; }
+        }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let err = recusa(code);
+    assert!(
+        err.contains("identificador 'inexistente' não declarado"),
+        "{err}"
+    );
+}
+
+#[test]
+fn override_incompativel_nao_e_mascarado_por_outro_impl_compativel() {
+    let code = r#"
+        pacote main;
+        trato A {
+            carinho valor(item: bombom, extra: bombom) -> bombom { mimo extra; }
+        }
+        carinho valor(item: bombom, extra: bombom) -> bombom { mimo extra; }
+        impl A para bombom {
+            carinho valor(item: bombom, extra: logica) -> bombom { mimo item; }
+        }
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let err = recusa(code);
+    assert!(err.contains("espera 'bombom'"), "{err}");
+    assert!(err.contains("usa 'logica'"), "{err}");
+}
+
+#[test]
+fn dois_tipos_clonam_closure_do_default_com_capturas_independentes() {
+    let code = r#"
+        pacote main;
+        trato T {
+            carinho pega(x: si) -> bombom {
+                nova g: carinho(bombom) -> bombom = carinho(y: bombom) -> bombom {
+                    mimo x virar bombom;
+                };
+                mimo g(0);
+            }
+        }
+        impl T para bombom {}
+        impl T para u64 {}
+        carinho principal() -> bombom {
+            nova u: u64 = 9;
+            falar(4.pega());
+            falar(u.pega());
+            mimo 0;
+        }
+    "#;
+
+    assert!(common::parse_and_check(code).is_ok());
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("tempo do sistema")
+        .as_nanos();
+    let source = std::env::temp_dir().join(format!(
+        "pinker_d12_default_closure_{}_{nanos}.pink",
+        std::process::id()
+    ));
+    std::fs::write(&source, code).expect("gravar probe de closure default");
+    let source = source.to_string_lossy().into_owned();
+    let interpreted = interpretado(&source);
+    let native = nativo(&source);
+    let _ = std::fs::remove_file(&source);
+    assert_eq!(
+        interpreted,
+        (vec!["4".to_string(), "9".to_string()], Some(0))
+    );
+    if let Some(native) = native {
+        assert_eq!(native, interpreted);
+    }
+}
+
+#[test]
 fn default_nao_cria_relacao_nominal() {
     let code = r#"
         pacote main;

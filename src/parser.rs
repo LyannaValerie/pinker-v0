@@ -199,6 +199,95 @@ impl Parser {
         )
     }
 
+    fn trait_default_check_function_name(
+        trait_name: &str,
+        target_ty: &Type,
+        method_name: &str,
+    ) -> String {
+        let target_key = Self::impl_type_key(target_ty);
+        format!(
+            "__trait_default_check_{}_{}_{}_{}_{}",
+            trait_name.len(),
+            trait_name,
+            target_key.len(),
+            target_key,
+            method_name
+        )
+    }
+
+    fn collect_trait_default_closure_names(
+        function: &FunctionDecl,
+        templates: &HashMap<String, FunctionDecl>,
+        ordered: &mut Vec<String>,
+        seen: &mut HashSet<String>,
+    ) -> Result<(), PinkerError> {
+        for candidate in crate::ast::capture_candidates_in_function(function) {
+            if !candidate.starts_with("__anon_carinho_") || !seen.insert(candidate.clone()) {
+                continue;
+            }
+            let Some(template) = templates.get(&candidate) else {
+                return Err(PinkerError::Parse {
+                    msg: format!(
+                        "closure sintética '{}' do default não foi encontrada",
+                        candidate
+                    ),
+                    span: function.span,
+                });
+            };
+            ordered.push(candidate);
+            Self::collect_trait_default_closure_names(template, templates, ordered, seen)?;
+        }
+        Ok(())
+    }
+
+    fn clone_trait_default_closures(
+        &mut self,
+        function: &mut FunctionDecl,
+        templates: &HashMap<String, FunctionDecl>,
+        consumed_templates: &mut HashSet<String>,
+        cloned_functions: &mut Vec<FunctionDecl>,
+    ) -> Result<(), PinkerError> {
+        let mut ordered = Vec::new();
+        Self::collect_trait_default_closure_names(
+            function,
+            templates,
+            &mut ordered,
+            &mut HashSet::new(),
+        )?;
+        if ordered.is_empty() {
+            return Ok(());
+        }
+
+        let mut replacements = HashMap::new();
+        for old_name in &ordered {
+            self.synthetic_counter += 1;
+            replacements.insert(
+                old_name.clone(),
+                format!("__anon_carinho_{}", self.synthetic_counter),
+            );
+        }
+
+        function.body = Self::substitute_function_param_block(&function.body, &replacements);
+        for old_name in ordered {
+            let mut cloned = templates
+                .get(&old_name)
+                .expect("closure template was validated while collecting")
+                .clone();
+            let new_name = replacements
+                .get(&old_name)
+                .expect("every collected closure receives a fresh name")
+                .clone();
+            cloned.name = new_name.clone();
+            cloned.body = Self::substitute_function_param_block(&cloned.body, &replacements);
+            if self.capturing_anon_functions.contains(&old_name) {
+                self.capturing_anon_functions.insert(new_name);
+            }
+            consumed_templates.insert(old_name);
+            cloned_functions.push(cloned);
+        }
+        Ok(())
+    }
+
     // @pinker-nav:start parser.fluxo.nucleo
     // @pinker-nav:domain fluxo
     // @pinker-nav:layer parser
@@ -1028,26 +1117,32 @@ impl Parser {
     }
 
     fn materialize_trait_defaults(
-        &self,
+        &mut self,
         impl_relations: &[PendingImplRelation],
     ) -> Result<Vec<FunctionDecl>, PinkerError> {
         let mut defaults = Vec::new();
+        let closure_templates: HashMap<String, FunctionDecl> = self
+            .pending_functions
+            .iter()
+            .filter(|function| function.name.starts_with("__anon_carinho_"))
+            .map(|function| (function.name.clone(), function.clone()))
+            .collect();
+        let mut consumed_closure_templates = HashSet::new();
+        let mut cloned_closures = Vec::new();
         for pending in impl_relations {
             let trait_name = &pending.relation.trait_name;
             let target_ty = &pending.relation.target_ty;
-            let trait_decl = self
+            let methods = self
                 .trait_decls
                 .get(trait_name)
-                .expect("impl só é registrado para trato já declarado");
+                .expect("impl só é registrado para trato já declarado")
+                .methods
+                .clone();
 
-            for method in &trait_decl.methods {
+            for method in &methods {
                 let Some(body) = &method.body else {
                     continue;
                 };
-                if pending.explicit_method_names.contains(&method.name) {
-                    continue;
-                }
-
                 let mut params = method.params.clone();
                 let Some(receiver) = params.first_mut() else {
                     return Err(PinkerError::Parse {
@@ -1074,16 +1169,38 @@ impl Parser {
                     });
                 }
 
-                defaults.push(FunctionDecl {
-                    name: Self::impl_function_name(trait_name, target_ty, &method.name),
+                // O corpo default pertence ao contrato mesmo quando um override
+                // vence a seleção. Nesse caso materializamos uma função privada
+                // somente para a checagem semântica; ela não usa o prefixo
+                // `__impl_`, portanto nunca entra em method_index nem em vtable.
+                let name = if pending.explicit_method_names.contains(&method.name) {
+                    Self::trait_default_check_function_name(trait_name, target_ty, &method.name)
+                } else {
+                    Self::impl_function_name(trait_name, target_ty, &method.name)
+                };
+
+                let mut function = FunctionDecl {
+                    name,
                     type_params: Vec::new(),
                     params,
                     ret_type: method.ret_type.clone(),
                     span: method.span,
                     body: body.clone(),
-                });
+                };
+                self.clone_trait_default_closures(
+                    &mut function,
+                    &closure_templates,
+                    &mut consumed_closure_templates,
+                    &mut cloned_closures,
+                )?;
+                defaults.push(function);
             }
         }
+        self.pending_functions
+            .retain(|function| !consumed_closure_templates.contains(&function.name));
+        self.capturing_anon_functions
+            .retain(|name| !consumed_closure_templates.contains(name));
+        self.pending_functions.extend(cloned_closures);
         Ok(defaults)
     }
 
@@ -3533,10 +3650,15 @@ impl Parser {
             ExprKind::AlignOfType { target } => ExprKind::AlignOfType {
                 target: target.clone(),
             },
-            ExprKind::Ident(_)
-            | ExprKind::IntLit(_)
-            | ExprKind::BoolLit(_)
-            | ExprKind::StringLit(_) => expr.kind.clone(),
+            ExprKind::Ident(name) => ExprKind::Ident(
+                replacements
+                    .get(name)
+                    .cloned()
+                    .unwrap_or_else(|| name.clone()),
+            ),
+            ExprKind::IntLit(_) | ExprKind::BoolLit(_) | ExprKind::StringLit(_) => {
+                expr.kind.clone()
+            }
         };
         Expr {
             kind,

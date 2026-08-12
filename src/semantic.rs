@@ -1406,15 +1406,14 @@ impl SemanticChecker {
                     span: Span::new(Position::new(0, 0), Position::new(0, 0)),
                 });
             };
-            let trait_methods: HashSet<&str> = trait_decl
-                .methods
-                .iter()
-                .map(|method| method.name.as_str())
-                .collect();
             let mut seen = HashSet::new();
 
             for meta in &methods {
-                if !trait_methods.contains(meta.method_name.as_str()) {
+                let Some(method) = trait_decl
+                    .methods
+                    .iter()
+                    .find(|method| method.name == meta.method_name)
+                else {
                     let span = self
                         .funcs
                         .get(&meta.function_name)
@@ -1427,7 +1426,7 @@ impl SemanticChecker {
                         ),
                         span,
                     });
-                }
+                };
                 if !seen.insert(meta.method_name.as_str()) {
                     let span = self
                         .funcs
@@ -1442,6 +1441,12 @@ impl SemanticChecker {
                         span,
                     });
                 }
+
+                let function = self
+                    .funcs
+                    .get(&meta.function_name)
+                    .expect("impl method metadata always references a collected function");
+                self.validate_impl_trait_method_function(trait_decl, method, meta, function)?;
             }
 
             for method in &trait_decl.methods {
@@ -1549,7 +1554,7 @@ impl SemanticChecker {
         Ok(true)
     }
 
-    fn validate_object_trait_method_function(
+    fn validate_impl_trait_method_function(
         &self,
         trait_decl: &TraitDecl,
         method: &TraitMethodSig,
@@ -1570,10 +1575,15 @@ impl SemanticChecker {
             });
         }
 
-        let receiver = function
-            .params
-            .first()
-            .expect("trato objetificável sempre possui receiver");
+        let Some(receiver) = function.params.first() else {
+            return Err(PinkerError::Semantic {
+                msg: format!(
+                    "método '{}' do trato '{}' exige receiver no impl para '{}'",
+                    method.name, trait_decl.name, meta.target_type
+                ),
+                span: function.span,
+            });
+        };
 
         let receiver_direct = Self::type_key(&receiver.ty);
         let receiver_resolved = Self::type_key(&self.resolve_type_or_error(&receiver.ty)?);
@@ -1586,6 +1596,28 @@ impl SemanticChecker {
                 ),
                 span: receiver.span,
             });
+        }
+
+        let expected_receiver = method
+            .params
+            .first()
+            .expect("aridade já foi comparada e impl possui receiver");
+        if !Self::is_contextual_self_type(&expected_receiver.ty) {
+            let expected_ty = self.resolve_type_or_error(&expected_receiver.ty)?;
+            let found_ty = self.resolve_type_or_error(&receiver.ty)?;
+            if Self::type_key(&expected_ty) != Self::type_key(&found_ty) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "receiver do método '{}' no trato '{}' espera '{}', mas impl para '{}' usa '{}'",
+                        method.name,
+                        trait_decl.name,
+                        Self::type_key(&expected_ty),
+                        meta.target_type,
+                        Self::type_key(&found_ty)
+                    ),
+                    span: receiver.span,
+                });
+            }
         }
 
         for (expected, found) in method
@@ -1687,7 +1719,7 @@ impl SemanticChecker {
                     }
 
                     for (meta, function) in candidates {
-                        self.validate_object_trait_method_function(
+                        self.validate_impl_trait_method_function(
                             trait_decl, method, meta, function,
                         )?;
                     }
