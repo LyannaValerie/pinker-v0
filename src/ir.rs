@@ -2758,6 +2758,13 @@ impl LoweringContext {
             "ler_arquivo_verso".to_string(),
             builtin_sig(&mut resolved_types, TypeIR::Verso)?,
         );
+        // Parte B: leque com carga é handle de uma palavra na IR.
+        for nome in crate::falha_operacional::nomes() {
+            function_sigs.insert(
+                nome.to_string(),
+                builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
+            );
+        }
         function_sigs.insert(
             "arquivo_ou".to_string(),
             builtin_sig(&mut resolved_types, TypeIR::Verso)?,

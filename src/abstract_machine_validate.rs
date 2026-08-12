@@ -585,6 +585,13 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
         "ler_arquivo_verso".to_string(),
         (TypeIR::Verso, vec![StackValueType::Verso]),
     );
+    // Parte B: leque com carga é handle de uma palavra na máquina de pilha.
+    for nome in crate::falha_operacional::nomes() {
+        sigs.insert(
+            nome.to_string(),
+            (TypeIR::Bombom, vec![StackValueType::Verso]),
+        );
+    }
     sigs.insert(
         "arquivo_ou".to_string(),
         (

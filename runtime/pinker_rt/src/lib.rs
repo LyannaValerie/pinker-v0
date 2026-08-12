@@ -3081,6 +3081,89 @@ pub unsafe extern "C" fn pinker_processo_pipeline(
     exit_code_ou_erro("pipeline_minimo", status.code())
 }
 // @pinker-nav:end runtime.processos.execucao
+// @pinker-nav:start runtime.falha-operacional.superficies
+// @pinker-nav:domain erros
+// @pinker-nav:layer runtime
+// @pinker-nav:summary Superfícies falíveis nativas da Parte B: leitura de arquivo por caminho, spawn de processo e conversão de texto para número devolvem um leque `Resultado<T,E>` construído pelos mesmos `pinker_leque_criar_0`/`pinker_leque_anexar` que o código gerado usa, com `Ok` na tag 0 e `Erro` na tag 1 e a causa sempre em `verso`. Falha ambiental vira valor; comando vazio, código de saída não representável e falta de memória continuam fatais por `erro_fatal`.
+
+/// Tag da variante de sucesso de `Resultado<T,E>`.
+///
+/// Espelha `falha_operacional::TAG_OK` do compilador. O runtime é uma crate
+/// separada e não pode importar aquele símbolo, então o acoplamento é fixado
+/// por evidência: a paridade interpretador × nativo quebra imediatamente se as
+/// duas pontas discordarem da ordem das variantes.
+const RESULTADO_TAG_OK: u64 = 0;
+
+/// Tag da variante de falha de `Resultado<T,E>`.
+const RESULTADO_TAG_ERRO: u64 = 1;
+
+/// `Resultado.Ok(valor)` com carga de uma palavra.
+fn resultado_ok_bombom(valor: u64) -> *mut u8 {
+    let leque = pinker_leque_criar_0(RESULTADO_TAG_OK);
+    unsafe { pinker_leque_anexar(leque, valor) }
+}
+
+/// `Resultado.Ok(texto)` com carga textual.
+fn resultado_ok_verso(texto: &str) -> *mut u8 {
+    let leque = pinker_leque_criar_0(RESULTADO_TAG_OK);
+    unsafe { pinker_leque_anexar(leque, verso_alocar(texto) as u64) }
+}
+
+/// `Resultado.Erro(causa)`. A causa é sempre `verso`.
+fn resultado_erro(causa: &str) -> *mut u8 {
+    let leque = pinker_leque_criar_0(RESULTADO_TAG_ERRO);
+    unsafe { pinker_leque_anexar(leque, verso_alocar(causa) as u64) }
+}
+
+/// Leitura de arquivo inteiro por caminho, com falha ambiental como valor.
+///
+/// # Safety
+/// `caminho` deve apontar para um bloco de verso válido.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_arquivo_ler_caminho_resultado(caminho: *const u8) -> *mut u8 {
+    let caminho = verso_str(caminho);
+    match std::fs::read_to_string(caminho) {
+        Ok(conteudo) => resultado_ok_verso(&conteudo),
+        Err(err) => resultado_erro(&format!("falha ao ler arquivo '{caminho}': {err}")),
+    }
+}
+
+/// Spawn de processo, com impossibilidade de executar como valor.
+///
+/// O código de saída do filho é valor de sucesso — um código diferente de zero
+/// não é falha desta superfície. Continuam fatais: comando vazio (erro de uso) e
+/// término sem código representável, cuja modelagem pertence à Parte D.
+///
+/// # Safety
+/// `comando` deve apontar para um bloco de verso válido.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_processo_executar_resultado(comando: *const u8) -> *mut u8 {
+    let nome = "executar_processo_resultado";
+    let comando = verso_str(comando);
+    exigir_comando_nao_vazio(nome, comando);
+    let resolvido = match comando_resolvido(nome, comando) {
+        Ok(resolvido) => resolvido,
+        Err(err) => return resultado_erro(&err),
+    };
+    match comando_saneado(resolvido).status() {
+        Ok(status) => resultado_ok_bombom(exit_code_ou_erro(nome, status.code())),
+        Err(err) => resultado_erro(&format!("falha ao executar processo '{comando}': {err}")),
+    }
+}
+
+/// Conversão de texto externo para número, com texto malformado como valor.
+///
+/// # Safety
+/// `texto` deve apontar para um bloco de verso válido.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_verso_para_bombom_resultado(texto: *const u8) -> *mut u8 {
+    let texto = verso_str(texto);
+    match texto.trim().parse::<u64>() {
+        Ok(valor) => resultado_ok_bombom(valor),
+        Err(_) => resultado_erro(&format!("falha ao converter '{texto}' para bombom")),
+    }
+}
+// @pinker-nav:end runtime.falha-operacional.superficies
 
 // @pinker-nav:start evidencia.runtime.memoria-alocador
 // @pinker-nav:domain memoria

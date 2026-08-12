@@ -3759,6 +3759,11 @@ fn runtime_intrinsic_symbol(callee: &str) -> Option<&'static str> {
         "truncar_arquivo" => Some("pinker_arquivo_truncar"),
         "anexar_verso" => Some("pinker_arquivo_anexar_verso"),
         "ler_arquivo_verso" => Some("pinker_arquivo_ler_caminho_verso"),
+        // Parte B: o símbolo vem da autoridade única das superfícies falíveis,
+        // nunca de uma string repetida aqui.
+        nome if crate::falha_operacional::superficie(nome).is_some() => {
+            crate::falha_operacional::superficie(nome).map(|s| s.simbolo_runtime)
+        }
         "arquivo_ou" => Some("pinker_arquivo_ou"),
         "copiar_arquivo" => Some("pinker_arquivo_copiar"),
         "renomear_arquivo" => Some("pinker_arquivo_renomear"),

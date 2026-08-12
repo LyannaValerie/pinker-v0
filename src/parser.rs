@@ -3224,6 +3224,42 @@ impl Parser {
         })
     }
 
+    /// Parte B: registra a especialização de `Resultado<T,E>` devolvida por uma
+    /// superfície falível.
+    ///
+    /// Faz exatamente o que a análise do tipo `Resultado<T, E>` escrito na fonte
+    /// já faz: enfileira a instanciação para a passagem de monomorfização e
+    /// publica o leque concreto nas tabelas locais do parser. A duplicação é
+    /// deduplicada por nome monomórfico em `instantiate_generic_enums`, então
+    /// chamar a intrínseca e também escrever o tipo não gera dois leques.
+    fn registrar_resultado_falivel(
+        &mut self,
+        superficie: &crate::falha_operacional::SuperficieFalivel,
+        span: Span,
+    ) -> Result<(), PinkerError> {
+        let name = crate::falha_operacional::LEQUE_RESULTADO.to_string();
+        let args = superficie.argumentos_de_tipo(span);
+        self.enum_generic_instantiations
+            .push(EnumGenericInstantiation {
+                name: name.clone(),
+                type_args: args.clone(),
+                span,
+            });
+        if let Some(template) = self.enum_generic_templates.get(&name).cloned() {
+            let concrete = Self::instantiate_generic_enum_decl(&template, &args, span)?;
+            self.enum_names.insert(concrete.name.clone());
+            self.enum_decls.insert(
+                concrete.name,
+                concrete
+                    .variants
+                    .into_iter()
+                    .map(|variant| (variant.name, variant.payloads))
+                    .collect(),
+            );
+        }
+        Ok(())
+    }
+
     /// Fase 241: registra os leques genéricos predeclarados pela biblioteca padrão.
     /// Hoje: `Resultado<T, E> { Ok(T), Erro(E) }`. Construído diretamente como
     /// `EnumDecl` sintético (sem parsing de string, sem I/O, determinístico) e
@@ -6053,6 +6089,17 @@ impl Parser {
                             kind: ExprKind::Ident(mono_name),
                             span: expr.span,
                         };
+                    }
+                }
+                if let ExprKind::Ident(name) = &expr.kind {
+                    // Parte B: uma chamada a superfície falível materializa a
+                    // especialização de `Resultado<T,E>` que ela devolve, pelo
+                    // mesmo caminho de monomorfização que o usuário dispararia
+                    // ao escrever o tipo. Materialização de tipo — não
+                    // semântica de propagação, que continua cega à origem.
+                    if let Some(superficie) = crate::falha_operacional::superficie(name) {
+                        let span = expr.span;
+                        self.registrar_resultado_falivel(superficie, span)?;
                     }
                 }
                 if let ExprKind::Ident(name) = &expr.kind {

@@ -17,6 +17,7 @@ pub mod editor_tui;
 pub mod elf;
 pub mod enum_payload;
 pub mod error;
+pub mod falha_operacional;
 pub mod inline_asm;
 pub mod instr_select;
 pub mod instr_select_validate;

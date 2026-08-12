@@ -2352,6 +2352,68 @@ fn exec_instr(
 
 // @pinker-nav:end interpreter.execucao.instrucoes-pilha
 
+// @pinker-nav:start interpreter.falha-operacional.construcao
+// @pinker-nav:domain erros
+// @pinker-nav:layer interpreter
+// @pinker-nav:summary Construção hospedada de `Resultado<T,E>` para as superfícies falíveis da Parte B: `exigir_verso_unico` mantém aridade e tipo do argumento como erro de programa, e `novo_leque`/`resultado_ok_bombom`/`resultado_ok_verso`/`resultado_erro` produzem o valor pelo mesmo `enum_values` que qualquer leque do usuário, com `Ok` na tag 0 e `Erro` na tag 1.
+/// Argumento único `verso` das superfícies falíveis.
+///
+/// Aridade e tipo errados são erro de programa, detectados antes daqui pela
+/// semântica; esta checagem é a rede do interpretador e continua fatal — não
+/// vira `Erro(...)`.
+fn exigir_verso_unico<'a>(callee: &str, args: &'a [RuntimeValue]) -> Result<&'a str, PinkerError> {
+    if args.len() != 1 {
+        return Err(runtime_err(&format!(
+            "intrínseca '{}' exige 1 argumento (verso)",
+            callee
+        )));
+    }
+    let RuntimeValue::Str(texto) = &args[0] else {
+        return Err(runtime_err(&format!(
+            "intrínseca '{}' exige argumento em verso",
+            callee
+        )));
+    };
+    Ok(texto)
+}
+
+/// Cria um valor de leque com a tag dada, pelo mesmo caminho de
+/// `__pinker_internal_leque_criar_0`.
+fn novo_leque(map_state: &mut RuntimeMapState, tag: u64) -> u64 {
+    let handle = map_state.next_enum_handle;
+    map_state.next_enum_handle = map_state.next_enum_handle.saturating_add(1);
+    map_state.enum_values.insert(handle, (tag, Vec::new()));
+    handle
+}
+
+/// `Resultado.Ok(valor)` com carga de uma palavra.
+fn resultado_ok_bombom(map_state: &mut RuntimeMapState, valor: u64) -> IntrinsicCall {
+    let handle = novo_leque(map_state, crate::falha_operacional::TAG_OK);
+    if let Some((_, cargas)) = map_state.enum_values.get_mut(&handle) {
+        cargas.push(RuntimeEnumPayload::Int(valor));
+    }
+    IntrinsicCall::Done(Some(RuntimeValue::Int(handle)))
+}
+
+/// `Resultado.Ok(texto)` com carga textual.
+fn resultado_ok_verso(map_state: &mut RuntimeMapState, texto: String) -> IntrinsicCall {
+    let handle = novo_leque(map_state, crate::falha_operacional::TAG_OK);
+    if let Some((_, cargas)) = map_state.enum_values.get_mut(&handle) {
+        cargas.push(RuntimeEnumPayload::Str(texto));
+    }
+    IntrinsicCall::Done(Some(RuntimeValue::Int(handle)))
+}
+
+/// `Resultado.Erro(causa)`. A causa é sempre `verso`.
+fn resultado_erro(map_state: &mut RuntimeMapState, causa: String) -> IntrinsicCall {
+    let handle = novo_leque(map_state, crate::falha_operacional::TAG_ERRO);
+    if let Some((_, cargas)) = map_state.enum_values.get_mut(&handle) {
+        cargas.push(RuntimeEnumPayload::Str(causa));
+    }
+    IntrinsicCall::Done(Some(RuntimeValue::Int(handle)))
+}
+// @pinker-nav:end interpreter.falha-operacional.construcao
+
 // @pinker-nav:start interpreter.intrinsecos.acaso
 // @pinker-nav:domain intrinsecos
 // @pinker-nav:layer interpreter
@@ -4838,6 +4900,50 @@ fn try_call_intrinsic(
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(json))))
         }
         // @pinker-nav:end interpreter.intrinsecos.io-arquivo-texto
+        // @pinker-nav:start interpreter.intrinsecos.falha-operacional
+        // @pinker-nav:domain erros
+        // @pinker-nav:layer interpreter
+        // @pinker-nav:summary Superfícies falíveis hospedadas da Parte B: leitura de arquivo por caminho, spawn de processo e conversão de texto para número devolvem `Resultado<T,E>` como valor comum, construído pelo mesmo `enum_values` que qualquer leque do usuário, com `Ok` na tag 0 e `Erro` na tag 1. A falha recuperável carrega a causa em `verso`; aridade, tipo de argumento e invariantes internas continuam fatais.
+        "ler_arquivo_resultado" => {
+            let caminho = exigir_verso_unico(callee, args)?;
+            match fs::read_to_string(caminho) {
+                Ok(conteudo) => Ok(resultado_ok_verso(map_state, conteudo)),
+                Err(err) => Ok(resultado_erro(
+                    map_state,
+                    format!("falha ao ler arquivo '{}': {}", caminho, err),
+                )),
+            }
+        }
+        "executar_processo_resultado" => {
+            let comando = exigir_verso_unico(callee, args)?;
+            // Comando vazio permanece erro de uso, não falha ambiental.
+            validar_comando_nao_vazio("executar_processo_resultado", comando)?;
+            let mut processo = comando_de_processo(comando);
+            match processo.status() {
+                // Spawn bem-sucedido: o código de saída do filho é valor de
+                // sucesso. Código não representável continua fatal — a
+                // modelagem de status pertence à Parte D.
+                Ok(status) => {
+                    let codigo = exit_code_u64("executar_processo_resultado", status.code())?;
+                    Ok(resultado_ok_bombom(map_state, codigo))
+                }
+                Err(err) => Ok(resultado_erro(
+                    map_state,
+                    format!("falha ao executar processo '{}': {}", comando, err),
+                )),
+            }
+        }
+        "verso_para_bombom_resultado" => {
+            let texto = exigir_verso_unico(callee, args)?;
+            match texto.trim().parse::<u64>() {
+                Ok(valor) => Ok(resultado_ok_bombom(map_state, valor)),
+                Err(_) => Ok(resultado_erro(
+                    map_state,
+                    format!("falha ao converter '{}' para bombom", texto),
+                )),
+            }
+        }
+        // @pinker-nav:end interpreter.intrinsecos.falha-operacional
 
         // @pinker-nav:start interpreter.intrinsecos.tempo-processos-ambiente
         // @pinker-nav:domain intrinsecos
