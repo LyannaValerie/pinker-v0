@@ -6990,6 +6990,37 @@ impl SemanticChecker {
             }
             return Ok(Type::Verso(expr_span));
         }
+        // Parte B: superfícies falíveis. Todas recebem um `verso` e devolvem a
+        // especialização de `Resultado<T,E>` declarada pela autoridade única,
+        // então a checagem é uma só — não uma cópia por intrínseca.
+        if let Some(superficie) = crate::falha_operacional::superficie(name) {
+            if args.len() != 1 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de '{}' com aridade inválida: esperado 1, recebido {}",
+                        name,
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let arg_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !superficie.argumento.aceita(&arg_ty) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada '{}': esperado '{}', encontrado '{}'",
+                        name,
+                        superficie.argumento.chave(),
+                        arg_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            return Ok(superficie.tipo_de_retorno(expr_span));
+        }
         if name == "ler_arquivo_verso" {
             if args.len() != 1 {
                 return Err(PinkerError::Semantic {

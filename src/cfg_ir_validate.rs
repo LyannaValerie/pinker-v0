@@ -709,6 +709,17 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
             params: vec![TypeIR::Verso],
         },
     );
+    // Parte B: as superfícies falíveis devolvem um leque com carga, que na IR é
+    // o handle de uma palavra — logo `bombom`, como qualquer outro leque.
+    for nome in crate::falha_operacional::nomes() {
+        function_sigs.insert(
+            nome.to_string(),
+            FunctionSigCfg {
+                ret_type: TypeIR::Bombom,
+                params: vec![TypeIR::Verso],
+            },
+        );
+    }
     function_sigs.insert(
         "arquivo_ou".to_string(),
         FunctionSigCfg {

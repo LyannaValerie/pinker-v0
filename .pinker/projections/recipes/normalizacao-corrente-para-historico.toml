@@ -2,8 +2,8 @@ schema = 2
 id = "normalizacao-corrente-para-historico"
 
 [reconstruction]
-expected_overrides = 49
-expected_exclusions = 56
+expected_overrides = 50
+expected_exclusions = 61
 
 [[rules]]
 op = "exclude-key"
@@ -87,6 +87,11 @@ expected_matches = 1
 
 [[rules]]
 op = "exclude-key"
+key = "evidencia.erros.parte-b-falha-operacional"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
 key = "evidencia.fatiar-verso.d9-unicode"
 expected_matches = 1
 
@@ -117,6 +122,21 @@ expected_matches = 1
 
 [[rules]]
 op = "exclude-key"
+key = "falha.operacional.superficies"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "interpreter.falha-operacional.construcao"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "interpreter.intrinsecos.falha-operacional"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
 key = "parser.genericos.inferencia-local"
 expected_matches = 1
 
@@ -133,6 +153,11 @@ expected_matches = 1
 [[rules]]
 op = "exclude-key"
 key = "project-state.renderizacao"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "runtime.falha-operacional.superficies"
 expected_matches = 1
 
 [[rules]]
@@ -382,7 +407,7 @@ expect_layer = "backend-s"
 [[rules]]
 op = "override-region"
 key = "backend-s.runtime.simbolos-intrinsecas"
-from_hash = "fnv1a64:69db0652444a63cc"
+from_hash = "fnv1a64:afe9c722de49c41d"
 to_hash = "fnv1a64:e57b8a35f588a616"
 expect_file = "src/backend_s.rs"
 expect_domain = "runtime"
@@ -409,7 +434,7 @@ expect_layer = "cfg"
 [[rules]]
 op = "override-region"
 key = "cfg.validacao.invariantes"
-from_hash = "fnv1a64:582e7ffb859feef2"
+from_hash = "fnv1a64:8dcb6e1580620fd6"
 to_hash = "fnv1a64:d09fb8c5cd4c56c5"
 expect_file = "src/cfg_ir_validate.rs"
 expect_domain = "validacao"
@@ -537,7 +562,7 @@ expect_layer = "interpreter"
 [[rules]]
 op = "override-region"
 key = "ir.lowering.assinaturas-intrinsecos"
-from_hash = "fnv1a64:9a462496fe036c9a"
+from_hash = "fnv1a64:d030828f57e34ada"
 to_hash = "fnv1a64:4c474d5f9416a278"
 expect_file = "src/ir.rs"
 expect_domain = "lowering"
@@ -606,7 +631,7 @@ expect_layer = "ir"
 [[rules]]
 op = "override-region"
 key = "ir.validacao.invariantes"
-from_hash = "fnv1a64:bab9686c12e9ebe7"
+from_hash = "fnv1a64:e7d9bf7ed17064b9"
 to_hash = "fnv1a64:2a5a15bb37f76889"
 expect_file = "src/ir_validate.rs"
 expect_domain = "validacao"
@@ -615,7 +640,7 @@ expect_layer = "ir"
 [[rules]]
 op = "override-region"
 key = "machine.validacao.invariantes"
-from_hash = "fnv1a64:6652f8f748b8f5b5"
+from_hash = "fnv1a64:88f587681a2bbe82"
 to_hash = "fnv1a64:fa626f77e9a0fa75"
 expect_file = "src/abstract_machine_validate.rs"
 expect_domain = "validacao"
@@ -655,7 +680,7 @@ expect_layer = "parser"
 [[rules]]
 op = "override-region"
 key = "parser.expressoes.postfix"
-from_hash = "fnv1a64:1fe158b985837baf"
+from_hash = "fnv1a64:e4f102fa71d41568"
 to_hash = "fnv1a64:a0e90b7e07211b9b"
 from_summary = "Cadeia postfix de expressão: chamadas, acesso a campo, índice, chamada genérica explícita e sufixo de cast (`virar`), aplicados sobre a expressão base para produzir o `ast::Expr` final."
 to_summary = "Cadeia postfix de expressão: chamadas, acesso a campo, índice, chamada genérica explícita e sufixo de cast (`virar`), aplicados sobre a expressão base para produzir o `ast::Expr` final."
@@ -672,6 +697,15 @@ from_summary = "Declaração de função: reconhece `carinho nome<params-de-tipo
 to_summary = "Declaração de função: reconhece `carinho nome<params-de-tipo>(params) -> tipo { corpo }`, incluindo os parâmetros de tipo genéricos opcionais, e produz o nó `ast::FunctionDecl`."
 expect_file = "src/parser.rs"
 expect_domain = "funcoes"
+expect_layer = "parser"
+
+[[rules]]
+op = "override-region"
+key = "parser.genericos.leques-template"
+from_hash = "fnv1a64:a3fd481c75da1f0b"
+to_hash = "fnv1a64:9db5cce54d4d0579"
+expect_file = "src/parser.rs"
+expect_domain = "genericos"
 expect_layer = "parser"
 
 [[rules]]
@@ -715,7 +749,7 @@ expect_layer = "runtime"
 [[rules]]
 op = "override-region"
 key = "select.validacao.invariantes"
-from_hash = "fnv1a64:c502522776ef5a68"
+from_hash = "fnv1a64:d2c3f3adc645bd3b"
 to_hash = "fnv1a64:c355c9b186e3e67e"
 expect_file = "src/instr_select_validate.rs"
 expect_domain = "validacao"
@@ -724,7 +758,7 @@ expect_layer = "select"
 [[rules]]
 op = "override-region"
 key = "semantic.chamadas.despacho"
-from_hash = "fnv1a64:10ad20d520e8c6d4"
+from_hash = "fnv1a64:ab353e85fee4ddb7"
 to_hash = "fnv1a64:786f0d551629e7a5"
 expect_file = "src/semantic.rs"
 expect_domain = "chamadas"
