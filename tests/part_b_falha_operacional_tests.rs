@@ -339,6 +339,53 @@ impl Paridade {
     }
 }
 
+/// Ponto 19: a propagação não pode ganhar special-case por intrínseca.
+///
+/// O desugaring de `tentar`/`propagar`/`propagar?` é a autoridade única de
+/// propagação e precisa continuar cego a quem produziu o valor. Provar isso
+/// só pelo diff é argumento de revisão, não evidência: este teste lê a região
+/// canônica e falha se qualquer nome de superfície falível aparecer nela.
+#[test]
+fn desugaring_de_propagacao_nao_conhece_nenhuma_superficie_falivel() {
+    let raiz = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let fonte = fs::read_to_string(raiz.join("src/parser.rs")).expect("src/parser.rs legível");
+
+    const INICIO: &str = "// @pinker-nav:start parser.resultado.tentar-propagar";
+    const FIM: &str = "// @pinker-nav:end parser.resultado.tentar-propagar";
+    let i = fonte.find(INICIO).expect("região do desugaring presente");
+    let f = fonte
+        .find(FIM)
+        .expect("fim da região do desugaring presente");
+    assert!(i < f, "marcadores da região de propagação fora de ordem");
+    let regiao = &fonte[i..f];
+
+    // Controle positivo: a região realmente é a do desugaring.
+    for esperado in ["parse_tentar_desugared", "parse_propagar_desugared"] {
+        assert!(
+            regiao.contains(esperado),
+            "região de propagação não contém {esperado}; o teste está lendo o trecho errado"
+        );
+    }
+
+    for superficie in pinker_v0::falha_operacional::SUPERFICIES_FALIVEIS {
+        assert!(
+            !regiao.contains(superficie.intrinseca),
+            "a propagação ganhou special-case para '{}': OPERATION_SOURCE \
+             MUST_NOT_DEFINE PROPAGATION_SEMANTICS",
+            superficie.intrinseca
+        );
+        assert!(
+            !regiao.contains(superficie.historica),
+            "a propagação ganhou special-case para a superfície histórica '{}'",
+            superficie.historica
+        );
+    }
+    assert!(
+        !regiao.contains("falha_operacional"),
+        "a propagação passou a depender da autoridade de superfícies falíveis"
+    );
+}
+
 /// Executa o mesmo caso nos dois modos. Cada modo recebe os argumentos já
 /// resolvidos pelo chamador, porque parte dos casos precisa de caminhos
 /// distintos por modo.
