@@ -3,7 +3,7 @@ id = "normalizacao-corrente-para-historico"
 
 [reconstruction]
 expected_overrides = 49
-expected_exclusions = 55
+expected_exclusions = 56
 
 [[rules]]
 op = "exclude-key"
@@ -68,6 +68,11 @@ expected_matches = 1
 [[rules]]
 op = "exclude-key"
 key = "cli.nav.projecao"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.arquivos.d13-politica-de-handle"
 expected_matches = 1
 
 [[rules]]
