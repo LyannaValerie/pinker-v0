@@ -10,6 +10,9 @@ pub struct Program {
     pub package: Option<PackageDecl>,
     pub freestanding: Option<Span>,
     pub imports: Vec<ImportDecl>,
+    /// Relações `impl Trato para Tipo` preservadas nominalmente, inclusive
+    /// quando o bloco não declara método explícito algum.
+    pub impls: Vec<ImplDecl>,
     pub items: Vec<Item>,
 }
 
@@ -145,6 +148,13 @@ pub struct TraitDecl {
     pub span: Span,
 }
 
+#[derive(Debug, Clone)]
+pub struct ImplDecl {
+    pub trait_name: String,
+    pub target_ty: Type,
+    pub span: Span,
+}
+
 impl TraitDecl {
     fn write_json(&self, writer: &mut JsonWriter<'_>) {
         writer.begin_object();
@@ -165,6 +175,9 @@ impl TraitDecl {
                 }
                 None => writer.field_null("ret_type"),
             }
+            if let Some(body) = &method.body {
+                writer.field_value("body", |writer| body.write_json(writer));
+            }
             writer.end_object();
         });
         writer.end_object();
@@ -176,6 +189,7 @@ pub struct TraitMethodSig {
     pub name: String,
     pub params: Vec<Param>,
     pub ret_type: Option<Type>,
+    pub body: Option<Block>,
     pub span: Span,
 }
 

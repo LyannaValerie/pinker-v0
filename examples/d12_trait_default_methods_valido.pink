@@ -1,0 +1,65 @@
+pacote main;
+
+trato Medivel {
+    carinho marcador(valor: si) -> bombom;
+
+    carinho base(valor: si) -> bombom {
+        mimo valor;
+    }
+
+    carinho dobro(valor: si) -> bombom {
+        mimo Medivel.base(valor) * 2;
+    }
+
+    carinho triplo(valor: si) -> bombom {
+        mimo Medivel.base(valor) * 3;
+    }
+}
+
+impl Medivel para bombom {
+    carinho marcador(valor: bombom) -> bombom {
+        mimo valor;
+    }
+}
+
+impl Medivel para u64 {
+    carinho marcador(valor: u64) -> bombom {
+        mimo 0;
+    }
+
+    carinho base(valor: u64) -> bombom {
+        mimo 20;
+    }
+
+    carinho dobro(valor: u64) -> bombom {
+        mimo 99;
+    }
+}
+
+trato Constante {
+    carinho valor(item: si) -> bombom {
+        mimo 7;
+    }
+}
+
+impl Constante para u32 {}
+
+carinho principal() -> bombom {
+    nova b: bombom = 5;
+    nova u: u64 = 8;
+    nova c: u32 = 1;
+
+    falar(b.dobro());
+    falar(Medivel.triplo(b));
+    falar(u.dobro());
+    falar(Medivel.triplo(u));
+    falar(c.valor());
+
+    nova objeto_b: trato<Medivel> = 6 virar trato<Medivel>;
+    nova objeto_u: trato<Medivel> = u virar trato<Medivel>;
+    nova objeto_c: trato<Constante> = c virar trato<Constante>;
+    falar(objeto_b.dobro());
+    falar(objeto_u.dobro());
+    falar(objeto_c.valor());
+    mimo 0;
+}

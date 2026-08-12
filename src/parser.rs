@@ -71,8 +71,9 @@ pub struct Parser {
     /// de apelidos distinga um ninho de um apelido inexistente.
     struct_names: HashSet<String>,
     /// Tratos declarados até o ponto atual do parse.
-    /// Usado por `impl`; exige o trato declarado antes do uso.
-    trait_decls: HashSet<String>,
+    /// Usado por `impl`; além da precedência nominal, conserva os corpos
+    /// default que serão materializados para o tipo concreto.
+    trait_decls: HashMap<String, TraitDecl>,
     /// Funções sintéticas geradas por literais `carinho (...) { ... }` não capturantes.
     pending_functions: Vec<FunctionDecl>,
     /// Templates de funções genéricas de usuário, monomorfizados após o parse.
@@ -135,6 +136,17 @@ struct FunctionParamBinding {
     span: Span,
 }
 
+struct ParsedImplBlock {
+    relation: ImplDecl,
+    explicit_method_names: HashSet<String>,
+    methods: Vec<FunctionDecl>,
+}
+
+struct PendingImplRelation {
+    relation: ImplDecl,
+    explicit_method_names: HashSet<String>,
+}
+
 fn merge_span(a: Span, b: Span) -> Span {
     a.merge(b)
 }
@@ -150,7 +162,7 @@ impl Parser {
             enum_names: HashSet::new(),
             type_alias_targets: HashMap::new(),
             struct_names: HashSet::new(),
-            trait_decls: HashSet::new(),
+            trait_decls: HashMap::new(),
             pending_functions: Vec::new(),
             generic_templates: HashMap::new(),
             generic_instantiations: Vec::new(),
@@ -185,6 +197,95 @@ impl Parser {
             target_key,
             method_name
         )
+    }
+
+    fn trait_default_check_function_name(
+        trait_name: &str,
+        target_ty: &Type,
+        method_name: &str,
+    ) -> String {
+        let target_key = Self::impl_type_key(target_ty);
+        format!(
+            "__trait_default_check_{}_{}_{}_{}_{}",
+            trait_name.len(),
+            trait_name,
+            target_key.len(),
+            target_key,
+            method_name
+        )
+    }
+
+    fn collect_trait_default_closure_names(
+        function: &FunctionDecl,
+        templates: &HashMap<String, FunctionDecl>,
+        ordered: &mut Vec<String>,
+        seen: &mut HashSet<String>,
+    ) -> Result<(), PinkerError> {
+        for candidate in crate::ast::capture_candidates_in_function(function) {
+            if !candidate.starts_with("__anon_carinho_") || !seen.insert(candidate.clone()) {
+                continue;
+            }
+            let Some(template) = templates.get(&candidate) else {
+                return Err(PinkerError::Parse {
+                    msg: format!(
+                        "closure sintética '{}' do default não foi encontrada",
+                        candidate
+                    ),
+                    span: function.span,
+                });
+            };
+            ordered.push(candidate);
+            Self::collect_trait_default_closure_names(template, templates, ordered, seen)?;
+        }
+        Ok(())
+    }
+
+    fn clone_trait_default_closures(
+        &mut self,
+        function: &mut FunctionDecl,
+        templates: &HashMap<String, FunctionDecl>,
+        consumed_templates: &mut HashSet<String>,
+        cloned_functions: &mut Vec<FunctionDecl>,
+    ) -> Result<(), PinkerError> {
+        let mut ordered = Vec::new();
+        Self::collect_trait_default_closure_names(
+            function,
+            templates,
+            &mut ordered,
+            &mut HashSet::new(),
+        )?;
+        if ordered.is_empty() {
+            return Ok(());
+        }
+
+        let mut replacements = HashMap::new();
+        for old_name in &ordered {
+            self.synthetic_counter += 1;
+            replacements.insert(
+                old_name.clone(),
+                format!("__anon_carinho_{}", self.synthetic_counter),
+            );
+        }
+
+        function.body = Self::substitute_function_param_block(&function.body, &replacements);
+        for old_name in ordered {
+            let mut cloned = templates
+                .get(&old_name)
+                .expect("closure template was validated while collecting")
+                .clone();
+            let new_name = replacements
+                .get(&old_name)
+                .expect("every collected closure receives a fresh name")
+                .clone();
+            cloned.name.clone_from(&new_name);
+            cloned.body = Self::substitute_function_param_block(&cloned.body, &replacements);
+            if self.capturing_anon_functions.contains(&old_name) {
+                self.capturing_anon_functions.insert(new_name);
+            }
+            consumed_templates.insert(old_name);
+            cloned_functions.push(cloned);
+        }
+        Ok(())
     }
 
     // @pinker-nav:start parser.fluxo.nucleo
@@ -369,9 +470,26 @@ impl Parser {
         self.register_predeclared_generic_enums();
 
         let mut items = Vec::new();
+        let mut impl_relations: Vec<PendingImplRelation> = Vec::new();
         while self.peek().is_some() {
             if self.match_token(TokenKind::KwImpl) {
-                for function in self.parse_impl_block()? {
+                let parsed = self.parse_impl_block()?;
+                if let Some(existing) = impl_relations.iter_mut().find(|pending| {
+                    pending.relation.trait_name == parsed.relation.trait_name
+                        && Self::impl_type_key(&pending.relation.target_ty)
+                            == Self::impl_type_key(&parsed.relation.target_ty)
+                }) {
+                    existing
+                        .explicit_method_names
+                        .extend(parsed.explicit_method_names.iter().cloned());
+                    existing.relation.span = existing.relation.span.merge(parsed.relation.span);
+                } else {
+                    impl_relations.push(PendingImplRelation {
+                        relation: parsed.relation.clone(),
+                        explicit_method_names: parsed.explicit_method_names.clone(),
+                    });
+                }
+                for function in parsed.methods {
                     if !function.type_params.is_empty() {
                         return Err(PinkerError::Parse {
                             msg: "método de impl não pode declarar parâmetros genéricos nesta fase"
@@ -451,6 +569,11 @@ impl Parser {
                 items.push(item);
             }
         }
+        items.extend(
+            self.materialize_trait_defaults(&impl_relations)?
+                .into_iter()
+                .map(Item::Function),
+        );
         let generic_enums = self.instantiate_generic_enums()?;
         items.extend(generic_enums.into_iter().map(Item::Enum));
         let generic_functions = self.instantiate_generic_functions()?;
@@ -463,6 +586,10 @@ impl Parser {
             package,
             freestanding,
             imports,
+            impls: impl_relations
+                .into_iter()
+                .map(|pending| pending.relation)
+                .collect(),
             items,
         })
     }
@@ -928,12 +1055,13 @@ impl Parser {
         })
     }
 
-    fn parse_impl_block(&mut self) -> Result<Vec<FunctionDecl>, PinkerError> {
+    fn parse_impl_block(&mut self) -> Result<ParsedImplBlock, PinkerError> {
+        let start_span = self.previous().span;
         let trait_name = self
             .consume(TokenKind::Ident, "nome do trato em impl")?
             .lexeme
             .clone();
-        if !self.trait_decls.contains(&trait_name) {
+        if !self.trait_decls.contains_key(&trait_name) {
             return Err(PinkerError::Parse {
                 msg: format!(
                     "impl usa trato '{}' não declarado antes deste ponto",
@@ -946,6 +1074,7 @@ impl Parser {
         let target_ty = self.parse_type()?;
         self.consume(TokenKind::LBrace, "{")?;
         let mut methods = Vec::new();
+        let mut explicit_method_names = HashSet::new();
         while !self.check(TokenKind::RBrace) && self.peek().is_some() {
             self.consume(TokenKind::KwCarinho, "carinho dentro de impl")?;
             let mut function = self.parse_function()?;
@@ -971,11 +1100,108 @@ impl Parser {
                     span: function.span,
                 });
             }
+            explicit_method_names.insert(function.name.clone());
             function.name = Self::impl_function_name(&trait_name, &target_ty, &function.name);
             methods.push(function);
         }
         self.consume(TokenKind::RBrace, "}")?;
-        Ok(methods)
+        Ok(ParsedImplBlock {
+            relation: ImplDecl {
+                trait_name,
+                target_ty,
+                span: merge_span(start_span, self.previous().span),
+            },
+            explicit_method_names,
+            methods,
+        })
+    }
+
+    fn materialize_trait_defaults(
+        &mut self,
+        impl_relations: &[PendingImplRelation],
+    ) -> Result<Vec<FunctionDecl>, PinkerError> {
+        let mut defaults = Vec::new();
+        let closure_templates: HashMap<String, FunctionDecl> = self
+            .pending_functions
+            .iter()
+            .filter(|function| function.name.starts_with("__anon_carinho_"))
+            .map(|function| (function.name.clone(), function.clone()))
+            .collect();
+        let mut consumed_closure_templates = HashSet::new();
+        let mut cloned_closures = Vec::new();
+        for pending in impl_relations {
+            let trait_name = &pending.relation.trait_name;
+            let target_ty = &pending.relation.target_ty;
+            let methods = self
+                .trait_decls
+                .get(trait_name)
+                .expect("impl só é registrado para trato já declarado")
+                .methods
+                .clone();
+
+            for method in &methods {
+                let Some(body) = &method.body else {
+                    continue;
+                };
+                let mut params = method.params.clone();
+                let Some(receiver) = params.first_mut() else {
+                    return Err(PinkerError::Parse {
+                        msg: format!(
+                            "default '{}.{}' exige receiver como primeiro parâmetro",
+                            trait_name, method.name
+                        ),
+                        span: method.span,
+                    });
+                };
+                if matches!(&receiver.ty, Type::Alias { name, .. } if name == "si") {
+                    receiver.ty = target_ty.clone();
+                }
+
+                let expected = Self::impl_type_key(target_ty);
+                let found = Self::impl_type_key(&receiver.ty);
+                if expected != found {
+                    return Err(PinkerError::Parse {
+                        msg: format!(
+                            "default '{}.{}' materializado para '{}' exige receiver '{}' (encontrado '{}')",
+                            trait_name, method.name, expected, expected, found
+                        ),
+                        span: receiver.span,
+                    });
+                }
+
+                // O corpo default pertence ao contrato mesmo quando um override
+                // vence a seleção. Nesse caso materializamos uma função privada
+                // somente para a checagem semântica; ela não usa o prefixo
+                // `__impl_`, portanto nunca entra em method_index nem em vtable.
+                let name = if pending.explicit_method_names.contains(&method.name) {
+                    Self::trait_default_check_function_name(trait_name, target_ty, &method.name)
+                } else {
+                    Self::impl_function_name(trait_name, target_ty, &method.name)
+                };
+
+                let mut function = FunctionDecl {
+                    name,
+                    type_params: Vec::new(),
+                    params,
+                    ret_type: method.ret_type.clone(),
+                    span: method.span,
+                    body: body.clone(),
+                };
+                self.clone_trait_default_closures(
+                    &mut function,
+                    &closure_templates,
+                    &mut consumed_closure_templates,
+                    &mut cloned_closures,
+                )?;
+                defaults.push(function);
+            }
+        }
+        self.pending_functions
+            .retain(|function| !consumed_closure_templates.contains(&function.name));
+        self.capturing_anon_functions
+            .retain(|name| !consumed_closure_templates.contains(name));
+        self.pending_functions.extend(cloned_closures);
+        Ok(defaults)
     }
 
     fn parse_trait_decl(&mut self) -> Result<TraitDecl, PinkerError> {
@@ -1021,21 +1247,28 @@ impl Parser {
             } else {
                 None
             };
-            self.consume(TokenKind::Semi, ";")?;
+            let body = if self.match_token(TokenKind::Semi) {
+                None
+            } else {
+                Some(self.parse_callable_body(&params, ret_type.is_some())?)
+            };
             methods.push(TraitMethodSig {
                 name: method_name,
                 params,
                 ret_type,
+                body,
                 span: merge_span(method_start, self.previous().span),
             });
         }
         self.consume(TokenKind::RBrace, "}")?;
-        self.trait_decls.insert(name.clone());
-        Ok(TraitDecl {
+        let trait_decl = TraitDecl {
             name,
             methods,
             span: merge_span(start_span, self.previous().span),
-        })
+        };
+        self.trait_decls
+            .insert(trait_decl.name.clone(), trait_decl.clone());
+        Ok(trait_decl)
     }
 
     fn parse_enum_decl(&mut self) -> Result<EnumDecl, PinkerError> {
@@ -2212,9 +2445,28 @@ impl Parser {
             None
         };
 
-        // Reinicia rastreamento de coleções para este escopo de função e registra parâmetros.
+        let body = self.parse_callable_body(&params, ret_type.is_some())?;
+
+        Ok(FunctionDecl {
+            name,
+            type_params,
+            params,
+            ret_type,
+            span: merge_span(start_span, body.span),
+            body,
+        })
+    }
+
+    fn parse_callable_body(
+        &mut self,
+        params: &[Param],
+        has_return: bool,
+    ) -> Result<Block, PinkerError> {
+        // Reinicia rastreamento de coleções para este escopo executável e
+        // registra parâmetros. O mesmo caminho serve funções comuns e corpos
+        // default de trato, evitando duas gramáticas de corpo.
         self.collection_types.clear();
-        for param in &params {
+        for param in params {
             match &param.ty {
                 Type::ListBombom(_) => {
                     self.collection_types
@@ -2258,14 +2510,14 @@ impl Parser {
             }
         }
 
-        self.push_callable_param_scope(&params);
-        self.push_value_param_scope(&params);
+        self.push_callable_param_scope(params);
+        self.push_value_param_scope(params);
         let body_result = self.parse_block();
         self.value_type_scopes.pop();
         self.function_value_scopes.pop();
         let mut body = body_result?;
 
-        if ret_type.is_some() {
+        if has_return {
             if let Some(Stmt::Expr(expr)) = body.stmts.last() {
                 let span = expr.span;
                 let expr_clone = expr.clone();
@@ -2277,14 +2529,7 @@ impl Parser {
             }
         }
 
-        Ok(FunctionDecl {
-            name,
-            type_params,
-            params,
-            ret_type,
-            span: merge_span(start_span, body.span),
-            body,
-        })
+        Ok(body)
     }
 
     fn parse_optional_type_params(&mut self) -> Result<Vec<String>, PinkerError> {
@@ -3405,10 +3650,15 @@ impl Parser {
             ExprKind::AlignOfType { target } => ExprKind::AlignOfType {
                 target: target.clone(),
             },
-            ExprKind::Ident(_)
-            | ExprKind::IntLit(_)
-            | ExprKind::BoolLit(_)
-            | ExprKind::StringLit(_) => expr.kind.clone(),
+            ExprKind::Ident(name) => ExprKind::Ident(
+                replacements
+                    .get(name)
+                    .cloned()
+                    .unwrap_or_else(|| name.clone()),
+            ),
+            ExprKind::IntLit(_) | ExprKind::BoolLit(_) | ExprKind::StringLit(_) => {
+                expr.kind.clone()
+            }
         };
         Expr {
             kind,
