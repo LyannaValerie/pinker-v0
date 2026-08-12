@@ -102,6 +102,18 @@ pub struct Parser {
     /// declaração do usuário com o mesmo nome o remove daqui e suprime/substitui o
     /// template, garantindo que jamais coexistam dois `Resultado` para o mesmo uso.
     predeclared_generic_enums: HashSet<String>,
+    /// Parte C: leques predeclarados **sem** parâmetros de tipo, disponíveis
+    /// para materialização sob demanda (hoje: `TipoEntrada`).
+    ///
+    /// Separado de `predeclared_generic_enums` porque não há monomorfização
+    /// envolvida: o leque já é concreto e só precisa entrar no `Program` quando
+    /// alguma superfície que o devolve for realmente chamada. Declaração do
+    /// usuário com o mesmo nome remove a entrada — o usuário vence, como na
+    /// Fase 241.
+    predeclared_plain_enums: HashMap<String, EnumDecl>,
+    /// Leques predeclarados simples já materializados por uso, na ordem em que
+    /// foram exigidos. Anexados a `Program.items` no fim do parse.
+    predeclared_plain_enums_materializados: Vec<EnumDecl>,
     /// Fase 243: nomes sintéticos `__anon_carinho_N` cujo corpo referencia
     /// (pela aproximação sintática conservadora) algum identificador livre
     /// — excluídos dos caminhos rápidos estáticos das Fases 238/239.
@@ -173,6 +185,8 @@ impl Parser {
             function_value_scopes: Vec::new(),
             value_type_scopes: Vec::new(),
             predeclared_generic_enums: HashSet::new(),
+            predeclared_plain_enums: HashMap::new(),
+            predeclared_plain_enums_materializados: Vec::new(),
             capturing_anon_functions: HashSet::new(),
         }
     }
@@ -468,6 +482,7 @@ impl Parser {
         // `apelido X = Resultado<A, B>;` funcione sem declaração manual. Cede a
         // qualquer declaração do usuário chamada `Resultado` (ver a supressão abaixo).
         self.register_predeclared_generic_enums();
+        self.register_predeclared_plain_enums();
 
         let mut items = Vec::new();
         let mut impl_relations: Vec<PendingImplRelation> = Vec::new();
@@ -513,6 +528,10 @@ impl Parser {
                     if !is_generic_enum && self.predeclared_generic_enums.remove(item_name) {
                         self.enum_generic_templates.remove(item_name);
                     }
+                    // Parte C: mesma regra para os leques predeclarados simples.
+                    // Se o usuário declara `TipoEntrada`, o dele vence e o
+                    // sintético nunca é materializado.
+                    self.predeclared_plain_enums.remove(item_name);
                 }
                 if let Item::Function(function) = &item {
                     if !function.type_params.is_empty() {
@@ -573,6 +592,16 @@ impl Parser {
             self.materialize_trait_defaults(&impl_relations)?
                 .into_iter()
                 .map(Item::Function),
+        );
+        // Parte C: os leques predeclarados simples entram antes das
+        // especializações genéricas — uma especialização pode carregar um deles
+        // como argumento de tipo, e a IR classifica cargas só depois de coletar
+        // todos os nomes de leque, mas manter a ordem de dependência evita
+        // depender desse detalhe.
+        items.extend(
+            self.predeclared_plain_enums_materializados
+                .drain(..)
+                .map(Item::Enum),
         );
         let generic_enums = self.instantiate_generic_enums()?;
         items.extend(generic_enums.into_iter().map(Item::Enum));
@@ -1633,6 +1662,26 @@ impl Parser {
                         ),
                         span: label_span,
                     });
+                }
+            }
+
+            // Parte C: a categoria de coleção da variável ligada precisa existir
+            // **antes** de o corpo do braço ser lido. O desugaring abaixo também
+            // registra, mas registrar só lá é tarde demais: uma chamada como
+            // `lista_tamanho(nomes)` dentro do corpo já teria sido resolvida
+            // como `lista<bombom>` por falta de categoria.
+            //
+            // Latente até aqui porque as cargas de sucesso da Parte B eram
+            // `verso` e `bombom` — nenhuma coleção passava por este caminho.
+            if let Some(enum_ref) = enum_name.as_ref() {
+                if let Some(variants) = self.enum_decls.get(enum_ref).cloned() {
+                    if let Some((_, payloads)) = variants.iter().find(|(nome, _)| *nome == variant)
+                    {
+                        for (bind_name, payload_ty) in bindings.iter().zip(payloads.iter()) {
+                            let (_, binding_ty) = self.payload_binding(payload_ty, label_span);
+                            self.register_collection_type(bind_name, &binding_ty);
+                        }
+                    }
                 }
             }
 
@@ -3237,6 +3286,11 @@ impl Parser {
         superficie: &crate::falha_operacional::SuperficieFalivel,
         span: Span,
     ) -> Result<(), PinkerError> {
+        // Parte C: quando a carga de sucesso é um leque nomeado, ele precisa
+        // existir antes de virar argumento de tipo da especialização.
+        if let Some(leque) = superficie.sucesso.leque_exigido() {
+            self.registrar_leque_predeclarado(leque);
+        }
         let name = crate::falha_operacional::LEQUE_RESULTADO.to_string();
         let args = superficie.argumentos_de_tipo(span);
         self.enum_generic_instantiations
@@ -3271,6 +3325,61 @@ impl Parser {
             self.enum_generic_templates
                 .insert(template.name.clone(), template);
         }
+    }
+
+    /// Parte C: registra os leques predeclarados sem parâmetros de tipo.
+    ///
+    /// Hoje só `TipoEntrada`, construído a partir da autoridade da taxonomia —
+    /// os nomes das variantes e a ordem de declaração (que é o discriminante)
+    /// vêm de `tipo_entrada::VARIANTES`, nunca repetidos aqui.
+    fn register_predeclared_plain_enums(&mut self) {
+        for template in Self::predeclared_plain_enum_templates() {
+            self.predeclared_plain_enums
+                .insert(template.name.clone(), template);
+        }
+    }
+
+    /// Constrói os leques concretos predeclarados. Span sintético 0:0 pela mesma
+    /// convenção do template genérico: nunca fingir uma posição de fonte real.
+    fn predeclared_plain_enum_templates() -> Vec<EnumDecl> {
+        let synthetic = Span::single(crate::token::Position::new(0, 0));
+        vec![EnumDecl {
+            name: crate::tipo_entrada::LEQUE_TIPO_ENTRADA.to_string(),
+            type_params: Vec::new(),
+            variants: crate::tipo_entrada::VARIANTES
+                .iter()
+                .map(|(nome, _)| EnumVariant {
+                    name: (*nome).to_string(),
+                    payloads: Vec::new(),
+                    span: synthetic,
+                })
+                .collect(),
+            span: synthetic,
+        }]
+    }
+
+    /// Materializa sob demanda um leque predeclarado simples exigido por uma
+    /// superfície falível.
+    ///
+    /// Só entra no `Program` quando a superfície que o devolve é realmente
+    /// chamada: um programa que não classifica entradas não ganha o leque.
+    fn registrar_leque_predeclarado(&mut self, nome: &str) {
+        let Some(template) = self.predeclared_plain_enums.get(nome).cloned() else {
+            return;
+        };
+        if self.enum_names.contains(nome) {
+            return;
+        }
+        self.enum_names.insert(template.name.clone());
+        self.enum_decls.insert(
+            template.name.clone(),
+            template
+                .variants
+                .iter()
+                .map(|variant| (variant.name.clone(), variant.payloads.clone()))
+                .collect(),
+        );
+        self.predeclared_plain_enums_materializados.push(template);
     }
 
     /// Constrói os templates sintéticos predeclarados. O span usa a posição 0:0

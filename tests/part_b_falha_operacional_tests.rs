@@ -374,11 +374,14 @@ fn desugaring_de_propagacao_nao_conhece_nenhuma_superficie_falivel() {
              MUST_NOT_DEFINE PROPAGATION_SEMANTICS",
             superficie.intrinseca
         );
-        assert!(
-            !regiao.contains(superficie.historica),
-            "a propagação ganhou special-case para a superfície histórica '{}'",
-            superficie.historica
-        );
+        // Parte C: superfícies sem gêmeo histórico (`historica: None`) não têm
+        // nome antigo a verificar aqui.
+        if let Some(historica) = superficie.historica {
+            assert!(
+                !regiao.contains(historica),
+                "a propagação ganhou special-case para a superfície histórica '{historica}'"
+            );
+        }
     }
     assert!(
         !regiao.contains("falha_operacional"),

@@ -2,8 +2,8 @@ schema = 2
 id = "normalizacao-corrente-para-historico"
 
 [reconstruction]
-expected_overrides = 50
-expected_exclusions = 61
+expected_overrides = 51
+expected_exclusions = 64
 
 [[rules]]
 op = "exclude-key"
@@ -97,6 +97,11 @@ expected_matches = 1
 
 [[rules]]
 op = "exclude-key"
+key = "evidencia.filesystem.parte-c-adulto"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
 key = "evidencia.formatar-verso.d7-pack"
 expected_matches = 1
 
@@ -123,6 +128,11 @@ expected_matches = 1
 [[rules]]
 op = "exclude-key"
 key = "falha.operacional.superficies"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "filesystem.tipo-entrada.taxonomia"
 expected_matches = 1
 
 [[rules]]
@@ -158,6 +168,11 @@ expected_matches = 1
 [[rules]]
 op = "exclude-key"
 key = "runtime.falha-operacional.superficies"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "runtime.filesystem.enumeracao-adulta"
 expected_matches = 1
 
 [[rules]]
@@ -358,7 +373,7 @@ expect_layer = "evidencia"
 [[rules]]
 op = "override-hash"
 key = "parser.programa.estrutura"
-from = "fnv1a64:4017ded67c997a82"
+from = "fnv1a64:5b84a5d51bf9c26c"
 to = "fnv1a64:c8ac56b28a5a6113"
 expect_file = "src/parser.rs"
 expect_domain = "programa"
@@ -702,7 +717,7 @@ expect_layer = "parser"
 [[rules]]
 op = "override-region"
 key = "parser.genericos.leques-template"
-from_hash = "fnv1a64:a3fd481c75da1f0b"
+from_hash = "fnv1a64:3b0a11b909b753e7"
 to_hash = "fnv1a64:9db5cce54d4d0579"
 expect_file = "src/parser.rs"
 expect_domain = "genericos"
@@ -715,6 +730,15 @@ from_hash = "fnv1a64:b14ab57558bd6729"
 to_hash = "fnv1a64:2cbfde20708dd7f9"
 expect_file = "src/parser.rs"
 expect_domain = "genericos"
+expect_layer = "parser"
+
+[[rules]]
+op = "override-region"
+key = "parser.resultado.tentar-propagar"
+from_hash = "fnv1a64:e4cb17ecb0cc1a4f"
+to_hash = "fnv1a64:5111f2f6558b0afb"
+expect_file = "src/parser.rs"
+expect_domain = "resultado"
 expect_layer = "parser"
 
 [[rules]]
