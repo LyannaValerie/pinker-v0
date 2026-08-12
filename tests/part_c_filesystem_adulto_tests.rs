@@ -793,30 +793,175 @@ fn taxonomia_de_entrada_tem_autoridade_unica() {
         "a carga de sucesso deveria ser o leque da autoridade"
     );
 
-    // Nenhum arquivo de `src/` fora da autoridade declara os nomes das
-    // variantes. Guarda regressiva no mesmo espírito da Parte B.
-    let raiz = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    // Guarda regressiva: nenhum nome público da taxonomia — o do leque e o das
+    // quatro variantes — aparece como literal fora da autoridade.
+    //
+    // O conjunto guardado é **derivado** de `LEQUE_TIPO_ENTRADA` e `VARIANTES`,
+    // nunca reescrito à mão: uma variante acrescentada à autoridade passa a ser
+    // guardada sozinha. Uma segunda lista manual aqui reintroduziria exatamente
+    // a duplicação que este teste existe para proibir — foi o defeito F2 da
+    // revisão humana, quando a guarda olhava só para `"Diretorio"`.
+    let guardados: Vec<String> = std::iter::once(LEQUE_TIPO_ENTRADA)
+        .chain(VARIANTES.iter().map(|(nome, _)| *nome))
+        .map(|nome| format!("\"{nome}\""))
+        .collect();
+    assert_eq!(
+        guardados.len(),
+        5,
+        "a guarda deveria cobrir o leque e as quatro variantes"
+    );
+
+    // `runtime/` entra no varrimento junto de `src/`: o runtime espelha os
+    // discriminantes, e passar a repetir os nomes públicos lá seria a mesma
+    // duplicação de autoridade lexical.
+    let manifesto = Path::new(env!("CARGO_MANIFEST_DIR"));
     let mut fontes = Vec::new();
-    fontes_rust(&raiz, &mut fontes);
-    let autoridade = raiz.join("tipo_entrada.rs");
-    let mut controle_positivo = false;
-    for fonte in fontes {
-        let texto = fs::read_to_string(&fonte).expect("ler fonte");
-        if fonte == autoridade {
-            controle_positivo = texto.contains("\"Diretorio\"");
-            continue;
+    fontes_rust(&manifesto.join("src"), &mut fontes);
+    fontes_rust(&manifesto.join("runtime"), &mut fontes);
+    let autoridade = manifesto.join("src/tipo_entrada.rs");
+
+    let mut vistos_na_autoridade = 0;
+    for fonte in &fontes {
+        let texto = fs::read_to_string(fonte).expect("ler fonte");
+        for literal in &guardados {
+            if fonte == &autoridade {
+                if texto.contains(literal.as_str()) {
+                    vistos_na_autoridade += 1;
+                }
+                continue;
+            }
+            assert!(
+                !texto.contains(literal.as_str()),
+                "nome público da taxonomia {literal} reapareceu fora da autoridade: {}",
+                fonte.display()
+            );
         }
-        assert!(
-            !texto.contains("\"Diretorio\""),
-            "o nome público de variante reapareceu fora da autoridade: {}",
-            fonte.display()
-        );
     }
+
+    // Controle positivo: sem isto a guarda passaria por estar lendo o alvo
+    // errado — um caminho inexistente produziria zero arquivos e zero falhas.
+    assert_eq!(
+        vistos_na_autoridade,
+        guardados.len(),
+        "a guarda não encontrou os nomes na própria autoridade; está lendo o alvo errado"
+    );
     assert!(
-        controle_positivo,
-        "o teste não localizou o nome na própria autoridade; está lendo o alvo errado"
+        fontes.len() > 1,
+        "a varredura não coletou fontes suficientes para ser significativa"
     );
 }
+
+/// F1 da revisão humana: a identidade builtin da taxonomia não pode ser
+/// reinterpretada por declaração arbitrária do usuário.
+///
+/// Antes da correção, `leque TipoEntrada { Banana, Abacaxi }` **antes** do uso
+/// fazia `tipo_de_entrada` de um arquivo regular imprimir `BANANA` — o runtime
+/// devolvia o discriminante 0 da taxonomia oficial e o leque do usuário o lia
+/// como sua primeira variante. `apelido TipoEntrada = bombom` vazava o
+/// discriminante cru. As duas passavam em silêncio. A mesma declaração **depois**
+/// do uso já falhava, mas com outra mensagem e span sintético `0:0` — ou seja, o
+/// resultado dependia da posição textual.
+#[test]
+fn identidade_builtin_da_taxonomia_nao_e_substituivel_pelo_usuario() {
+    // Uma categoria de item por caso, a declaração conflitante antes e depois
+    // do uso, para provar que a recusa não depende da ordem do texto.
+    let casos: Vec<(&str, String)> = vec![
+        (
+            "leque_antes",
+            format!(
+                "pacote main;\n\nleque TipoEntrada {{ Banana, Abacaxi }}\n\n{}",
+                CORPO_QUE_USA_TIPO_DE_ENTRADA
+            ),
+        ),
+        (
+            "leque_depois",
+            format!(
+                "pacote main;\n\n{}\n\nleque TipoEntrada {{ Banana, Abacaxi }}\n",
+                CORPO_QUE_USA_TIPO_DE_ENTRADA
+            ),
+        ),
+        (
+            "apelido",
+            format!(
+                "pacote main;\n\napelido TipoEntrada = bombom;\n\n{}",
+                CORPO_QUE_USA_TIPO_DE_ENTRADA
+            ),
+        ),
+        (
+            "ninho",
+            format!(
+                "pacote main;\n\nninho TipoEntrada {{\n    campo: bombom;\n}}\n\n{}",
+                CORPO_QUE_USA_TIPO_DE_ENTRADA
+            ),
+        ),
+        (
+            "carinho",
+            format!(
+                "pacote main;\n\ncarinho TipoEntrada() -> bombom {{ mimo 7; }}\n\n{}",
+                CORPO_QUE_USA_TIPO_DE_ENTRADA
+            ),
+        ),
+        (
+            "eterno",
+            format!(
+                "pacote main;\n\neterno TipoEntrada: bombom = 9;\n\n{}",
+                CORPO_QUE_USA_TIPO_DE_ENTRADA
+            ),
+        ),
+        (
+            "trato",
+            format!(
+                "pacote main;\n\ntrato TipoEntrada {{\n    carinho marcador(valor: si) -> bombom;\n}}\n\n{}",
+                CORPO_QUE_USA_TIPO_DE_ENTRADA
+            ),
+        ),
+    ];
+
+    for (nome, fonte) in &casos {
+        let erro = common::parse_and_check(fonte).expect_err(&format!(
+            "{nome}: redeclarar TipoEntrada deveria ser recusado"
+        ));
+        let msg = format!("{erro:?}");
+        assert!(
+            msg.contains("identidade predeclarada do runtime"),
+            "{nome}: a recusa deveria nomear a razão, obtido: {msg}"
+        );
+        assert!(
+            !msg.contains("0:0"),
+            "{nome}: o diagnóstico deveria apontar a declaração do usuário, \
+             não o span sintético do predeclarado: {msg}"
+        );
+    }
+
+    // Controle positivo: sem a declaração conflitante o mesmo corpo compila.
+    // Sem isto, a matriz passaria se tudo fosse recusado por qualquer razão.
+    let limpo = format!("pacote main;\n\n{}", CORPO_QUE_USA_TIPO_DE_ENTRADA);
+    common::parse_and_check(&limpo).expect("o corpo sem conflito deveria compilar");
+
+    // Controle negativo do escopo: a reserva vale para a identidade da
+    // taxonomia, não para qualquer nome parecido.
+    let vizinho = format!(
+        "pacote main;\n\nleque TipoDeEntrada {{ Banana, Abacaxi }}\n\n{}",
+        CORPO_QUE_USA_TIPO_DE_ENTRADA
+    );
+    common::parse_and_check(&vizinho)
+        .expect("um nome diferente não deveria ser afetado pela reserva");
+}
+
+/// Corpo comum dos casos de F1: usa `tipo_de_entrada`, logo materializa a
+/// identidade builtin.
+const CORPO_QUE_USA_TIPO_DE_ENTRADA: &str = r#"
+apelido ResTipo = Resultado<TipoEntrada, verso>;
+
+carinho principal() -> bombom {
+    nova alvo: verso = argumento_ou(0, "ausente");
+    tentar tipo_de_entrada(alvo) {
+        sucesso ResTipo.Ok(t) { falar("classificou"); }
+        falha ResTipo.Erro(causa) { falar(causa); }
+    }
+    mimo 0;
+}
+"#;
 
 fn fontes_rust(raiz: &Path, destino: &mut Vec<PathBuf>) {
     for entrada in fs::read_dir(raiz).expect("diretório legível") {

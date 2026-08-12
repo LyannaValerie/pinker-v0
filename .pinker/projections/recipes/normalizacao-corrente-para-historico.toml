@@ -373,7 +373,7 @@ expect_layer = "evidencia"
 [[rules]]
 op = "override-hash"
 key = "parser.programa.estrutura"
-from = "fnv1a64:5b84a5d51bf9c26c"
+from = "fnv1a64:fb34a9d609f56f99"
 to = "fnv1a64:c8ac56b28a5a6113"
 expect_file = "src/parser.rs"
 expect_domain = "programa"

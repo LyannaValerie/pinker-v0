@@ -528,10 +528,46 @@ impl Parser {
                     if !is_generic_enum && self.predeclared_generic_enums.remove(item_name) {
                         self.enum_generic_templates.remove(item_name);
                     }
-                    // Parte C: mesma regra para os leques predeclarados simples.
-                    // Se o usuário declara `TipoEntrada`, o dele vence e o
-                    // sintético nunca é materializado.
-                    self.predeclared_plain_enums.remove(item_name);
+                    // Parte C / F1: identidade de runtime é **reservada**, não
+                    // substituível.
+                    //
+                    // A regra "o usuário vence" da Fase 241 vale para uma
+                    // predeclaração de biblioteca, que o programa pode
+                    // legitimamente trocar. Ela não pode valer para uma
+                    // taxonomia cujos discriminantes são produzidos por
+                    // operações builtin: a superfície de classificação devolve
+                    // os discriminantes 0..3 vindos do interpretador e do
+                    // runtime nativo, e uma declaração arbitrária do usuário
+                    // com este nome faria esses mesmos valores serem lidos como
+                    // outras variantes.
+                    //
+                    // O nome público da superfície não aparece aqui de
+                    // propósito: ele é declarado só em `falha_operacional`, e a
+                    // guarda da Parte B falha se reaparecer nesta crate.
+                    //
+                    // ```text
+                    // BUILTIN_RUNTIME_SEMANTICS
+                    // MUST_NOT_BE_REINTERPRETED_BY
+                    // ARBITRARY_USER_TYPE_SHADOWING
+                    // ```
+                    //
+                    // A recusa é aqui, na aceitação do item, e não no ponto de
+                    // uso: assim vale para qualquer categoria de item, e o
+                    // resultado não depende de a declaração vir antes ou depois
+                    // do uso. O span é o da declaração do usuário — a rejeição
+                    // pelo caminho antigo apontava para o span sintético 0:0 do
+                    // predeclarado, que não existe em fonte alguma.
+                    if self.predeclared_plain_enums.contains_key(item_name) {
+                        return Err(PinkerError::Parse {
+                            msg: format!(
+                                "'{item_name}' é uma identidade predeclarada do runtime e não \
+                                 pode ser redeclarada: os discriminantes desta taxonomia são \
+                                 produzidos por operações builtin, e uma declaração própria com \
+                                 este nome passaria a reinterpretá-los"
+                            ),
+                            span: item.span(),
+                        });
+                    }
                 }
                 if let Item::Function(function) = &item {
                     if !function.type_params.is_empty() {
