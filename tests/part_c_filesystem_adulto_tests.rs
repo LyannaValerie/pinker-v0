@@ -3,6 +3,7 @@ mod common;
 use common::{ControlledCommand as Command, NativeArtifactDir};
 use std::fs;
 use std::os::unix::ffi::OsStrExt;
+use std::os::unix::fs::PermissionsExt;
 use std::os::unix::net::UnixListener;
 use std::path::{Path, PathBuf};
 use std::process::Output;
@@ -149,6 +150,31 @@ carinho principal() -> bombom {
         }
         falha ResLista.Erro(causa) { falar(causa); }
     }
+    falar("fim");
+    mimo 0;
+}
+"#;
+
+/// Metadata medida diretamente, sem o filtro de tipo: é o único caso capaz de
+/// distinguir `symlink_metadata` de `metadata` nesta superfície, e o único que
+/// alcança o braço de falha dela.
+const FONTE_MEDIDA: &str = r#"
+pacote main;
+
+apelido ResNum = Resultado<bombom, verso>;
+
+carinho medir(caminho: verso) -> bombom {
+    tentar tamanho_de_entrada(caminho) {
+        sucesso ResNum.Ok(n) { falar(n); }
+        falha ResNum.Erro(causa) { falar("ERRO"); falar(causa); }
+    }
+    mimo 0;
+}
+
+carinho principal() -> bombom {
+    medir(argumento_ou(0, "ausente"));
+    medir(argumento_ou(1, "ausente"));
+    medir(argumento_ou(2, "ausente"));
     falar("fim");
     mimo 0;
 }
@@ -359,17 +385,24 @@ fn montar_arvore(base: &Path) -> (PathBuf, Vec<&'static str>) {
     fs::write(raiz.join("alfa.txt"), "a").expect("alfa");
     fs::write(raiz.join(".oculto"), "o").expect("oculto");
     fs::write(raiz.join("vazio.txt"), "").expect("vazio");
+    // Maiúscula deliberada: 'Z' (0x5A) < 'a' (0x61). Na ordem por bytes
+    // `Zeta.txt` vem logo depois de `.oculto`; sob case-folding ou colação por
+    // locale cairia junto de `zeta.txt`, no fim. É o que separa "há ordenação"
+    // de "a ordenação é por bytes".
+    fs::write(raiz.join("Zeta.txt"), "ZZ").expect("Zeta maiusculo");
 
     std::os::unix::fs::symlink("alfa.txt", raiz.join("link_arquivo")).expect("link arquivo");
     std::os::unix::fs::symlink("sub", raiz.join("link_dir")).expect("link dir");
     std::os::unix::fs::symlink("nao_existe", raiz.join("link_quebrado")).expect("link quebrado");
 
     // `Outro`: um socket unix é reproduzível com a std, sem ferramenta externa.
-    let _soquete = UnixListener::bind(raiz.join("soquete")).expect("socket unix");
-    std::mem::forget(_soquete);
+    // O listener pode ser descartado à vontade: fechar o descritor não remove o
+    // arquivo de socket, que é o que a enumeração precisa encontrar.
+    drop(UnixListener::bind(raiz.join("soquete")).expect("socket unix"));
 
     let esperado = vec![
         ".oculto",
+        "Zeta.txt",
         "alfa.txt",
         "link_arquivo",
         "link_dir",
@@ -496,8 +529,43 @@ fn filesystem_adulto_enumera_classifica_e_mede_com_paridade() {
     // um critério diferente do contrato.
     selecao.exigir_sucesso(
         "seleção por metadata mínima",
-        ".oculto\n1\nalfa.txt\n1\nmeio.txt\n2\nzeta.txt\n3\nfim\n",
+        ".oculto\n1\nZeta.txt\n2\nalfa.txt\n1\nmeio.txt\n2\nzeta.txt\n3\nfim\n",
     );
+
+    // ---- Medida direta, sem o filtro de tipo: o único caso que separa
+    //      `symlink_metadata` de `metadata` nesta superfície e o único que
+    //      alcança seu braço de falha.
+    //
+    //      `link_arquivo` aponta para `alfa.txt`, que tem 1 byte. Sem seguir, o
+    //      tamanho é o do alvo escrito no link — "alfa.txt", 8 bytes. Seguindo,
+    //      seria 1. Os dois valores não podem ser confundidos.
+    let medida = paridade(
+        "medida",
+        FONTE_MEDIDA,
+        &[
+            raiz.join("alfa.txt").to_string_lossy().into_owned(),
+            raiz.join("link_arquivo").to_string_lossy().into_owned(),
+            raiz.join("nao-existe").to_string_lossy().into_owned(),
+        ],
+        &runtime_lib,
+    );
+    let saida = medida.stdout_comum("medida no-follow");
+    let linhas: Vec<&str> = saida.lines().collect();
+    assert_eq!(linhas[0], "1", "arquivo regular deveria medir 1 byte");
+    assert_eq!(
+        linhas[1], "8",
+        "symlink deveria medir o alvo escrito (8 bytes de 'alfa.txt'), não o \
+         arquivo apontado (1 byte): a medida seguiu o link"
+    );
+    assert_eq!(
+        linhas[2], "ERRO",
+        "caminho ausente deveria virar Erro recuperável, não valor nem aborto"
+    );
+    assert!(
+        saida.contains("falha ao medir entrada"),
+        "a causa da medida deveria chegar ao consumidor: {saida}"
+    );
+    assert!(saida.ends_with("fim\n"), "o programa deveria continuar");
 
     // ---- Diretório vazio: sucesso com coleção vazia, jamais erro.
     let vazio = dir.path().join("vazio");
@@ -567,6 +635,42 @@ fn falha_operacional_de_filesystem_e_valor_e_nunca_colecao_vazia() {
             "{nome}: o programa deveria continuar após a falha"
         );
     }
+
+    // Permissão negada é modo de falha contratado pela #472. Um processo com
+    // privilégio ignora o modo, então a indisponibilidade é classificada
+    // explicitamente em vez de o caso passar por não ter sido exercido.
+    let negado = dir.path().join("negado");
+    fs::create_dir(&negado).expect("criar diretório sem permissão");
+    fs::write(negado.join("dentro.txt"), "x").expect("conteúdo do negado");
+    let mut modo = fs::metadata(&negado)
+        .expect("metadata do negado")
+        .permissions();
+    modo.set_mode(0o000);
+    fs::set_permissions(&negado, modo).expect("retirar permissões");
+    if fs::read_dir(&negado).is_ok() {
+        eprintln!(
+            "{{\"event\":\"permissao_evidence\",\"status\":\"unavailable\",\
+             \"reason\":\"processo_ignora_modo_do_diretorio\"}}"
+        );
+    } else {
+        let sem_permissao = paridade("permissao", FONTE_LISTAR, &arg(&negado), &runtime_lib);
+        let saida = sem_permissao.stdout_comum("permissão negada");
+        assert!(
+            saida.starts_with("ERRO\n"),
+            "permissão negada deveria virar Erro: {saida}"
+        );
+        assert!(
+            !saida.starts_with("0\n"),
+            "permissão negada virou coleção vazia"
+        );
+        assert!(saida.ends_with("fim\n"), "o programa deveria continuar");
+    }
+    // Devolver o modo para que a limpeza do diretório temporário funcione.
+    let mut modo = fs::metadata(&negado)
+        .expect("metadata do negado")
+        .permissions();
+    modo.set_mode(0o700);
+    fs::set_permissions(&negado, modo).expect("restaurar permissões");
 
     // O argumento symlink é recusado por política, com causa própria — não é o
     // erro genérico do sistema operacional.

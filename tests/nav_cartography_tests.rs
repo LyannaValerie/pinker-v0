@@ -3816,7 +3816,7 @@ fn onda_8_convergencia_fecha_cadeia_8a_8j() {
             .filter(|region| region.layer.as_deref() == Some("runtime"))
             .count(),
         18,
-        "a convergência da Onda 8 preserva as 15 regiões de runtime"
+        "a convergência da Onda 8 preserva as 18 regiões de runtime"
     );
 
     verifica_snapshot_canonico("onda-8-convergencia");
@@ -5680,7 +5680,7 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
     assert_eq!(
         definicoes.len() + wrappers_gerados,
         265,
-        "239 definições textuais + 8 wrappers gerados = 247 símbolos produtivos"
+        "257 definições textuais + 8 wrappers gerados = 265 símbolos produtivos"
     );
     let mut definicoes_sem_dono: Vec<usize> = Vec::new();
     let mut definicoes_com_dono_duplo: Vec<usize> = Vec::new();
@@ -5722,12 +5722,12 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
             .count();
     assert_eq!(
         abi_nomeadas, 113,
-        "a produção do runtime deve manter 107 funções extern \"C\" nomeadas"
+        "a produção do runtime deve manter 113 funções extern \"C\" nomeadas"
     );
     assert_eq!(
         abi_nomeadas + wrappers_gerados,
         121,
-        "107 funções ABI diretas + 8 wrappers gerados = 115 símbolos de ABI"
+        "113 funções ABI diretas + 8 wrappers gerados = 121 símbolos de ABI"
     );
     assert_eq!(
         producao.matches("formatar_wrappers!(").count(),
