@@ -7008,11 +7008,12 @@ impl SemanticChecker {
                 &args[0],
                 "resultado de função sem retorno não pode ser usado como argumento",
             )?;
-            if !matches!(arg_ty, Type::Verso(_)) {
+            if !superficie.argumento.aceita(&arg_ty) {
                 return Err(PinkerError::Semantic {
                     msg: format!(
-                        "tipo inválido no argumento 1 da chamada '{}': esperado 'verso', encontrado '{}'",
+                        "tipo inválido no argumento 1 da chamada '{}': esperado '{}', encontrado '{}'",
                         name,
+                        superficie.argumento.chave(),
                         arg_ty.name()
                     ),
                     span: args[0].span,

@@ -11,6 +11,7 @@ use crate::abstract_machine::{
 };
 use crate::cfg_ir::OperandIR;
 use crate::error::PinkerError;
+use crate::falha_operacional::{OperacaoFalivel, SuperficieFalivel};
 use crate::ir::TypeIR;
 use crate::token::Span;
 use pinker_memory_contract::{
@@ -2355,26 +2356,78 @@ fn exec_instr(
 // @pinker-nav:start interpreter.falha-operacional.construcao
 // @pinker-nav:domain erros
 // @pinker-nav:layer interpreter
-// @pinker-nav:summary Construção hospedada de `Resultado<T,E>` para as superfícies falíveis da Parte B: `exigir_verso_unico` mantém aridade e tipo do argumento como erro de programa, e `novo_leque`/`resultado_ok_bombom`/`resultado_ok_verso`/`resultado_erro` produzem o valor pelo mesmo `enum_values` que qualquer leque do usuário, com `Ok` na tag 0 e `Erro` na tag 1.
-/// Argumento único `verso` das superfícies falíveis.
+// @pinker-nav:summary Execução hospedada das superfícies falíveis da Parte B: `executar_superficie_falivel` despacha por `OperacaoFalivel` — nunca por nome literal — e obtém nome público e tipo do argumento da própria autoridade; `exigir_argumento_unico` mantém aridade e tipo como erro de programa; `novo_leque`/`resultado_ok_bombom`/`resultado_ok_verso`/`resultado_erro` produzem o valor pelo mesmo `enum_values` que qualquer leque do usuário, com `Ok` na tag 0 e `Erro` na tag 1.
+/// Argumento único das superfícies falíveis, com o tipo exigido vindo da
+/// autoridade em vez de ser reafirmado aqui.
 ///
 /// Aridade e tipo errados são erro de programa, detectados antes daqui pela
 /// semântica; esta checagem é a rede do interpretador e continua fatal — não
 /// vira `Erro(...)`.
-fn exigir_verso_unico<'a>(callee: &str, args: &'a [RuntimeValue]) -> Result<&'a str, PinkerError> {
+fn exigir_argumento_unico<'a>(
+    superficie: &SuperficieFalivel,
+    args: &'a [RuntimeValue],
+) -> Result<&'a str, PinkerError> {
+    let esperado = superficie.argumento.chave();
     if args.len() != 1 {
         return Err(runtime_err(&format!(
-            "intrínseca '{}' exige 1 argumento (verso)",
-            callee
+            "intrínseca '{}' exige 1 argumento ({})",
+            superficie.intrinseca, esperado
         )));
     }
     let RuntimeValue::Str(texto) = &args[0] else {
         return Err(runtime_err(&format!(
-            "intrínseca '{}' exige argumento em verso",
-            callee
+            "intrínseca '{}' exige argumento em {}",
+            superficie.intrinseca, esperado
         )));
     };
     Ok(texto)
+}
+
+/// Executa uma superfície falível já resolvida pela autoridade.
+///
+/// O `match` é sobre [`OperacaoFalivel`], não sobre o nome público: acrescentar
+/// uma superfície nova sem tratar sua operação vira erro de exaustividade em
+/// compilação, e o nome público continua existindo em um único lugar.
+fn executar_superficie_falivel(
+    superficie: &SuperficieFalivel,
+    args: &[RuntimeValue],
+    map_state: &mut RuntimeMapState,
+) -> Result<IntrinsicCall, PinkerError> {
+    let entrada = exigir_argumento_unico(superficie, args)?;
+    match superficie.operacao {
+        OperacaoFalivel::LerArquivoPorCaminho => match fs::read_to_string(entrada) {
+            Ok(conteudo) => Ok(resultado_ok_verso(map_state, conteudo)),
+            Err(err) => Ok(resultado_erro(
+                map_state,
+                format!("falha ao ler arquivo '{}': {}", entrada, err),
+            )),
+        },
+        OperacaoFalivel::ExecutarProcesso => {
+            // Comando vazio permanece erro de uso, não falha ambiental.
+            validar_comando_nao_vazio(superficie.intrinseca, entrada)?;
+            let mut processo = comando_de_processo(entrada);
+            match processo.status() {
+                // Spawn bem-sucedido: o código de saída do filho é valor de
+                // sucesso. Código não representável continua fatal — a
+                // modelagem de status pertence à Parte D.
+                Ok(status) => {
+                    let codigo = exit_code_u64(superficie.intrinseca, status.code())?;
+                    Ok(resultado_ok_bombom(map_state, codigo))
+                }
+                Err(err) => Ok(resultado_erro(
+                    map_state,
+                    format!("falha ao executar processo '{}': {}", entrada, err),
+                )),
+            }
+        }
+        OperacaoFalivel::ConverterVersoParaBombom => match entrada.trim().parse::<u64>() {
+            Ok(valor) => Ok(resultado_ok_bombom(map_state, valor)),
+            Err(_) => Ok(resultado_erro(
+                map_state,
+                format!("falha ao converter '{}' para bombom", entrada),
+            )),
+        },
+    }
 }
 
 /// Cria um valor de leque com a tag dada, pelo mesmo caminho de
@@ -4903,45 +4956,11 @@ fn try_call_intrinsic(
         // @pinker-nav:start interpreter.intrinsecos.falha-operacional
         // @pinker-nav:domain erros
         // @pinker-nav:layer interpreter
-        // @pinker-nav:summary Superfícies falíveis hospedadas da Parte B: leitura de arquivo por caminho, spawn de processo e conversão de texto para número devolvem `Resultado<T,E>` como valor comum, construído pelo mesmo `enum_values` que qualquer leque do usuário, com `Ok` na tag 0 e `Erro` na tag 1. A falha recuperável carrega a causa em `verso`; aridade, tipo de argumento e invariantes internas continuam fatais.
-        "ler_arquivo_resultado" => {
-            let caminho = exigir_verso_unico(callee, args)?;
-            match fs::read_to_string(caminho) {
-                Ok(conteudo) => Ok(resultado_ok_verso(map_state, conteudo)),
-                Err(err) => Ok(resultado_erro(
-                    map_state,
-                    format!("falha ao ler arquivo '{}': {}", caminho, err),
-                )),
-            }
-        }
-        "executar_processo_resultado" => {
-            let comando = exigir_verso_unico(callee, args)?;
-            // Comando vazio permanece erro de uso, não falha ambiental.
-            validar_comando_nao_vazio("executar_processo_resultado", comando)?;
-            let mut processo = comando_de_processo(comando);
-            match processo.status() {
-                // Spawn bem-sucedido: o código de saída do filho é valor de
-                // sucesso. Código não representável continua fatal — a
-                // modelagem de status pertence à Parte D.
-                Ok(status) => {
-                    let codigo = exit_code_u64("executar_processo_resultado", status.code())?;
-                    Ok(resultado_ok_bombom(map_state, codigo))
-                }
-                Err(err) => Ok(resultado_erro(
-                    map_state,
-                    format!("falha ao executar processo '{}': {}", comando, err),
-                )),
-            }
-        }
-        "verso_para_bombom_resultado" => {
-            let texto = exigir_verso_unico(callee, args)?;
-            match texto.trim().parse::<u64>() {
-                Ok(valor) => Ok(resultado_ok_bombom(map_state, valor)),
-                Err(_) => Ok(resultado_erro(
-                    map_state,
-                    format!("falha ao converter '{}' para bombom", texto),
-                )),
-            }
+        // @pinker-nav:summary Despacho hospedado das superfícies falíveis da Parte B: o braço reconhece a chamada consultando `falha_operacional::superficie` e decide por `OperacaoFalivel`, nunca por nome literal — o nome público continua declarado só na autoridade. Leitura de arquivo por caminho, spawn de processo e conversão de texto para número devolvem `Resultado<T,E>` construído pelo mesmo `enum_values` de qualquer leque do usuário. A falha recuperável carrega a causa em `verso`; aridade, tipo de argumento e invariantes internas continuam fatais.
+        nome if crate::falha_operacional::superficie(nome).is_some() => {
+            let superficie = crate::falha_operacional::superficie(nome)
+                .expect("o guarda acima já resolveu a superfície");
+            executar_superficie_falivel(superficie, args, map_state)
         }
         // @pinker-nav:end interpreter.intrinsecos.falha-operacional
 

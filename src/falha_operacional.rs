@@ -87,13 +87,55 @@ impl CargaResultado {
             CargaResultado::Verso => "verso",
         }
     }
+
+    /// Decide se um tipo já checado satisfaz esta carga.
+    ///
+    /// Existe para que a semântica não redescubra por `matches!` local qual é o
+    /// tipo aceito por cada superfície: a exigência viaja na autoridade.
+    pub fn aceita(self, ty: &Type) -> bool {
+        matches!(
+            (self, ty),
+            (CargaResultado::Bombom, Type::Bombom(_)) | (CargaResultado::Verso, Type::Verso(_))
+        )
+    }
+}
+
+/// Identidade operacional de uma superfície falível.
+///
+/// É o que o interpretador despacha. Sem isto, o dispatch hospedado teria de
+/// reconhecer a superfície pelo **nome público**, duplicando em `interpreter.rs`
+/// a autoridade lexical que este módulo existe para concentrar — o nome público
+/// passaria a ser decidido em dois lugares.
+///
+/// A variante nomeia a operação, não a intrínseca: o nome público continua
+/// declarado uma única vez, em [`SUPERFICIES_FALIVEIS`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OperacaoFalivel {
+    /// Lê um arquivo inteiro a partir de um caminho.
+    LerArquivoPorCaminho,
+    /// Executa um processo e observa seu código de saída.
+    ExecutarProcesso,
+    /// Converte texto externo em número.
+    ConverterVersoParaBombom,
 }
 
 /// Uma superfície que devolve falha operacional recuperável como valor.
 #[derive(Debug, Clone, Copy)]
 pub struct SuperficieFalivel {
     /// Nome público da intrínseca.
+    ///
+    /// Declarado aqui e **somente** aqui dentro da crate do compilador. Nenhuma
+    /// camada reconhece a superfície por este texto: quem despacha usa
+    /// [`SuperficieFalivel::operacao`].
     pub intrinseca: &'static str,
+    /// Identidade operacional despachada pelo interpretador.
+    pub operacao: OperacaoFalivel,
+    /// Tipo do único argumento aceito.
+    ///
+    /// A Parte B só abre superfícies de um argumento; a exigência mora aqui em
+    /// vez de ser reafirmada por cada camada. Ampliar assinaturas é decisão de
+    /// outra frente, não desta.
+    pub argumento: CargaResultado,
     /// Carga da variante `Ok`.
     pub sucesso: CargaResultado,
     /// Carga da variante `Erro`. Hoje sempre `verso`.
@@ -155,6 +197,8 @@ pub const SUPERFICIES_FALIVEIS: &[SuperficieFalivel] = &[
     // recurso parcialmente vivo nem sem dono.
     SuperficieFalivel {
         intrinseca: "ler_arquivo_resultado",
+        operacao: OperacaoFalivel::LerArquivoPorCaminho,
+        argumento: CargaResultado::Verso,
         sucesso: CargaResultado::Verso,
         falha: CargaResultado::Verso,
         simbolo_runtime: "pinker_arquivo_ler_caminho_resultado",
@@ -165,6 +209,8 @@ pub const SUPERFICIES_FALIVEIS: &[SuperficieFalivel] = &[
     // permissão). O código de saída do filho é valor de sucesso, não falha.
     SuperficieFalivel {
         intrinseca: "executar_processo_resultado",
+        operacao: OperacaoFalivel::ExecutarProcesso,
+        argumento: CargaResultado::Verso,
         sucesso: CargaResultado::Bombom,
         falha: CargaResultado::Verso,
         simbolo_runtime: "pinker_processo_executar_resultado",
@@ -174,6 +220,8 @@ pub const SUPERFICIES_FALIVEIS: &[SuperficieFalivel] = &[
     // Domínio independente dos dois anteriores e independente de JSON.
     SuperficieFalivel {
         intrinseca: "verso_para_bombom_resultado",
+        operacao: OperacaoFalivel::ConverterVersoParaBombom,
+        argumento: CargaResultado::Verso,
         sucesso: CargaResultado::Bombom,
         falha: CargaResultado::Verso,
         simbolo_runtime: "pinker_verso_para_bombom_resultado",

@@ -386,6 +386,82 @@ fn desugaring_de_propagacao_nao_conhece_nenhuma_superficie_falivel() {
     );
 }
 
+/// Coleta recursivamente os `.rs` de um diretório.
+fn fontes_rust(raiz: &Path, destino: &mut Vec<PathBuf>) {
+    for entrada in fs::read_dir(raiz).expect("diretório legível") {
+        let caminho = entrada.expect("entrada de diretório").path();
+        if caminho.is_dir() {
+            fontes_rust(&caminho, destino);
+        } else if caminho.extension().and_then(|ext| ext.to_str()) == Some("rs") {
+            destino.push(caminho);
+        }
+    }
+}
+
+/// F2: o nome público de uma superfície falível existe em um lugar só.
+///
+/// A regressão que este teste detecta é concreta e já aconteceu: o despacho
+/// hospedado reconhecia a superfície por braços literais
+/// (`"ler_arquivo_resultado" => ...`), duplicando em `interpreter.rs` a
+/// autoridade lexical que `falha_operacional.rs` existe para concentrar. O
+/// nome público passava a ser decidido em dois lugares, e a alegação de
+/// autoridade única era falsa.
+///
+/// Escopo: a crate do compilador. `runtime/pinker_rt` é outra crate e não pode
+/// importar a autoridade; lá o nome aparece apenas como texto de diagnóstico,
+/// nunca como chave de decisão — cada símbolo do runtime é uma função própria,
+/// então não existe despacho por nome a duplicar.
+#[test]
+fn nome_publico_de_superficie_falivel_existe_so_na_autoridade() {
+    let raiz = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let autoridade = raiz.join("src/falha_operacional.rs");
+
+    // Controle positivo: a autoridade realmente declara os nomes. Sem isto o
+    // teste passaria por não haver nome nenhum a procurar.
+    let texto_autoridade = fs::read_to_string(&autoridade).expect("autoridade legível");
+    for superficie in pinker_v0::falha_operacional::SUPERFICIES_FALIVEIS {
+        assert!(
+            texto_autoridade.contains(superficie.intrinseca),
+            "a autoridade deveria declarar '{}'",
+            superficie.intrinseca
+        );
+    }
+
+    let mut fontes = Vec::new();
+    fontes_rust(&raiz.join("src"), &mut fontes);
+    assert!(fontes.len() > 10, "varredura de src/ não encontrou fontes");
+
+    let mut ofensores = Vec::new();
+    for caminho in fontes {
+        if caminho == autoridade {
+            continue;
+        }
+        let texto = fs::read_to_string(&caminho).expect("fonte legível");
+        for superficie in pinker_v0::falha_operacional::SUPERFICIES_FALIVEIS {
+            if texto.contains(superficie.intrinseca) {
+                ofensores.push(format!(
+                    "{} repete o nome público '{}'",
+                    caminho.display(),
+                    superficie.intrinseca
+                ));
+            }
+        }
+    }
+    assert!(
+        ofensores.is_empty(),
+        "autoridade lexical duplicada fora de src/falha_operacional.rs:\n  {}",
+        ofensores.join("\n  ")
+    );
+
+    // O despacho hospedado precisa resolver pela autoridade, não por nome.
+    let interpretador =
+        fs::read_to_string(raiz.join("src/interpreter.rs")).expect("interpretador legível");
+    assert!(
+        interpretador.contains("falha_operacional::superficie"),
+        "o interpretador deixou de resolver a superfície pela autoridade"
+    );
+}
+
 /// Executa o mesmo caso nos dois modos. Cada modo recebe os argumentos já
 /// resolvidos pelo chamador, porque parte dos casos precisa de caminhos
 /// distintos por modo.
