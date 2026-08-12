@@ -1002,7 +1002,7 @@ expect_layer = "semantic"
 [[rules]]
 op = "override-hash"
 key = "semantic.tratos.contratos"
-from = "fnv1a64:c133d521bc9e20ad"
+from = "fnv1a64:da684f6016d99d13"
 to = "fnv1a64:7c7152cbb24b7891"
 expect_file = "src/semantic.rs"
 expect_domain = "tratos"

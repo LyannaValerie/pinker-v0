@@ -1406,6 +1406,9 @@ impl SemanticChecker {
                     span: Span::new(Position::new(0, 0), Position::new(0, 0)),
                 });
             };
+            // Preserve the trait's contextual-`si` diagnostics before
+            // contextualizing and comparing concrete impl signatures.
+            self.validate_object_trait_shape(trait_decl)?;
             let mut seen = HashSet::new();
 
             for meta in &methods {
