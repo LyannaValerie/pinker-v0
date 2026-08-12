@@ -277,7 +277,7 @@ impl Parser {
                 .get(&old_name)
                 .expect("every collected closure receives a fresh name")
                 .clone();
-            cloned.name = new_name.clone();
+            cloned.name.clone_from(&new_name);
             cloned.body = Self::substitute_function_param_block(&cloned.body, &replacements);
             if self.capturing_anon_functions.contains(&old_name) {
                 self.capturing_anon_functions.insert(new_name);
