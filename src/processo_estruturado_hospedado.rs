@@ -1,0 +1,566 @@
+//! Execução hospedada da superfície estruturada de processos — Parte D, Step 3.
+//!
+//! Esta é a ponta operacional do interpretador. Ela não é usada pelas
+//! superfícies históricas e não implementa o runtime nativo.
+
+use crate::limite_tempo::LimiteTempo;
+use crate::saida_processo::SaidaProcesso;
+use std::collections::HashMap;
+use std::io::{self, Read, Write};
+use std::process::{Child, ChildStderr, ChildStdin, ChildStdout, ExitStatus, Stdio};
+use std::time::{Duration, Instant};
+
+// @pinker-nav:start processos.estruturado.hospedado
+// @pinker-nav:domain processos
+// @pinker-nav:layer interpreter
+// @pinker-nav:summary Implementa a nova execução estruturada apenas no interpretador: configura argv/cwd/ambiente e PATH saneada, faz um único spawn, move stdin/stdout/stderr por uma única malha poll com fds não-bloqueantes, aplica deadline monotônico, mata e reapa somente o filho direto no timeout ou erro pós-spawn, valida UTF-8 estritamente após reap e só então devolve um snapshot imutável.
+
+/// PATH default da nova superfície. Um overlay explícito de PATH é aplicado
+/// depois e, portanto, vence este valor.
+pub const PATH_PROCESSOS_ESTRUTURADOS: &str = "/usr/local/bin:/usr/bin:/bin";
+
+/// Configuração já resolvida das representações do interpretador.
+pub(crate) struct ConfiguracaoProcessoEstruturado<'a> {
+    pub programa: &'a str,
+    pub argumentos: &'a [String],
+    pub entrada: &'a str,
+    pub diretorio: &'a str,
+    pub ambiente: &'a HashMap<String, String>,
+    pub limite: LimiteTempo,
+}
+
+pub(crate) fn executar(
+    configuracao: &ConfiguracaoProcessoEstruturado<'_>,
+) -> Result<SaidaProcesso, String> {
+    executar_com_controle(configuracao, false, None)
+}
+
+fn executar_com_controle(
+    configuracao: &ConfiguracaoProcessoEstruturado<'_>,
+    falhar_setup_depois_spawn: bool,
+    mut pid_observado: Option<&mut u32>,
+) -> Result<SaidaProcesso, String> {
+    if configuracao.programa.is_empty() {
+        return Err("programa vazio em 'executar_processo_estruturado'".to_string());
+    }
+    for (chave, valor) in configuracao.ambiente {
+        crate::ambiente_processo::validar_entrada(chave, valor).map_err(|erro| {
+            format!("ambiente inválido em 'executar_processo_estruturado': {erro:?}")
+        })?;
+    }
+    let deadline = match configuracao.limite.duracao() {
+        Some(duracao) => Some(
+            Instant::now()
+                .checked_add(duracao)
+                .ok_or_else(|| "limite de tempo fora da faixa monotônica suportada".to_string())?,
+        ),
+        None => None,
+    };
+
+    let mut comando = crate::interpreter::comando_de_processo(configuracao.programa);
+    for argumento in configuracao.argumentos {
+        comando.arg(argumento);
+    }
+    comando
+        .env("PATH", PATH_PROCESSOS_ESTRUTURADOS)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    if !configuracao.diretorio.is_empty() {
+        comando.current_dir(configuracao.diretorio);
+    }
+    crate::ambiente_processo::aplicar_overlay(
+        &mut comando,
+        configuracao
+            .ambiente
+            .iter()
+            .map(|(chave, valor)| (chave.as_str(), valor.as_str())),
+    )
+    .map_err(|erro| format!("ambiente inválido em 'executar_processo_estruturado': {erro:?}"))?;
+
+    let filho = comando.spawn().map_err(|erro| {
+        format!(
+            "falha ao criar processo '{}' em 'executar_processo_estruturado': {erro}",
+            configuracao.programa
+        )
+    })?;
+    let mut filho = FilhoReapavel::novo(filho);
+    if let Some(destino) = pid_observado.as_mut() {
+        **destino = filho.id();
+    }
+
+    if falhar_setup_depois_spawn {
+        return falhar_depois_spawn(
+            "falha de setup injetada depois do spawn".to_string(),
+            &mut filho,
+        );
+    }
+
+    let stdin = filho
+        .take_stdin()
+        .ok_or_else(|| "stdin configurado não foi disponibilizado".to_string())
+        .or_else(|causa| falhar_depois_spawn(causa, &mut filho))?;
+    let stdout = filho
+        .take_stdout()
+        .ok_or_else(|| "stdout configurado não foi disponibilizado".to_string())
+        .or_else(|causa| falhar_depois_spawn(causa, &mut filho))?;
+    let stderr = filho
+        .take_stderr()
+        .ok_or_else(|| "stderr configurado não foi disponibilizado".to_string())
+        .or_else(|causa| falhar_depois_spawn(causa, &mut filho))?;
+
+    if let Err(erro) = configurar_nao_bloqueante(&stdin)
+        .and_then(|_| configurar_nao_bloqueante(&stdout))
+        .and_then(|_| configurar_nao_bloqueante(&stderr))
+    {
+        return falhar_depois_spawn(
+            format!("falha ao configurar pipes não-bloqueantes: {erro}"),
+            &mut filho,
+        );
+    }
+
+    let entrada = configuracao.entrada.as_bytes();
+    let mut entrada_enviada = 0usize;
+    let mut stdin = if entrada.is_empty() {
+        // Fechar também no caso vazio é o EOF observável do contrato.
+        drop(stdin);
+        None
+    } else {
+        Some(stdin)
+    };
+    let mut stdout = Some(stdout);
+    let mut stderr = Some(stderr);
+    let mut bytes_stdout = Vec::new();
+    let mut bytes_stderr = Vec::new();
+    loop {
+        if deadline.is_some_and(|fim| Instant::now() >= fim) {
+            return falhar_depois_spawn(
+                "limite de tempo excedido em 'executar_processo_estruturado'".to_string(),
+                &mut filho,
+            );
+        }
+
+        if let Err(erro) = filho.atualizar_status() {
+            return falhar_depois_spawn(
+                format!("falha ao observar término do processo estruturado: {erro}"),
+                &mut filho,
+            );
+        }
+        if filho.status().is_some() && stdin.is_none() && stdout.is_none() && stderr.is_none() {
+            break;
+        }
+
+        let mut descritores = Vec::with_capacity(3);
+        if let Some(pipe) = stdin.as_ref() {
+            descritores.push(DescritorPoll::novo(
+                fd(pipe),
+                POLL_OUT | POLL_ERR | POLL_HUP,
+                CanalPoll::Stdin,
+            ));
+        }
+        if let Some(pipe) = stdout.as_ref() {
+            descritores.push(DescritorPoll::novo(
+                fd(pipe),
+                POLL_IN | POLL_ERR | POLL_HUP,
+                CanalPoll::Stdout,
+            ));
+        }
+        if let Some(pipe) = stderr.as_ref() {
+            descritores.push(DescritorPoll::novo(
+                fd(pipe),
+                POLL_IN | POLL_ERR | POLL_HUP,
+                CanalPoll::Stderr,
+            ));
+        }
+
+        let timeout = timeout_poll(deadline);
+        if let Err(erro) = poll_descritores(&mut descritores, timeout) {
+            return falhar_depois_spawn(
+                format!("falha em poll dos pipes do processo estruturado: {erro}"),
+                &mut filho,
+            );
+        }
+
+        let mut fechar_stdin = false;
+        let mut fechar_stdout = false;
+        let mut fechar_stderr = false;
+        for descritor in &descritores {
+            if descritor.revents & POLL_INVALID != 0 {
+                return falhar_depois_spawn(
+                    "poll encontrou descritor de pipe inválido".to_string(),
+                    &mut filho,
+                );
+            }
+            match descritor.canal {
+                CanalPoll::Stdin if descritor.revents & (POLL_OUT | POLL_ERR | POLL_HUP) != 0 => {
+                    let Some(pipe) = stdin.as_mut() else {
+                        continue;
+                    };
+                    match escrever_disponivel(pipe, entrada, &mut entrada_enviada) {
+                        Ok(true) => fechar_stdin = true,
+                        Ok(false) => {}
+                        Err(erro) => {
+                            return falhar_depois_spawn(
+                                format!("falha ao enviar stdin integralmente: {erro}"),
+                                &mut filho,
+                            )
+                        }
+                    }
+                }
+                CanalPoll::Stdout if descritor.revents & (POLL_IN | POLL_ERR | POLL_HUP) != 0 => {
+                    let Some(pipe) = stdout.as_mut() else {
+                        continue;
+                    };
+                    match drenar_disponivel(pipe, &mut bytes_stdout) {
+                        Ok(eof) => fechar_stdout = eof,
+                        Err(erro) => {
+                            return falhar_depois_spawn(
+                                format!("falha ao capturar stdout: {erro}"),
+                                &mut filho,
+                            )
+                        }
+                    }
+                }
+                CanalPoll::Stderr if descritor.revents & (POLL_IN | POLL_ERR | POLL_HUP) != 0 => {
+                    let Some(pipe) = stderr.as_mut() else {
+                        continue;
+                    };
+                    match drenar_disponivel(pipe, &mut bytes_stderr) {
+                        Ok(eof) => fechar_stderr = eof,
+                        Err(erro) => {
+                            return falhar_depois_spawn(
+                                format!("falha ao capturar stderr: {erro}"),
+                                &mut filho,
+                            )
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        if fechar_stdin {
+            stdin = None;
+        }
+        if fechar_stdout {
+            stdout = None;
+        }
+        if fechar_stderr {
+            stderr = None;
+        }
+    }
+
+    let status = filho
+        .status()
+        .expect("laço só conclui depois de reapear o filho");
+    let codigo = status.code().ok_or_else(|| {
+        "processo estruturado terminou sem código normal; nenhum código mágico foi fabricado"
+            .to_string()
+    })? as u64;
+    let stdout = String::from_utf8(bytes_stdout)
+        .map_err(|_| "stdout do processo estruturado não é UTF-8 válido".to_string())?;
+    let stderr = String::from_utf8(bytes_stderr)
+        .map_err(|_| "stderr do processo estruturado não é UTF-8 válido".to_string())?;
+    Ok(SaidaProcesso::nova(codigo, stdout, stderr))
+}
+
+/// Poll recebe no máximo este intervalo para também reapear prontamente o filho
+/// direto quando um descendente mantém os write-ends herdados.
+const TICK_REAP: Duration = Duration::from_millis(25);
+
+fn timeout_poll(deadline: Option<Instant>) -> i32 {
+    let espera = match deadline {
+        Some(fim) => fim.saturating_duration_since(Instant::now()).min(TICK_REAP),
+        None => TICK_REAP,
+    };
+    let millis = espera.as_millis().max(1);
+    millis.min(i32::MAX as u128) as i32
+}
+
+fn escrever_disponivel(
+    pipe: &mut ChildStdin,
+    entrada: &[u8],
+    enviados: &mut usize,
+) -> io::Result<bool> {
+    while *enviados < entrada.len() {
+        match pipe.write(&entrada[*enviados..]) {
+            Ok(0) => {
+                return Err(io::Error::new(
+                    io::ErrorKind::WriteZero,
+                    "stdin não avançou",
+                ))
+            }
+            Ok(n) => *enviados += n,
+            Err(erro) if erro.kind() == io::ErrorKind::Interrupted => continue,
+            Err(erro) if erro.kind() == io::ErrorKind::WouldBlock => return Ok(false),
+            Err(erro) => return Err(erro),
+        }
+    }
+    Ok(true)
+}
+
+fn drenar_disponivel<R: Read>(pipe: &mut R, destino: &mut Vec<u8>) -> io::Result<bool> {
+    let mut bloco = [0u8; 16 * 1024];
+    loop {
+        match pipe.read(&mut bloco) {
+            Ok(0) => return Ok(true),
+            Ok(n) => destino.extend_from_slice(&bloco[..n]),
+            Err(erro) if erro.kind() == io::ErrorKind::Interrupted => continue,
+            Err(erro) if erro.kind() == io::ErrorKind::WouldBlock => return Ok(false),
+            Err(erro) => return Err(erro),
+        }
+    }
+}
+
+fn falhar_depois_spawn<T>(causa: String, filho: &mut FilhoReapavel) -> Result<T, String> {
+    match filho.encerrar_e_reapear() {
+        Ok(()) => Err(causa),
+        Err(limpeza) => Err(format!("{causa}; falha ao reapear filho direto: {limpeza}")),
+    }
+}
+
+struct FilhoReapavel {
+    filho: Child,
+    status: Option<ExitStatus>,
+}
+
+impl FilhoReapavel {
+    fn novo(filho: Child) -> Self {
+        Self {
+            filho,
+            status: None,
+        }
+    }
+
+    fn id(&self) -> u32 {
+        self.filho.id()
+    }
+
+    fn take_stdin(&mut self) -> Option<ChildStdin> {
+        self.filho.stdin.take()
+    }
+
+    fn take_stdout(&mut self) -> Option<ChildStdout> {
+        self.filho.stdout.take()
+    }
+
+    fn take_stderr(&mut self) -> Option<ChildStderr> {
+        self.filho.stderr.take()
+    }
+
+    fn atualizar_status(&mut self) -> io::Result<()> {
+        if self.status.is_none() {
+            self.status = self.filho.try_wait()?;
+        }
+        Ok(())
+    }
+
+    fn status(&self) -> Option<ExitStatus> {
+        self.status
+    }
+
+    fn encerrar_e_reapear(&mut self) -> io::Result<()> {
+        self.atualizar_status()?;
+        if self.status.is_none() {
+            match self.filho.kill() {
+                Ok(()) => {}
+                Err(erro) if erro.kind() == io::ErrorKind::InvalidInput => {}
+                Err(erro) => return Err(erro),
+            }
+            self.status = Some(self.filho.wait()?);
+        }
+        Ok(())
+    }
+}
+
+impl Drop for FilhoReapavel {
+    fn drop(&mut self) {
+        if self.status.is_none() {
+            let _ = self.filho.kill();
+            let _ = self.filho.wait();
+        }
+    }
+}
+
+#[cfg(unix)]
+use std::os::fd::{AsRawFd, RawFd};
+
+#[cfg(unix)]
+fn fd<T: AsRawFd>(pipe: &T) -> RawFd {
+    pipe.as_raw_fd()
+}
+
+#[cfg(not(unix))]
+fn fd<T>(_pipe: &T) -> i32 {
+    -1
+}
+
+#[repr(C)]
+struct PollFd {
+    fd: i32,
+    events: i16,
+    revents: i16,
+}
+
+#[derive(Clone, Copy)]
+enum CanalPoll {
+    Stdin,
+    Stdout,
+    Stderr,
+}
+
+struct DescritorPoll {
+    raw: PollFd,
+    canal: CanalPoll,
+    revents: i16,
+}
+
+impl DescritorPoll {
+    fn novo(fd: i32, events: i16, canal: CanalPoll) -> Self {
+        Self {
+            raw: PollFd {
+                fd,
+                events,
+                revents: 0,
+            },
+            canal,
+            revents: 0,
+        }
+    }
+}
+
+const POLL_IN: i16 = 0x0001;
+const POLL_OUT: i16 = 0x0004;
+const POLL_ERR: i16 = 0x0008;
+const POLL_HUP: i16 = 0x0010;
+const POLL_INVALID: i16 = 0x0020;
+const F_GETFL: i32 = 3;
+const F_SETFL: i32 = 4;
+#[cfg(any(target_os = "linux", target_os = "android"))]
+const O_NONBLOCK: i32 = 0o4000;
+#[cfg(not(any(target_os = "linux", target_os = "android")))]
+const O_NONBLOCK: i32 = 0x0004;
+
+#[cfg(unix)]
+extern "C" {
+    fn poll(fds: *mut PollFd, quantidade: usize, timeout_ms: i32) -> i32;
+    fn fcntl(fd: i32, comando: i32, ...) -> i32;
+}
+
+#[cfg(unix)]
+fn configurar_nao_bloqueante<T: AsRawFd>(pipe: &T) -> io::Result<()> {
+    let descritor = pipe.as_raw_fd();
+    // SAFETY: fcntl recebe um fd vivo possuído pelo Child pipe; F_GETFL não
+    // recebe argumento variádico e F_SETFL recebe somente os flags recuperados.
+    let flags = unsafe { fcntl(descritor, F_GETFL) };
+    if flags < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    if unsafe { fcntl(descritor, F_SETFL, flags | O_NONBLOCK) } < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn configurar_nao_bloqueante<T>(_pipe: &T) -> io::Result<()> {
+    Err(io::Error::new(
+        io::ErrorKind::Unsupported,
+        "poll não-bloqueante requer plataforma Unix",
+    ))
+}
+
+#[cfg(unix)]
+fn poll_descritores(descritores: &mut [DescritorPoll], timeout: i32) -> io::Result<()> {
+    let mut raws: Vec<PollFd> = descritores
+        .iter()
+        .map(|descritor| PollFd {
+            fd: descritor.raw.fd,
+            events: descritor.raw.events,
+            revents: 0,
+        })
+        .collect();
+    loop {
+        // SAFETY: raws é um vetor contíguo de PollFd com quantidade exata; para
+        // vetor vazio, o ponteiro não é desreferenciado porque quantidade é 0.
+        let retorno = unsafe { poll(raws.as_mut_ptr(), raws.len(), timeout) };
+        if retorno >= 0 {
+            for (destino, origem) in descritores.iter_mut().zip(raws.iter()) {
+                destino.revents = origem.revents;
+            }
+            return Ok(());
+        }
+        let erro = io::Error::last_os_error();
+        if erro.kind() != io::ErrorKind::Interrupted {
+            return Err(erro);
+        }
+    }
+}
+
+#[cfg(not(unix))]
+fn poll_descritores(_descritores: &mut [DescritorPoll], _timeout: i32) -> io::Result<()> {
+    Err(io::Error::new(
+        io::ErrorKind::Unsupported,
+        "poll requer plataforma Unix",
+    ))
+}
+
+// @pinker-nav:end processos.estruturado.hospedado
+
+// @pinker-nav:start evidencia.processos.estruturado-recursos
+// @pinker-nav:domain processos
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Exercita diretamente a disciplina de recursos da execução hospedada: uma falha de setup falsificada depois do spawn aciona kill e wait do filho direto antes de retornar, sem criar snapshot ou thread auxiliar.
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn falha_de_setup_depois_do_spawn_mata_e_reapeia_antes_de_retornar() {
+        let argumentos = vec!["5".to_string()];
+        let ambiente = HashMap::new();
+        let configuracao = ConfiguracaoProcessoEstruturado {
+            programa: "/bin/sleep",
+            argumentos: &argumentos,
+            entrada: "",
+            diretorio: "",
+            ambiente: &ambiente,
+            limite: LimiteTempo::SemLimite,
+        };
+        let mut pid = 0;
+        let erro = executar_com_controle(&configuracao, true, Some(&mut pid))
+            .expect_err("setup falsificado deveria falhar");
+        assert!(erro.contains("setup injetada"), "{erro}");
+        assert!(pid > 1);
+        assert!(
+            !std::path::Path::new(&format!("/proc/{pid}")).exists(),
+            "filho {pid} sobreviveu ou virou zumbi depois do retorno"
+        );
+    }
+
+    #[test]
+    fn configuracao_invalida_falha_antes_de_spawn() {
+        for (programa, chave, valor) in [
+            ("", "VALIDA", "valor"),
+            ("/bin/true", "NOME=INVALIDO", "valor"),
+            ("/bin/true", "NOME\0INVALIDO", "valor"),
+            ("/bin/true", "VALIDA", "valor\0invalido"),
+        ] {
+            let argumentos = Vec::new();
+            let ambiente = HashMap::from([(chave.to_string(), valor.to_string())]);
+            let configuracao = ConfiguracaoProcessoEstruturado {
+                programa,
+                argumentos: &argumentos,
+                entrada: "",
+                diretorio: "",
+                ambiente: &ambiente,
+                limite: LimiteTempo::SemLimite,
+            };
+            let mut pid = 0;
+            executar_com_controle(&configuracao, false, Some(&mut pid))
+                .expect_err("configuração inválida deveria ser recuperável");
+            assert_eq!(pid, 0, "configuração inválida chegou ao spawn");
+        }
+    }
+}
+// @pinker-nav:end evidencia.processos.estruturado-recursos

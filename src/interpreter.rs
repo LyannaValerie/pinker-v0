@@ -2497,8 +2497,62 @@ fn executar_superficie_falivel(
                 format!("falha ao medir entrada '{}': {}", entrada, err),
             )),
         },
-        OperacaoFalivel::ExecutarProcessoEstruturado => Err(runtime_err(
-            "execução estruturada ainda não foi ativada no gate de representação",
+        OperacaoFalivel::ExecutarProcessoEstruturado => {
+            let [RuntimeValue::Str(programa), RuntimeValue::ListVerso(argumentos_handle), RuntimeValue::Str(entrada), RuntimeValue::Str(diretorio), RuntimeValue::MapVersoVerso(ambiente_handle), RuntimeValue::Int(limite_handle)] =
+                args
+            else {
+                unreachable!("assinatura validada pela autoridade falível")
+            };
+            let argumentos = list_state
+                .lists_verso
+                .get(argumentos_handle)
+                .cloned()
+                .ok_or_else(|| {
+                    runtime_err("handle lista<verso> inválido em 'executar_processo_estruturado'")
+                })?;
+            let ambiente = map_state
+                .maps_verso_verso
+                .get(ambiente_handle)
+                .cloned()
+                .ok_or_else(|| {
+                    runtime_err(
+                        "handle mapa<verso,verso> inválido em 'executar_processo_estruturado'",
+                    )
+                })?;
+            let limite = limite_tempo_do_runtime(map_state, *limite_handle)?;
+            let configuracao =
+                crate::processo_estruturado_hospedado::ConfiguracaoProcessoEstruturado {
+                    programa,
+                    argumentos: &argumentos,
+                    entrada,
+                    diretorio,
+                    ambiente: &ambiente,
+                    limite,
+                };
+            match crate::processo_estruturado_hospedado::executar(&configuracao) {
+                Ok(saida) => Ok(resultado_ok_saida_processo(map_state, saida)),
+                Err(causa) => Ok(resultado_erro(map_state, causa)),
+            }
+        }
+    }
+}
+
+fn limite_tempo_do_runtime(
+    map_state: &RuntimeMapState,
+    handle: u64,
+) -> Result<crate::limite_tempo::LimiteTempo, PinkerError> {
+    let (tag, cargas) = map_state.enum_values.get(&handle).ok_or_else(|| {
+        runtime_err("handle LimiteTempo inválido em 'executar_processo_estruturado'")
+    })?;
+    match (*tag, cargas.as_slice()) {
+        (crate::limite_tempo::TAG_SEM_LIMITE, []) => {
+            Ok(crate::limite_tempo::LimiteTempo::SemLimite)
+        }
+        (crate::limite_tempo::TAG_ATE, [RuntimeEnumPayload::Int(milisegundos)]) => {
+            Ok(crate::limite_tempo::LimiteTempo::Ate(*milisegundos))
+        }
+        _ => Err(runtime_err(
+            "valor LimiteTempo inválido em 'executar_processo_estruturado'",
         )),
     }
 }
@@ -2586,6 +2640,20 @@ fn resultado_ok_verso(map_state: &mut RuntimeMapState, texto: String) -> Intrins
     let handle = novo_leque(map_state, crate::falha_operacional::TAG_OK);
     if let Some((_, cargas)) = map_state.enum_values.get_mut(&handle) {
         cargas.push(RuntimeEnumPayload::Str(texto));
+    }
+    IntrinsicCall::Done(Some(RuntimeValue::Int(handle)))
+}
+
+/// `Resultado.Ok(SaidaProcesso)` só é materializado depois de execução,
+/// captura, reap, status normal e UTF-8 estrito concluírem com sucesso.
+fn resultado_ok_saida_processo(
+    map_state: &mut RuntimeMapState,
+    saida: crate::saida_processo::SaidaProcesso,
+) -> IntrinsicCall {
+    let snapshot = map_state.saidas_processo.inserir(saida);
+    let handle = novo_leque(map_state, crate::falha_operacional::TAG_OK);
+    if let Some((_, cargas)) = map_state.enum_values.get_mut(&handle) {
+        cargas.push(RuntimeEnumPayload::SaidaProcesso(snapshot));
     }
     IntrinsicCall::Done(Some(RuntimeValue::Int(handle)))
 }
@@ -6878,7 +6946,7 @@ fn restaurar_disposicao_padrao(sinal: i32) -> std::io::Result<()> {
 /// seja o mesmo dos dois back-ends, este construtor devolve explicitamente
 /// `SIGPIPE` a `SIG_DFL` no filho, imediatamente antes do `exec`, em vez de
 /// depender de `std::process::Command` fazer isso por conta própria.
-fn comando_de_processo(command_name: &str) -> Command {
+pub(crate) fn comando_de_processo(command_name: &str) -> Command {
     #[allow(unused_mut)]
     let mut command = Command::new(command_name);
     #[cfg(unix)]
@@ -8908,6 +8976,45 @@ mod part_d_saida_processo_runtime_tests {
                 esperado
             );
         }
+    }
+
+    #[test]
+    fn erro_operacional_pos_configuracao_nao_cria_snapshot_parcial() {
+        let mut listas = RuntimeListState {
+            lists_bombom: HashMap::new(),
+            lists_verso: HashMap::from([(1, Vec::new())]),
+            next_list_handle: 2,
+        };
+        let mut mapas = novo_runtime_map_state();
+        mapas.maps_verso_verso.insert(1, HashMap::new());
+        mapas
+            .enum_values
+            .insert(1, (crate::limite_tempo::TAG_SEM_LIMITE, Vec::new()));
+        mapas.next_enum_handle = 2;
+        let superficie = crate::falha_operacional::superficie("executar_processo_estruturado")
+            .expect("autoridade estruturada");
+        let chamada = executar_superficie_falivel(
+            superficie,
+            &[
+                RuntimeValue::Str("/executavel/ausente/step3".to_string()),
+                RuntimeValue::ListVerso(1),
+                RuntimeValue::Str(String::new()),
+                RuntimeValue::Str(String::new()),
+                RuntimeValue::MapVersoVerso(1),
+                RuntimeValue::Int(1),
+            ],
+            &mut mapas,
+            &mut listas,
+        )
+        .expect("falha de spawn é Resultado::Erro");
+        let IntrinsicCall::Done(Some(RuntimeValue::Int(resultado))) = chamada else {
+            panic!("superfície deveria devolver Resultado")
+        };
+        assert_eq!(mapas.saidas_processo.retidos(), 0);
+        assert_eq!(
+            mapas.enum_values.get(&resultado).map(|(tag, _)| *tag),
+            Some(crate::falha_operacional::TAG_ERRO)
+        );
     }
 }
 // @pinker-nav:end evidencia.processos.saida-runtime-hospedado

@@ -38,6 +38,7 @@ pub mod nav_projection_store;
 pub mod palette;
 pub mod parser;
 pub mod printer;
+mod processo_estruturado_hospedado;
 pub mod project_state;
 pub mod project_state_report;
 pub mod projection;
