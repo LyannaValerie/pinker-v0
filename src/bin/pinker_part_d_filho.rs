@@ -59,6 +59,18 @@ fn main() {
                 stderr.write_all(&bloco_stderr).expect("stderr grande");
             }
         }
+        "large-stdout-only" => {
+            let bloco = vec![b'O'; 2 * 1024 * 1024];
+            std::io::stdout()
+                .write_all(&bloco)
+                .expect("stdout grande isolado");
+        }
+        "large-stderr-only" => {
+            let bloco = vec![b'E'; 2 * 1024 * 1024];
+            std::io::stderr()
+                .write_all(&bloco)
+                .expect("stderr grande isolado");
+        }
         "continuous-stdout" | "continuous-both" => {
             let ms = argumentos
                 .next()

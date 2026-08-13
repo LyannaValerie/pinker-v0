@@ -2971,19 +2971,11 @@ unsafe fn ler_configuracao_processo_estruturado(
     })
 }
 
-fn comando_processo_estruturado(programa: &str) -> std::process::Command {
-    let mut processo = std::process::Command::new(programa);
-    processo.env("PATH", PATH_PROCESSOS);
-    #[cfg(unix)]
-    {
-        use std::os::unix::process::CommandExt as _;
-        // SAFETY: mesma closure async-signal-safe de `comando_saneado`; a nova
-        // superfície mantém SIGPIPE default no filho sem tocar no pai.
-        unsafe {
-            processo.pre_exec(|| restaurar_disposicao_padrao(SINAL_SIGPIPE));
-        }
+fn comando_processo_estruturado(programa: &str) -> Result<std::process::Command, String> {
+    if programa.is_empty() {
+        return Err("programa vazio em 'executar_processo_estruturado'".to_string());
     }
-    processo
+    Ok(comando_saneado(std::path::PathBuf::from(programa)))
 }
 
 fn executar_processo_estruturado_nativo(
@@ -3001,7 +2993,7 @@ fn executar_processo_estruturado_nativo(
         })
         .transpose()?;
 
-    let mut comando = comando_processo_estruturado(&configuracao.programa);
+    let mut comando = comando_processo_estruturado(&configuracao.programa)?;
     comando.args(&configuracao.argumentos);
     if !configuracao.diretorio.is_empty() {
         comando.current_dir(&configuracao.diretorio);

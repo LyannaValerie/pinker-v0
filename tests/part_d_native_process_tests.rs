@@ -13,7 +13,7 @@ use std::time::{Duration, Instant};
 // @pinker-nav:start evidencia.processos.parte-d-native-step-4
 // @pinker-nav:domain processos
 // @pinker-nav:layer evidencia
-// @pinker-nav:summary Executa a mesma superfície estruturada no interpretador e em ELF ligado ao runtime nativo real, comparando argv sem shell, stdin+EOF, stdout/stderr separados e grandes, ambiente/cwd/PATH, status normal e não-zero, falhas de spawn, término anormal, UTF-8 estrito, Ate(0) sem spawn nem efeito externo, timeout simples/descendente/output contínuo, captura SemLimite, single-spawn e accessors sem reexecução sob watchdog externo.
+// @pinker-nav:summary Executa a mesma superfície estruturada no interpretador e em ELF ligado ao runtime nativo real, comparando argv sem shell, stdin+EOF, stdout/stderr separados e grandes, ambiente/cwd/PATH, status normal e não-zero, falhas de spawn, término anormal, UTF-8 estrito, Ate(0) sem spawn nem efeito externo, timeout simples/descendente/output contínuo, captura SemLimite, single-spawn e accessors sem reexecução sob watchdog externo; fecha ainda composição genérica com tentar/propagar? e um workflow read-only real com git, múltiplos argv e consumo de status/stdout/stderr.
 
 fn literal(texto: &str) -> String {
     let mut saida = String::from("\"");
@@ -287,6 +287,28 @@ fn paridade_nativa_argv_stdin_canais_status_e_sem_limite() {
         fnv1a64(entrada.as_bytes())
     )));
 
+    let codigo = fonte(
+        fixture,
+        &["stdin".to_string()],
+        "",
+        "",
+        &BTreeMap::new(),
+        "LimiteTempo.SemLimite",
+        "falar(processo_saida(saida));",
+    );
+    let (i, n, _, _) = paridade(
+        &dir,
+        "stdin-vazio-eof",
+        &codigo,
+        &[],
+        None,
+        Duration::from_secs(5),
+    );
+    assert_eq!(
+        exigir_sucesso_paritario("stdin-vazio-eof", &i, &n),
+        "OK\nSTDIN 0 cbf29ce484222325\nEOF\n\n"
+    );
+
     for (nome, modo, esperado) in [
         (
             "canais-pequenos",
@@ -355,6 +377,26 @@ fn paridade_nativa_argv_stdin_canais_status_e_sem_limite() {
         exigir_sucesso_paritario("grande", &i, &n),
         "OK\n2097152\n2097152\n"
     );
+
+    for (nome, modo, esperado_stdout, esperado_stderr) in [
+        ("stdout-grande-isolado", "large-stdout-only", 2_097_152, 0),
+        ("stderr-grande-isolado", "large-stderr-only", 0, 2_097_152),
+    ] {
+        let codigo = fonte(
+            fixture,
+            &[modo.to_string()],
+            "",
+            "",
+            &BTreeMap::new(),
+            "LimiteTempo.SemLimite",
+            "falar(tamanho_verso(processo_saida(saida))); falar(tamanho_verso(processo_erro(saida)));",
+        );
+        let (i, n, _, _) = paridade(&dir, nome, &codigo, &[], None, Duration::from_secs(8));
+        assert_eq!(
+            exigir_sucesso_paritario(nome, &i, &n),
+            format!("OK\n{esperado_stdout}\n{esperado_stderr}\n")
+        );
+    }
 
     #[cfg(target_os = "linux")]
     {
@@ -847,6 +889,209 @@ fn nativo_faz_um_spawn_accessors_nao_reexecutam_e_timeout_reapeia() {
                 .status();
         }
     }
+}
+
+#[test]
+fn resultado_estruturado_compoe_com_tentar_e_propagar_sem_caso_especial() {
+    let dir = NativeArtifactDir::create().expect("sandbox de composição Parte D");
+    let fixture = env!("CARGO_BIN_EXE_pinker_part_d_filho");
+    let ausente = dir.path().join("executavel-ausente");
+    let codigo = format!(
+        r#"pacote main;
+apelido Res = Resultado<SaidaProcesso, verso>;
+
+carinho sucesso() -> Res {{
+    nova muda argumentos: lista<verso> = lista_verso_criar();
+    lista_verso_anexar(argumentos, "small");
+    nova ambiente: mapa<verso,verso> = mapa_verso_verso_criar();
+    propagar? executar_processo_estruturado(
+        {fixture}, argumentos, "", "", ambiente, LimiteTempo.SemLimite
+    ) como Res.Ok(saida);
+    mimo Res.Ok(saida);
+}}
+
+carinho falha() -> Res {{
+    nova argumentos: lista<verso> = lista_verso_criar();
+    nova ambiente: mapa<verso,verso> = mapa_verso_verso_criar();
+    propagar? executar_processo_estruturado(
+        {ausente}, argumentos, "", "", ambiente, LimiteTempo.SemLimite
+    ) como Res.Ok(saida);
+    mimo Res.Ok(saida);
+}}
+
+carinho principal() -> bombom {{
+    tentar sucesso() {{
+        sucesso Res.Ok(saida) {{
+            falar("TENTAR_OK");
+            falar(processo_codigo(saida));
+            falar(processo_saida(saida));
+            falar(processo_erro(saida));
+        }}
+        falha Res.Erro(causa) {{ falar("SUCESSO_INESPERADAMENTE_FALHOU"); }}
+    }}
+    tentar falha() {{
+        sucesso Res.Ok(saida) {{ falar("FALHA_INESPERADAMENTE_OK"); }}
+        falha Res.Erro(causa) {{ falar("PROPAGAR_ERRO"); }}
+    }}
+    mimo 0;
+}}
+"#,
+        fixture = literal(fixture),
+        ausente = literal(&ausente.display().to_string()),
+    );
+
+    let (interpretado, nativo, _, _) = paridade(
+        &dir,
+        "resultado-composicao",
+        &codigo,
+        &[],
+        None,
+        Duration::from_secs(5),
+    );
+    assert_eq!(
+        exigir_sucesso_paritario("resultado-composicao", &interpretado, &nativo),
+        "TENTAR_OK\n0\nstdout-small\nstderr-small\nPROPAGAR_ERRO\n"
+    );
+
+    let parser = fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/parser.rs"))
+        .expect("autoridade do desugaring legível");
+    let inicio = parser
+        .find("// @pinker-nav:start parser.resultado.tentar-propagar")
+        .expect("início do desugaring");
+    let fim = parser
+        .find("// @pinker-nav:end parser.resultado.tentar-propagar")
+        .expect("fim do desugaring");
+    let desugaring = &parser[inicio..fim];
+    assert!(desugaring.contains("parse_tentar_desugared"));
+    assert!(desugaring.contains("parse_propagar_desugared"));
+    assert!(!desugaring.contains("executar_processo_estruturado"));
+}
+
+#[test]
+fn workflow_real_git_observa_status_stdout_stderr_com_argv_estrutural() {
+    let dir = NativeArtifactDir::create().expect("sandbox do workflow real Parte D");
+    let repo = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .canonicalize()
+        .expect("repo canônico");
+    let repo_texto = repo.display().to_string();
+
+    let codigo = fonte(
+        "git",
+        &[
+            "-C".to_string(),
+            repo_texto.clone(),
+            "rev-parse".to_string(),
+            "--show-toplevel".to_string(),
+        ],
+        "",
+        "",
+        &BTreeMap::new(),
+        "LimiteTempo.Ate(5000)",
+        "falar(processo_codigo(saida)); falar(processo_saida(saida)); falar(processo_erro(saida));",
+    );
+    let (interpretado, nativo, _, _) = paridade(
+        &dir,
+        "workflow-git-ok",
+        &codigo,
+        &[],
+        None,
+        Duration::from_secs(8),
+    );
+    assert_eq!(
+        exigir_sucesso_paritario("workflow-git-ok", &interpretado, &nativo),
+        format!("OK\n0\n{repo_texto}\n\n\n")
+    );
+
+    let codigo_nao_zero = fonte(
+        "git",
+        &[
+            "-C".to_string(),
+            repo_texto,
+            "rev-parse".to_string(),
+            "--verify".to_string(),
+            "refs/heads/__parte_d_ref_ausente__".to_string(),
+        ],
+        "",
+        "",
+        &BTreeMap::new(),
+        "LimiteTempo.Ate(5000)",
+        "falar(processo_codigo(saida)); falar(processo_saida(saida)); falar(processo_erro(saida));",
+    );
+    let (interpretado, nativo, _, _) = paridade(
+        &dir,
+        "workflow-git-nao-zero",
+        &codigo_nao_zero,
+        &[],
+        None,
+        Duration::from_secs(8),
+    );
+    let texto = exigir_sucesso_paritario("workflow-git-nao-zero", &interpretado, &nativo);
+    assert!(texto.starts_with("OK\n128\n\n"), "{texto}");
+    assert!(texto.contains("Needed a single revision"), "{texto}");
+}
+
+#[test]
+fn superficies_historicas_preservam_observaveis_em_interpretador_e_nativo() {
+    use std::os::unix::fs::PermissionsExt as _;
+
+    let dir = NativeArtifactDir::create().expect("sandbox de compatibilidade histórica");
+    let script = |nome: &str, corpo: &str| {
+        let caminho = dir.path().join(nome);
+        fs::write(&caminho, format!("#!/bin/sh\n{corpo}\n")).expect("gravar fixture legada");
+        fs::set_permissions(&caminho, fs::Permissions::from_mode(0o755))
+            .expect("tornar fixture executável");
+        caminho
+    };
+    let status = script("status.sh", "exit 7");
+    let stdout = script("stdout.sh", "printf 'legacy-out'");
+    let stderr = script("stderr.sh", "printf 'legacy-err' >&2");
+    let stdin = script(
+        "stdin.sh",
+        "IFS= read -r linha; test \"$linha\" = dado; exit $((9 + $?))",
+    );
+    let produtor = script("produtor.sh", "printf 'pipe'");
+    let consumidor = script(
+        "consumidor.sh",
+        "conteudo=$(cat); test \"$conteudo\" = pipe; exit $((11 + $?))",
+    );
+    let resultado = script("resultado.sh", "exit 5");
+    let codigo = format!(
+        r#"pacote main;
+apelido Res = Resultado<bombom, verso>;
+
+carinho principal() -> bombom {{
+    falar(executar_processo({status}));
+    falar(capturar_stdout({stdout}));
+    falar(capturar_stderr({stderr}));
+    falar(executar_com_entrada({stdin}, "dado\n"));
+    falar(pipeline_minimo({produtor}, {consumidor}));
+    tentar executar_processo_resultado({resultado}) {{
+        sucesso Res.Ok(codigo) {{ falar(codigo); }}
+        falha Res.Erro(causa) {{ falar("ERRO_INESPERADO"); }}
+    }}
+    mimo 0;
+}}
+"#,
+        status = literal(&status.display().to_string()),
+        stdout = literal(&stdout.display().to_string()),
+        stderr = literal(&stderr.display().to_string()),
+        stdin = literal(&stdin.display().to_string()),
+        produtor = literal(&produtor.display().to_string()),
+        consumidor = literal(&consumidor.display().to_string()),
+        resultado = literal(&resultado.display().to_string()),
+    );
+    let (interpretado, nativo, _, _) = paridade(
+        &dir,
+        "compatibilidade-historica",
+        &codigo,
+        &[],
+        None,
+        Duration::from_secs(10),
+    );
+    assert_eq!(
+        exigir_sucesso_paritario("compatibilidade-historica", &interpretado, &nativo),
+        "7\nlegacy-out\nlegacy-err\n9\n11\n5\n"
+    );
 }
 
 // @pinker-nav:end evidencia.processos.parte-d-native-step-4

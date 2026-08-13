@@ -923,7 +923,7 @@ fn identidade_builtin_da_taxonomia_nao_e_substituivel_pelo_usuario() {
         ));
         let msg = format!("{erro:?}");
         assert!(
-            msg.contains("identidade predeclarada do runtime"),
+            msg.contains("identidade builtin reservada"),
             "{nome}: a recusa deveria nomear a razão, obtido: {msg}"
         );
         assert!(

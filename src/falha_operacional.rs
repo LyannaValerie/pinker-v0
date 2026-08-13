@@ -387,6 +387,8 @@ const ASSINATURA_PROCESSO_ESTRUTURADO: &[CargaResultado] = &[
 /// Três domínios independentes atravessam o mesmo fluxo de erro: filesystem,
 /// processo/spawn e parsing em tempo de execução. A independência é o ponto —
 /// uma única operação falível não provaria que o mecanismo é geral.
+pub const EXECUTAR_PROCESSO_ESTRUTURADO: &str = "executar_processo_estruturado";
+
 pub const SUPERFICIES_FALIVEIS: &[SuperficieFalivel] = &[
     // Filesystem: leitura de arquivo inteiro por caminho.
     // Não abre handle visível ao usuário, logo uma falha não pode deixar
@@ -464,7 +466,7 @@ pub const SUPERFICIES_FALIVEIS: &[SuperficieFalivel] = &[
         historica: None,
     },
     SuperficieFalivel {
-        intrinseca: "executar_processo_estruturado",
+        intrinseca: EXECUTAR_PROCESSO_ESTRUTURADO,
         operacao: OperacaoFalivel::ExecutarProcessoEstruturado,
         argumentos: ASSINATURA_PROCESSO_ESTRUTURADO,
         sucesso: CargaResultado::SaidaProcesso,

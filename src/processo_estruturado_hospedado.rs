@@ -40,16 +40,16 @@ fn executar_com_controle(
     falhar_setup_depois_spawn: bool,
     mut pid_observado: Option<&mut u32>,
 ) -> Result<SaidaProcesso, String> {
+    let operacao = crate::falha_operacional::EXECUTAR_PROCESSO_ESTRUTURADO;
     if configuracao.programa.is_empty() {
-        return Err("programa vazio em 'executar_processo_estruturado'".to_string());
+        return Err(format!("programa vazio em '{operacao}'"));
     }
     for (chave, valor) in configuracao.ambiente {
-        crate::ambiente_processo::validar_entrada(chave, valor).map_err(|erro| {
-            format!("ambiente inválido em 'executar_processo_estruturado': {erro:?}")
-        })?;
+        crate::ambiente_processo::validar_entrada(chave, valor)
+            .map_err(|erro| format!("ambiente inválido em '{operacao}': {erro:?}"))?;
     }
     if configuracao.limite.expira_imediatamente() {
-        return Err("limite de tempo excedido em 'executar_processo_estruturado'".to_string());
+        return Err(format!("limite de tempo excedido em '{operacao}'"));
     }
     let deadline = match configuracao.limite.duracao() {
         Some(duracao) => Some(
@@ -79,11 +79,11 @@ fn executar_com_controle(
             .iter()
             .map(|(chave, valor)| (chave.as_str(), valor.as_str())),
     )
-    .map_err(|erro| format!("ambiente inválido em 'executar_processo_estruturado': {erro:?}"))?;
+    .map_err(|erro| format!("ambiente inválido em '{operacao}': {erro:?}"))?;
 
     let filho = comando.spawn().map_err(|erro| {
         format!(
-            "falha ao criar processo '{}' em 'executar_processo_estruturado': {erro}",
+            "falha ao criar processo '{}' em '{operacao}': {erro}",
             configuracao.programa
         )
     })?;
@@ -138,7 +138,7 @@ fn executar_com_controle(
     loop {
         if deadline.is_some_and(|fim| Instant::now() >= fim) {
             return falhar_depois_spawn(
-                "limite de tempo excedido em 'executar_processo_estruturado'".to_string(),
+                format!("limite de tempo excedido em '{operacao}'"),
                 &mut filho,
             );
         }

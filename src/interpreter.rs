@@ -2508,16 +2508,20 @@ fn executar_superficie_falivel(
                 .get(argumentos_handle)
                 .cloned()
                 .ok_or_else(|| {
-                    runtime_err("handle lista<verso> inválido em 'executar_processo_estruturado'")
+                    runtime_err(&format!(
+                        "handle lista<verso> inválido em '{}'",
+                        crate::falha_operacional::EXECUTAR_PROCESSO_ESTRUTURADO
+                    ))
                 })?;
             let ambiente = map_state
                 .maps_verso_verso
                 .get(ambiente_handle)
                 .cloned()
                 .ok_or_else(|| {
-                    runtime_err(
-                        "handle mapa<verso,verso> inválido em 'executar_processo_estruturado'",
-                    )
+                    runtime_err(&format!(
+                        "handle mapa<verso,verso> inválido em '{}'",
+                        crate::falha_operacional::EXECUTAR_PROCESSO_ESTRUTURADO
+                    ))
                 })?;
             let limite = limite_tempo_do_runtime(map_state, *limite_handle)?;
             let configuracao =
@@ -2542,7 +2546,10 @@ fn limite_tempo_do_runtime(
     handle: u64,
 ) -> Result<crate::limite_tempo::LimiteTempo, PinkerError> {
     let (tag, cargas) = map_state.enum_values.get(&handle).ok_or_else(|| {
-        runtime_err("handle LimiteTempo inválido em 'executar_processo_estruturado'")
+        runtime_err(&format!(
+            "handle LimiteTempo inválido em '{}'",
+            crate::falha_operacional::EXECUTAR_PROCESSO_ESTRUTURADO
+        ))
     })?;
     match (*tag, cargas.as_slice()) {
         (crate::limite_tempo::TAG_SEM_LIMITE, []) => {
@@ -2551,9 +2558,10 @@ fn limite_tempo_do_runtime(
         (crate::limite_tempo::TAG_ATE, [RuntimeEnumPayload::Int(milisegundos)]) => {
             Ok(crate::limite_tempo::LimiteTempo::Ate(*milisegundos))
         }
-        _ => Err(runtime_err(
-            "valor LimiteTempo inválido em 'executar_processo_estruturado'",
-        )),
+        _ => Err(runtime_err(&format!(
+            "valor LimiteTempo inválido em '{}'",
+            crate::falha_operacional::EXECUTAR_PROCESSO_ESTRUTURADO
+        ))),
     }
 }
 
@@ -8991,8 +8999,10 @@ mod part_d_saida_processo_runtime_tests {
             .enum_values
             .insert(1, (crate::limite_tempo::TAG_SEM_LIMITE, Vec::new()));
         mapas.next_enum_handle = 2;
-        let superficie = crate::falha_operacional::superficie("executar_processo_estruturado")
-            .expect("autoridade estruturada");
+        let superficie = crate::falha_operacional::superficie(
+            crate::falha_operacional::EXECUTAR_PROCESSO_ESTRUTURADO,
+        )
+        .expect("autoridade estruturada");
         let chamada = executar_superficie_falivel(
             superficie,
             &[

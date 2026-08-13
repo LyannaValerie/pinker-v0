@@ -365,6 +365,10 @@ impl SemanticChecker {
             (Type::Struct { name: lhs_name, .. }, Type::Struct { name: rhs_name, .. }) => {
                 lhs_name == rhs_name
             }
+            (
+                Type::OpaqueHandle { name: lhs_name, .. },
+                Type::OpaqueHandle { name: rhs_name, .. },
+            ) => lhs_name == rhs_name,
             (Type::Enum { name: lhs_name, .. }, Type::Enum { name: rhs_name, .. }) => {
                 lhs_name == rhs_name
             }
@@ -2191,8 +2195,8 @@ impl SemanticChecker {
                                     msg: format!(
                                         "tipo de inicialização incompatível para '{}': esperado '{}', encontrado '{}'",
                                         let_stmt.name,
-                                        resolved_declared_ty.name(),
-                                        init_ty.name()
+                                        resolved_declared_ty.display_name(),
+                                        init_ty.display_name()
                                     ),
                                     span: let_stmt.init.span,
                                 });
