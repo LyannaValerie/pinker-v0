@@ -66,14 +66,28 @@ pub const VARIANTE_ERRO: &str = "Erro";
 
 /// Classe operacional de uma carga de `Resultado<T,E>`.
 ///
-/// Deliberadamente mínima: a Parte B só precisa distinguir uma palavra inteira
-/// de um texto possuído. Ampliar esta enumeração é decisão de outra frente.
+/// A Parte B abriu apenas palavra e texto e registrou que ampliar seria decisão
+/// de outra frente. A Parte C é essa frente: enumerar um diretório devolve uma
+/// coleção, e classificar uma entrada devolve um leque. Nenhuma das duas cargas
+/// inventa representação — `lista<verso>` e leque já são famílias existentes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CargaResultado {
     /// Valor imediato de uma palavra.
     Bombom,
     /// Texto possuído pelo valor que o transporta.
     Verso,
+    /// Coleção de textos, transportada pelo handle de uma palavra.
+    ///
+    /// Parte C: a carga de sucesso da enumeração. A variante de leque com carga
+    /// de lista já existia desde a D1; aqui ela só passa a ser nomeável pela
+    /// autoridade.
+    ListaVerso,
+    /// Outro leque, nomeado, transportado como discriminante de uma palavra.
+    ///
+    /// Parte C: a carga de sucesso da classificação de entrada. O leque
+    /// referido não tem carga própria, então o valor é imediato — não há
+    /// handle novo nem família de recurso nova.
+    Leque(&'static str),
 }
 
 impl CargaResultado {
@@ -82,16 +96,57 @@ impl CargaResultado {
         match self {
             CargaResultado::Bombom => Type::Bombom(span),
             CargaResultado::Verso => Type::Verso(span),
+            CargaResultado::ListaVerso => Type::ListVerso(span),
+            CargaResultado::Leque(nome) => Type::Enum {
+                name: nome.to_string(),
+                span,
+            },
         }
     }
 
     /// Chave usada na composição do nome monomórfico do leque.
     ///
-    /// Espelha `generic_type_key` do parser para as duas variantes suportadas.
+    /// Espelha `generic_type_key` do parser para as variantes suportadas: uma
+    /// chave divergente produziria um nome monomórfico que nenhuma outra camada
+    /// resolveria.
     pub fn chave(self) -> &'static str {
         match self {
             CargaResultado::Bombom => "bombom",
             CargaResultado::Verso => "verso",
+            CargaResultado::ListaVerso => "lista_verso",
+            CargaResultado::Leque(nome) => nome,
+        }
+    }
+
+    /// Leque nomeado que esta carga exige que exista, quando houver.
+    ///
+    /// Serve para que o parser materialize o leque predeclarado da carga sem
+    /// redescobrir por `match` local qual superfície precisa de qual leque.
+    /// Como [`CargaResultado::aceita`], mas sobre a carga de um leque **recém
+    /// materializado**, antes de a semântica resolver nomes de tipo.
+    ///
+    /// A monomorfização substitui o parâmetro de tipo pelo nó que o chamador
+    /// escreveu, e para um leque nomeado esse nó ainda é `Type::Alias`: a
+    /// distinção `Alias`/`Enum` só existe depois da resolução. Exigir `Enum`
+    /// aqui recusaria o programa correto — foi o que a Parte B1 fez ao encontrar
+    /// a Parte C, cuja carga de sucesso é um leque nomeado.
+    ///
+    /// Tolerar o nome sem o nó resolvido não abre buraco: um leque exigido por
+    /// uma carga é sempre uma identidade predeclarada e **reservada** (ver
+    /// `tipo_entrada`), então o usuário não pode fazer esse nome apontar para
+    /// outra coisa. As duas políticas continuam separadas — esta depende
+    /// daquela, não a substitui.
+    pub fn aceita_carga_materializada(self, ty: &Type) -> bool {
+        match (self, ty) {
+            (CargaResultado::Leque(nome), Type::Alias { name, .. }) => nome == name,
+            _ => self.aceita(ty),
+        }
+    }
+
+    pub fn leque_exigido(self) -> Option<&'static str> {
+        match self {
+            CargaResultado::Leque(nome) => Some(nome),
+            CargaResultado::Bombom | CargaResultado::Verso | CargaResultado::ListaVerso => None,
         }
     }
 
@@ -100,10 +155,13 @@ impl CargaResultado {
     /// Existe para que a semântica não redescubra por `matches!` local qual é o
     /// tipo aceito por cada superfície: a exigência viaja na autoridade.
     pub fn aceita(self, ty: &Type) -> bool {
-        matches!(
-            (self, ty),
-            (CargaResultado::Bombom, Type::Bombom(_)) | (CargaResultado::Verso, Type::Verso(_))
-        )
+        match (self, ty) {
+            (CargaResultado::Bombom, Type::Bombom(_)) => true,
+            (CargaResultado::Verso, Type::Verso(_)) => true,
+            (CargaResultado::ListaVerso, Type::ListVerso(_)) => true,
+            (CargaResultado::Leque(nome), Type::Enum { name, .. }) => nome == name,
+            _ => false,
+        }
     }
 }
 
@@ -124,6 +182,12 @@ pub enum OperacaoFalivel {
     ExecutarProcesso,
     /// Converte texto externo em número.
     ConverterVersoParaBombom,
+    /// Parte C: enumera as entradas imediatas de um diretório.
+    EnumerarDiretorio,
+    /// Parte C: classifica uma entrada sem seguir symlink.
+    ClassificarEntrada,
+    /// Parte C: mede o tamanho de uma entrada sem seguir symlink.
+    MedirEntrada,
 }
 
 /// Uma superfície que devolve falha operacional recuperável como valor.
@@ -154,7 +218,11 @@ pub struct SuperficieFalivel {
     /// Registrada para que a compatibilidade seja um fato consultável e não uma
     /// promessa de texto: a superfície histórica continua existindo, com a
     /// mesma assinatura e o mesmo comportamento de aborto.
-    pub historica: &'static str,
+    ///
+    /// `None` quando a capacidade não existia antes em forma alguma — caso da
+    /// enumeração de diretório, que a Parte C introduz sem gêmeo histórico.
+    /// Fingir um antecessor aqui inventaria compatibilidade que não existe.
+    pub historica: Option<&'static str>,
 }
 
 impl SuperficieFalivel {
@@ -222,7 +290,7 @@ impl SuperficieFalivel {
                 ));
             }
             match variante.payloads.as_slice() {
-                [payload] if carga.aceita(payload) => {}
+                [payload] if carga.aceita_carga_materializada(payload) => {}
                 [payload] => {
                     return Some(format!(
                         "a variante '{nome}' deveria carregar '{}', encontrado '{}'",
@@ -278,7 +346,7 @@ pub const SUPERFICIES_FALIVEIS: &[SuperficieFalivel] = &[
         sucesso: CargaResultado::Verso,
         falha: CargaResultado::Verso,
         simbolo_runtime: "pinker_arquivo_ler_caminho_resultado",
-        historica: "ler_arquivo_verso",
+        historica: Some("ler_arquivo_verso"),
     },
     // Processo: spawn de um executável.
     // A falha recuperável é a impossibilidade de executar (ausente, sem
@@ -290,7 +358,7 @@ pub const SUPERFICIES_FALIVEIS: &[SuperficieFalivel] = &[
         sucesso: CargaResultado::Bombom,
         falha: CargaResultado::Verso,
         simbolo_runtime: "pinker_processo_executar_resultado",
-        historica: "executar_processo",
+        historica: Some("executar_processo"),
     },
     // Parsing em tempo de execução: texto externo para número.
     // Domínio independente dos dois anteriores e independente de JSON.
@@ -301,7 +369,47 @@ pub const SUPERFICIES_FALIVEIS: &[SuperficieFalivel] = &[
         sucesso: CargaResultado::Bombom,
         falha: CargaResultado::Verso,
         simbolo_runtime: "pinker_verso_para_bombom_resultado",
-        historica: "verso_para_bombom",
+        historica: Some("verso_para_bombom"),
+    },
+    // Parte C — enumeração determinística das entradas imediatas.
+    // Sem gêmeo histórico: a capacidade não existia, e ferramentas em Pinker
+    // precisavam delegar a shell ou `ls` para enumerar. A carga de sucesso é
+    // `lista<verso>` com os NOMES; compor path continua sendo `juntar_caminho`.
+    // Diretório vazio é `Ok` com lista vazia — nunca `Erro`, nunca o contrário.
+    SuperficieFalivel {
+        intrinseca: "listar_diretorio",
+        operacao: OperacaoFalivel::EnumerarDiretorio,
+        argumento: CargaResultado::Verso,
+        sucesso: CargaResultado::ListaVerso,
+        falha: CargaResultado::Verso,
+        simbolo_runtime: "pinker_diretorio_listar_resultado",
+        historica: None,
+    },
+    // Parte C — classificação no-follow de uma entrada.
+    // O antecessor histórico é o par `e_arquivo`/`e_diretorio`, que devolve
+    // `logica` e **segue** symlink; nenhuma das duas é substituída. Como não há
+    // uma única superfície histórica correspondente, o campo permanece `None`.
+    SuperficieFalivel {
+        intrinseca: "tipo_de_entrada",
+        operacao: OperacaoFalivel::ClassificarEntrada,
+        argumento: CargaResultado::Verso,
+        sucesso: CargaResultado::Leque(crate::tipo_entrada::LEQUE_TIPO_ENTRADA),
+        falha: CargaResultado::Verso,
+        simbolo_runtime: "pinker_entrada_tipo_resultado",
+        historica: None,
+    },
+    // Parte C — metadata mínima: tamanho em bytes, no-follow e recuperável.
+    // Deliberadamente não é `tamanho_arquivo_resultado`: aquele nome sugeriria
+    // apenas troca de modelo de erro, escondendo que a política de follow também
+    // mudou. `tamanho_arquivo` continua existindo, seguindo symlink e abortando.
+    SuperficieFalivel {
+        intrinseca: "tamanho_de_entrada",
+        operacao: OperacaoFalivel::MedirEntrada,
+        argumento: CargaResultado::Verso,
+        sucesso: CargaResultado::Bombom,
+        falha: CargaResultado::Verso,
+        simbolo_runtime: "pinker_entrada_tamanho_resultado",
+        historica: None,
     },
 ];
 

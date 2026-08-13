@@ -2,8 +2,8 @@ schema = 2
 id = "normalizacao-corrente-para-historico"
 
 [reconstruction]
-expected_overrides = 50
-expected_exclusions = 62
+expected_overrides = 51
+expected_exclusions = 65
 
 [[rules]]
 op = "exclude-key"
@@ -102,6 +102,11 @@ expected_matches = 1
 
 [[rules]]
 op = "exclude-key"
+key = "evidencia.filesystem.parte-c-adulto"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
 key = "evidencia.formatar-verso.d7-pack"
 expected_matches = 1
 
@@ -128,6 +133,11 @@ expected_matches = 1
 [[rules]]
 op = "exclude-key"
 key = "falha.operacional.superficies"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "filesystem.tipo-entrada.taxonomia"
 expected_matches = 1
 
 [[rules]]
@@ -163,6 +173,11 @@ expected_matches = 1
 [[rules]]
 op = "exclude-key"
 key = "runtime.falha-operacional.superficies"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "runtime.filesystem.enumeracao-adulta"
 expected_matches = 1
 
 [[rules]]
@@ -698,7 +713,7 @@ expect_layer = "parser"
 [[rules]]
 op = "override-region"
 key = "parser.genericos.leques-template"
-from_hash = "fnv1a64:50d077a37e5e2dae"
+from_hash = "fnv1a64:96155e03a3adfba4"
 to_hash = "fnv1a64:9db5cce54d4d0579"
 from_summary = "Materializa um `EnumDecl` concreto a partir de um template de leque genérico e seus argumentos de tipo: confere a aridade (erro `Parse` se divergir), monta a tabela parâmetro-de-tipo → tipo concreto, substitui as cargas das variantes, remove os parâmetros de tipo e nomeia a instância pelo nome monomórfico. Não valida os tipos resultantes nem os anexa ao `Program`. Inclui também a predeclaração da biblioteca padrão (Fase 241): `register_predeclared_generic_enums`/`predeclared_generic_enum_templates` constroem o template sintético `Resultado<T,E> { Ok(T), Erro(E) }` e `item_name` apoia a supressão por declaração do usuário. `registrar_resultado_falivel` materializa a especialização devolvida por uma superfície falível e, com `registrar_redeclaracao_de_identidade`/`registrar_producao_de_identidade`/`verificar_identidade_runtime`, fecha a conjunção da Parte B1: produzir a identidade pelo runtime e redeclarar o nome é inválido, independentemente da ordem no texto."
 to_summary = "Materializa um `EnumDecl` concreto a partir de um template de leque genérico e seus argumentos de tipo: confere a aridade (erro `Parse` se divergir), monta a tabela parâmetro-de-tipo → tipo concreto, substitui as cargas das variantes, remove os parâmetros de tipo e nomeia a instância pelo nome monomórfico. Não valida os tipos resultantes nem os anexa ao `Program`. Inclui também a predeclaração da biblioteca padrão (Fase 241): `register_predeclared_generic_enums`/`predeclared_generic_enum_templates` constroem o template sintético `Resultado<T,E> { Ok(T), Erro(E) }` e `item_name` apoia a supressão por declaração do usuário."
@@ -718,12 +733,21 @@ expect_layer = "parser"
 [[rules]]
 op = "override-region"
 key = "parser.programa.estrutura"
-from_hash = "fnv1a64:804cf4e9f4eb85af"
+from_hash = "fnv1a64:beed5ec457738c4a"
 to_hash = "fnv1a64:c8ac56b28a5a6113"
 from_summary = "Ponto de entrada do parser: constrói o `Program` reconhecendo `pacote`, `trazer` (imports) e a marca freestanding, e despacha os itens de topo (funções, structs, leques, tratos, impl, aliases, constantes) via `parse_item`. Predeclara os leques genéricos da biblioteca padrão (Fase 241, `Resultado<T,E>`) antes do laço de itens e suprime o predeclarado quando o usuário declara o mesmo nome. A supressão registra a redeclaração (Parte B1): quando o programa também produz valores dessa identidade pelo runtime, a conjunção é inválida e o programa é recusado no span da declaração do usuário, em qualquer ordem de texto."
 to_summary = "Ponto de entrada do parser: constrói o `Program` reconhecendo `pacote`, `trazer` (imports) e a marca freestanding, e despacha os itens de topo (funções, structs, leques, tratos, impl, aliases, constantes) via `parse_item`. Predeclara os leques genéricos da biblioteca padrão (Fase 241, `Resultado<T,E>`) antes do laço de itens e suprime o predeclarado quando o usuário declara o mesmo nome."
 expect_file = "src/parser.rs"
 expect_domain = "programa"
+expect_layer = "parser"
+
+[[rules]]
+op = "override-region"
+key = "parser.resultado.tentar-propagar"
+from_hash = "fnv1a64:e4cb17ecb0cc1a4f"
+to_hash = "fnv1a64:5111f2f6558b0afb"
+expect_file = "src/parser.rs"
+expect_domain = "resultado"
 expect_layer = "parser"
 
 [[rules]]

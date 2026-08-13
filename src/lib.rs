@@ -43,6 +43,7 @@ pub mod repl;
 pub mod semantic;
 pub mod symbol_index;
 pub mod text_norm;
+pub mod tipo_entrada;
 pub mod token;
 pub mod tooling;
 pub mod union_canon;

@@ -2392,6 +2392,7 @@ fn executar_superficie_falivel(
     superficie: &SuperficieFalivel,
     args: &[RuntimeValue],
     map_state: &mut RuntimeMapState,
+    list_state: &mut RuntimeListState,
 ) -> Result<IntrinsicCall, PinkerError> {
     let entrada = exigir_argumento_unico(superficie, args)?;
     match superficie.operacao {
@@ -2427,7 +2428,88 @@ fn executar_superficie_falivel(
                 format!("falha ao converter '{}' para bombom", entrada),
             )),
         },
+        OperacaoFalivel::EnumerarDiretorio => match enumerar_diretorio(entrada) {
+            Ok(nomes) => Ok(resultado_ok_lista_verso(map_state, list_state, nomes)),
+            Err(causa) => Ok(resultado_erro(map_state, causa)),
+        },
+        OperacaoFalivel::ClassificarEntrada => match fs::symlink_metadata(entrada) {
+            Ok(meta) => Ok(resultado_ok_bombom(
+                map_state,
+                crate::tipo_entrada::TipoEntrada::classificar(meta.file_type()).discriminante(),
+            )),
+            Err(err) => Ok(resultado_erro(
+                map_state,
+                format!("falha ao classificar entrada '{}': {}", entrada, err),
+            )),
+        },
+        OperacaoFalivel::MedirEntrada => match fs::symlink_metadata(entrada) {
+            Ok(meta) => Ok(resultado_ok_bombom(map_state, meta.len())),
+            Err(err) => Ok(resultado_erro(
+                map_state,
+                format!("falha ao medir entrada '{}': {}", entrada, err),
+            )),
+        },
     }
+}
+
+/// Enumeração determinística das entradas imediatas de um diretório.
+///
+/// Compartilha o contrato com o runtime nativo, não a implementação: as duas
+/// pontas repetem os mesmos passos em linguagens diferentes e a paridade é
+/// fixada por evidência.
+///
+/// A ordem devolvida por `read_dir` é do filesystem e não é contrato de
+/// ninguém; a ordenação explícita ao final é o que torna o resultado
+/// observável e repetível.
+fn enumerar_diretorio(caminho: &str) -> Result<Vec<String>, String> {
+    // O argumento é inspecionado sem seguir link: um symlink que aponta para
+    // diretório é recusado, porque enumerá-lo seria segui-lo.
+    let meta = fs::symlink_metadata(caminho)
+        .map_err(|err| format!("falha ao listar diretório '{}': {}", caminho, err))?;
+    if meta.file_type().is_symlink() {
+        return Err(format!(
+            "falha ao listar diretório '{}': o caminho é um link simbólico e \
+             não é seguido por padrão",
+            caminho
+        ));
+    }
+    if !meta.is_dir() {
+        return Err(format!(
+            "falha ao listar diretório '{}': o caminho não é um diretório",
+            caminho
+        ));
+    }
+    let entradas = fs::read_dir(caminho)
+        .map_err(|err| format!("falha ao listar diretório '{}': {}", caminho, err))?;
+    let mut nomes = Vec::new();
+    for entrada in entradas {
+        // Erro no meio da iteração é falha da operação inteira: devolver o que
+        // deu certo até aqui entregaria uma listagem silenciosamente parcial.
+        let entrada =
+            entrada.map_err(|err| format!("falha ao listar diretório '{}': {}", caminho, err))?;
+        let bruto = entrada.file_name();
+        // `.` e `..` não são produzidos por `read_dir`; a exclusão é contrato e
+        // não depende disso, então não há filtro a acrescentar aqui.
+        match bruto.to_str() {
+            Some(nome) => nomes.push(nome.to_string()),
+            // Nome não representável como `verso`. Não é pulado, não é
+            // substituído e não vira texto lossy: a operação inteira falha.
+            None => {
+                // O nome entra no diagnóstico pela forma escapada de `OsStr`
+                // (`\xFF`), não por `to_string_lossy`: substituir os bytes por
+                // U+FFFD colocaria uma versão lossy do nome dentro de um valor
+                // observável, que é exatamente o que o contrato proíbe. A forma
+                // escapada é fiel e não pode ser confundida com o nome real.
+                return Err(format!(
+                    "falha ao listar diretório '{}': a entrada {:?} não é \
+                     representável como verso (UTF-8 inválido)",
+                    caminho, bruto
+                ));
+            }
+        }
+    }
+    nomes.sort_unstable();
+    Ok(nomes)
 }
 
 /// Cria um valor de leque com a tag dada, pelo mesmo caminho de
@@ -2453,6 +2535,26 @@ fn resultado_ok_verso(map_state: &mut RuntimeMapState, texto: String) -> Intrins
     let handle = novo_leque(map_state, crate::falha_operacional::TAG_OK);
     if let Some((_, cargas)) = map_state.enum_values.get_mut(&handle) {
         cargas.push(RuntimeEnumPayload::Str(texto));
+    }
+    IntrinsicCall::Done(Some(RuntimeValue::Int(handle)))
+}
+
+/// `Resultado.Ok(lista)` com carga de coleção — Parte C.
+///
+/// A lista é criada pelo mesmo caminho de `lista_verso_criar` e entra na
+/// variante como handle de uma palavra. A cópia continua rasa por contrato (D1):
+/// o que a variante guarda é o handle.
+fn resultado_ok_lista_verso(
+    map_state: &mut RuntimeMapState,
+    list_state: &mut RuntimeListState,
+    nomes: Vec<String>,
+) -> IntrinsicCall {
+    let lista = list_state.next_list_handle;
+    list_state.next_list_handle = list_state.next_list_handle.saturating_add(1);
+    list_state.lists_verso.insert(lista, nomes);
+    let handle = novo_leque(map_state, crate::falha_operacional::TAG_OK);
+    if let Some((_, cargas)) = map_state.enum_values.get_mut(&handle) {
+        cargas.push(RuntimeEnumPayload::ListVerso(lista));
     }
     IntrinsicCall::Done(Some(RuntimeValue::Int(handle)))
 }
@@ -4960,7 +5062,7 @@ fn try_call_intrinsic(
         nome if crate::falha_operacional::superficie(nome).is_some() => {
             let superficie = crate::falha_operacional::superficie(nome)
                 .expect("o guarda acima já resolveu a superfície");
-            executar_superficie_falivel(superficie, args, map_state)
+            executar_superficie_falivel(superficie, args, map_state, list_state)
         }
         // @pinker-nav:end interpreter.intrinsecos.falha-operacional
 

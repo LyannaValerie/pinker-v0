@@ -3165,6 +3165,141 @@ pub unsafe extern "C" fn pinker_verso_para_bombom_resultado(texto: *const u8) ->
 }
 // @pinker-nav:end runtime.falha-operacional.superficies
 
+// @pinker-nav:start runtime.filesystem.enumeracao-adulta
+// @pinker-nav:domain filesystem
+// @pinker-nav:layer runtime
+// @pinker-nav:summary Superfícies de filesystem adulto da Parte C no runtime nativo: `pinker_diretorio_listar_resultado` recusa argumento symlink e path que não é diretório por `symlink_metadata`, coleta as entradas imediatas por `read_dir`, falha inteira diante de nome não representável como verso e ordena pelos bytes UTF-8 antes de montar `lista<verso>` pelos mesmos `pinker_lista_criar`/`pinker_lista_anexar` do código gerado; `pinker_entrada_tipo_resultado` devolve o discriminante de `TipoEntrada` classificado sem seguir link, e `pinker_entrada_tamanho_resultado` devolve o tamanho também sem seguir. Os discriminantes espelham `tipo_entrada::VARIANTES` do compilador e a paridade é fixada por evidência.
+
+/// Discriminantes de `TipoEntrada`, espelhando a ordem de declaração fixada por
+/// `tipo_entrada::VARIANTES` no compilador.
+///
+/// O runtime é uma crate separada e não pode importar aquela autoridade; como
+/// nas tags de `Resultado`, o acoplamento é explícito e cobrado por evidência
+/// de paridade.
+const TIPO_ENTRADA_ARQUIVO: u64 = 0;
+const TIPO_ENTRADA_DIRETORIO: u64 = 1;
+const TIPO_ENTRADA_SYMLINK: u64 = 2;
+const TIPO_ENTRADA_OUTRO: u64 = 3;
+
+/// Classifica um `FileType` obtido por `symlink_metadata`.
+///
+/// `is_symlink` primeiro por contrato: a entrada decide sua classe, nunca o
+/// alvo. Symlink quebrado continua symlink.
+fn tipo_entrada_discriminante(tipo: std::fs::FileType) -> u64 {
+    if tipo.is_symlink() {
+        TIPO_ENTRADA_SYMLINK
+    } else if tipo.is_file() {
+        TIPO_ENTRADA_ARQUIVO
+    } else if tipo.is_dir() {
+        TIPO_ENTRADA_DIRETORIO
+    } else {
+        TIPO_ENTRADA_OUTRO
+    }
+}
+
+/// Enumeração determinística das entradas imediatas, ou a causa da falha.
+fn enumerar_diretorio(caminho: &str) -> Result<Vec<String>, String> {
+    let meta = match std::fs::symlink_metadata(caminho) {
+        Ok(meta) => meta,
+        Err(err) => return Err(format!("falha ao listar diretório '{caminho}': {err}")),
+    };
+    if meta.file_type().is_symlink() {
+        return Err(format!(
+            "falha ao listar diretório '{caminho}': o caminho é um link simbólico e \
+             não é seguido por padrão"
+        ));
+    }
+    if !meta.is_dir() {
+        return Err(format!(
+            "falha ao listar diretório '{caminho}': o caminho não é um diretório"
+        ));
+    }
+    let entradas = match std::fs::read_dir(caminho) {
+        Ok(entradas) => entradas,
+        Err(err) => return Err(format!("falha ao listar diretório '{caminho}': {err}")),
+    };
+    let mut nomes = Vec::new();
+    for entrada in entradas {
+        let entrada = match entrada {
+            Ok(entrada) => entrada,
+            Err(err) => return Err(format!("falha ao listar diretório '{caminho}': {err}")),
+        };
+        let bruto = entrada.file_name();
+        match bruto.to_str() {
+            Some(nome) => nomes.push(nome.to_string()),
+            None => {
+                // Forma escapada de `OsStr` (`\xFF`), nunca `to_string_lossy`:
+                // U+FFFD colocaria uma versão lossy do nome num valor
+                // observável. Espelha o interpretador byte a byte.
+                return Err(format!(
+                    "falha ao listar diretório '{caminho}': a entrada {bruto:?} não é \
+                     representável como verso (UTF-8 inválido)"
+                ));
+            }
+        }
+    }
+    nomes.sort_unstable();
+    Ok(nomes)
+}
+
+/// `Resultado.Ok(lista<verso>)` — Parte C.
+fn resultado_ok_lista_verso(nomes: &[String]) -> *mut u8 {
+    let lista = pinker_lista_criar();
+    if lista.is_null() {
+        erro_fatal("sem memória ao criar lista de entradas de diretório");
+    }
+    for nome in nomes {
+        unsafe { pinker_lista_anexar(lista, verso_alocar(nome) as u64) };
+    }
+    let leque = pinker_leque_criar_0(RESULTADO_TAG_OK);
+    unsafe { pinker_leque_anexar(leque, lista as u64) }
+}
+
+/// Enumeração determinística das entradas imediatas de um diretório.
+///
+/// Devolve os NOMES das entradas, ordenados pelos bytes UTF-8, sem `.` nem
+/// `..`, incluindo ocultos e qualquer tipo representável. Diretório vazio é
+/// sucesso com lista vazia. Falha ambiental é valor; o argumento symlink é
+/// recusado em vez de seguido.
+///
+/// # Safety
+/// `caminho` deve apontar para um bloco de verso válido.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_diretorio_listar_resultado(caminho: *const u8) -> *mut u8 {
+    let caminho = verso_str(caminho);
+    match enumerar_diretorio(caminho) {
+        Ok(nomes) => resultado_ok_lista_verso(&nomes),
+        Err(causa) => resultado_erro(&causa),
+    }
+}
+
+/// Classificação no-follow de uma entrada.
+///
+/// # Safety
+/// `caminho` deve apontar para um bloco de verso válido.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_entrada_tipo_resultado(caminho: *const u8) -> *mut u8 {
+    let caminho = verso_str(caminho);
+    match std::fs::symlink_metadata(caminho) {
+        Ok(meta) => resultado_ok_bombom(tipo_entrada_discriminante(meta.file_type())),
+        Err(err) => resultado_erro(&format!("falha ao classificar entrada '{caminho}': {err}")),
+    }
+}
+
+/// Tamanho em bytes de uma entrada, sem seguir link.
+///
+/// # Safety
+/// `caminho` deve apontar para um bloco de verso válido.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_entrada_tamanho_resultado(caminho: *const u8) -> *mut u8 {
+    let caminho = verso_str(caminho);
+    match std::fs::symlink_metadata(caminho) {
+        Ok(meta) => resultado_ok_bombom(meta.len()),
+        Err(err) => resultado_erro(&format!("falha ao medir entrada '{caminho}': {err}")),
+    }
+}
+// @pinker-nav:end runtime.filesystem.enumeracao-adulta
+
 // @pinker-nav:start evidencia.runtime.memoria-alocador
 // @pinker-nav:domain memoria
 // @pinker-nav:layer evidencia
