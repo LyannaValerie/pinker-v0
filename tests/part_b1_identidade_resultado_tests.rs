@@ -9,7 +9,7 @@ use std::time::Duration;
 // @pinker-nav:start evidencia.erros.parte-b1-identidade-resultado
 // @pinker-nav:domain erros
 // @pinker-nav:layer evidencia
-// @pinker-nav:summary Evidência da Parte B1: a identidade de `Resultado<T,E>` cujos discriminantes o runtime produz não pode ser reinterpretada por declaração do usuário. A matriz de rejeição cobre reordenação, renomeação, carga incompatível, forma estruturalmente idêntica, alias e leque não genérico, cada uma nos dois pontos de entrada (interpretador e build nativo) e nas duas ordens de texto, exigindo a mesma mensagem da autoridade e o span real da declaração. Do outro lado, controles positivos provam que o valor builtin continua significando `Ok`/`Erro` com paridade interpretador × nativo e que a política `USER_WINS` da Fase 241 continua valendo para quem não produz valor de runtime.
+// @pinker-nav:summary Evidência da Parte B1: a identidade de `Resultado<T,E>` cujos discriminantes o runtime produz não pode ser reinterpretada por declaração do usuário. A matriz de rejeição cobre reordenação, renomeação, carga incompatível, aridade genérica diferente, forma estruturalmente idêntica, leque não genérico, alias, ninho, eterno e carinho, cada uma nos dois pontos de entrada (interpretador e build nativo) e nas duas ordens de texto, exigindo a mesma mensagem da autoridade e o span real da declaração. Casos próprios cobrem a identidade reivindicada em outro módulo, onde `trazer` é resolvido depois do parse, e o nome monomórfico forjado por um leque genérico de outro nome. Do outro lado, controles positivos provam que o valor builtin continua significando `Ok`/`Erro` com paridade interpretador × nativo, que a política `USER_WINS` da Fase 241 continua valendo para quem não produz valor de runtime e que uma colisão que preserva a taxonomia builtin é aceita — a regra protege o valor, não o nome.
 
 /// Fonte que produz valores de `Resultado` pelo runtime nas duas variantes e os
 /// consome por `tentar`, `propagar?` e `encaixe`.
@@ -241,6 +241,20 @@ fn mensagem_esperada() -> String {
     )
 }
 
+/// Mensagem da checagem sobre o programa completo (módulos e nome monomórfico).
+/// Só o prefixo estável: o detalhe descreve a divergência de cada caso.
+fn mensagem_taxonomia() -> String {
+    let superficie = pinker_v0::falha_operacional::superficie("ler_arquivo_resultado")
+        .expect("superfície de filesystem registrada");
+    let completa =
+        pinker_v0::falha_operacional::conflito_de_taxonomia(&superficie.leque_monomorfico(), "");
+    completa
+        .split_once(": ")
+        .expect("mensagem tem detalhe separado por ': '")
+        .0
+        .to_string()
+}
+
 fn escrever_caso(dir: &NativeArtifactDir, nome: &str, fonte: &str) -> PathBuf {
     let caminho = dir.path().join(format!("{nome}.pink"));
     fs::write(&caminho, fonte).expect("escrever fonte Parte B1");
@@ -295,12 +309,25 @@ fn rodar_nativo(caminho: &Path, caso: &str, args: &[String]) -> Output {
 /// Roda a mesma fonte nos dois modos e exige stdout/exit idênticos.
 fn paridade(nome: &str, fonte: &str, args: &[String], runtime_lib: &Path, stdout_esperado: &str) {
     let dir = NativeArtifactDir::create().expect("diretório nativo Parte B1");
-    let fonte_path = escrever_caso(&dir, nome, fonte);
+    paridade_em(&dir, nome, fonte, args, runtime_lib, stdout_esperado);
+}
+
+/// Igual, num diretório já preparado pelo chamador — necessário quando o caso
+/// tem módulos vizinhos ou fixtures que precisam existir antes da compilação.
+fn paridade_em(
+    dir: &NativeArtifactDir,
+    nome: &str,
+    fonte: &str,
+    args: &[String],
+    runtime_lib: &Path,
+    stdout_esperado: &str,
+) {
+    let fonte_path = escrever_caso(dir, nome, fonte);
 
     let interpretado =
         rodar_interpretador(&fonte_path, &format!("parte-b1-{nome}-interpretador"), args);
     let build = compilar_nativo(
-        &dir,
+        dir,
         &fonte_path,
         runtime_lib,
         &format!("parte-b1-{nome}-build"),
@@ -340,9 +367,30 @@ fn paridade(nome: &str, fonte: &str, args: &[String], runtime_lib: &Path, stdout
 /// Exige que a fonte seja recusada nos dois pontos de entrada, com a mensagem da
 /// autoridade. Devolve o diagnóstico do interpretador para comparações de ordem.
 fn exigir_recusa(nome: &str, fonte: &str, runtime_lib: &Path) -> String {
+    exigir_recusa_com(
+        nome,
+        &[("principal", fonte)],
+        runtime_lib,
+        &mensagem_esperada(),
+    )
+}
+
+/// Igual, mas para um programa de vários arquivos e/ou outra mensagem da
+/// autoridade. O primeiro módulo da lista é a raiz compilada; os demais são
+/// escritos ao lado dela para que `trazer` os encontre.
+fn exigir_recusa_com(
+    nome: &str,
+    modulos: &[(&str, &str)],
+    runtime_lib: &Path,
+    esperada: &str,
+) -> String {
     let dir = NativeArtifactDir::create().expect("diretório recusa Parte B1");
-    let fonte_path = escrever_caso(&dir, nome, fonte);
-    let esperada = mensagem_esperada();
+    let (_, raiz_fonte) = modulos[0];
+    for (modulo, fonte) in &modulos[1..] {
+        fs::write(dir.path().join(format!("{modulo}.pink")), fonte)
+            .expect("escrever módulo Parte B1");
+    }
+    let fonte_path = escrever_caso(&dir, nome, raiz_fonte);
 
     let interpretado = rodar_interpretador(
         &fonte_path,
@@ -357,7 +405,7 @@ fn exigir_recusa(nome: &str, fonte: &str, runtime_lib: &Path) -> String {
         String::from_utf8_lossy(&interpretado.stdout)
     );
     assert!(
-        diag_interpretador.contains(&esperada),
+        diag_interpretador.contains(esperada),
         "{nome}: o interpretador recusou por outra razão:\n{diag_interpretador}"
     );
 
@@ -373,7 +421,7 @@ fn exigir_recusa(nome: &str, fonte: &str, runtime_lib: &Path) -> String {
         "{nome}: o build nativo deveria recusar o programa"
     );
     assert!(
-        diag_nativo.contains(&esperada),
+        diag_nativo.contains(esperada),
         "{nome}: o build nativo recusou por outra razão:\n{diag_nativo}"
     );
 
@@ -425,6 +473,203 @@ fn declaracao_do_usuario_nao_reinterpreta_valor_produzido_pelo_runtime() {
             &runtime_lib,
         );
     }
+}
+
+/// A identidade reivindicada em **outro módulo**.
+///
+/// `trazer` é resolvido depois do parse, juntando itens de parsers distintos:
+/// o módulo que chama a superfície e o módulo que redeclara o nome nunca são
+/// vistos pelo mesmo parser. A conjunção por unidade de compilação não alcança
+/// isto — quem alcança é a checagem sobre o programa já montado.
+#[test]
+fn identidade_reivindicada_em_outro_modulo_e_recusada() {
+    let Some((_driver, Some(runtime_lib))) =
+        common::require_native_evidence(concat!(module_path!(), ":", line!()), true)
+    else {
+        return;
+    };
+
+    const MODULO_IO: &str = r#"pacote io;
+
+apelido ResVV = Resultado<verso, verso>;
+
+carinho ler(c: verso) -> ResVV {
+    mimo ler_arquivo_resultado(c);
+}
+"#;
+
+    const RAIZ_CONFLITANTE: &str = r#"pacote main;
+
+trazer io.ler;
+
+leque Resultado<T, E> { Erro(E), Ok(T) }
+
+apelido ResVV = Resultado<verso, verso>;
+
+carinho principal() -> bombom {
+    tentar ler(argumento_ou(0, "ausente")) {
+        sucesso ResVV.Ok(c) { falar("ok"); falar(c); }
+        falha ResVV.Erro(m) { falar("erro"); falar(m); }
+    }
+    mimo 0;
+}
+"#;
+
+    // A produção mora em `io`, a redeclaração mora na raiz: nenhum parser vê as
+    // duas metades.
+    exigir_recusa_com(
+        "modulo_conflitante",
+        &[("principal", RAIZ_CONFLITANTE), ("io", MODULO_IO)],
+        &runtime_lib,
+        &mensagem_taxonomia(),
+    );
+
+    // Controle positivo: os mesmos dois módulos sem a redeclaração compilam e
+    // rodam nos dois modos, com o sucesso chegando como `Ok`.
+    const RAIZ_LIMPA: &str = r#"pacote main;
+
+trazer io.ler;
+
+apelido ResVV = Resultado<verso, verso>;
+
+carinho principal() -> bombom {
+    tentar ler(argumento_ou(0, "ausente")) {
+        sucesso ResVV.Ok(c) { falar("ok"); falar(c); }
+        falha ResVV.Erro(m) { falar("erro"); falar(m); }
+    }
+    mimo 0;
+}
+"#;
+
+    let dir = NativeArtifactDir::create().expect("diretório módulos Parte B1");
+    fs::write(dir.path().join("io.pink"), MODULO_IO).expect("escrever módulo io");
+    let alvo = dir.path().join("conteudo.txt");
+    fs::write(&alvo, "conteudo-real").expect("escrever alvo");
+    paridade_em(
+        &dir,
+        "modulo_limpo",
+        RAIZ_LIMPA,
+        &[alvo.to_string_lossy().into_owned()],
+        &runtime_lib,
+        "ok\nconteudo-real\n",
+    );
+}
+
+/// O nome monomórfico não é uma identidade infalsificável.
+///
+/// `generic_enum_name` compõe `__gen_leque_{nome}_{args}` juntando por `_`, e a
+/// junção é ambígua sob `_` em identificadores: um leque genérico do usuário
+/// chamado `Resultado_verso` instanciado em `<verso>` compõe exatamente o nome
+/// de `Resultado<verso, verso>` sem nunca escrever `Resultado`. O que protege o
+/// valor não é o nome de origem — é a taxonomia do leque onde a tag é
+/// depositada.
+#[test]
+fn nome_monomorfico_forjado_por_outro_leque_e_recusado() {
+    let Some((_driver, Some(runtime_lib))) =
+        common::require_native_evidence(concat!(module_path!(), ":", line!()), true)
+    else {
+        return;
+    };
+
+    const FORJA_INVERTIDA: &str = r#"pacote main;
+
+leque Resultado_verso<T> { Erro(T), Ok(T) }
+
+apelido F = Resultado_verso<verso>;
+
+carinho principal() -> bombom {
+    nova g: F = ler_arquivo_resultado(argumento_ou(0, "ausente"));
+    encaixe g {
+        caso F.Ok(c) { falar("ok"); falar(c); }
+        caso F.Erro(m) { falar("erro"); falar(m); }
+    }
+    mimo 0;
+}
+"#;
+
+    const FORJA_RENOMEADA: &str = r#"pacote main;
+
+leque Resultado_verso<T> { Bom(T), Ruim(T) }
+
+apelido F = Resultado_verso<verso>;
+
+carinho principal() -> bombom {
+    nova g: F = ler_arquivo_resultado(argumento_ou(0, "ausente"));
+    encaixe g {
+        caso F.Bom(c) { falar("bom"); falar(c); }
+        caso F.Ruim(m) { falar("ruim"); falar(m); }
+    }
+    mimo 0;
+}
+"#;
+
+    for (nome, fonte) in [
+        ("forja_invertida", FORJA_INVERTIDA),
+        ("forja_renomeada", FORJA_RENOMEADA),
+    ] {
+        exigir_recusa_com(
+            nome,
+            &[("principal", fonte)],
+            &runtime_lib,
+            &mensagem_taxonomia(),
+        );
+    }
+
+    // Controle positivo 1: o mesmo leque do usuário instanciado em outro
+    // argumento não colide com nome nenhum e continua livre para ter a
+    // taxonomia que quiser.
+    const SEM_COLISAO: &str = r#"pacote main;
+
+leque Resultado_verso<T> { Erro(T), Ok(T) }
+
+apelido G = Resultado_verso<bombom>;
+
+carinho principal() -> bombom {
+    nova g: G = G.Erro(7);
+    encaixe g {
+        caso G.Ok(v) { falar("ok"); falar(v); }
+        caso G.Erro(v) { falar("erro"); falar(v); }
+    }
+    mimo 0;
+}
+"#;
+    paridade(
+        "forja_sem_colisao",
+        SEM_COLISAO,
+        &[],
+        &runtime_lib,
+        "erro\n7\n",
+    );
+
+    // Controle positivo 2: colidir com o nome monomórfico **preservando** a
+    // taxonomia builtin não muda o significado de nenhuma tag, então é aceito.
+    // A regra protege o valor, não o nome.
+    const COLISAO_COMPATIVEL: &str = r#"pacote main;
+
+leque Resultado_verso<T> { Ok(T), Erro(T) }
+
+apelido F = Resultado_verso<verso>;
+
+carinho principal() -> bombom {
+    nova g: F = ler_arquivo_resultado(argumento_ou(0, "ausente"));
+    encaixe g {
+        caso F.Ok(c) { falar("ok"); falar(c); }
+        caso F.Erro(m) { falar("erro"); falar(m); }
+    }
+    mimo 0;
+}
+"#;
+    let dir = NativeArtifactDir::create().expect("diretório colisão Parte B1");
+    let alvo = dir.path().join("conteudo.txt");
+    fs::write(&alvo, "conteudo-real").expect("escrever alvo");
+    paridade_em(
+        &dir,
+        "colisao_compativel",
+        COLISAO_COMPATIVEL,
+        &[alvo.to_string_lossy().into_owned()],
+        &runtime_lib,
+        "ok\nconteudo-real\n",
+    );
 }
 
 /// O cenário completo do defeito — valor de runtime consumido por `tentar`, com
@@ -577,6 +822,51 @@ fn identidade_reservada_e_derivada_das_superficies() {
         !pinker_v0::falha_operacional::identidade_produzida_pelo_runtime("TipoEntrada"),
         "a política não pode reservar nomes que o runtime não produz"
     );
+
+    // A taxonomia que a autoridade declara precisa ser a que o parser realmente
+    // predeclara e monomorfiza. Sem isto, `variantes_canonicas` seria uma opinião
+    // isolada: `taxonomia_divergente` compararia contra algo que o compilador não
+    // constrói, e a checagem passaria a medir a si mesma.
+    let programa = common::parse(
+        r#"
+        pacote main;
+        apelido RVV = Resultado<verso, verso>;
+        carinho principal() -> bombom { mimo 0; }
+        "#,
+    )
+    .expect("programa válido");
+    let superficie = pinker_v0::falha_operacional::superficie("ler_arquivo_resultado")
+        .expect("superfície de filesystem registrada");
+    let materializado = programa
+        .items
+        .iter()
+        .find_map(|item| match item {
+            pinker_v0::ast::Item::Enum(decl) if decl.name == superficie.leque_monomorfico() => {
+                Some(decl)
+            }
+            _ => None,
+        })
+        .expect("o parser materializa a especialização do predeclarado");
+    assert_eq!(
+        superficie.taxonomia_divergente(materializado),
+        None,
+        "a taxonomia declarada pela autoridade divergiu da que o parser predeclara"
+    );
+    let nomes: Vec<&str> = materializado
+        .variants
+        .iter()
+        .map(|variante| variante.name.as_str())
+        .collect();
+    assert_eq!(
+        nomes,
+        vec![
+            pinker_v0::falha_operacional::VARIANTE_OK,
+            pinker_v0::falha_operacional::VARIANTE_ERRO
+        ],
+        "a ordem das variantes é o que define TAG_OK/TAG_ERRO"
+    );
+    assert_eq!(pinker_v0::falha_operacional::TAG_OK, 0);
+    assert_eq!(pinker_v0::falha_operacional::TAG_ERRO, 1);
 }
 
 /// A política de identidade tem uma autoridade só.

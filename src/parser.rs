@@ -3312,17 +3312,19 @@ impl Parser {
             name: name.to_string(),
             span: synthetic,
         };
+        // Nomes vindos da autoridade: a ordem declarada aqui é o que define
+        // TAG_OK/TAG_ERRO, então os dois fatos não podem ser escritos duas vezes.
         vec![EnumDecl {
-            name: "Resultado".to_string(),
+            name: crate::falha_operacional::LEQUE_RESULTADO.to_string(),
             type_params: vec!["T".to_string(), "E".to_string()],
             variants: vec![
                 EnumVariant {
-                    name: "Ok".to_string(),
+                    name: crate::falha_operacional::VARIANTE_OK.to_string(),
                     payloads: vec![param("T")],
                     span: synthetic,
                 },
                 EnumVariant {
-                    name: "Erro".to_string(),
+                    name: crate::falha_operacional::VARIANTE_ERRO.to_string(),
                     payloads: vec![param("E")],
                     span: synthetic,
                 },
