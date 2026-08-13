@@ -13,7 +13,7 @@ use std::time::{Duration, Instant};
 // @pinker-nav:start evidencia.processos.parte-d-native-step-4
 // @pinker-nav:domain processos
 // @pinker-nav:layer evidencia
-// @pinker-nav:summary Executa a mesma superfície estruturada no interpretador e em ELF ligado ao runtime nativo real, comparando argv sem shell, stdin+EOF, stdout/stderr separados e grandes, ambiente/cwd/PATH, status normal e não-zero, falhas de spawn, término anormal, UTF-8 estrito, timeout zero/simples/descendente/output contínuo, captura SemLimite, single-spawn e accessors sem reexecução sob watchdog externo.
+// @pinker-nav:summary Executa a mesma superfície estruturada no interpretador e em ELF ligado ao runtime nativo real, comparando argv sem shell, stdin+EOF, stdout/stderr separados e grandes, ambiente/cwd/PATH, status normal e não-zero, falhas de spawn, término anormal, UTF-8 estrito, Ate(0) sem spawn nem efeito externo, timeout simples/descendente/output contínuo, captura SemLimite, single-spawn e accessors sem reexecução sob watchdog externo.
 
 fn literal(texto: &str) -> String {
     let mut saida = String::from("\"");
@@ -652,6 +652,78 @@ fn paridade_nativa_erros_utf8_e_timeouts_inclusive_hr5() {
         }
         assert!(tempo_i < Duration::from_millis(1200), "{nome}: {tempo_i:?}");
         assert!(tempo_n < Duration::from_millis(1200), "{nome}: {tempo_n:?}");
+    }
+}
+
+#[test]
+fn hr6_ate_zero_nao_executa_fixture_em_nenhum_backend() {
+    let dir = NativeArtifactDir::create().expect("sandbox HR6");
+    let fixture = env!("CARGO_BIN_EXE_pinker_part_d_filho");
+
+    for (ponta, nativo) in [("interpretador", false), ("nativo", true)] {
+        let contador_zero = dir.path().join(format!("contador-zero-{ponta}.txt"));
+        let codigo_zero = fonte(
+            fixture,
+            &["counter".to_string(), contador_zero.display().to_string()],
+            "",
+            "",
+            &BTreeMap::new(),
+            "LimiteTempo.Ate(0)",
+            "falar(\"OK_INESPERADO\");",
+        );
+        let programa_zero = compilar(&dir, &format!("hr6-zero-{ponta}"), &codigo_zero);
+        let (output_zero, _) = executar(
+            &programa_zero,
+            nativo,
+            &[],
+            None,
+            Duration::from_secs(5),
+            &format!("hr6-zero-{ponta}"),
+        );
+        assert_eq!(output_zero.status.code(), Some(0));
+        let texto_zero = String::from_utf8(output_zero.stdout).unwrap();
+        assert!(texto_zero.starts_with("ERRO\n"), "{ponta}: {texto_zero}");
+        assert!(
+            texto_zero.contains("limite de tempo excedido"),
+            "{ponta}: {texto_zero}"
+        );
+        assert!(
+            !contador_zero.exists(),
+            "{ponta}: Ate(0) criou o marcador; o filho chegou a executar"
+        );
+
+        let contador_controle = dir.path().join(format!("contador-controle-{ponta}.txt"));
+        let codigo_controle = fonte(
+            fixture,
+            &[
+                "counter".to_string(),
+                contador_controle.display().to_string(),
+            ],
+            "",
+            "",
+            &BTreeMap::new(),
+            "LimiteTempo.SemLimite",
+            "falar(processo_codigo(saida));",
+        );
+        let programa_controle = compilar(&dir, &format!("hr6-controle-{ponta}"), &codigo_controle);
+        let (output_controle, _) = executar(
+            &programa_controle,
+            nativo,
+            &[],
+            None,
+            Duration::from_secs(5),
+            &format!("hr6-controle-{ponta}"),
+        );
+        assert_eq!(output_controle.status.code(), Some(0));
+        assert_eq!(
+            String::from_utf8(output_controle.stdout).unwrap(),
+            "OK\n7\n"
+        );
+        assert_eq!(
+            fs::read_to_string(&contador_controle).unwrap(),
+            "1",
+            "{ponta}: controle positivo não executou a fixture"
+        );
     }
 }
 

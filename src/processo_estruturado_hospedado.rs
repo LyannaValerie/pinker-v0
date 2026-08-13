@@ -13,7 +13,7 @@ use std::time::{Duration, Instant};
 // @pinker-nav:start processos.estruturado.hospedado
 // @pinker-nav:domain processos
 // @pinker-nav:layer interpreter
-// @pinker-nav:summary Implementa a nova execução estruturada apenas no interpretador: configura argv/cwd/ambiente e PATH saneada, faz um único spawn, move stdin/stdout/stderr por uma única malha poll com fds não-bloqueantes e quantum justo por canal, aplica deadline monotônico, mata e reapa somente o filho direto no timeout ou erro pós-spawn, valida UTF-8 estritamente após reap e só então devolve um snapshot imutável.
+// @pinker-nav:summary Implementa a nova execução estruturada apenas no interpretador: recusa Ate(0) antes de configurar ou criar o filho, configura argv/cwd/ambiente e PATH saneada, faz um único spawn para os demais limites, move stdin/stdout/stderr por uma única malha poll com fds não-bloqueantes e quantum justo por canal, aplica deadline monotônico, mata e reapa somente o filho direto no timeout ou erro pós-spawn, valida UTF-8 estritamente após reap e só então devolve um snapshot imutável.
 
 /// PATH default da nova superfície. Um overlay explícito de PATH é aplicado
 /// depois e, portanto, vence este valor.
@@ -47,6 +47,9 @@ fn executar_com_controle(
         crate::ambiente_processo::validar_entrada(chave, valor).map_err(|erro| {
             format!("ambiente inválido em 'executar_processo_estruturado': {erro:?}")
         })?;
+    }
+    if configuracao.limite.expira_imediatamente() {
+        return Err("limite de tempo excedido em 'executar_processo_estruturado'".to_string());
     }
     let deadline = match configuracao.limite.duracao() {
         Some(duracao) => Some(
@@ -715,6 +718,27 @@ mod tests {
                 .expect_err("configuração inválida deveria ser recuperável");
             assert_eq!(pid, 0, "configuração inválida chegou ao spawn");
         }
+    }
+
+    #[test]
+    fn ate_zero_falha_antes_de_spawn_no_interpretador() {
+        let argumentos = Vec::new();
+        let ambiente = HashMap::new();
+        let configuracao = ConfiguracaoProcessoEstruturado {
+            programa: "/bin/true",
+            argumentos: &argumentos,
+            entrada: "",
+            diretorio: "",
+            ambiente: &ambiente,
+            limite: LimiteTempo::Ate(0),
+        };
+        let mut pid = 0;
+
+        let erro = executar_com_controle(&configuracao, false, Some(&mut pid))
+            .expect_err("Ate(0) deve expirar antes do spawn");
+
+        assert!(erro.contains("limite de tempo excedido"), "{erro}");
+        assert_eq!(pid, 0, "INTERPRETER_SPAWN_COUNT precisa permanecer zero");
     }
 }
 // @pinker-nav:end evidencia.processos.estruturado-recursos

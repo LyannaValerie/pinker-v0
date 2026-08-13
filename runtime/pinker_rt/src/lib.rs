@@ -2780,7 +2780,7 @@ pub unsafe extern "C" fn pinker_ambiente_buscar_contexto(
 // @pinker-nav:start runtime.processos.execucao
 // @pinker-nav:domain processos
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Execução de subprocessos sem shell implícito: as superfícies históricas mantêm resolução pela PATH fixa; a nova superfície estruturada aplica PATH saneada e depois overlay antes da resolução no spawn, faz um único spawn e move stdin/stdout/stderr em poll não-bloqueante com quantum justo, deadline absoluto, kill+reap e UTF-8 estrito; todos os filhos recebem SIGPIPE default por pre_exec, enquanto os observáveis históricos permanecem inalterados.
+// @pinker-nav:summary Execução de subprocessos sem shell implícito: as superfícies históricas mantêm resolução pela PATH fixa; a nova superfície estruturada recusa Ate(0) antes de configurar ou criar o filho, aplica PATH saneada e depois overlay antes da resolução no spawn para os demais limites, faz um único spawn e move stdin/stdout/stderr em poll não-bloqueante com quantum justo, deadline absoluto, kill+reap e UTF-8 estrito; todos os filhos recebem SIGPIPE default por pre_exec, enquanto os observáveis históricos permanecem inalterados.
 const PATH_PROCESSOS: &str = "/usr/local/bin:/usr/bin:/bin";
 
 /// Discriminantes da identidade runtime-reservada LimiteTempo. A ordem é ABI:
@@ -2867,6 +2867,9 @@ const PROCESSO_ESTRUTURADO_TICK: std::time::Duration = std::time::Duration::from
 const PROCESSO_ESTRUTURADO_QUANTUM_BYTES: usize = 64 * 1024;
 const PROCESSO_ESTRUTURADO_QUANTUM_SYSCALLS: usize = 4;
 const PROCESSO_ESTRUTURADO_BLOCO_BYTES: usize = 16 * 1024;
+
+#[cfg(test)]
+static PROCESSO_ESTRUTURADO_SPAWNS_TESTE: AtomicUsize = AtomicUsize::new(0);
 
 struct ConfiguracaoProcessoEstruturadoNativa {
     programa: String,
@@ -2986,6 +2989,9 @@ fn comando_processo_estruturado(programa: &str) -> std::process::Command {
 fn executar_processo_estruturado_nativo(
     configuracao: ConfiguracaoProcessoEstruturadoNativa,
 ) -> Result<SaidaProcessoNativa, String> {
+    if configuracao.limite == Some(std::time::Duration::ZERO) {
+        return Err("limite de tempo excedido em 'executar_processo_estruturado'".to_string());
+    }
     let deadline = configuracao
         .limite
         .map(|duracao| {
@@ -3014,6 +3020,8 @@ fn executar_processo_estruturado_nativo(
             configuracao.programa
         )
     })?;
+    #[cfg(test)]
+    PROCESSO_ESTRUTURADO_SPAWNS_TESTE.fetch_add(1, Ordering::SeqCst);
     let mut filho = FilhoEstruturadoNativo::novo(filho);
     let stdin = filho
         .take_stdin()
@@ -4052,6 +4060,30 @@ mod tests {
         assert!(
             !std::path::Path::new(&format!("/proc/{pid}")).exists(),
             "filho direto ainda existe (inclusive como zumbi) após o retorno"
+        );
+    }
+
+    #[test]
+    fn parte_d_ate_zero_falha_antes_de_spawn_nativo() {
+        let antes = PROCESSO_ESTRUTURADO_SPAWNS_TESTE.load(Ordering::SeqCst);
+        let erro =
+            match executar_processo_estruturado_nativo(ConfiguracaoProcessoEstruturadoNativa {
+                programa: "/bin/true".to_string(),
+                argumentos: Vec::new(),
+                entrada: String::new(),
+                diretorio: String::new(),
+                ambiente: Vec::new(),
+                limite: Some(std::time::Duration::ZERO),
+            }) {
+                Ok(_) => panic!("Ate(0) deve expirar antes do spawn nativo"),
+                Err(erro) => erro,
+            };
+
+        assert!(erro.contains("limite de tempo excedido"), "{erro}");
+        assert_eq!(
+            PROCESSO_ESTRUTURADO_SPAWNS_TESTE.load(Ordering::SeqCst),
+            antes,
+            "NATIVE_SPAWN_COUNT precisa permanecer zero"
         );
     }
 
