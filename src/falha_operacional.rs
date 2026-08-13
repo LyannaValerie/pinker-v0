@@ -39,7 +39,7 @@ use crate::token::Span;
 // @pinker-nav:start falha.operacional.superficies
 // @pinker-nav:domain erros
 // @pinker-nav:layer semantica
-// @pinker-nav:summary Autoridade única das superfícies falíveis da Parte B: `CargaResultado` classifica a carga de sucesso/falha em uma palavra (`bombom`) ou texto (`verso`), `SuperficieFalivel` liga o nome da intrínseca à especialização de `Resultado<T,E>` que ela devolve e ao símbolo do runtime nativo que a implementa, e `SUPERFICIES_FALIVEIS` é a lista fechada consultada por parser, semântica, validadores, interpretador e backend. As tags `TAG_OK`/`TAG_ERRO` espelham a ordem de declaração do leque predeclarado e são fixadas por teste; nenhuma camada redescobre esses fatos por conta própria.
+// @pinker-nav:summary Autoridade única das superfícies falíveis da Parte B: `CargaResultado` classifica a carga de sucesso/falha em uma palavra (`bombom`) ou texto (`verso`), `SuperficieFalivel` liga o nome da intrínseca à especialização de `Resultado<T,E>` que ela devolve e ao símbolo do runtime nativo que a implementa, e `SUPERFICIES_FALIVEIS` é a lista fechada consultada por parser, semântica, validadores, interpretador e backend. As tags `TAG_OK`/`TAG_ERRO` espelham a ordem de declaração do leque predeclarado e são fixadas por teste; nenhuma camada redescobre esses fatos por conta própria. Como as tags são produzidas pela implementação, a autoridade também responde quais identidades de tipo o runtime produz (`identidade_produzida_pelo_runtime`, derivada das próprias superfícies) e a mensagem única do conflito (`conflito_de_identidade`), usadas pelo parser para recusar que uma declaração do usuário reinterprete esses discriminantes.
 
 /// Tag (discriminante) da variante de sucesso de `Resultado<T,E>`.
 ///
@@ -165,6 +165,14 @@ impl SuperficieFalivel {
         )
     }
 
+    /// Identidade do leque devolvido, antes da especialização.
+    ///
+    /// É o nome cuja taxonomia decide o significado das tags que esta superfície
+    /// produz — ver [`identidade_produzida_pelo_runtime`].
+    pub fn identidade(&self) -> &'static str {
+        LEQUE_RESULTADO
+    }
+
     /// Argumentos de tipo da especialização, na ordem `<T, E>`.
     pub fn argumentos_de_tipo(&self, span: Span) -> Vec<Type> {
         vec![self.sucesso.tipo(span), self.falha.tipo(span)]
@@ -234,6 +242,69 @@ pub fn superficie(nome: &str) -> Option<&'static SuperficieFalivel> {
     SUPERFICIES_FALIVEIS
         .iter()
         .find(|superficie| superficie.intrinseca == nome)
+}
+
+/// Parte B1: o nome é a identidade de resultado **produzida pelo runtime**?
+///
+/// A Fase 241 predeclarou `Resultado<T,E>` como conveniência de biblioteca e
+/// deixou o usuário vencer: nenhum valor era produzido pelo compilador, então
+/// redefinir o nome só afetava quem o redefinia. A Parte B mudou o fato
+/// material — o interpretador e o runtime nativo passaram a **emitir**
+/// discriminantes segundo [`TAG_OK`]/[`TAG_ERRO`] — sem mudar a política.
+///
+/// A partir daí, o significado de uma tag produzida pela implementação passava a
+/// depender de quem estivesse ocupando o nome:
+///
+/// ```text
+/// runtime emite 0 (sucesso)
+/// + usuário declara `leque Resultado<T,E> { Erro(E), Ok(T) }`
+/// → o mesmo valor é lido como falha, carregando o conteúdo válido como causa
+/// ```
+///
+/// O predicado é derivado de [`LEQUE_RESULTADO`] — a mesma constante que nomeia
+/// a especialização devolvida por toda superfície desta lista —, não de uma
+/// lista literal paralela: abrir uma superfície que produza outra identidade
+/// muda os dois fatos no mesmo lugar.
+///
+/// Isto **não** reserva o nome. Quem não produz valor de runtime continua
+/// podendo redefinir `Resultado`; ver
+/// [`conflito_de_identidade`].
+pub fn identidade_produzida_pelo_runtime(nome: &str) -> bool {
+    identidades_produzidas_pelo_runtime().any(|identidade| identidade == nome)
+}
+
+/// Identidades de tipo que alguma superfície desta lista produz.
+///
+/// Derivada percorrendo [`SUPERFICIES_FALIVEIS`], como [`nomes`]: uma superfície
+/// nova entra por declaração, não por edição de uma segunda lista.
+pub fn identidades_produzidas_pelo_runtime() -> impl Iterator<Item = &'static str> {
+    SUPERFICIES_FALIVEIS
+        .iter()
+        .map(SuperficieFalivel::identidade)
+}
+
+/// Mensagem única do conflito de identidade da Parte B1.
+///
+/// Existe aqui, e não no parser, porque o fato que ela descreve é desta
+/// autoridade: quais nomes o runtime produz. O parser é apenas onde a conjunção
+/// se torna observável.
+///
+/// A conjunção é do programa inteiro, não de um ponto do texto:
+///
+/// ```text
+/// PRODUZ_RESULTADO_PELO_RUNTIME ∧ REDECLARA_A_IDENTIDADE → INVÁLIDO
+/// ```
+///
+/// Por isso a mensagem não cita ordem, posição nem qual dos dois fatos veio
+/// primeiro: quem completa a conjunção por último a levanta, sempre com o span
+/// da declaração do usuário.
+pub fn conflito_de_identidade(nome: &str) -> String {
+    format!(
+        "'{nome}' é a identidade de resultado produzida pelo runtime neste programa \
+         (superfícies falíveis) e não pode ser redeclarada: o valor devolvido pela \
+         implementação passaria a ser interpretado por esta declaração. Remova a \
+         declaração — `{nome}<T, E>` já é predeclarado — ou não use as superfícies falíveis"
+    )
 }
 
 /// Nomes das intrínsecas falíveis, para os validadores de IR.
