@@ -5239,7 +5239,7 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
     // extração nativa escreve em destino do chamador. A D7 acrescenta dois
     // testes do pack de formatação à região do alocador.
     let expected_regions: [(&str, &str, usize); 11] = [
-        ("evidencia.runtime.memoria-alocador", "memoria", 28),
+        ("evidencia.runtime.memoria-alocador", "memoria", 30),
         ("evidencia.runtime.validacao-acesso-publico", "memoria", 9),
         ("evidencia.runtime.cota-identidades-publicas", "memoria", 6),
         ("evidencia.runtime.inicializacao-abi", "inicializacao", 3),
@@ -5262,13 +5262,13 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
     let expected_ownership: Vec<usize> = expected_regions.iter().map(|entry| entry.2).collect();
     assert_eq!(
         expected_ownership,
-        vec![28usize, 9, 6, 3, 3, 3, 5, 4, 3, 1, 14],
-        "o ownership aprovado da Onda 8J é [20,9,6,3,3,3,5,4,3,1,14]"
+        vec![30usize, 9, 6, 3, 3, 3, 5, 4, 3, 1, 14],
+        "o ownership aprovado da Onda 8J é [30,9,6,3,3,3,5,4,3,1,14]"
     );
     assert_eq!(
         expected_ownership.iter().sum::<usize>(),
-        79,
-        "a soma do ownership 8J deve ser 79"
+        81,
+        "a soma do ownership 8J deve ser 81"
     );
 
     // 1. CATÁLOGO.
@@ -5492,8 +5492,8 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
         .collect();
     assert_eq!(
         test_lines.len(),
-        79,
-        "{central} deve manter exatamente 79 testes"
+        81,
+        "{central} deve manter exatamente 81 testes"
     );
     assert!(
         test_lines
@@ -5547,8 +5547,8 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
     );
     assert_eq!(
         observed_ownership.iter().sum::<usize>(),
-        79,
-        "ownership_sum deve ser 79"
+        81,
+        "ownership_sum deve ser 81"
     );
 
     // Os helpers aprovados sustentam as regressões de verso, subprocesso,
@@ -5557,7 +5557,9 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
     // acrescentou três helpers de leitura/isolamento de estado do processo
     // (`identidades_publicas_registradas`, `orcamento_de_unioes` e
     // `filho_contabilidade_uniao`), e o hotfix de memória/host acrescentou
-    // `paginas_residentes` e `core_limit`, levando o inventário a doze.
+    // `paginas_residentes` e `core_limit`. O seam HR7 acrescentou as três
+    // operações controladas de observação, kill e wait, levando o inventário a
+    // dezesseis.
     let helpers: Vec<(usize, &str)> = (bloco_inicio..=bloco_fim)
         .filter(|line| central_lines[line - 1].trim_start().starts_with("fn "))
         .filter(|line| central_lines[line - 1].trim_end().ends_with('{'))
@@ -5566,8 +5568,8 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
         .collect();
     assert_eq!(
         helpers.len(),
-        13,
-        "o bloco de testes deve conter exatamente treze helpers, obteve {helpers:?}"
+        16,
+        "o bloco de testes deve conter exatamente dezesseis helpers, obteve {helpers:?}"
     );
     for expected in [
         "fn filho_stdout(",
@@ -5694,14 +5696,14 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
         .collect();
     assert_eq!(
         definicoes.len(),
-        318,
-        "a produção do runtime deve manter 318 definições textuais"
+        331,
+        "a produção do runtime deve manter 331 definições textuais"
     );
     let wrappers_gerados = 8usize;
     assert_eq!(
         definicoes.len() + wrappers_gerados,
-        326,
-        "318 definições textuais + 8 wrappers gerados = 326 símbolos produtivos"
+        339,
+        "331 definições textuais + 8 wrappers gerados = 339 símbolos produtivos"
     );
     let mut definicoes_sem_dono: Vec<usize> = Vec::new();
     let mut definicoes_com_dono_duplo: Vec<usize> = Vec::new();

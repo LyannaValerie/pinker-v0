@@ -347,9 +347,106 @@ fn drenar_disponivel<R: Read>(pipe: &mut R, destino: &mut Vec<u8>) -> io::Result
 }
 
 fn falhar_depois_spawn<T>(causa: String, filho: &mut FilhoReapavel) -> Result<T, String> {
-    match filho.encerrar_e_reapear() {
+    compor_falha_com_cleanup(causa, filho.encerrar_e_reapear())
+}
+
+fn compor_falha_com_cleanup<T>(
+    causa: String,
+    limpeza: Result<(), FalhasCleanupProcesso>,
+) -> Result<T, String> {
+    match limpeza {
         Ok(()) => Err(causa),
-        Err(limpeza) => Err(format!("{causa}; falha ao reapear filho direto: {limpeza}")),
+        Err(limpeza) => Err(format!("{causa}; cleanup do filho direto: {limpeza}")),
+    }
+}
+
+trait OperacoesCleanupProcesso {
+    type Status;
+
+    fn observar_status(&mut self) -> io::Result<Option<Self::Status>>;
+    fn encerrar(&mut self) -> io::Result<()>;
+    fn esperar(&mut self) -> io::Result<Self::Status>;
+}
+
+impl OperacoesCleanupProcesso for Child {
+    type Status = ExitStatus;
+
+    fn observar_status(&mut self) -> io::Result<Option<Self::Status>> {
+        self.try_wait()
+    }
+
+    fn encerrar(&mut self) -> io::Result<()> {
+        self.kill()
+    }
+
+    fn esperar(&mut self) -> io::Result<Self::Status> {
+        self.wait()
+    }
+}
+
+#[derive(Debug, Default)]
+struct FalhasCleanupProcesso {
+    observacao: Option<io::Error>,
+    encerramento: Option<io::Error>,
+    espera: Option<io::Error>,
+}
+
+impl FalhasCleanupProcesso {
+    fn vazia(&self) -> bool {
+        self.observacao.is_none() && self.encerramento.is_none() && self.espera.is_none()
+    }
+}
+
+impl std::fmt::Display for FalhasCleanupProcesso {
+    fn fmt(&self, saida: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut separador = "";
+        for (etapa, erro) in [
+            ("observação", self.observacao.as_ref()),
+            ("kill", self.encerramento.as_ref()),
+            ("wait", self.espera.as_ref()),
+        ] {
+            if let Some(erro) = erro {
+                write!(saida, "{separador}{etapa}: {erro}")?;
+                separador = "; ";
+            }
+        }
+        Ok(())
+    }
+}
+
+fn encerrar_e_reapear_com<O: OperacoesCleanupProcesso>(
+    filho: &mut O,
+    status: &mut Option<O::Status>,
+) -> Result<(), FalhasCleanupProcesso> {
+    if status.is_some() {
+        return Ok(());
+    }
+
+    let mut falhas = FalhasCleanupProcesso::default();
+    match filho.observar_status() {
+        Ok(Some(observado)) => {
+            *status = Some(observado);
+            return Ok(());
+        }
+        Ok(None) => {}
+        Err(erro) => falhas.observacao = Some(erro),
+    }
+
+    match filho.encerrar() {
+        Ok(()) => {}
+        Err(erro) if erro.kind() == io::ErrorKind::InvalidInput => {}
+        Err(erro) => falhas.encerramento = Some(erro),
+    }
+
+    match filho.esperar() {
+        Ok(observado) => *status = Some(observado),
+        Err(erro) => falhas.espera = Some(erro),
+    }
+
+    if falhas.vazia() {
+        Ok(())
+    } else {
+        Err(falhas)
     }
 }
 
@@ -393,17 +490,8 @@ impl FilhoReapavel {
         self.status
     }
 
-    fn encerrar_e_reapear(&mut self) -> io::Result<()> {
-        self.atualizar_status()?;
-        if self.status.is_none() {
-            match self.filho.kill() {
-                Ok(()) => {}
-                Err(erro) if erro.kind() == io::ErrorKind::InvalidInput => {}
-                Err(erro) => return Err(erro),
-            }
-            self.status = Some(self.filho.wait()?);
-        }
-        Ok(())
+    fn encerrar_e_reapear(&mut self) -> Result<(), FalhasCleanupProcesso> {
+        encerrar_e_reapear_com(&mut self.filho, &mut self.status)
     }
 }
 
@@ -570,6 +658,89 @@ fn poll_descritores(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[derive(Debug, PartialEq, Eq)]
+    struct StatusCleanupControlado;
+
+    struct OperacoesCleanupControladas {
+        falhar_observacao: bool,
+        falhar_encerramento: bool,
+        falhar_espera: bool,
+        kill_tentado: bool,
+        wait_tentado: bool,
+    }
+
+    impl OperacoesCleanupProcesso for OperacoesCleanupControladas {
+        type Status = StatusCleanupControlado;
+
+        fn observar_status(&mut self) -> io::Result<Option<Self::Status>> {
+            if self.falhar_observacao {
+                Err(io::Error::other("try_wait controlado"))
+            } else {
+                Ok(None)
+            }
+        }
+
+        fn encerrar(&mut self) -> io::Result<()> {
+            self.kill_tentado = true;
+            if self.falhar_encerramento {
+                Err(io::Error::other("kill controlado"))
+            } else {
+                Ok(())
+            }
+        }
+
+        fn esperar(&mut self) -> io::Result<Self::Status> {
+            self.wait_tentado = true;
+            if self.falhar_espera {
+                Err(io::Error::other("wait controlado"))
+            } else {
+                Ok(StatusCleanupControlado)
+            }
+        }
+    }
+
+    #[test]
+    fn erro_de_try_wait_nao_impede_kill_wait_e_reap_hospedado() {
+        let mut operacoes = OperacoesCleanupControladas {
+            falhar_observacao: true,
+            falhar_encerramento: false,
+            falhar_espera: false,
+            kill_tentado: false,
+            wait_tentado: false,
+        };
+        let mut status = None;
+
+        let falhas = encerrar_e_reapear_com(&mut operacoes, &mut status)
+            .expect_err("erro de observação deve permanecer explícito");
+
+        assert!(falhas.observacao.is_some(), "TRY_WAIT_ERROR_OBSERVED");
+        assert!(operacoes.kill_tentado, "KILL_ATTEMPTED");
+        assert!(operacoes.wait_tentado, "WAIT_ATTEMPTED");
+        assert!(status.is_some(), "REAP_PATH_REACHED");
+    }
+
+    #[test]
+    fn causa_primaria_e_falhas_secundarias_permanecem_no_erro_hospedado() {
+        let mut operacoes = OperacoesCleanupControladas {
+            falhar_observacao: true,
+            falhar_encerramento: true,
+            falhar_espera: true,
+            kill_tentado: false,
+            wait_tentado: false,
+        };
+        let mut status = None;
+        let limpeza = encerrar_e_reapear_com(&mut operacoes, &mut status);
+        let erro = compor_falha_com_cleanup::<()>("causa primária".to_string(), limpeza)
+            .expect_err("falha primária com cleanup falho não pode virar sucesso");
+
+        assert!(operacoes.kill_tentado, "KILL_ATTEMPTED");
+        assert!(operacoes.wait_tentado, "WAIT_ATTEMPTED");
+        assert!(erro.contains("causa primária"), "{erro}");
+        assert!(erro.contains("try_wait controlado"), "{erro}");
+        assert!(erro.contains("kill controlado"), "{erro}");
+        assert!(erro.contains("wait controlado"), "{erro}");
+    }
 
     struct LeitorControlado {
         sucessos_restantes: usize,
