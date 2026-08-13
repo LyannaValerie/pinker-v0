@@ -13,7 +13,7 @@ use std::time::{Duration, Instant};
 // @pinker-nav:start processos.estruturado.hospedado
 // @pinker-nav:domain processos
 // @pinker-nav:layer interpreter
-// @pinker-nav:summary Implementa a nova execução estruturada apenas no interpretador: configura argv/cwd/ambiente e PATH saneada, faz um único spawn, move stdin/stdout/stderr por uma única malha poll com fds não-bloqueantes, aplica deadline monotônico, mata e reapa somente o filho direto no timeout ou erro pós-spawn, valida UTF-8 estritamente após reap e só então devolve um snapshot imutável.
+// @pinker-nav:summary Implementa a nova execução estruturada apenas no interpretador: configura argv/cwd/ambiente e PATH saneada, faz um único spawn, move stdin/stdout/stderr por uma única malha poll com fds não-bloqueantes e quantum justo por canal, aplica deadline monotônico, mata e reapa somente o filho direto no timeout ou erro pós-spawn, valida UTF-8 estritamente após reap e só então devolve um snapshot imutável.
 
 /// PATH default da nova superfície. Um overlay explícito de PATH é aplicado
 /// depois e, portanto, vence este valor.
@@ -271,6 +271,16 @@ fn executar_com_controle(
 /// direto quando um descendente mantém os write-ends herdados.
 const TICK_REAP: Duration = Duration::from_millis(25);
 
+/// Limite de trabalho por canal entre duas observações do deadline absoluto.
+///
+/// Bytes e syscalls são limitados juntos: o primeiro impede uma única passagem
+/// volumosa; o segundo impede progresso em fragmentos mínimos de monopolizar a
+/// malha. Como stdin, stdout e stderr recebem no máximo um quantum por ciclo,
+/// múltiplos canais prontos progridem antes da próxima chamada a `poll`.
+const QUANTUM_IO_BYTES: usize = 64 * 1024;
+const QUANTUM_IO_SYSCALLS: usize = 4;
+const BLOCO_IO_BYTES: usize = 16 * 1024;
+
 fn timeout_poll(deadline: Option<Instant>) -> i32 {
     let espera = match deadline {
         Some(fim) => fim.saturating_duration_since(Instant::now()).min(TICK_REAP),
@@ -280,39 +290,57 @@ fn timeout_poll(deadline: Option<Instant>) -> i32 {
     millis.min(i32::MAX as u128) as i32
 }
 
-fn escrever_disponivel(
-    pipe: &mut ChildStdin,
+fn escrever_disponivel<W: Write>(
+    pipe: &mut W,
     entrada: &[u8],
     enviados: &mut usize,
 ) -> io::Result<bool> {
-    while *enviados < entrada.len() {
-        match pipe.write(&entrada[*enviados..]) {
+    let inicio = *enviados;
+    let mut syscalls = 0usize;
+    while *enviados < entrada.len()
+        && *enviados - inicio < QUANTUM_IO_BYTES
+        && syscalls < QUANTUM_IO_SYSCALLS
+    {
+        let restantes_quantum = QUANTUM_IO_BYTES - (*enviados - inicio);
+        let fim = (*enviados + restantes_quantum.min(BLOCO_IO_BYTES)).min(entrada.len());
+        match pipe.write(&entrada[*enviados..fim]) {
             Ok(0) => {
                 return Err(io::Error::new(
                     io::ErrorKind::WriteZero,
                     "stdin não avançou",
                 ))
             }
-            Ok(n) => *enviados += n,
-            Err(erro) if erro.kind() == io::ErrorKind::Interrupted => continue,
+            Ok(n) => {
+                *enviados += n;
+                syscalls += 1;
+            }
+            Err(erro) if erro.kind() == io::ErrorKind::Interrupted => return Ok(false),
             Err(erro) if erro.kind() == io::ErrorKind::WouldBlock => return Ok(false),
             Err(erro) => return Err(erro),
         }
     }
-    Ok(true)
+    Ok(*enviados == entrada.len())
 }
 
 fn drenar_disponivel<R: Read>(pipe: &mut R, destino: &mut Vec<u8>) -> io::Result<bool> {
-    let mut bloco = [0u8; 16 * 1024];
-    loop {
-        match pipe.read(&mut bloco) {
+    let mut bloco = [0u8; BLOCO_IO_BYTES];
+    let mut bytes = 0usize;
+    let mut syscalls = 0usize;
+    while bytes < QUANTUM_IO_BYTES && syscalls < QUANTUM_IO_SYSCALLS {
+        let limite = (QUANTUM_IO_BYTES - bytes).min(bloco.len());
+        match pipe.read(&mut bloco[..limite]) {
             Ok(0) => return Ok(true),
-            Ok(n) => destino.extend_from_slice(&bloco[..n]),
-            Err(erro) if erro.kind() == io::ErrorKind::Interrupted => continue,
+            Ok(n) => {
+                destino.extend_from_slice(&bloco[..n]);
+                bytes += n;
+                syscalls += 1;
+            }
+            Err(erro) if erro.kind() == io::ErrorKind::Interrupted => return Ok(false),
             Err(erro) if erro.kind() == io::ErrorKind::WouldBlock => return Ok(false),
             Err(erro) => return Err(erro),
         }
     }
+    Ok(false)
 }
 
 fn falhar_depois_spawn<T>(causa: String, filho: &mut FilhoReapavel) -> Result<T, String> {
@@ -539,6 +567,81 @@ fn poll_descritores(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    struct LeitorControlado {
+        sucessos_restantes: usize,
+        chamadas: usize,
+        byte: u8,
+    }
+
+    impl Read for LeitorControlado {
+        fn read(&mut self, destino: &mut [u8]) -> io::Result<usize> {
+            self.chamadas += 1;
+            if self.sucessos_restantes == 0 {
+                return Err(io::Error::from(io::ErrorKind::WouldBlock));
+            }
+            self.sucessos_restantes -= 1;
+            destino.fill(self.byte);
+            Ok(destino.len())
+        }
+    }
+
+    #[test]
+    fn quantum_de_drenagem_devolve_autoridade_temporal_antes_de_would_block() {
+        let mut leitor = LeitorControlado {
+            sucessos_restantes: QUANTUM_IO_SYSCALLS + 1,
+            chamadas: 0,
+            byte: b'Q',
+        };
+        let mut destino = Vec::new();
+
+        let eof = drenar_disponivel(&mut leitor, &mut destino).expect("drenagem controlada");
+
+        assert!(!eof, "quantum não significa EOF");
+        assert_eq!(
+            leitor.chamadas, QUANTUM_IO_SYSCALLS,
+            "TARGET_SURFACE_REACHED"
+        );
+        assert_eq!(destino.len(), QUANTUM_IO_BYTES, "MUTANT_DETECTED");
+    }
+
+    #[test]
+    fn canais_prontos_recebem_um_quantum_cada_sem_monopolio() {
+        let mut stdout = LeitorControlado {
+            sucessos_restantes: usize::MAX,
+            chamadas: 0,
+            byte: b'O',
+        };
+        let mut stderr = LeitorControlado {
+            sucessos_restantes: usize::MAX,
+            chamadas: 0,
+            byte: b'E',
+        };
+        let mut bytes_stdout = Vec::new();
+        let mut bytes_stderr = Vec::new();
+
+        assert!(!drenar_disponivel(&mut stdout, &mut bytes_stdout).unwrap());
+        assert!(!drenar_disponivel(&mut stderr, &mut bytes_stderr).unwrap());
+
+        assert_eq!(bytes_stdout.len(), QUANTUM_IO_BYTES);
+        assert_eq!(bytes_stderr.len(), QUANTUM_IO_BYTES);
+        assert_eq!(stdout.chamadas, QUANTUM_IO_SYSCALLS);
+        assert_eq!(stderr.chamadas, QUANTUM_IO_SYSCALLS);
+    }
+
+    #[test]
+    fn stdin_grande_devolve_autoridade_temporal_e_depois_conclui_integralmente() {
+        let entrada = vec![b'I'; QUANTUM_IO_BYTES * 2 + 7];
+        let mut destino = Vec::new();
+        let mut enviados = 0usize;
+
+        assert!(!escrever_disponivel(&mut destino, &entrada, &mut enviados).unwrap());
+        assert_eq!(enviados, QUANTUM_IO_BYTES);
+        assert!(!escrever_disponivel(&mut destino, &entrada, &mut enviados).unwrap());
+        assert_eq!(enviados, QUANTUM_IO_BYTES * 2);
+        assert!(escrever_disponivel(&mut destino, &entrada, &mut enviados).unwrap());
+        assert_eq!(destino, entrada, "quantum não trunca stdin");
+    }
 
     #[cfg(unix)]
     #[test]

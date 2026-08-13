@@ -4,7 +4,7 @@ mod common;
 
 use std::collections::BTreeMap;
 use std::fs;
-use std::process::{Command, Output};
+use std::process::{Command, Output, Stdio};
 use std::time::{Duration, Instant};
 
 // @pinker-nav:start evidencia.processos.parte-d-interpreter-step-3
@@ -103,6 +103,42 @@ fn rodar(fonte: &str, ambiente_pai: &[(&str, &str)]) -> (Output, Duration) {
         .output()
         .expect("executar interpretador");
     (output, inicio.elapsed())
+}
+
+fn rodar_com_watchdog(
+    fonte: &str,
+    ambiente_pai: &[(&str, &str)],
+    watchdog: Duration,
+) -> (Output, Duration) {
+    let dir = common::NativeArtifactDir::create().expect("sandbox de execução com watchdog");
+    let caminho = dir.path().join("step3-watchdog.pink");
+    fs::write(&caminho, fonte).expect("gravar fonte");
+    let inicio = Instant::now();
+    let mut pink = Command::new(env!("CARGO_BIN_EXE_pink"))
+        .arg("--run")
+        .arg(&caminho)
+        .envs(ambiente_pai.iter().copied())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("executar interpretador com watchdog");
+
+    loop {
+        if pink.try_wait().expect("observar interpretador").is_some() {
+            let output = pink.wait_with_output().expect("coletar interpretador");
+            return (output, inicio.elapsed());
+        }
+        if inicio.elapsed() >= watchdog {
+            let _ = pink.kill();
+            let output = pink.wait_with_output().expect("coletar watchdog");
+            panic!(
+                "watchdog externo excedido ({watchdog:?}); stdout={} stderr={}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
 }
 
 fn sucesso(output: &Output) -> String {
@@ -511,6 +547,49 @@ fn terminacao_anormal_utf8_invalido_e_timeout_simples_sao_erros_sem_snapshot() {
     assert!(
         !std::path::Path::new(&format!("/proc/{}", pid.trim())).exists(),
         "filho direto não foi reapado"
+    );
+}
+
+#[test]
+fn hr5_timeout_governa_io_continuo_e_sem_limite_nao_trunca() {
+    for modo in ["continuous-stdout", "continuous-both"] {
+        let fonte = fonte(
+            env!("CARGO_BIN_EXE_pinker_part_d_filho"),
+            &[modo.to_string(), "2000".to_string()],
+            "",
+            "",
+            &BTreeMap::new(),
+            "LimiteTempo.Ate(150)",
+            "falar(\"OK_INESPERADO\");",
+        );
+        let (output, elapsed) = rodar_com_watchdog(&fonte, &[], Duration::from_secs(4));
+        let texto = sucesso(&output);
+        assert!(texto.starts_with("ERRO\n"), "{modo}: {texto}");
+        assert!(
+            texto.contains("limite de tempo excedido"),
+            "{modo}: {texto}"
+        );
+        assert!(
+            elapsed < Duration::from_millis(1200),
+            "{modo} ocultou deadline: {elapsed:?}"
+        );
+    }
+
+    let sem_limite = fonte(
+        env!("CARGO_BIN_EXE_pinker_part_d_filho"),
+        &["large".to_string()],
+        "",
+        "",
+        &BTreeMap::new(),
+        "LimiteTempo.SemLimite",
+        r#"falar(tamanho_verso(processo_saida(saida)));
+            falar(tamanho_verso(processo_erro(saida)));"#,
+    );
+    let (output, _) = rodar_com_watchdog(&sem_limite, &[], Duration::from_secs(5));
+    assert_eq!(
+        sucesso(&output),
+        "OK\n2097152\n2097152\n",
+        "quantum não pode truncar captura SemLimite"
     );
 }
 

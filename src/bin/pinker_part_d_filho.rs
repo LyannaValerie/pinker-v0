@@ -2,7 +2,7 @@
 
 use std::io::{Read as _, Write as _};
 use std::process::{Command, Stdio};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 fn hex(bytes: &[u8]) -> String {
     let mut saida = String::with_capacity(bytes.len() * 2);
@@ -55,6 +55,24 @@ fn main() {
             for _ in 0..128 {
                 stdout.write_all(&bloco_stdout).expect("stdout grande");
                 stderr.write_all(&bloco_stderr).expect("stderr grande");
+            }
+        }
+        "continuous-stdout" | "continuous-both" => {
+            let ms = argumentos
+                .next()
+                .expect("janela de produção")
+                .parse::<u64>()
+                .expect("duração inteira");
+            let fim = Instant::now() + Duration::from_millis(ms);
+            let bloco_stdout = [b'O'; 16 * 1024];
+            let bloco_stderr = [b'E'; 16 * 1024];
+            let mut stdout = std::io::stdout().lock();
+            let mut stderr = std::io::stderr().lock();
+            while Instant::now() < fim {
+                stdout.write_all(&bloco_stdout).expect("stdout contínuo");
+                if modo == "continuous-both" {
+                    stderr.write_all(&bloco_stderr).expect("stderr contínuo");
+                }
             }
         }
         "status" => {
