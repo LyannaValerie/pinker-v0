@@ -47,6 +47,8 @@ fn main() {
             print!("stdout-small");
             eprint!("stderr-small");
         }
+        "stdout-only" => print!("stdout-only"),
+        "stderr-only" => eprint!("stderr-only"),
         "large" => {
             let bloco_stdout = vec![b'O'; 16 * 1024];
             let bloco_stderr = vec![b'E'; 16 * 1024];
