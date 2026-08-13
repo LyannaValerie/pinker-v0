@@ -549,6 +549,27 @@ struct RuntimeMapState {
     // Fases 209–210 — valores de leque com carga: handle -> (tag, cargas).
     enum_values: HashMap<u64, (u64, Vec<RuntimeEnumPayload>)>,
     next_enum_handle: u64,
+    saidas_processo: crate::saida_processo::TabelaSaidas,
+}
+
+fn novo_runtime_map_state() -> RuntimeMapState {
+    RuntimeMapState {
+        maps_verso_bombom: HashMap::new(),
+        maps_verso_verso: HashMap::new(),
+        maps_bombom_bombom: HashMap::new(),
+        maps_bombom_verso: HashMap::new(),
+        maps: HashMap::new(),
+        next_map_handle: 1,
+        map_iters_verso_bombom: HashMap::new(),
+        map_iters_verso_verso: HashMap::new(),
+        map_iters_bombom_bombom: HashMap::new(),
+        map_iters_bombom_verso: HashMap::new(),
+        map_iters: HashMap::new(),
+        next_map_iter_handle: 1,
+        enum_values: HashMap::new(),
+        next_enum_handle: 1,
+        saidas_processo: crate::saida_processo::TabelaSaidas::nova(),
+    }
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -579,6 +600,7 @@ enum RuntimeEnumPayload {
     /// mesma categoria com que ela entrou.
     ListBombom(u64),
     ListVerso(u64),
+    SaidaProcesso(u64),
 }
 
 struct RuntimeRandomState {
@@ -1122,6 +1144,8 @@ pub enum RuntimeValue {
     MapBombomBombom(u64),
     MapBombomVerso(u64),
     Map(u64),
+    /// Handle nominal de snapshot de processo. Nunca é confundido com lista.
+    SaidaProcesso(u64),
     // Fase 242: handle callable — índice em `CallableState.table`, mesmo
     // padrão de handle já usado por `ListBombom`/`enum_values`.
     Callable(u64),
@@ -1178,22 +1202,7 @@ fn run_program_com_estado(
         lists_verso: HashMap::new(),
         next_list_handle: 1,
     };
-    let mut map_state = RuntimeMapState {
-        maps_verso_bombom: HashMap::new(),
-        maps_verso_verso: HashMap::new(),
-        maps_bombom_bombom: HashMap::new(),
-        maps_bombom_verso: HashMap::new(),
-        maps: HashMap::new(),
-        next_map_handle: 1,
-        map_iters_verso_bombom: HashMap::new(),
-        map_iters_verso_verso: HashMap::new(),
-        map_iters_bombom_bombom: HashMap::new(),
-        map_iters_bombom_verso: HashMap::new(),
-        map_iters: HashMap::new(),
-        next_map_iter_handle: 1,
-        enum_values: HashMap::new(),
-        next_enum_handle: 1,
-    };
+    let mut map_state = novo_runtime_map_state();
     let mut random_state = RuntimeRandomState {
         generators: HashMap::new(),
         next_generator_handle: 1,
@@ -1647,6 +1656,9 @@ fn exec_instr(
                     unreachable!("pop_numeric só retorna inteiro")
                 }
                 RuntimeValue::Callable(_) => unreachable!("pop_numeric só retorna inteiro"),
+                RuntimeValue::SaidaProcesso(_) => {
+                    unreachable!("pop_numeric só retorna inteiro")
+                }
             };
             stack.push(normalize_integer(out, *ty)?);
         }
@@ -1671,6 +1683,9 @@ fn exec_instr(
                     unreachable!("pop_numeric só retorna inteiro")
                 }
                 RuntimeValue::Callable(_) => unreachable!("pop_numeric só retorna inteiro"),
+                RuntimeValue::SaidaProcesso(_) => {
+                    unreachable!("pop_numeric só retorna inteiro")
+                }
             };
             stack.push(normalize_integer(out, *ty)?);
         }
@@ -2322,6 +2337,9 @@ fn exec_instr(
                     unreachable!("pop_numeric só retorna inteiro")
                 }
                 RuntimeValue::Callable(_) => unreachable!("pop_numeric só retorna inteiro"),
+                RuntimeValue::SaidaProcesso(_) => {
+                    unreachable!("pop_numeric só retorna inteiro")
+                }
             }
         }
         MachineInstr::PrintBoolInline => {
@@ -2363,24 +2381,50 @@ fn exec_instr(
 /// Aridade e tipo errados são erro de programa, detectados antes daqui pela
 /// semântica; esta checagem é a rede do interpretador e continua fatal — não
 /// vira `Erro(...)`.
-fn exigir_argumento_unico<'a>(
+fn validar_argumentos_superficie(
     superficie: &SuperficieFalivel,
-    args: &'a [RuntimeValue],
-) -> Result<&'a str, PinkerError> {
-    let esperado = superficie.argumento.chave();
-    if args.len() != 1 {
+    args: &[RuntimeValue],
+) -> Result<(), PinkerError> {
+    if args.len() != superficie.aridade() {
         return Err(runtime_err(&format!(
-            "intrínseca '{}' exige 1 argumento ({})",
-            superficie.intrinseca, esperado
+            "intrínseca '{}' exige {} argumento(s)",
+            superficie.intrinseca,
+            superficie.aridade()
         )));
     }
-    let RuntimeValue::Str(texto) = &args[0] else {
-        return Err(runtime_err(&format!(
-            "intrínseca '{}' exige argumento em {}",
-            superficie.intrinseca, esperado
-        )));
-    };
-    Ok(texto)
+    for (index, (valor, esperado)) in args.iter().zip(superficie.argumentos.iter()).enumerate() {
+        let valido = matches!(
+            (esperado, valor),
+            (
+                crate::falha_operacional::CargaResultado::Bombom,
+                RuntimeValue::Int(_)
+            ) | (
+                crate::falha_operacional::CargaResultado::Verso,
+                RuntimeValue::Str(_)
+            ) | (
+                crate::falha_operacional::CargaResultado::ListaVerso,
+                RuntimeValue::ListVerso(_)
+            ) | (
+                crate::falha_operacional::CargaResultado::MapaVersoVerso,
+                RuntimeValue::MapVersoVerso(_),
+            ) | (
+                crate::falha_operacional::CargaResultado::SaidaProcesso,
+                RuntimeValue::SaidaProcesso(_),
+            ) | (
+                crate::falha_operacional::CargaResultado::Leque(_),
+                RuntimeValue::Int(_)
+            )
+        );
+        if !valido {
+            return Err(runtime_err(&format!(
+                "intrínseca '{}' exige argumento {} em {}",
+                superficie.intrinseca,
+                index + 1,
+                esperado.chave()
+            )));
+        }
+    }
+    Ok(())
 }
 
 /// Executa uma superfície falível já resolvida pela autoridade.
@@ -2394,7 +2438,11 @@ fn executar_superficie_falivel(
     map_state: &mut RuntimeMapState,
     list_state: &mut RuntimeListState,
 ) -> Result<IntrinsicCall, PinkerError> {
-    let entrada = exigir_argumento_unico(superficie, args)?;
+    validar_argumentos_superficie(superficie, args)?;
+    let entrada = match args.first() {
+        Some(RuntimeValue::Str(texto)) => texto.as_str(),
+        _ => "",
+    };
     match superficie.operacao {
         OperacaoFalivel::LerArquivoPorCaminho => match fs::read_to_string(entrada) {
             Ok(conteudo) => Ok(resultado_ok_verso(map_state, conteudo)),
@@ -2449,6 +2497,9 @@ fn executar_superficie_falivel(
                 format!("falha ao medir entrada '{}': {}", entrada, err),
             )),
         },
+        OperacaoFalivel::ExecutarProcessoEstruturado => Err(runtime_err(
+            "execução estruturada ainda não foi ativada no gate de representação",
+        )),
     }
 }
 
@@ -3206,6 +3257,31 @@ fn try_call_intrinsic(
         return result;
     }
     match callee {
+        nome if crate::saida_processo::e_acessor(nome) => {
+            if args.len() != 1 {
+                return Err(runtime_err(&format!(
+                    "intrínseca '{nome}' exige 1 argumento (SaidaProcesso)"
+                )));
+            }
+            let RuntimeValue::SaidaProcesso(handle) = args[0] else {
+                return Err(runtime_err(&format!(
+                    "intrínseca '{nome}' exige SaidaProcesso"
+                )));
+            };
+            let saida = map_state
+                .saidas_processo
+                .obter(handle)
+                .ok_or_else(|| runtime_err("handle SaidaProcesso inválido"))?;
+            let valor = match nome {
+                crate::saida_processo::ACESSOR_CODIGO => RuntimeValue::Int(saida.codigo()),
+                crate::saida_processo::ACESSOR_SAIDA => {
+                    RuntimeValue::Str(saida.saida().to_string())
+                }
+                crate::saida_processo::ACESSOR_ERRO => RuntimeValue::Str(saida.erro().to_string()),
+                _ => unreachable!(),
+            };
+            Ok(IntrinsicCall::Done(Some(valor)))
+        }
         "alocar" => public_memory_allocate(args, public_memory_state),
         "liberar" => public_memory_free(args, public_memory_state),
         "aleatorio_criar" => {
@@ -3974,6 +4050,27 @@ fn try_call_intrinsic(
             payloads.push(payload);
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(*handle))))
         }
+        "__pinker_internal_leque_anexar_saida_processo" => {
+            if args.len() != 2 {
+                return Err(runtime_err(
+                    "intrínseca interna de anexo de SaidaProcesso exige 2 argumentos",
+                ));
+            }
+            let (RuntimeValue::Int(handle), RuntimeValue::SaidaProcesso(saida)) =
+                (&args[0], &args[1])
+            else {
+                return Err(runtime_err(
+                    "intrínseca interna de anexo de SaidaProcesso exige handle de leque e SaidaProcesso",
+                ));
+            };
+            let Some((_, payloads)) = map_state.enum_values.get_mut(handle) else {
+                return Err(runtime_err(
+                    "handle de leque inválido ao anexar SaidaProcesso",
+                ));
+            };
+            payloads.push(RuntimeEnumPayload::SaidaProcesso(*saida));
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(*handle))))
+        }
         "__pinker_internal_leque_carga_lista_b" | "__pinker_internal_leque_carga_lista_v" => {
             if args.len() != 3 {
                 return Err(runtime_err(
@@ -4015,6 +4112,36 @@ fn try_call_intrinsic(
                 }
             };
             Ok(IntrinsicCall::Done(Some(value)))
+        }
+        "__pinker_internal_leque_carga_saida_processo" => {
+            if args.len() != 3 {
+                return Err(runtime_err(
+                    "intrínseca interna de extração de SaidaProcesso exige 3 argumentos",
+                ));
+            }
+            let (RuntimeValue::Int(handle), RuntimeValue::Int(tag), RuntimeValue::Int(index)) =
+                (&args[0], &args[1], &args[2])
+            else {
+                return Err(runtime_err(
+                    "intrínseca interna de extração de SaidaProcesso exige argumentos bombom",
+                ));
+            };
+            let Some((stored_tag, payloads)) = map_state.enum_values.get(handle) else {
+                return Err(runtime_err(
+                    "handle de leque inválido ao extrair SaidaProcesso",
+                ));
+            };
+            if stored_tag != tag {
+                return Err(runtime_err(
+                    "extração de SaidaProcesso com variante inconsistente",
+                ));
+            }
+            match payloads.get(*index as usize) {
+                Some(RuntimeEnumPayload::SaidaProcesso(saida)) => Ok(IntrinsicCall::Done(Some(
+                    RuntimeValue::SaidaProcesso(*saida),
+                ))),
+                _ => Err(runtime_err("carga SaidaProcesso ausente ou divergente")),
+            }
         }
         // Não há intrínseca chamável de união: `union_tag` e `union_extract`
         // são instruções tipadas da máquina, executadas diretamente.
@@ -7044,6 +7171,7 @@ fn pop_numeric(stack: &mut Vec<RuntimeValue>, msg: &str) -> Result<RuntimeValue,
         RuntimeValue::MapBombomBombom(_) => Err(runtime_err(msg)),
         RuntimeValue::MapBombomVerso(_) | RuntimeValue::Map(_) => Err(runtime_err(msg)),
         RuntimeValue::Callable(_) => Err(runtime_err(msg)),
+        RuntimeValue::SaidaProcesso(_) => Err(runtime_err(msg)),
     }
 }
 
@@ -7061,6 +7189,7 @@ fn pop_bool(stack: &mut Vec<RuntimeValue>, msg: &str) -> Result<bool, PinkerErro
         RuntimeValue::MapBombomBombom(_) => Err(runtime_err(msg)),
         RuntimeValue::MapBombomVerso(_) | RuntimeValue::Map(_) => Err(runtime_err(msg)),
         RuntimeValue::Callable(_) => Err(runtime_err(msg)),
+        RuntimeValue::SaidaProcesso(_) => Err(runtime_err(msg)),
     }
 }
 
@@ -7230,6 +7359,15 @@ fn coerce_runtime_value_to_type(
         };
     }
 
+    if ty == crate::ir::TypeIR::OpaqueWordHandle {
+        return match value {
+            RuntimeValue::SaidaProcesso(handle) => Ok(RuntimeValue::SaidaProcesso(handle)),
+            _ => Err(runtime_err(
+                "valor incompatível: esperado handle opaco nominal",
+            )),
+        };
+    }
+
     if matches!(
         ty,
         crate::ir::TypeIR::Pointer { .. } | crate::ir::TypeIR::FunctionPointer
@@ -7269,6 +7407,9 @@ fn coerce_runtime_value_to_type(
                 "ponteiro em runtime requer valor inteiro de endereço",
             )),
             RuntimeValue::Callable(_) => Err(runtime_err(
+                "ponteiro em runtime requer valor inteiro de endereço",
+            )),
+            RuntimeValue::SaidaProcesso(_) => Err(runtime_err(
                 "ponteiro em runtime requer valor inteiro de endereço",
             )),
         };
@@ -8668,3 +8809,105 @@ carinho principal() -> bombom {
     }
 }
 // @pinker-nav:end interpreter.unioes.contabilidade-dominios
+
+// @pinker-nav:start evidencia.processos.saida-runtime-hospedado
+// @pinker-nav:domain processos
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Prova no runtime hospedado, com snapshot sintético válido, o round-trip de Resultado<SaidaProcesso, verso> pelos helpers nominais de anexo e carga e a leitura tipada de código, stdout e stderr sem reexecutar processo.
+#[cfg(test)]
+mod part_d_saida_processo_runtime_tests {
+    use super::*;
+
+    fn valor(call: Result<IntrinsicCall, PinkerError>) -> RuntimeValue {
+        match call.expect("intrínseca representacional válida") {
+            IntrinsicCall::Done(Some(valor)) => valor,
+            _ => panic!("intrínseca deveria produzir valor"),
+        }
+    }
+
+    #[test]
+    fn resultado_saida_processo_sintetico_preserva_handle_e_accessors_tipados() {
+        let mut memoria_publica = PublicMemoryState::default();
+        let mut io = RuntimeIoState {
+            open_files: HashMap::new(),
+            next_file_handle: 1,
+            closed_handles: std::collections::HashSet::new(),
+            cli_args: Vec::new(),
+            exit_status: None,
+        };
+        let mut listas = RuntimeListState {
+            lists_bombom: HashMap::new(),
+            lists_verso: HashMap::new(),
+            next_list_handle: 1,
+        };
+        let mut mapas = novo_runtime_map_state();
+        let mut acaso = RuntimeRandomState {
+            generators: HashMap::new(),
+            next_generator_handle: 1,
+        };
+
+        let saida = mapas
+            .saidas_processo
+            .inserir(crate::saida_processo::SaidaProcesso::nova(
+                17,
+                "stdout exato".to_string(),
+                "stderr exato".to_string(),
+            ));
+        let resultado = novo_leque(&mut mapas, crate::falha_operacional::TAG_OK);
+
+        let anexado = valor(try_call_intrinsic(
+            crate::enum_payload::ANEXAR_SAIDA_PROCESSO,
+            &[
+                RuntimeValue::Int(resultado),
+                RuntimeValue::SaidaProcesso(saida),
+            ],
+            &mut memoria_publica,
+            &mut io,
+            &mut listas,
+            &mut mapas,
+            &mut acaso,
+        ));
+        assert_eq!(anexado, RuntimeValue::Int(resultado));
+
+        let carga = valor(try_call_intrinsic(
+            crate::enum_payload::CARGA_SAIDA_PROCESSO,
+            &[
+                RuntimeValue::Int(resultado),
+                RuntimeValue::Int(crate::falha_operacional::TAG_OK),
+                RuntimeValue::Int(0),
+            ],
+            &mut memoria_publica,
+            &mut io,
+            &mut listas,
+            &mut mapas,
+            &mut acaso,
+        ));
+        assert_eq!(carga, RuntimeValue::SaidaProcesso(saida));
+
+        for (acessor, esperado) in [
+            (crate::saida_processo::ACESSOR_CODIGO, RuntimeValue::Int(17)),
+            (
+                crate::saida_processo::ACESSOR_SAIDA,
+                RuntimeValue::Str("stdout exato".to_string()),
+            ),
+            (
+                crate::saida_processo::ACESSOR_ERRO,
+                RuntimeValue::Str("stderr exato".to_string()),
+            ),
+        ] {
+            assert_eq!(
+                valor(try_call_intrinsic(
+                    acessor,
+                    std::slice::from_ref(&carga),
+                    &mut memoria_publica,
+                    &mut io,
+                    &mut listas,
+                    &mut mapas,
+                    &mut acaso,
+                )),
+                esperado
+            );
+        }
+    }
+}
+// @pinker-nav:end evidencia.processos.saida-runtime-hospedado

@@ -84,6 +84,10 @@ fn layout_of_type_inner(
             size: POINTER_SIZE,
             align: POINTER_ALIGN,
         }),
+        Type::OpaqueHandle { .. } => Ok(TypeLayout {
+            size: POINTER_SIZE,
+            align: POINTER_ALIGN,
+        }),
         Type::Applied { .. } => {
             Err("tipo genérico aplicado não monomorfizado antes do layout".to_string())
         }

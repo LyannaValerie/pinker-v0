@@ -208,6 +208,7 @@ impl Parser {
         match ty {
             Type::Alias { name, .. }
             | Type::Struct { name, .. }
+            | Type::OpaqueHandle { name, .. }
             | Type::Enum { name, .. }
             | Type::Applied { name, .. } => name.clone(),
             _ => ty.name().to_string(),
@@ -573,14 +574,11 @@ impl Parser {
                     // do uso. O span é o da declaração do usuário — a rejeição
                     // pelo caminho antigo apontava para o span sintético 0:0 do
                     // predeclarado, que não existe em fonte alguma.
-                    if self.predeclared_plain_enums.contains_key(&item_name) {
+                    if let Some(identity) =
+                        crate::runtime_identity::runtime_reserved_identity(&item_name)
+                    {
                         return Err(PinkerError::Parse {
-                            msg: format!(
-                                "'{item_name}' é uma identidade predeclarada do runtime e não \
-                                 pode ser redeclarada: os discriminantes desta taxonomia são \
-                                 produzidos por operações builtin, e uma declaração própria com \
-                                 este nome passaria a reinterpretá-los"
-                            ),
+                            msg: crate::runtime_identity::conflict_message(identity),
                             span: item.span(),
                         });
                     }
@@ -963,6 +961,21 @@ impl Parser {
                 name = format!("{}.{}", name, qualified);
                 type_span = merge_span(type_span, separator_span);
                 type_span = merge_span(type_span, self.previous().span);
+            }
+            if matches!(
+                crate::runtime_identity::runtime_reserved_identity(&name),
+                Some(crate::runtime_identity::RuntimeReservedIdentity {
+                    kind: crate::runtime_identity::RuntimeSemanticKind::OpaqueWordHandle,
+                    ..
+                })
+            ) {
+                return Ok(Type::OpaqueHandle {
+                    name,
+                    span: type_span,
+                });
+            }
+            if self.predeclared_plain_enums.contains_key(&name) {
+                self.registrar_leque_predeclarado(&name);
             }
             Ok(Type::Alias {
                 name,
@@ -2707,6 +2720,7 @@ impl Parser {
             ),
             Type::Alias { name, .. }
             | Type::Struct { name, .. }
+            | Type::OpaqueHandle { name, .. }
             | Type::Enum { name, .. }
             | Type::Applied { name, .. } => name.clone(),
             Type::FixedArray { element, size, .. } => {
@@ -3356,7 +3370,7 @@ impl Parser {
 
         // Parte C: quando a carga de sucesso é um leque nomeado, ele precisa
         // existir antes de virar argumento de tipo da especialização.
-        if let Some(leque) = superficie.sucesso.leque_exigido() {
+        for leque in superficie.leques_exigidos() {
             self.registrar_leque_predeclarado(leque);
         }
 
@@ -3412,19 +3426,38 @@ impl Parser {
     /// convenção do template genérico: nunca fingir uma posição de fonte real.
     fn predeclared_plain_enum_templates() -> Vec<EnumDecl> {
         let synthetic = Span::single(crate::token::Position::new(0, 0));
-        vec![EnumDecl {
-            name: crate::tipo_entrada::LEQUE_TIPO_ENTRADA.to_string(),
-            type_params: Vec::new(),
-            variants: crate::tipo_entrada::VARIANTES
-                .iter()
-                .map(|(nome, _)| EnumVariant {
-                    name: (*nome).to_string(),
-                    payloads: Vec::new(),
-                    span: synthetic,
-                })
-                .collect(),
-            span: synthetic,
-        }]
+        vec![
+            EnumDecl {
+                name: crate::tipo_entrada::LEQUE_TIPO_ENTRADA.to_string(),
+                type_params: Vec::new(),
+                variants: crate::tipo_entrada::VARIANTES
+                    .iter()
+                    .map(|(nome, _)| EnumVariant {
+                        name: (*nome).to_string(),
+                        payloads: Vec::new(),
+                        span: synthetic,
+                    })
+                    .collect(),
+                span: synthetic,
+            },
+            EnumDecl {
+                name: crate::limite_tempo::LEQUE_LIMITE_TEMPO.to_string(),
+                type_params: Vec::new(),
+                variants: vec![
+                    EnumVariant {
+                        name: crate::limite_tempo::VARIANTE_SEM_LIMITE.to_string(),
+                        payloads: Vec::new(),
+                        span: synthetic,
+                    },
+                    EnumVariant {
+                        name: crate::limite_tempo::VARIANTE_ATE.to_string(),
+                        payloads: vec![Type::Bombom(synthetic)],
+                        span: synthetic,
+                    },
+                ],
+                span: synthetic,
+            },
+        ]
     }
 
     /// Materializa sob demanda um leque predeclarado simples exigido por uma

@@ -40,6 +40,7 @@ use std::collections::BTreeMap;
 pub enum NominalTypeKind {
     Ninho,
     Leque,
+    OpaqueBuiltin,
 }
 
 impl NominalTypeKind {
@@ -47,6 +48,7 @@ impl NominalTypeKind {
         match self {
             NominalTypeKind::Ninho => "ninho",
             NominalTypeKind::Leque => "leque",
+            NominalTypeKind::OpaqueBuiltin => "handle opaco builtin",
         }
     }
 }
@@ -59,6 +61,7 @@ pub fn nominal_identity_of(ty: &Type) -> Option<(NominalTypeKind, String)> {
     match ty {
         Type::Struct { name, .. } => Some((NominalTypeKind::Ninho, name.clone())),
         Type::Enum { name, .. } => Some((NominalTypeKind::Leque, name.clone())),
+        Type::OpaqueHandle { name, .. } => Some((NominalTypeKind::OpaqueBuiltin, name.clone())),
         _ => None,
     }
 }
@@ -126,6 +129,7 @@ pub fn member_key_text(ty: &Type) -> String {
             format!("mapa<{},{}>", member_key_text(key), member_key_text(value))
         }
         Type::Struct { name, .. } => format!("struct:{}:{name}", name.len()),
+        Type::OpaqueHandle { name, .. } => format!("opaque:{}:{name}", name.len()),
         Type::Enum { name, .. } => format!("enum:{}:{name}", name.len()),
         Type::Pointer {
             base, is_volatile, ..

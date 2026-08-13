@@ -2782,6 +2782,75 @@ pub unsafe extern "C" fn pinker_ambiente_buscar_contexto(
 // @pinker-nav:summary Execução de subprocessos sem shell implícito: basenames são resolvidos somente na PATH fixa /usr/local/bin:/usr/bin:/bin, caminhos com slash são usados literalmente, e todas as famílias recebem a PATH saneada; a disposição de SIGPIPE do pai não é reafirmada aqui (pertence a pinker_rt_iniciar) e comando_saneado instala um pre_exec que devolve SIGPIPE a SIG_DFL no filho imediatamente antes do exec, sem depender da escolha interna da std entre fork/exec e posix_spawn, propagando falha de preparação ao pai como erro de criação do processo; executar_com_entrada escreve stdin numa thread concorrente à espera, fecha o pipe e agrega erros sem deixar writer órfão.
 const PATH_PROCESSOS: &str = "/usr/local/bin:/usr/bin:/bin";
 
+/// Discriminantes da identidade runtime-reservada LimiteTempo. A ordem é ABI:
+/// o compilador materializa SemLimite como 0 e Ate(bombom) como 1.
+pub const PINKER_LIMITE_TEMPO_TAG_SEM_LIMITE: u64 = 0;
+pub const PINKER_LIMITE_TEMPO_TAG_ATE: u64 = 1;
+
+#[derive(Clone)]
+struct SaidaProcessoNativa {
+    codigo: u64,
+    stdout: String,
+    stderr: String,
+}
+
+#[derive(Default)]
+#[cfg_attr(not(test), allow(dead_code))]
+struct EstadoSaidasProcesso {
+    tabela: std::collections::HashMap<u64, SaidaProcessoNativa>,
+    proximo: u64,
+}
+
+fn estado_saidas_processo() -> &'static Mutex<EstadoSaidasProcesso> {
+    static SAIDAS: OnceLock<Mutex<EstadoSaidasProcesso>> = OnceLock::new();
+    SAIDAS.get_or_init(|| {
+        Mutex::new(EstadoSaidasProcesso {
+            tabela: std::collections::HashMap::new(),
+            proximo: 1,
+        })
+    })
+}
+
+#[cfg_attr(not(test), allow(dead_code))]
+fn registrar_saida_processo(saida: SaidaProcessoNativa) -> u64 {
+    let mut estado = estado_saidas_processo()
+        .lock()
+        .unwrap_or_else(|_| erro_fatal("estado de SaidaProcesso envenenado"));
+    let handle = estado.proximo;
+    estado.proximo = estado
+        .proximo
+        .checked_add(1)
+        .unwrap_or_else(|| erro_fatal("handles de SaidaProcesso esgotados"));
+    estado.tabela.insert(handle, saida);
+    handle
+}
+
+fn com_saida_processo<R>(handle: u64, f: impl FnOnce(&SaidaProcessoNativa) -> R) -> R {
+    let estado = estado_saidas_processo()
+        .lock()
+        .unwrap_or_else(|_| erro_fatal("estado de SaidaProcesso envenenado"));
+    let saida = estado
+        .tabela
+        .get(&handle)
+        .unwrap_or_else(|| erro_fatal("handle SaidaProcesso inválido"));
+    f(saida)
+}
+
+#[no_mangle]
+pub extern "C" fn pinker_saida_processo_codigo(handle: u64) -> u64 {
+    com_saida_processo(handle, |saida| saida.codigo)
+}
+
+#[no_mangle]
+pub extern "C" fn pinker_saida_processo_stdout(handle: u64) -> *mut u8 {
+    com_saida_processo(handle, |saida| verso_alocar(&saida.stdout))
+}
+
+#[no_mangle]
+pub extern "C" fn pinker_saida_processo_stderr(handle: u64) -> *mut u8 {
+    com_saida_processo(handle, |saida| verso_alocar(&saida.stderr))
+}
+
 /// Constrói o `Command` comum a todas as famílias de processo, com a PATH
 /// saneada.
 ///
@@ -3307,6 +3376,53 @@ pub unsafe extern "C" fn pinker_entrada_tamanho_resultado(caminho: *const u8) ->
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parte_d_limite_tempo_preserva_discriminantes_da_abi_nativa() {
+        assert_eq!(PINKER_LIMITE_TEMPO_TAG_SEM_LIMITE, 0);
+        assert_eq!(PINKER_LIMITE_TEMPO_TAG_ATE, 1);
+    }
+
+    #[test]
+    fn parte_d_snapshot_nativo_e_imutavel_e_accessors_sao_tipados() {
+        let handle = registrar_saida_processo(SaidaProcessoNativa {
+            codigo: 17,
+            stdout: "saida".to_string(),
+            stderr: "erro".to_string(),
+        });
+        assert_eq!(pinker_saida_processo_codigo(handle), 17);
+        let stdout = pinker_saida_processo_stdout(handle);
+        let stderr = pinker_saida_processo_stderr(handle);
+        assert_eq!(unsafe { verso_str(stdout.cast_const()) }, "saida");
+        assert_eq!(unsafe { verso_str(stderr.cast_const()) }, "erro");
+        unsafe {
+            pinker_liberar(stdout);
+            pinker_liberar(stderr);
+        }
+    }
+
+    #[test]
+    fn parte_d_resultado_saida_processo_roundtrip_pela_abi_nativa() {
+        let handle = registrar_saida_processo(SaidaProcessoNativa {
+            codigo: 23,
+            stdout: "out".to_string(),
+            stderr: "err".to_string(),
+        });
+        let resultado = pinker_leque_criar_0(0);
+        let resultado = unsafe { pinker_leque_anexar(resultado, handle) };
+        assert_eq!(unsafe { pinker_leque_tag(resultado) }, 0);
+        let extraido = unsafe { pinker_leque_carga(resultado, 0, 0) };
+        assert_eq!(extraido, handle);
+        assert_eq!(pinker_saida_processo_codigo(extraido), 23);
+        let stdout = pinker_saida_processo_stdout(extraido);
+        let stderr = pinker_saida_processo_stderr(extraido);
+        assert_eq!(unsafe { verso_str(stdout.cast_const()) }, "out");
+        assert_eq!(unsafe { verso_str(stderr.cast_const()) }, "err");
+        unsafe {
+            pinker_liberar(stdout);
+            pinker_liberar(stderr);
+        }
+    }
 
     #[test]
     fn d7_pack_valida_count_size_e_limite_isize() {

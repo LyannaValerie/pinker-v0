@@ -43,9 +43,9 @@ pub enum EnumPayloadClass {
     ImmediateDiscriminant,
     /// `verso`: handle textual, com helper próprio desde a Fase 218.
     Verso,
-    /// Handle opaco de uma palavra: `lista<bombom>`, `lista<verso>` e
-    /// `lista<Leque>`. A cópia do handle é **rasa por contrato**, exatamente
-    /// como já ocorre com os demais handles opacos da linguagem.
+    /// Handle opaco de uma palavra. A classe descreve somente a representação;
+    /// `EnumPayloadShape::resolved` preserva qual família semântica ocupa essa
+    /// palavra (lista ou handle builtin nominal).
     OpaqueWordHandle,
 }
 
@@ -112,7 +112,13 @@ impl EnumPayloadShape {
             EnumPayloadClass::Verso => ANEXAR_VERSO,
             EnumPayloadClass::OpaqueWordHandle => match &self.resolved {
                 Type::ListVerso(_) => ANEXAR_LISTA_VERSO,
-                _ => ANEXAR_LISTA_BOMBOM,
+                Type::ListBombom(_) | Type::ListEnum { .. } => ANEXAR_LISTA_BOMBOM,
+                Type::OpaqueHandle { name, .. }
+                    if name == crate::saida_processo::TIPO_SAIDA_PROCESSO =>
+                {
+                    ANEXAR_SAIDA_PROCESSO
+                }
+                _ => unreachable!("classe de handle sem família semântica válida"),
             },
         }
     }
@@ -124,7 +130,13 @@ impl EnumPayloadShape {
             EnumPayloadClass::Verso => CARGA_VERSO,
             EnumPayloadClass::OpaqueWordHandle => match &self.resolved {
                 Type::ListVerso(_) => CARGA_LISTA_VERSO,
-                _ => CARGA_LISTA_BOMBOM,
+                Type::ListBombom(_) | Type::ListEnum { .. } => CARGA_LISTA_BOMBOM,
+                Type::OpaqueHandle { name, .. }
+                    if name == crate::saida_processo::TIPO_SAIDA_PROCESSO =>
+                {
+                    CARGA_SAIDA_PROCESSO
+                }
+                _ => unreachable!("classe de handle sem família semântica válida"),
             },
         }
     }
@@ -138,6 +150,8 @@ pub const ANEXAR_VERSO: &str = "__pinker_internal_leque_anexar_v";
 pub const ANEXAR_LISTA_BOMBOM: &str = "__pinker_internal_leque_anexar_lista_b";
 /// Intrínseca de anexo para handles de `lista<verso>`.
 pub const ANEXAR_LISTA_VERSO: &str = "__pinker_internal_leque_anexar_lista_v";
+/// Intrínseca de anexo para handles opacos nominais que não são listas.
+pub const ANEXAR_SAIDA_PROCESSO: &str = "__pinker_internal_leque_anexar_saida_processo";
 
 /// Intrínseca de extração para cargas imediatas (`bombom`, leque).
 pub const CARGA_IMEDIATO: &str = "__pinker_internal_leque_carga_b";
@@ -147,21 +161,25 @@ pub const CARGA_VERSO: &str = "__pinker_internal_leque_carga_v";
 pub const CARGA_LISTA_BOMBOM: &str = "__pinker_internal_leque_carga_lista_b";
 /// Intrínseca de extração para handles de `lista<verso>`.
 pub const CARGA_LISTA_VERSO: &str = "__pinker_internal_leque_carga_lista_v";
+/// Intrínseca de extração para handles opacos nominais que não são listas.
+pub const CARGA_SAIDA_PROCESSO: &str = "__pinker_internal_leque_carga_saida_processo";
 
 /// Todas as intrínsecas de extração de carga, em ordem estável.
-pub const CARGA_INTRINSICS: [&str; 4] = [
+pub const CARGA_INTRINSICS: [&str; 5] = [
     CARGA_IMEDIATO,
     CARGA_VERSO,
     CARGA_LISTA_BOMBOM,
     CARGA_LISTA_VERSO,
+    CARGA_SAIDA_PROCESSO,
 ];
 
 /// Todas as intrínsecas de anexo de carga, em ordem estável.
-pub const ANEXAR_INTRINSICS: [&str; 4] = [
+pub const ANEXAR_INTRINSICS: [&str; 5] = [
     ANEXAR_IMEDIATO,
     ANEXAR_VERSO,
     ANEXAR_LISTA_BOMBOM,
     ANEXAR_LISTA_VERSO,
+    ANEXAR_SAIDA_PROCESSO,
 ];
 
 /// Verdadeiro para qualquer intrínseca interna de extração de carga.
@@ -325,7 +343,9 @@ pub fn classify_enum_payload(
         // Todas as listas são handles opacos de uma palavra. `lista<verso>`
         // **não** é um `verso` e `lista<Leque>` **não** perde o elemento: as
         // três formas compartilham a classe e diferem na identidade.
-        Type::ListBombom(_) | Type::ListVerso(_) => EnumPayloadClass::OpaqueWordHandle,
+        Type::ListBombom(_) | Type::ListVerso(_) | Type::OpaqueHandle { .. } => {
+            EnumPayloadClass::OpaqueWordHandle
+        }
         Type::ListEnum { element, .. } => {
             if !enums.contains(element) {
                 return Err(EnumPayloadRejection::Unresolved(format!(

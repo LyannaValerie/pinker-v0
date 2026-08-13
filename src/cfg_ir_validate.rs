@@ -518,6 +518,20 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
             params: vec![TypeIR::Bombom, TypeIR::Bombom, TypeIR::Bombom],
         },
     );
+    function_sigs.insert(
+        crate::enum_payload::ANEXAR_SAIDA_PROCESSO.to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::Bombom,
+            params: vec![TypeIR::Bombom, TypeIR::OpaqueWordHandle],
+        },
+    );
+    function_sigs.insert(
+        crate::enum_payload::CARGA_SAIDA_PROCESSO.to_string(),
+        FunctionSigCfg {
+            ret_type: TypeIR::OpaqueWordHandle,
+            params: vec![TypeIR::Bombom, TypeIR::Bombom, TypeIR::Bombom],
+        },
+    );
     // Não há assinatura chamável de união: tag e extração são instruções CFG
     // tipadas (`UnionTag`/`UnionExtract`), nunca `Call`.
     function_sigs.insert(
@@ -711,12 +725,29 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
     );
     // Parte B: as superfícies falíveis devolvem um leque com carga, que na IR é
     // o handle de uma palavra — logo `bombom`, como qualquer outro leque.
-    for nome in crate::falha_operacional::nomes() {
+    for superficie in crate::falha_operacional::SUPERFICIES_FALIVEIS {
+        function_sigs.insert(
+            superficie.intrinseca.to_string(),
+            FunctionSigCfg {
+                ret_type: TypeIR::Bombom,
+                params: superficie
+                    .argumentos
+                    .iter()
+                    .map(|tipo| tipo.representacao_ir())
+                    .collect(),
+            },
+        );
+    }
+    for (nome, retorno) in [
+        (crate::saida_processo::ACESSOR_CODIGO, TypeIR::Bombom),
+        (crate::saida_processo::ACESSOR_SAIDA, TypeIR::Verso),
+        (crate::saida_processo::ACESSOR_ERRO, TypeIR::Verso),
+    ] {
         function_sigs.insert(
             nome.to_string(),
             FunctionSigCfg {
-                ret_type: TypeIR::Bombom,
-                params: vec![TypeIR::Verso],
+                ret_type: retorno,
+                params: vec![TypeIR::OpaqueWordHandle],
             },
         );
     }

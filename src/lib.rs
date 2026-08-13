@@ -1,6 +1,7 @@
 pub mod abstract_machine;
 pub mod abstract_machine_validate;
 pub mod agent;
+pub mod ambiente_processo;
 pub mod ast;
 pub mod automation;
 pub mod backend_s;
@@ -41,6 +42,7 @@ pub mod project_state;
 pub mod project_state_report;
 pub mod projection;
 pub mod repl;
+pub mod runtime_identity;
 pub mod saida_processo;
 pub mod semantic;
 pub mod symbol_index;

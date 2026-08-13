@@ -229,7 +229,7 @@ mod tests {
 
         assert!(a < b && b < c, "handles precisam ser monotônicos");
         assert_eq!(tabela.retidos(), 3, "nada é removido");
-        assert!(!PoliticaSnapshot::HANDLE_REUTILIZADO);
+        assert!(!std::hint::black_box(PoliticaSnapshot::HANDLE_REUTILIZADO));
     }
 
     /// Duas cópias do handle observam o MESMO snapshot.

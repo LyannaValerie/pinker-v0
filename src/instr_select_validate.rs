@@ -172,6 +172,14 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
         crate::enum_payload::CARGA_LISTA_VERSO.to_string(),
         TypeIR::ListVerso,
     );
+    sigs.insert(
+        crate::enum_payload::ANEXAR_SAIDA_PROCESSO.to_string(),
+        TypeIR::Bombom,
+    );
+    sigs.insert(
+        crate::enum_payload::CARGA_SAIDA_PROCESSO.to_string(),
+        TypeIR::OpaqueWordHandle,
+    );
     // União não tem intrínseca chamável: `UnionTag`/`UnionExtract` são
     // operações internas tipadas da seleção.
     sigs.insert("argumento".to_string(), TypeIR::Verso);
@@ -208,6 +216,18 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
     for nome in crate::falha_operacional::nomes() {
         sigs.insert(nome.to_string(), TypeIR::Bombom);
     }
+    sigs.insert(
+        crate::saida_processo::ACESSOR_CODIGO.to_string(),
+        TypeIR::Bombom,
+    );
+    sigs.insert(
+        crate::saida_processo::ACESSOR_SAIDA.to_string(),
+        TypeIR::Verso,
+    );
+    sigs.insert(
+        crate::saida_processo::ACESSOR_ERRO.to_string(),
+        TypeIR::Verso,
+    );
     sigs.insert("arquivo_ou".to_string(), TypeIR::Verso);
     sigs.insert("fechar".to_string(), TypeIR::Nulo);
     sigs.insert("criar_arquivo".to_string(), TypeIR::Bombom);

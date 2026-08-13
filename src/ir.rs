@@ -555,10 +555,22 @@ pub enum TypeIR {
     MapVersoVerso,
     MapBombomBombom,
     MapBombomVerso,
-    Map { key: MapKeyIR, value: MapValueIR },
-    FixedArray { element: ScalarTypeIR, size: u64 },
+    Map {
+        key: MapKeyIR,
+        value: MapValueIR,
+    },
+    FixedArray {
+        element: ScalarTypeIR,
+        size: u64,
+    },
     Struct,
-    Pointer { is_volatile: bool },
+    /// Handle opaco nominal: uma palavra na máquina; a identidade concreta
+    /// permanece em `ResolvedTypeTable`, como nas demais representações
+    /// fisicamente ambíguas.
+    OpaqueWordHandle,
+    Pointer {
+        is_volatile: bool,
+    },
     // Fase 245: endereço cru de código, uma palavra, distinto de Pointer de
     // dados e do handle `Function` das closures/callables.
     FunctionPointer,
@@ -929,6 +941,7 @@ pub struct ResolvedTypeId(pub u32);
 pub enum NominalTypeKindIR {
     Ninho,
     Leque,
+    OpaqueBuiltin,
 }
 
 impl NominalTypeKindIR {
@@ -936,6 +949,7 @@ impl NominalTypeKindIR {
         match self {
             NominalTypeKindIR::Ninho => "ninho",
             NominalTypeKindIR::Leque => "leque",
+            NominalTypeKindIR::OpaqueBuiltin => "handle opaco builtin",
         }
     }
 
@@ -943,6 +957,7 @@ impl NominalTypeKindIR {
         match kind {
             union_canon::NominalTypeKind::Ninho => NominalTypeKindIR::Ninho,
             union_canon::NominalTypeKind::Leque => NominalTypeKindIR::Leque,
+            union_canon::NominalTypeKind::OpaqueBuiltin => NominalTypeKindIR::OpaqueBuiltin,
         }
     }
 }
@@ -1114,6 +1129,9 @@ impl ResolvedTypeTable {
 /// nominal conhecida. `None` quando a chave é estrutural e a representação já é
 /// validada pelo próprio construtor.
 fn expected_representation_for_key(key: &str) -> Option<TypeIR> {
+    if key.starts_with("opaque:") {
+        return Some(TypeIR::OpaqueWordHandle);
+    }
     match key {
         "bombom" => Some(TypeIR::Bombom),
         "u8" => Some(TypeIR::U8),
@@ -1142,7 +1160,8 @@ fn expected_representation_for_key(key: &str) -> Option<TypeIR> {
 /// É a inversa exata de [`expected_representation_for_key`] e existe apenas para
 /// as representações cuja categoria operacional **já é** a identidade semântica
 /// completa (escalares, `verso`, listas e mapas monomórficos, `nulo`). Para
-/// `Struct`, `Pointer`, `Function`, `FunctionPointer` e `TraitObject` retorna
+/// `Struct`, `OpaqueWordHandle`, `Pointer`, `Function`, `FunctionPointer` e
+/// `TraitObject` retorna
 /// `None`: nesses casos a representação é ambígua por construção (HR4) e a
 /// identidade tem de vir do tipo AST resolvido.
 fn expected_key_for_representation(ty: TypeIR) -> Option<&'static str> {
@@ -1166,6 +1185,7 @@ fn expected_key_for_representation(ty: TypeIR) -> Option<&'static str> {
         TypeIR::MapBombomVerso => "mapa<bombom,verso>",
         TypeIR::Nulo => "nulo",
         TypeIR::Struct
+        | TypeIR::OpaqueWordHandle
         | TypeIR::Map { .. }
         | TypeIR::Pointer { .. }
         | TypeIR::FunctionPointer
@@ -1207,6 +1227,32 @@ fn builtin_sig(
         intern_representation_identity(table, ret_type).map_err(|msg| PinkerError::Ir {
             msg,
             span: Span::new(Position::new(1, 1), Position::new(1, 1)),
+        })?;
+    Ok(FunctionSigIR {
+        ret_type,
+        ret_resolved,
+    })
+}
+
+/// Assinatura builtin cuja representação não determina sozinha a identidade.
+fn builtin_nominal_sig(
+    table: &mut ResolvedTypeTable,
+    ty: Type,
+) -> Result<FunctionSigIR, PinkerError> {
+    let ret_type = TypeIR::from_ast_with_context(&ty, &HashMap::new(), &HashSet::new())?;
+    let ret_resolved = table
+        .intern(
+            union_canon::canonical_type_key(&ty),
+            ret_type,
+            ResolvedTypeParts {
+                nominal: union_canon::nominal_identity_of(&ty)
+                    .map(|(kind, name)| (NominalTypeKindIR::from_canon(kind), name)),
+                ..ResolvedTypeParts::default()
+            },
+        )
+        .map_err(|msg| PinkerError::Ir {
+            msg,
+            span: ty.span(),
         })?;
     Ok(FunctionSigIR {
         ret_type,
@@ -1293,9 +1339,24 @@ pub fn validate_resolved_type_table(resolved: &[ResolvedTypeIR]) -> Result<(), S
                     ));
                 }
             }
+            (Some(NominalTypeKindIR::OpaqueBuiltin), Some(name)) => {
+                if entry.representation != TypeIR::OpaqueWordHandle {
+                    return Err(format!(
+                        "identidade nominal de handle opaco builtin '{name}' com representação '{}'",
+                        entry.representation.name()
+                    ));
+                }
+                if entry.canonical_key != format!("opaque:{}:{name}", name.len()) {
+                    return Err(format!(
+                        "chave canônica '{}' não corresponde ao handle opaco builtin '{name}'",
+                        entry.canonical_key
+                    ));
+                }
+            }
             (None, None) => {
                 if entry.canonical_key.starts_with("struct:")
                     || entry.canonical_key.starts_with("enum:")
+                    || entry.canonical_key.starts_with("opaque:")
                 {
                     return Err(format!(
                         "identidade nominal ausente para a chave nominal '{}'",
@@ -2647,6 +2708,18 @@ impl LoweringContext {
             crate::enum_payload::CARGA_LISTA_VERSO.to_string(),
             builtin_sig(&mut resolved_types, TypeIR::ListVerso)?,
         );
+        function_sigs.insert(
+            crate::enum_payload::ANEXAR_SAIDA_PROCESSO.to_string(),
+            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
+        );
+        function_sigs.insert(
+            crate::enum_payload::CARGA_SAIDA_PROCESSO.to_string(),
+            builtin_nominal_sig(
+                &mut resolved_types,
+                crate::falha_operacional::CargaResultado::SaidaProcesso
+                    .tipo(crate::falha_operacional::span_sintetico()),
+            )?,
+        );
         // As uniões não registram intrínsecas chamáveis: tag e extração são
         // `ValueIR::UnionTag`/`ValueIR::UnionExtract`, nós tipados criados pelo
         // lowering de `Stmt::UnionMatch`.
@@ -2763,6 +2836,19 @@ impl LoweringContext {
             function_sigs.insert(
                 nome.to_string(),
                 builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
+            );
+        }
+        function_sigs.insert(
+            crate::saida_processo::ACESSOR_CODIGO.to_string(),
+            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
+        );
+        for nome in [
+            crate::saida_processo::ACESSOR_SAIDA,
+            crate::saida_processo::ACESSOR_ERRO,
+        ] {
+            function_sigs.insert(
+                nome.to_string(),
+                builtin_sig(&mut resolved_types, TypeIR::Verso)?,
             );
         }
         function_sigs.insert(
@@ -3291,6 +3377,7 @@ impl LoweringContext {
                 )
             }
             TypeIR::Struct
+            | TypeIR::OpaqueWordHandle
             | TypeIR::Map { .. }
             | TypeIR::Pointer { .. }
             | TypeIR::FunctionPointer
@@ -4198,6 +4285,7 @@ impl<'a> FunctionLowerer<'a> {
             | TypeIR::MapBombomBombom
             | TypeIR::MapBombomVerso
             | TypeIR::Map { .. }
+            | TypeIR::OpaqueWordHandle
             | TypeIR::Pointer { .. }
             | TypeIR::Function
             | TypeIR::Union(_)
@@ -7569,6 +7657,7 @@ impl TypeIR {
             }),
             Type::Nulo(_) => Ok(TypeIR::Nulo),
             Type::Struct { .. } => Ok(TypeIR::Struct),
+            Type::OpaqueHandle { .. } => Ok(TypeIR::OpaqueWordHandle),
             Type::Alias { name, span } => {
                 if struct_names.contains(name) {
                     return Ok(TypeIR::Struct);
@@ -7634,6 +7723,7 @@ impl TypeIR {
             TypeIR::Map { .. } => "mapa",
             TypeIR::FixedArray { .. } => "array",
             TypeIR::Struct => "struct",
+            TypeIR::OpaqueWordHandle => "handle opaco",
             TypeIR::Pointer { .. } => "seta",
             TypeIR::Function => "carinho",
             TypeIR::FunctionPointer => "seta<carinho>",
@@ -7656,6 +7746,7 @@ impl TypeIR {
                 }
             }
             TypeIR::Struct => "struct".to_string(),
+            TypeIR::OpaqueWordHandle => "handle opaco".to_string(),
             TypeIR::TraitObject => "trato<?>".to_string(),
             TypeIR::Union(id) => format!("uniao#{}", id.0),
             TypeIR::ListBombom => "lista<bombom>".to_string(),
@@ -7701,6 +7792,7 @@ impl ScalarTypeIR {
             | TypeIR::FixedArray { .. }
             | TypeIR::Union(_)
             | TypeIR::Struct
+            | TypeIR::OpaqueWordHandle
             | TypeIR::Pointer { .. }
             | TypeIR::Function
             | TypeIR::FunctionPointer

@@ -442,6 +442,24 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
         ),
     );
     sigs.insert(
+        crate::enum_payload::ANEXAR_SAIDA_PROCESSO.to_string(),
+        (
+            TypeIR::Bombom,
+            vec![StackValueType::Bombom, StackValueType::Unknown],
+        ),
+    );
+    sigs.insert(
+        crate::enum_payload::CARGA_SAIDA_PROCESSO.to_string(),
+        (
+            TypeIR::OpaqueWordHandle,
+            vec![
+                StackValueType::Bombom,
+                StackValueType::Bombom,
+                StackValueType::Bombom,
+            ],
+        ),
+    );
+    sigs.insert(
         "__pinker_internal_leque_carga_v".to_string(),
         (
             TypeIR::Verso,
@@ -586,11 +604,34 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
         (TypeIR::Verso, vec![StackValueType::Verso]),
     );
     // Parte B: leque com carga é handle de uma palavra na máquina de pilha.
-    for nome in crate::falha_operacional::nomes() {
+    for superficie in crate::falha_operacional::SUPERFICIES_FALIVEIS {
         sigs.insert(
-            nome.to_string(),
-            (TypeIR::Bombom, vec![StackValueType::Verso]),
+            superficie.intrinseca.to_string(),
+            (
+                TypeIR::Bombom,
+                superficie
+                    .argumentos
+                    .iter()
+                    .map(|tipo| type_to_stack(tipo.representacao_ir()))
+                    .collect(),
+            ),
         );
+    }
+    for (nome, retorno) in [
+        (
+            crate::saida_processo::ACESSOR_CODIGO,
+            (TypeIR::Bombom, StackValueType::Bombom),
+        ),
+        (
+            crate::saida_processo::ACESSOR_SAIDA,
+            (TypeIR::Verso, StackValueType::Verso),
+        ),
+        (
+            crate::saida_processo::ACESSOR_ERRO,
+            (TypeIR::Verso, StackValueType::Verso),
+        ),
+    ] {
+        sigs.insert(nome.to_string(), (retorno.0, vec![StackValueType::Unknown]));
     }
     sigs.insert(
         "arquivo_ou".to_string(),
@@ -2095,6 +2136,7 @@ fn type_to_stack(ty: TypeIR) -> StackValueType {
         TypeIR::Map { .. } => StackValueType::Unknown,
         TypeIR::FixedArray { .. } => StackValueType::Unknown,
         TypeIR::Struct => StackValueType::Unknown,
+        TypeIR::OpaqueWordHandle => StackValueType::Unknown,
         TypeIR::Pointer { .. } => StackValueType::Unknown,
         TypeIR::Function => StackValueType::Unknown,
         TypeIR::FunctionPointer => StackValueType::Unknown,

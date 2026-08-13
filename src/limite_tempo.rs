@@ -79,6 +79,51 @@ pub const TAG_SEM_LIMITE: u64 = 0;
 /// Discriminante de [`LimiteTempo::Ate`].
 pub const TAG_ATE: u64 = 1;
 
+/// Contrato explícito para SemLimite quando descendentes herdam os pipes.
+///
+/// O escopo de execução continua sendo o filho direto, porém captura completa
+/// requer EOF dos dois pipes. Logo, depois que o filho direto termina, um
+/// descendente que mantenha um write-end aberto pode manter a operação
+/// aguardando indefinidamente. Isso é semântica deliberada, não efeito
+/// acidental de uma futura implementação por poll.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PoliticaPipeDescendenteSemLimite {
+    pub unlimited_descendant_pipe_behavior: ComportamentoPipeDescendente,
+    pub completion_condition: CondicaoConclusaoCaptura,
+    pub captured_output_scope: EscopoSaidaCapturada,
+    pub direct_child_scope_relation: RelacaoEscopoFilhoDireto,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ComportamentoPipeDescendente {
+    PodeEsperarIndefinidamente,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CondicaoConclusaoCaptura {
+    FilhoDiretoReapadoEStdoutStderrEmEof,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EscopoSaidaCapturada {
+    BytesRecebidosNosPipesHerdadosAteEof,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RelacaoEscopoFilhoDireto {
+    ExecucaoSoDoFilhoDiretoCapturaPodeSerProlongadaPorDescendentes,
+}
+
+pub const POLITICA_PIPE_DESCENDENTE_SEM_LIMITE: PoliticaPipeDescendenteSemLimite =
+    PoliticaPipeDescendenteSemLimite {
+        unlimited_descendant_pipe_behavior:
+            ComportamentoPipeDescendente::PodeEsperarIndefinidamente,
+        completion_condition: CondicaoConclusaoCaptura::FilhoDiretoReapadoEStdoutStderrEmEof,
+        captured_output_scope: EscopoSaidaCapturada::BytesRecebidosNosPipesHerdadosAteEof,
+        direct_child_scope_relation:
+            RelacaoEscopoFilhoDireto::ExecucaoSoDoFilhoDiretoCapturaPodeSerProlongadaPorDescendentes,
+    };
+
 impl LimiteTempo {
     /// Discriminante da variante: seu índice de declaração em [`VARIANTES`].
     pub fn discriminante(self) -> u64 {
@@ -138,7 +183,10 @@ mod tests {
     fn zero_e_expiracao_imediata_nao_ausencia_de_limite() {
         assert!(LimiteTempo::Ate(0).expira_imediatamente());
         assert!(!LimiteTempo::SemLimite.expira_imediatamente());
-        assert_eq!(LimiteTempo::Ate(0).duracao(), Some(std::time::Duration::ZERO));
+        assert_eq!(
+            LimiteTempo::Ate(0).duracao(),
+            Some(std::time::Duration::ZERO)
+        );
         assert_eq!(LimiteTempo::SemLimite.duracao(), None);
     }
 
@@ -153,5 +201,22 @@ mod tests {
             Some(LimiteTempo::Ate(250))
         );
         assert_eq!(LimiteTempo::de_discriminante(2, 0), None);
+    }
+
+    #[test]
+    fn sem_limite_com_descendente_que_mantem_pipe_aberto_pode_esperar_indefinidamente() {
+        assert_eq!(
+            POLITICA_PIPE_DESCENDENTE_SEM_LIMITE,
+            PoliticaPipeDescendenteSemLimite {
+                unlimited_descendant_pipe_behavior:
+                    ComportamentoPipeDescendente::PodeEsperarIndefinidamente,
+                completion_condition:
+                    CondicaoConclusaoCaptura::FilhoDiretoReapadoEStdoutStderrEmEof,
+                captured_output_scope:
+                    EscopoSaidaCapturada::BytesRecebidosNosPipesHerdadosAteEof,
+                direct_child_scope_relation:
+                    RelacaoEscopoFilhoDireto::ExecucaoSoDoFilhoDiretoCapturaPodeSerProlongadaPorDescendentes,
+            }
+        );
     }
 }
