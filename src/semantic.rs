@@ -166,9 +166,10 @@ impl SemanticChecker {
 
     fn type_key(ty: &Type) -> String {
         match ty {
-            Type::Alias { name, .. } | Type::Struct { name, .. } | Type::Enum { name, .. } => {
-                name.clone()
-            }
+            Type::Alias { name, .. }
+            | Type::Struct { name, .. }
+            | Type::OpaqueHandle { name, .. }
+            | Type::Enum { name, .. } => name.clone(),
             Type::Function { params, ret, .. } => {
                 let params = params
                     .iter()
@@ -217,7 +218,8 @@ impl SemanticChecker {
             | Type::Enum { .. }
             | Type::Union { .. }
             | Type::Pointer { .. }
-            | Type::Function { .. } => true,
+            | Type::Function { .. }
+            | Type::OpaqueHandle { .. } => true,
             Type::Applied { .. } => Self::trait_object_name(ty).is_some(),
             Type::Nulo(_) => allow_nulo,
             Type::FixedArray { .. } | Type::Struct { .. } | Type::Alias { .. } => false,
@@ -363,6 +365,10 @@ impl SemanticChecker {
             (Type::Struct { name: lhs_name, .. }, Type::Struct { name: rhs_name, .. }) => {
                 lhs_name == rhs_name
             }
+            (
+                Type::OpaqueHandle { name: lhs_name, .. },
+                Type::OpaqueHandle { name: rhs_name, .. },
+            ) => lhs_name == rhs_name,
             (Type::Enum { name: lhs_name, .. }, Type::Enum { name: rhs_name, .. }) => {
                 lhs_name == rhs_name
             }
@@ -2189,8 +2195,8 @@ impl SemanticChecker {
                                     msg: format!(
                                         "tipo de inicialização incompatível para '{}': esperado '{}', encontrado '{}'",
                                         let_stmt.name,
-                                        resolved_declared_ty.name(),
-                                        init_ty.name()
+                                        resolved_declared_ty.display_name(),
+                                        init_ty.display_name()
                                     ),
                                     span: let_stmt.init.span,
                                 });
@@ -7030,9 +7036,7 @@ impl SemanticChecker {
             }
             return Ok(Type::Verso(expr_span));
         }
-        // Parte B: superfícies falíveis. Todas recebem um `verso` e devolvem a
-        // especialização de `Resultado<T,E>` declarada pela autoridade única,
-        // então a checagem é uma só — não uma cópia por intrínseca.
+        // Superfícies falíveis: assinatura e retorno vêm da autoridade única.
         if let Some(superficie) = crate::falha_operacional::superficie(name) {
             // Parte B1: esta chamada produz uma tag cujo significado vem da
             // taxonomia do leque materializado. Aqui o programa já está
@@ -7042,6 +7046,40 @@ impl SemanticChecker {
             // continua sendo a mesma da conjunção do parser: só é verificada
             // porque o programa realmente produz o valor.
             self.check_runtime_result_identity(superficie, expr_span)?;
+            if args.len() != superficie.aridade() {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de '{}' com aridade inválida: esperado {}, recebido {}",
+                        name,
+                        superficie.aridade(),
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            for (index, (arg, esperado)) in
+                args.iter().zip(superficie.argumentos.iter()).enumerate()
+            {
+                let arg_ty = self.check_value_expr(
+                    arg,
+                    "resultado de função sem retorno não pode ser usado como argumento",
+                )?;
+                if !esperado.aceita(&arg_ty) {
+                    return Err(PinkerError::Semantic {
+                        msg: format!(
+                            "tipo inválido no argumento {} da chamada '{}': esperado '{}', encontrado '{}'",
+                            index + 1,
+                            name,
+                            esperado.chave(),
+                            arg_ty.display_name()
+                        ),
+                        span: arg.span,
+                    });
+                }
+            }
+            return Ok(superficie.tipo_de_retorno(expr_span));
+        }
+        if crate::saida_processo::e_acessor(name) {
             if args.len() != 1 {
                 return Err(PinkerError::Semantic {
                     msg: format!(
@@ -7056,18 +7094,29 @@ impl SemanticChecker {
                 &args[0],
                 "resultado de função sem retorno não pode ser usado como argumento",
             )?;
-            if !superficie.argumento.aceita(&arg_ty) {
+            if !matches!(
+                arg_ty,
+                Type::OpaqueHandle {
+                    name: ref handle_name,
+                    ..
+                } if handle_name == crate::saida_processo::TIPO_SAIDA_PROCESSO
+            ) {
                 return Err(PinkerError::Semantic {
                     msg: format!(
-                        "tipo inválido no argumento 1 da chamada '{}': esperado '{}', encontrado '{}'",
+                        "tipo inválido no argumento 1 da chamada '{}': esperado 'SaidaProcesso', encontrado '{}'",
                         name,
-                        superficie.argumento.chave(),
-                        arg_ty.name()
+                        arg_ty.display_name()
                     ),
                     span: args[0].span,
                 });
             }
-            return Ok(superficie.tipo_de_retorno(expr_span));
+            return Ok(match name.as_str() {
+                crate::saida_processo::ACESSOR_CODIGO => Type::Bombom(expr_span),
+                crate::saida_processo::ACESSOR_SAIDA | crate::saida_processo::ACESSOR_ERRO => {
+                    Type::Verso(expr_span)
+                }
+                _ => unreachable!(),
+            });
         }
         if name == "ler_arquivo_verso" {
             if args.len() != 1 {

@@ -82,6 +82,10 @@ pub enum CargaResultado {
     /// de lista já existia desde a D1; aqui ela só passa a ser nomeável pela
     /// autoridade.
     ListaVerso,
+    /// Mapa de ambiente `verso -> verso`, transportado por handle.
+    MapaVersoVerso,
+    /// Snapshot estruturado de processo, handle opaco nominal de uma palavra.
+    SaidaProcesso,
     /// Outro leque, nomeado, transportado como discriminante de uma palavra.
     ///
     /// Parte C: a carga de sucesso da classificação de entrada. O leque
@@ -91,12 +95,27 @@ pub enum CargaResultado {
 }
 
 impl CargaResultado {
+    /// Representação operacional publicada para as autoridades de pipeline.
+    pub fn representacao_ir(self) -> crate::ir::TypeIR {
+        match self {
+            CargaResultado::Bombom | CargaResultado::Leque(_) => crate::ir::TypeIR::Bombom,
+            CargaResultado::Verso => crate::ir::TypeIR::Verso,
+            CargaResultado::ListaVerso => crate::ir::TypeIR::ListVerso,
+            CargaResultado::MapaVersoVerso => crate::ir::TypeIR::MapVersoVerso,
+            CargaResultado::SaidaProcesso => crate::ir::TypeIR::OpaqueWordHandle,
+        }
+    }
     /// Tipo AST correspondente, com o span do uso.
     pub fn tipo(self, span: Span) -> Type {
         match self {
             CargaResultado::Bombom => Type::Bombom(span),
             CargaResultado::Verso => Type::Verso(span),
             CargaResultado::ListaVerso => Type::ListVerso(span),
+            CargaResultado::MapaVersoVerso => Type::MapVersoVerso(span),
+            CargaResultado::SaidaProcesso => Type::OpaqueHandle {
+                name: crate::saida_processo::TIPO_SAIDA_PROCESSO.to_string(),
+                span,
+            },
             CargaResultado::Leque(nome) => Type::Enum {
                 name: nome.to_string(),
                 span,
@@ -114,6 +133,8 @@ impl CargaResultado {
             CargaResultado::Bombom => "bombom",
             CargaResultado::Verso => "verso",
             CargaResultado::ListaVerso => "lista_verso",
+            CargaResultado::MapaVersoVerso => "mapa_verso_verso",
+            CargaResultado::SaidaProcesso => crate::saida_processo::TIPO_SAIDA_PROCESSO,
             CargaResultado::Leque(nome) => nome,
         }
     }
@@ -146,7 +167,11 @@ impl CargaResultado {
     pub fn leque_exigido(self) -> Option<&'static str> {
         match self {
             CargaResultado::Leque(nome) => Some(nome),
-            CargaResultado::Bombom | CargaResultado::Verso | CargaResultado::ListaVerso => None,
+            CargaResultado::Bombom
+            | CargaResultado::Verso
+            | CargaResultado::ListaVerso
+            | CargaResultado::MapaVersoVerso
+            | CargaResultado::SaidaProcesso => None,
         }
     }
 
@@ -159,6 +184,10 @@ impl CargaResultado {
             (CargaResultado::Bombom, Type::Bombom(_)) => true,
             (CargaResultado::Verso, Type::Verso(_)) => true,
             (CargaResultado::ListaVerso, Type::ListVerso(_)) => true,
+            (CargaResultado::MapaVersoVerso, Type::MapVersoVerso(_)) => true,
+            (CargaResultado::SaidaProcesso, Type::OpaqueHandle { name, .. }) => {
+                name == crate::saida_processo::TIPO_SAIDA_PROCESSO
+            }
             (CargaResultado::Leque(nome), Type::Enum { name, .. }) => nome == name,
             _ => false,
         }
@@ -188,6 +217,8 @@ pub enum OperacaoFalivel {
     ClassificarEntrada,
     /// Parte C: mede o tamanho de uma entrada sem seguir symlink.
     MedirEntrada,
+    /// Parte D: executa uma vez e devolve snapshot estruturado.
+    ExecutarProcessoEstruturado,
 }
 
 /// Uma superfície que devolve falha operacional recuperável como valor.
@@ -201,12 +232,10 @@ pub struct SuperficieFalivel {
     pub intrinseca: &'static str,
     /// Identidade operacional despachada pelo interpretador.
     pub operacao: OperacaoFalivel,
-    /// Tipo do único argumento aceito.
+    /// Assinatura completa dos argumentos, em ordem.
     ///
-    /// A Parte B só abre superfícies de um argumento; a exigência mora aqui em
-    /// vez de ser reafirmada por cada camada. Ampliar assinaturas é decisão de
-    /// outra frente, não desta.
-    pub argumento: CargaResultado,
+    /// Aridade e tipos são derivados deste único dado por todas as camadas.
+    pub argumentos: &'static [CargaResultado],
     /// Carga da variante `Ok`.
     pub sucesso: CargaResultado,
     /// Carga da variante `Erro`. Hoje sempre `verso`.
@@ -226,6 +255,10 @@ pub struct SuperficieFalivel {
 }
 
 impl SuperficieFalivel {
+    pub fn aridade(&self) -> usize {
+        self.argumentos.len()
+    }
+
     /// Nome monomórfico do leque devolvido, p. ex.
     /// `__gen_leque_Resultado_verso_verso`.
     ///
@@ -314,6 +347,15 @@ impl SuperficieFalivel {
         vec![self.sucesso.tipo(span), self.falha.tipo(span)]
     }
 
+    /// Leques builtin necessários pela assinatura ou pelas cargas do resultado.
+    pub fn leques_exigidos(&self) -> impl Iterator<Item = &'static str> + '_ {
+        self.argumentos
+            .iter()
+            .copied()
+            .chain([self.sucesso, self.falha])
+            .filter_map(CargaResultado::leque_exigido)
+    }
+
     /// Tipo devolvido pela intrínseca, do ponto de vista da semântica.
     pub fn tipo_de_retorno(&self, span: Span) -> Type {
         Type::Enum {
@@ -330,11 +372,23 @@ pub fn span_sintetico() -> Span {
     Span::single(Position::new(0, 0))
 }
 
+const ASSINATURA_VERSO: &[CargaResultado] = &[CargaResultado::Verso];
+const ASSINATURA_PROCESSO_ESTRUTURADO: &[CargaResultado] = &[
+    CargaResultado::Verso,
+    CargaResultado::ListaVerso,
+    CargaResultado::Verso,
+    CargaResultado::Verso,
+    CargaResultado::MapaVersoVerso,
+    CargaResultado::Leque(crate::limite_tempo::LEQUE_LIMITE_TEMPO),
+];
+
 /// Lista fechada das superfícies falíveis.
 ///
 /// Três domínios independentes atravessam o mesmo fluxo de erro: filesystem,
 /// processo/spawn e parsing em tempo de execução. A independência é o ponto —
 /// uma única operação falível não provaria que o mecanismo é geral.
+pub const EXECUTAR_PROCESSO_ESTRUTURADO: &str = "executar_processo_estruturado";
+
 pub const SUPERFICIES_FALIVEIS: &[SuperficieFalivel] = &[
     // Filesystem: leitura de arquivo inteiro por caminho.
     // Não abre handle visível ao usuário, logo uma falha não pode deixar
@@ -342,7 +396,7 @@ pub const SUPERFICIES_FALIVEIS: &[SuperficieFalivel] = &[
     SuperficieFalivel {
         intrinseca: "ler_arquivo_resultado",
         operacao: OperacaoFalivel::LerArquivoPorCaminho,
-        argumento: CargaResultado::Verso,
+        argumentos: ASSINATURA_VERSO,
         sucesso: CargaResultado::Verso,
         falha: CargaResultado::Verso,
         simbolo_runtime: "pinker_arquivo_ler_caminho_resultado",
@@ -354,7 +408,7 @@ pub const SUPERFICIES_FALIVEIS: &[SuperficieFalivel] = &[
     SuperficieFalivel {
         intrinseca: "executar_processo_resultado",
         operacao: OperacaoFalivel::ExecutarProcesso,
-        argumento: CargaResultado::Verso,
+        argumentos: ASSINATURA_VERSO,
         sucesso: CargaResultado::Bombom,
         falha: CargaResultado::Verso,
         simbolo_runtime: "pinker_processo_executar_resultado",
@@ -365,7 +419,7 @@ pub const SUPERFICIES_FALIVEIS: &[SuperficieFalivel] = &[
     SuperficieFalivel {
         intrinseca: "verso_para_bombom_resultado",
         operacao: OperacaoFalivel::ConverterVersoParaBombom,
-        argumento: CargaResultado::Verso,
+        argumentos: ASSINATURA_VERSO,
         sucesso: CargaResultado::Bombom,
         falha: CargaResultado::Verso,
         simbolo_runtime: "pinker_verso_para_bombom_resultado",
@@ -379,7 +433,7 @@ pub const SUPERFICIES_FALIVEIS: &[SuperficieFalivel] = &[
     SuperficieFalivel {
         intrinseca: "listar_diretorio",
         operacao: OperacaoFalivel::EnumerarDiretorio,
-        argumento: CargaResultado::Verso,
+        argumentos: ASSINATURA_VERSO,
         sucesso: CargaResultado::ListaVerso,
         falha: CargaResultado::Verso,
         simbolo_runtime: "pinker_diretorio_listar_resultado",
@@ -392,7 +446,7 @@ pub const SUPERFICIES_FALIVEIS: &[SuperficieFalivel] = &[
     SuperficieFalivel {
         intrinseca: "tipo_de_entrada",
         operacao: OperacaoFalivel::ClassificarEntrada,
-        argumento: CargaResultado::Verso,
+        argumentos: ASSINATURA_VERSO,
         sucesso: CargaResultado::Leque(crate::tipo_entrada::LEQUE_TIPO_ENTRADA),
         falha: CargaResultado::Verso,
         simbolo_runtime: "pinker_entrada_tipo_resultado",
@@ -405,10 +459,19 @@ pub const SUPERFICIES_FALIVEIS: &[SuperficieFalivel] = &[
     SuperficieFalivel {
         intrinseca: "tamanho_de_entrada",
         operacao: OperacaoFalivel::MedirEntrada,
-        argumento: CargaResultado::Verso,
+        argumentos: ASSINATURA_VERSO,
         sucesso: CargaResultado::Bombom,
         falha: CargaResultado::Verso,
         simbolo_runtime: "pinker_entrada_tamanho_resultado",
+        historica: None,
+    },
+    SuperficieFalivel {
+        intrinseca: EXECUTAR_PROCESSO_ESTRUTURADO,
+        operacao: OperacaoFalivel::ExecutarProcessoEstruturado,
+        argumentos: ASSINATURA_PROCESSO_ESTRUTURADO,
+        sucesso: CargaResultado::SaidaProcesso,
+        falha: CargaResultado::Verso,
+        simbolo_runtime: "pinker_processo_executar_estruturado",
         historica: None,
     },
 ];

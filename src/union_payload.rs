@@ -308,6 +308,7 @@ fn classify_representation(
         | Type::Map { .. }
         | Type::Pointer { .. }
         | Type::Function { .. }
+        | Type::OpaqueHandle { .. }
         | Type::Union { .. } => Ok(UnionPayloadRepresentation::OpaqueHandle),
 
         // Agregados com layout estático. Os componentes são classificados para

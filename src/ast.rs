@@ -420,6 +420,15 @@ pub enum Type {
         name: String,
         span: Span,
     },
+    /// Handle opaco builtin com identidade nominal própria.
+    ///
+    /// A representação física é uma palavra, mas o nome participa da
+    /// identidade semântica: dois handles opacos não são intercambiáveis só
+    /// porque ocupam o mesmo espaço na máquina.
+    OpaqueHandle {
+        name: String,
+        span: Span,
+    },
     Enum {
         name: String,
         span: Span,
@@ -486,6 +495,7 @@ impl PartialEq for Type {
             ) => b1 == b2 && v1 == v2,
             (Type::Alias { name: n1, .. }, Type::Alias { name: n2, .. }) => n1 == n2,
             (Type::Struct { name: n1, .. }, Type::Struct { name: n2, .. }) => n1 == n2,
+            (Type::OpaqueHandle { name: n1, .. }, Type::OpaqueHandle { name: n2, .. }) => n1 == n2,
             (Type::Enum { name: n1, .. }, Type::Enum { name: n2, .. }) => n1 == n2,
             (Type::Union { members: m1, .. }, Type::Union { members: m2, .. }) => m1 == m2,
             (
@@ -547,6 +557,7 @@ impl Type {
             | Type::Nulo(span) => *span,
             Type::Alias { span, .. }
             | Type::Struct { span, .. }
+            | Type::OpaqueHandle { span, .. }
             | Type::Enum { span, .. }
             | Type::Union { span, .. }
             | Type::Applied { span, .. }
@@ -583,6 +594,7 @@ impl Type {
             Type::Function { .. } => "carinho",
             Type::Alias { .. } => "alias",
             Type::Struct { .. } => "struct",
+            Type::OpaqueHandle { .. } => "handle opaco",
             Type::Enum { .. } => "leque",
             Type::Union { .. } => "uniao",
             Type::Applied { .. } => "tipo aplicado",
@@ -603,9 +615,10 @@ impl Type {
                 format!("mapa<{},{}>", key.display_name(), value.display_name())
             }
             Type::ListEnum { element, .. } => format!("lista<{element}>"),
-            Type::Enum { name, .. } | Type::Struct { name, .. } | Type::Alias { name, .. } => {
-                name.clone()
-            }
+            Type::Enum { name, .. }
+            | Type::Struct { name, .. }
+            | Type::OpaqueHandle { name, .. }
+            | Type::Alias { name, .. } => name.clone(),
             other => other.name().to_string(),
         }
     }
@@ -656,6 +669,10 @@ impl Type {
                 span,
             },
             Type::Struct { name, .. } => Type::Struct {
+                name: name.clone(),
+                span,
+            },
+            Type::OpaqueHandle { name, .. } => Type::OpaqueHandle {
                 name: name.clone(),
                 span,
             },

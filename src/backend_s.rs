@@ -3522,6 +3522,9 @@ fn is_external_param_type(ty: &TypeIR) -> bool {
         || *ty == TypeIR::MapBombomBombom
         || *ty == TypeIR::MapBombomVerso
         || matches!(ty, TypeIR::Map { .. })
+        // Handles opacos são uma palavra na ABI, mas preservam sua identidade
+        // nominal nas autoridades anteriores ao backend.
+        || *ty == TypeIR::OpaqueWordHandle
         || *ty == TypeIR::Struct
         || *ty == TypeIR::Pointer { is_volatile: false }
         || *ty == TypeIR::Function
@@ -3558,6 +3561,7 @@ fn is_external_raw_call_type(ty: &TypeIR) -> bool {
                 | TypeIR::MapBombomBombom
                 | TypeIR::MapBombomVerso
                 | TypeIR::Map { .. }
+                | TypeIR::OpaqueWordHandle
                 | TypeIR::Pointer { .. }
                 | TypeIR::Function
                 | TypeIR::FunctionPointer
@@ -3609,6 +3613,7 @@ fn is_external_ret_type(ty: &TypeIR) -> bool {
                 | TypeIR::MapBombomBombom
                 | TypeIR::MapBombomVerso
                 | TypeIR::Map { .. }
+                | TypeIR::OpaqueWordHandle
                 | TypeIR::Pointer { .. }
                 | TypeIR::Function
                 | TypeIR::FunctionPointer
@@ -3632,6 +3637,9 @@ fn is_external_call_ret_type(ty: &TypeIR) -> bool {
 /// Intrínsecas de aridade variável (Fases 219/B8 e 221/B10): o símbolo do
 /// runtime é escolhido pela quantidade de argumentos no call site.
 fn runtime_intrinsic_symbol_por_aridade(callee: &str, argc: usize) -> Option<String> {
+    if let Some(superficie) = crate::falha_operacional::superficie(callee) {
+        return (argc == superficie.aridade()).then(|| superficie.simbolo_runtime.to_string());
+    }
     match (callee, argc) {
         ("executar_processo", 1 | 2) => Some(format!("pinker_processo_executar_{}", argc)),
         ("capturar_stdout", 1 | 2) => Some(format!("pinker_processo_capturar_stdout_{}", argc)),
@@ -3642,10 +3650,11 @@ fn runtime_intrinsic_symbol_por_aridade(callee: &str, argc: usize) -> Option<Str
 }
 
 fn is_arity_runtime_intrinsic(callee: &str) -> bool {
-    matches!(
-        callee,
-        "executar_processo" | "capturar_stdout" | "capturar_stderr" | "executar_com_entrada"
-    )
+    crate::falha_operacional::superficie(callee).is_some()
+        || matches!(
+            callee,
+            "executar_processo" | "capturar_stdout" | "capturar_stderr" | "executar_com_entrada"
+        )
 }
 // @pinker-nav:end backend-s.runtime.intrinsecas-por-aridade
 
@@ -3759,11 +3768,9 @@ fn runtime_intrinsic_symbol(callee: &str) -> Option<&'static str> {
         "truncar_arquivo" => Some("pinker_arquivo_truncar"),
         "anexar_verso" => Some("pinker_arquivo_anexar_verso"),
         "ler_arquivo_verso" => Some("pinker_arquivo_ler_caminho_verso"),
-        // Parte B: o símbolo vem da autoridade única das superfícies falíveis,
-        // nunca de uma string repetida aqui.
-        nome if crate::falha_operacional::superficie(nome).is_some() => {
-            crate::falha_operacional::superficie(nome).map(|s| s.simbolo_runtime)
-        }
+        "processo_codigo" => Some("pinker_saida_processo_codigo"),
+        "processo_saida" => Some("pinker_saida_processo_stdout"),
+        "processo_erro" => Some("pinker_saida_processo_stderr"),
         "arquivo_ou" => Some("pinker_arquivo_ou"),
         "copiar_arquivo" => Some("pinker_arquivo_copiar"),
         "renomear_arquivo" => Some("pinker_arquivo_renomear"),
@@ -3805,12 +3812,14 @@ fn runtime_intrinsic_symbol(callee: &str) -> Option<&'static str> {
         "__pinker_internal_leque_anexar_b"
         | "__pinker_internal_leque_anexar_v"
         | "__pinker_internal_leque_anexar_lista_b"
-        | "__pinker_internal_leque_anexar_lista_v" => Some("pinker_leque_anexar"),
+        | "__pinker_internal_leque_anexar_lista_v"
+        | "__pinker_internal_leque_anexar_saida_processo" => Some("pinker_leque_anexar"),
         "__pinker_internal_leque_tag" => Some("pinker_leque_tag"),
         "__pinker_internal_leque_carga_b"
         | "__pinker_internal_leque_carga_v"
         | "__pinker_internal_leque_carga_lista_b"
-        | "__pinker_internal_leque_carga_lista_v" => Some("pinker_leque_carga"),
+        | "__pinker_internal_leque_carga_lista_v"
+        | "__pinker_internal_leque_carga_saida_processo" => Some("pinker_leque_carga"),
         // As uniões não passam por este mapeamento: `union_tag` e
         // `union_extract` são operações internas tipadas, e o símbolo
         // (`pinker_uniao_tag`/`pinker_uniao_payload_b`/`..._v`) é escolhido

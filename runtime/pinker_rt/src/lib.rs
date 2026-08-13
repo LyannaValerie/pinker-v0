@@ -19,6 +19,7 @@ use pinker_memory_contract::{
     PublicMemoryBudget, PublicMemoryLimits, PUBLIC_MEMORY_LIMITS,
 };
 use std::alloc::{alloc, dealloc, Layout};
+use std::io::{self, Read, Write};
 use std::sync::atomic::{AtomicI64, AtomicUsize, Ordering};
 use std::sync::Once;
 
@@ -2138,7 +2139,7 @@ pub unsafe extern "C" fn pinker_uniao_copiar_payload(
 // ---------------------------------------------------------------------------
 
 use std::collections::HashMap;
-use std::io::{Read as _, Seek as _, Write as _};
+use std::io::Seek as _;
 use std::sync::{Mutex, OnceLock};
 
 // @pinker-nav:start runtime.arquivos.io
@@ -2779,8 +2780,795 @@ pub unsafe extern "C" fn pinker_ambiente_buscar_contexto(
 // @pinker-nav:start runtime.processos.execucao
 // @pinker-nav:domain processos
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Execução de subprocessos sem shell implícito: basenames são resolvidos somente na PATH fixa /usr/local/bin:/usr/bin:/bin, caminhos com slash são usados literalmente, e todas as famílias recebem a PATH saneada; a disposição de SIGPIPE do pai não é reafirmada aqui (pertence a pinker_rt_iniciar) e comando_saneado instala um pre_exec que devolve SIGPIPE a SIG_DFL no filho imediatamente antes do exec, sem depender da escolha interna da std entre fork/exec e posix_spawn, propagando falha de preparação ao pai como erro de criação do processo; executar_com_entrada escreve stdin numa thread concorrente à espera, fecha o pipe e agrega erros sem deixar writer órfão.
+// @pinker-nav:summary Execução de subprocessos sem shell implícito: as superfícies históricas mantêm resolução pela PATH fixa; a nova superfície estruturada recusa Ate(0) antes de configurar ou criar o filho, aplica PATH saneada e depois overlay antes da resolução no spawn para os demais limites, faz um único spawn e move stdin/stdout/stderr em poll não-bloqueante com quantum justo, deadline absoluto, kill+reap e UTF-8 estrito; todos os filhos recebem SIGPIPE default por pre_exec, enquanto os observáveis históricos permanecem inalterados.
 const PATH_PROCESSOS: &str = "/usr/local/bin:/usr/bin:/bin";
+
+/// Discriminantes da identidade runtime-reservada LimiteTempo. A ordem é ABI:
+/// o compilador materializa SemLimite como 0 e Ate(bombom) como 1.
+pub const PINKER_LIMITE_TEMPO_TAG_SEM_LIMITE: u64 = 0;
+pub const PINKER_LIMITE_TEMPO_TAG_ATE: u64 = 1;
+
+#[derive(Clone)]
+struct SaidaProcessoNativa {
+    codigo: u64,
+    stdout: String,
+    stderr: String,
+}
+
+#[cfg_attr(not(test), allow(dead_code))]
+struct EstadoSaidasProcesso {
+    tabela: std::collections::HashMap<u64, SaidaProcessoNativa>,
+    proximo: Option<u64>,
+}
+
+impl Default for EstadoSaidasProcesso {
+    fn default() -> Self {
+        Self {
+            tabela: std::collections::HashMap::new(),
+            proximo: Some(1),
+        }
+    }
+}
+
+impl EstadoSaidasProcesso {
+    fn inserir(&mut self, saida: SaidaProcessoNativa) -> u64 {
+        let handle = self
+            .proximo
+            .unwrap_or_else(|| erro_fatal("handles de SaidaProcesso esgotados"));
+        if self.tabela.contains_key(&handle) {
+            erro_fatal("handle de SaidaProcesso seria reutilizado");
+        }
+        self.proximo = handle.checked_add(1);
+        self.tabela.insert(handle, saida);
+        handle
+    }
+}
+
+fn estado_saidas_processo() -> &'static Mutex<EstadoSaidasProcesso> {
+    static SAIDAS: OnceLock<Mutex<EstadoSaidasProcesso>> = OnceLock::new();
+    SAIDAS.get_or_init(|| Mutex::new(EstadoSaidasProcesso::default()))
+}
+
+#[cfg_attr(not(test), allow(dead_code))]
+fn registrar_saida_processo(saida: SaidaProcessoNativa) -> u64 {
+    let mut estado = estado_saidas_processo()
+        .lock()
+        .unwrap_or_else(|_| erro_fatal("estado de SaidaProcesso envenenado"));
+    estado.inserir(saida)
+}
+
+fn com_saida_processo<R>(handle: u64, f: impl FnOnce(&SaidaProcessoNativa) -> R) -> R {
+    let estado = estado_saidas_processo()
+        .lock()
+        .unwrap_or_else(|_| erro_fatal("estado de SaidaProcesso envenenado"));
+    let saida = estado
+        .tabela
+        .get(&handle)
+        .unwrap_or_else(|| erro_fatal("handle SaidaProcesso inválido"));
+    f(saida)
+}
+
+#[no_mangle]
+pub extern "C" fn pinker_saida_processo_codigo(handle: u64) -> u64 {
+    com_saida_processo(handle, |saida| saida.codigo)
+}
+
+#[no_mangle]
+pub extern "C" fn pinker_saida_processo_stdout(handle: u64) -> *mut u8 {
+    com_saida_processo(handle, |saida| verso_alocar(&saida.stdout))
+}
+
+#[no_mangle]
+pub extern "C" fn pinker_saida_processo_stderr(handle: u64) -> *mut u8 {
+    com_saida_processo(handle, |saida| verso_alocar(&saida.stderr))
+}
+
+const PROCESSO_ESTRUTURADO_TICK: std::time::Duration = std::time::Duration::from_millis(25);
+const PROCESSO_ESTRUTURADO_QUANTUM_BYTES: usize = 64 * 1024;
+const PROCESSO_ESTRUTURADO_QUANTUM_SYSCALLS: usize = 4;
+const PROCESSO_ESTRUTURADO_BLOCO_BYTES: usize = 16 * 1024;
+
+#[cfg(test)]
+static PROCESSO_ESTRUTURADO_SPAWNS_TESTE: AtomicUsize = AtomicUsize::new(0);
+
+struct ConfiguracaoProcessoEstruturadoNativa {
+    programa: String,
+    argumentos: Vec<String>,
+    entrada: String,
+    diretorio: String,
+    ambiente: Vec<(String, String)>,
+    limite: Option<std::time::Duration>,
+}
+
+unsafe fn ler_lista_verso_nativa(lista: *mut u8) -> Result<Vec<String>, String> {
+    if lista.is_null() {
+        return Err("lista de argumentos nula em 'executar_processo_estruturado'".to_string());
+    }
+    let quantidade = pinker_lista_tamanho(lista);
+    let mut argumentos = Vec::with_capacity(quantidade as usize);
+    for indice in 0..quantidade {
+        let verso = pinker_lista_obter(lista, indice) as *const u8;
+        if verso.is_null() {
+            return Err(format!(
+                "argumento {indice} nulo em 'executar_processo_estruturado'"
+            ));
+        }
+        argumentos.push(verso_str(verso).to_string());
+    }
+    Ok(argumentos)
+}
+
+unsafe fn ler_mapa_verso_verso_nativo(mapa: *mut u8) -> Result<Vec<(String, String)>, String> {
+    if mapa.is_null() {
+        return Err("mapa de ambiente nulo em 'executar_processo_estruturado'".to_string());
+    }
+    let quantidade = mapa_len(mapa);
+    let chaves = mapa_chaves(mapa);
+    let valores = mapa_valores(mapa);
+    let mut ambiente = Vec::with_capacity(quantidade as usize);
+    for indice in 0..quantidade as usize {
+        let chave = chaves.add(indice).read() as *const u8;
+        let valor = valores.add(indice).read() as *const u8;
+        if chave.is_null() || valor.is_null() {
+            return Err("entrada nula no mapa de ambiente estruturado".to_string());
+        }
+        let chave = verso_str(chave);
+        let valor = verso_str(valor);
+        if chave.is_empty() {
+            return Err("chave de ambiente vazia".to_string());
+        }
+        if chave.contains('=') {
+            return Err(format!("chave de ambiente contém '=': {chave:?}"));
+        }
+        if chave.contains('\0') {
+            return Err("chave de ambiente contém NUL".to_string());
+        }
+        if valor.contains('\0') {
+            return Err(format!("valor de ambiente contém NUL para {chave:?}"));
+        }
+        ambiente.push((chave.to_string(), valor.to_string()));
+    }
+    Ok(ambiente)
+}
+
+unsafe fn ler_limite_tempo_nativo(leque: *mut u8) -> Result<Option<std::time::Duration>, String> {
+    if leque.is_null() {
+        return Err("LimiteTempo nulo em 'executar_processo_estruturado'".to_string());
+    }
+    match pinker_leque_tag(leque) {
+        PINKER_LIMITE_TEMPO_TAG_SEM_LIMITE => Ok(None),
+        PINKER_LIMITE_TEMPO_TAG_ATE => Ok(Some(std::time::Duration::from_millis(
+            pinker_leque_carga(leque, PINKER_LIMITE_TEMPO_TAG_ATE, 0),
+        ))),
+        tag => Err(format!(
+            "tag LimiteTempo inválida em 'executar_processo_estruturado': {tag}"
+        )),
+    }
+}
+
+unsafe fn ler_configuracao_processo_estruturado(
+    programa: *const u8,
+    argumentos: *mut u8,
+    entrada: *const u8,
+    diretorio: *const u8,
+    ambiente: *mut u8,
+    limite: *mut u8,
+) -> Result<ConfiguracaoProcessoEstruturadoNativa, String> {
+    if programa.is_null() || entrada.is_null() || diretorio.is_null() {
+        return Err("verso nulo em 'executar_processo_estruturado'".to_string());
+    }
+    let programa = verso_str(programa);
+    if programa.is_empty() {
+        return Err("programa vazio em 'executar_processo_estruturado'".to_string());
+    }
+    Ok(ConfiguracaoProcessoEstruturadoNativa {
+        programa: programa.to_string(),
+        argumentos: ler_lista_verso_nativa(argumentos)?,
+        entrada: verso_str(entrada).to_string(),
+        diretorio: verso_str(diretorio).to_string(),
+        ambiente: ler_mapa_verso_verso_nativo(ambiente)?,
+        limite: ler_limite_tempo_nativo(limite)?,
+    })
+}
+
+fn comando_processo_estruturado(programa: &str) -> Result<std::process::Command, String> {
+    if programa.is_empty() {
+        return Err("programa vazio em 'executar_processo_estruturado'".to_string());
+    }
+    Ok(comando_saneado(std::path::PathBuf::from(programa)))
+}
+
+fn executar_processo_estruturado_nativo(
+    configuracao: ConfiguracaoProcessoEstruturadoNativa,
+) -> Result<SaidaProcessoNativa, String> {
+    if configuracao.limite == Some(std::time::Duration::ZERO) {
+        return Err("limite de tempo excedido em 'executar_processo_estruturado'".to_string());
+    }
+    let deadline = configuracao
+        .limite
+        .map(|duracao| {
+            std::time::Instant::now()
+                .checked_add(duracao)
+                .ok_or_else(|| "limite de tempo fora da faixa monotônica suportada".to_string())
+        })
+        .transpose()?;
+
+    let mut comando = comando_processo_estruturado(&configuracao.programa)?;
+    comando.args(&configuracao.argumentos);
+    if !configuracao.diretorio.is_empty() {
+        comando.current_dir(&configuracao.diretorio);
+    }
+    for (chave, valor) in &configuracao.ambiente {
+        comando.env(chave, valor);
+    }
+    comando
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+
+    let filho = comando.spawn().map_err(|erro| {
+        format!(
+            "falha ao criar processo '{}' em 'executar_processo_estruturado': {erro}",
+            configuracao.programa
+        )
+    })?;
+    #[cfg(test)]
+    PROCESSO_ESTRUTURADO_SPAWNS_TESTE.fetch_add(1, Ordering::SeqCst);
+    let mut filho = FilhoEstruturadoNativo::novo(filho);
+    let stdin = filho
+        .take_stdin()
+        .ok_or_else(|| "stdin configurado não foi disponibilizado".to_string())
+        .or_else(|causa| falhar_processo_estruturado(causa, &mut filho))?;
+    let stdout = filho
+        .take_stdout()
+        .ok_or_else(|| "stdout configurado não foi disponibilizado".to_string())
+        .or_else(|causa| falhar_processo_estruturado(causa, &mut filho))?;
+    let stderr = filho
+        .take_stderr()
+        .ok_or_else(|| "stderr configurado não foi disponibilizado".to_string())
+        .or_else(|causa| falhar_processo_estruturado(causa, &mut filho))?;
+
+    if let Err(erro) = configurar_pipe_estruturado_nao_bloqueante(&stdin)
+        .and_then(|_| configurar_pipe_estruturado_nao_bloqueante(&stdout))
+        .and_then(|_| configurar_pipe_estruturado_nao_bloqueante(&stderr))
+    {
+        return falhar_processo_estruturado(
+            format!("falha ao configurar pipes não-bloqueantes: {erro}"),
+            &mut filho,
+        );
+    }
+
+    let entrada = configuracao.entrada.as_bytes();
+    let mut entrada_enviada = 0usize;
+    let mut stdin = if entrada.is_empty() {
+        drop(stdin);
+        None
+    } else {
+        Some(stdin)
+    };
+    let mut stdout = Some(stdout);
+    let mut stderr = Some(stderr);
+    let mut bytes_stdout = Vec::new();
+    let mut bytes_stderr = Vec::new();
+
+    loop {
+        if deadline.is_some_and(|fim| std::time::Instant::now() >= fim) {
+            return falhar_processo_estruturado(
+                "limite de tempo excedido em 'executar_processo_estruturado'".to_string(),
+                &mut filho,
+            );
+        }
+        if let Err(erro) = filho.atualizar_status() {
+            return falhar_processo_estruturado(
+                format!("falha ao observar término do processo estruturado: {erro}"),
+                &mut filho,
+            );
+        }
+        if filho.status().is_some() && stdin.is_none() && stdout.is_none() && stderr.is_none() {
+            break;
+        }
+
+        let mut descritores = Vec::with_capacity(3);
+        if let Some(pipe) = stdin.as_ref() {
+            descritores.push(DescritorPollNativo::novo(
+                fd_estruturado(pipe),
+                POLL_OUT_NATIVO | POLL_ERR_NATIVO | POLL_HUP_NATIVO,
+                CanalPollNativo::Stdin,
+            ));
+        }
+        if let Some(pipe) = stdout.as_ref() {
+            descritores.push(DescritorPollNativo::novo(
+                fd_estruturado(pipe),
+                POLL_IN_NATIVO | POLL_ERR_NATIVO | POLL_HUP_NATIVO,
+                CanalPollNativo::Stdout,
+            ));
+        }
+        if let Some(pipe) = stderr.as_ref() {
+            descritores.push(DescritorPollNativo::novo(
+                fd_estruturado(pipe),
+                POLL_IN_NATIVO | POLL_ERR_NATIVO | POLL_HUP_NATIVO,
+                CanalPollNativo::Stderr,
+            ));
+        }
+
+        let timeout = timeout_poll_estruturado(deadline);
+        match poll_descritores_nativos(&mut descritores, timeout) {
+            Ok(ResultadoPollNativo::Eventos) => {}
+            Ok(ResultadoPollNativo::Interrompido) => continue,
+            Err(erro) => {
+                return falhar_processo_estruturado(
+                    format!("falha em poll dos pipes do processo estruturado: {erro}"),
+                    &mut filho,
+                )
+            }
+        }
+
+        let mut fechar_stdin = false;
+        let mut fechar_stdout = false;
+        let mut fechar_stderr = false;
+        for descritor in &descritores {
+            if descritor.revents & POLL_INVALID_NATIVO != 0 {
+                return falhar_processo_estruturado(
+                    "poll encontrou descritor de pipe inválido".to_string(),
+                    &mut filho,
+                );
+            }
+            match descritor.canal {
+                CanalPollNativo::Stdin
+                    if descritor.revents
+                        & (POLL_OUT_NATIVO | POLL_ERR_NATIVO | POLL_HUP_NATIVO)
+                        != 0 =>
+                {
+                    if let Some(pipe) = stdin.as_mut() {
+                        match escrever_quantum_nativo(pipe, entrada, &mut entrada_enviada) {
+                            Ok(true) => fechar_stdin = true,
+                            Ok(false) => {}
+                            Err(erro) => {
+                                return falhar_processo_estruturado(
+                                    format!("falha ao enviar stdin integralmente: {erro}"),
+                                    &mut filho,
+                                )
+                            }
+                        }
+                    }
+                }
+                CanalPollNativo::Stdout
+                    if descritor.revents & (POLL_IN_NATIVO | POLL_ERR_NATIVO | POLL_HUP_NATIVO)
+                        != 0 =>
+                {
+                    if let Some(pipe) = stdout.as_mut() {
+                        match drenar_quantum_nativo(pipe, &mut bytes_stdout) {
+                            Ok(eof) => fechar_stdout = eof,
+                            Err(erro) => {
+                                return falhar_processo_estruturado(
+                                    format!("falha ao capturar stdout: {erro}"),
+                                    &mut filho,
+                                )
+                            }
+                        }
+                    }
+                }
+                CanalPollNativo::Stderr
+                    if descritor.revents & (POLL_IN_NATIVO | POLL_ERR_NATIVO | POLL_HUP_NATIVO)
+                        != 0 =>
+                {
+                    if let Some(pipe) = stderr.as_mut() {
+                        match drenar_quantum_nativo(pipe, &mut bytes_stderr) {
+                            Ok(eof) => fechar_stderr = eof,
+                            Err(erro) => {
+                                return falhar_processo_estruturado(
+                                    format!("falha ao capturar stderr: {erro}"),
+                                    &mut filho,
+                                )
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        if fechar_stdin {
+            stdin = None;
+        }
+        if fechar_stdout {
+            stdout = None;
+        }
+        if fechar_stderr {
+            stderr = None;
+        }
+    }
+
+    let status = filho
+        .status()
+        .expect("laço nativo só conclui depois de reapear o filho");
+    let codigo = status.code().ok_or_else(|| {
+        "processo estruturado terminou sem código normal; nenhum código mágico foi fabricado"
+            .to_string()
+    })?;
+    let codigo = u64::try_from(codigo)
+        .map_err(|_| "processo estruturado terminou com código negativo inválido".to_string())?;
+    let stdout = String::from_utf8(bytes_stdout)
+        .map_err(|_| "stdout do processo estruturado não é UTF-8 válido".to_string())?;
+    let stderr = String::from_utf8(bytes_stderr)
+        .map_err(|_| "stderr do processo estruturado não é UTF-8 válido".to_string())?;
+    Ok(SaidaProcessoNativa {
+        codigo,
+        stdout,
+        stderr,
+    })
+}
+
+/// Executa a nova superfície estruturada na ABI nativa real.
+///
+/// # Safety
+/// Os versos, a lista, o mapa e o leque devem usar as representações nativas
+/// emitidas pelo backend Pinker para a assinatura canônica de seis argumentos.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_processo_executar_estruturado(
+    programa: *const u8,
+    argumentos: *mut u8,
+    entrada: *const u8,
+    diretorio: *const u8,
+    ambiente: *mut u8,
+    limite: *mut u8,
+) -> *mut u8 {
+    let configuracao = match ler_configuracao_processo_estruturado(
+        programa, argumentos, entrada, diretorio, ambiente, limite,
+    ) {
+        Ok(configuracao) => configuracao,
+        Err(causa) => return resultado_erro(&causa),
+    };
+    match executar_processo_estruturado_nativo(configuracao) {
+        Ok(saida) => resultado_ok_bombom(registrar_saida_processo(saida)),
+        Err(causa) => resultado_erro(&causa),
+    }
+}
+
+fn escrever_quantum_nativo<W: Write>(
+    pipe: &mut W,
+    entrada: &[u8],
+    enviados: &mut usize,
+) -> io::Result<bool> {
+    let inicio = *enviados;
+    let mut syscalls = 0usize;
+    while *enviados < entrada.len()
+        && *enviados - inicio < PROCESSO_ESTRUTURADO_QUANTUM_BYTES
+        && syscalls < PROCESSO_ESTRUTURADO_QUANTUM_SYSCALLS
+    {
+        let restantes = PROCESSO_ESTRUTURADO_QUANTUM_BYTES - (*enviados - inicio);
+        let fim = (*enviados + restantes.min(PROCESSO_ESTRUTURADO_BLOCO_BYTES)).min(entrada.len());
+        match pipe.write(&entrada[*enviados..fim]) {
+            Ok(0) => return Err(io::Error::from(io::ErrorKind::WriteZero)),
+            Ok(n) => {
+                *enviados += n;
+                syscalls += 1;
+            }
+            Err(erro) if erro.kind() == io::ErrorKind::Interrupted => return Ok(false),
+            Err(erro) if erro.kind() == io::ErrorKind::WouldBlock => return Ok(false),
+            Err(erro) => return Err(erro),
+        }
+    }
+    Ok(*enviados == entrada.len())
+}
+
+fn drenar_quantum_nativo<R: Read>(pipe: &mut R, destino: &mut Vec<u8>) -> io::Result<bool> {
+    let mut bloco = [0u8; PROCESSO_ESTRUTURADO_BLOCO_BYTES];
+    let mut bytes = 0usize;
+    let mut syscalls = 0usize;
+    while bytes < PROCESSO_ESTRUTURADO_QUANTUM_BYTES
+        && syscalls < PROCESSO_ESTRUTURADO_QUANTUM_SYSCALLS
+    {
+        let limite = (PROCESSO_ESTRUTURADO_QUANTUM_BYTES - bytes).min(bloco.len());
+        match pipe.read(&mut bloco[..limite]) {
+            Ok(0) => return Ok(true),
+            Ok(n) => {
+                destino.extend_from_slice(&bloco[..n]);
+                bytes += n;
+                syscalls += 1;
+            }
+            Err(erro) if erro.kind() == io::ErrorKind::Interrupted => return Ok(false),
+            Err(erro) if erro.kind() == io::ErrorKind::WouldBlock => return Ok(false),
+            Err(erro) => return Err(erro),
+        }
+    }
+    Ok(false)
+}
+
+fn timeout_poll_estruturado(deadline: Option<std::time::Instant>) -> i32 {
+    let espera = match deadline {
+        Some(fim) => fim
+            .saturating_duration_since(std::time::Instant::now())
+            .min(PROCESSO_ESTRUTURADO_TICK),
+        None => PROCESSO_ESTRUTURADO_TICK,
+    };
+    espera.as_millis().max(1).min(i32::MAX as u128) as i32
+}
+
+fn falhar_processo_estruturado<T>(
+    causa: String,
+    filho: &mut FilhoEstruturadoNativo,
+) -> Result<T, String> {
+    compor_falha_cleanup_nativo(causa, filho.encerrar_e_reapear())
+}
+
+fn compor_falha_cleanup_nativo<T>(
+    causa: String,
+    limpeza: Result<(), FalhasCleanupNativo>,
+) -> Result<T, String> {
+    match limpeza {
+        Ok(()) => Err(causa),
+        Err(limpeza) => Err(format!("{causa}; cleanup do filho direto: {limpeza}")),
+    }
+}
+
+trait OperacoesCleanupNativo {
+    type Status;
+
+    fn observar_status(&mut self) -> io::Result<Option<Self::Status>>;
+    fn encerrar(&mut self) -> io::Result<()>;
+    fn esperar(&mut self) -> io::Result<Self::Status>;
+}
+
+impl OperacoesCleanupNativo for std::process::Child {
+    type Status = std::process::ExitStatus;
+
+    fn observar_status(&mut self) -> io::Result<Option<Self::Status>> {
+        self.try_wait()
+    }
+
+    fn encerrar(&mut self) -> io::Result<()> {
+        self.kill()
+    }
+
+    fn esperar(&mut self) -> io::Result<Self::Status> {
+        self.wait()
+    }
+}
+
+#[derive(Debug, Default)]
+struct FalhasCleanupNativo {
+    observacao: Option<io::Error>,
+    encerramento: Option<io::Error>,
+    espera: Option<io::Error>,
+}
+
+impl FalhasCleanupNativo {
+    fn vazia(&self) -> bool {
+        self.observacao.is_none() && self.encerramento.is_none() && self.espera.is_none()
+    }
+}
+
+impl std::fmt::Display for FalhasCleanupNativo {
+    fn fmt(&self, saida: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut separador = "";
+        for (etapa, erro) in [
+            ("observação", self.observacao.as_ref()),
+            ("kill", self.encerramento.as_ref()),
+            ("wait", self.espera.as_ref()),
+        ] {
+            if let Some(erro) = erro {
+                write!(saida, "{separador}{etapa}: {erro}")?;
+                separador = "; ";
+            }
+        }
+        Ok(())
+    }
+}
+
+fn encerrar_e_reapear_nativo_com<O: OperacoesCleanupNativo>(
+    filho: &mut O,
+    status: &mut Option<O::Status>,
+) -> Result<(), FalhasCleanupNativo> {
+    if status.is_some() {
+        return Ok(());
+    }
+
+    let mut falhas = FalhasCleanupNativo::default();
+    match filho.observar_status() {
+        Ok(Some(observado)) => {
+            *status = Some(observado);
+            return Ok(());
+        }
+        Ok(None) => {}
+        Err(erro) => falhas.observacao = Some(erro),
+    }
+
+    match filho.encerrar() {
+        Ok(()) => {}
+        Err(erro) if erro.kind() == io::ErrorKind::InvalidInput => {}
+        Err(erro) => falhas.encerramento = Some(erro),
+    }
+
+    match filho.esperar() {
+        Ok(observado) => *status = Some(observado),
+        Err(erro) => falhas.espera = Some(erro),
+    }
+
+    if falhas.vazia() {
+        Ok(())
+    } else {
+        Err(falhas)
+    }
+}
+
+struct FilhoEstruturadoNativo {
+    filho: std::process::Child,
+    status: Option<std::process::ExitStatus>,
+}
+
+impl FilhoEstruturadoNativo {
+    fn novo(filho: std::process::Child) -> Self {
+        Self {
+            filho,
+            status: None,
+        }
+    }
+
+    fn take_stdin(&mut self) -> Option<std::process::ChildStdin> {
+        self.filho.stdin.take()
+    }
+
+    fn take_stdout(&mut self) -> Option<std::process::ChildStdout> {
+        self.filho.stdout.take()
+    }
+
+    fn take_stderr(&mut self) -> Option<std::process::ChildStderr> {
+        self.filho.stderr.take()
+    }
+
+    fn atualizar_status(&mut self) -> io::Result<()> {
+        if self.status.is_none() {
+            self.status = self.filho.try_wait()?;
+        }
+        Ok(())
+    }
+
+    fn status(&self) -> Option<std::process::ExitStatus> {
+        self.status
+    }
+
+    fn encerrar_e_reapear(&mut self) -> Result<(), FalhasCleanupNativo> {
+        encerrar_e_reapear_nativo_com(&mut self.filho, &mut self.status)
+    }
+}
+
+impl Drop for FilhoEstruturadoNativo {
+    fn drop(&mut self) {
+        if self.status.is_none() {
+            let _ = self.filho.kill();
+            let _ = self.filho.wait();
+        }
+    }
+}
+
+#[repr(C)]
+struct PollFdNativo {
+    fd: i32,
+    events: i16,
+    revents: i16,
+}
+
+#[derive(Clone, Copy)]
+enum CanalPollNativo {
+    Stdin,
+    Stdout,
+    Stderr,
+}
+
+struct DescritorPollNativo {
+    raw: PollFdNativo,
+    canal: CanalPollNativo,
+    revents: i16,
+}
+
+impl DescritorPollNativo {
+    fn novo(fd: i32, events: i16, canal: CanalPollNativo) -> Self {
+        Self {
+            raw: PollFdNativo {
+                fd,
+                events,
+                revents: 0,
+            },
+            canal,
+            revents: 0,
+        }
+    }
+}
+
+const POLL_IN_NATIVO: i16 = 0x0001;
+const POLL_OUT_NATIVO: i16 = 0x0004;
+const POLL_ERR_NATIVO: i16 = 0x0008;
+const POLL_HUP_NATIVO: i16 = 0x0010;
+const POLL_INVALID_NATIVO: i16 = 0x0020;
+const F_GETFL_NATIVO: i32 = 3;
+const F_SETFL_NATIVO: i32 = 4;
+#[cfg(any(target_os = "linux", target_os = "android"))]
+const O_NONBLOCK_NATIVO: i32 = 0o4000;
+#[cfg(not(any(target_os = "linux", target_os = "android")))]
+const O_NONBLOCK_NATIVO: i32 = 0x0004;
+
+#[cfg(unix)]
+extern "C" {
+    #[link_name = "poll"]
+    fn poll_nativo(fds: *mut PollFdNativo, quantidade: usize, timeout_ms: i32) -> i32;
+    #[link_name = "fcntl"]
+    fn fcntl_nativo(fd: i32, comando: i32, ...) -> i32;
+}
+
+#[cfg(unix)]
+fn fd_estruturado<T: std::os::fd::AsRawFd>(pipe: &T) -> i32 {
+    pipe.as_raw_fd()
+}
+
+#[cfg(not(unix))]
+fn fd_estruturado<T>(_pipe: &T) -> i32 {
+    -1
+}
+
+#[cfg(unix)]
+fn configurar_pipe_estruturado_nao_bloqueante<T: std::os::fd::AsRawFd>(pipe: &T) -> io::Result<()> {
+    let fd = pipe.as_raw_fd();
+    let flags = unsafe { fcntl_nativo(fd, F_GETFL_NATIVO) };
+    if flags < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    if unsafe { fcntl_nativo(fd, F_SETFL_NATIVO, flags | O_NONBLOCK_NATIVO) } < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn configurar_pipe_estruturado_nao_bloqueante<T>(_pipe: &T) -> io::Result<()> {
+    Err(io::Error::new(
+        io::ErrorKind::Unsupported,
+        "poll não-bloqueante requer plataforma Unix",
+    ))
+}
+
+enum ResultadoPollNativo {
+    Eventos,
+    Interrompido,
+}
+
+#[cfg(unix)]
+fn poll_descritores_nativos(
+    descritores: &mut [DescritorPollNativo],
+    timeout: i32,
+) -> io::Result<ResultadoPollNativo> {
+    let mut raws: Vec<PollFdNativo> = descritores
+        .iter()
+        .map(|descritor| PollFdNativo {
+            fd: descritor.raw.fd,
+            events: descritor.raw.events,
+            revents: 0,
+        })
+        .collect();
+    let retorno = unsafe { poll_nativo(raws.as_mut_ptr(), raws.len(), timeout) };
+    if retorno < 0 {
+        let erro = io::Error::last_os_error();
+        return if erro.kind() == io::ErrorKind::Interrupted {
+            Ok(ResultadoPollNativo::Interrompido)
+        } else {
+            Err(erro)
+        };
+    }
+    for (destino, origem) in descritores.iter_mut().zip(raws.iter()) {
+        destino.revents = origem.revents;
+    }
+    Ok(ResultadoPollNativo::Eventos)
+}
+
+#[cfg(not(unix))]
+fn poll_descritores_nativos(
+    _descritores: &mut [DescritorPollNativo],
+    _timeout: i32,
+) -> io::Result<ResultadoPollNativo> {
+    Err(io::Error::new(
+        io::ErrorKind::Unsupported,
+        "poll requer plataforma Unix",
+    ))
+}
 
 /// Constrói o `Command` comum a todas as famílias de processo, com a PATH
 /// saneada.
@@ -3307,6 +4095,256 @@ pub unsafe extern "C" fn pinker_entrada_tamanho_resultado(caminho: *const u8) ->
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[derive(Debug, PartialEq, Eq)]
+    struct StatusCleanupNativoControlado;
+
+    struct OperacoesCleanupNativasControladas {
+        falhar_observacao: bool,
+        falhar_encerramento: bool,
+        falhar_espera: bool,
+        kill_tentado: bool,
+        wait_tentado: bool,
+    }
+
+    impl OperacoesCleanupNativo for OperacoesCleanupNativasControladas {
+        type Status = StatusCleanupNativoControlado;
+
+        fn observar_status(&mut self) -> io::Result<Option<Self::Status>> {
+            if self.falhar_observacao {
+                Err(io::Error::other("try_wait nativo controlado"))
+            } else {
+                Ok(None)
+            }
+        }
+
+        fn encerrar(&mut self) -> io::Result<()> {
+            self.kill_tentado = true;
+            if self.falhar_encerramento {
+                Err(io::Error::other("kill nativo controlado"))
+            } else {
+                Ok(())
+            }
+        }
+
+        fn esperar(&mut self) -> io::Result<Self::Status> {
+            self.wait_tentado = true;
+            if self.falhar_espera {
+                Err(io::Error::other("wait nativo controlado"))
+            } else {
+                Ok(StatusCleanupNativoControlado)
+            }
+        }
+    }
+
+    #[test]
+    fn erro_de_try_wait_nao_impede_kill_wait_e_reap_nativo() {
+        let mut operacoes = OperacoesCleanupNativasControladas {
+            falhar_observacao: true,
+            falhar_encerramento: false,
+            falhar_espera: false,
+            kill_tentado: false,
+            wait_tentado: false,
+        };
+        let mut status = None;
+
+        let falhas = encerrar_e_reapear_nativo_com(&mut operacoes, &mut status)
+            .expect_err("erro de observação deve permanecer explícito");
+
+        assert!(falhas.observacao.is_some(), "TRY_WAIT_ERROR_OBSERVED");
+        assert!(operacoes.kill_tentado, "KILL_ATTEMPTED");
+        assert!(operacoes.wait_tentado, "WAIT_ATTEMPTED");
+        assert!(status.is_some(), "REAP_PATH_REACHED");
+    }
+
+    #[test]
+    fn causa_primaria_e_falhas_secundarias_permanecem_no_erro_nativo() {
+        let mut operacoes = OperacoesCleanupNativasControladas {
+            falhar_observacao: true,
+            falhar_encerramento: true,
+            falhar_espera: true,
+            kill_tentado: false,
+            wait_tentado: false,
+        };
+        let mut status = None;
+        let limpeza = encerrar_e_reapear_nativo_com(&mut operacoes, &mut status);
+        let erro = compor_falha_cleanup_nativo::<()>("causa primária".to_string(), limpeza)
+            .expect_err("falha primária com cleanup falho não pode virar sucesso");
+
+        assert!(operacoes.kill_tentado, "KILL_ATTEMPTED");
+        assert!(operacoes.wait_tentado, "WAIT_ATTEMPTED");
+        assert!(erro.contains("causa primária"), "{erro}");
+        assert!(erro.contains("try_wait nativo controlado"), "{erro}");
+        assert!(erro.contains("kill nativo controlado"), "{erro}");
+        assert!(erro.contains("wait nativo controlado"), "{erro}");
+    }
+
+    struct LeitorQuantumNativo {
+        sucessos_restantes: usize,
+        chamadas: usize,
+    }
+
+    impl Read for LeitorQuantumNativo {
+        fn read(&mut self, destino: &mut [u8]) -> io::Result<usize> {
+            self.chamadas += 1;
+            if self.sucessos_restantes == 0 {
+                return Err(io::Error::from(io::ErrorKind::WouldBlock));
+            }
+            self.sucessos_restantes -= 1;
+            destino.fill(b'N');
+            Ok(destino.len())
+        }
+    }
+
+    #[test]
+    fn parte_d_quantum_nativo_devolve_controle_antes_de_would_block() {
+        let mut leitor = LeitorQuantumNativo {
+            sucessos_restantes: PROCESSO_ESTRUTURADO_QUANTUM_SYSCALLS + 1,
+            chamadas: 0,
+        };
+        let mut destino = Vec::new();
+        assert!(!drenar_quantum_nativo(&mut leitor, &mut destino).unwrap());
+        assert_eq!(leitor.chamadas, PROCESSO_ESTRUTURADO_QUANTUM_SYSCALLS);
+        assert_eq!(destino.len(), PROCESSO_ESTRUTURADO_QUANTUM_BYTES);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn parte_d_cleanup_nativo_mata_e_reapeia_antes_do_retorno() {
+        let filho = std::process::Command::new("/bin/sleep")
+            .arg("5")
+            .spawn()
+            .expect("filho controlado para provar reap");
+        let pid = filho.id();
+        let mut guardiao = FilhoEstruturadoNativo::novo(filho);
+
+        guardiao
+            .encerrar_e_reapear()
+            .expect("kill seguido de wait deve ser recuperável");
+
+        assert!(guardiao.status().is_some());
+        assert!(
+            !std::path::Path::new(&format!("/proc/{pid}")).exists(),
+            "filho direto ainda existe (inclusive como zumbi) após o retorno"
+        );
+    }
+
+    #[test]
+    fn parte_d_ate_zero_falha_antes_de_spawn_nativo() {
+        let antes = PROCESSO_ESTRUTURADO_SPAWNS_TESTE.load(Ordering::SeqCst);
+        let erro =
+            match executar_processo_estruturado_nativo(ConfiguracaoProcessoEstruturadoNativa {
+                programa: "/bin/true".to_string(),
+                argumentos: Vec::new(),
+                entrada: String::new(),
+                diretorio: String::new(),
+                ambiente: Vec::new(),
+                limite: Some(std::time::Duration::ZERO),
+            }) {
+                Ok(_) => panic!("Ate(0) deve expirar antes do spawn nativo"),
+                Err(erro) => erro,
+            };
+
+        assert!(erro.contains("limite de tempo excedido"), "{erro}");
+        assert_eq!(
+            PROCESSO_ESTRUTURADO_SPAWNS_TESTE.load(Ordering::SeqCst),
+            antes,
+            "NATIVE_SPAWN_COUNT precisa permanecer zero"
+        );
+    }
+
+    #[test]
+    fn parte_d_handle_nativo_emite_maximo_e_entra_em_esgotamento_sem_wrap() {
+        let mut estado = EstadoSaidasProcesso::default();
+        let antigo = estado.inserir(SaidaProcessoNativa {
+            codigo: 11,
+            stdout: "antigo".to_string(),
+            stderr: String::new(),
+        });
+        estado.proximo = Some(u64::MAX);
+        let ultimo = estado.inserir(SaidaProcessoNativa {
+            codigo: 22,
+            stdout: "ultimo".to_string(),
+            stderr: String::new(),
+        });
+
+        assert_eq!(antigo, 1);
+        assert_eq!(ultimo, u64::MAX);
+        assert_eq!(estado.proximo, None);
+        assert_eq!(estado.tabela.len(), 2);
+        assert_eq!(estado.tabela.get(&antigo).unwrap().codigo, 11);
+        assert_eq!(estado.tabela.get(&ultimo).unwrap().codigo, 22);
+        assert!(!estado.tabela.contains_key(&0));
+    }
+
+    #[test]
+    fn parte_d_ambiente_nativo_valida_nul_sem_rejeitar_igual_no_valor() {
+        unsafe fn mapa_unitario(chave: &str, valor: &str) -> *mut u8 {
+            let mapa = pinker_mapa_criar_chave_verso();
+            pinker_mapa_definir(mapa, verso_alocar(chave) as u64, verso_alocar(valor) as u64);
+            mapa
+        }
+
+        unsafe {
+            assert_eq!(
+                ler_mapa_verso_verso_nativo(mapa_unitario("PINKER_TEST", "a=b=c")).unwrap(),
+                vec![("PINKER_TEST".to_string(), "a=b=c".to_string())]
+            );
+            for (chave, valor) in [("NUL\0CHAVE", "x"), ("CHAVE", "NUL\0VALOR")] {
+                assert!(
+                    ler_mapa_verso_verso_nativo(mapa_unitario(chave, valor)).is_err(),
+                    "NUL precisa ser recusado antes do spawn"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn parte_d_limite_tempo_preserva_discriminantes_da_abi_nativa() {
+        assert_eq!(PINKER_LIMITE_TEMPO_TAG_SEM_LIMITE, 0);
+        assert_eq!(PINKER_LIMITE_TEMPO_TAG_ATE, 1);
+    }
+
+    #[test]
+    fn parte_d_snapshot_nativo_e_imutavel_e_accessors_sao_tipados() {
+        let handle = registrar_saida_processo(SaidaProcessoNativa {
+            codigo: 17,
+            stdout: "saida".to_string(),
+            stderr: "erro".to_string(),
+        });
+        assert_eq!(pinker_saida_processo_codigo(handle), 17);
+        let stdout = pinker_saida_processo_stdout(handle);
+        let stderr = pinker_saida_processo_stderr(handle);
+        assert_eq!(unsafe { verso_str(stdout.cast_const()) }, "saida");
+        assert_eq!(unsafe { verso_str(stderr.cast_const()) }, "erro");
+        unsafe {
+            pinker_liberar(stdout);
+            pinker_liberar(stderr);
+        }
+    }
+
+    #[test]
+    fn parte_d_resultado_saida_processo_roundtrip_pela_abi_nativa() {
+        let handle = registrar_saida_processo(SaidaProcessoNativa {
+            codigo: 23,
+            stdout: "out".to_string(),
+            stderr: "err".to_string(),
+        });
+        let resultado = pinker_leque_criar_0(0);
+        let resultado = unsafe { pinker_leque_anexar(resultado, handle) };
+        assert_eq!(unsafe { pinker_leque_tag(resultado) }, 0);
+        let extraido = unsafe { pinker_leque_carga(resultado, 0, 0) };
+        assert_eq!(extraido, handle);
+        assert_eq!(pinker_saida_processo_codigo(extraido), 23);
+        let stdout = pinker_saida_processo_stdout(extraido);
+        let stderr = pinker_saida_processo_stderr(extraido);
+        assert_eq!(unsafe { verso_str(stdout.cast_const()) }, "out");
+        assert_eq!(unsafe { verso_str(stderr.cast_const()) }, "err");
+        unsafe {
+            pinker_liberar(stdout);
+            pinker_liberar(stderr);
+        }
+    }
 
     #[test]
     fn d7_pack_valida_count_size_e_limite_isize() {

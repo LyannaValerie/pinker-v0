@@ -102,14 +102,14 @@ pub struct Parser {
     /// declaração do usuário com o mesmo nome o remove daqui e suprime/substitui o
     /// template, garantindo que jamais coexistam dois `Resultado` para o mesmo uso.
     predeclared_generic_enums: HashSet<String>,
-    /// Parte C: leques predeclarados **sem** parâmetros de tipo, disponíveis
-    /// para materialização sob demanda (hoje: `TipoEntrada`).
+    /// Leques builtin predeclarados **sem** parâmetros de tipo, disponíveis
+    /// para materialização sob demanda (`TipoEntrada` e `LimiteTempo`).
     ///
     /// Separado de `predeclared_generic_enums` porque não há monomorfização
     /// envolvida: o leque já é concreto e só precisa entrar no `Program` quando
-    /// alguma superfície que o devolve for realmente chamada. Declaração do
-    /// usuário com o mesmo nome remove a entrada — o usuário vence, como na
-    /// Fase 241.
+    /// alguma superfície que o devolve for realmente chamada. A reserva do nome
+    /// não deriva deste recipiente: `runtime_identity` rejeita qualquer declaração
+    /// homônima do usuário, independentemente da ordem textual.
     predeclared_plain_enums: HashMap<String, EnumDecl>,
     /// Leques predeclarados simples já materializados por uso, na ordem em que
     /// foram exigidos. Anexados a `Program.items` no fim do parse.
@@ -208,6 +208,7 @@ impl Parser {
         match ty {
             Type::Alias { name, .. }
             | Type::Struct { name, .. }
+            | Type::OpaqueHandle { name, .. }
             | Type::Enum { name, .. }
             | Type::Applied { name, .. } => name.clone(),
             _ => ty.name().to_string(),
@@ -544,22 +545,22 @@ impl Parser {
                         // produzir valores dessa identidade pelo runtime.
                         self.registrar_redeclaracao_de_identidade(&item_name, item.span())?;
                     }
-                    // Parte C / F1: identidade de runtime é **reservada**, não
-                    // substituível.
+                    // Identidade semântica consumida/produzida pelo runtime é
+                    // **reservada**, não substituível.
                     //
                     // A regra "o usuário vence" da Fase 241 vale para uma
                     // predeclaração de biblioteca, que o programa pode
-                    // legitimamente trocar. Ela não pode valer para uma
-                    // taxonomia cujos discriminantes são produzidos por
-                    // operações builtin: a superfície de classificação devolve
-                    // os discriminantes 0..3 vindos do interpretador e do
-                    // runtime nativo, e uma declaração arbitrária do usuário
-                    // com este nome faria esses mesmos valores serem lidos como
-                    // outras variantes.
+                    // legitimamente trocar. Ela não vale para as autoridades
+                    // registradas em `runtime_identity`: `TipoEntrada` e
+                    // `LimiteTempo` têm tags interpretadas pelo runtime;
+                    // `SaidaProcesso` é um handle builtin nominal. Compartilhar
+                    // discriminante ou palavra de máquina não autoriza uma
+                    // declaração arbitrária a assumir a mesma identidade.
                     //
-                    // O nome público da superfície não aparece aqui de
-                    // propósito: ele é declarado só em `falha_operacional`, e a
-                    // guarda da Parte B falha se reaparecer nesta crate.
+                    // A lista canônica dessas identidades não aparece aqui de
+                    // propósito: ampliar a autoridade ocorre em
+                    // `runtime_identity`, não neste recipiente acidental de
+                    // leques predeclarados.
                     //
                     // ```text
                     // BUILTIN_RUNTIME_SEMANTICS
@@ -573,14 +574,11 @@ impl Parser {
                     // do uso. O span é o da declaração do usuário — a rejeição
                     // pelo caminho antigo apontava para o span sintético 0:0 do
                     // predeclarado, que não existe em fonte alguma.
-                    if self.predeclared_plain_enums.contains_key(&item_name) {
+                    if let Some(identity) =
+                        crate::runtime_identity::runtime_reserved_identity(&item_name)
+                    {
                         return Err(PinkerError::Parse {
-                            msg: format!(
-                                "'{item_name}' é uma identidade predeclarada do runtime e não \
-                                 pode ser redeclarada: os discriminantes desta taxonomia são \
-                                 produzidos por operações builtin, e uma declaração própria com \
-                                 este nome passaria a reinterpretá-los"
-                            ),
+                            msg: crate::runtime_identity::conflict_message(identity),
                             span: item.span(),
                         });
                     }
@@ -654,7 +652,7 @@ impl Parser {
                 .into_iter()
                 .map(Item::Function),
         );
-        // Parte C: os leques predeclarados simples entram antes das
+        // Os leques builtin predeclarados simples entram antes das
         // especializações genéricas — uma especialização pode carregar um deles
         // como argumento de tipo, e a IR classifica cargas só depois de coletar
         // todos os nomes de leque, mas manter a ordem de dependência evita
@@ -963,6 +961,21 @@ impl Parser {
                 name = format!("{}.{}", name, qualified);
                 type_span = merge_span(type_span, separator_span);
                 type_span = merge_span(type_span, self.previous().span);
+            }
+            if matches!(
+                crate::runtime_identity::runtime_reserved_identity(&name),
+                Some(crate::runtime_identity::RuntimeReservedIdentity {
+                    kind: crate::runtime_identity::RuntimeSemanticKind::OpaqueWordHandle,
+                    ..
+                })
+            ) {
+                return Ok(Type::OpaqueHandle {
+                    name,
+                    span: type_span,
+                });
+            }
+            if self.predeclared_plain_enums.contains_key(&name) {
+                self.registrar_leque_predeclarado(&name);
             }
             Ok(Type::Alias {
                 name,
@@ -2707,6 +2720,7 @@ impl Parser {
             ),
             Type::Alias { name, .. }
             | Type::Struct { name, .. }
+            | Type::OpaqueHandle { name, .. }
             | Type::Enum { name, .. }
             | Type::Applied { name, .. } => name.clone(),
             Type::FixedArray { element, size, .. } => {
@@ -3356,7 +3370,7 @@ impl Parser {
 
         // Parte C: quando a carga de sucesso é um leque nomeado, ele precisa
         // existir antes de virar argumento de tipo da especialização.
-        if let Some(leque) = superficie.sucesso.leque_exigido() {
+        for leque in superficie.leques_exigidos() {
             self.registrar_leque_predeclarado(leque);
         }
 
@@ -3396,11 +3410,12 @@ impl Parser {
         }
     }
 
-    /// Parte C: registra os leques predeclarados sem parâmetros de tipo.
+    /// Registra as formas de leque dentre as identidades runtime-reserved.
     ///
-    /// Hoje só `TipoEntrada`, construído a partir da autoridade da taxonomia —
-    /// os nomes das variantes e a ordem de declaração (que é o discriminante)
-    /// vêm de `tipo_entrada::VARIANTES`, nunca repetidos aqui.
+    /// `TipoEntrada` e `LimiteTempo` precisam de `EnumDecl` sintético;
+    /// `SaidaProcesso` é um handle opaco e, portanto, deliberadamente não entra
+    /// neste recipiente. A reserva semântica dos três nomes vem de
+    /// `runtime_identity`, não da presença neste mapa.
     fn register_predeclared_plain_enums(&mut self) {
         for template in Self::predeclared_plain_enum_templates() {
             self.predeclared_plain_enums
@@ -3412,26 +3427,45 @@ impl Parser {
     /// convenção do template genérico: nunca fingir uma posição de fonte real.
     fn predeclared_plain_enum_templates() -> Vec<EnumDecl> {
         let synthetic = Span::single(crate::token::Position::new(0, 0));
-        vec![EnumDecl {
-            name: crate::tipo_entrada::LEQUE_TIPO_ENTRADA.to_string(),
-            type_params: Vec::new(),
-            variants: crate::tipo_entrada::VARIANTES
-                .iter()
-                .map(|(nome, _)| EnumVariant {
-                    name: (*nome).to_string(),
-                    payloads: Vec::new(),
-                    span: synthetic,
-                })
-                .collect(),
-            span: synthetic,
-        }]
+        vec![
+            EnumDecl {
+                name: crate::tipo_entrada::LEQUE_TIPO_ENTRADA.to_string(),
+                type_params: Vec::new(),
+                variants: crate::tipo_entrada::VARIANTES
+                    .iter()
+                    .map(|(nome, _)| EnumVariant {
+                        name: (*nome).to_string(),
+                        payloads: Vec::new(),
+                        span: synthetic,
+                    })
+                    .collect(),
+                span: synthetic,
+            },
+            EnumDecl {
+                name: crate::limite_tempo::LEQUE_LIMITE_TEMPO.to_string(),
+                type_params: Vec::new(),
+                variants: vec![
+                    EnumVariant {
+                        name: crate::limite_tempo::VARIANTE_SEM_LIMITE.to_string(),
+                        payloads: Vec::new(),
+                        span: synthetic,
+                    },
+                    EnumVariant {
+                        name: crate::limite_tempo::VARIANTE_ATE.to_string(),
+                        payloads: vec![Type::Bombom(synthetic)],
+                        span: synthetic,
+                    },
+                ],
+                span: synthetic,
+            },
+        ]
     }
 
     /// Materializa sob demanda um leque predeclarado simples exigido por uma
-    /// superfície falível.
+    /// superfície builtin.
     ///
     /// Só entra no `Program` quando a superfície que o devolve é realmente
-    /// chamada: um programa que não classifica entradas não ganha o leque.
+    /// chamada: um programa que não usa a taxonomia não ganha o leque.
     fn registrar_leque_predeclarado(&mut self, nome: &str) {
         let Some(template) = self.predeclared_plain_enums.get(nome).cloned() else {
             return;
