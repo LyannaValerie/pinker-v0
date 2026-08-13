@@ -174,11 +174,15 @@ fn executar_com_controle(
         }
 
         let timeout = timeout_poll(deadline);
-        if let Err(erro) = poll_descritores(&mut descritores, timeout) {
-            return falhar_depois_spawn(
-                format!("falha em poll dos pipes do processo estruturado: {erro}"),
-                &mut filho,
-            );
+        match poll_descritores(&mut descritores, timeout) {
+            Ok(ResultadoPoll::Eventos) => {}
+            Ok(ResultadoPoll::Interrompido) => continue,
+            Err(erro) => {
+                return falhar_depois_spawn(
+                    format!("falha em poll dos pipes do processo estruturado: {erro}"),
+                    &mut filho,
+                );
+            }
         }
 
         let mut fechar_stdin = false;
@@ -469,8 +473,32 @@ fn configurar_nao_bloqueante<T>(_pipe: &T) -> io::Result<()> {
     ))
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ResultadoPoll {
+    Eventos,
+    Interrompido,
+}
+
 #[cfg(unix)]
-fn poll_descritores(descritores: &mut [DescritorPoll], timeout: i32) -> io::Result<()> {
+fn poll_descritores(descritores: &mut [DescritorPoll], timeout: i32) -> io::Result<ResultadoPoll> {
+    poll_descritores_com(descritores, timeout, |raws, timeout| {
+        // SAFETY: raws é um slice contíguo de PollFd com quantidade exata; para
+        // slice vazio, o ponteiro não é desreferenciado porque quantidade é 0.
+        let retorno = unsafe { poll(raws.as_mut_ptr(), raws.len(), timeout) };
+        if retorno >= 0 {
+            Ok(())
+        } else {
+            Err(io::Error::last_os_error())
+        }
+    })
+}
+
+#[cfg(unix)]
+fn poll_descritores_com(
+    descritores: &mut [DescritorPoll],
+    timeout: i32,
+    mut aguardar: impl FnMut(&mut [PollFd], i32) -> io::Result<()>,
+) -> io::Result<ResultadoPoll> {
     let mut raws: Vec<PollFd> = descritores
         .iter()
         .map(|descritor| PollFd {
@@ -479,25 +507,23 @@ fn poll_descritores(descritores: &mut [DescritorPoll], timeout: i32) -> io::Resu
             revents: 0,
         })
         .collect();
-    loop {
-        // SAFETY: raws é um vetor contíguo de PollFd com quantidade exata; para
-        // vetor vazio, o ponteiro não é desreferenciado porque quantidade é 0.
-        let retorno = unsafe { poll(raws.as_mut_ptr(), raws.len(), timeout) };
-        if retorno >= 0 {
+    match aguardar(&mut raws, timeout) {
+        Ok(()) => {
             for (destino, origem) in descritores.iter_mut().zip(raws.iter()) {
                 destino.revents = origem.revents;
             }
-            return Ok(());
+            Ok(ResultadoPoll::Eventos)
         }
-        let erro = io::Error::last_os_error();
-        if erro.kind() != io::ErrorKind::Interrupted {
-            return Err(erro);
-        }
+        Err(erro) if erro.kind() == io::ErrorKind::Interrupted => Ok(ResultadoPoll::Interrompido),
+        Err(erro) => Err(erro),
     }
 }
 
 #[cfg(not(unix))]
-fn poll_descritores(_descritores: &mut [DescritorPoll], _timeout: i32) -> io::Result<()> {
+fn poll_descritores(
+    _descritores: &mut [DescritorPoll],
+    _timeout: i32,
+) -> io::Result<ResultadoPoll> {
     Err(io::Error::new(
         io::ErrorKind::Unsupported,
         "poll requer plataforma Unix",
@@ -513,6 +539,31 @@ fn poll_descritores(_descritores: &mut [DescritorPoll], _timeout: i32) -> io::Re
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn eintr_devolve_controle_sem_repetir_timeout_relativo() {
+        let mut chamadas = 0;
+        let mut injecao_aplicada = false;
+        let resultado = poll_descritores_com(&mut [], 317, |_, timeout| {
+            injecao_aplicada = true;
+            chamadas += 1;
+            assert_eq!(timeout, 317, "TARGET_REACHED: timeout chegou à espera");
+            Err(io::Error::from(io::ErrorKind::Interrupted))
+        })
+        .expect("Interrupted é controle do laço, não falha operacional");
+
+        assert!(injecao_aplicada, "INJECTION_APPLIED");
+        assert_eq!(resultado, ResultadoPoll::Interrompido, "TARGET_REACHED");
+        assert_eq!(
+            chamadas, 1,
+            "MUTANT_DETECTED: retry interno reutilizaria o timeout relativo"
+        );
+
+        let revertido = poll_descritores_com(&mut [], 1, |_, _| Ok(()))
+            .expect("seam controlada não altera a espera seguinte");
+        assert_eq!(revertido, ResultadoPoll::Eventos, "REVERTED");
+    }
 
     #[cfg(target_os = "linux")]
     #[test]

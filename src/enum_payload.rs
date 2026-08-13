@@ -230,7 +230,8 @@ impl EnumPayloadRejection {
 /// deixou de ser fiel quando as listas entraram no contrato.
 pub const CONTRATO_CARGAS: &str =
     "'bombom', 'verso', um leque declarado, 'lista<bombom>', 'lista<verso>', \
-     'lista<Leque>' ou um apelido transparente de qualquer uma dessas formas";
+     'lista<Leque>', o handle builtin nominal 'SaidaProcesso' ou um apelido \
+     transparente de qualquer uma dessas formas";
 
 /// Resolve integralmente o tipo declarado de uma carga.
 ///

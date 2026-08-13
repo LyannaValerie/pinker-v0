@@ -160,10 +160,19 @@ impl PoliticaSnapshot {
 /// contador monotônico, sem caminho de remoção. A semelhança é deliberada e
 /// verificada, não presumida — reusar a política existente é o que mantém
 /// `SaidaProcesso` fora da categoria de recurso com ciclo de vida próprio.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct TabelaSaidas {
     entradas: std::collections::HashMap<u64, SaidaProcesso>,
-    proximo_handle: u64,
+    proximo_handle: Option<u64>,
+}
+
+impl Default for TabelaSaidas {
+    fn default() -> Self {
+        Self {
+            entradas: std::collections::HashMap::new(),
+            proximo_handle: Some(1),
+        }
+    }
 }
 
 impl TabelaSaidas {
@@ -174,11 +183,20 @@ impl TabelaSaidas {
     /// Materializa um snapshot e devolve seu handle.
     ///
     /// O handle só é emitido depois que a execução terminou, então não existe
-    /// janela em que ele aponte para uma observação incompleta.
+    /// janela em que ele aponte para uma observação incompleta. O incremento é
+    /// verificado e transforma `u64::MAX` no último handle possível; uma chamada
+    /// posterior é falha de invariante interna antes de tocar a tabela.
     pub fn inserir(&mut self, saida: SaidaProcesso) -> u64 {
-        let handle = self.proximo_handle;
-        self.proximo_handle += 1;
+        let handle = self
+            .proximo_handle
+            .expect("invariante interna violada: namespace de handles de SaidaProcesso esgotado");
+        assert!(
+            !self.entradas.contains_key(&handle),
+            "invariante interna violada: handle de SaidaProcesso seria reutilizado"
+        );
+        let proximo_handle = handle.checked_add(1);
         self.entradas.insert(handle, saida);
+        self.proximo_handle = proximo_handle;
         handle
     }
 
@@ -227,9 +245,31 @@ mod tests {
         let b = tabela.inserir(SaidaProcesso::nova(1, "b".into(), String::new()));
         let c = tabela.inserir(SaidaProcesso::nova(2, "c".into(), String::new()));
 
+        assert_eq!(a, 1, "zero não é identidade produzida");
         assert!(a < b && b < c, "handles precisam ser monotônicos");
         assert_eq!(tabela.retidos(), 3, "nada é removido");
         assert!(!std::hint::black_box(PoliticaSnapshot::HANDLE_REUTILIZADO));
+    }
+
+    #[test]
+    fn esgotamento_de_handle_nao_faz_wrap_nem_aba() {
+        let mut tabela = TabelaSaidas::nova();
+        let antigo = tabela.inserir(SaidaProcesso::nova(11, "antigo".into(), "a".into()));
+        tabela.proximo_handle = Some(u64::MAX);
+
+        let ultimo = tabela.inserir(SaidaProcesso::nova(22, "ultimo".into(), "u".into()));
+        assert_eq!(ultimo, u64::MAX, "último estado permitido");
+        assert_eq!(tabela.proximo_handle, None, "namespace está esgotado");
+        assert_eq!(tabela.retidos(), 2);
+
+        let esgotamento = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            tabela.inserir(SaidaProcesso::nova(33, "novo".into(), "n".into()));
+        }));
+        assert!(esgotamento.is_err(), "esgotamento é falha de invariante");
+        assert_eq!(tabela.retidos(), 2, "falha não insere nem sobrescreve");
+        assert_eq!(tabela.obter(antigo).expect("alias antigo").codigo(), 11);
+        assert_eq!(tabela.obter(ultimo).expect("último snapshot").codigo(), 22);
+        assert!(tabela.obter(0).is_none(), "wrap não reutiliza zero");
     }
 
     /// Duas cópias do handle observam o MESMO snapshot.

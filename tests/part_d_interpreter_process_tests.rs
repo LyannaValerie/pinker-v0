@@ -416,6 +416,55 @@ fn cwd_ambiente_e_path_afetam_so_o_filho_e_erros_sao_recuperaveis() {
     erro_operacional(&fonte);
 }
 
+#[cfg(unix)]
+#[test]
+fn path_ambiente_nao_decide_executavel_mas_overlay_explicito_decide() {
+    use std::os::unix::fs::PermissionsExt as _;
+
+    let dir = common::NativeArtifactDir::create().expect("sandbox PATH HR3");
+    let falso_true = dir.path().join("true");
+    fs::write(&falso_true, "#!/bin/sh\nprintf 'FAKE_TRUE\\n'\nexit 73\n")
+        .expect("fixture true falsa");
+    fs::set_permissions(&falso_true, fs::Permissions::from_mode(0o755))
+        .expect("fixture executável");
+    let path_ambiente = format!("{}:/usr/local/bin:/usr/bin:/bin", dir.path().display());
+    let corpo = "falar(processo_codigo(saida)); falar(processo_saida(saida));";
+
+    let default_saneada = fonte(
+        "true",
+        &[],
+        "",
+        "",
+        &BTreeMap::new(),
+        "LimiteTempo.SemLimite",
+        corpo,
+    );
+    let (output, _) = rodar(&default_saneada, &[("PATH", path_ambiente.as_str())]);
+    assert_eq!(
+        sucesso(&output),
+        "OK\n0\n\n",
+        "PATH ambiente não pode selecionar a fixture falsa"
+    );
+
+    let mut overlay = BTreeMap::new();
+    overlay.insert("PATH".to_string(), dir.path().display().to_string());
+    let override_explicito = fonte(
+        "true",
+        &[],
+        "",
+        "",
+        &overlay,
+        "LimiteTempo.SemLimite",
+        corpo,
+    );
+    let (output, _) = rodar(&override_explicito, &[("PATH", path_ambiente.as_str())]);
+    assert_eq!(
+        sucesso(&output),
+        "OK\n73\nFAKE_TRUE\n\n",
+        "overlay PATH explícito precisa selecionar a fixture falsa"
+    );
+}
+
 #[test]
 fn terminacao_anormal_utf8_invalido_e_timeout_simples_sao_erros_sem_snapshot() {
     for modo in ["abnormal", "invalid-stdout", "invalid-stderr"] {
