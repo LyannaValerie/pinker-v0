@@ -114,6 +114,17 @@ pub struct Parser {
     /// Leques predeclarados simples já materializados por uso, na ordem em que
     /// foram exigidos. Anexados a `Program.items` no fim do parse.
     predeclared_plain_enums_materializados: Vec<EnumDecl>,
+    /// Parte B1: declaração do usuário que tomou para si uma identidade que o
+    /// runtime produz (`Resultado`), com o span real da declaração.
+    ///
+    /// Guardado — em vez de decidido no lugar — porque a regra é uma conjunção
+    /// sobre o programa inteiro: a outra metade
+    /// ([`Parser::identidade_runtime_produzida`]) pode aparecer antes ou depois
+    /// no texto. Ver [`Parser::registrar_redeclaracao_de_identidade`].
+    identidade_runtime_redeclarada: Option<(String, Span)>,
+    /// Parte B1: o programa produz algum valor cuja tag vem da implementação
+    /// (chamou alguma superfície falível).
+    identidade_runtime_produzida: bool,
     /// Fase 243: nomes sintéticos `__anon_carinho_N` cujo corpo referencia
     /// (pela aproximação sintática conservadora) algum identificador livre
     /// — excluídos dos caminhos rápidos estáticos das Fases 238/239.
@@ -187,6 +198,8 @@ impl Parser {
             predeclared_generic_enums: HashSet::new(),
             predeclared_plain_enums: HashMap::new(),
             predeclared_plain_enums_materializados: Vec::new(),
+            identidade_runtime_redeclarada: None,
+            identidade_runtime_produzida: false,
             capturing_anon_functions: HashSet::new(),
         }
     }
@@ -426,7 +439,7 @@ impl Parser {
     // @pinker-nav:start parser.programa.estrutura
     // @pinker-nav:domain programa
     // @pinker-nav:layer parser
-    // @pinker-nav:summary Ponto de entrada do parser: constrói o `Program` reconhecendo `pacote`, `trazer` (imports) e a marca freestanding, e despacha os itens de topo (funções, structs, leques, tratos, impl, aliases, constantes) via `parse_item`. Predeclara os leques genéricos da biblioteca padrão (Fase 241, `Resultado<T,E>`) antes do laço de itens e suprime o predeclarado quando o usuário declara o mesmo nome.
+    // @pinker-nav:summary Ponto de entrada do parser: constrói o `Program` reconhecendo `pacote`, `trazer` (imports) e a marca freestanding, e despacha os itens de topo (funções, structs, leques, tratos, impl, aliases, constantes) via `parse_item`. Predeclara os leques genéricos da biblioteca padrão (Fase 241, `Resultado<T,E>`) antes do laço de itens e suprime o predeclarado quando o usuário declara o mesmo nome. A supressão registra a redeclaração (Parte B1): quando o programa também produz valores dessa identidade pelo runtime, a conjunção é inválida e o programa é recusado no span da declaração do usuário, em qualquer ordem de texto.
     pub fn parse(&mut self) -> Result<Program, PinkerError> {
         let package = if self.match_token(TokenKind::KwPacote) {
             let start_span = self.previous().span;
@@ -522,11 +535,14 @@ impl Parser {
                 // usuário de mesmo nome é tratado adiante (substituição sem erro
                 // de duplicata); aqui cobrimos as demais formas (leque não-genérico,
                 // `ninho`, `apelido`, `carinho`, `eterno`), removendo o predeclarado.
-                if let Some(item_name) = Self::item_name(&item) {
+                if let Some(item_name) = Self::item_name(&item).map(str::to_string) {
                     let is_generic_enum =
                         matches!(&item, Item::Enum(enum_decl) if !enum_decl.type_params.is_empty());
-                    if !is_generic_enum && self.predeclared_generic_enums.remove(item_name) {
-                        self.enum_generic_templates.remove(item_name);
+                    if !is_generic_enum && self.predeclared_generic_enums.remove(&item_name) {
+                        self.enum_generic_templates.remove(&item_name);
+                        // Parte B1: a supressão é legítima enquanto o programa não
+                        // produzir valores dessa identidade pelo runtime.
+                        self.registrar_redeclaracao_de_identidade(&item_name, item.span())?;
                     }
                     // Parte C / F1: identidade de runtime é **reservada**, não
                     // substituível.
@@ -557,7 +573,7 @@ impl Parser {
                     // do uso. O span é o da declaração do usuário — a rejeição
                     // pelo caminho antigo apontava para o span sintético 0:0 do
                     // predeclarado, que não existe em fonte alguma.
-                    if self.predeclared_plain_enums.contains_key(item_name) {
+                    if self.predeclared_plain_enums.contains_key(&item_name) {
                         return Err(PinkerError::Parse {
                             msg: format!(
                                 "'{item_name}' é uma identidade predeclarada do runtime e não \
@@ -608,6 +624,15 @@ impl Parser {
                         // mais predeclarado) continua sendo duplicata inválida.
                         let was_predeclared =
                             self.predeclared_generic_enums.remove(&enum_decl.name);
+                        if was_predeclared {
+                            // Parte B1: substituir o template predeclarado é
+                            // legítimo enquanto o programa não produzir valores
+                            // dessa identidade pelo runtime.
+                            self.registrar_redeclaracao_de_identidade(
+                                &enum_decl.name,
+                                enum_decl.span,
+                            )?;
+                        }
                         if self.enum_generic_templates.contains_key(&enum_decl.name)
                             && !was_predeclared
                         {
@@ -3266,7 +3291,7 @@ impl Parser {
     // @pinker-nav:start parser.genericos.leques-template
     // @pinker-nav:domain genericos
     // @pinker-nav:layer parser
-    // @pinker-nav:summary Materializa um `EnumDecl` concreto a partir de um template de leque genérico e seus argumentos de tipo: confere a aridade (erro `Parse` se divergir), monta a tabela parâmetro-de-tipo → tipo concreto, substitui as cargas das variantes, remove os parâmetros de tipo e nomeia a instância pelo nome monomórfico. Não valida os tipos resultantes nem os anexa ao `Program`. Inclui também a predeclaração da biblioteca padrão (Fase 241): `register_predeclared_generic_enums`/`predeclared_generic_enum_templates` constroem o template sintético `Resultado<T,E> { Ok(T), Erro(E) }` e `item_name` apoia a supressão por declaração do usuário.
+    // @pinker-nav:summary Materializa um `EnumDecl` concreto a partir de um template de leque genérico e seus argumentos de tipo: confere a aridade (erro `Parse` se divergir), monta a tabela parâmetro-de-tipo → tipo concreto, substitui as cargas das variantes, remove os parâmetros de tipo e nomeia a instância pelo nome monomórfico. Não valida os tipos resultantes nem os anexa ao `Program`. Inclui também a predeclaração da biblioteca padrão (Fase 241): `register_predeclared_generic_enums`/`predeclared_generic_enum_templates` constroem o template sintético `Resultado<T,E> { Ok(T), Erro(E) }` e `item_name` apoia a supressão por declaração do usuário. `registrar_resultado_falivel` materializa a especialização devolvida por uma superfície falível e, com `registrar_redeclaracao_de_identidade`/`registrar_producao_de_identidade`/`verificar_identidade_runtime`, fecha a conjunção da Parte B1: produzir a identidade pelo runtime e redeclarar o nome é inválido, independentemente da ordem no texto.
     fn instantiate_generic_enum_decl(
         template: &EnumDecl,
         type_args: &[Type],
@@ -3322,11 +3347,19 @@ impl Parser {
         superficie: &crate::falha_operacional::SuperficieFalivel,
         span: Span,
     ) -> Result<(), PinkerError> {
+        // Parte B1: a partir daqui o programa passa a conter valores cuja tag é
+        // produzida pela implementação. A identidade que dá significado a essa
+        // tag deixa de ser substituível — em qualquer posição do texto. Vem
+        // antes de qualquer materialização: a porta fecha antes de a Parte C
+        // publicar o leque da carga.
+        self.registrar_producao_de_identidade(superficie.identidade())?;
+
         // Parte C: quando a carga de sucesso é um leque nomeado, ele precisa
         // existir antes de virar argumento de tipo da especialização.
         if let Some(leque) = superficie.sucesso.leque_exigido() {
             self.registrar_leque_predeclarado(leque);
         }
+
         let name = crate::falha_operacional::LEQUE_RESULTADO.to_string();
         let args = superficie.argumentos_de_tipo(span);
         self.enum_generic_instantiations
@@ -3427,23 +3460,79 @@ impl Parser {
             name: name.to_string(),
             span: synthetic,
         };
+        // Nomes vindos da autoridade: a ordem declarada aqui é o que define
+        // TAG_OK/TAG_ERRO, então os dois fatos não podem ser escritos duas vezes.
         vec![EnumDecl {
-            name: "Resultado".to_string(),
+            name: crate::falha_operacional::LEQUE_RESULTADO.to_string(),
             type_params: vec!["T".to_string(), "E".to_string()],
             variants: vec![
                 EnumVariant {
-                    name: "Ok".to_string(),
+                    name: crate::falha_operacional::VARIANTE_OK.to_string(),
                     payloads: vec![param("T")],
                     span: synthetic,
                 },
                 EnumVariant {
-                    name: "Erro".to_string(),
+                    name: crate::falha_operacional::VARIANTE_ERRO.to_string(),
                     payloads: vec![param("E")],
                     span: synthetic,
                 },
             ],
             span: synthetic,
         }]
+    }
+
+    /// Parte B1: registra que o usuário tomou para si o nome `nome`.
+    ///
+    /// Não decide nada sozinho — completa metade de uma conjunção. Só levanta
+    /// erro se a outra metade já estiver satisfeita, isto é, se o programa já
+    /// produziu valores dessa identidade pelo runtime.
+    fn registrar_redeclaracao_de_identidade(
+        &mut self,
+        nome: &str,
+        span: Span,
+    ) -> Result<(), PinkerError> {
+        if !crate::falha_operacional::identidade_produzida_pelo_runtime(nome) {
+            return Ok(());
+        }
+        if self.identidade_runtime_redeclarada.is_none() {
+            self.identidade_runtime_redeclarada = Some((nome.to_string(), span));
+        }
+        self.verificar_identidade_runtime()
+    }
+
+    /// Parte B1: registra que o programa produz valores de `nome` pelo runtime.
+    ///
+    /// A outra metade da conjunção. Chamada na materialização da especialização
+    /// devolvida por uma superfície falível.
+    fn registrar_producao_de_identidade(&mut self, nome: &str) -> Result<(), PinkerError> {
+        debug_assert!(crate::falha_operacional::identidade_produzida_pelo_runtime(
+            nome
+        ));
+        self.identidade_runtime_produzida = true;
+        self.verificar_identidade_runtime()
+    }
+
+    /// Parte B1: fecha a conjunção.
+    ///
+    /// ```text
+    /// PRODUZ_PELO_RUNTIME ∧ REDECLARADA → INVÁLIDO
+    /// ```
+    ///
+    /// Chamada pelos dois registradores, então quem completa a conjunção por
+    /// último levanta o erro — a mensagem e o span não dependem de qual dos dois
+    /// fatos apareceu primeiro no texto. O span é sempre o da declaração do
+    /// usuário, nunca o `0:0` sintético do predeclarado.
+    fn verificar_identidade_runtime(&self) -> Result<(), PinkerError> {
+        let Some((nome, span)) = self.identidade_runtime_redeclarada.as_ref() else {
+            return Ok(());
+        };
+        if !self.identidade_runtime_produzida {
+            return Ok(());
+        }
+        Err(PinkerError::Parse {
+            msg: crate::falha_operacional::conflito_de_identidade(nome),
+            span: *span,
+        })
     }
 
     /// Nome de topo de um item, para a supressão de predeclarados da Fase 241.

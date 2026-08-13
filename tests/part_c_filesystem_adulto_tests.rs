@@ -12,7 +12,7 @@ use std::time::Duration;
 // @pinker-nav:start evidencia.filesystem.parte-c-adulto
 // @pinker-nav:domain filesystem
 // @pinker-nav:layer evidencia
-// @pinker-nav:summary Evidência da Parte C: enumeração determinística de entradas imediatas, classificação de tipo sem seguir symlink e metadata mínima atravessam `Resultado<T,E>` com paridade byte a byte entre interpretador e ELF nativo. A matriz cobre diretório vazio como sucesso, ordenação independente da ordem de criação, ocultos, as quatro classes de entrada incluindo `Outro` por socket real, nomes sem path, erro operacional distinto de coleção vazia, argumento symlink recusado, symlink interno para arquivo/diretório/alvo ausente, nome não representável em UTF-8 e composição com `propagar?`. Controles positivos impedem que a matriz passe por falhar em tudo, e a compatibilidade das superfícies históricas que **seguem** symlink é verificada lado a lado com as novas que não seguem.
+// @pinker-nav:summary Evidência da Parte C: enumeração determinística de entradas imediatas, classificação de tipo sem seguir symlink e metadata mínima atravessam `Resultado<T,E>` com paridade byte a byte entre interpretador e ELF nativo. A matriz cobre diretório vazio como sucesso, ordenação independente da ordem de criação, ocultos, as quatro classes de entrada incluindo `Outro` por socket real, nomes sem path, erro operacional distinto de coleção vazia, argumento symlink recusado, symlink interno para arquivo/diretório/alvo ausente, nome não representável em UTF-8 e composição com `propagar?`. Controles positivos impedem que a matriz passe por falhar em tudo, e a compatibilidade das superfícies históricas que **seguem** symlink é verificada lado a lado com as novas que não seguem. Depois do merge da Parte B1 (#475), um caso de integração prova que reinterpretar `Resultado` não inverte o significado de uma superfície da Parte C, com controles que separam as duas políticas: a reserva incondicional de `TipoEntrada` e a reserva condicional de `Resultado`.
 
 /// Enumeração pura: quantidade e nomes, um por linha.
 const FONTE_LISTAR: &str = r#"
@@ -946,6 +946,86 @@ fn identidade_builtin_da_taxonomia_nao_e_substituivel_pelo_usuario() {
     );
     common::parse_and_check(&vizinho)
         .expect("um nome diferente não deveria ser afetado pela reserva");
+}
+
+/// Integração com a Parte B1 (#474 / PR #475): uma tentativa de reinterpretar
+/// `Resultado` não consegue inverter o significado de uma superfície da Parte C.
+///
+/// As duas políticas são distintas e precisam continuar distintas:
+///
+/// ```text
+/// TipoEntrada       -> identidade builtin RESERVADA, sempre
+/// Resultado<T,E>    -> substituível, EXCETO quando o programa produz o valor
+/// ```
+///
+/// Aqui a superfície devolve `Resultado<TipoEntrada, verso>`: o discriminante
+/// externo (`Ok`/`Erro`) e o interno (a taxonomia) são produzidos pelo runtime
+/// na mesma chamada. Nenhum dos dois pode ser reinterpretado, e uma política não
+/// pode estar cobrindo o buraco da outra — por isso os controles negativos
+/// abaixo separam as duas razões.
+#[test]
+fn reinterpretar_resultado_nao_inverte_superficie_da_parte_c() {
+    // Inverter as variantes de `Resultado` faria um `Ok(TipoEntrada)` produzido
+    // pelo runtime ser lido como `Erro`. Recusado pela política da #475.
+    let invertido = format!(
+        "pacote main;\n\nleque Resultado<T, E> {{ Erro(E), Ok(T) }}\n\n{}",
+        CORPO_QUE_USA_TIPO_DE_ENTRADA
+    );
+    let erro = format!(
+        "{:?}",
+        common::parse_and_check(&invertido)
+            .expect_err("inverter Resultado sobre uma superfície da Parte C deveria ser recusado")
+    );
+    assert!(
+        erro.contains("identidade de resultado produzida pelo runtime")
+            || erro.contains("produzido pelo runtime"),
+        "a recusa deveria vir da política de identidade de Resultado, obtido: {erro}"
+    );
+    assert!(
+        !erro.contains("identidade predeclarada do runtime"),
+        "a recusa não pode vir da reserva de TipoEntrada: as duas políticas são \
+         distintas e esta fonte não redeclara a taxonomia. Obtido: {erro}"
+    );
+
+    // A mesma inversão depois do uso: o veredito não pode depender da ordem.
+    let invertido_depois = format!(
+        "pacote main;\n\n{}\n\nleque Resultado<T, E> {{ Erro(E), Ok(T) }}\n",
+        CORPO_QUE_USA_TIPO_DE_ENTRADA
+    );
+    common::parse_and_check(&invertido_depois)
+        .expect_err("a ordem no texto não pode mudar o veredito");
+
+    // Renomear as variantes de `Resultado` também não passa.
+    let renomeado = format!(
+        "pacote main;\n\nleque Resultado<T, E> {{ Bom(T), Ruim(E) }}\n\n{}",
+        CORPO_QUE_USA_TIPO_DE_ENTRADA
+    );
+    common::parse_and_check(&renomeado)
+        .expect_err("renomear as variantes de Resultado deveria ser recusado");
+
+    // Controle positivo: sem nenhuma redeclaração, a mesma superfície compila.
+    let limpo = format!("pacote main;\n\n{}", CORPO_QUE_USA_TIPO_DE_ENTRADA);
+    common::parse_and_check(&limpo)
+        .expect("a superfície da Parte C sem conflito deveria continuar compilando");
+
+    // Controle de independência: declarar `Resultado` num programa que NÃO
+    // produz valor de runtime continua permitido (Fase 241 preservada). Se a
+    // Parte B1 tivesse virado reserva incondicional, isto falharia.
+    let sem_runtime = r#"
+        pacote main;
+        leque Resultado<T, E> { Erro(E), Ok(T) }
+        apelido RBV = Resultado<bombom, verso>;
+        carinho principal() -> bombom {
+            nova r: RBV = RBV.Ok(1);
+            encaixe r {
+                caso RBV.Ok(v) { falar(v); }
+                caso RBV.Erro(m) { falar(m); }
+            }
+            mimo 0;
+        }
+    "#;
+    common::parse_and_check(sem_runtime)
+        .expect("USER_WINS continua válido para quem não produz valor de runtime");
 }
 
 /// Corpo comum dos casos de F1: usa `tipo_de_entrada`, logo materializa a
