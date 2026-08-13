@@ -110,18 +110,38 @@ fn nav_impacto_diff_vazio_e_known_sem_overrides() {
 #[test]
 fn nav_impacto_diff_real_expoe_unknown_sem_falsa_precisao() {
     let repo = root().to_string_lossy().into_owned();
+    let predecessor = Command::new("git")
+        .args(["rev-parse", "--verify", "HEAD^"])
+        .current_dir(root())
+        .output()
+        .expect("TEST_SETUP_FAILURE: resolver predecessor local de HEAD");
+    assert!(
+        predecessor.status.success(),
+        "TEST_SETUP_FAILURE: predecessor local de HEAD indisponível: {}",
+        String::from_utf8_lossy(&predecessor.stderr)
+    );
+    let base = String::from_utf8(predecessor.stdout)
+        .expect("TEST_SETUP_FAILURE: predecessor de HEAD não é UTF-8");
+    let diff_spec = format!("{}...HEAD", base.trim());
+    let premise = Command::new("git")
+        .args(["diff", "--quiet", &diff_spec, "--"])
+        .current_dir(root())
+        .output()
+        .expect("TEST_SETUP_FAILURE: provar que a fixture possui diff real");
+    match premise.status.code() {
+        Some(1) => {}
+        Some(0) => panic!("TEST_SETUP_FAILURE: fixture {diff_spec} produziu diff vazio"),
+        code => panic!(
+            "TEST_SETUP_FAILURE: git diff falhou para {diff_spec} com {code:?}: {}",
+            String::from_utf8_lossy(&premise.stderr)
+        ),
+    }
     let output = run(&[
-        "nav",
-        "impacto",
-        "--diff",
-        "origin/main",
-        "--repo",
-        &repo,
-        "--json",
+        "nav", "impacto", "--diff", &diff_spec, "--repo", &repo, "--json",
     ]);
     assert!(
         output.status.success(),
-        "{}",
+        "PINK_BEHAVIOR_FAILURE: {}",
         String::from_utf8_lossy(&output.stderr)
     );
     let json = stdout(&output);
@@ -133,10 +153,19 @@ fn nav_impacto_diff_real_expoe_unknown_sem_falsa_precisao() {
         "projections_affected",
         "catalog_status",
     ] {
-        assert!(json.contains(&format!("\"{field}\":")), "{field}: {json}");
+        assert!(
+            json.contains(&format!("\"{field}\":")),
+            "PINK_BEHAVIOR_FAILURE: {field}: {json}"
+        );
     }
-    assert!(!json.contains("\"changed_files\":[]"), "{json}");
-    assert!(json.contains("\"projection_overrides_required\":{\"status\":\"UNKNOWN\""));
+    assert!(
+        !json.contains("\"changed_files\":[]"),
+        "PINK_BEHAVIOR_FAILURE: {json}"
+    );
+    assert!(
+        json.contains("\"projection_overrides_required\":{\"status\":\"UNKNOWN\""),
+        "PINK_BEHAVIOR_FAILURE: {json}"
+    );
 }
 
 #[test]
