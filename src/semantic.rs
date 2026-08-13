@@ -1099,6 +1099,46 @@ impl SemanticChecker {
             .map(|ty| ty.with_span(span))
     }
 
+    /// Parte B1: nenhum leque em que o runtime deposita tags pode ter chegado
+    /// aqui com outra taxonomia.
+    ///
+    /// Complementa — não substitui — a conjunção do parser, que enxerga o nome
+    /// de origem e produz o diagnóstico no span da declaração do usuário. Esta
+    /// passagem olha o programa completo e por isso alcança o que a outra não
+    /// pode alcançar: identidade reivindicada em **outro módulo** e nome
+    /// monomórfico composto por um leque genérico de outro nome.
+    ///
+    /// A decisão continua sendo da autoridade única: aqui só se pergunta a ela,
+    /// para cada superfície falível, se o leque materializado com o nome que ela
+    /// declara diverge da taxonomia builtin.
+    fn check_runtime_result_identity(
+        &self,
+        superficie: &crate::falha_operacional::SuperficieFalivel,
+        span: Span,
+    ) -> Result<(), PinkerError> {
+        let monomorfico = superficie.leque_monomorfico();
+        let Some(enum_decl) = self.enums.get(&monomorfico) else {
+            // Sem leque materializado não há onde depositar a tag; o programa
+            // falha adiante por tipo indefinido, com o diagnóstico daquela causa.
+            return Ok(());
+        };
+        let Some(detalhe) = superficie.taxonomia_divergente(enum_decl) else {
+            return Ok(());
+        };
+        // Span da declaração quando ela é do usuário; o predeclarado usa a
+        // posição sintética 0:0, que não descreve nada — nesse caso o uso é a
+        // melhor localização disponível.
+        let posicao = if enum_decl.span == crate::falha_operacional::span_sintetico() {
+            span
+        } else {
+            enum_decl.span
+        };
+        Err(PinkerError::Semantic {
+            msg: crate::falha_operacional::conflito_de_taxonomia(&monomorfico, &detalhe),
+            span: posicao,
+        })
+    }
+
     // @pinker-nav:start semantic.programa.duas-passagens
     // @pinker-nav:domain programa
     // @pinker-nav:layer semantic
@@ -6994,6 +7034,14 @@ impl SemanticChecker {
         // especialização de `Resultado<T,E>` declarada pela autoridade única,
         // então a checagem é uma só — não uma cópia por intrínseca.
         if let Some(superficie) = crate::falha_operacional::superficie(name) {
+            // Parte B1: esta chamada produz uma tag cujo significado vem da
+            // taxonomia do leque materializado. Aqui o programa já está
+            // completo — imports resolvidos, genéricos monomorfizados —, então é
+            // o ponto onde a pergunta pode ser respondida sobre o artefato
+            // inteiro, e não sobre uma unidade de compilação. A condição
+            // continua sendo a mesma da conjunção do parser: só é verificada
+            // porque o programa realmente produz o valor.
+            self.check_runtime_result_identity(superficie, expr_span)?;
             if args.len() != 1 {
                 return Err(PinkerError::Semantic {
                     msg: format!(
