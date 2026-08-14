@@ -223,6 +223,23 @@ carinho principal() -> bombom {
 }
 "#;
 
+/// Serializa os testes desta suíte entre si.
+///
+/// Cada caso compila um ELF nativo (invocando `cc`/`ld`) e executa binários sob
+/// envelope. `cargo test` roda os testes de um binário em threads paralelas e
+/// os binários de teste entre si também em paralelo, então esta suíte sozinha
+/// conseguia saturar a CPU e derrubar asserções de wall-clock de
+/// `part_d_native_process_tests`, que mede timeout de processo.
+///
+/// A cobertura não muda: os mesmos casos rodam, um de cada vez. O custo é
+/// tempo de parede desta suíte; o benefício é não roubar CPU de quem mede tempo.
+fn em_serie() -> std::sync::MutexGuard<'static, ()> {
+    static ORDEM: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    ORDEM
+        .lock()
+        .unwrap_or_else(|envenenado| envenenado.into_inner())
+}
+
 fn escrever(dir: &NativeArtifactDir, nome: &str, conteudo: &str) -> PathBuf {
     let caminho = dir.path().join(nome);
     fs::write(&caminho, conteudo).expect("escrever fixture da Parte E1");
@@ -354,6 +371,7 @@ fn matriz_numerica_adulto_i64_versus_legado_u64_com_paridade() {
     else {
         return;
     };
+    let _ordem = em_serie();
     let dir = NativeArtifactDir::create().expect("diretório nativo Parte E1");
 
     // (nome, json, adulto_esperado, legado_esperado)
@@ -462,6 +480,7 @@ fn estrutura_recursiva_null_e_ordem_com_paridade() {
     else {
         return;
     };
+    let _ordem = em_serie();
     let dir = NativeArtifactDir::create().expect("diretório nativo Parte E1");
 
     // Ordem de inserção deliberadamente inversa da ordem de chave: se a
@@ -513,6 +532,7 @@ fn unicode_escapes_e_par_surrogate_com_paridade() {
     else {
         return;
     };
+    let _ordem = em_serie();
     let dir = NativeArtifactDir::create().expect("diretório nativo Parte E1");
 
     let fixture = escrever(
@@ -544,6 +564,7 @@ fn json_malformado_atravessa_resultado_com_paridade() {
     else {
         return;
     };
+    let _ordem = em_serie();
     let dir = NativeArtifactDir::create().expect("diretório nativo Parte E1");
 
     let (fonte_mal, elf_mal) = compilar_uma_vez(&dir, "malformados", FONTE_ADULTO, &runtime_lib);
@@ -581,6 +602,7 @@ fn controle_positivo_do_caminho_recuperavel() {
     else {
         return;
     };
+    let _ordem = em_serie();
     let dir = NativeArtifactDir::create().expect("diretório nativo Parte E1");
     let fixture = escrever(&dir, "valido.json", r#"{"x":7}"#);
     let args = vec![fixture.to_string_lossy().into_owned()];
@@ -597,6 +619,7 @@ fn propagar_e_tentar_pelo_mecanismo_geral_com_paridade() {
     else {
         return;
     };
+    let _ordem = em_serie();
     let dir = NativeArtifactDir::create().expect("diretório nativo Parte E1");
 
     let bom = escrever(&dir, "propagar_ok.json", r#"{"a":1,"b":2}"#);
@@ -638,6 +661,7 @@ fn acessor_com_tag_errada_aborta_nos_dois_backends() {
     else {
         return;
     };
+    let _ordem = em_serie();
     let dir = NativeArtifactDir::create().expect("diretório nativo Parte E1");
     let fixture = escrever(&dir, "tag.json", r#"{"x":1}"#);
     let observado = paridade(
@@ -662,6 +686,7 @@ fn workflow_real_le_schema_versionado_do_repositorio() {
     else {
         return;
     };
+    let _ordem = em_serie();
     let dir = NativeArtifactDir::create().expect("diretório nativo Parte E1");
 
     let schema =
