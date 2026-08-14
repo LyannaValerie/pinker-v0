@@ -280,27 +280,36 @@ struct Observado {
     sucesso: bool,
 }
 
-/// Roda a mesma fonte nos dois modos e exige stdout e desfecho idênticos.
+/// Compila a fonte **uma vez** e devolve o caminho do ELF.
 ///
-/// Aceita casos que falham nos dois lados: paridade em recusa também é
-/// paridade, e é o que separa "os dois recusam" de "um aceita e o outro não" —
-/// exatamente a divergência histórica que a Parte E1 fecha.
-fn paridade(
+/// Compilar de novo por caso custaria uma invocação de `cc`/`ld` por linha da
+/// matriz. Isso não aumenta o poder de detecção — a fonte é a mesma, só o argv
+/// muda — e satura a CPU o bastante para derrubar asserções de wall-clock de
+/// outras suítes que rodam em paralelo. Um build, muitos casos.
+fn compilar_uma_vez(
     dir: &NativeArtifactDir,
     nome: &str,
     fonte: &str,
-    args: &[String],
     runtime_lib: &Path,
-) -> Observado {
+) -> (PathBuf, PathBuf) {
     let fonte_path = escrever(dir, &format!("{nome}.pink"), fonte);
-    let interpretado = rodar_interpretador(&fonte_path, &format!("e1-{nome}-interpretador"), args);
     let build = compilar_nativo(dir, &fonte_path, runtime_lib, &format!("e1-{nome}-build"));
     assert!(
         build.status.success(),
         "{nome}: build nativo falhou — nenhuma superfície JSON pode ficar sem dono nativo: {}",
         String::from_utf8_lossy(&build.stderr)
     );
-    let nativo = rodar_nativo(&dir.path().join(nome), &format!("e1-{nome}-nativo"), args);
+    (fonte_path, dir.path().join(nome))
+}
+
+/// Roda o par já compilado nos dois modos e exige stdout e desfecho idênticos.
+///
+/// Aceita casos que falham nos dois lados: paridade em recusa também é
+/// paridade, e é o que separa "os dois recusam" de "um aceita e o outro não" —
+/// exatamente a divergência histórica que a Parte E1 fecha.
+fn paridade_compilada(nome: &str, fonte_path: &Path, elf: &Path, args: &[String]) -> Observado {
+    let interpretado = rodar_interpretador(fonte_path, &format!("e1-{nome}-interpretador"), args);
+    let nativo = rodar_nativo(elf, &format!("e1-{nome}-nativo"), args);
 
     let stdout_interpretador = String::from_utf8_lossy(&interpretado.stdout).into_owned();
     let stdout_nativo = String::from_utf8_lossy(&nativo.stdout).into_owned();
@@ -319,6 +328,18 @@ fn paridade(
         stdout: stdout_interpretador,
         sucesso: interpretado.status.success(),
     }
+}
+
+/// Compila e roda num caso só, para quem tem uma fonte por teste.
+fn paridade(
+    dir: &NativeArtifactDir,
+    nome: &str,
+    fonte: &str,
+    args: &[String],
+    runtime_lib: &Path,
+) -> Observado {
+    let (fonte_path, elf) = compilar_uma_vez(dir, nome, fonte, runtime_lib);
+    paridade_compilada(nome, &fonte_path, &elf, args)
 }
 
 /// Matriz numérica: uma gramática, duas projeções.
@@ -525,6 +546,7 @@ fn json_malformado_atravessa_resultado_com_paridade() {
     };
     let dir = NativeArtifactDir::create().expect("diretório nativo Parte E1");
 
+    let (fonte_mal, elf_mal) = compilar_uma_vez(&dir, "malformados", FONTE_ADULTO, &runtime_lib);
     for (nome, json) in [
         ("malformado", r#"{"x":}"#),
         ("lixo_a_direita", r#"{"x":1} lixo"#),
@@ -538,13 +560,7 @@ fn json_malformado_atravessa_resultado_com_paridade() {
     ] {
         let fixture = escrever(&dir, &format!("{nome}.json"), json);
         let args = vec![fixture.to_string_lossy().into_owned()];
-        let observado = paridade(
-            &dir,
-            &format!("mal_{nome}"),
-            FONTE_ADULTO,
-            &args,
-            &runtime_lib,
-        );
+        let observado = paridade_compilada(&format!("mal_{nome}"), &fonte_mal, &elf_mal, &args);
         assert!(
             observado.sucesso,
             "{nome}: dado externo malformado precisa ser valor, não aborto"
