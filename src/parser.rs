@@ -2709,7 +2709,7 @@ impl Parser {
     // @pinker-nav:start parser.genericos.identidade-especializacao
     // @pinker-nav:domain genericos
     // @pinker-nav:layer parser
-    // @pinker-nav:summary O parser não codifica identidade: entrega kind, origem do template no estágio atual, nome local e argumentos ordenados à autoridade compartilhada `generic_identity`. A presença em `predeclared_generic_enums`, definida pelo prepass de autoridade, distingue o `Resultado` builtin Root do template homônimo de usuário, que recebe a chave de módulo transportada pelo loader.
+    // @pinker-nav:summary O parser não codifica identidade: entrega kind, proveniência do template no estágio atual, nome local e argumentos ordenados à autoridade compartilhada `generic_identity`. A presença em `predeclared_generic_enums`, definida pelo prepass de autoridade, distingue o `Resultado` builtin global do template homônimo de fonte raiz ou modular; módulos recebem a chave transportada pelo loader.
     fn generic_function_name(&self, name: &str, type_args: &[Type]) -> String {
         generic_identity::specialization_name(
             GenericKind::Function,
@@ -2721,7 +2721,7 @@ impl Parser {
 
     fn generic_enum_name(&self, name: &str, type_args: &[Type]) -> String {
         let origin = if self.predeclared_generic_enums.contains(name) {
-            &GenericOrigin::Root
+            &GenericOrigin::Builtin
         } else {
             &self.generic_origin
         };

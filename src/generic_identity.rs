@@ -12,7 +12,7 @@ use crate::ast::Type;
 // @pinker-nav:start genericos.identidade-canonica
 // @pinker-nav:domain genericos
 // @pinker-nav:layer identidade
-// @pinker-nav:summary Autoridade única da identidade do estágio atual de monomorfização: preserva apenas equivalências AST já exigidas nesse estágio, enquadra kind/origem/nome/argumentos e tipos recursivos sem fingir resolução semântica de aliases, e renderiza o fluxo completo como hexadecimal ASCII montável.
+// @pinker-nav:summary Autoridade única da identidade do estágio atual de monomorfização: preserva apenas equivalências AST já exigidas nesse estágio, distingue proveniência builtin, fonte raiz e fonte modular, enquadra kind/origem/nome/argumentos e tipos recursivos sem fingir resolução semântica de aliases, e renderiza o fluxo completo como hexadecimal ASCII montável.
 
 const FORMAT_MAGIC: &[u8] = b"pinker-generic-specialization-v1";
 
@@ -39,15 +39,28 @@ impl GenericKind {
     }
 }
 
-/// Origem canônica já possuída pelo loader.
+/// Proveniência do template no estágio atual de monomorfização.
 ///
-/// `Module` recebe a chave textual de `ImportDecl::module`, a mesma usada pelo
-/// loader para ciclo, deduplicação e lookup. Caminho físico, cwd e worktree não
-/// participam da identidade.
+/// `Builtin` identifica um template sintético global. `Root` identifica somente
+/// templates declarados na fonte raiz. `Module` recebe a chave textual de
+/// `ImportDecl::module`, a mesma usada pelo loader para ciclo, deduplicação e
+/// lookup. Caminho físico, cwd e worktree não participam da identidade.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum GenericOrigin {
+    Builtin,
     Root,
     Module(String),
+}
+
+/// Cabeçalho estrutural recuperável de um símbolo produzido por esta
+/// autoridade. Os argumentos permanecem enquadrados nos bytes, mas os
+/// consumidores que só precisam reconhecer a autoridade do template não
+/// precisam reimplementar o decoder de tipos.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GenericTemplateIdentity {
+    pub kind: GenericKind,
+    pub origin: GenericOrigin,
+    pub local_name: String,
 }
 
 impl GenericOrigin {
@@ -218,6 +231,7 @@ pub fn monomorphization_specialization_bytes(
             encoder.byte(1);
             encoder.text(module_key);
         }
+        GenericOrigin::Builtin => encoder.byte(2),
     }
     encoder.text(local_generic_name);
     encoder.count(type_arguments.len());
@@ -235,6 +249,98 @@ fn full_hex(bytes: &[u8]) -> String {
         rendered.push(char::from(HEX[usize::from(byte & 0x0f)]));
     }
     rendered
+}
+
+fn decode_full_hex(rendered: &str) -> Option<Vec<u8>> {
+    if rendered.len() % 2 != 0 {
+        return None;
+    }
+    rendered
+        .as_bytes()
+        .chunks_exact(2)
+        .map(|pair| {
+            let high = char::from(pair[0]).to_digit(16)?;
+            let low = char::from(pair[1]).to_digit(16)?;
+            Some(((high << 4) | low) as u8)
+        })
+        .collect()
+}
+
+struct IdentityReader<'a> {
+    bytes: &'a [u8],
+    offset: usize,
+}
+
+impl<'a> IdentityReader<'a> {
+    fn new(bytes: &'a [u8]) -> Self {
+        Self { bytes, offset: 0 }
+    }
+
+    fn byte(&mut self) -> Option<u8> {
+        let value = *self.bytes.get(self.offset)?;
+        self.offset += 1;
+        Some(value)
+    }
+
+    fn u64(&mut self) -> Option<u64> {
+        let end = self.offset.checked_add(8)?;
+        let value = u64::from_be_bytes(self.bytes.get(self.offset..end)?.try_into().ok()?);
+        self.offset = end;
+        Some(value)
+    }
+
+    fn raw_bytes(&mut self) -> Option<&'a [u8]> {
+        let len = usize::try_from(self.u64()?).ok()?;
+        let end = self.offset.checked_add(len)?;
+        let value = self.bytes.get(self.offset..end)?;
+        self.offset = end;
+        Some(value)
+    }
+
+    fn text(&mut self) -> Option<String> {
+        String::from_utf8(self.raw_bytes()?.to_vec()).ok()
+    }
+}
+
+/// Recupera a espécie, a proveniência e o nome local enquadrados por
+/// [`specialization_name`]. `None` significa que o texto não pertence ao
+/// formato vigente desta autoridade.
+pub fn specialization_template_identity(name: &str) -> Option<GenericTemplateIdentity> {
+    let (prefix_kind, rendered) = if let Some(rendered) = name.strip_prefix("__gen_leque_") {
+        (GenericKind::Enum, rendered)
+    } else if let Some(rendered) = name.strip_prefix("__gen_") {
+        (GenericKind::Function, rendered)
+    } else {
+        return None;
+    };
+    let bytes = decode_full_hex(rendered)?;
+    let mut reader = IdentityReader::new(&bytes);
+    if reader.raw_bytes()? != FORMAT_MAGIC {
+        return None;
+    }
+    let kind = match reader.byte()? {
+        1 => GenericKind::Function,
+        2 => GenericKind::Enum,
+        _ => return None,
+    };
+    if kind != prefix_kind {
+        return None;
+    }
+    let origin = match reader.byte()? {
+        0 => GenericOrigin::Root,
+        1 => GenericOrigin::Module(reader.text()?),
+        2 => GenericOrigin::Builtin,
+        _ => return None,
+    };
+    let local_name = reader.text()?;
+    // O argumento count precisa existir para o cabeçalho pertencer ao formato
+    // completo, embora este consumidor não precise decodificar seus membros.
+    let _argument_count = reader.u64()?;
+    Some(GenericTemplateIdentity {
+        kind,
+        origin,
+        local_name,
+    })
 }
 
 /// Símbolo textual injetivo e seguro para o assembler vigente.
@@ -277,6 +383,48 @@ mod tests {
 
     fn identity(name: &str, args: Vec<Type>) -> String {
         specialization_name(GenericKind::Enum, &GenericOrigin::Root, name, &args)
+    }
+
+    #[test]
+    fn proveniencia_do_template_distingue_builtin_raiz_e_modulo() {
+        let args = [Type::Verso(span()), Type::Verso(span())];
+        let builtin = specialization_name(
+            GenericKind::Enum,
+            &GenericOrigin::Builtin,
+            "Resultado",
+            &args,
+        );
+        let root_source =
+            specialization_name(GenericKind::Enum, &GenericOrigin::Root, "Resultado", &args);
+        let module_source = specialization_name(
+            GenericKind::Enum,
+            &GenericOrigin::module("m"),
+            "Resultado",
+            &args,
+        );
+        assert_ne!(builtin, root_source);
+        assert_ne!(builtin, module_source);
+        assert_ne!(root_source, module_source);
+        assert_eq!(
+            specialization_template_identity(&builtin),
+            Some(GenericTemplateIdentity {
+                kind: GenericKind::Enum,
+                origin: GenericOrigin::Builtin,
+                local_name: "Resultado".to_string(),
+            })
+        );
+        assert_eq!(
+            specialization_template_identity(&root_source)
+                .expect("identidade de fonte raiz reversível")
+                .origin,
+            GenericOrigin::Root
+        );
+        assert_eq!(
+            specialization_template_identity(&module_source)
+                .expect("identidade de fonte modular reversível")
+                .origin,
+            GenericOrigin::module("m")
+        );
     }
 
     #[test]

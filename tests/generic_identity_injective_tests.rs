@@ -10,7 +10,7 @@ use std::time::Duration;
 // @pinker-nav:start evidencia.genericos.identidade-injetiva-476
 // @pinker-nav:domain genericos
 // @pinker-nav:layer evidencia
-// @pinker-nav:summary Regressões da #476 sobre o pipeline real: C1-C5 em leques, fronteiras equivalentes em funções, equivalência explícita/inferida, limite deliberado de aliases não resolvidos, autoridade builtin/user de Resultado, C6 no loader/flatten e símbolos nativos distintos com montagem, link, chamadas e execução em paridade.
+// @pinker-nav:summary Regressões da #476 sobre o pipeline real: C1-C5 em leques, fronteiras equivalentes em funções, equivalência explícita/inferida, limite deliberado de aliases não resolvidos, proveniências distintas para builtin/fonte raiz/módulo inclusive no cross-case GI-HR3 de Resultado, C6 no loader/flatten e símbolos nativos distintos com montagem, link, chamadas e execução em paridade.
 
 fn enum_alias_target(program: &pinker_v0::ast::Program, alias_name: &str) -> String {
     program
@@ -192,7 +192,7 @@ fn resultado_runtime_e_parser_usam_exatamente_a_mesma_identidade() {
         .expect("superfície registrada");
     let expected = specialization_name(
         GenericKind::Enum,
-        &GenericOrigin::Root,
+        &GenericOrigin::Builtin,
         pinker_v0::falha_operacional::LEQUE_RESULTADO,
         &superficie.argumentos_de_tipo(pinker_v0::falha_operacional::span_sintetico()),
     );
@@ -210,7 +210,7 @@ fn resultado_runtime_e_parser_usam_exatamente_a_mesma_identidade() {
 }
 
 #[test]
-fn resultado_builtin_dentro_de_modulo_conserva_a_identidade_runtime_root() {
+fn resultado_builtin_dentro_de_modulo_conserva_a_identidade_runtime_global() {
     let dir = NativeArtifactDir::create().expect("diretório Resultado builtin em módulo");
     fs::write(
         dir.path().join("mod_builtin.pink"),
@@ -251,7 +251,7 @@ carinho principal() -> bombom {
     let args = [Type::Verso(span), Type::Verso(span)];
     let expected = specialization_name(
         GenericKind::Enum,
-        &GenericOrigin::Root,
+        &GenericOrigin::Builtin,
         pinker_v0::falha_operacional::LEQUE_RESULTADO,
         &args,
     );
@@ -264,6 +264,158 @@ carinho principal() -> bombom {
     let rendered = String::from_utf8_lossy(&output.stdout);
     assert!(rendered.contains(&expected));
     assert!(!rendered.contains(&forbidden_module_identity));
+}
+
+fn write_builtin_module_root_user_resultado_fixture(
+    dir: &NativeArtifactDir,
+    declaration_before_alias: bool,
+) -> std::path::PathBuf {
+    fs::write(
+        dir.path().join("mod_builtin.pink"),
+        "pacote mod_builtin; apelido BM = Resultado<verso, verso>;",
+    )
+    .expect("módulo com Resultado builtin");
+    let root = dir.path().join("principal.pink");
+    let source = if declaration_before_alias {
+        r#"pacote main;
+trazer mod_builtin;
+leque Resultado<T, E> { Usuario(T), Falha(E) }
+apelido RU = Resultado<verso, verso>;
+carinho principal() -> bombom {
+    nova builtin: BM = BM.Ok("builtin");
+    nova usuario: RU = RU.Usuario("usuario");
+    encaixe builtin {
+        caso BM.Ok(v) { falar(v); }
+        caso BM.Erro(e) { falar(e); }
+    }
+    encaixe usuario {
+        caso RU.Usuario(v) { falar(v); }
+        caso RU.Falha(e) { falar(e); }
+    }
+    mimo 0;
+}
+"#
+    } else {
+        r#"pacote main;
+trazer mod_builtin;
+apelido RU = Resultado<verso, verso>;
+leque Resultado<T, E> { Usuario(T), Falha(E) }
+carinho principal() -> bombom {
+    nova builtin: BM = BM.Ok("builtin");
+    nova usuario: RU = RU.Usuario("usuario");
+    encaixe builtin {
+        caso BM.Ok(v) { falar(v); }
+        caso BM.Erro(e) { falar(e); }
+    }
+    encaixe usuario {
+        caso RU.Usuario(v) { falar(v); }
+        caso RU.Falha(e) { falar(e); }
+    }
+    mimo 0;
+}
+"#
+    };
+    fs::write(&root, source).expect("raiz com Resultado de usuário");
+    root
+}
+
+#[test]
+fn gi_hr3_builtin_de_modulo_e_resultado_de_usuario_na_raiz_sao_distintos_em_paridade() {
+    let Some((_driver, Some(runtime_lib))) =
+        common::require_native_evidence(concat!(module_path!(), ":", line!()), true)
+    else {
+        return;
+    };
+    let span = pinker_v0::falha_operacional::span_sintetico();
+    let args = [Type::Verso(span), Type::Verso(span)];
+    let builtin = specialization_name(
+        GenericKind::Enum,
+        &GenericOrigin::Builtin,
+        pinker_v0::falha_operacional::LEQUE_RESULTADO,
+        &args,
+    );
+    let root_user = specialization_name(
+        GenericKind::Enum,
+        &GenericOrigin::Root,
+        pinker_v0::falha_operacional::LEQUE_RESULTADO,
+        &args,
+    );
+    let forbidden_module_builtin = specialization_name(
+        GenericKind::Enum,
+        &GenericOrigin::module("mod_builtin"),
+        pinker_v0::falha_operacional::LEQUE_RESULTADO,
+        &args,
+    );
+    assert_ne!(builtin, root_user);
+
+    for (declaration_before_alias, logical_suffix) in
+        [(true, "declaration-first"), (false, "alias-first")]
+    {
+        let dir = NativeArtifactDir::create().expect("diretório GI-HR3");
+        let root = write_builtin_module_root_user_resultado_fixture(&dir, declaration_before_alias);
+        let ir = Command::new(env!("CARGO_BIN_EXE_pink"))
+            .arg("--ir")
+            .arg(&root)
+            .logical_case(&format!("issue-476-gi-hr3-ir-{logical_suffix}"))
+            .timeout(Duration::from_secs(30))
+            .output()
+            .expect("executar IR do cross-case GI-HR3");
+        assert!(
+            ir.status.success(),
+            "builtin importado e Resultado de fonte raiz colidiram ({logical_suffix}): {}",
+            String::from_utf8_lossy(&ir.stderr)
+        );
+        let rendered = String::from_utf8_lossy(&ir.stdout);
+        assert!(rendered.contains(&builtin), "builtin ausente: {rendered}");
+        assert!(
+            rendered.contains(&root_user),
+            "template de fonte raiz ausente: {rendered}"
+        );
+        assert!(
+            !rendered.contains(&forbidden_module_builtin),
+            "builtin foi projetado como template modular: {rendered}"
+        );
+
+        let interpreted = Command::new(env!("CARGO_BIN_EXE_pink"))
+            .arg("--run")
+            .arg(&root)
+            .logical_case(&format!("issue-476-gi-hr3-interpreter-{logical_suffix}"))
+            .timeout(Duration::from_secs(30))
+            .output()
+            .expect("executar GI-HR3 no interpretador");
+        assert!(
+            interpreted.status.success(),
+            "interpretador GI-HR3 falhou: {}",
+            String::from_utf8_lossy(&interpreted.stderr)
+        );
+
+        let build = Command::new(env!("CARGO_BIN_EXE_pink"))
+            .args(["build", "--nativo", "--out-dir"])
+            .arg(dir.path())
+            .arg(&root)
+            .env("PINKER_RT_LIB", &runtime_lib)
+            .logical_case(&format!("issue-476-gi-hr3-build-{logical_suffix}"))
+            .timeout(Duration::from_secs(60))
+            .output()
+            .expect("compilar GI-HR3 nativo");
+        assert!(
+            build.status.success(),
+            "build nativo GI-HR3 falhou: {}",
+            String::from_utf8_lossy(&build.stderr)
+        );
+        let native = Command::new(dir.path().join("principal"))
+            .logical_case(&format!("issue-476-gi-hr3-native-{logical_suffix}"))
+            .timeout(Duration::from_secs(30))
+            .output()
+            .expect("executar GI-HR3 nativo");
+        assert_eq!(interpreted.status.code(), Some(0));
+        assert_eq!(native.status.code(), Some(0));
+        assert_eq!(interpreted.stdout, native.stdout);
+        assert_eq!(
+            String::from_utf8_lossy(&native.stdout),
+            "builtin\nusuario\n"
+        );
+    }
 }
 
 fn write_module_fixture(dir: &NativeArtifactDir) -> std::path::PathBuf {
@@ -411,7 +563,7 @@ fn c6_resultado_usuario_preserva_origem_e_independe_da_ordem_textual() {
     );
     let builtin = specialization_name(
         GenericKind::Enum,
-        &GenericOrigin::Root,
+        &GenericOrigin::Builtin,
         pinker_v0::falha_operacional::LEQUE_RESULTADO,
         &args,
     );

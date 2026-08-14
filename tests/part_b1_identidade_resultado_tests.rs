@@ -736,7 +736,7 @@ fn identidade_reservada_e_derivada_das_superficies() {
             superficie.leque_monomorfico(),
             specialization_name(
                 GenericKind::Enum,
-                &GenericOrigin::Root,
+                &GenericOrigin::Builtin,
                 superficie.identidade(),
                 &superficie.argumentos_de_tipo(pinker_v0::falha_operacional::span_sintetico()),
             ),

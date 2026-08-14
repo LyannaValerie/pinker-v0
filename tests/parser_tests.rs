@@ -671,7 +671,7 @@ fn nomes_de_leques_monomorfizados(program: &pinker_v0::ast::Program) -> Vec<Stri
 fn nome_resultado(type_args: Vec<Type>) -> String {
     specialization_name(
         GenericKind::Enum,
-        &GenericOrigin::Root,
+        &GenericOrigin::Builtin,
         pinker_v0::falha_operacional::LEQUE_RESULTADO,
         &type_args,
     )

@@ -266,7 +266,7 @@ impl SuperficieFalivel {
     pub fn leque_monomorfico(&self) -> String {
         generic_identity::specialization_name(
             GenericKind::Enum,
-            &GenericOrigin::Root,
+            &GenericOrigin::Builtin,
             LEQUE_RESULTADO,
             &self.argumentos_de_tipo(span_sintetico()),
         )
