@@ -108,6 +108,7 @@ fn render_value(value: &RuntimeValue) -> String {
         RuntimeValue::Map(handle) => format!("<mapa:generico:{handle}>"),
         RuntimeValue::Callable(handle) => format!("<carinho:{handle}>"),
         RuntimeValue::SaidaProcesso(handle) => format!("<SaidaProcesso:{handle}>"),
+        RuntimeValue::ValorJson(handle) => format!("<ValorJson:{handle}>"),
     }
 }
 // @pinker-nav:end repl.ciclo.leitura-avaliacao

@@ -3470,6 +3470,19 @@ impl Parser {
                 span: synthetic,
             },
             EnumDecl {
+                name: crate::valor_json::LEQUE_TIPO_JSON.to_string(),
+                type_params: Vec::new(),
+                variants: crate::valor_json::VARIANTES
+                    .iter()
+                    .map(|nome| EnumVariant {
+                        name: (*nome).to_string(),
+                        payloads: Vec::new(),
+                        span: synthetic,
+                    })
+                    .collect(),
+                span: synthetic,
+            },
+            EnumDecl {
                 name: crate::limite_tempo::LEQUE_LIMITE_TEMPO.to_string(),
                 type_params: Vec::new(),
                 variants: vec![
@@ -6396,6 +6409,13 @@ impl Parser {
                     if let Some(superficie) = crate::falha_operacional::superficie(name) {
                         let span = expr.span;
                         self.registrar_resultado_falivel(superficie, span)?;
+                    }
+                    // Parte E1: `json_tipo` devolve o leque de classificação.
+                    // Mesma regra das cargas da Parte C — o leque entra no
+                    // programa quando a superfície que o produz é realmente
+                    // chamada, e não porque existe um template predeclarado.
+                    if name == crate::valor_json::intrinsecas::TIPO {
+                        self.registrar_leque_predeclarado(crate::valor_json::LEQUE_TIPO_JSON);
                     }
                 }
                 if let ExprKind::Ident(name) = &expr.kind {

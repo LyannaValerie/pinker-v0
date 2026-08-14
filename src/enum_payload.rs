@@ -113,8 +113,13 @@ impl EnumPayloadShape {
             EnumPayloadClass::OpaqueWordHandle => match &self.resolved {
                 Type::ListVerso(_) => ANEXAR_LISTA_VERSO,
                 Type::ListBombom(_) | Type::ListEnum { .. } => ANEXAR_LISTA_BOMBOM,
+                // Handles opacos nominais que não são listas compartilham o
+                // par de intrínsecas internas. O nome histórico da constante
+                // vem da Parte D; a função é geral, e a Parte E1 é a segunda
+                // família a usá-la — sem helper novo por família.
                 Type::OpaqueHandle { name, .. }
-                    if name == crate::saida_processo::TIPO_SAIDA_PROCESSO =>
+                    if name == crate::saida_processo::TIPO_SAIDA_PROCESSO
+                        || name == crate::valor_json::TIPO_VALOR_JSON =>
                 {
                     ANEXAR_SAIDA_PROCESSO
                 }
@@ -131,8 +136,13 @@ impl EnumPayloadShape {
             EnumPayloadClass::OpaqueWordHandle => match &self.resolved {
                 Type::ListVerso(_) => CARGA_LISTA_VERSO,
                 Type::ListBombom(_) | Type::ListEnum { .. } => CARGA_LISTA_BOMBOM,
+                // Handles opacos nominais que não são listas compartilham o
+                // par de intrínsecas internas. O nome histórico da constante
+                // vem da Parte D; a função é geral, e a Parte E1 é a segunda
+                // família a usá-la — sem helper novo por família.
                 Type::OpaqueHandle { name, .. }
-                    if name == crate::saida_processo::TIPO_SAIDA_PROCESSO =>
+                    if name == crate::saida_processo::TIPO_SAIDA_PROCESSO
+                        || name == crate::valor_json::TIPO_VALOR_JSON =>
                 {
                     CARGA_SAIDA_PROCESSO
                 }

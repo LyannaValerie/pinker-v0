@@ -3670,6 +3670,11 @@ fn is_arity_runtime_intrinsic(callee: &str) -> bool {
 /// formas monomorphizadas de `lista<bombom>` e `lista<verso>` — e as genéricas
 /// já reescritas na IR — abaixam para as mesmas funções `pinker_lista_*`.
 fn runtime_intrinsic_symbol(callee: &str) -> Option<&'static str> {
+    // Parte E1: a família JSON declara nome, assinatura e símbolo numa
+    // autoridade só. O backend consulta em vez de manter uma cópia da lista.
+    if let Some(simbolo) = crate::valor_json::simbolo_runtime(callee) {
+        return Some(simbolo);
+    }
     match callee {
         "alocar" => Some("pinker_publico_alocar"),
         "liberar" => Some("pinker_publico_liberar"),

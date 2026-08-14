@@ -7105,6 +7105,91 @@ impl SemanticChecker {
             }
             return Ok(superficie.tipo_de_retorno(expr_span));
         }
+        // Parte E1 — acessores da árvore JSON.
+        //
+        // O primeiro argumento é sempre `ValorJson`; a aridade e o tipo do
+        // segundo derivam da intrínseca. `json_lista_obter` e
+        // `json_objeto_obter` devolvem `ValorJson`, que é o que torna o nesting
+        // atravessável sem superfície nova por formato.
+        if crate::valor_json::e_acessor(name) {
+            use crate::valor_json::intrinsecas as ji;
+            let segundo: Option<Type> = match name.as_str() {
+                ji::LISTA_OBTER => Some(Type::Bombom(expr_span)),
+                ji::OBJETO_TEM | ji::OBJETO_OBTER => Some(Type::Verso(expr_span)),
+                _ => None,
+            };
+            let esperado = 1 + usize::from(segundo.is_some());
+            if args.len() != esperado {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de '{}' com aridade inválida: esperado {}, recebido {}",
+                        name,
+                        esperado,
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let arg_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(
+                arg_ty,
+                Type::OpaqueHandle {
+                    name: ref handle_name,
+                    ..
+                } if handle_name == crate::valor_json::TIPO_VALOR_JSON
+            ) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada '{}': esperado '{}', encontrado '{}'",
+                        name,
+                        crate::valor_json::TIPO_VALOR_JSON,
+                        arg_ty.display_name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            if let Some(esperado_2) = segundo {
+                let arg2_ty = self.check_value_expr(
+                    &args[1],
+                    "resultado de função sem retorno não pode ser usado como argumento",
+                )?;
+                let compativel = match esperado_2 {
+                    Type::Bombom(_) => matches!(arg2_ty, Type::Bombom(_)),
+                    Type::Verso(_) => matches!(arg2_ty, Type::Verso(_)),
+                    _ => false,
+                };
+                if !compativel {
+                    return Err(PinkerError::Semantic {
+                        msg: format!(
+                            "tipo inválido no argumento 2 da chamada '{}': esperado '{}', encontrado '{}'",
+                            name,
+                            esperado_2.name(),
+                            arg2_ty.display_name()
+                        ),
+                        span: args[1].span,
+                    });
+                }
+            }
+            return Ok(match name.as_str() {
+                ji::EMITIR | ji::VERSO => Type::Verso(expr_span),
+                ji::TIPO => Type::Enum {
+                    name: crate::valor_json::LEQUE_TIPO_JSON.to_string(),
+                    span: expr_span,
+                },
+                ji::NUMERO => Type::I64(expr_span),
+                ji::LOGICA | ji::OBJETO_TEM => Type::Logica(expr_span),
+                ji::LISTA_TAMANHO | ji::OBJETO_TAMANHO => Type::Bombom(expr_span),
+                ji::LISTA_OBTER | ji::OBJETO_OBTER => Type::OpaqueHandle {
+                    name: crate::valor_json::TIPO_VALOR_JSON.to_string(),
+                    span: expr_span,
+                },
+                ji::OBJETO_CHAVES => Type::ListVerso(expr_span),
+                _ => unreachable!("acessor JSON sem tipo de retorno"),
+            });
+        }
         if crate::saida_processo::e_acessor(name) {
             if args.len() != 1 {
                 return Err(PinkerError::Semantic {

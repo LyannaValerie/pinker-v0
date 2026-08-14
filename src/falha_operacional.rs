@@ -87,6 +87,12 @@ pub enum CargaResultado {
     MapaVersoVerso,
     /// Snapshot estruturado de processo, handle opaco nominal de uma palavra.
     SaidaProcesso,
+    /// Parte E1: valor JSON estruturado, handle opaco nominal de uma palavra.
+    ///
+    /// A carga é a raiz de uma árvore de arena. Como o handle é de uma palavra,
+    /// a representação já é a que a Parte D abriu — a novidade é o valor por
+    /// trás dele ser recursivo, não a forma da carga.
+    ValorJson,
     /// Outro leque, nomeado, transportado como discriminante de uma palavra.
     ///
     /// Parte C: a carga de sucesso da classificação de entrada. O leque
@@ -103,7 +109,9 @@ impl CargaResultado {
             CargaResultado::Verso => crate::ir::TypeIR::Verso,
             CargaResultado::ListaVerso => crate::ir::TypeIR::ListVerso,
             CargaResultado::MapaVersoVerso => crate::ir::TypeIR::MapVersoVerso,
-            CargaResultado::SaidaProcesso => crate::ir::TypeIR::OpaqueWordHandle,
+            CargaResultado::SaidaProcesso | CargaResultado::ValorJson => {
+                crate::ir::TypeIR::OpaqueWordHandle
+            }
         }
     }
     /// Tipo AST correspondente, com o span do uso.
@@ -115,6 +123,10 @@ impl CargaResultado {
             CargaResultado::MapaVersoVerso => Type::MapVersoVerso(span),
             CargaResultado::SaidaProcesso => Type::OpaqueHandle {
                 name: crate::saida_processo::TIPO_SAIDA_PROCESSO.to_string(),
+                span,
+            },
+            CargaResultado::ValorJson => Type::OpaqueHandle {
+                name: crate::valor_json::TIPO_VALOR_JSON.to_string(),
                 span,
             },
             CargaResultado::Leque(nome) => Type::Enum {
@@ -135,6 +147,7 @@ impl CargaResultado {
             CargaResultado::ListaVerso => "lista_verso",
             CargaResultado::MapaVersoVerso => "mapa_verso_verso",
             CargaResultado::SaidaProcesso => crate::saida_processo::TIPO_SAIDA_PROCESSO,
+            CargaResultado::ValorJson => crate::valor_json::TIPO_VALOR_JSON,
             CargaResultado::Leque(nome) => nome,
         }
     }
@@ -171,7 +184,8 @@ impl CargaResultado {
             | CargaResultado::Verso
             | CargaResultado::ListaVerso
             | CargaResultado::MapaVersoVerso
-            | CargaResultado::SaidaProcesso => None,
+            | CargaResultado::SaidaProcesso
+            | CargaResultado::ValorJson => None,
         }
     }
 
@@ -187,6 +201,9 @@ impl CargaResultado {
             (CargaResultado::MapaVersoVerso, Type::MapVersoVerso(_)) => true,
             (CargaResultado::SaidaProcesso, Type::OpaqueHandle { name, .. }) => {
                 name == crate::saida_processo::TIPO_SAIDA_PROCESSO
+            }
+            (CargaResultado::ValorJson, Type::OpaqueHandle { name, .. }) => {
+                name == crate::valor_json::TIPO_VALOR_JSON
             }
             (CargaResultado::Leque(nome), Type::Enum { name, .. }) => nome == name,
             _ => false,
@@ -219,6 +236,8 @@ pub enum OperacaoFalivel {
     MedirEntrada,
     /// Parte D: executa uma vez e devolve snapshot estruturado.
     ExecutarProcessoEstruturado,
+    /// Parte E1: interpreta texto JSON externo em valor estruturado.
+    InterpretarJson,
 }
 
 /// Uma superfície que devolve falha operacional recuperável como valor.
@@ -385,6 +404,13 @@ const ASSINATURA_PROCESSO_ESTRUTURADO: &[CargaResultado] = &[
 /// uma única operação falível não provaria que o mecanismo é geral.
 pub const EXECUTAR_PROCESSO_ESTRUTURADO: &str = "executar_processo_estruturado";
 
+/// Nome público da leitura falível de JSON — Parte E1.
+///
+/// Declarado aqui, e só aqui, como todos os demais nomes de superfície
+/// falível. `valor_json` é a autoridade da representação e dos acessores; a
+/// autoridade do nome de quem devolve `Resultado<T,E>` continua sendo esta.
+pub const LER_JSON_RESULTADO: &str = "ler_json_resultado";
+
 pub const SUPERFICIES_FALIVEIS: &[SuperficieFalivel] = &[
     // Filesystem: leitura de arquivo inteiro por caminho.
     // Não abre handle visível ao usuário, logo uma falha não pode deixar
@@ -468,6 +494,20 @@ pub const SUPERFICIES_FALIVEIS: &[SuperficieFalivel] = &[
         sucesso: CargaResultado::SaidaProcesso,
         falha: CargaResultado::Verso,
         simbolo_runtime: "pinker_processo_executar_estruturado",
+        historica: None,
+    },
+    SuperficieFalivel {
+        intrinseca: LER_JSON_RESULTADO,
+        operacao: OperacaoFalivel::InterpretarJson,
+        argumentos: ASSINATURA_VERSO,
+        sucesso: CargaResultado::ValorJson,
+        falha: CargaResultado::Verso,
+        simbolo_runtime: "pinker_json_ler_resultado",
+        // A superfície plana histórica continua existindo com a mesma
+        // assinatura, mas não é a "mesma operação com falha": ela devolve
+        // `mapa<verso,bombom>` e aborta. Registrar um gêmeo aqui inventaria uma
+        // compatibilidade que não existe — a reconciliação das duas é feita
+        // pela implementação comum, não por este campo.
         historica: None,
     },
 ];

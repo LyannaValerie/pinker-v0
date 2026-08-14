@@ -38,6 +38,17 @@ pub const RUNTIME_RESERVED_IDENTITIES: &[RuntimeReservedIdentity] = &[
         name: crate::saida_processo::TIPO_SAIDA_PROCESSO,
         kind: RuntimeSemanticKind::OpaqueWordHandle,
     },
+    // Parte E1: a família JSON traz as duas categorias de uma vez — o valor é
+    // handle produzido pelo runtime, e a classificação é leque cujos
+    // discriminantes o runtime interpreta.
+    RuntimeReservedIdentity {
+        name: crate::valor_json::TIPO_VALOR_JSON,
+        kind: RuntimeSemanticKind::OpaqueWordHandle,
+    },
+    RuntimeReservedIdentity {
+        name: crate::valor_json::LEQUE_TIPO_JSON,
+        kind: RuntimeSemanticKind::PlainEnum,
+    },
 ];
 
 /// Consulta única usada por parser e testes de autoridade.

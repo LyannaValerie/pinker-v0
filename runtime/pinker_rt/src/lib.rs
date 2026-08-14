@@ -4088,6 +4088,231 @@ pub unsafe extern "C" fn pinker_entrada_tamanho_resultado(caminho: *const u8) ->
 }
 // @pinker-nav:end runtime.filesystem.enumeracao-adulta
 
+// @pinker-nav:start runtime.json.valor-adulto
+// @pinker-nav:domain dados
+// @pinker-nav:layer runtime
+// @pinker-nav:summary Superfície JSON adulta da Parte E1 no runtime nativo: a árvore vive numa tabela global de handles monotônicos que nunca são reutilizados, e a gramática NÃO é reimplementada aqui — interpretação, domínio numérico, escapes, política de chave duplicada e ordem de serialização vêm de `pinker_json_contract`, o mesmo crate que o interpretador usa. É isso que torna a paridade uma propriedade de construção em vez de uma promessa: não existem duas gramáticas para divergir. `pinker_json_ler_resultado` devolve `Resultado` pelos mesmos `pinker_leque_criar_0`/`pinker_leque_anexar` do código gerado, e os acessores atravessam o nesting pelo mesmo handle, sem helper por formato.
+use pinker_json_contract::{NoJson, TabelaJson};
+
+#[derive(Default)]
+struct EstadoValoresJson {
+    tabela: TabelaJson,
+}
+
+fn estado_valores_json() -> &'static Mutex<EstadoValoresJson> {
+    static VALORES: OnceLock<Mutex<EstadoValoresJson>> = OnceLock::new();
+    VALORES.get_or_init(|| Mutex::new(EstadoValoresJson::default()))
+}
+
+fn com_valores_json<R>(f: impl FnOnce(&mut EstadoValoresJson) -> R) -> R {
+    let mut estado = estado_valores_json()
+        .lock()
+        .unwrap_or_else(|_| erro_fatal("estado de ValorJson envenenado"));
+    f(&mut estado)
+}
+
+/// Lê um nó já materializado, abortando em handle não produzido.
+///
+/// Handle inválido é violação de invariante interna, não dado externo
+/// malformado: o valor só existe se a árvore foi aceita antes.
+fn com_no_json<R>(handle: u64, f: impl FnOnce(&NoJson, &TabelaJson) -> R) -> R {
+    com_valores_json(|estado| {
+        let no = estado
+            .tabela
+            .obter(handle)
+            .unwrap_or_else(|| erro_fatal("handle ValorJson inválido"))
+            .clone();
+        f(&no, &estado.tabela)
+    })
+}
+
+fn erro_tipo_json(nome: &str, esperado: &str) -> ! {
+    erro_fatal(&format!(
+        "intrínseca '{nome}' exige valor JSON do tipo {esperado}"
+    ))
+}
+
+/// Interpreta texto JSON externo, com dado malformado como valor.
+///
+/// # Safety
+/// `texto` deve apontar para um bloco de verso válido.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_json_ler_resultado(texto: *const u8) -> *mut u8 {
+    let texto = verso_str(texto);
+    let interpretado =
+        com_valores_json(|estado| pinker_json_contract::interpretar(texto, &mut estado.tabela));
+    match interpretado {
+        Ok(raiz) => {
+            let leque = pinker_leque_criar_0(RESULTADO_TAG_OK);
+            pinker_leque_anexar(leque, raiz)
+        }
+        Err(causa) => resultado_erro(&causa),
+    }
+}
+
+/// Serialização determinística: objetos saem em ordem de chave.
+#[no_mangle]
+pub extern "C" fn pinker_json_emitir(handle: u64) -> *mut u8 {
+    let texto = com_valores_json(|estado| pinker_json_contract::serializar(handle, &estado.tabela))
+        .unwrap_or_else(|causa| erro_fatal(&causa));
+    verso_alocar(&texto)
+}
+
+/// Discriminante de `TipoJson`, espelhando a ordem de declaração do contrato.
+#[no_mangle]
+pub extern "C" fn pinker_json_tipo(handle: u64) -> u64 {
+    com_no_json(handle, |no, _| no.tipo().discriminante())
+}
+
+#[no_mangle]
+pub extern "C" fn pinker_json_verso(handle: u64) -> *mut u8 {
+    com_no_json(handle, |no, _| match no {
+        NoJson::Verso(texto) => verso_alocar(texto),
+        _ => erro_tipo_json("json_verso", "Verso"),
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn pinker_json_numero(handle: u64) -> i64 {
+    com_no_json(handle, |no, _| match no {
+        NoJson::Numero(valor) => *valor,
+        _ => erro_tipo_json("json_numero", "Numero"),
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn pinker_json_logica(handle: u64) -> u64 {
+    com_no_json(handle, |no, _| match no {
+        NoJson::Logica(valor) => u64::from(*valor),
+        _ => erro_tipo_json("json_logica", "Logica"),
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn pinker_json_lista_tamanho(handle: u64) -> u64 {
+    com_no_json(handle, |no, _| match no {
+        NoJson::Lista(itens) => itens.len() as u64,
+        _ => erro_tipo_json("json_lista_tamanho", "Lista"),
+    })
+}
+
+/// Devolve o handle do item — é por aqui que o nesting é atravessado.
+#[no_mangle]
+pub extern "C" fn pinker_json_lista_obter(handle: u64, indice: u64) -> u64 {
+    com_no_json(handle, |no, _| match no {
+        NoJson::Lista(itens) => *itens
+            .get(indice as usize)
+            .unwrap_or_else(|| erro_fatal("índice fora da faixa em 'json_lista_obter'")),
+        _ => erro_tipo_json("json_lista_obter", "Lista"),
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn pinker_json_objeto_tamanho(handle: u64) -> u64 {
+    com_no_json(handle, |no, _| match no {
+        NoJson::Objeto(membros) => membros.len() as u64,
+        _ => erro_tipo_json("json_objeto_tamanho", "Objeto"),
+    })
+}
+
+/// # Safety
+/// `chave` deve apontar para um bloco de verso válido.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_json_objeto_tem(handle: u64, chave: *const u8) -> u64 {
+    let chave = verso_str(chave).to_string();
+    com_no_json(handle, |no, _| match no {
+        NoJson::Objeto(membros) => u64::from(membros.contains_key(&chave)),
+        _ => erro_tipo_json("json_objeto_tem", "Objeto"),
+    })
+}
+
+/// # Safety
+/// `chave` deve apontar para um bloco de verso válido.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_json_objeto_obter(handle: u64, chave: *const u8) -> u64 {
+    let chave = verso_str(chave).to_string();
+    com_no_json(handle, |no, _| match no {
+        NoJson::Objeto(membros) => *membros
+            .get(&chave)
+            .unwrap_or_else(|| erro_fatal("chave ausente em 'json_objeto_obter'")),
+        _ => erro_tipo_json("json_objeto_obter", "Objeto"),
+    })
+}
+
+/// Chaves em ordem de chave, pela mesma `lista<verso>` do código gerado.
+#[no_mangle]
+pub extern "C" fn pinker_json_objeto_chaves(handle: u64) -> *mut u8 {
+    let chaves = com_no_json(handle, |no, _| match no {
+        NoJson::Objeto(membros) => membros.keys().cloned().collect::<Vec<String>>(),
+        _ => erro_tipo_json("json_objeto_chaves", "Objeto"),
+    });
+    let lista = pinker_lista_criar();
+    if lista.is_null() {
+        erro_fatal("sem memória ao criar lista de chaves JSON");
+    }
+    for chave in &chaves {
+        unsafe { pinker_lista_anexar(lista, verso_alocar(chave) as u64) };
+    }
+    lista
+}
+// @pinker-nav:end runtime.json.valor-adulto
+
+// @pinker-nav:start runtime.json.plano-legado
+// @pinker-nav:domain dados
+// @pinker-nav:layer runtime
+// @pinker-nav:summary Owner nativo do recorte plano histórico, que antes não existia em backend nem runtime: `pinker_json_plano_ler` projeta o objeto de um nível para `mapa<verso,bombom>` pela mesma autoridade gramatical de `pinker_json_contract`, com domínio `u64` preservado inclusive acima de `i64::MAX`, e `pinker_json_plano_emitir` percorre o mapa pelo cursor do próprio runtime e serializa com chaves ordenadas e valores exatos, sem cast para `i64`. As recusas do recorte continuam fatais, como sempre foram nesta superfície — quem quer falha como valor usa `ler_json_resultado`.
+
+/// Recorte plano histórico `verso -> bombom`, agora com dono nativo.
+///
+/// A falha continua fatal nesta superfície: o contrato histórico nunca
+/// atravessou `Resultado`, e mudá-lo aqui quebraria compatibilidade. A porta
+/// recuperável é `ler_json_resultado`.
+///
+/// # Safety
+/// `texto` deve apontar para um bloco de verso válido.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_json_plano_ler(texto: *const u8) -> *mut u8 {
+    let texto = verso_str(texto);
+    let pares = pinker_json_contract::interpretar_plano_bombom(texto).unwrap_or_else(|causa| {
+        erro_fatal(&format!(
+            "json inválido em 'ler_json_plano_bombom': {causa}"
+        ))
+    });
+    let mapa = pinker_mapa_criar_chave_verso();
+    if mapa.is_null() {
+        erro_fatal("sem memória ao criar mapa de json plano");
+    }
+    for (chave, valor) in &pares {
+        pinker_mapa_definir(mapa, verso_alocar(chave) as u64, *valor);
+    }
+    mapa
+}
+
+/// Emissão do recorte plano: chaves ordenadas, valores `u64` exatos.
+///
+/// # Safety
+/// `mapa` deve ser um handle de `mapa<verso,bombom>` válido.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_json_plano_emitir(mapa: *mut u8) -> *mut u8 {
+    let total = pinker_mapa_tamanho(mapa);
+    let cursor = pinker_mapa_iterador_criar(mapa);
+    let mut pares: Vec<(String, u64)> = Vec::with_capacity(total as usize);
+    for _ in 0..total {
+        let chave = pinker_mapa_iterador_proxima(cursor);
+        let texto = verso_str(chave as *const u8).to_string();
+        let valor = pinker_mapa_obter(mapa, chave);
+        pares.push((texto, valor));
+    }
+    pinker_liberar(cursor);
+    let texto = pinker_json_contract::serializar_plano_bombom(&pares).unwrap_or_else(|causa| {
+        erro_fatal(&format!(
+            "json inválido em 'emitir_json_plano_bombom': {causa}"
+        ))
+    });
+    verso_alocar(&texto)
+}
+// @pinker-nav:end runtime.json.plano-legado
+
 // @pinker-nav:start evidencia.runtime.memoria-alocador
 // @pinker-nav:domain memoria
 // @pinker-nav:layer evidencia
@@ -6014,6 +6239,80 @@ mod tests {
         }
     }
     // @pinker-nav:end evidencia.runtime.leques-carga
+
+    // @pinker-nav:start evidencia.runtime.json-familia
+    // @pinker-nav:domain dados
+    // @pinker-nav:layer evidencia
+    // @pinker-nav:summary Evidência interna da família JSON pela ABI nativa, sem passar por ELF: a leitura devolve `Resultado` pelo mesmo leque do código gerado e a carga de sucesso é o handle da raiz; o nesting é atravessado por handle até a folha; a serialização sai determinística por ordem de chave; dado externo malformado vira variante de erro em vez de abortar; e o recorte plano histórico preserva `u64::MAX` no parse e na emissão, sem cast para `i64`. É a prova de que os símbolos existem e funcionam no runtime, não apenas de que o backend os emite.
+    #[test]
+    fn parte_e1_json_resultado_e_nesting_pela_abi_nativa() {
+        let texto = verso_alocar(r#"{"a":[{"b":-7}],"z":true}"#);
+        let resultado = unsafe { pinker_json_ler_resultado(texto.cast_const()) };
+        assert_eq!(unsafe { pinker_leque_tag(resultado) }, RESULTADO_TAG_OK);
+        let raiz = unsafe { pinker_leque_carga(resultado, RESULTADO_TAG_OK, 0) };
+
+        // objeto -> lista -> objeto, tudo pelo mesmo mecanismo por handle.
+        let chave_a = verso_alocar("a");
+        let lista = unsafe { pinker_json_objeto_obter(raiz, chave_a.cast_const()) };
+        assert_eq!(pinker_json_lista_tamanho(lista), 1);
+        let primeiro = pinker_json_lista_obter(lista, 0);
+        let chave_b = verso_alocar("b");
+        let folha = unsafe { pinker_json_objeto_obter(primeiro, chave_b.cast_const()) };
+        assert_eq!(pinker_json_numero(folha), -7);
+
+        // Serialização determinística por ordem de chave.
+        let emitido = pinker_json_emitir(raiz);
+        assert_eq!(
+            unsafe { verso_str(emitido.cast_const()) },
+            r#"{"a":[{"b":-7}],"z":true}"#
+        );
+        unsafe {
+            pinker_liberar(texto);
+            pinker_liberar(chave_a);
+            pinker_liberar(chave_b);
+            pinker_liberar(emitido);
+        }
+    }
+
+    #[test]
+    fn parte_e1_json_malformado_vira_valor_e_nao_aborta() {
+        let texto = verso_alocar(r#"{"a":}"#);
+        let resultado = unsafe { pinker_json_ler_resultado(texto.cast_const()) };
+        assert_eq!(unsafe { pinker_leque_tag(resultado) }, RESULTADO_TAG_ERRO);
+        unsafe { pinker_liberar(texto) };
+    }
+
+    /// O recorte plano histórico vai até `u64::MAX`, que o domínio adulto
+    /// recusa. Se alguém unificar os dois domínios, esta evidência quebra.
+    #[test]
+    fn parte_e1_json_plano_preserva_u64_max_pela_abi_nativa() {
+        let origem = r#"{"x":18446744073709551615}"#;
+        let texto = verso_alocar(origem);
+        let mapa = unsafe { pinker_json_plano_ler(texto.cast_const()) };
+        let chave = verso_alocar("x");
+        assert_eq!(
+            unsafe { pinker_mapa_obter(mapa, chave as u64) },
+            u64::MAX,
+            "o recorte plano precisa preservar u64::MAX no parse"
+        );
+        let emitido = unsafe { pinker_json_plano_emitir(mapa) };
+        let saida = unsafe { verso_str(emitido.cast_const()) };
+        assert_eq!(
+            saida, origem,
+            "u64::MAX nao pode truncar nem trocar de sinal"
+        );
+        assert!(!saida.contains('-'), "sinal apareceu do nada");
+
+        // O mesmo documento é recusado pelo dominio adulto, como valor.
+        let adulto = unsafe { pinker_json_ler_resultado(texto.cast_const()) };
+        assert_eq!(unsafe { pinker_leque_tag(adulto) }, RESULTADO_TAG_ERRO);
+        unsafe {
+            pinker_liberar(texto);
+            pinker_liberar(chave);
+            pinker_liberar(emitido);
+        }
+    }
+    // @pinker-nav:end evidencia.runtime.json-familia
 
     // @pinker-nav:start evidencia.runtime.mapas-iterador-snapshot
     // @pinker-nav:domain mapas

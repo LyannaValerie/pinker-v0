@@ -617,6 +617,14 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
             ),
         );
     }
+    for nome in crate::valor_json::ACESSORES {
+        let (retorno, params) = crate::valor_json::assinatura_ir(nome)
+            .expect("acessor JSON sem assinatura na autoridade");
+        sigs.insert(
+            nome.to_string(),
+            (retorno, params.into_iter().map(type_to_stack).collect()),
+        );
+    }
     for (nome, retorno) in [
         (
             crate::saida_processo::ACESSOR_CODIGO,

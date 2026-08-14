@@ -550,6 +550,7 @@ struct RuntimeMapState {
     enum_values: HashMap<u64, (u64, Vec<RuntimeEnumPayload>)>,
     next_enum_handle: u64,
     saidas_processo: crate::saida_processo::TabelaSaidas,
+    valores_json: crate::valor_json::TabelaJson,
 }
 
 fn novo_runtime_map_state() -> RuntimeMapState {
@@ -569,6 +570,7 @@ fn novo_runtime_map_state() -> RuntimeMapState {
         enum_values: HashMap::new(),
         next_enum_handle: 1,
         saidas_processo: crate::saida_processo::TabelaSaidas::nova(),
+        valores_json: crate::valor_json::TabelaJson::nova(),
     }
 }
 
@@ -601,6 +603,7 @@ enum RuntimeEnumPayload {
     ListBombom(u64),
     ListVerso(u64),
     SaidaProcesso(u64),
+    ValorJson(u64),
 }
 
 struct RuntimeRandomState {
@@ -1146,6 +1149,12 @@ pub enum RuntimeValue {
     Map(u64),
     /// Handle nominal de snapshot de processo. Nunca é confundido com lista.
     SaidaProcesso(u64),
+    /// Parte E1: handle nominal da raiz de uma árvore JSON.
+    ///
+    /// Categoria distinta de `SaidaProcesso` de propósito: as duas são handles
+    /// de uma palavra, mas confundi-las faria um acessor de uma família aceitar
+    /// valor da outra.
+    ValorJson(u64),
     // Fase 242: handle callable — índice em `CallableState.table`, mesmo
     // padrão de handle já usado por `ListBombom`/`enum_values`.
     Callable(u64),
@@ -1656,7 +1665,7 @@ fn exec_instr(
                     unreachable!("pop_numeric só retorna inteiro")
                 }
                 RuntimeValue::Callable(_) => unreachable!("pop_numeric só retorna inteiro"),
-                RuntimeValue::SaidaProcesso(_) => {
+                RuntimeValue::SaidaProcesso(_) | RuntimeValue::ValorJson(_) => {
                     unreachable!("pop_numeric só retorna inteiro")
                 }
             };
@@ -1683,7 +1692,7 @@ fn exec_instr(
                     unreachable!("pop_numeric só retorna inteiro")
                 }
                 RuntimeValue::Callable(_) => unreachable!("pop_numeric só retorna inteiro"),
-                RuntimeValue::SaidaProcesso(_) => {
+                RuntimeValue::SaidaProcesso(_) | RuntimeValue::ValorJson(_) => {
                     unreachable!("pop_numeric só retorna inteiro")
                 }
             };
@@ -2337,7 +2346,7 @@ fn exec_instr(
                     unreachable!("pop_numeric só retorna inteiro")
                 }
                 RuntimeValue::Callable(_) => unreachable!("pop_numeric só retorna inteiro"),
-                RuntimeValue::SaidaProcesso(_) => {
+                RuntimeValue::SaidaProcesso(_) | RuntimeValue::ValorJson(_) => {
                     unreachable!("pop_numeric só retorna inteiro")
                 }
             }
@@ -2410,6 +2419,9 @@ fn validar_argumentos_superficie(
             ) | (
                 crate::falha_operacional::CargaResultado::SaidaProcesso,
                 RuntimeValue::SaidaProcesso(_),
+            ) | (
+                crate::falha_operacional::CargaResultado::ValorJson,
+                RuntimeValue::ValorJson(_),
             ) | (
                 crate::falha_operacional::CargaResultado::Leque(_),
                 RuntimeValue::Int(_)
@@ -2497,6 +2509,15 @@ fn executar_superficie_falivel(
                 format!("falha ao medir entrada '{}': {}", entrada, err),
             )),
         },
+        OperacaoFalivel::InterpretarJson => {
+            // Dado externo malformado é falha recuperável, não aborto: a
+            // separação entre dado externo, erro estático de programa e
+            // violação de invariante é a razão de a Parte B existir.
+            match crate::valor_json::interpretar(entrada, &mut map_state.valores_json) {
+                Ok(raiz) => Ok(resultado_ok_valor_json(map_state, raiz)),
+                Err(causa) => Ok(resultado_erro(map_state, causa)),
+            }
+        }
         OperacaoFalivel::ExecutarProcessoEstruturado => {
             let [RuntimeValue::Str(programa), RuntimeValue::ListVerso(argumentos_handle), RuntimeValue::Str(entrada), RuntimeValue::Str(diretorio), RuntimeValue::MapVersoVerso(ambiente_handle), RuntimeValue::Int(limite_handle)] =
                 args
@@ -2662,6 +2683,18 @@ fn resultado_ok_saida_processo(
     let handle = novo_leque(map_state, crate::falha_operacional::TAG_OK);
     if let Some((_, cargas)) = map_state.enum_values.get_mut(&handle) {
         cargas.push(RuntimeEnumPayload::SaidaProcesso(snapshot));
+    }
+    IntrinsicCall::Done(Some(RuntimeValue::Int(handle)))
+}
+
+/// `Resultado.Ok(ValorJson)` — Parte E1.
+///
+/// A árvore já está materializada na tabela quando o handle da raiz entra na
+/// variante. A carga é o handle, como em todas as demais famílias por handle.
+fn resultado_ok_valor_json(map_state: &mut RuntimeMapState, raiz: u64) -> IntrinsicCall {
+    let handle = novo_leque(map_state, crate::falha_operacional::TAG_OK);
+    if let Some((_, cargas)) = map_state.enum_values.get_mut(&handle) {
+        cargas.push(RuntimeEnumPayload::ValorJson(raiz));
     }
     IntrinsicCall::Done(Some(RuntimeValue::Int(handle)))
 }
@@ -3355,6 +3388,127 @@ fn try_call_intrinsic(
                 }
                 crate::saida_processo::ACESSOR_ERRO => RuntimeValue::Str(saida.erro().to_string()),
                 _ => unreachable!(),
+            };
+            Ok(IntrinsicCall::Done(Some(valor)))
+        }
+        // Parte E1 — acessores da árvore JSON.
+        //
+        // Todos atravessam a MESMA arena por handle: `json_lista_obter` e
+        // `json_objeto_obter` devolvem `ValorJson`, então qualquer profundidade
+        // é alcançada sem helper por formato.
+        //
+        // Tag errada aqui é erro de programa, não dado externo malformado: o
+        // documento já foi aceito pela superfície falível. As três categorias
+        // permanecem separadas.
+        nome if crate::valor_json::e_acessor(nome) => {
+            use crate::valor_json::intrinsecas as ji;
+            use crate::valor_json::{NoJson, TipoJson};
+
+            let esperado_args =
+                if matches!(nome, ji::LISTA_OBTER | ji::OBJETO_OBTER | ji::OBJETO_TEM) {
+                    2
+                } else {
+                    1
+                };
+            if args.len() != esperado_args {
+                return Err(runtime_err(&format!(
+                    "intrínseca '{nome}' exige {esperado_args} argumento(s)"
+                )));
+            }
+            let RuntimeValue::ValorJson(handle) = args[0] else {
+                return Err(runtime_err(&format!("intrínseca '{nome}' exige ValorJson")));
+            };
+            let no = map_state
+                .valores_json
+                .obter(handle)
+                .ok_or_else(|| runtime_err("handle ValorJson inválido"))?;
+
+            let erro_tipo = |esperado: &str| {
+                runtime_err(&format!(
+                    "intrínseca '{nome}' exige valor JSON do tipo {esperado}"
+                ))
+            };
+
+            let valor = match nome {
+                ji::EMITIR => {
+                    let texto = crate::valor_json::serializar(handle, &map_state.valores_json)
+                        .map_err(|causa| runtime_err(&causa))?;
+                    RuntimeValue::Str(texto)
+                }
+                ji::TIPO => RuntimeValue::Int(no.tipo().discriminante()),
+                ji::VERSO => match no {
+                    NoJson::Verso(texto) => RuntimeValue::Str(texto.clone()),
+                    _ => return Err(erro_tipo(TipoJson::Verso.nome())),
+                },
+                ji::NUMERO => match no {
+                    NoJson::Numero(valor) => RuntimeValue::IntSigned(*valor),
+                    _ => return Err(erro_tipo(TipoJson::Numero.nome())),
+                },
+                ji::LOGICA => match no {
+                    NoJson::Logica(valor) => RuntimeValue::Bool(*valor),
+                    _ => return Err(erro_tipo(TipoJson::Logica.nome())),
+                },
+                ji::LISTA_TAMANHO => match no {
+                    NoJson::Lista(itens) => RuntimeValue::Int(itens.len() as u64),
+                    _ => return Err(erro_tipo(TipoJson::Lista.nome())),
+                },
+                ji::LISTA_OBTER => {
+                    let NoJson::Lista(itens) = no else {
+                        return Err(erro_tipo(TipoJson::Lista.nome()));
+                    };
+                    let RuntimeValue::Int(indice) = args[1] else {
+                        return Err(runtime_err(&format!(
+                            "intrínseca '{nome}' exige índice em bombom"
+                        )));
+                    };
+                    let item = itens.get(indice as usize).copied().ok_or_else(|| {
+                        runtime_err(&format!("índice {indice} fora da faixa em '{nome}'"))
+                    })?;
+                    RuntimeValue::ValorJson(item)
+                }
+                ji::OBJETO_TAMANHO => match no {
+                    NoJson::Objeto(membros) => RuntimeValue::Int(membros.len() as u64),
+                    _ => return Err(erro_tipo(TipoJson::Objeto.nome())),
+                },
+                ji::OBJETO_TEM => {
+                    let NoJson::Objeto(membros) = no else {
+                        return Err(erro_tipo(TipoJson::Objeto.nome()));
+                    };
+                    let RuntimeValue::Str(chave) = &args[1] else {
+                        return Err(runtime_err(&format!(
+                            "intrínseca '{nome}' exige chave em verso"
+                        )));
+                    };
+                    RuntimeValue::Bool(membros.contains_key(chave.as_str()))
+                }
+                ji::OBJETO_OBTER => {
+                    let NoJson::Objeto(membros) = no else {
+                        return Err(erro_tipo(TipoJson::Objeto.nome()));
+                    };
+                    let RuntimeValue::Str(chave) = &args[1] else {
+                        return Err(runtime_err(&format!(
+                            "intrínseca '{nome}' exige chave em verso"
+                        )));
+                    };
+                    let filho = membros
+                        .get(chave.as_str())
+                        .copied()
+                        .ok_or_else(|| runtime_err(&format!("chave ausente em '{nome}'")))?;
+                    RuntimeValue::ValorJson(filho)
+                }
+                ji::OBJETO_CHAVES => {
+                    let NoJson::Objeto(membros) = no else {
+                        return Err(erro_tipo(TipoJson::Objeto.nome()));
+                    };
+                    // BTreeMap: a ordem é de chave por construção, não de
+                    // iteração acidental.
+                    let chaves: Vec<String> = membros.keys().cloned().collect();
+                    let lista = list_state.next_list_handle;
+                    list_state.next_list_handle = list_state.next_list_handle.saturating_add(1);
+                    list_state.lists_verso.insert(lista, chaves);
+                    RuntimeValue::ListVerso(lista)
+                }
+                _ => unreachable!("acessor JSON sem implementação"),
             };
             Ok(IntrinsicCall::Done(Some(valor)))
         }
@@ -4132,19 +4286,30 @@ fn try_call_intrinsic(
                     "intrínseca interna de anexo de SaidaProcesso exige 2 argumentos",
                 ));
             }
-            let (RuntimeValue::Int(handle), RuntimeValue::SaidaProcesso(saida)) =
-                (&args[0], &args[1])
-            else {
+            // A intrínseca interna cobre handles opacos nominais que não são
+            // listas — hoje `SaidaProcesso` e `ValorJson`. A categoria viaja
+            // junto com o handle para que a extração devolva a MESMA família,
+            // e não uma que apenas compartilha a largura de palavra.
+            let RuntimeValue::Int(handle) = &args[0] else {
                 return Err(runtime_err(
-                    "intrínseca interna de anexo de SaidaProcesso exige handle de leque e SaidaProcesso",
+                    "intrínseca interna de anexo de handle nominal exige handle de leque",
                 ));
+            };
+            let carga = match &args[1] {
+                RuntimeValue::SaidaProcesso(saida) => RuntimeEnumPayload::SaidaProcesso(*saida),
+                RuntimeValue::ValorJson(raiz) => RuntimeEnumPayload::ValorJson(*raiz),
+                _ => {
+                    return Err(runtime_err(
+                        "intrínseca interna de anexo de handle nominal exige handle opaco nominal",
+                    ));
+                }
             };
             let Some((_, payloads)) = map_state.enum_values.get_mut(handle) else {
                 return Err(runtime_err(
-                    "handle de leque inválido ao anexar SaidaProcesso",
+                    "handle de leque inválido ao anexar handle nominal",
                 ));
             };
-            payloads.push(RuntimeEnumPayload::SaidaProcesso(*saida));
+            payloads.push(carga);
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(*handle))))
         }
         "__pinker_internal_leque_carga_lista_b" | "__pinker_internal_leque_carga_lista_v" => {
@@ -4216,7 +4381,10 @@ fn try_call_intrinsic(
                 Some(RuntimeEnumPayload::SaidaProcesso(saida)) => Ok(IntrinsicCall::Done(Some(
                     RuntimeValue::SaidaProcesso(*saida),
                 ))),
-                _ => Err(runtime_err("carga SaidaProcesso ausente ou divergente")),
+                Some(RuntimeEnumPayload::ValorJson(raiz)) => {
+                    Ok(IntrinsicCall::Done(Some(RuntimeValue::ValorJson(*raiz))))
+                }
+                _ => Err(runtime_err("carga de handle nominal ausente ou divergente")),
             }
         }
         // Não há intrínseca chamável de união: `union_tag` e `union_extract`
@@ -6714,176 +6882,38 @@ fn validar_separador_csv<'a>(
     Ok(separador)
 }
 
+/// Recorte plano histórico, agora projetado sobre a autoridade compartilhada.
+///
+/// O cursor próprio desta superfície deixou de existir. Ele e a gramática
+/// adulta eram duas implementações da mesma linguagem, capazes de divergir de
+/// novo — e divergir foi exatamente o defeito que a Parte E1 veio fechar.
+///
+/// O domínio numérico continua `u64`: `i64::MAX + 1 ..= u64::MAX` pertence a
+/// esta superfície e **não** ao modelo adulto. Uma gramática, duas projeções.
 fn parse_json_plano_bombom(json: &str) -> Result<HashMap<String, u64>, PinkerError> {
-    let mut cursor = JsonPlanoCursor::new(json);
-    cursor.skip_ws();
-    cursor.expect_char('{')?;
-    cursor.skip_ws();
-
-    let mut mapa = HashMap::new();
-    if cursor.consume_char('}') {
-        cursor.skip_ws();
-        cursor.ensure_eof()?;
-        return Ok(mapa);
-    }
-
-    loop {
-        cursor.skip_ws();
-        let chave = cursor.parse_key()?;
-        if mapa.contains_key(&chave) {
-            return Err(runtime_err(
-                "json inválido em 'ler_json_plano_bombom': chave duplicada fora do recorte auditável",
-            ));
-        }
-        cursor.skip_ws();
-        cursor.expect_char(':')?;
-        cursor.skip_ws();
-        let valor = cursor.parse_u64()?;
-        mapa.insert(chave, valor);
-        cursor.skip_ws();
-        if cursor.consume_char('}') {
-            cursor.skip_ws();
-            cursor.ensure_eof()?;
-            return Ok(mapa);
-        }
-        cursor.expect_char(',')?;
-        cursor.skip_ws();
-    }
-}
-
-fn emit_json_plano_bombom(mapa: &HashMap<String, u64>) -> Result<String, PinkerError> {
-    let mut chaves = mapa.keys().cloned().collect::<Vec<_>>();
-    chaves.sort();
-    let mut partes = Vec::with_capacity(chaves.len());
-    for chave in chaves {
-        validar_chave_json_plana(&chave, "emitir_json_plano_bombom")?;
-        let valor = mapa
-            .get(&chave)
-            .ok_or_else(|| runtime_err("mapa inconsistente em 'emitir_json_plano_bombom'"))?;
-        partes.push(format!("\"{}\":{}", chave, valor));
-    }
-    Ok(format!("{{{}}}", partes.join(",")))
-}
-
-fn validar_chave_json_plana(chave: &str, nome: &str) -> Result<(), PinkerError> {
-    if chave.contains('"') || chave.contains('\\') {
-        return Err(runtime_err(&format!(
-            "json inválido em '{}': chave exige escape fora do recorte",
-            nome
-        )));
-    }
-    if chave.chars().any(|ch| ch.is_control()) {
-        return Err(runtime_err(&format!(
-            "json inválido em '{}': chave contém controle fora do recorte",
-            nome
-        )));
-    }
-    Ok(())
-}
-
-struct JsonPlanoCursor<'a> {
-    src: &'a str,
-    idx: usize,
-}
-
-impl<'a> JsonPlanoCursor<'a> {
-    fn new(src: &'a str) -> Self {
-        Self { src, idx: 0 }
-    }
-
-    fn skip_ws(&mut self) {
-        while let Some(ch) = self.peek_char() {
-            if ch.is_ascii_whitespace() {
-                self.idx += ch.len_utf8();
-            } else {
-                break;
-            }
-        }
-    }
-
-    fn peek_char(&self) -> Option<char> {
-        self.src[self.idx..].chars().next()
-    }
-
-    fn consume_char(&mut self, expected: char) -> bool {
-        if self.peek_char() == Some(expected) {
-            self.idx += expected.len_utf8();
-            true
-        } else {
-            false
-        }
-    }
-
-    fn expect_char(&mut self, expected: char) -> Result<(), PinkerError> {
-        if self.consume_char(expected) {
-            Ok(())
-        } else {
-            Err(runtime_err(&format!(
-                "json inválido em 'ler_json_plano_bombom': esperado '{}'",
-                expected
-            )))
-        }
-    }
-
-    fn parse_key(&mut self) -> Result<String, PinkerError> {
-        self.expect_char('"')?;
-        let inicio = self.idx;
-        while let Some(ch) = self.peek_char() {
-            match ch {
-                '"' => {
-                    let chave = self.src[inicio..self.idx].to_string();
-                    self.idx += 1;
-                    validar_chave_json_plana(&chave, "ler_json_plano_bombom")?;
-                    return Ok(chave);
-                }
-                '\\' => {
-                    return Err(runtime_err(
-                        "json inválido em 'ler_json_plano_bombom': escapes em chave fora do recorte",
-                    ));
-                }
-                _ if ch.is_control() => {
-                    return Err(runtime_err(
-                        "json inválido em 'ler_json_plano_bombom': controle em chave fora do recorte",
-                    ));
-                }
-                _ => {
-                    self.idx += ch.len_utf8();
-                }
-            }
-        }
-        Err(runtime_err(
-            "json inválido em 'ler_json_plano_bombom': string de chave não terminada",
-        ))
-    }
-
-    fn parse_u64(&mut self) -> Result<u64, PinkerError> {
-        let inicio = self.idx;
-        while let Some(ch) = self.peek_char() {
-            if ch.is_ascii_digit() {
-                self.idx += ch.len_utf8();
-            } else {
-                break;
-            }
-        }
-        if inicio == self.idx {
-            return Err(runtime_err(
-                "json inválido em 'ler_json_plano_bombom': valor deve ser bombom sem sinal",
-            ));
-        }
-        self.src[inicio..self.idx].parse::<u64>().map_err(|_| {
-            runtime_err("json inválido em 'ler_json_plano_bombom': bombom fora da faixa")
-        })
-    }
-
-    fn ensure_eof(&self) -> Result<(), PinkerError> {
-        if self.idx == self.src.len() {
-            Ok(())
-        } else {
-            Err(runtime_err(
-                "json inválido em 'ler_json_plano_bombom': conteúdo extra após objeto",
+    pinker_json_contract::interpretar_plano_bombom(json)
+        .map(|pares| pares.into_iter().collect())
+        .map_err(|causa| {
+            runtime_err(&format!(
+                "json inválido em 'ler_json_plano_bombom': {causa}"
             ))
-        }
-    }
+        })
+}
+
+/// Emissão plana histórica: chaves em ordem, valores `u64` exatos.
+///
+/// Sem cast para `i64` em ponto algum — `u64::MAX` sai
+/// `18446744073709551615`.
+fn emit_json_plano_bombom(mapa: &HashMap<String, u64>) -> Result<String, PinkerError> {
+    let pares: Vec<(String, u64)> = mapa
+        .iter()
+        .map(|(chave, valor)| (chave.clone(), *valor))
+        .collect();
+    pinker_json_contract::serializar_plano_bombom(&pares).map_err(|causa| {
+        runtime_err(&format!(
+            "json inválido em 'emitir_json_plano_bombom': {causa}"
+        ))
+    })
 }
 
 fn formatar_verso_argumento(arg: &RuntimeValue) -> Result<String, PinkerError> {
@@ -7247,7 +7277,7 @@ fn pop_numeric(stack: &mut Vec<RuntimeValue>, msg: &str) -> Result<RuntimeValue,
         RuntimeValue::MapBombomBombom(_) => Err(runtime_err(msg)),
         RuntimeValue::MapBombomVerso(_) | RuntimeValue::Map(_) => Err(runtime_err(msg)),
         RuntimeValue::Callable(_) => Err(runtime_err(msg)),
-        RuntimeValue::SaidaProcesso(_) => Err(runtime_err(msg)),
+        RuntimeValue::SaidaProcesso(_) | RuntimeValue::ValorJson(_) => Err(runtime_err(msg)),
     }
 }
 
@@ -7265,7 +7295,7 @@ fn pop_bool(stack: &mut Vec<RuntimeValue>, msg: &str) -> Result<bool, PinkerErro
         RuntimeValue::MapBombomBombom(_) => Err(runtime_err(msg)),
         RuntimeValue::MapBombomVerso(_) | RuntimeValue::Map(_) => Err(runtime_err(msg)),
         RuntimeValue::Callable(_) => Err(runtime_err(msg)),
-        RuntimeValue::SaidaProcesso(_) => Err(runtime_err(msg)),
+        RuntimeValue::SaidaProcesso(_) | RuntimeValue::ValorJson(_) => Err(runtime_err(msg)),
     }
 }
 
@@ -7436,8 +7466,12 @@ fn coerce_runtime_value_to_type(
     }
 
     if ty == crate::ir::TypeIR::OpaqueWordHandle {
+        // A representação é a mesma palavra para todas as famílias nominais; a
+        // categoria acompanha o valor para que uma não seja aceita no lugar da
+        // outra por compartilhar largura.
         return match value {
             RuntimeValue::SaidaProcesso(handle) => Ok(RuntimeValue::SaidaProcesso(handle)),
+            RuntimeValue::ValorJson(handle) => Ok(RuntimeValue::ValorJson(handle)),
             _ => Err(runtime_err(
                 "valor incompatível: esperado handle opaco nominal",
             )),
@@ -7485,7 +7519,7 @@ fn coerce_runtime_value_to_type(
             RuntimeValue::Callable(_) => Err(runtime_err(
                 "ponteiro em runtime requer valor inteiro de endereço",
             )),
-            RuntimeValue::SaidaProcesso(_) => Err(runtime_err(
+            RuntimeValue::SaidaProcesso(_) | RuntimeValue::ValorJson(_) => Err(runtime_err(
                 "ponteiro em runtime requer valor inteiro de endereço",
             )),
         };
