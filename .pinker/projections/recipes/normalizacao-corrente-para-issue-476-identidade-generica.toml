@@ -1,6 +1,0 @@
-schema = 2
-id = "normalizacao-corrente-para-issue-476-identidade-generica"
-
-[reconstruction]
-expected_overrides = 0
-expected_exclusions = 0
