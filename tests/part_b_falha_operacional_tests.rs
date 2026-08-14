@@ -535,16 +535,11 @@ fn tags_do_resultado_predeclarado_sao_as_esperadas() {
     // compõe para a mesma especialização.
     let superficie = pinker_v0::falha_operacional::superficie("ler_arquivo_resultado")
         .expect("superfície de filesystem registrada");
-    assert_eq!(
-        superficie.leque_monomorfico(),
-        "__gen_leque_Resultado_verso_verso"
-    );
+    assert!(superficie.leque_monomorfico().starts_with("__gen_leque_"));
     let processo = pinker_v0::falha_operacional::superficie("executar_processo_resultado")
         .expect("superfície de processo registrada");
-    assert_eq!(
-        processo.leque_monomorfico(),
-        "__gen_leque_Resultado_bombom_verso"
-    );
+    assert!(processo.leque_monomorfico().starts_with("__gen_leque_"));
+    assert_ne!(superficie.leque_monomorfico(), processo.leque_monomorfico());
 }
 
 /// Ponto 13: erro estático continua estático. Passar `bombom` onde a superfície

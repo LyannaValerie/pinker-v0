@@ -1,6 +1,7 @@
 mod common;
 
 use common::{ControlledCommand as Command, NativeArtifactDir};
+use pinker_v0::generic_identity::{specialization_name, GenericKind, GenericOrigin};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Output;
@@ -555,106 +556,33 @@ carinho principal() -> bombom {
     );
 }
 
-/// O nome monomórfico não é uma identidade infalsificável.
-///
-/// `generic_enum_name` compõe `__gen_leque_{nome}_{args}` juntando por `_`, e a
-/// junção é ambígua sob `_` em identificadores: um leque genérico do usuário
-/// chamado `Resultado_verso` instanciado em `<verso>` compõe exatamente o nome
-/// de `Resultado<verso, verso>` sem nunca escrever `Resultado`. O que protege o
-/// valor não é o nome de origem — é a taxonomia do leque onde a tag é
-/// depositada.
+/// A colisão histórica com outro nome de template desaparece, enquanto a
+/// defesa de taxonomia continua cobrindo a identidade runtime verdadeira.
 #[test]
-fn nome_monomorfico_forjado_por_outro_leque_e_recusado() {
+fn outro_template_antes_colidente_agora_coexiste_sem_receber_a_tag_runtime() {
     let Some((_driver, Some(runtime_lib))) =
         common::require_native_evidence(concat!(module_path!(), ":", line!()), true)
     else {
         return;
     };
 
-    const FORJA_INVERTIDA: &str = r#"pacote main;
+    const COEXISTENCIA: &str = r#"pacote main;
 
 leque Resultado_verso<T> { Erro(T), Ok(T) }
 
 apelido F = Resultado_verso<verso>;
+apelido R = Resultado<verso, verso>;
 
 carinho principal() -> bombom {
-    nova g: F = ler_arquivo_resultado(argumento_ou(0, "ausente"));
-    encaixe g {
-        caso F.Ok(c) { falar("ok"); falar(c); }
-        caso F.Erro(m) { falar("erro"); falar(m); }
+    nova usuario: F = F.Erro("usuario");
+    encaixe usuario {
+        caso F.Ok(c) { falar("usuario-ok"); falar(c); }
+        caso F.Erro(m) { falar("usuario-erro"); falar(m); }
     }
-    mimo 0;
-}
-"#;
-
-    const FORJA_RENOMEADA: &str = r#"pacote main;
-
-leque Resultado_verso<T> { Bom(T), Ruim(T) }
-
-apelido F = Resultado_verso<verso>;
-
-carinho principal() -> bombom {
-    nova g: F = ler_arquivo_resultado(argumento_ou(0, "ausente"));
-    encaixe g {
-        caso F.Bom(c) { falar("bom"); falar(c); }
-        caso F.Ruim(m) { falar("ruim"); falar(m); }
-    }
-    mimo 0;
-}
-"#;
-
-    for (nome, fonte) in [
-        ("forja_invertida", FORJA_INVERTIDA),
-        ("forja_renomeada", FORJA_RENOMEADA),
-    ] {
-        exigir_recusa_com(
-            nome,
-            &[("principal", fonte)],
-            &runtime_lib,
-            &mensagem_taxonomia(),
-        );
-    }
-
-    // Controle positivo 1: o mesmo leque do usuário instanciado em outro
-    // argumento não colide com nome nenhum e continua livre para ter a
-    // taxonomia que quiser.
-    const SEM_COLISAO: &str = r#"pacote main;
-
-leque Resultado_verso<T> { Erro(T), Ok(T) }
-
-apelido G = Resultado_verso<bombom>;
-
-carinho principal() -> bombom {
-    nova g: G = G.Erro(7);
-    encaixe g {
-        caso G.Ok(v) { falar("ok"); falar(v); }
-        caso G.Erro(v) { falar("erro"); falar(v); }
-    }
-    mimo 0;
-}
-"#;
-    paridade(
-        "forja_sem_colisao",
-        SEM_COLISAO,
-        &[],
-        &runtime_lib,
-        "erro\n7\n",
-    );
-
-    // Controle positivo 2: colidir com o nome monomórfico **preservando** a
-    // taxonomia builtin não muda o significado de nenhuma tag, então é aceito.
-    // A regra protege o valor, não o nome.
-    const COLISAO_COMPATIVEL: &str = r#"pacote main;
-
-leque Resultado_verso<T> { Ok(T), Erro(T) }
-
-apelido F = Resultado_verso<verso>;
-
-carinho principal() -> bombom {
-    nova g: F = ler_arquivo_resultado(argumento_ou(0, "ausente"));
-    encaixe g {
-        caso F.Ok(c) { falar("ok"); falar(c); }
-        caso F.Erro(m) { falar("erro"); falar(m); }
+    nova runtime: R = ler_arquivo_resultado(argumento_ou(0, "ausente"));
+    encaixe runtime {
+        caso R.Ok(c) { falar("runtime-ok"); falar(c); }
+        caso R.Erro(m) { falar("runtime-erro"); falar(m); }
     }
     mimo 0;
 }
@@ -664,11 +592,11 @@ carinho principal() -> bombom {
     fs::write(&alvo, "conteudo-real").expect("escrever alvo");
     paridade_em(
         &dir,
-        "colisao_compativel",
-        COLISAO_COMPATIVEL,
+        "identidades_agora_distintas",
+        COEXISTENCIA,
         &[alvo.to_string_lossy().into_owned()],
         &runtime_lib,
-        "ok\nconteudo-real\n",
+        "usuario-erro\nusuario\nruntime-ok\nconteudo-real\n",
     );
 }
 
@@ -804,11 +732,15 @@ fn identidade_reservada_e_derivada_das_superficies() {
             "a identidade de '{}' não é reconhecida pela própria autoridade",
             superficie.intrinseca
         );
-        assert!(
-            superficie
-                .leque_monomorfico()
-                .contains(superficie.identidade()),
-            "o nome monomórfico de '{}' não deriva da identidade declarada",
+        assert_eq!(
+            superficie.leque_monomorfico(),
+            specialization_name(
+                GenericKind::Enum,
+                &GenericOrigin::Root,
+                superficie.identidade(),
+                &superficie.argumentos_de_tipo(pinker_v0::falha_operacional::span_sintetico()),
+            ),
+            "a superfície '{}' desviou da autoridade compartilhada",
             superficie.intrinseca
         );
     }

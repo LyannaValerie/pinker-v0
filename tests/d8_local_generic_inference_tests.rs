@@ -6,6 +6,8 @@ mod common;
 // @pinker-nav:summary Evidência D8 da inferência genérica local: cobre id e funções nominalmente distintas, dois parâmetros de tipo, conflito e ausência de fonte, compatibilidade explícita, nesting lista<T>, chamadas não genéricas, sensitivity contra special-case nominal e paridade interpretador/nativo com diagnóstico pré-backend.
 
 use common::{ControlledCommand as Command, NativeArtifactDir};
+use pinker_v0::ast::Type;
+use pinker_v0::generic_identity::{specialization_name, GenericKind, GenericOrigin};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Output;
@@ -113,17 +115,27 @@ fn run_native(path: &Path, logical_case: &str) -> Output {
         .expect("executar ELF D8")
 }
 
+fn generic_function_name(name: &str, type_args: Vec<Type>) -> String {
+    specialization_name(
+        GenericKind::Function,
+        &GenericOrigin::Root,
+        name,
+        &type_args,
+    )
+}
+
 #[test]
 fn infere_id_segunda_funcao_dois_parametros_e_mesmo_tipo() {
     common::parse_and_check(CORE_SOURCE).expect("inferência D8 central");
     let ir = common::render_ir(CORE_SOURCE).expect("IR D8 central");
+    let span = pinker_v0::falha_operacional::span_sintetico();
     for symbol in [
-        "__gen_id_bombom",
-        "__gen_par_bombom_verso",
-        "__gen_mesmo_bombom",
+        generic_function_name("id", vec![Type::Bombom(span)]),
+        generic_function_name("par", vec![Type::Bombom(span), Type::Verso(span)]),
+        generic_function_name("mesmo", vec![Type::Bombom(span)]),
     ] {
         assert!(
-            ir.contains(symbol),
+            ir.contains(&symbol),
             "especialização ausente: {symbol}\n{ir}"
         );
     }
@@ -133,8 +145,15 @@ fn infere_id_segunda_funcao_dois_parametros_e_mesmo_tipo() {
 fn infere_estrutura_aninhada_lista_sem_tabela_nominal() {
     common::parse_and_check(NESTED_SOURCE).expect("inferência estrutural lista<T>");
     let ir = common::render_ir(NESTED_SOURCE).expect("IR lista<T>");
-    assert!(ir.contains("__gen_primeiro_bombom"), "{ir}");
-    assert!(ir.contains("__gen_primeiro_verso"), "{ir}");
+    let span = pinker_v0::falha_operacional::span_sintetico();
+    assert!(
+        ir.contains(&generic_function_name("primeiro", vec![Type::Bombom(span)])),
+        "{ir}"
+    );
+    assert!(
+        ir.contains(&generic_function_name("primeiro", vec![Type::Verso(span)])),
+        "{ir}"
+    );
 
     let parser = include_str!("../src/parser.rs");
     for nominal in ["\"id\"", "\"par\"", "\"mesmo\"", "\"primeiro\""] {

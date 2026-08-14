@@ -7070,7 +7070,7 @@ impl SemanticChecker {
                             "tipo inválido no argumento {} da chamada '{}': esperado '{}', encontrado '{}'",
                             index + 1,
                             name,
-                            esperado.chave(),
+                            esperado.nome_para_diagnostico(),
                             arg_ty.display_name()
                         ),
                         span: arg.span,

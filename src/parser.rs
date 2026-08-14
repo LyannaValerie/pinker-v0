@@ -1,5 +1,6 @@
 use crate::ast::*;
 use crate::error::PinkerError;
+use crate::generic_identity::{self, GenericKind, GenericOrigin};
 use crate::lexer::Lexer;
 use crate::token::{Span, Token, TokenKind};
 use std::collections::{HashMap, HashSet};
@@ -53,6 +54,7 @@ pub struct Parser {
     tokens: Vec<Token>,
     current: usize,
     synthetic_counter: usize,
+    generic_origin: GenericOrigin,
     /// Mapeamento plano de nomes de variáveis/parâmetros para o tipo de coleção detectado.
     /// Reiniciado no início de cada função para evitar contaminação entre escopos de função.
     collection_types: HashMap<String, CollectionKind>,
@@ -176,10 +178,15 @@ fn merge_span(a: Span, b: Span) -> Span {
 
 impl Parser {
     pub fn new(tokens: Vec<Token>) -> Self {
+        Self::with_generic_origin(tokens, GenericOrigin::Root)
+    }
+
+    pub fn with_generic_origin(tokens: Vec<Token>, generic_origin: GenericOrigin) -> Self {
         Self {
             tokens,
             current: 0,
             synthetic_counter: 0,
+            generic_origin,
             collection_types: HashMap::new(),
             enum_decls: HashMap::new(),
             enum_names: HashSet::new(),
@@ -933,7 +940,7 @@ impl Parser {
                     });
                 if let Some(template) = self.enum_generic_templates.get(&name).cloned() {
                     let concrete =
-                        Self::instantiate_generic_enum_decl(&template, &args, applied_span)?;
+                        self.instantiate_generic_enum_decl(&template, &args, applied_span)?;
                     self.enum_names.insert(concrete.name.clone());
                     self.enum_decls.insert(
                         concrete.name,
@@ -945,7 +952,7 @@ impl Parser {
                     );
                 }
                 return Ok(Type::Enum {
-                    name: Self::generic_enum_name(&name, &args),
+                    name: self.generic_enum_name(&name, &args),
                     span: applied_span,
                 });
             }
@@ -2684,83 +2691,23 @@ impl Parser {
     // @pinker-nav:start parser.genericos.identidade-especializacao
     // @pinker-nav:domain genericos
     // @pinker-nav:layer parser
-    // @pinker-nav:summary Identidade determinística de especializações: `generic_type_key` codifica qualquer `ast::Type` (primitivos, listas/mapas, arrays, ponteiros, funções, tipos aplicados) numa chave textual estável, e `generic_function_name`/`generic_enum_name` derivam os nomes monomórficos (`__gen_*`) a partir dos argumentos de tipo. Produz chaves e nomes internos; não valida os tipos semanticamente.
-    fn generic_type_key(ty: &Type) -> String {
-        match ty {
-            Type::Bombom(_) => "bombom".to_string(),
-            Type::U8(_) => "u8".to_string(),
-            Type::U16(_) => "u16".to_string(),
-            Type::U32(_) => "u32".to_string(),
-            Type::U64(_) => "u64".to_string(),
-            Type::I8(_) => "i8".to_string(),
-            Type::I16(_) => "i16".to_string(),
-            Type::I32(_) => "i32".to_string(),
-            Type::I64(_) => "i64".to_string(),
-            Type::Logica(_) => "logica".to_string(),
-            Type::Verso(_) => "verso".to_string(),
-            Type::ListBombom(_) => "lista_bombom".to_string(),
-            Type::ListVerso(_) => "lista_verso".to_string(),
-            Type::ListEnum { element, .. } => format!("lista_{}", element),
-            Type::MapVersoBombom(_) => "mapa_verso_bombom".to_string(),
-            Type::MapVersoVerso(_) => "mapa_verso_verso".to_string(),
-            Type::MapBombomBombom(_) => "mapa_bombom_bombom".to_string(),
-            Type::MapBombomVerso(_) => "mapa_bombom_verso".to_string(),
-            Type::Map { key, value, .. } => format!(
-                "mapa_{}_{}",
-                Self::generic_type_key(key),
-                Self::generic_type_key(value)
-            ),
-            Type::Union { members, .. } => format!(
-                "uniao_{}",
-                members
-                    .iter()
-                    .map(Self::generic_type_key)
-                    .collect::<Vec<_>>()
-                    .join("_")
-            ),
-            Type::Alias { name, .. }
-            | Type::Struct { name, .. }
-            | Type::OpaqueHandle { name, .. }
-            | Type::Enum { name, .. }
-            | Type::Applied { name, .. } => name.clone(),
-            Type::FixedArray { element, size, .. } => {
-                format!("array_{}_{}", Self::generic_type_key(element), size)
-            }
-            Type::Pointer {
-                base, is_volatile, ..
-            } => format!(
-                "{}seta_{}",
-                if *is_volatile { "fragil_" } else { "" },
-                Self::generic_type_key(base)
-            ),
-            Type::Function { params, ret, .. } => {
-                let params = params
-                    .iter()
-                    .map(Self::generic_type_key)
-                    .collect::<Vec<_>>()
-                    .join("_");
-                format!("carinho_{}_ret_{}", params, Self::generic_type_key(ret))
-            }
-            Type::Nulo(_) => "nulo".to_string(),
-        }
+    // @pinker-nav:summary O parser não codifica identidade: apenas entrega kind, origem canônica do template, nome local e argumentos ordenados à autoridade compartilhada `generic_identity`. `Resultado` predeclarado conserva origem Root porque é a mesma identidade runtime em qualquer arquivo; templates de usuário recebem a chave de módulo transportada pelo loader.
+    fn generic_function_name(&self, name: &str, type_args: &[Type]) -> String {
+        generic_identity::specialization_name(
+            GenericKind::Function,
+            &self.generic_origin,
+            name,
+            type_args,
+        )
     }
 
-    fn generic_function_name(name: &str, type_args: &[Type]) -> String {
-        let suffix = type_args
-            .iter()
-            .map(Self::generic_type_key)
-            .collect::<Vec<_>>()
-            .join("_");
-        format!("__gen_{}_{}", name, suffix)
-    }
-
-    fn generic_enum_name(name: &str, type_args: &[Type]) -> String {
-        let suffix = type_args
-            .iter()
-            .map(Self::generic_type_key)
-            .collect::<Vec<_>>()
-            .join("_");
-        format!("__gen_leque_{}_{}", name, suffix)
+    fn generic_enum_name(&self, name: &str, type_args: &[Type]) -> String {
+        let origin = if name == crate::falha_operacional::LEQUE_RESULTADO {
+            &GenericOrigin::Root
+        } else {
+            &self.generic_origin
+        };
+        generic_identity::specialization_name(GenericKind::Enum, origin, name, type_args)
     }
 
     // @pinker-nav:end parser.genericos.identidade-especializacao
@@ -3171,7 +3118,7 @@ impl Parser {
             .iter()
             .rev()
             .find_map(|instantiation| {
-                (Self::generic_function_name(&instantiation.name, &instantiation.type_args) == name)
+                (self.generic_function_name(&instantiation.name, &instantiation.type_args) == name)
                     .then(|| {
                         let template = self.generic_templates.get(&instantiation.name)?;
                         let substitutions = template
@@ -3307,6 +3254,7 @@ impl Parser {
     // @pinker-nav:layer parser
     // @pinker-nav:summary Materializa um `EnumDecl` concreto a partir de um template de leque genérico e seus argumentos de tipo: confere a aridade (erro `Parse` se divergir), monta a tabela parâmetro-de-tipo → tipo concreto, substitui as cargas das variantes, remove os parâmetros de tipo e nomeia a instância pelo nome monomórfico. Não valida os tipos resultantes nem os anexa ao `Program`. Inclui também a predeclaração da biblioteca padrão (Fase 241): `register_predeclared_generic_enums`/`predeclared_generic_enum_templates` constroem o template sintético `Resultado<T,E> { Ok(T), Erro(E) }` e `item_name` apoia a supressão por declaração do usuário. `registrar_resultado_falivel` materializa a especialização devolvida por uma superfície falível e, com `registrar_redeclaracao_de_identidade`/`registrar_producao_de_identidade`/`verificar_identidade_runtime`, fecha a conjunção da Parte B1: produzir a identidade pelo runtime e redeclarar o nome é inválido, independentemente da ordem no texto.
     fn instantiate_generic_enum_decl(
+        &self,
         template: &EnumDecl,
         type_args: &[Type],
         span: Span,
@@ -3329,7 +3277,7 @@ impl Parser {
             .zip(type_args.iter().cloned())
             .collect::<HashMap<_, _>>();
         Ok(EnumDecl {
-            name: Self::generic_enum_name(&template.name, type_args),
+            name: self.generic_enum_name(&template.name, type_args),
             type_params: Vec::new(),
             variants: template
                 .variants
@@ -3383,7 +3331,7 @@ impl Parser {
                 span,
             });
         if let Some(template) = self.enum_generic_templates.get(&name).cloned() {
-            let concrete = Self::instantiate_generic_enum_decl(&template, &args, span)?;
+            let concrete = self.instantiate_generic_enum_decl(&template, &args, span)?;
             self.enum_names.insert(concrete.name.clone());
             self.enum_decls.insert(
                 concrete.name,
@@ -4290,7 +4238,7 @@ impl Parser {
                 });
             }
             let mono_name =
-                Self::generic_function_name(&instantiation.name, &instantiation.type_args);
+                self.generic_function_name(&instantiation.name, &instantiation.type_args);
             if !emitted.insert(mono_name.clone()) {
                 continue;
             }
@@ -4338,11 +4286,11 @@ impl Parser {
                     span: instantiation.span,
                 });
             };
-            let mono_name = Self::generic_enum_name(&instantiation.name, &instantiation.type_args);
+            let mono_name = self.generic_enum_name(&instantiation.name, &instantiation.type_args);
             if !emitted.insert(mono_name) {
                 continue;
             }
-            out.push(Self::instantiate_generic_enum_decl(
+            out.push(self.instantiate_generic_enum_decl(
                 template,
                 &instantiation.type_args,
                 instantiation.span,
@@ -6185,7 +6133,7 @@ impl Parser {
                             "> após argumentos de tipo no endereço de função",
                         )?;
                         let original_name = name.clone();
-                        name = Self::generic_function_name(&original_name, &type_args);
+                        name = self.generic_function_name(&original_name, &type_args);
                         self.generic_instantiations.push(GenericInstantiation {
                             name: original_name,
                             type_args,
@@ -6347,7 +6295,7 @@ impl Parser {
                     if let Some(template) = self.generic_templates.get(name).cloned() {
                         let type_args =
                             self.infer_generic_call_type_args(&template, &args, expr.span)?;
-                        let mono_name = Self::generic_function_name(name, &type_args);
+                        let mono_name = self.generic_function_name(name, &type_args);
                         self.generic_instantiations.push(GenericInstantiation {
                             name: name.clone(),
                             type_args,
@@ -6512,7 +6460,7 @@ impl Parser {
             }
         }
         self.consume(TokenKind::RParen, ")")?;
-        let mono_name = Self::generic_function_name(name, &type_args);
+        let mono_name = self.generic_function_name(name, &type_args);
         self.generic_instantiations.push(GenericInstantiation {
             name: name.clone(),
             type_args,

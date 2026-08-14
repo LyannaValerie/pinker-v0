@@ -2,6 +2,7 @@ mod common;
 
 use common::{parse, parse_and_check};
 use pinker_v0::ast::{AssignTarget, ExprKind, Item, Stmt, Type};
+use pinker_v0::generic_identity::{specialization_name, GenericKind, GenericOrigin};
 
 // @pinker-nav:start evidencia.parser.ast-basica-e-spans
 // @pinker-nav:domain parser
@@ -667,6 +668,15 @@ fn nomes_de_leques_monomorfizados(program: &pinker_v0::ast::Program) -> Vec<Stri
         .collect()
 }
 
+fn nome_resultado(type_args: Vec<Type>) -> String {
+    specialization_name(
+        GenericKind::Enum,
+        &GenericOrigin::Root,
+        pinker_v0::falha_operacional::LEQUE_RESULTADO,
+        &type_args,
+    )
+}
+
 #[test]
 fn fase241_predeclarado_materializa_sem_declaracao_de_leque() {
     let source = r#"
@@ -676,9 +686,10 @@ fn fase241_predeclarado_materializa_sem_declaracao_de_leque() {
     "#;
     let program = parse(source).expect("Resultado predeclarado deve parsear sem `leque`");
     let monos = nomes_de_leques_monomorfizados(&program);
+    let span = pinker_v0::falha_operacional::span_sintetico();
     assert_eq!(
         monos,
-        vec!["__gen_leque_Resultado_bombom_verso".to_string()]
+        vec![nome_resultado(vec![Type::Bombom(span), Type::Verso(span)])]
     );
 }
 
@@ -694,11 +705,12 @@ fn fase241_predeclarado_duas_especializacoes_distintas_com_dedup() {
     let program = parse(source).expect("duas especializações válidas");
     let monos = nomes_de_leques_monomorfizados(&program);
     // A e C colapsam na mesma instância (dedup); B é distinta.
+    let span = pinker_v0::falha_operacional::span_sintetico();
     assert_eq!(
         monos,
         vec![
-            "__gen_leque_Resultado_bombom_verso".to_string(),
-            "__gen_leque_Resultado_verso_bombom".to_string(),
+            nome_resultado(vec![Type::Bombom(span), Type::Verso(span)]),
+            nome_resultado(vec![Type::Verso(span), Type::Bombom(span)]),
         ]
     );
 }
@@ -714,11 +726,12 @@ fn fase241_predeclarado_ordem_de_especializacoes_e_deterministica() {
     let primeira = nomes_de_leques_monomorfizados(&parse(source).unwrap());
     let segunda = nomes_de_leques_monomorfizados(&parse(source).unwrap());
     assert_eq!(primeira, segunda);
+    let span = pinker_v0::falha_operacional::span_sintetico();
     assert_eq!(
         primeira,
         vec![
-            "__gen_leque_Resultado_bombom_verso".to_string(),
-            "__gen_leque_Resultado_verso_bombom".to_string(),
+            nome_resultado(vec![Type::Bombom(span), Type::Verso(span)]),
+            nome_resultado(vec![Type::Verso(span), Type::Bombom(span)]),
         ]
     );
 }

@@ -2420,7 +2420,7 @@ fn validar_argumentos_superficie(
                 "intrínseca '{}' exige argumento {} em {}",
                 superficie.intrinseca,
                 index + 1,
-                esperado.chave()
+                esperado.nome_para_diagnostico()
             )));
         }
     }

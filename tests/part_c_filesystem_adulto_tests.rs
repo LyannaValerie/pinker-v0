@@ -788,7 +788,7 @@ fn taxonomia_de_entrada_tem_autoridade_unica() {
         .find(|superficie| superficie.intrinseca == "tipo_de_entrada")
         .expect("superfície de classificação declarada");
     assert_eq!(
-        classificadora.sucesso.chave(),
+        classificadora.sucesso.nome_para_diagnostico(),
         LEQUE_TIPO_ENTRADA,
         "a carga de sucesso deveria ser o leque da autoridade"
     );

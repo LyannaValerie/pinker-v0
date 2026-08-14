@@ -34,6 +34,7 @@
 
 use crate::ast::EnumDecl;
 use crate::ast::Type;
+use crate::generic_identity::{self, GenericKind, GenericOrigin};
 use crate::token::Position;
 use crate::token::Span;
 
@@ -123,12 +124,11 @@ impl CargaResultado {
         }
     }
 
-    /// Chave usada na composição do nome monomórfico do leque.
+    /// Nome humano da carga, usado somente em diagnósticos.
     ///
-    /// Espelha `generic_type_key` do parser para as variantes suportadas: uma
-    /// chave divergente produziria um nome monomórfico que nenhuma outra camada
-    /// resolveria.
-    pub fn chave(self) -> &'static str {
+    /// Não participa da identidade monomórfica. A autoridade canônica recebe o
+    /// [`Type`] completo devolvido por [`CargaResultado::tipo`].
+    pub fn nome_para_diagnostico(self) -> &'static str {
         match self {
             CargaResultado::Bombom => "bombom",
             CargaResultado::Verso => "verso",
@@ -259,17 +259,16 @@ impl SuperficieFalivel {
         self.argumentos.len()
     }
 
-    /// Nome monomórfico do leque devolvido, p. ex.
-    /// `__gen_leque_Resultado_verso_verso`.
+    /// Nome monomórfico do leque devolvido.
     ///
-    /// Composto exatamente como `Parser::generic_enum_name` compõe o nome de
-    /// qualquer especialização escrita pelo usuário.
+    /// Consome a mesma autoridade canônica usada pelo parser; este módulo não
+    /// possui renderer nem mapping textual de tipos paralelo.
     pub fn leque_monomorfico(&self) -> String {
-        format!(
-            "__gen_leque_{}_{}_{}",
+        generic_identity::specialization_name(
+            GenericKind::Enum,
+            &GenericOrigin::Root,
             LEQUE_RESULTADO,
-            self.sucesso.chave(),
-            self.falha.chave()
+            &self.argumentos_de_tipo(span_sintetico()),
         )
     }
 
@@ -293,13 +292,10 @@ impl SuperficieFalivel {
     /// Descreve por que `decl` **não** é a especialização builtin desta
     /// superfície, ou `None` quando é.
     ///
-    /// Existe porque o nome monomórfico não é uma identidade infalsificável:
-    /// `Parser::generic_enum_name` compõe `__gen_leque_{nome}_{args}` juntando
-    /// por `_`, então um leque genérico do usuário chamado `Resultado_verso`
-    /// instanciado em `<verso>` produz exatamente o nome de
-    /// `Resultado<verso, verso>` sem nunca escrever `Resultado`. A pergunta
-    /// respondida aqui é a única que importa para o valor: **o leque em que o
-    /// runtime deposita a tag tem a taxonomia builtin?**
+    /// A identidade monomórfica injetiva impede que outro template reivindique
+    /// este nome, mas não prova que a declaração ligada ao runtime manteve a
+    /// ordem e as cargas que dão significado às tags. Esta checagem fecha essa
+    /// obrigação independente de taxonomia.
     ///
     /// Comparar aqui não é permitir override por semelhança estrutural: um
     /// leque que satisfaz esta checagem tem a mesma taxonomia, logo o valor
@@ -327,7 +323,7 @@ impl SuperficieFalivel {
                 [payload] => {
                     return Some(format!(
                         "a variante '{nome}' deveria carregar '{}', encontrado '{}'",
-                        carga.chave(),
+                        carga.nome_para_diagnostico(),
                         payload.name()
                     ));
                 }
@@ -546,9 +542,9 @@ pub fn identidades_produzidas_pelo_runtime() -> impl Iterator<Item = &'static st
 ///
 /// - **módulos**: `trazer` é resolvido depois do parse, juntando itens de
 ///   parsers distintos; nenhum deles viu as duas metades;
-/// - **nome monomórfico forjado**: um leque genérico do usuário com outro nome
-///   pode compor o mesmo `__gen_leque_...` (ver
-///   [`SuperficieFalivel::taxonomia_divergente`]).
+/// - **ligação final divergente**: mesmo com identidade injetiva, uma regressão
+///   no flatten, na declaração predefinida ou na ordem das variantes não pode
+///   mudar silenciosamente o significado de uma tag produzida pelo runtime.
 ///
 /// Esta é a checagem completa porque olha o artefato em que a tag é depositada,
 /// e não o texto que o produziu.
