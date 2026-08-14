@@ -10,7 +10,7 @@ use std::time::Duration;
 // @pinker-nav:start evidencia.genericos.identidade-injetiva-476
 // @pinker-nav:domain genericos
 // @pinker-nav:layer evidencia
-// @pinker-nav:summary Regressões da #476 sobre o pipeline real: C1-C5 em leques, fronteiras equivalentes em funções, equivalência explícita/inferida, autoridade compartilhada de Resultado, C6 no loader/flatten e símbolos nativos distintos com montagem, link, chamadas e execução em paridade.
+// @pinker-nav:summary Regressões da #476 sobre o pipeline real: C1-C5 em leques, fronteiras equivalentes em funções, equivalência explícita/inferida, limite deliberado de aliases não resolvidos, autoridade builtin/user de Resultado, C6 no loader/flatten e símbolos nativos distintos com montagem, link, chamadas e execução em paridade.
 
 fn enum_alias_target(program: &pinker_v0::ast::Program, alias_name: &str) -> String {
     program
@@ -167,6 +167,26 @@ fn gate_a3_explicito_e_inferido_deduplicam_na_mesma_identidade() {
 }
 
 #[test]
+fn full_alias_canonicalization_fica_deferida_para_a_auditoria_477() {
+    let source = r#"
+        pacote main;
+        leque A { X }
+        apelido AA = A;
+        leque G<T> { V(T) }
+        apelido ViaAlias = G<AA>;
+        apelido Direto = G<A>;
+        carinho principal() -> bombom { mimo 0; }
+    "#;
+    let program = common::parse(source).expect("aliases transparentes continuam válidos");
+    pinker_v0::semantic::check_program(&program).expect("aliases resolvem na semântica");
+    assert_ne!(
+        enum_alias_target(&program, "ViaAlias"),
+        enum_alias_target(&program, "Direto"),
+        "a #476 não transporta resolução semântica de aliases ao parser"
+    );
+}
+
+#[test]
 fn resultado_runtime_e_parser_usam_exatamente_a_mesma_identidade() {
     let superficie = pinker_v0::falha_operacional::superficie("ler_arquivo_resultado")
         .expect("superfície registrada");
@@ -187,6 +207,63 @@ fn resultado_runtime_e_parser_usam_exatamente_a_mesma_identidade() {
     )
     .expect("Resultado explícito");
     assert_eq!(enum_alias_target(&program, "R"), expected);
+}
+
+#[test]
+fn resultado_builtin_dentro_de_modulo_conserva_a_identidade_runtime_root() {
+    let dir = NativeArtifactDir::create().expect("diretório Resultado builtin em módulo");
+    fs::write(
+        dir.path().join("mod_builtin.pink"),
+        "pacote mod_builtin; apelido R = Resultado<verso, verso>;",
+    )
+    .expect("módulo builtin");
+    let root = dir.path().join("principal.pink");
+    fs::write(
+        &root,
+        r#"pacote main;
+trazer mod_builtin;
+carinho principal() -> bombom {
+    nova r: R = R.Ok("ok");
+    encaixe r {
+        caso R.Ok(v) { falar(v); }
+        caso R.Erro(e) { falar(e); }
+    }
+    mimo 0;
+}
+"#,
+    )
+    .expect("raiz builtin");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_pink"))
+        .arg("--ir")
+        .arg(&root)
+        .logical_case("issue-476-resultado-builtin-module-root")
+        .timeout(Duration::from_secs(30))
+        .output()
+        .expect("executar Resultado builtin em módulo");
+    assert!(
+        output.status.success(),
+        "builtin em módulo falhou: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let span = pinker_v0::falha_operacional::span_sintetico();
+    let args = [Type::Verso(span), Type::Verso(span)];
+    let expected = specialization_name(
+        GenericKind::Enum,
+        &GenericOrigin::Root,
+        pinker_v0::falha_operacional::LEQUE_RESULTADO,
+        &args,
+    );
+    let forbidden_module_identity = specialization_name(
+        GenericKind::Enum,
+        &GenericOrigin::module("mod_builtin"),
+        pinker_v0::falha_operacional::LEQUE_RESULTADO,
+        &args,
+    );
+    let rendered = String::from_utf8_lossy(&output.stdout);
+    assert!(rendered.contains(&expected));
+    assert!(!rendered.contains(&forbidden_module_identity));
 }
 
 fn write_module_fixture(dir: &NativeArtifactDir) -> std::path::PathBuf {
@@ -256,6 +333,95 @@ fn c6_loader_flatten_preserva_origens_distintas() {
     assert!(
         rendered.contains(&b),
         "IR não contém origem mod_b: {rendered}"
+    );
+}
+
+fn write_user_resultado_module_fixture(dir: &NativeArtifactDir) -> std::path::PathBuf {
+    fs::write(
+        dir.path().join("mod_a.pink"),
+        r#"pacote mod_a;
+apelido RA = Resultado<verso, verso>;
+leque Resultado<T, E> { A(T), FalhaA(E) }
+"#,
+    )
+    .expect("mod_a Resultado de usuário, uso antes");
+    fs::write(
+        dir.path().join("mod_b.pink"),
+        r#"pacote mod_b;
+leque Resultado<T, E> { B(T), FalhaB(E) }
+apelido RB = Resultado<verso, verso>;
+"#,
+    )
+    .expect("mod_b Resultado de usuário, declaração antes");
+    let root = dir.path().join("principal.pink");
+    fs::write(
+        &root,
+        r#"pacote main;
+trazer mod_a;
+trazer mod_b;
+carinho principal() -> bombom {
+    nova a: RA = RA.A("a");
+    nova b: RB = RB.B("b");
+    encaixe a {
+        caso RA.A(v) { falar(v); }
+        caso RA.FalhaA(e) { falar(e); }
+    }
+    encaixe b {
+        caso RB.B(v) { falar(v); }
+        caso RB.FalhaB(e) { falar(e); }
+    }
+    mimo 0;
+}
+"#,
+    )
+    .expect("raiz C6-Resultado");
+    root
+}
+
+#[test]
+fn c6_resultado_usuario_preserva_origem_e_independe_da_ordem_textual() {
+    let dir = NativeArtifactDir::create().expect("diretório C6-Resultado");
+    let root = write_user_resultado_module_fixture(&dir);
+    let output = Command::new(env!("CARGO_BIN_EXE_pink"))
+        .arg("--ir")
+        .arg(&root)
+        .logical_case("issue-476-c6-user-resultado-origin")
+        .timeout(Duration::from_secs(30))
+        .output()
+        .expect("executar C6-Resultado pelo loader real");
+    assert!(
+        output.status.success(),
+        "C6-Resultado falhou no flatten/semântica: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let span = pinker_v0::falha_operacional::span_sintetico();
+    let args = [Type::Verso(span), Type::Verso(span)];
+    let a = specialization_name(
+        GenericKind::Enum,
+        &GenericOrigin::module("mod_a"),
+        pinker_v0::falha_operacional::LEQUE_RESULTADO,
+        &args,
+    );
+    let b = specialization_name(
+        GenericKind::Enum,
+        &GenericOrigin::module("mod_b"),
+        pinker_v0::falha_operacional::LEQUE_RESULTADO,
+        &args,
+    );
+    let builtin = specialization_name(
+        GenericKind::Enum,
+        &GenericOrigin::Root,
+        pinker_v0::falha_operacional::LEQUE_RESULTADO,
+        &args,
+    );
+    let rendered = String::from_utf8_lossy(&output.stdout);
+    assert_ne!(a, b);
+    assert!(rendered.contains(&a), "origem mod_a ausente: {rendered}");
+    assert!(rendered.contains(&b), "origem mod_b ausente: {rendered}");
+    assert!(
+        !rendered.contains(&builtin),
+        "template de usuário foi confundido com builtin: {rendered}"
     );
 }
 
@@ -367,7 +533,7 @@ fn backend_emite_monta_liga_e_executa_dois_simbolos_distintos() {
 
 #[test]
 fn renderer_nao_introduz_digest_probabilistico() {
-    let bytes = pinker_v0::generic_identity::canonical_specialization_bytes(
+    let bytes = pinker_v0::generic_identity::monomorphization_specialization_bytes(
         GenericKind::Enum,
         &GenericOrigin::module("módulo"),
         "G_ç",

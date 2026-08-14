@@ -1,18 +1,18 @@
-//! Identidade canônica estreita de especializações genéricas.
+//! Identidade injetiva estreita de especializações genéricas.
 //!
 //! A AST ainda possui algumas representações históricas equivalentes. Este
 //! módulo normaliza somente as equivalências comprovadas no ponto em que a
-//! monomorfização ocorre e enquadra todas as distinções restantes em bytes
-//! canônicos. A renderização hexadecimal é integral: não é digest e não perde
-//! informação.
+//! monomorfização ocorre e enquadra todas as distinções restantes da
+//! representação disponível nesse estágio. Não representa o quociente
+//! semântico completo após resolução de aliases. A renderização hexadecimal é
+//! integral: não é digest e não perde informação.
 
 use crate::ast::Type;
-use crate::union_canon;
 
 // @pinker-nav:start genericos.identidade-canonica
 // @pinker-nav:domain genericos
 // @pinker-nav:layer identidade
-// @pinker-nav:summary Autoridade única da identidade monomórfica: normaliza representações AST semanticamente equivalentes, enquadra kind/origem/nome/argumentos e tipos recursivos em bytes canônicos e renderiza o fluxo completo como hexadecimal ASCII montável.
+// @pinker-nav:summary Autoridade única da identidade do estágio atual de monomorfização: preserva apenas equivalências AST já exigidas nesse estágio, enquadra kind/origem/nome/argumentos e tipos recursivos sem fingir resolução semântica de aliases, e renderiza o fluxo completo como hexadecimal ASCII montável.
 
 const FORMAT_MAGIC: &[u8] = b"pinker-generic-specialization-v1";
 
@@ -57,11 +57,11 @@ impl GenericOrigin {
 }
 
 #[derive(Default)]
-struct CanonicalBytes {
+struct MonomorphizationBytes {
     bytes: Vec<u8>,
 }
 
-impl CanonicalBytes {
+impl MonomorphizationBytes {
     fn byte(&mut self, value: u8) {
         self.bytes.push(value);
     }
@@ -182,14 +182,12 @@ impl CanonicalBytes {
             }
             Type::Union { members, .. } => {
                 self.byte(0x33);
-                // Não existe uma segunda política de ordem/dedup aqui: a
-                // autoridade normativa de união continua em `union_canon`.
-                // A normalização anterior cobre somente representações de
-                // fase que o restante da identidade já considera iguais.
-                let normalized = members.iter().map(normalize_union_member).collect();
-                let canonical = union_canon::canonicalize_resolved_members(normalized);
-                self.count(canonical.len());
-                for member in &canonical {
+                // Este estágio ainda não possui membros semanticamente
+                // resolvidos, pré-condição de `union_canon`. Portanto a
+                // identidade preserva a representação estrutural disponível:
+                // contagem, ordem e identidade de estágio de cada membro.
+                self.count(members.len());
+                for member in members {
                     self.ty(member);
                 }
             }
@@ -197,90 +195,21 @@ impl CanonicalBytes {
     }
 }
 
-fn normalize_union_member(ty: &Type) -> Type {
-    match ty {
-        Type::Alias { name, span } | Type::Struct { name, span } | Type::Enum { name, span } => {
-            Type::Enum {
-                name: name.clone(),
-                span: *span,
-            }
-        }
-        Type::MapVersoBombom(span) => Type::Map {
-            key: Box::new(Type::Verso(*span)),
-            value: Box::new(Type::Bombom(*span)),
-            span: *span,
-        },
-        Type::MapVersoVerso(span) => Type::Map {
-            key: Box::new(Type::Verso(*span)),
-            value: Box::new(Type::Verso(*span)),
-            span: *span,
-        },
-        Type::MapBombomBombom(span) => Type::Map {
-            key: Box::new(Type::Bombom(*span)),
-            value: Box::new(Type::Bombom(*span)),
-            span: *span,
-        },
-        Type::MapBombomVerso(span) => Type::Map {
-            key: Box::new(Type::Bombom(*span)),
-            value: Box::new(Type::Verso(*span)),
-            span: *span,
-        },
-        Type::Map { key, value, span } => Type::Map {
-            key: Box::new(normalize_union_member(key)),
-            value: Box::new(normalize_union_member(value)),
-            span: *span,
-        },
-        Type::FixedArray {
-            element,
-            size,
-            span,
-        } => Type::FixedArray {
-            element: Box::new(normalize_union_member(element)),
-            size: *size,
-            span: *span,
-        },
-        Type::Pointer {
-            base,
-            is_volatile,
-            span,
-        } => Type::Pointer {
-            base: Box::new(normalize_union_member(base)),
-            is_volatile: *is_volatile,
-            span: *span,
-        },
-        Type::Function { params, ret, span } => Type::Function {
-            params: params.iter().map(normalize_union_member).collect(),
-            ret: Box::new(normalize_union_member(ret)),
-            span: *span,
-        },
-        Type::Union { members, span } => Type::Union {
-            members: members.iter().map(normalize_union_member).collect(),
-            span: *span,
-        },
-        Type::Applied { name, args, span } => Type::Applied {
-            name: name.clone(),
-            args: args.iter().map(normalize_union_member).collect(),
-            span: *span,
-        },
-        _ => ty.clone(),
-    }
-}
-
-/// Bytes canônicos de um tipo no domínio aceito pela monomorfização.
-pub fn canonical_type_bytes(ty: &Type) -> Vec<u8> {
-    let mut encoder = CanonicalBytes::default();
+/// Bytes da identidade de tipo disponível no estágio atual de monomorfização.
+pub fn monomorphization_type_bytes(ty: &Type) -> Vec<u8> {
+    let mut encoder = MonomorphizationBytes::default();
     encoder.ty(ty);
     encoder.bytes
 }
 
-/// Bytes canônicos completos da identidade de uma especialização.
-pub fn canonical_specialization_bytes(
+/// Bytes completos da identidade de uma especialização no estágio atual.
+pub fn monomorphization_specialization_bytes(
     kind: GenericKind,
     origin: &GenericOrigin,
     local_generic_name: &str,
     type_arguments: &[Type],
 ) -> Vec<u8> {
-    let mut encoder = CanonicalBytes::default();
+    let mut encoder = MonomorphizationBytes::default();
     encoder.raw_bytes(FORMAT_MAGIC);
     encoder.byte(kind.tag());
     match origin {
@@ -308,14 +237,15 @@ fn full_hex(bytes: &[u8]) -> String {
     rendered
 }
 
-/// Símbolo textual canônico, injetivo e seguro para o assembler vigente.
+/// Símbolo textual injetivo e seguro para o assembler vigente.
 pub fn specialization_name(
     kind: GenericKind,
     origin: &GenericOrigin,
     local_generic_name: &str,
     type_arguments: &[Type],
 ) -> String {
-    let bytes = canonical_specialization_bytes(kind, origin, local_generic_name, type_arguments);
+    let bytes =
+        monomorphization_specialization_bytes(kind, origin, local_generic_name, type_arguments);
     format!("{}{}", kind.symbol_prefix(), full_hex(&bytes))
 }
 
@@ -387,8 +317,8 @@ mod tests {
         ];
         for (historical, adult) in cases {
             assert_eq!(
-                canonical_type_bytes(&historical),
-                canonical_type_bytes(&adult)
+                monomorphization_type_bytes(&historical),
+                monomorphization_type_bytes(&adult)
             );
         }
     }
@@ -409,16 +339,16 @@ mod tests {
             span: span(),
         };
         assert_eq!(
-            canonical_type_bytes(&unresolved),
-            canonical_type_bytes(&enum_phase)
+            monomorphization_type_bytes(&unresolved),
+            monomorphization_type_bytes(&enum_phase)
         );
         assert_eq!(
-            canonical_type_bytes(&unresolved),
-            canonical_type_bytes(&struct_phase)
+            monomorphization_type_bytes(&unresolved),
+            monomorphization_type_bytes(&struct_phase)
         );
         assert_ne!(
-            canonical_type_bytes(&unresolved),
-            canonical_type_bytes(&opaque)
+            monomorphization_type_bytes(&unresolved),
+            monomorphization_type_bytes(&opaque)
         );
 
         let mixed_phases = Type::Union {
@@ -431,7 +361,7 @@ mod tests {
             ],
             span: span(),
         };
-        let swapped_phases = Type::Union {
+        let same_order_other_phases = Type::Union {
             members: vec![
                 Type::Enum {
                     name: "A".to_string(),
@@ -442,8 +372,8 @@ mod tests {
             span: span(),
         };
         assert_eq!(
-            canonical_type_bytes(&mixed_phases),
-            canonical_type_bytes(&swapped_phases)
+            monomorphization_type_bytes(&mixed_phases),
+            monomorphization_type_bytes(&same_order_other_phases)
         );
     }
 
@@ -508,30 +438,30 @@ mod tests {
     }
 
     #[test]
-    fn matriz_de_identidade_preserva_todos_os_campos_semanticos() {
+    fn matriz_de_identidade_preserva_todos_os_campos_do_estagio() {
         assert_ne!(
-            canonical_type_bytes(&applied("Foo", vec![alias("A")])),
-            canonical_type_bytes(&applied("Foo", vec![alias("B")]))
+            monomorphization_type_bytes(&applied("Foo", vec![alias("A")])),
+            monomorphization_type_bytes(&applied("Foo", vec![alias("B")]))
         );
         assert_ne!(
-            canonical_type_bytes(&Type::FixedArray {
+            monomorphization_type_bytes(&Type::FixedArray {
                 element: Box::new(Type::U8(span())),
                 size: 3,
                 span: span(),
             }),
-            canonical_type_bytes(&Type::FixedArray {
+            monomorphization_type_bytes(&Type::FixedArray {
                 element: Box::new(Type::U8(span())),
                 size: 4,
                 span: span(),
             })
         );
         assert_ne!(
-            canonical_type_bytes(&Type::Pointer {
+            monomorphization_type_bytes(&Type::Pointer {
                 base: Box::new(Type::U8(span())),
                 is_volatile: false,
                 span: span(),
             }),
-            canonical_type_bytes(&Type::Pointer {
+            monomorphization_type_bytes(&Type::Pointer {
                 base: Box::new(Type::U8(span())),
                 is_volatile: true,
                 span: span(),
@@ -544,12 +474,12 @@ mod tests {
             span: span(),
         };
         assert_ne!(
-            canonical_type_bytes(&function(vec![alias("A")], alias("B"))),
-            canonical_type_bytes(&function(vec![alias("A"), alias("C")], alias("B")))
+            monomorphization_type_bytes(&function(vec![alias("A")], alias("B"))),
+            monomorphization_type_bytes(&function(vec![alias("A"), alias("C")], alias("B")))
         );
         assert_ne!(
-            canonical_type_bytes(&function(vec![alias("A")], alias("B"))),
-            canonical_type_bytes(&function(vec![alias("A")], alias("C")))
+            monomorphization_type_bytes(&function(vec![alias("A")], alias("B"))),
+            monomorphization_type_bytes(&function(vec![alias("A")], alias("C")))
         );
 
         let union_ab = Type::Union {
@@ -560,17 +490,57 @@ mod tests {
             members: vec![alias("B"), alias("A")],
             span: span(),
         };
-        assert_eq!(
-            canonical_type_bytes(&union_ab),
-            canonical_type_bytes(&union_ba)
+        assert_ne!(
+            monomorphization_type_bytes(&union_ab),
+            monomorphization_type_bytes(&union_ba),
+            "ordem da representação não resolvida pertence à identidade deste estágio"
         );
         assert_ne!(
-            canonical_type_bytes(&alias("A_B")),
-            canonical_type_bytes(&union_ab)
+            monomorphization_type_bytes(&alias("A_B")),
+            monomorphization_type_bytes(&union_ab)
         );
         assert_ne!(
-            canonical_type_bytes(&alias("Café")),
-            canonical_type_bytes(&alias("Cafe\u{301}"))
+            monomorphization_type_bytes(&alias("Café")),
+            monomorphization_type_bytes(&alias("Cafe\u{301}"))
+        );
+    }
+
+    #[test]
+    fn union_nao_resolvida_preserva_fronteiras_estruturais() {
+        let left = Type::Union {
+            members: vec![alias("A_B"), alias("C")],
+            span: span(),
+        };
+        let right = Type::Union {
+            members: vec![alias("A"), alias("B_C")],
+            span: span(),
+        };
+        let nested_left = Type::Union {
+            members: vec![left.clone(), alias("D")],
+            span: span(),
+        };
+        let nested_right = Type::Union {
+            members: vec![right.clone(), alias("D")],
+            span: span(),
+        };
+
+        assert_ne!(
+            monomorphization_type_bytes(&left),
+            monomorphization_type_bytes(&right)
+        );
+        assert_ne!(
+            monomorphization_type_bytes(&nested_left),
+            monomorphization_type_bytes(&nested_right)
+        );
+    }
+
+    #[test]
+    fn full_alias_canonicalization_permanece_deferred_para_477() {
+        // O encoder recebe spelling, não o alvo semântico do alias. Resolver
+        // `AA -> A` pertence à auditoria arquitetural #477.
+        assert_ne!(
+            monomorphization_type_bytes(&alias("AA")),
+            monomorphization_type_bytes(&alias("A"))
         );
     }
 
@@ -590,7 +560,7 @@ mod tests {
 
     #[test]
     fn framing_publica_contagem_de_argumentos_em_u64_big_endian() {
-        let bytes = canonical_specialization_bytes(
+        let bytes = monomorphization_specialization_bytes(
             GenericKind::Function,
             &GenericOrigin::Root,
             "G",
