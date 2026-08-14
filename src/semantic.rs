@@ -1122,6 +1122,32 @@ impl SemanticChecker {
         superficie: &crate::falha_operacional::SuperficieFalivel,
         span: Span,
     ) -> Result<(), PinkerError> {
+        // A identidade injetiva impede que o template de usuário substitua o
+        // leque builtin no mapa. A guarda #475 ainda precisa rejeitar a
+        // coexistência quando o runtime efetivamente produz as tags. Como o
+        // renderer é lossless, a própria autoridade recupera a proveniência;
+        // a semântica não interpreta spelling nem mantém outro encoder.
+        if let Some((nome, decl)) = self.enums.iter().find(|(nome, _)| {
+            matches!(
+                crate::generic_identity::specialization_template_identity(nome),
+                Some(crate::generic_identity::GenericTemplateIdentity {
+                    kind: crate::generic_identity::GenericKind::Enum,
+                    origin,
+                    ref local_name,
+                }) if origin != crate::generic_identity::GenericOrigin::Builtin
+                    && local_name == superficie.identidade()
+            )
+        }) {
+            return Err(PinkerError::Semantic {
+                msg: crate::falha_operacional::conflito_de_taxonomia(
+                    &superficie.leque_monomorfico(),
+                    &format!(
+                        "a especialização '{nome}' veio de um template declarado pelo usuário"
+                    ),
+                ),
+                span: decl.span,
+            });
+        }
         let monomorfico = superficie.leque_monomorfico();
         let Some(enum_decl) = self.enums.get(&monomorfico) else {
             // Sem leque materializado não há onde depositar a tag; o programa
@@ -7070,7 +7096,7 @@ impl SemanticChecker {
                             "tipo inválido no argumento {} da chamada '{}': esperado '{}', encontrado '{}'",
                             index + 1,
                             name,
-                            esperado.chave(),
+                            esperado.nome_para_diagnostico(),
                             arg_ty.display_name()
                         ),
                         span: arg.span,

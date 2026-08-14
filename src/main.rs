@@ -11,6 +11,7 @@ use pinker_v0::diff_coverage;
 use pinker_v0::doc;
 use pinker_v0::doc_index;
 use pinker_v0::editor_tui::EditorTui;
+use pinker_v0::generic_identity::GenericOrigin;
 use pinker_v0::inline_asm;
 use pinker_v0::instr_select;
 use pinker_v0::instr_select_validate;
@@ -3744,10 +3745,13 @@ fn link_nativo(asm_path: &Path, bin_path: &Path) -> Result<(), String> {
 // @pinker-nav:domain modulos
 // @pinker-nav:layer cli
 // @pinker-nav:summary parse_program_from_source tokeniza e parseia uma string de fonte (sem resolver imports). importable_item_name e importable_item_clone reconhecem e clonam os itens importáveis Function, Const, Struct, TypeAlias, Enum e Trait; qualified_type_item_clone requalifica com o prefixo `<módulo>.` somente Struct e TypeAlias, não Function, Const, Enum ou Trait. load_module_program lê o arquivo `<módulo>.pink` a partir de `base_dir`, detecta ciclo de módulos comparando com a pilha `loading` e recursa nos imports do módulo carregado antes de inserir o programa em `loaded`. load_program_with_imports é o ponto de entrada: para cada import do programa raiz, pula famílias built-in importáveis, detecta import duplicado pela chave `módulo::símbolo`, carrega o módulo via load_module_program e insere os itens importados (todo o módulo ou um símbolo específico) em `root_program.items`, reportando colisão de nome com itens locais ou com outro import antes de limpar `root_program.imports`.
-fn parse_program_from_source(source: &str) -> Result<ast::Program, PinkerError> {
+fn parse_program_from_source(
+    source: &str,
+    generic_origin: GenericOrigin,
+) -> Result<ast::Program, PinkerError> {
     let mut lexer = Lexer::new(source);
     let tokens = lexer.tokenize()?;
-    let mut parser = Parser::new(tokens);
+    let mut parser = Parser::with_generic_origin(tokens, generic_origin);
     parser.parse()
 }
 
@@ -3820,20 +3824,22 @@ fn load_module_program(
         ),
         span: import_span,
     })?;
-    let program = parse_program_from_source(&source).map_err(|err| match err {
-        PinkerError::Lexer { msg, span }
-        | PinkerError::Parse { msg, span }
-        | PinkerError::Expected {
-            expected: msg,
-            span,
-            ..
-        }
-        | PinkerError::Semantic { msg, span } => PinkerError::Semantic {
-            msg: format!("falha ao ler módulo '{}': {}", module, msg),
-            span,
+    let program = parse_program_from_source(&source, GenericOrigin::module(module)).map_err(
+        |err| match err {
+            PinkerError::Lexer { msg, span }
+            | PinkerError::Parse { msg, span }
+            | PinkerError::Expected {
+                expected: msg,
+                span,
+                ..
+            }
+            | PinkerError::Semantic { msg, span } => PinkerError::Semantic {
+                msg: format!("falha ao ler módulo '{}': {}", module, msg),
+                span,
+            },
+            other => other,
         },
-        other => other,
-    })?;
+    )?;
 
     loading.push(module.to_string());
     for import in &program.imports {

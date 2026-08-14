@@ -16,7 +16,9 @@ mod common;
 
 use common::parse_and_check;
 use common::ControlledCommand as Command;
+use pinker_v0::ast::Type;
 use pinker_v0::enum_payload::{self, EnumPayloadClass};
+use pinker_v0::generic_identity::{specialization_name, GenericKind, GenericOrigin};
 use pinker_v0::ir::{self, EnumPayloadMetaIR, ProgramIR, TypeIR};
 use pinker_v0::{ir_validate, semantic};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -619,10 +621,17 @@ fn metadata_nao_contem_parametro_generico_residual() {
     }
     // As especializações concretas existem e carregam os tipos substituídos em
     // profundidade.
+    let span = pinker_v0::falha_operacional::span_sintetico();
+    let resultado_lista = specialization_name(
+        GenericKind::Enum,
+        &GenericOrigin::Root,
+        "Resultado2",
+        &[Type::ListBombom(span), Type::ListVerso(span)],
+    );
     let ok = program
         .enum_variants
         .iter()
-        .find(|meta| meta.variant_name == "Ok" && meta.enum_name.contains("Resultado2"))
+        .find(|meta| meta.variant_name == "Ok" && meta.enum_name == resultado_lista)
         .expect("especialização de Ok");
     assert!(ok.payloads.iter().all(
         |p| p.class == EnumPayloadClass::OpaqueWordHandle || p.class == EnumPayloadClass::Verso

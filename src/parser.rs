@@ -1,5 +1,6 @@
 use crate::ast::*;
 use crate::error::PinkerError;
+use crate::generic_identity::{self, GenericKind, GenericOrigin};
 use crate::lexer::Lexer;
 use crate::token::{Span, Token, TokenKind};
 use std::collections::{HashMap, HashSet};
@@ -53,6 +54,7 @@ pub struct Parser {
     tokens: Vec<Token>,
     current: usize,
     synthetic_counter: usize,
+    generic_origin: GenericOrigin,
     /// Mapeamento plano de nomes de variáveis/parâmetros para o tipo de coleção detectado.
     /// Reiniciado no início de cada função para evitar contaminação entre escopos de função.
     collection_types: HashMap<String, CollectionKind>,
@@ -176,10 +178,15 @@ fn merge_span(a: Span, b: Span) -> Span {
 
 impl Parser {
     pub fn new(tokens: Vec<Token>) -> Self {
+        Self::with_generic_origin(tokens, GenericOrigin::Root)
+    }
+
+    pub fn with_generic_origin(tokens: Vec<Token>, generic_origin: GenericOrigin) -> Self {
         Self {
             tokens,
             current: 0,
             synthetic_counter: 0,
+            generic_origin,
             collection_types: HashMap::new(),
             enum_decls: HashMap::new(),
             enum_names: HashSet::new(),
@@ -440,7 +447,7 @@ impl Parser {
     // @pinker-nav:start parser.programa.estrutura
     // @pinker-nav:domain programa
     // @pinker-nav:layer parser
-    // @pinker-nav:summary Ponto de entrada do parser: constrói o `Program` reconhecendo `pacote`, `trazer` (imports) e a marca freestanding, e despacha os itens de topo (funções, structs, leques, tratos, impl, aliases, constantes) via `parse_item`. Predeclara os leques genéricos da biblioteca padrão (Fase 241, `Resultado<T,E>`) antes do laço de itens e suprime o predeclarado quando o usuário declara o mesmo nome. A supressão registra a redeclaração (Parte B1): quando o programa também produz valores dessa identidade pelo runtime, a conjunção é inválida e o programa é recusado no span da declaração do usuário, em qualquer ordem de texto.
+    // @pinker-nav:summary Ponto de entrada do parser: constrói o `Program` reconhecendo `pacote`, `trazer` (imports) e a marca freestanding, e despacha os itens de topo via `parse_item`. Um prepass estreito de autoridade detecta templates genéricos de usuário antes de registrar o `Resultado<T,E>` builtin, tornando USER_WINS independente da ordem textual sem resolver tipos. A redeclaração continua formando com a produção runtime a conjunção inválida da Parte B1.
     pub fn parse(&mut self) -> Result<Program, PinkerError> {
         let package = if self.match_token(TokenKind::KwPacote) {
             let start_span = self.previous().span;
@@ -493,9 +500,23 @@ impl Parser {
 
         // Fase 241: predeclara o leque padrão `Resultado<T, E> { Ok(T), Erro(E) }`
         // como template sintético antes de parsear os itens de topo, para que
-        // `apelido X = Resultado<A, B>;` funcione sem declaração manual. Cede a
-        // qualquer declaração do usuário chamada `Resultado` (ver a supressão abaixo).
+        // `apelido X = Resultado<A, B>;` funcione sem declaração manual. O
+        // registrador faz antes um prepass estreito de autoridade: se o arquivo
+        // contém um template genérico de usuário homônimo, o builtin nem entra,
+        // independentemente da ordem entre declaração e uso.
+        let user_resultado_span =
+            self.source_top_level_generic_enum_span(crate::falha_operacional::LEQUE_RESULTADO);
         self.register_predeclared_generic_enums();
+        if let Some(span) = user_resultado_span {
+            // A política USER_WINS e a defesa runtime são fatos sobre o
+            // programa inteiro. Registrar já o span conhecido pelo prepass faz
+            // a conjunção da Parte B1 independer de a produção runtime aparecer
+            // antes ou depois da declaração, sem preparsear tipos ou o template.
+            self.registrar_redeclaracao_de_identidade(
+                crate::falha_operacional::LEQUE_RESULTADO,
+                span,
+            )?;
+        }
         self.register_predeclared_plain_enums();
 
         let mut items = Vec::new();
@@ -622,10 +643,14 @@ impl Parser {
                         // mais predeclarado) continua sendo duplicata inválida.
                         let was_predeclared =
                             self.predeclared_generic_enums.remove(&enum_decl.name);
-                        if was_predeclared {
-                            // Parte B1: substituir o template predeclarado é
-                            // legítimo enquanto o programa não produzir valores
-                            // dessa identidade pelo runtime.
+                        if crate::falha_operacional::identidade_produzida_pelo_runtime(
+                            &enum_decl.name,
+                        ) {
+                            // Parte B1: um template de usuário que toma a
+                            // identidade runtime é legítimo enquanto o programa
+                            // não produzir valores dessa identidade. O registro
+                            // independe de `was_predeclared`: o prepass estreito
+                            // pode ter evitado a inserção do builtin.
                             self.registrar_redeclaracao_de_identidade(
                                 &enum_decl.name,
                                 enum_decl.span,
@@ -933,7 +958,7 @@ impl Parser {
                     });
                 if let Some(template) = self.enum_generic_templates.get(&name).cloned() {
                     let concrete =
-                        Self::instantiate_generic_enum_decl(&template, &args, applied_span)?;
+                        self.instantiate_generic_enum_decl(&template, &args, applied_span)?;
                     self.enum_names.insert(concrete.name.clone());
                     self.enum_decls.insert(
                         concrete.name,
@@ -945,7 +970,7 @@ impl Parser {
                     );
                 }
                 return Ok(Type::Enum {
-                    name: Self::generic_enum_name(&name, &args),
+                    name: self.generic_enum_name(&name, &args),
                     span: applied_span,
                 });
             }
@@ -2684,83 +2709,23 @@ impl Parser {
     // @pinker-nav:start parser.genericos.identidade-especializacao
     // @pinker-nav:domain genericos
     // @pinker-nav:layer parser
-    // @pinker-nav:summary Identidade determinística de especializações: `generic_type_key` codifica qualquer `ast::Type` (primitivos, listas/mapas, arrays, ponteiros, funções, tipos aplicados) numa chave textual estável, e `generic_function_name`/`generic_enum_name` derivam os nomes monomórficos (`__gen_*`) a partir dos argumentos de tipo. Produz chaves e nomes internos; não valida os tipos semanticamente.
-    fn generic_type_key(ty: &Type) -> String {
-        match ty {
-            Type::Bombom(_) => "bombom".to_string(),
-            Type::U8(_) => "u8".to_string(),
-            Type::U16(_) => "u16".to_string(),
-            Type::U32(_) => "u32".to_string(),
-            Type::U64(_) => "u64".to_string(),
-            Type::I8(_) => "i8".to_string(),
-            Type::I16(_) => "i16".to_string(),
-            Type::I32(_) => "i32".to_string(),
-            Type::I64(_) => "i64".to_string(),
-            Type::Logica(_) => "logica".to_string(),
-            Type::Verso(_) => "verso".to_string(),
-            Type::ListBombom(_) => "lista_bombom".to_string(),
-            Type::ListVerso(_) => "lista_verso".to_string(),
-            Type::ListEnum { element, .. } => format!("lista_{}", element),
-            Type::MapVersoBombom(_) => "mapa_verso_bombom".to_string(),
-            Type::MapVersoVerso(_) => "mapa_verso_verso".to_string(),
-            Type::MapBombomBombom(_) => "mapa_bombom_bombom".to_string(),
-            Type::MapBombomVerso(_) => "mapa_bombom_verso".to_string(),
-            Type::Map { key, value, .. } => format!(
-                "mapa_{}_{}",
-                Self::generic_type_key(key),
-                Self::generic_type_key(value)
-            ),
-            Type::Union { members, .. } => format!(
-                "uniao_{}",
-                members
-                    .iter()
-                    .map(Self::generic_type_key)
-                    .collect::<Vec<_>>()
-                    .join("_")
-            ),
-            Type::Alias { name, .. }
-            | Type::Struct { name, .. }
-            | Type::OpaqueHandle { name, .. }
-            | Type::Enum { name, .. }
-            | Type::Applied { name, .. } => name.clone(),
-            Type::FixedArray { element, size, .. } => {
-                format!("array_{}_{}", Self::generic_type_key(element), size)
-            }
-            Type::Pointer {
-                base, is_volatile, ..
-            } => format!(
-                "{}seta_{}",
-                if *is_volatile { "fragil_" } else { "" },
-                Self::generic_type_key(base)
-            ),
-            Type::Function { params, ret, .. } => {
-                let params = params
-                    .iter()
-                    .map(Self::generic_type_key)
-                    .collect::<Vec<_>>()
-                    .join("_");
-                format!("carinho_{}_ret_{}", params, Self::generic_type_key(ret))
-            }
-            Type::Nulo(_) => "nulo".to_string(),
-        }
+    // @pinker-nav:summary O parser não codifica identidade: entrega kind, proveniência do template no estágio atual, nome local e argumentos ordenados à autoridade compartilhada `generic_identity`. A presença em `predeclared_generic_enums`, definida pelo prepass de autoridade, distingue o `Resultado` builtin global do template homônimo de fonte raiz ou modular; módulos recebem a chave transportada pelo loader.
+    fn generic_function_name(&self, name: &str, type_args: &[Type]) -> String {
+        generic_identity::specialization_name(
+            GenericKind::Function,
+            &self.generic_origin,
+            name,
+            type_args,
+        )
     }
 
-    fn generic_function_name(name: &str, type_args: &[Type]) -> String {
-        let suffix = type_args
-            .iter()
-            .map(Self::generic_type_key)
-            .collect::<Vec<_>>()
-            .join("_");
-        format!("__gen_{}_{}", name, suffix)
-    }
-
-    fn generic_enum_name(name: &str, type_args: &[Type]) -> String {
-        let suffix = type_args
-            .iter()
-            .map(Self::generic_type_key)
-            .collect::<Vec<_>>()
-            .join("_");
-        format!("__gen_leque_{}_{}", name, suffix)
+    fn generic_enum_name(&self, name: &str, type_args: &[Type]) -> String {
+        let origin = if self.predeclared_generic_enums.contains(name) {
+            &GenericOrigin::Builtin
+        } else {
+            &self.generic_origin
+        };
+        generic_identity::specialization_name(GenericKind::Enum, origin, name, type_args)
     }
 
     // @pinker-nav:end parser.genericos.identidade-especializacao
@@ -3171,7 +3136,7 @@ impl Parser {
             .iter()
             .rev()
             .find_map(|instantiation| {
-                (Self::generic_function_name(&instantiation.name, &instantiation.type_args) == name)
+                (self.generic_function_name(&instantiation.name, &instantiation.type_args) == name)
                     .then(|| {
                         let template = self.generic_templates.get(&instantiation.name)?;
                         let substitutions = template
@@ -3307,6 +3272,7 @@ impl Parser {
     // @pinker-nav:layer parser
     // @pinker-nav:summary Materializa um `EnumDecl` concreto a partir de um template de leque genérico e seus argumentos de tipo: confere a aridade (erro `Parse` se divergir), monta a tabela parâmetro-de-tipo → tipo concreto, substitui as cargas das variantes, remove os parâmetros de tipo e nomeia a instância pelo nome monomórfico. Não valida os tipos resultantes nem os anexa ao `Program`. Inclui também a predeclaração da biblioteca padrão (Fase 241): `register_predeclared_generic_enums`/`predeclared_generic_enum_templates` constroem o template sintético `Resultado<T,E> { Ok(T), Erro(E) }` e `item_name` apoia a supressão por declaração do usuário. `registrar_resultado_falivel` materializa a especialização devolvida por uma superfície falível e, com `registrar_redeclaracao_de_identidade`/`registrar_producao_de_identidade`/`verificar_identidade_runtime`, fecha a conjunção da Parte B1: produzir a identidade pelo runtime e redeclarar o nome é inválido, independentemente da ordem no texto.
     fn instantiate_generic_enum_decl(
+        &self,
         template: &EnumDecl,
         type_args: &[Type],
         span: Span,
@@ -3329,7 +3295,7 @@ impl Parser {
             .zip(type_args.iter().cloned())
             .collect::<HashMap<_, _>>();
         Ok(EnumDecl {
-            name: Self::generic_enum_name(&template.name, type_args),
+            name: self.generic_enum_name(&template.name, type_args),
             type_params: Vec::new(),
             variants: template
                 .variants
@@ -3383,7 +3349,7 @@ impl Parser {
                 span,
             });
         if let Some(template) = self.enum_generic_templates.get(&name).cloned() {
-            let concrete = Self::instantiate_generic_enum_decl(&template, &args, span)?;
+            let concrete = self.instantiate_generic_enum_decl(&template, &args, span)?;
             self.enum_names.insert(concrete.name.clone());
             self.enum_decls.insert(
                 concrete.name,
@@ -3397,13 +3363,75 @@ impl Parser {
         Ok(())
     }
 
+    /// Prepass estreito de autoridade para templates genéricos de topo.
+    ///
+    /// Não interpreta tipos nem declarações: reconhece apenas a forma lexical
+    /// `leque Nome<...>` fora de corpos delimitados por chaves. Isso basta para
+    /// decidir se o template builtin homônimo pode ser registrado antes de a
+    /// geração de identidades observar um uso anterior à declaração.
+    fn source_top_level_generic_enum_span(&self, expected_name: &str) -> Option<Span> {
+        let mut brace_depth = 0_usize;
+        for (index, token) in self.tokens.iter().enumerate() {
+            if token.kind == TokenKind::LBrace {
+                brace_depth += 1;
+                continue;
+            }
+            if token.kind == TokenKind::RBrace {
+                brace_depth = brace_depth.saturating_sub(1);
+                continue;
+            }
+            if brace_depth != 0 || token.kind != TokenKind::KwLeque {
+                continue;
+            }
+            let Some(name) = self.tokens.get(index + 1) else {
+                continue;
+            };
+            let Some(after_name) = self.tokens.get(index + 2) else {
+                continue;
+            };
+            if name.kind == TokenKind::Ident
+                && name.lexeme == expected_name
+                && after_name.kind == TokenKind::Less
+            {
+                let Some(body_start) = self.tokens[index + 3..]
+                    .iter()
+                    .position(|candidate| candidate.kind == TokenKind::LBrace)
+                    .map(|offset| index + 3 + offset)
+                else {
+                    return Some(merge_span(token.span, name.span));
+                };
+                let mut body_depth = 0_usize;
+                for body_token in &self.tokens[body_start..] {
+                    if body_token.kind == TokenKind::LBrace {
+                        body_depth += 1;
+                    } else if body_token.kind == TokenKind::RBrace {
+                        body_depth = body_depth.saturating_sub(1);
+                        if body_depth == 0 {
+                            return Some(merge_span(token.span, body_token.span));
+                        }
+                    }
+                }
+                return Some(merge_span(token.span, name.span));
+            }
+        }
+        None
+    }
+
     /// Fase 241: registra os leques genéricos predeclarados pela biblioteca padrão.
     /// Hoje: `Resultado<T, E> { Ok(T), Erro(E) }`. Construído diretamente como
     /// `EnumDecl` sintético (sem parsing de string, sem I/O, determinístico) e
     /// inserido em `enum_generic_templates`, participando da mesma tabela e do
     /// mesmo caminho de monomorfização dos leques genéricos do usuário (Fase 240).
+    /// Um template de usuário detectado pelo prepass mantém a autoridade e
+    /// impede a inserção do builtin desde o início.
     fn register_predeclared_generic_enums(&mut self) {
         for template in Self::predeclared_generic_enum_templates() {
+            if self
+                .source_top_level_generic_enum_span(&template.name)
+                .is_some()
+            {
+                continue;
+            }
             self.predeclared_generic_enums.insert(template.name.clone());
             self.enum_generic_templates
                 .insert(template.name.clone(), template);
@@ -4290,7 +4318,7 @@ impl Parser {
                 });
             }
             let mono_name =
-                Self::generic_function_name(&instantiation.name, &instantiation.type_args);
+                self.generic_function_name(&instantiation.name, &instantiation.type_args);
             if !emitted.insert(mono_name.clone()) {
                 continue;
             }
@@ -4338,11 +4366,11 @@ impl Parser {
                     span: instantiation.span,
                 });
             };
-            let mono_name = Self::generic_enum_name(&instantiation.name, &instantiation.type_args);
+            let mono_name = self.generic_enum_name(&instantiation.name, &instantiation.type_args);
             if !emitted.insert(mono_name) {
                 continue;
             }
-            out.push(Self::instantiate_generic_enum_decl(
+            out.push(self.instantiate_generic_enum_decl(
                 template,
                 &instantiation.type_args,
                 instantiation.span,
@@ -6185,7 +6213,7 @@ impl Parser {
                             "> após argumentos de tipo no endereço de função",
                         )?;
                         let original_name = name.clone();
-                        name = Self::generic_function_name(&original_name, &type_args);
+                        name = self.generic_function_name(&original_name, &type_args);
                         self.generic_instantiations.push(GenericInstantiation {
                             name: original_name,
                             type_args,
@@ -6347,7 +6375,7 @@ impl Parser {
                     if let Some(template) = self.generic_templates.get(name).cloned() {
                         let type_args =
                             self.infer_generic_call_type_args(&template, &args, expr.span)?;
-                        let mono_name = Self::generic_function_name(name, &type_args);
+                        let mono_name = self.generic_function_name(name, &type_args);
                         self.generic_instantiations.push(GenericInstantiation {
                             name: name.clone(),
                             type_args,
@@ -6512,7 +6540,7 @@ impl Parser {
             }
         }
         self.consume(TokenKind::RParen, ")")?;
-        let mono_name = Self::generic_function_name(name, &type_args);
+        let mono_name = self.generic_function_name(name, &type_args);
         self.generic_instantiations.push(GenericInstantiation {
             name: name.clone(),
             type_args,
