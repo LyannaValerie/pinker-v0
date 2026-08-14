@@ -2,8 +2,8 @@ schema = 2
 id = "normalizacao-corrente-para-historico"
 
 [reconstruction]
-expected_overrides = 55
-expected_exclusions = 77
+expected_overrides = 63
+expected_exclusions = 79
 
 [[rules]]
 op = "exclude-key"
@@ -112,6 +112,11 @@ expected_matches = 1
 
 [[rules]]
 op = "exclude-key"
+key = "evidencia.genericos.identidade-injetiva-476"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
 key = "evidencia.genericos.inferencia-local-d8"
 expected_matches = 1
 
@@ -173,6 +178,11 @@ expected_matches = 1
 [[rules]]
 op = "exclude-key"
 key = "filesystem.tipo-entrada.taxonomia"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "genericos.identidade-canonica"
 expected_matches = 1
 
 [[rules]]
@@ -568,6 +578,15 @@ expect_layer = "cli"
 
 [[rules]]
 op = "override-region"
+key = "cli.modulos.importacao"
+from_hash = "fnv1a64:4d58bd09b03b48f4"
+to_hash = "fnv1a64:ec330060a090d4c0"
+expect_file = "src/main.rs"
+expect_domain = "modulos"
+expect_layer = "cli"
+
+[[rules]]
+op = "override-region"
 key = "cli.nav.consulta"
 from_hash = "fnv1a64:abd54bfe9fe06d7c"
 to_hash = "fnv1a64:5427c227378dad57"
@@ -620,6 +639,24 @@ to_summary = "Ciclo iniciar/executar/verificar/status/relatorio: snapshots Git, 
 expect_file = "src/agent.rs"
 expect_domain = "development"
 expect_layer = "agent"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.leques.carga-lista-estrutura-ir"
+from_hash = "fnv1a64:a6e50af9b270ba3d"
+to_hash = "fnv1a64:e374c93390abfb5d"
+expect_file = "tests/d1_leque_carga_lista_tests.rs"
+expect_domain = "leques"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.parser.tipos-qualificados-e-verso"
+from_hash = "fnv1a64:9ed5ded40b7b926d"
+to_hash = "fnv1a64:7755e0a2fbbe2743"
+expect_file = "tests/parser_tests.rs"
+expect_domain = "parser"
+expect_layer = "evidencia"
 
 [[rules]]
 op = "override-region"
@@ -769,10 +806,19 @@ expect_layer = "parser"
 [[rules]]
 op = "override-region"
 key = "parser.expressoes.postfix"
-from_hash = "fnv1a64:e4f102fa71d41568"
+from_hash = "fnv1a64:219307546cca8c6a"
 to_hash = "fnv1a64:a0e90b7e07211b9b"
 from_summary = "Cadeia postfix de expressão: chamadas, acesso a campo, índice, chamada genérica explícita e sufixo de cast (`virar`), aplicados sobre a expressão base para produzir o `ast::Expr` final."
 to_summary = "Cadeia postfix de expressão: chamadas, acesso a campo, índice, chamada genérica explícita e sufixo de cast (`virar`), aplicados sobre a expressão base para produzir o `ast::Expr` final."
+expect_file = "src/parser.rs"
+expect_domain = "expressoes"
+expect_layer = "parser"
+
+[[rules]]
+op = "override-region"
+key = "parser.expressoes.precedencia"
+from_hash = "fnv1a64:4366b26dd5baf614"
+to_hash = "fnv1a64:06ba8bdd157f5210"
 expect_file = "src/parser.rs"
 expect_domain = "expressoes"
 expect_layer = "parser"
@@ -790,8 +836,37 @@ expect_layer = "parser"
 
 [[rules]]
 op = "override-region"
+key = "parser.genericos.funcoes-instanciacao"
+from_hash = "fnv1a64:c670bcab60807537"
+to_hash = "fnv1a64:bebfe84d79c2f4c3"
+expect_file = "src/parser.rs"
+expect_domain = "genericos"
+expect_layer = "parser"
+
+[[rules]]
+op = "override-region"
+key = "parser.genericos.identidade-especializacao"
+from_hash = "fnv1a64:f468b5a2e3094e7f"
+to_hash = "fnv1a64:51a9ef5a4a910673"
+from_summary = "O parser não codifica identidade: apenas entrega kind, origem canônica do template, nome local e argumentos ordenados à autoridade compartilhada `generic_identity`. `Resultado` predeclarado conserva origem Root porque é a mesma identidade runtime em qualquer arquivo; templates de usuário recebem a chave de módulo transportada pelo loader."
+to_summary = "Identidade determinística de especializações: `generic_type_key` codifica qualquer `ast::Type` (primitivos, listas/mapas, arrays, ponteiros, funções, tipos aplicados) numa chave textual estável, e `generic_function_name`/`generic_enum_name` derivam os nomes monomórficos (`__gen_*`) a partir dos argumentos de tipo. Produz chaves e nomes internos; não valida os tipos semanticamente."
+expect_file = "src/parser.rs"
+expect_domain = "genericos"
+expect_layer = "parser"
+
+[[rules]]
+op = "override-region"
+key = "parser.genericos.leques-instanciacao"
+from_hash = "fnv1a64:77f14225a0f86716"
+to_hash = "fnv1a64:4f2c13621156dcac"
+expect_file = "src/parser.rs"
+expect_domain = "genericos"
+expect_layer = "parser"
+
+[[rules]]
+op = "override-region"
 key = "parser.genericos.leques-template"
-from_hash = "fnv1a64:f44ad70706555438"
+from_hash = "fnv1a64:9f915e32e127e478"
 to_hash = "fnv1a64:9db5cce54d4d0579"
 from_summary = "Materializa um `EnumDecl` concreto a partir de um template de leque genérico e seus argumentos de tipo: confere a aridade (erro `Parse` se divergir), monta a tabela parâmetro-de-tipo → tipo concreto, substitui as cargas das variantes, remove os parâmetros de tipo e nomeia a instância pelo nome monomórfico. Não valida os tipos resultantes nem os anexa ao `Program`. Inclui também a predeclaração da biblioteca padrão (Fase 241): `register_predeclared_generic_enums`/`predeclared_generic_enum_templates` constroem o template sintético `Resultado<T,E> { Ok(T), Erro(E) }` e `item_name` apoia a supressão por declaração do usuário. `registrar_resultado_falivel` materializa a especialização devolvida por uma superfície falível e, com `registrar_redeclaracao_de_identidade`/`registrar_producao_de_identidade`/`verificar_identidade_runtime`, fecha a conjunção da Parte B1: produzir a identidade pelo runtime e redeclarar o nome é inválido, independentemente da ordem no texto."
 to_summary = "Materializa um `EnumDecl` concreto a partir de um template de leque genérico e seus argumentos de tipo: confere a aridade (erro `Parse` se divergir), monta a tabela parâmetro-de-tipo → tipo concreto, substitui as cargas das variantes, remove os parâmetros de tipo e nomeia a instância pelo nome monomórfico. Não valida os tipos resultantes nem os anexa ao `Program`. Inclui também a predeclaração da biblioteca padrão (Fase 241): `register_predeclared_generic_enums`/`predeclared_generic_enum_templates` constroem o template sintético `Resultado<T,E> { Ok(T), Erro(E) }` e `item_name` apoia a supressão por declaração do usuário."
@@ -826,6 +901,15 @@ from_hash = "fnv1a64:e4cb17ecb0cc1a4f"
 to_hash = "fnv1a64:5111f2f6558b0afb"
 expect_file = "src/parser.rs"
 expect_domain = "resultado"
+expect_layer = "parser"
+
+[[rules]]
+op = "override-region"
+key = "parser.tipos.gramatica"
+from_hash = "fnv1a64:deca116a915fac7c"
+to_hash = "fnv1a64:5818f3a6f118b062"
+expect_file = "src/parser.rs"
+expect_domain = "tipos"
 expect_layer = "parser"
 
 [[rules]]
@@ -880,7 +964,7 @@ expect_layer = "select"
 [[rules]]
 op = "override-region"
 key = "semantic.chamadas.despacho"
-from_hash = "fnv1a64:c84a1aa5625ca892"
+from_hash = "fnv1a64:da7822c46233bafe"
 to_hash = "fnv1a64:786f0d551629e7a5"
 expect_file = "src/semantic.rs"
 expect_domain = "chamadas"
