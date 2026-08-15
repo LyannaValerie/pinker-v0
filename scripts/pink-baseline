@@ -396,8 +396,10 @@ EOF
 
         publish_scratch="$forja_root/pinker/releases/pink/.publish-${commit}-$$"
         [[ ! -e "$publish_scratch" ]] || fail "staging já existe"
-        install -d "${own[@]}" "$publish_scratch"
+        # A limpeza é armada antes de haver o que limpar: armá-la depois deixaria
+        # uma janela em que um sinal entre criar e armar vaza o staging.
         trap 'publish_cleanup_scratch' EXIT
+        install -d "${own[@]}" "$publish_scratch"
 
         # Fase 1 — captura do estado vivo anterior, antes da primeira mutação.
         # Capturar depois de mutar já seria tarde: um abort na fase da release

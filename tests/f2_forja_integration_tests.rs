@@ -176,6 +176,23 @@ sys.stdout.write('\\0'.join(dados))
     .map(separados)
 }
 
+/// A forma canônica do documento, pela regra literal da autoridade validadora:
+/// `json.dumps(dados, ensure_ascii=False, indent=2, sort_keys=True) + "\n"`.
+///
+/// Comparar a saída com isto é a mesma decisão que `pinker-manifest-verify` toma
+/// ao recusar um manifest por "serialização não determinística".
+fn forma_canonica(texto: &str) -> Result<String, String> {
+    python_json(
+        texto,
+        "\
+sys.stdout.write(
+    json.dumps(dados, ensure_ascii=False, indent=2, sort_keys=True) + '\\n'
+)
+",
+        &[],
+    )
+}
+
 /// Todos os valores string associados à chave, em qualquer profundidade.
 ///
 /// A travessia é estrutural: buscar `"chave":` no texto encontraria a mesma
@@ -308,16 +325,38 @@ fn manifest_declara_exatamente_os_campos_exigidos_e_ordenados() {
     let mut ordenado = keys.clone();
     ordenado.sort();
     assert_eq!(keys, ordenado, "chaves de topo fora de ordem");
-    assert!(
-        rendered.ends_with("}\n"),
-        "manifest deve terminar em uma \\n"
-    );
-    assert!(!rendered.contains('\t'), "indentação canônica não usa tab");
-    assert!(
-        rendered.contains("\n  \"schema\": "),
-        "indentação de topo deve ser de dois espaços"
+    // E a forma canônica é conferida pela regra da própria autoridade, não por
+    // aproximações textuais dela. Terminar em `\n`, não usar tab e indentar com
+    // dois espaços são consequências desta igualdade — checá-las uma a uma
+    // deixaria de fora tudo o que ninguém lembrou de enumerar.
+    assert_eq!(
+        rendered,
+        forma_canonica(&rendered).expect("manifest válido"),
+        "serialização não determinística — é assim que a autoridade recusa um manifest"
     );
     fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
+fn a_forma_canonica_recusa_o_que_a_autoridade_recusaria() {
+    // O oráculo de canonicidade precisa distinguir o correto do plausível: as
+    // quatro variações abaixo são JSON válido e são exatamente as que o
+    // validador rejeita por "serialização não determinística" — o mesmo motivo
+    // pelo qual outro manifest vivo deste host é reprovado hoje.
+    let canonico = "{\n  \"a\": 1,\n  \"b\": 2\n}\n";
+    assert_eq!(canonico, forma_canonica(canonico).expect("válido"));
+    for divergente in [
+        "{\n  \"b\": 2,\n  \"a\": 1\n}\n",     // fora de ordem
+        "{\n    \"a\": 1,\n    \"b\": 2\n}\n", // indentação de quatro
+        "{\"a\": 1, \"b\": 2}\n",              // sem indentação
+        "{\n  \"a\": 1,\n  \"b\": 2\n}",       // sem a quebra final
+    ] {
+        assert_ne!(
+            divergente,
+            forma_canonica(divergente).expect("válido"),
+            "aceitou uma serialização que a autoridade recusaria: {divergente:?}"
+        );
+    }
 }
 
 #[test]
