@@ -47,6 +47,7 @@ pub mod repl;
 pub mod runtime_identity;
 pub mod saida_processo;
 pub mod semantic;
+pub mod sha256;
 pub mod symbol_index;
 pub mod text_norm;
 pub mod tipo_entrada;

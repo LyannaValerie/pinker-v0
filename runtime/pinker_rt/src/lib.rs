@@ -3953,6 +3953,68 @@ pub unsafe extern "C" fn pinker_verso_para_bombom_resultado(texto: *const u8) ->
 }
 // @pinker-nav:end runtime.falha-operacional.superficies
 
+// @pinker-nav:start runtime.sha256.superficies
+// @pinker-nav:domain integridade
+// @pinker-nav:layer runtime
+// @pinker-nav:summary Superfícies SHA-256 da Parte E2 no runtime nativo: `pinker_sha256_verso` hasheia os bytes UTF-8 exatos de um verso pelo layout length-prefixed, sem percorrer codepoints e sem normalizar, e `pinker_sha256_arquivo_resultado` abre o caminho, lê em blocos de 64 KiB e alimenta o mesmo acumulador incremental, devolvendo `Resultado<verso,verso>` com o digest canônico de 64 caracteres. Ambas delegam o núcleo a `pinker_sha256_contract`, o mesmo crate puro consumido pelo interpretador, de modo que a paridade do digest é por construção e não por duas implementações que concordam por acaso; a leitura é em bytes de propósito, porque `read_to_string` rejeitaria arquivo binário, e o handle e o buffer morrem dentro da própria chamada.
+
+/// SHA-256 dos bytes UTF-8 exatos de um `verso`.
+///
+/// Contrato: `SHA256(verso) = SHA256(UTF8_BYTES(verso))`. `verso_bytes` devolve
+/// exatamente os bytes do bloco length-prefixed — nada de percorrer codepoints,
+/// nada de `pinker_verso_tamanho` (que conta caracteres, não bytes), nada de
+/// normalização Unicode.
+///
+/// Dado já em memória não pode falhar, então a superfície é pura: devolve o
+/// `verso` do digest, não um `Resultado`.
+///
+/// # Safety
+/// `texto` deve apontar para um bloco de verso válido.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_sha256_verso(texto: *const u8) -> *mut u8 {
+    let digest = pinker_sha256_contract::sha256_hex(verso_bytes(texto));
+    verso_alocar(&digest)
+}
+
+/// SHA-256 dos bytes **exatos** de um arquivo, por caminho.
+///
+/// Lê em bytes, deliberadamente sem `read_to_string`: UTF-8 inválido é conteúdo
+/// legítimo de arquivo, e nenhum byte pode ser validado, normalizado ou
+/// substituído no caminho do hash. Newline não é tocado.
+///
+/// Symlink é **seguido**, porque isto é `open`/`read` e reutiliza a política
+/// vigente dessa família — distinto do no-follow de `pinker_entrada_tipo_*`.
+///
+/// Diretório, arquivo ausente e permissão negada falham no próprio SO e viram
+/// `Erro` recuperável. O `File` e o buffer são locais: saem de escopo por drop
+/// no sucesso e no erro, então nenhuma identidade pública de recurso nasce aqui.
+///
+/// # Safety
+/// `caminho` deve apontar para um bloco de verso válido.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_sha256_arquivo_resultado(caminho: *const u8) -> *mut u8 {
+    use std::io::Read;
+
+    let caminho = verso_str(caminho);
+    let mut arquivo = match std::fs::File::open(caminho) {
+        Ok(arquivo) => arquivo,
+        Err(err) => return resultado_erro(&format!("falha ao hashear arquivo '{caminho}': {err}")),
+    };
+    let mut acumulador = pinker_sha256_contract::Sha256::novo();
+    let mut buffer = vec![0u8; 64 * 1024];
+    loop {
+        match arquivo.read(&mut buffer) {
+            Ok(0) => break,
+            Ok(lidos) => acumulador.atualizar(&buffer[..lidos]),
+            Err(err) => {
+                return resultado_erro(&format!("falha ao hashear arquivo '{caminho}': {err}"))
+            }
+        }
+    }
+    resultado_ok_verso(&acumulador.finalizar_hex())
+}
+// @pinker-nav:end runtime.sha256.superficies
+
 // @pinker-nav:start runtime.filesystem.enumeracao-adulta
 // @pinker-nav:domain filesystem
 // @pinker-nav:layer runtime

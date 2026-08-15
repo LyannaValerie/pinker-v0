@@ -2860,6 +2860,14 @@ impl LoweringContext {
             };
             function_sigs.insert(nome.to_string(), sig);
         }
+        // Parte E2: a família SHA-256 devolve `verso`, então usa a assinatura
+        // comum — nenhum tipo nominal novo entra na tabela por causa dela.
+        for nome in crate::sha256::ACESSORES {
+            let (retorno, _) = crate::sha256::assinatura_ir(nome)
+                .expect("acessor SHA-256 sem assinatura na autoridade");
+            let sig = builtin_sig(&mut resolved_types, retorno)?;
+            function_sigs.insert(nome.to_string(), sig);
+        }
         function_sigs.insert(
             crate::saida_processo::ACESSOR_CODIGO.to_string(),
             builtin_sig(&mut resolved_types, TypeIR::Bombom)?,

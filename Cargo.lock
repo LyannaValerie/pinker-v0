@@ -8,6 +8,7 @@ version = "0.1.0"
 dependencies = [
  "pinker_json_contract",
  "pinker_memory_contract",
+ "pinker_sha256_contract",
 ]
 
 [[package]]
@@ -24,4 +25,9 @@ version = "0.1.0"
 dependencies = [
  "pinker_json_contract",
  "pinker_memory_contract",
+ "pinker_sha256_contract",
 ]
+
+[[package]]
+name = "pinker_sha256_contract"
+version = "0.1.0"

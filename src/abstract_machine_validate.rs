@@ -625,6 +625,14 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
             (retorno, params.into_iter().map(type_to_stack).collect()),
         );
     }
+    for nome in crate::sha256::ACESSORES {
+        let (retorno, params) = crate::sha256::assinatura_ir(nome)
+            .expect("acessor SHA-256 sem assinatura na autoridade");
+        sigs.insert(
+            nome.to_string(),
+            (retorno, params.into_iter().map(type_to_stack).collect()),
+        );
+    }
     for (nome, retorno) in [
         (
             crate::saida_processo::ACESSOR_CODIGO,

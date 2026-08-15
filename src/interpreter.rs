@@ -2439,6 +2439,32 @@ fn validar_argumentos_superficie(
     Ok(())
 }
 
+/// SHA-256 dos bytes exatos de um arquivo, em streaming.
+///
+/// Compartilha o núcleo com o runtime nativo (`pinker_sha256_contract`), então
+/// o digest é idêntico nos dois backends por construção, e não por dois
+/// caminhos que por acaso concordam.
+///
+/// Lê em blocos para que o custo de memória não acompanhe o tamanho do arquivo:
+/// o acumulador guarda 8 palavras e um bloco parcial, nada mais. O `File` e o
+/// buffer são estritamente locais — fechados por drop ao sair, no sucesso e no
+/// erro —, logo nenhuma identidade pública de recurso é criada.
+fn sha256_de_arquivo(caminho: &str) -> std::io::Result<String> {
+    use std::io::Read;
+
+    let mut arquivo = fs::File::open(caminho)?;
+    let mut acumulador = pinker_sha256_contract::Sha256::novo();
+    let mut buffer = vec![0u8; 64 * 1024];
+    loop {
+        let lidos = arquivo.read(&mut buffer)?;
+        if lidos == 0 {
+            break;
+        }
+        acumulador.atualizar(&buffer[..lidos]);
+    }
+    Ok(acumulador.finalizar_hex())
+}
+
 /// Executa uma superfície falível já resolvida pela autoridade.
 ///
 /// O `match` é sobre [`OperacaoFalivel`], não sobre o nome público: acrescentar
@@ -2461,6 +2487,20 @@ fn executar_superficie_falivel(
             Err(err) => Ok(resultado_erro(
                 map_state,
                 format!("falha ao ler arquivo '{}': {}", entrada, err),
+            )),
+        },
+        // Parte E2: hash dos bytes EXATOS do arquivo.
+        //
+        // Lê em streaming pelo mesmo núcleo compartilhado com o runtime nativo,
+        // deliberadamente sem `read_to_string`: UTF-8 inválido é conteúdo
+        // legítimo, e nenhum byte pode ser validado, normalizado ou substituído
+        // no caminho. Diretório e ausência falham no próprio SO e atravessam
+        // `Resultado` como valor.
+        OperacaoFalivel::HashArquivo => match sha256_de_arquivo(entrada) {
+            Ok(digest) => Ok(resultado_ok_verso(map_state, digest)),
+            Err(err) => Ok(resultado_erro(
+                map_state,
+                format!("falha ao hashear arquivo '{}': {}", entrada, err),
             )),
         },
         OperacaoFalivel::ExecutarProcesso => {
@@ -5075,6 +5115,26 @@ fn try_call_intrinsic(
             };
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(
                 texto.trim().to_string(),
+            ))))
+        }
+        // Parte E2: SHA256(verso) = SHA256(UTF8_BYTES(verso)).
+        //
+        // `as_bytes()` são os bytes UTF-8 exatos — nunca `chars()`, nunca
+        // `tamanho_verso` (que conta codepoints), nunca normalização Unicode.
+        // Dado já em memória não pode falhar, então não devolve `Resultado`.
+        nome if crate::sha256::e_acessor(nome) => {
+            if args.len() != 1 {
+                return Err(runtime_err(
+                    "intrínseca 'sha256_verso' exige 1 argumento (verso)",
+                ));
+            }
+            let RuntimeValue::Str(texto) = &args[0] else {
+                return Err(runtime_err(
+                    "intrínseca 'sha256_verso' exige argumento em verso",
+                ));
+            };
+            Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(
+                pinker_sha256_contract::sha256_hex(texto.as_bytes()),
             ))))
         }
         "minusculo_verso" => {

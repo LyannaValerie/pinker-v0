@@ -1,0 +1,12 @@
+[package]
+name = "pinker_sha256_contract"
+version = "0.1.0"
+edition = "2021"
+description = "Contrato puro do SHA-256 da Pinker — núcleo de compressão compartilhado pelo compilador e pelo runtime nativo"
+license = "MIT"
+
+[lib]
+name = "pinker_sha256_contract"
+
+[dependencies]
+# Nenhuma dependência externa — mesma disciplina zero-dependency do resto.

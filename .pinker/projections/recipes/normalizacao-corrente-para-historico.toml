@@ -2,8 +2,8 @@ schema = 2
 id = "normalizacao-corrente-para-historico"
 
 [reconstruction]
-expected_overrides = 63
-expected_exclusions = 86
+expected_overrides = 64
+expected_exclusions = 89
 
 [[rules]]
 op = "exclude-key"
@@ -118,6 +118,11 @@ expected_matches = 1
 [[rules]]
 op = "exclude-key"
 key = "evidencia.genericos.inferencia-local-d8"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.integridade.parte-e2-sha256"
 expected_matches = 1
 
 [[rules]]
@@ -283,6 +288,16 @@ expected_matches = 1
 [[rules]]
 op = "exclude-key"
 key = "runtime.json.valor-adulto"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "runtime.sha256.superficies"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "sha256.superficie.nomes"
 expected_matches = 1
 
 [[rules]]
@@ -523,7 +538,7 @@ expect_layer = "backend-s"
 [[rules]]
 op = "override-region"
 key = "backend-s.runtime.simbolos-intrinsecas"
-from_hash = "fnv1a64:449557fb4156a42d"
+from_hash = "fnv1a64:821229b582628e6c"
 to_hash = "fnv1a64:e57b8a35f588a616"
 expect_file = "src/backend_s.rs"
 expect_domain = "runtime"
@@ -550,7 +565,7 @@ expect_layer = "cfg"
 [[rules]]
 op = "override-region"
 key = "cfg.validacao.invariantes"
-from_hash = "fnv1a64:f28119ae764b8176"
+from_hash = "fnv1a64:c17be9e7d3eb0f43"
 to_hash = "fnv1a64:d09fb8c5cd4c56c5"
 expect_file = "src/cfg_ir_validate.rs"
 expect_domain = "validacao"
@@ -666,6 +681,15 @@ expect_layer = "cli"
 
 [[rules]]
 op = "override-region"
+key = "development.agent.artifacts"
+from_hash = "fnv1a64:9e591ba222dbea6e"
+to_hash = "fnv1a64:6299beb7e04a789f"
+expect_file = "src/agent.rs"
+expect_domain = "development"
+expect_layer = "agent"
+
+[[rules]]
+op = "override-region"
 key = "development.agent.lifecycle"
 from_hash = "fnv1a64:b7040d3c1fb6c2f9"
 to_hash = "fnv1a64:692e86d6d62cb4ff"
@@ -705,7 +729,7 @@ expect_layer = "interpreter"
 [[rules]]
 op = "override-region"
 key = "interpreter.intrinsecos.io-arquivo-texto"
-from_hash = "fnv1a64:ee59d5bde43fa710"
+from_hash = "fnv1a64:f07b9feac0db78c0"
 to_hash = "fnv1a64:41b06b9dbe9462df"
 expect_file = "src/interpreter.rs"
 expect_domain = "intrinsecos"
@@ -714,7 +738,7 @@ expect_layer = "interpreter"
 [[rules]]
 op = "override-region"
 key = "ir.lowering.assinaturas-intrinsecos"
-from_hash = "fnv1a64:21a65a15f9076dd2"
+from_hash = "fnv1a64:6f08b1c710afe5b4"
 to_hash = "fnv1a64:4c474d5f9416a278"
 expect_file = "src/ir.rs"
 expect_domain = "lowering"
@@ -783,7 +807,7 @@ expect_layer = "ir"
 [[rules]]
 op = "override-region"
 key = "ir.validacao.invariantes"
-from_hash = "fnv1a64:58f986594b80e0c4"
+from_hash = "fnv1a64:d23bf56747087665"
 to_hash = "fnv1a64:2a5a15bb37f76889"
 expect_file = "src/ir_validate.rs"
 expect_domain = "validacao"
@@ -801,7 +825,7 @@ expect_layer = "semantica"
 [[rules]]
 op = "override-region"
 key = "machine.validacao.invariantes"
-from_hash = "fnv1a64:fb9ff487483fbe91"
+from_hash = "fnv1a64:8031fe4e3b958378"
 to_hash = "fnv1a64:fa626f77e9a0fa75"
 expect_file = "src/abstract_machine_validate.rs"
 expect_domain = "validacao"
@@ -990,7 +1014,7 @@ expect_layer = "runtime"
 [[rules]]
 op = "override-region"
 key = "select.validacao.invariantes"
-from_hash = "fnv1a64:92544b2707ad261f"
+from_hash = "fnv1a64:a3bea8a339e3407d"
 to_hash = "fnv1a64:c355c9b186e3e67e"
 expect_file = "src/instr_select_validate.rs"
 expect_domain = "validacao"
@@ -999,7 +1023,7 @@ expect_layer = "select"
 [[rules]]
 op = "override-region"
 key = "semantic.chamadas.despacho"
-from_hash = "fnv1a64:4b814174ce6921e4"
+from_hash = "fnv1a64:366f0828600c8f2a"
 to_hash = "fnv1a64:786f0d551629e7a5"
 expect_file = "src/semantic.rs"
 expect_domain = "chamadas"
