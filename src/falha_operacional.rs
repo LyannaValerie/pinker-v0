@@ -413,6 +413,16 @@ pub const EXECUTAR_PROCESSO_ESTRUTURADO: &str = "executar_processo_estruturado";
 /// autoridade do nome de quem devolve `Resultado<T,E>` continua sendo esta.
 pub const LER_JSON_RESULTADO: &str = "ler_json_resultado";
 
+/// Nome público da superfície falível de SHA-256 sobre arquivo (Parte E2).
+///
+/// Vive aqui, e não em [`crate::sha256`], pela mesma razão que
+/// [`LER_JSON_RESULTADO`]: esta é a autoridade das superfícies que devolvem
+/// `Resultado<T,E>`. `crate::sha256` declara só a família não falível.
+pub const SHA256_ARQUIVO: &str = "sha256_arquivo";
+
+/// Símbolo do runtime nativo de [`SHA256_ARQUIVO`].
+pub const SIMBOLO_SHA256_ARQUIVO: &str = "pinker_sha256_arquivo_resultado";
+
 pub const SUPERFICIES_FALIVEIS: &[SuperficieFalivel] = &[
     // Filesystem: leitura de arquivo inteiro por caminho.
     // Não abre handle visível ao usuário, logo uma falha não pode deixar
@@ -531,12 +541,12 @@ pub const SUPERFICIES_FALIVEIS: &[SuperficieFalivel] = &[
     // e fechado dentro da própria chamada, logo uma falha não pode deixar
     // recurso parcialmente vivo nem sem dono.
     SuperficieFalivel {
-        intrinseca: crate::sha256::ARQUIVO,
+        intrinseca: SHA256_ARQUIVO,
         operacao: OperacaoFalivel::HashArquivo,
         argumentos: ASSINATURA_VERSO,
         sucesso: CargaResultado::Verso,
         falha: CargaResultado::Verso,
-        simbolo_runtime: crate::sha256::SIMBOLO_ARQUIVO,
+        simbolo_runtime: SIMBOLO_SHA256_ARQUIVO,
         historica: None,
     },
 ];

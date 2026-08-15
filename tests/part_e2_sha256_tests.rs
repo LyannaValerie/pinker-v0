@@ -637,7 +637,10 @@ fn workflow_real_de_verificacao_de_integridade() {
 fn superficie_publica_declarada_numa_autoridade_so() {
     // Os nomes e o símbolo vivem em `sha256`; nenhuma camada pode manter cópia.
     assert!(pinker_v0::sha256::e_acessor("sha256_verso"));
-    assert!(!pinker_v0::sha256::e_acessor("sha256_arquivo"));
+    // O nome falível NÃO é acessor: ele pertence à autoridade da Parte B.
+    assert!(!pinker_v0::sha256::e_acessor(
+        pinker_v0::falha_operacional::SHA256_ARQUIVO
+    ));
     assert_eq!(
         pinker_v0::sha256::simbolo_runtime("sha256_verso"),
         Some("pinker_sha256_verso")
@@ -646,7 +649,7 @@ fn superficie_publica_declarada_numa_autoridade_so() {
     // A superfície de arquivo é falível e pertence à autoridade da Parte B.
     let arquivo = pinker_v0::falha_operacional::SUPERFICIES_FALIVEIS
         .iter()
-        .find(|s| s.intrinseca == pinker_v0::sha256::ARQUIVO)
+        .find(|s| s.intrinseca == pinker_v0::falha_operacional::SHA256_ARQUIVO)
         .expect("sha256_arquivo tem de estar na lista fechada da Parte B");
     assert_eq!(
         arquivo.simbolo_runtime, "pinker_sha256_arquivo_resultado",

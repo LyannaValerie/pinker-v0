@@ -8,9 +8,10 @@
 //! O núcleo criptográfico não está aqui: vive em `pinker_sha256_contract`, puro
 //! e compartilhado com o runtime nativo. Aqui só moram os nomes da linguagem.
 //!
-//! A superfície falível de arquivo também não está aqui: ela pertence a
-//! [`crate::falha_operacional`], autoridade das superfícies que devolvem
-//! `Resultado<T,E>`. Um nome, uma autoridade.
+//! A superfície falível de arquivo não está aqui: nome, símbolo e cargas vivem
+//! em [`crate::falha_operacional`], autoridade das superfícies que devolvem
+//! `Resultado<T,E>`. Um nome, uma autoridade — e um teste da Parte B cobra que
+//! o nome público de uma superfície falível exista só naquele arquivo.
 
 // @pinker-nav:start sha256.superficie.nomes
 // @pinker-nav:domain integridade
@@ -31,18 +32,8 @@ pub mod intrinsecas {
     pub const VERSO: &str = "sha256_verso";
 }
 
-/// Nome público da intrínseca falível de arquivo.
-///
-/// Declarado aqui para que o nome da família viva num lugar só, mas a
-/// **autoridade** da superfície (operação, cargas, símbolo) é
-/// [`crate::falha_operacional::SUPERFICIES_FALIVEIS`].
-pub const ARQUIVO: &str = "sha256_arquivo";
-
 /// Símbolo do runtime nativo de [`intrinsecas::VERSO`].
 pub const SIMBOLO_VERSO: &str = "pinker_sha256_verso";
-
-/// Símbolo do runtime nativo de [`ARQUIVO`].
-pub const SIMBOLO_ARQUIVO: &str = "pinker_sha256_arquivo_resultado";
 
 /// Comprimento do digest na forma canônica pública.
 ///
