@@ -2439,11 +2439,6 @@ fn validar_argumentos_superficie(
     Ok(())
 }
 
-/// Executa uma superfície falível já resolvida pela autoridade.
-///
-/// O `match` é sobre [`OperacaoFalivel`], não sobre o nome público: acrescentar
-/// uma superfície nova sem tratar sua operação vira erro de exaustividade em
-/// compilação, e o nome público continua existindo em um único lugar.
 /// SHA-256 dos bytes exatos de um arquivo, em streaming.
 ///
 /// Compartilha o núcleo com o runtime nativo (`pinker_sha256_contract`), então
@@ -2470,6 +2465,11 @@ fn sha256_de_arquivo(caminho: &str) -> std::io::Result<String> {
     Ok(acumulador.finalizar_hex())
 }
 
+/// Executa uma superfície falível já resolvida pela autoridade.
+///
+/// O `match` é sobre [`OperacaoFalivel`], não sobre o nome público: acrescentar
+/// uma superfície nova sem tratar sua operação vira erro de exaustividade em
+/// compilação, e o nome público continua existindo em um único lugar.
 fn executar_superficie_falivel(
     superficie: &SuperficieFalivel,
     args: &[RuntimeValue],
@@ -5122,7 +5122,7 @@ fn try_call_intrinsic(
         // `as_bytes()` são os bytes UTF-8 exatos — nunca `chars()`, nunca
         // `tamanho_verso` (que conta codepoints), nunca normalização Unicode.
         // Dado já em memória não pode falhar, então não devolve `Resultado`.
-        nome if nome == crate::sha256::intrinsecas::VERSO => {
+        nome if crate::sha256::e_acessor(nome) => {
             if args.len() != 1 {
                 return Err(runtime_err(
                     "intrínseca 'sha256_verso' exige 1 argumento (verso)",

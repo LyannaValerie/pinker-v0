@@ -7852,7 +7852,7 @@ impl SemanticChecker {
         }
         // Parte E2: `sha256_verso(verso) -> verso`. Aridade e tipo errados são
         // INVALID_PROGRAM_USE — erro de compilação, nunca `Resultado`.
-        if name == crate::sha256::intrinsecas::VERSO {
+        if crate::sha256::e_acessor(name) {
             if args.len() != 1 {
                 return Err(PinkerError::Semantic {
                     msg: format!(

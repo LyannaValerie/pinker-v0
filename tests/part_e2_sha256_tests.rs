@@ -65,7 +65,7 @@ carinho principal() -> bombom {
     nova alvo: verso = argumento_ou(0, "ausente");
     tentar sha256_arquivo(alvo) {
         sucesso ResVV.Ok(digest) { falar(digest); }
-        falha ResVV.Erro(causa) { falar("ERRO"); }
+        falha ResVV.Erro(causa) { falar("ERRO"); falar(causa); }
     }
     mimo 0;
 }
@@ -406,7 +406,10 @@ fn sha256_arquivo_cobre_bytes_exatos_com_paridade() {
     let digest_de = |nome: &str, caminho: &Path| -> String {
         let execucao = paridade(nome, FONTE_ARQUIVO, &arg(caminho), &runtime_lib);
         let saida = execucao.stdout_comum(nome).trim().to_string();
-        assert_ne!(saida, "ERRO", "{nome}: esperado sucesso");
+        assert!(
+            !saida.starts_with("ERRO"),
+            "{nome}: esperado sucesso, veio {saida}"
+        );
         exigir_forma_canonica(nome, &saida);
         saida
     };
@@ -459,10 +462,20 @@ fn sha256_arquivo_falha_recuperavel_atravessa_resultado() {
 
     for (nome, alvo) in [("erro_ausente", &ausente), ("erro_diretorio", &diretorio)] {
         let execucao = paridade(nome, FONTE_ARQUIVO, &arg(alvo), &runtime_lib);
+        // `stdout_comum` já exige paridade da saída INTEIRA, então a mensagem de
+        // causa também é comparada entre os dois backends — divergir no texto do
+        // erro é divergir na superfície pública.
+        let saida = execucao.stdout_comum(nome);
+        let mut linhas = saida.lines();
         assert_eq!(
-            execucao.stdout_comum(nome).trim(),
-            "ERRO",
+            linhas.next(),
+            Some("ERRO"),
             "{nome}: falha recuperável tem de atravessar Resultado como valor"
+        );
+        let causa = linhas.next().unwrap_or_default();
+        assert!(
+            causa.contains("falha ao hashear arquivo"),
+            "{nome}: causa deve nomear a operação: {causa}"
         );
     }
 
@@ -479,9 +492,8 @@ fn sha256_arquivo_falha_recuperavel_atravessa_resultado() {
             &arg(&sem_permissao),
             &runtime_lib,
         );
-        assert_eq!(
-            execucao.stdout_comum("erro_permissao").trim(),
-            "ERRO",
+        assert!(
+            execucao.stdout_comum("erro_permissao").starts_with("ERRO"),
             "permissão negada tem de atravessar Resultado como valor"
         );
     }
@@ -522,9 +534,10 @@ fn sha256_arquivo_segue_symlink_como_open_read() {
         &arg(&quebrado),
         &runtime_lib,
     );
-    assert_eq!(
-        execucao.stdout_comum("symlink_quebrado").trim(),
-        "ERRO",
+    assert!(
+        execucao
+            .stdout_comum("symlink_quebrado")
+            .starts_with("ERRO"),
         "symlink quebrado tem de falhar como valor"
     );
 }
@@ -666,8 +679,12 @@ fn sem_dependencia_semantica_em_processo_externo() {
     // A campanha proíbe `sha256sum`, `openssl`, shell ou processo externo como
     // dependência SEMÂNTICA da linguagem. Provado por duas metades baratas.
 
-    // Estrutural: o núcleo e as duas superfícies não podem sequer mencionar
-    // spawn de processo. O núcleo é um crate puro e declara zero dependências.
+    // Estrutural: o núcleo compartilhado — que é por onde TODO digest passa nos
+    // dois backends — não pode sequer mencionar spawn de processo, e é um crate
+    // puro sem dependência nenhuma. As duas superfícies públicas não são varridas
+    // aqui de propósito: `interpreter.rs` e o runtime spawnam processos por
+    // outras features, então procurar `Command` neles acusaria qualquer arquivo
+    // e não provaria nada sobre SHA-256.
     let raiz = Path::new(env!("CARGO_MANIFEST_DIR"));
     let nucleo = fs::read_to_string(raiz.join("runtime/pinker_sha256_contract/src/lib.rs"))
         .expect("ler núcleo compartilhado");
@@ -744,9 +761,17 @@ carinho principal() -> bombom {
 }
 "#;
     let erro = common::parse_and_check(tipo).expect_err("tipo inválido tem de falhar");
+    let texto = format!("{erro:?}");
+    // Não basta conter "verso": o próprio nome `sha256_verso` contém essa
+    // substring, então a asserção passaria para qualquer erro que citasse a
+    // chamada. O que precisa aparecer é o diagnóstico de tipo.
     assert!(
-        format!("{erro:?}").contains("verso"),
-        "erro deve nomear o tipo esperado: {erro:?}"
+        texto.contains("tipo inválido no argumento 1"),
+        "erro deve ser de tipo no argumento 1: {texto}"
+    );
+    assert!(
+        texto.contains("esperado 'verso'"),
+        "erro deve nomear o tipo esperado: {texto}"
     );
 }
 
