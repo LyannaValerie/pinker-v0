@@ -209,7 +209,10 @@ impl<'a> Scanner<'a> {
     fn number(&mut self) -> Result<(), String> {
         let start = self.pos;
         while self.pos < self.bytes.len()
-            && matches!(self.bytes[self.pos], b'-' | b'+' | b'.' | b'e' | b'E' | b'0'..=b'9')
+            && matches!(
+                self.bytes[self.pos],
+                b'-' | b'+' | b'.' | b'e' | b'E' | b'0'..=b'9'
+            )
         {
             self.pos += 1;
         }
@@ -344,7 +347,10 @@ fn manifest_declara_exatamente_os_campos_exigidos_e_ordenados() {
     let mut ordenado = keys.clone();
     ordenado.sort();
     assert_eq!(keys, ordenado, "chaves de topo fora de ordem");
-    assert!(rendered.ends_with("}\n"), "manifest deve terminar em uma \\n");
+    assert!(
+        rendered.ends_with("}\n"),
+        "manifest deve terminar em uma \\n"
+    );
     assert!(!rendered.contains('\t'), "indentação canônica não usa tab");
     assert!(
         rendered.contains("\n  \"schema\": "),
@@ -575,7 +581,10 @@ fn ficha_sem_origem_recusa_inventar_data() {
     let output = baseline(&["ficha", "--bundle", bundle_dir.to_str().unwrap()]);
     // A data vem do commit da release. Sem origem para derivá-la, a ferramenta
     // para e pede o valor: usar a data de hoje tornaria o registro irreprodutível.
-    assert!(!output.status.success(), "data não derivável deveria falhar");
+    assert!(
+        !output.status.success(),
+        "data não derivável deveria falhar"
+    );
     assert!(String::from_utf8_lossy(&output.stderr).contains("data não derivável"));
     fs::remove_dir_all(&dir).ok();
 }
