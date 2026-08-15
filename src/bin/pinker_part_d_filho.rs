@@ -4,6 +4,20 @@ use std::io::{Read as _, Write as _};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
+/// Materializa o marker de conclusão natural, quando o chamador pediu um.
+///
+/// O marker existe para separar duas coisas que o relógio de parede confunde:
+/// "o processo foi interrompido" e "o programa inteiro demorou pouco". Ele só é
+/// escrito depois que o modo alcança o fim da sua janela natural, então a
+/// ausência dele é evidência direta de que a execução não chegou lá.
+///
+/// Nada aqui promete tempo. Quem tem tempo é o `LimiteTempo` da linguagem.
+fn marcar_conclusao_natural(marker: Option<String>) {
+    if let Some(caminho) = marker {
+        std::fs::write(caminho, b"CONCLUSAO_NATURAL").expect("registrar conclusão natural");
+    }
+}
+
 fn hex(bytes: &[u8]) -> String {
     let mut saida = String::with_capacity(bytes.len() * 2);
     for byte in bytes {
@@ -77,6 +91,7 @@ fn main() {
                 .expect("janela de produção")
                 .parse::<u64>()
                 .expect("duração inteira");
+            let marker = argumentos.next();
             let fim = Instant::now() + Duration::from_millis(ms);
             let bloco_stdout = [b'O'; 16 * 1024];
             let bloco_stderr = [b'E'; 16 * 1024];
@@ -88,6 +103,7 @@ fn main() {
                     stderr.write_all(&bloco_stderr).expect("stderr contínuo");
                 }
             }
+            marcar_conclusao_natural(marker);
         }
         "status" => {
             let codigo = argumentos
@@ -140,7 +156,9 @@ fn main() {
                 .expect("milissegundos")
                 .parse::<u64>()
                 .expect("duração inteira");
+            let marker = argumentos.next();
             std::thread::sleep(Duration::from_millis(ms));
+            marcar_conclusao_natural(marker);
         }
         "sleep-pid" => {
             let ms = argumentos
@@ -149,8 +167,10 @@ fn main() {
                 .parse::<u64>()
                 .expect("duração inteira");
             let pidfile = argumentos.next().expect("pidfile");
+            let marker = argumentos.next();
             std::fs::write(pidfile, std::process::id().to_string()).expect("registrar pid");
             std::thread::sleep(Duration::from_millis(ms));
+            marcar_conclusao_natural(marker);
         }
         "descendant" | "descendant-exit" => {
             let ms = argumentos
@@ -159,6 +179,7 @@ fn main() {
                 .parse::<u64>()
                 .expect("duração inteira");
             let pidfile = argumentos.next().expect("pidfile");
+            let marker = argumentos.next();
             let descendente = Command::new(std::env::current_exe().expect("executável atual"))
                 .arg("hold")
                 .arg(ms.to_string())
@@ -169,8 +190,12 @@ fn main() {
                 .expect("criar descendente");
             std::fs::write(pidfile, descendente.id().to_string()).expect("registrar pid");
             if modo == "descendant" {
+                // Janela natural do filho DIRETO. O descendente tem a sua
+                // própria, e a política da Parte D continua sendo matar apenas
+                // o filho direto — o marker abaixo observa só ele.
                 std::thread::sleep(Duration::from_secs(5));
             }
+            marcar_conclusao_natural(marker);
         }
         "hold" => {
             let ms = argumentos
