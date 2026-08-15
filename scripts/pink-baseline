@@ -278,6 +278,37 @@ publish_restoration_verdict() {
     printf '%s' "$verdict"
 }
 
+# Toda entrada de /opt/pinker/manifests é autoridade viva: o validador canônico
+# faz glob de *.json e valida cada uma. Então um manifest Pinker sob outro nome
+# não fica "histórico" por ficar para trás — ele continua sendo consultado, e
+# passa a falhar assim que o launcher aponta para outra release.
+#
+# A identidade não vem do nome do arquivo, que o validador nunca interpreta, e
+# sim do campo `name` declarado. Selecionar por glob `pink-*.json` seria adivinhar
+# a chave; ler o `name` é usá-la. E um manifest que não parseia não pode provar
+# que NÃO é nosso, então também conta — fail closed.
+publish_superseded_authorities() {
+    local mantido="$1" dir="$2"
+    command -v python3 >/dev/null 2>&1 || fail "python3 ausente: não é possível ler a coleção"
+    PINK_KEEP="$mantido" PINK_DIR="$dir" python3 - <<'PYTHON'
+import json
+import os
+import pathlib
+
+mantido = os.path.realpath(os.environ["PINK_KEEP"])
+for caminho in sorted(pathlib.Path(os.environ["PINK_DIR"]).glob("*.json")):
+    if os.path.realpath(caminho) == mantido:
+        continue
+    try:
+        nome = json.loads(caminho.read_text(encoding="utf-8")).get("name")
+    except (OSError, ValueError):
+        print(f"{caminho}\tILEGIVEL")
+        continue
+    if nome == "Pinker CLI":
+        print(f"{caminho}\tPinker CLI")
+PYTHON
+}
+
 # Funil único de término.
 #
 # Com `set -e`, uma falha inesperada já vira saída do shell, então EXIT é o funil
@@ -455,7 +486,11 @@ EOF
 
         release_root="$forja_root/pinker/releases/pink/$commit"
         release_binary="$release_root/bin/pink"
-        manifest="$forja_root/pinker/manifests/pink-${version}-${commit:0:12}.json"
+        # O nome segue a convenção de todo software aprovado da coleção:
+        # <nome>-<versão>.json. Embutir o commit aqui — como a F1 fez — converte
+        # "substituir atomicamente", que é o que a política manda, em
+        # "acrescentar mais uma autoridade viva".
+        manifest="$forja_root/pinker/manifests/pink-${version}.json"
         install -d "${own[@]}" "$forja_root/pinker/releases/pink" "$forja_root/pinker/bin" \
             "$forja_root/pinker/manifests"
 
@@ -518,6 +553,21 @@ EOF
             pre_activation_validation=pinker-manifest-verify
         fi
 
+        # Ainda antes de ativar: a coleção não pode acabar com duas autoridades
+        # Pinker. Publicar por cima disso deixaria o validador canônico com um
+        # manifest descrevendo uma instalação que não está mais exposta.
+        #
+        # Retirar o arquivo alheio não é decisão deste publicador: a política diz
+        # que o manifest do que saiu vai para a área de evidência ou backup da
+        # campanha que o removeu, e um publicador não é uma campanha. Então aqui
+        # a atitude é parar e nomear, não escolher um destino por conta própria.
+        superseded="$(publish_superseded_authorities "$manifest" "$forja_root/pinker/manifests")"
+        if [[ -n "$superseded" ]]; then
+            printf 'pink-baseline: autoridade Pinker concorrente na coleção ativa:\n%s\n' \
+                "$superseded" >&2
+            abort_publication "retire os manifests acima da coleção ativa antes de publicar"
+        fi
+
         # Fase 4 — commit operacional. ACTIVATE: daqui até a conferência passar,
         # o estado vivo pode estar mudado, e qualquer término restaura.
         publish_state=ACTIVATED
@@ -538,9 +588,20 @@ EOF
         verification="$("$exposed_command" --version-json || true)"
         [[ "$verification" == *"\"binary_commit\":\"$commit\""* ]] ||
             abort_publication "launcher publicado não declara $commit"
+        collection_state=UNAVAILABLE
         if command -v pinker-manifest-verify >/dev/null 2>&1; then
             pinker-manifest-verify "$manifest" >/dev/null ||
                 abort_publication "manifest emitido rejeitado por pinker-manifest-verify: $manifest"
+            # O contrato não é "o arquivo novo é válido isolado", é "a autoridade
+            # canônica aceita o estado vivo". Então a coleção inteira é
+            # consultada. Uma coleção quebrada por manifest de OUTRO software não
+            # é falha desta publicação — mas também não pode ser relatada como
+            # saúde, então vira estado declarado.
+            if pinker-manifest-verify >/dev/null 2>&1; then
+                collection_state=ACCEPTED
+            else
+                collection_state=DEGRADED_BY_FOREIGN_MANIFEST
+            fi
         fi
 
         # COMMIT. Só aqui o rollback é desarmado, e por estado, não por `trap -`:
@@ -549,8 +610,9 @@ EOF
         # não conferida sem caminho de volta; desarmar por trap deixaria o
         # scratch para trás.
         publish_state=COMMITTED
-        printf 'status=PUBLISHED\nbinary=%s\nrelease=%s\nmanifest=%s\ncommit=%s\npre_activation_validation=%s\n' \
-            "$exposed_command" "$release_root" "$manifest" "$commit" "$pre_activation_validation"
+        printf 'status=PUBLISHED\nbinary=%s\nrelease=%s\nmanifest=%s\ncommit=%s\npre_activation_validation=%s\ncollection_state=%s\n' \
+            "$exposed_command" "$release_root" "$manifest" "$commit" "$pre_activation_validation" \
+            "$collection_state"
         ;;
     *)
         usage >&2

@@ -693,6 +693,13 @@ exit 0
 
 #[cfg(unix)]
 const VERIFICADOR_STUB: &str = r#"#!/bin/sh
+# Sem argumentos, o validador canônico julga a COLEÇÃO inteira; com um caminho,
+# julga aquele arquivo. O stub precisa dessa distinção para que a diferença entre
+# "o arquivo é válido" e "a autoridade aceita o estado vivo" seja exercível.
+if [ $# -eq 0 ]; then
+  [ -n "${PINK_TESTE_COLECAO_RUIM:-}" ] && exit 1
+  exit 0
+fi
 n=$(( $(cat "$PINK_TESTE_VERIFY_CONTADOR" 2>/dev/null || echo 0) + 1 ))
 echo "$n" > "$PINK_TESTE_VERIFY_CONTADOR"
 if [ "$n" = "${PINK_TESTE_BLOQUEAR_VERIFY:-0}" ]; then
@@ -770,10 +777,7 @@ fn cenario(nome: &str) -> Cenario {
     make_executable(&verificador);
 
     Cenario {
-        manifest: raiz.join(format!(
-            "pinker/manifests/pink-0.1.0-{}.json",
-            &COMMIT_TX[..12]
-        )),
+        manifest: raiz.join("pinker/manifests/pink-0.1.0.json"),
         link: raiz.join("pinker/bin/pink"),
         release: raiz.join(format!("pinker/releases/pink/{COMMIT_TX}")),
         dir,
@@ -1284,6 +1288,190 @@ fn t6_falha_durante_o_proprio_rollback_termina_como_divergente() {
         1,
         "o rollback não pode rodar duas vezes nem recursar: {relato}"
     );
+    cenario.limpar();
+}
+
+// ---------------------------------------------------------------------------
+// Lifecycle do manifest na coleção ativa
+//
+// Toda entrada de /opt/pinker/manifests é autoridade viva: o validador canônico
+// faz glob de *.json e valida cada uma, parando na primeira falha. Não há
+// índice, pointer nem seletor — estar no diretório É ser ativo.
+//
+// A F1 batizou o manifest Pinker com o commit no nome. Como o nome é a chave da
+// coleção e a política manda substituir atomicamente, isso converteu "substituir"
+// em "acrescentar": cada publicação deixaria para trás uma autoridade viva
+// descrevendo uma instalação que não está mais exposta — e que falha justamente
+// por isso. O nome voltou à convenção de todo software aprovado.
+// ---------------------------------------------------------------------------
+
+#[cfg(unix)]
+#[test]
+fn o_manifest_usa_a_convencao_de_nome_da_colecao() {
+    let cenario = cenario("nome_canonico");
+    let saida = cenario.publicar(&[]);
+    assert!(
+        saida.status.success(),
+        "{}",
+        String::from_utf8_lossy(&saida.stderr)
+    );
+
+    let nome = cenario
+        .manifest
+        .file_name()
+        .and_then(|n| n.to_str())
+        .expect("nome do manifest");
+    assert_eq!(
+        nome, "pink-0.1.0.json",
+        "o nome precisa ser <software>-<versão>.json, como todo manifest da coleção"
+    );
+    assert!(
+        !nome.contains(&COMMIT_TX[..12]),
+        "o commit no nome do arquivo transforma substituição em acúmulo"
+    );
+    assert!(cenario.manifest.is_file());
+    cenario.limpar();
+}
+
+#[cfg(unix)]
+#[test]
+fn republicar_substitui_o_manifest_em_vez_de_acumular_autoridades() {
+    let cenario = cenario("substituicao");
+    cenario.publicar(&[]);
+    let primeiro = sha256_de(&cenario.manifest);
+
+    // Segunda publicação do mesmo software: a coleção não pode crescer.
+    let saida = cenario.publicar(&[]);
+    assert!(saida.status.success());
+    let manifests: Vec<_> = fs::read_dir(cenario.raiz.join("pinker/manifests"))
+        .expect("ler coleção")
+        .flatten()
+        .map(|e| e.file_name().to_string_lossy().to_string())
+        .collect();
+    assert_eq!(
+        manifests,
+        vec!["pink-0.1.0.json".to_string()],
+        "a coleção ativa precisa ter uma autoridade Pinker, não uma por publicação"
+    );
+    assert_eq!(
+        sha256_de(&cenario.manifest),
+        primeiro,
+        "substituição idempotente"
+    );
+    cenario.limpar();
+}
+
+#[cfg(unix)]
+#[test]
+fn autoridade_pinker_concorrente_bloqueia_a_publicacao_e_e_nomeada() {
+    let cenario = cenario("supersessao");
+    let (sha, decoy) = cenario.com_estado_anterior_distinto();
+
+    // Um manifest Pinker legado, sob o nome antigo. É JSON válido e declara
+    // `name: Pinker CLI` — a chave de identidade real, já que o validador nunca
+    // interpreta o nome do arquivo.
+    let legado = cenario
+        .raiz
+        .join("pinker/manifests/pink-0.1.0-abcabcabcabc.json");
+    fs::write(&legado, "{\n  \"name\": \"Pinker CLI\"\n}\n").expect("manifest legado");
+
+    let saida = cenario.publicar(&[]);
+    assert!(
+        !saida.status.success(),
+        "publicar por cima deixaria duas autoridades vivas"
+    );
+    let erro = String::from_utf8_lossy(&saida.stderr);
+    assert!(
+        erro.contains("pink-0.1.0-abcabcabcabc.json"),
+        "o bloqueio precisa NOMEAR o que retirar: {erro}"
+    );
+    assert!(erro.contains("retire os manifests"), "{erro}");
+    // Bloquear é antes de ativar: o estado anterior continua intacto.
+    cenario.exigir_estado_anterior(&sha, &decoy, "supersessão");
+    assert!(
+        legado.is_file(),
+        "o publicador não escolhe destino para arquivo alheio"
+    );
+    cenario.limpar();
+}
+
+#[cfg(unix)]
+#[test]
+fn manifest_ilegivel_na_colecao_tambem_bloqueia() {
+    let cenario = cenario("ilegivel");
+    // O manifest que a F1 publicou não é JSON válido — não dá para ler o `name`
+    // dele. Quem não consegue provar que o arquivo NÃO é seu não pode publicar
+    // por cima: fail closed.
+    let quebrado = cenario
+        .raiz
+        .join("pinker/manifests/pink-0.1.0-quebrado.json");
+    fs::create_dir_all(quebrado.parent().unwrap()).expect("criar coleção");
+    fs::write(&quebrado, "{ \"name\": \"Pinker CLI\"\n").expect("manifest ilegível");
+
+    let saida = cenario.publicar(&[]);
+    assert!(!saida.status.success());
+    let erro = String::from_utf8_lossy(&saida.stderr);
+    assert!(erro.contains("ILEGIVEL"), "{erro}");
+    assert!(erro.contains("pink-0.1.0-quebrado.json"), "{erro}");
+    cenario.limpar();
+}
+
+#[cfg(unix)]
+#[test]
+fn manifest_de_outro_software_nao_e_confundido_com_autoridade_pinker() {
+    let cenario = cenario("alheio");
+    let alheio = cenario.raiz.join("pinker/manifests/outro-1.0.0.json");
+    fs::create_dir_all(alheio.parent().unwrap()).expect("criar coleção");
+    fs::write(&alheio, "{\n  \"name\": \"Outro Software\"\n}\n").expect("manifest alheio");
+
+    let saida = cenario.publicar(&[]);
+    assert!(
+        saida.status.success(),
+        "manifest de outro software não é autoridade Pinker concorrente: {}",
+        String::from_utf8_lossy(&saida.stderr)
+    );
+    assert!(alheio.is_file(), "e não pode ser tocado");
+    cenario.limpar();
+}
+
+#[cfg(unix)]
+#[test]
+fn o_relato_declara_o_estado_da_colecao_e_nao_so_do_arquivo() {
+    // O contrato é "a autoridade canônica aceita o estado vivo", não "o arquivo
+    // novo é válido isolado". O relato precisa carregar essa diferença.
+    let cenario = cenario("estado_da_colecao");
+    let saida = cenario.publicar(&[]);
+    assert!(saida.status.success());
+    let relato = stdout(&saida);
+    assert!(
+        relato.contains("collection_state="),
+        "o relato precisa declarar o veredito da coleção: {relato}"
+    );
+    // Com a coleção sadia, ACCEPTED.
+    assert!(relato.contains("collection_state=ACCEPTED"), "{relato}");
+    cenario.limpar();
+}
+
+#[cfg(unix)]
+#[test]
+fn colecao_quebrada_por_software_alheio_e_declarada_sem_bloquear() {
+    // Uma coleção reprovada por manifest de OUTRO software não é falha desta
+    // publicação — acoplar as duas coisas travaria o Pinker por causa de terceiro.
+    // Mas também não pode ser relatada como saúde, então vira estado declarado.
+    let cenario = cenario("colecao_degradada");
+    let saida = cenario.publicar(&[("PINK_TESTE_COLECAO_RUIM", "1")]);
+    assert!(
+        saida.status.success(),
+        "manifest alheio quebrado não pode bloquear a publicação: {}",
+        String::from_utf8_lossy(&saida.stderr)
+    );
+    let relato = stdout(&saida);
+    assert!(
+        relato.contains("collection_state=DEGRADED_BY_FOREIGN_MANIFEST"),
+        "o relato precisa distinguir arquivo válido de estado vivo aceito: {relato}"
+    );
+    // E o manifest próprio continua sendo exigido válido.
+    assert!(relato.contains("status=PUBLISHED"));
     cenario.limpar();
 }
 
