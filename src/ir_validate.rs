@@ -825,6 +825,11 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
             },
         );
     }
+    for nome in crate::valor_json::ACESSORES {
+        let (ret_type, params) = crate::valor_json::assinatura_ir(nome)
+            .expect("acessor JSON sem assinatura na autoridade");
+        funcs.insert(nome.to_string(), FunctionSig { ret_type, params });
+    }
     for (nome, retorno) in [
         (crate::saida_processo::ACESSOR_CODIGO, TypeIR::Bombom),
         (crate::saida_processo::ACESSOR_SAIDA, TypeIR::Verso),

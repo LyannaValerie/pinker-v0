@@ -2838,6 +2838,28 @@ impl LoweringContext {
                 builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
             );
         }
+        // Parte E1: assinaturas derivadas da autoridade única de `valor_json`.
+        //
+        // Quem devolve `ValorJson` precisa de assinatura NOMINAL: a
+        // representação `handle opaco` não determina identidade semântica
+        // sozinha, e derivá-la da representação apagaria a diferença entre esta
+        // família e qualquer outra que também seja uma palavra.
+        for nome in crate::valor_json::ACESSORES {
+            let (retorno, _) = crate::valor_json::assinatura_ir(nome)
+                .expect("acessor JSON sem assinatura na autoridade");
+            let sig = if matches!(retorno, TypeIR::OpaqueWordHandle) {
+                builtin_nominal_sig(
+                    &mut resolved_types,
+                    Type::OpaqueHandle {
+                        name: crate::valor_json::TIPO_VALOR_JSON.to_string(),
+                        span: Span::new(Position::new(1, 1), Position::new(1, 1)),
+                    },
+                )?
+            } else {
+                builtin_sig(&mut resolved_types, retorno)?
+            };
+            function_sigs.insert(nome.to_string(), sig);
+        }
         function_sigs.insert(
             crate::saida_processo::ACESSOR_CODIGO.to_string(),
             builtin_sig(&mut resolved_types, TypeIR::Bombom)?,

@@ -1,0 +1,12 @@
+[package]
+name = "pinker_json_contract"
+version = "0.1.0"
+edition = "2021"
+description = "Contrato puro do valor JSON da Pinker — modelo, interpretação e serialização compartilhados pelo compilador e pelo runtime nativo"
+license = "MIT"
+
+[lib]
+name = "pinker_json_contract"
+
+[dependencies]
+# Nenhuma dependência externa — mesma disciplina zero-dependency do resto.
