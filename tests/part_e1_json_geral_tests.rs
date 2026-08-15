@@ -31,6 +31,37 @@ carinho principal() -> bombom {
 }
 "#;
 
+/// Modelo adulto em lote: um caminho por argumento, uma linha por caso.
+///
+/// A matriz tem dez casos e a fonte é a mesma para todos — só o argv muda.
+/// Executar dez vezes custaria dez pares fork/supervisor sob envelope, e essa
+/// carga derruba asserções de wall-clock de suítes que medem timeout. Um
+/// processo, dez casos, a mesma cobertura.
+const FONTE_ADULTO_LOTE: &str = r#"pacote main;
+
+apelido ResJson = Resultado<ValorJson, verso>;
+
+carinho principal() -> bombom {
+    nova muda i: bombom = 0;
+    repetir {
+        nova caminho: verso = argumento_ou(i, "");
+        talvez tamanho_verso(caminho) > 0 {
+            tentar ler_json_resultado(ler_arquivo_verso(caminho)) {
+                sucesso ResJson.Ok(raiz) {
+                    nova x: ValorJson = json_objeto_obter(raiz, "x");
+                    falar(emitir_json(x));
+                }
+                falha ResJson.Erro(m) {
+                    falar("ERRO");
+                }
+            }
+        }
+        i += 1;
+    } ate i >= 16;
+    mimo 0;
+}
+"#;
+
 /// Recorte plano histórico: parse e emissão no domínio `u64`.
 const FONTE_LEGADO: &str = r#"pacote main;
 
@@ -567,7 +598,9 @@ fn json_malformado_atravessa_resultado_com_paridade() {
     let _ordem = em_serie();
     let dir = NativeArtifactDir::create().expect("diretório nativo Parte E1");
 
-    let (fonte_mal, elf_mal) = compilar_uma_vez(&dir, "malformados", FONTE_ADULTO, &runtime_lib);
+    let (fonte_mal, elf_mal) =
+        compilar_uma_vez(&dir, "malformados", FONTE_ADULTO_LOTE, &runtime_lib);
+    let mut caminhos: Vec<String> = Vec::new();
     for (nome, json) in [
         ("malformado", r#"{"x":}"#),
         ("lixo_a_direita", r#"{"x":1} lixo"#),
@@ -579,18 +612,23 @@ fn json_malformado_atravessa_resultado_com_paridade() {
         ("controle_nao_escapado", "{\"x\":\"a\nb\"}"),
         ("profundidade", &("[".repeat(200) + &"]".repeat(200))),
     ] {
-        let fixture = escrever(&dir, &format!("{nome}.json"), json);
-        let args = vec![fixture.to_string_lossy().into_owned()];
-        let observado = paridade_compilada(&format!("mal_{nome}"), &fonte_mal, &elf_mal, &args);
-        assert!(
-            observado.sucesso,
-            "{nome}: dado externo malformado precisa ser valor, não aborto"
-        );
-        assert_eq!(
-            observado.stdout, "ERRO\n",
-            "{nome}: deveria recusar como falha recuperável"
+        caminhos.push(
+            escrever(&dir, &format!("{nome}.json"), json)
+                .to_string_lossy()
+                .into_owned(),
         );
     }
+    // Todos recusam, nenhum aborta: cabem no mesmo processo.
+    let observado = paridade_compilada("malformados", &fonte_mal, &elf_mal, &caminhos);
+    assert!(
+        observado.sucesso,
+        "dado externo malformado precisa ser valor, não aborto"
+    );
+    assert_eq!(
+        observado.stdout,
+        "ERRO\n".repeat(caminhos.len()),
+        "todo documento malformado deveria recusar como falha recuperável"
+    );
 }
 
 /// Controle positivo da matriz de recusa acima: um documento válido pelo mesmo
