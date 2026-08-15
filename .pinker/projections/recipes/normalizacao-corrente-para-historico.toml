@@ -122,6 +122,11 @@ expected_matches = 1
 
 [[rules]]
 op = "exclude-key"
+key = "evidencia.integridade.parte-e2-sha256"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
 key = "evidencia.json.nomes-e-assinaturas"
 expected_matches = 1
 
@@ -283,6 +288,16 @@ expected_matches = 1
 [[rules]]
 op = "exclude-key"
 key = "runtime.json.valor-adulto"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "runtime.sha256.superficies"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "sha256.superficie.nomes"
 expected_matches = 1
 
 [[rules]]
@@ -481,30 +496,6 @@ expect_domain = "memoria"
 expect_layer = "evidencia"
 
 [[rules]]
-op = "exclude-key"
-key = "evidencia.integridade.parte-e2-sha256"
-expected_matches = 1
-
-[[rules]]
-op = "exclude-key"
-key = "runtime.sha256.superficies"
-expected_matches = 1
-
-[[rules]]
-op = "exclude-key"
-key = "sha256.superficie.nomes"
-expected_matches = 1
-
-[[rules]]
-op = "override-region"
-key = "development.agent.artifacts"
-from_hash = "fnv1a64:9e591ba222dbea6e"
-to_hash = "fnv1a64:6299beb7e04a789f"
-expect_file = "src/agent.rs"
-expect_domain = "development"
-expect_layer = "agent"
-
-[[rules]]
 op = "override-region"
 key = "ast.closures.identificadores-livres"
 from_hash = "fnv1a64:70f3faa1d4737582"
@@ -687,6 +678,15 @@ to_summary = "Parsers de argumentos por subcomando (parse_build_args, parse_edit
 expect_file = "src/main.rs"
 expect_domain = "parsing"
 expect_layer = "cli"
+
+[[rules]]
+op = "override-region"
+key = "development.agent.artifacts"
+from_hash = "fnv1a64:9e591ba222dbea6e"
+to_hash = "fnv1a64:6299beb7e04a789f"
+expect_file = "src/agent.rs"
+expect_domain = "development"
+expect_layer = "agent"
 
 [[rules]]
 op = "override-region"
