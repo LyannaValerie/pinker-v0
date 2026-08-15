@@ -3,7 +3,7 @@ id = "normalizacao-corrente-para-historico"
 
 [reconstruction]
 expected_overrides = 64
-expected_exclusions = 89
+expected_exclusions = 90
 
 [[rules]]
 op = "exclude-key"
@@ -188,6 +188,11 @@ expected_matches = 1
 [[rules]]
 op = "exclude-key"
 key = "evidencia.tooling.f1.contracts"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.tooling.f2.registros-derivados"
 expected_matches = 1
 
 [[rules]]

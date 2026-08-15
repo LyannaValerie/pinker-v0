@@ -535,7 +535,7 @@ fn catalogo_real_cartografa_o_guardiao_pinker_da_onda_9() {
     // congelados, porque `project_pre_automation_core` e
     // `project_pre_projection_snapshot_contract` removem as regiões novas antes
     // de qualquer reconstrução.
-    assert_eq!(index.regions.len(), 590);
+    assert_eq!(index.regions.len(), 591);
 
     // Exatamente uma região Pinker, a do Guardião, com metadados congelados.
     let guardiao: Vec<_> = index
@@ -2311,7 +2311,7 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
         .filter(|region| region.key != "backend-s.lowering.objetos-trato-nativos")
         .count();
     assert_eq!(
-        historical_catalog_total, 414,
+        historical_catalog_total, 415,
         "o estado histórico da Onda 8E deve totalizar 341 regiões (340 + 1 região nova de Fase 243 em src/ast.rs; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +3 regiões do endurecimento pós-PR #411); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends); mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476"
     );
 }
@@ -2422,7 +2422,7 @@ fn onda_8f_cartografa_evidencias_do_backend_textual() {
         .filter(|region| !region.key.starts_with("evidencia.runtime."))
         .count();
     assert_eq!(
-        historical_catalog_total, 414,
+        historical_catalog_total, 415,
         "o estado histórico da Onda 8F deve totalizar 349 regiões (348 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +3 regiões do endurecimento pós-PR #411); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends); mais a evidência D9 de fatiar_verso; mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476"
     );
 
@@ -2558,7 +2558,7 @@ fn onda_8f_cartografa_evidencias_do_backend_textual() {
         .collect();
     assert_eq!(
         previous_regions.len(),
-        406,
+        407,
         "as 341 regiões anteriores devem ser preservadas (340 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +3 regiões do endurecimento pós-PR #411); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends); mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476"
     );
 
@@ -2660,7 +2660,7 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
         .filter(|region| !region.key.starts_with("evidencia.runtime."))
         .count();
     assert_eq!(
-        historical_catalog_total, 422,
+        historical_catalog_total, 423,
         "o estado histórico da Onda 8G deve totalizar 356 regiões (355 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +3 regiões do endurecimento pós-PR #411); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends); mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476"
     );
     assert_eq!(
@@ -2962,7 +2962,7 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
         .collect();
     assert_eq!(
         previous_regions.len(),
-        415,
+        416,
         "as 349 regiões anteriores devem ser preservadas semanticamente (348 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +3 regiões do endurecimento pós-PR #411); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends); mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476"
     );
 
@@ -3742,7 +3742,7 @@ fn onda_8_convergencia_fecha_cadeia_8a_8j() {
 
     assert_eq!(
         historical.len(),
-        459,
+        460,
         "a convergência da Onda 8 exige exatamente 387 regiões (386 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +5 regiões do endurecimento pós-PR #411); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends); mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476"
     );
     assert_eq!(
@@ -3958,7 +3958,7 @@ fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
         .filter(|region| !region.key.starts_with("evidencia.runtime."))
         .count();
     assert_eq!(
-        historical_catalog_total, 432,
+        historical_catalog_total, 433,
         "o estado histórico da Onda 8H deve totalizar 366 regiões (365 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +3 regiões do endurecimento pós-PR #411); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends); mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476"
     );
     assert_eq!(
@@ -4443,7 +4443,7 @@ fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
         .collect();
     assert_eq!(
         previous_regions.len(),
-        422,
+        423,
         "as 356 regiões anteriores devem ser preservadas semanticamente (355 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +3 regiões do endurecimento pós-PR #411); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends); mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476"
     );
 
@@ -4578,7 +4578,7 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
                 && region.file != "tests/trama_query_tests.rs")
             .filter(|region| !region.key.starts_with("evidencia.runtime."))
             .count(),
-        446,
+        447,
         "o estado histórico da Onda 8I deve totalizar 380 regiões (379 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +3 regiões do endurecimento pós-PR #411); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends); mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476"
     );
     assert_eq!(
@@ -5120,7 +5120,7 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
         .collect();
     assert_eq!(
         previous_regions.len(),
-        432,
+        433,
         "as 366 regiões anteriores devem ser preservadas semanticamente (365 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +3 regiões do endurecimento pós-PR #411); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends); mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476"
     );
 
@@ -5227,7 +5227,7 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
                 && region.file != "tests/doc_catalog_tests.rs"
                 && region.file != "tests/trama_query_tests.rs")
             .count(),
-        459,
+        460,
         "a Onda 8J deve totalizar 387 regiões (386 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +5 regiões do endurecimento pós-PR #411); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends); mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476"
     );
     assert_eq!(
@@ -5792,7 +5792,7 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
         .collect();
     assert_eq!(
         previous_regions.len(),
-        447,
+        448,
         "as 380 regiões anteriores devem ser preservadas semanticamente (379 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +3 regiões do endurecimento pós-PR #411); mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476"
     );
 
