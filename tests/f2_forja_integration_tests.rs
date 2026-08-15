@@ -12,7 +12,7 @@
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::{Command, Output, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 // @pinker-nav:start evidencia.tooling.f2.registros-derivados
@@ -98,212 +98,173 @@ fn render_manifest(dir: &Path, release_root: &Path) -> String {
 // ---------------------------------------------------------------------------
 // Oráculo de JSON.
 //
-// O compilador é zero-dependência por contrato, então o teste carrega o próprio
-// verificador em vez de importar um parser. Ele é estrito de propósito: é
-// exatamente o token nu deixado por uma aspa mal escapada que precisa falhar.
+// O oráculo não é escrito aqui. Ele é o módulo `json` do Python: o mesmo parser
+// que `pinker-manifest-verify` usa para aceitar ou recusar um manifest, no mesmo
+// interpretador que `scripts/pink-baseline` já exige para serializar. Nada novo
+// entra no fluxo.
+//
+// O que existia antes era um scanner próprio, e um scanner próprio custa caro
+// exatamente onde parece barato: ele respondia "válido" para `1.2.3`, `--1`,
+// `1e`, `01` e `\u` sem os quatro dígitos hex. Um teste que afirma "isto é JSON
+// válido" apoiado em um oráculo que aceita o inválido não afirma nada. O
+// compilador continua zero-dependência: nenhuma crate entrou; a suíte apenas
+// chama a autoridade que o próprio fluxo já exige.
+//
+// Uma diferença deliberada em relação ao validador canônico: `json.loads` aceita
+// `NaN` e `Infinity`, que JSON não tem. Aqui elas são recusadas, porque a
+// propriedade sob teste é "é JSON", não "é o que este validador tolera".
 // ---------------------------------------------------------------------------
 
-struct Scanner<'a> {
-    bytes: &'a [u8],
-    pos: usize,
-    top_level_keys: Vec<String>,
-    depth: usize,
-}
+const PRELUDIO_JSON: &str = "\
+import json, sys
 
-impl<'a> Scanner<'a> {
-    fn new(text: &'a str) -> Scanner<'a> {
-        Scanner {
-            bytes: text.as_bytes(),
-            pos: 0,
-            top_level_keys: Vec::new(),
-            depth: 0,
-        }
-    }
+def constante(nome):
+    raise ValueError('constante nao-JSON: ' + nome)
 
-    fn skip_ws(&mut self) {
-        while self.pos < self.bytes.len() && self.bytes[self.pos].is_ascii_whitespace() {
-            self.pos += 1;
-        }
-    }
+dados = json.loads(sys.stdin.read(), parse_constant=constante)
+";
 
-    fn expect(&mut self, byte: u8) -> Result<(), String> {
-        self.skip_ws();
-        if self.pos < self.bytes.len() && self.bytes[self.pos] == byte {
-            self.pos += 1;
-            Ok(())
-        } else {
-            Err(format!(
-                "esperado {:?} na posição {}",
-                byte as char, self.pos
-            ))
-        }
-    }
-
-    fn string(&mut self) -> Result<String, String> {
-        self.expect(b'"')?;
-        let mut out = String::new();
-        loop {
-            if self.pos >= self.bytes.len() {
-                return Err("string não terminada".to_string());
-            }
-            match self.bytes[self.pos] {
-                b'"' => {
-                    self.pos += 1;
-                    return Ok(out);
-                }
-                b'\\' => {
-                    self.pos += 1;
-                    if self.pos >= self.bytes.len() {
-                        return Err("escape truncado".to_string());
-                    }
-                    let escaped = self.bytes[self.pos];
-                    if !matches!(
-                        escaped,
-                        b'"' | b'\\' | b'/' | b'b' | b'f' | b'n' | b'r' | b't' | b'u'
-                    ) {
-                        return Err(format!("escape inválido: \\{}", escaped as char));
-                    }
-                    out.push(escaped as char);
-                    self.pos += 1;
-                }
-                other => {
-                    out.push(other as char);
-                    self.pos += 1;
-                }
-            }
-        }
-    }
-
-    fn value(&mut self) -> Result<(), String> {
-        self.skip_ws();
-        if self.pos >= self.bytes.len() {
-            return Err("valor ausente".to_string());
-        }
-        match self.bytes[self.pos] {
-            b'"' => {
-                self.string()?;
-                Ok(())
-            }
-            b'{' => self.object(),
-            b'[' => self.array(),
-            b't' => self.literal("true"),
-            b'f' => self.literal("false"),
-            b'n' => self.literal("null"),
-            b'-' | b'0'..=b'9' => self.number(),
-            other => Err(format!(
-                "token inesperado {:?} na posição {}",
-                other as char, self.pos
-            )),
-        }
-    }
-
-    fn literal(&mut self, word: &str) -> Result<(), String> {
-        if self.bytes[self.pos..].starts_with(word.as_bytes()) {
-            self.pos += word.len();
-            Ok(())
-        } else {
-            Err(format!("literal inválido na posição {}", self.pos))
-        }
-    }
-
-    fn number(&mut self) -> Result<(), String> {
-        let start = self.pos;
-        while self.pos < self.bytes.len()
-            && matches!(
-                self.bytes[self.pos],
-                b'-' | b'+' | b'.' | b'e' | b'E' | b'0'..=b'9'
-            )
-        {
-            self.pos += 1;
-        }
-        if self.pos == start {
-            Err("número vazio".to_string())
-        } else {
-            Ok(())
-        }
-    }
-
-    fn array(&mut self) -> Result<(), String> {
-        self.expect(b'[')?;
-        self.skip_ws();
-        if self.pos < self.bytes.len() && self.bytes[self.pos] == b']' {
-            self.pos += 1;
-            return Ok(());
-        }
-        loop {
-            self.value()?;
-            self.skip_ws();
-            match self.bytes.get(self.pos) {
-                Some(b',') => self.pos += 1,
-                Some(b']') => {
-                    self.pos += 1;
-                    return Ok(());
-                }
-                _ => return Err(format!("array malformado na posição {}", self.pos)),
-            }
-        }
-    }
-
-    fn object(&mut self) -> Result<(), String> {
-        self.expect(b'{')?;
-        self.depth += 1;
-        self.skip_ws();
-        if self.pos < self.bytes.len() && self.bytes[self.pos] == b'}' {
-            self.pos += 1;
-            self.depth -= 1;
-            return Ok(());
-        }
-        loop {
-            self.skip_ws();
-            let key = self.string()?;
-            if self.depth == 1 {
-                self.top_level_keys.push(key);
-            }
-            self.expect(b':')?;
-            self.value()?;
-            self.skip_ws();
-            match self.bytes.get(self.pos) {
-                Some(b',') => self.pos += 1,
-                Some(b'}') => {
-                    self.pos += 1;
-                    self.depth -= 1;
-                    return Ok(());
-                }
-                _ => return Err(format!("objeto malformado na posição {}", self.pos)),
-            }
-        }
+/// Roda um programa Python com o texto em stdin. Erro do parser vem como Err.
+fn python_json(texto: &str, programa: &str, args: &[&str]) -> Result<String, String> {
+    use std::io::Write;
+    let mut filho = Command::new("python3")
+        .arg("-c")
+        .arg(format!("{PRELUDIO_JSON}{programa}"))
+        .args(args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("executar python3");
+    filho
+        .stdin
+        .as_mut()
+        .expect("stdin do python3")
+        .write_all(texto.as_bytes())
+        .expect("escrever no python3");
+    let saida = filho.wait_with_output().expect("aguardar python3");
+    if saida.status.success() {
+        Ok(String::from_utf8(saida.stdout).expect("stdout UTF-8"))
+    } else {
+        Err(String::from_utf8_lossy(&saida.stderr)
+            .lines()
+            .last()
+            .unwrap_or_default()
+            .to_string())
     }
 }
 
-/// Devolve as chaves de topo, ou o erro sintático encontrado.
-fn scan_json(text: &str) -> Result<Vec<String>, String> {
-    let mut scanner = Scanner::new(text);
-    scanner.value()?;
-    scanner.skip_ws();
-    if scanner.pos != scanner.bytes.len() {
-        return Err(format!("conteúdo extra na posição {}", scanner.pos));
+fn separados(saida: String) -> Vec<String> {
+    if saida.is_empty() {
+        Vec::new()
+    } else {
+        saida.split('\0').map(str::to_string).collect()
     }
-    Ok(scanner.top_level_keys)
+}
+
+/// Chaves de topo na ordem declarada pelo documento, ou o erro real do parser.
+fn chaves_de_topo(texto: &str) -> Result<Vec<String>, String> {
+    python_json(
+        texto,
+        "\
+if not isinstance(dados, dict):
+    raise ValueError('documento de topo nao e objeto')
+sys.stdout.write('\\0'.join(dados))
+",
+        &[],
+    )
+    .map(separados)
 }
 
 /// Todos os valores string associados à chave, em qualquer profundidade.
-fn string_values_for(text: &str, key: &str) -> Vec<String> {
-    let needle = format!("\"{key}\":");
-    let mut found = Vec::new();
-    let mut rest = text;
-    while let Some(at) = rest.find(&needle) {
-        let trimmed = rest[at + needle.len()..].trim_start();
-        if trimmed.starts_with('"') {
-            // Ler pelo scanner, e não até a próxima aspa: o valor pode conter
-            // aspas escapadas — é justamente o caso de `expected_contains`.
-            let mut scanner = Scanner::new(trimmed);
-            if let Ok(value) = scanner.string() {
-                found.push(value);
-            }
-        }
-        rest = &rest[at + needle.len()..];
+///
+/// A travessia é estrutural: buscar `"chave":` no texto encontraria a mesma
+/// sequência dentro de um valor string — e `expected_contains` é literalmente um
+/// trecho de JSON dentro de uma string.
+fn valores_string_de(texto: &str, chave: &str) -> Vec<String> {
+    python_json(
+        texto,
+        "\
+alvo = sys.argv[1]
+achados = []
+
+def andar(no):
+    if isinstance(no, dict):
+        for chave, valor in no.items():
+            if chave == alvo and isinstance(valor, str):
+                achados.append(valor)
+            andar(valor)
+    elif isinstance(no, list):
+        for item in no:
+            andar(item)
+
+andar(dados)
+sys.stdout.write('\\0'.join(achados))
+",
+        &[chave],
+    )
+    .map(separados)
+    .expect("o documento precisa ser JSON válido antes de ter campos lidos")
+}
+
+// ---------------------------------------------------------------------------
+// O oráculo julgado antes de julgar
+// ---------------------------------------------------------------------------
+
+#[test]
+fn o_oraculo_recusa_json_realmente_invalido() {
+    // As cinco primeiras formas são as que o scanner parcial anterior aceitava
+    // por engano — número com dois pontos, sinal repetido, expoente vazio, zero
+    // à esquerda e `\u` sem os quatro dígitos hex. Se o oráculo aceita isso,
+    // "o manifest é JSON válido" deixa de ser uma afirmação sobre JSON.
+    for invalido in [
+        r#"{"a": 1.2.3}"#,
+        r#"{"a": --1}"#,
+        r#"{"a": 1e}"#,
+        r#"{"a": 01}"#,
+        r#"{"a": "\u12"}"#,
+        r#"{"a": "\q"}"#,
+        r#"{"a": 1,}"#,
+        r#"{"a" 1}"#,
+        r#"{"a": "sem fim}"#,
+        r#"{"a": 1} lixo"#,
+        // JSON não tem estas constantes, ainda que `json.loads` as tolere por
+        // default: a propriedade sob teste é "é JSON".
+        r#"{"a": NaN}"#,
+        r#"{"a": Infinity}"#,
+        // O defeito histórico: a aspa mal escapada deixa um token nu no lugar
+        // do valor. Foi exatamente esta forma que a F1 publicou em /opt.
+        r#"{"expected_contains": ""binary_commit":"abc""}"#,
+    ] {
+        assert!(
+            chaves_de_topo(invalido).is_err(),
+            "o oráculo aceitou JSON inválido: {invalido}"
+        );
     }
-    found
+
+    // E continua aceitando JSON válido, inclusive as formas que uma checagem
+    // ingênua confundiria com as de cima.
+    let valido = r#"{"a": [1, -2.5e+3, 0, null, true, "é \" \\"], "b": {"c": {}}}"#;
+    assert_eq!(
+        chaves_de_topo(valido).expect("documento válido"),
+        vec!["a".to_string(), "b".to_string()]
+    );
+}
+
+#[test]
+fn o_oraculo_le_campos_por_estrutura_e_nao_por_texto() {
+    // `expected_contains` carrega `"binary_commit":"..."` DENTRO de uma string.
+    // Uma busca textual por `"binary_commit":` acharia essa ocorrência e leria
+    // um campo que não existe; a travessia estrutural não.
+    let documento = r#"{"verification": {"expected_contains": "\"binary_commit\":\"abc\""}}"#;
+    assert!(
+        valores_string_de(documento, "binary_commit").is_empty(),
+        "um trecho dentro de uma string não é um campo"
+    );
+    assert_eq!(
+        valores_string_de(documento, "expected_contains"),
+        vec!["\"binary_commit\":\"abc\"".to_string()]
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -315,7 +276,7 @@ fn manifest_renderizado_e_json_bem_formado() {
     let dir = temp("manifest_bem_formado");
     let release_root = dir.join("release");
     let rendered = render_manifest(&dir, &release_root);
-    let keys = scan_json(&rendered).unwrap_or_else(|error| {
+    let keys = chaves_de_topo(&rendered).unwrap_or_else(|error| {
         panic!("manifest renderizado não é JSON válido: {error}\n---\n{rendered}")
     });
     assert!(!keys.is_empty(), "manifest sem chaves de topo");
@@ -327,7 +288,7 @@ fn manifest_declara_exatamente_os_campos_exigidos_e_ordenados() {
     let dir = temp("manifest_campos");
     let release_root = dir.join("release");
     let rendered = render_manifest(&dir, &release_root);
-    let keys = scan_json(&rendered).expect("manifest válido");
+    let keys = chaves_de_topo(&rendered).expect("manifest válido");
     let esperado = vec![
         "checksums",
         "exposed_commands",
@@ -365,9 +326,9 @@ fn checksums_cobrem_todos_os_executaveis_e_comandos_declarados() {
     let release_root = dir.join("release");
     let rendered = render_manifest(&dir, &release_root);
 
-    let declarados: BTreeSet<String> = string_values_for(&rendered, "path")
+    let declarados: BTreeSet<String> = valores_string_de(&rendered, "path")
         .into_iter()
-        .chain(string_values_for(&rendered, "installation_root"))
+        .chain(valores_string_de(&rendered, "installation_root"))
         .collect();
     let release_binary = format!("{}/bin/pink", release_root.display());
     assert!(
@@ -379,7 +340,7 @@ fn checksums_cobrem_todos_os_executaveis_e_comandos_declarados() {
         "checksums não cobrem o comando exposto — foi exatamente essa a lacuna do manifest publicado"
     );
     assert_eq!(
-        string_values_for(&rendered, "sha256"),
+        valores_string_de(&rendered, "sha256"),
         vec![SHA256.to_string(), SHA256.to_string()],
         "o comando exposto é symlink para o binário: o digest tem de ser o mesmo"
     );
@@ -392,7 +353,7 @@ fn verificacao_do_manifest_casa_com_a_identidade_declarada() {
     let release_root = dir.join("release");
     let rendered = render_manifest(&dir, &release_root);
     let esperado = format!("\"binary_commit\":\"{COMMIT}\"");
-    let contains = string_values_for(&rendered, "expected_contains");
+    let contains = valores_string_de(&rendered, "expected_contains");
     assert_eq!(
         contains,
         vec![esperado],
