@@ -624,6 +624,62 @@ fn superficie_publica_declarada_numa_autoridade_so() {
 }
 
 #[test]
+fn sem_dependencia_semantica_em_processo_externo() {
+    // A campanha proíbe `sha256sum`, `openssl`, shell ou processo externo como
+    // dependência SEMÂNTICA da linguagem. Provado por duas metades baratas.
+
+    // Estrutural: o núcleo e as duas superfícies não podem sequer mencionar
+    // spawn de processo. O núcleo é um crate puro e declara zero dependências.
+    let raiz = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let nucleo = fs::read_to_string(raiz.join("runtime/pinker_sha256_contract/src/lib.rs"))
+        .expect("ler núcleo compartilhado");
+    for proibido in ["std::process", "Command", "sha256sum", "openssl", "popen"] {
+        assert!(
+            !nucleo.contains(proibido),
+            "núcleo do SHA-256 não pode conter '{proibido}'"
+        );
+    }
+    let manifesto = fs::read_to_string(raiz.join("runtime/pinker_sha256_contract/Cargo.toml"))
+        .expect("ler manifesto do núcleo");
+    let tem_dependencia = manifesto
+        .lines()
+        .skip_while(|linha| !linha.trim().starts_with("[dependencies]"))
+        .skip(1)
+        .any(|linha| {
+            let linha = linha.trim();
+            !linha.is_empty() && !linha.starts_with('#') && !linha.starts_with('[')
+        });
+    assert!(
+        !tem_dependencia,
+        "o núcleo do SHA-256 tem de permanecer sem dependência externa"
+    );
+
+    // Comportamental: com `PATH` vazio não existe `sha256sum` nem `openssl`
+    // alcançável, e a feature continua produzindo o vetor oficial. Se a
+    // implementação delegasse a um processo externo, isto falharia — e não foi
+    // preciso remover nada do host para descobrir.
+    let dir = NativeArtifactDir::create().expect("diretório sem-PATH Parte E2");
+    let caminho = escrever_caso(&dir, "sem_path", FONTE_VERSO);
+    let saida = Command::new(env!("CARGO_BIN_EXE_pink"))
+        .arg("--run")
+        .arg(&caminho)
+        .env("PATH", "")
+        .logical_case("sem_path")
+        .timeout(Duration::from_secs(60))
+        .output()
+        .expect("executar sem PATH sob envelope");
+    let stdout = String::from_utf8_lossy(&saida.stdout);
+    assert!(
+        stdout.starts_with(VAZIO),
+        "SHA-256 tem de funcionar sem nenhum executável alcançável no PATH: {stdout}"
+    );
+    assert!(
+        stdout.contains(ABC),
+        "vetor 'abc' ausente com PATH vazio: {stdout}"
+    );
+}
+
+#[test]
 fn uso_invalido_do_programa_e_erro_de_compilacao_nao_resultado() {
     // INVALID_PROGRAM_USE != RECOVERABLE_IO_FAILURE: aridade e tipo errados
     // param no compilador e nunca viram `Resultado`.
