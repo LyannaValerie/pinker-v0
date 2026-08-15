@@ -347,8 +347,8 @@ fn baseline_script_exige_release_identidade_e_publicacao_atomica() {
         "--version-json",
         "forja-pink-bundle-v1",
         "forja-software-manifest-v1",
-        "/opt/pinker/releases/pink/$commit",
-        "mv -Tf \"$next_link\" /opt/pinker/bin/pink",
+        "/pinker/releases/pink/$commit",
+        "mv -Tf \"$next_link\" \"$exposed_command\"",
         "sha256sum",
     ] {
         assert!(script.contains(required), "ausente: {required}");

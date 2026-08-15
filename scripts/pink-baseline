@@ -25,7 +25,24 @@ fail() {
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "$script_dir/.." && pwd)"
 
-exposed_command='/opt/pinker/bin/pink'
+# Raiz da instalação administrada. /opt é o único valor de produção e o default
+# exato: sem a variável, todo caminho abaixo é literalmente o de antes.
+#
+# A variável existe por um motivo só — a atomicidade da publicação não pode ser
+# provada mutando /opt vivo —, e por isso ela recusa /opt e qualquer caminho
+# dentro dele: a seam nunca alcança a instalação real. Não é interface da Pinker,
+# não aparece em `usage` e não é um sistema geral de prefixos; é isolamento de
+# teste. Em raiz isolada não há root nem posse root:root a exigir, então o gate
+# de root e os flags de posse acompanham a raiz.
+forja_root="${PINK_BASELINE_ROOT:-/opt}"
+if [[ "$forja_root" != '/opt' ]]; then
+    [[ "$forja_root" == /* ]] || fail "PINK_BASELINE_ROOT deve ser absoluto"
+    [[ "$forja_root" != '/' ]] || fail "PINK_BASELINE_ROOT não pode ser a raiz do sistema"
+    [[ "$forja_root" != /opt/* ]] || fail "PINK_BASELINE_ROOT não pode viver dentro de /opt"
+    [[ -d "$forja_root" ]] || fail "PINK_BASELINE_ROOT inexistente: $forja_root"
+fi
+
+exposed_command="$forja_root/pinker/bin/pink"
 
 # Lê identity.env do bundle para as variáveis de identidade. Um bundle é a única
 # origem aceita: nada aqui recalcula versão, commit ou checksum por conta própria.
@@ -59,14 +76,14 @@ read_bundle_identity() {
 # JSON à mão dentro de heredoc já produziu manifest inválido; a corretude aqui é
 # por construção, não por acerto de aspas.
 render_manifest() {
-    local release_root="$1"
+    local release_root="$1" exposed="$2"
     command -v python3 >/dev/null 2>&1 || fail "python3 ausente: renderização canônica indisponível"
     PINK_VERSION="$version" \
         PINK_COMMIT="$commit" \
         PINK_SHA256="$expected_sha256" \
         PINK_SOURCE="$source" \
         PINK_RELEASE_ROOT="$release_root" \
-        PINK_EXPOSED="$exposed_command" \
+        PINK_EXPOSED="$exposed" \
         PINK_BUNDLE_SCHEMA="$schema" \
         python3 - <<'PYTHON'
 import json
@@ -154,6 +171,109 @@ launcher real, e não apenas da existência de metadata.
 EOF
 }
 
+# ---------------------------------------------------------------------------
+# Transação de publicação.
+#
+# A publicação altera três coisas: o diretório da release, o manifest ativo e o
+# comando exposto. Só o comando exposto é ativação; os outros dois são preparo.
+# O validador canônico decide quase tudo sem ativação nenhuma — forma, campos,
+# posse, checksums e a execução real do launcher —, porque um manifest candidato
+# pode declarar o binário da release como comando exposto. O que sobra depois da
+# ativação é só a amarração final "o link exposto aponta para esta release", e
+# essa é uma troca atômica seguida de conferência.
+#
+# Então: valide o candidato inteiro antes; ative por último; e, se a conferência
+# posterior reprovar, restaure o estado anterior exatamente. Restaurar não é pôr
+# algo plausível no lugar — o manifest volta byte a byte e o link volta ao alvo
+# textual anterior, ou some se antes não existia.
+# ---------------------------------------------------------------------------
+own=()
+publish_scratch=''
+publish_release_created=''
+publish_manifest_existed=''
+publish_manifest_backup=''
+publish_link_kind=''
+publish_link_target=''
+publish_link_backup=''
+publish_activated=''
+
+publish_cleanup_scratch() {
+    [[ -n "$publish_scratch" && -d "$publish_scratch" ]] && rm -rf "$publish_scratch"
+    return 0
+}
+
+publish_restore() {
+    if [[ -n "$publish_activated" ]]; then
+        case "$publish_link_kind" in
+            symlink)
+                local back="$forja_root/pinker/bin/.pink-restore-$$"
+                rm -f "$back"
+                ln -s "$publish_link_target" "$back"
+                mv -Tf "$back" "$exposed_command"
+                ;;
+            file) install "${own[@]}" -m 0755 "$publish_link_backup" "$exposed_command" ;;
+            absent) rm -f "$exposed_command" ;;
+        esac
+    fi
+    if [[ -n "$publish_manifest_existed" ]]; then
+        install "${own[@]}" -m 0644 "$publish_manifest_backup" "$manifest"
+    else
+        rm -f "$manifest"
+    fi
+    [[ -n "$publish_release_created" ]] && rm -rf "$release_root"
+    return 0
+}
+
+# Conferir a restauração faz parte da restauração: um rollback que não é
+# observado é uma alegação, não um estado.
+publish_restoration_verdict() {
+    local verdict='RESTORED_EXACTLY' ok
+    if [[ -n "$publish_activated" ]]; then
+        ok=''
+        case "$publish_link_kind" in
+            symlink)
+                if [[ -L "$exposed_command" ]] &&
+                    [[ "$(readlink "$exposed_command")" == "$publish_link_target" ]]; then
+                    ok=1
+                fi
+                ;;
+            file)
+                if [[ -f "$exposed_command" && ! -L "$exposed_command" ]] &&
+                    [[ "$(sha256sum <"$exposed_command")" == "$(sha256sum <"$publish_link_backup")" ]]; then
+                    ok=1
+                fi
+                ;;
+            absent)
+                if [[ ! -e "$exposed_command" ]]; then
+                    ok=1
+                fi
+                ;;
+        esac
+        [[ -n "$ok" ]] || verdict='RESTORATION_DIVERGED'
+    fi
+    ok=''
+    if [[ -n "$publish_manifest_existed" ]]; then
+        if [[ -f "$manifest" ]] &&
+            [[ "$(sha256sum <"$manifest")" == "$(sha256sum <"$publish_manifest_backup")" ]]; then
+            ok=1
+        fi
+    elif [[ ! -e "$manifest" ]]; then
+        ok=1
+    fi
+    [[ -n "$ok" ]] || verdict='RESTORATION_DIVERGED'
+    printf '%s' "$verdict"
+}
+
+abort_publication() {
+    local reason="$1" verdict
+    publish_restore
+    verdict="$(publish_restoration_verdict)"
+    printf 'pink-baseline: publicação abortada: %s\n' "$reason" >&2
+    printf 'pink-baseline: estado anterior %s\n' "$verdict" >&2
+    [[ "$verdict" == 'RESTORED_EXACTLY' ]] || exit 3
+    exit 1
+}
+
 [[ $# -ge 1 ]] || {
     usage >&2
     exit 2
@@ -217,9 +337,9 @@ EOF
         done
         [[ -n "$bundle" ]] || { usage >&2; exit 2; }
         read_bundle_identity "$bundle"
-        [[ -n "$release_root" ]] || release_root="/opt/pinker/releases/pink/$commit"
+        [[ -n "$release_root" ]] || release_root="$forja_root/pinker/releases/pink/$commit"
         [[ "$release_root" == /* ]] || fail "release-root deve ser absoluto"
-        render_manifest "$release_root"
+        render_manifest "$release_root" "$exposed_command"
         ;;
     ficha)
         bundle=''
@@ -237,7 +357,7 @@ EOF
         done
         [[ -n "$bundle" ]] || { usage >&2; exit 2; }
         read_bundle_identity "$bundle"
-        [[ -n "$release_root" ]] || release_root="/opt/pinker/releases/pink/$commit"
+        [[ -n "$release_root" ]] || release_root="$forja_root/pinker/releases/pink/$commit"
         [[ "$release_root" == /* ]] || fail "release-root deve ser absoluto"
         [[ -n "$perfil" ]] || perfil="$(id -un)"
         if [[ -z "$data" ]]; then
@@ -254,7 +374,12 @@ EOF
             usage >&2
             exit 2
         }
-        [[ "${EUID:-$(id -u)}" -eq 0 ]] || fail "publish exige root"
+        if [[ "$forja_root" == '/opt' ]]; then
+            [[ "${EUID:-$(id -u)}" -eq 0 ]] || fail "publish exige root"
+            own=(-o root -g root)
+        else
+            own=()
+        fi
         bundle="$2"
         read_bundle_identity "$bundle"
         [[ -e "$source/.git" ]] || fail "origem do bundle inválida"
@@ -263,37 +388,89 @@ EOF
         identity="$($bundle/pink --version-json || true)"
         [[ "$identity" == *"\"binary_commit\":\"$commit\""* ]] || fail "identidade do binário diverge do bundle"
 
-        release_root="/opt/pinker/releases/pink/$commit"
+        release_root="$forja_root/pinker/releases/pink/$commit"
         release_binary="$release_root/bin/pink"
-        manifest="/opt/pinker/manifests/pink-${version}-${commit:0:12}.json"
-        install -d -o root -g root /opt/pinker/releases/pink /opt/pinker/bin /opt/pinker/manifests
-        if [[ -e "$release_root" ]]; then
-            [[ -x "$release_binary" ]] || fail "release existente está incompleta"
-            existing_sha256="$(sha256sum "$release_binary" | awk '{print $1}')"
-            [[ "$existing_sha256" == "$expected_sha256" ]] || fail "release existente possui checksum divergente"
-        else
-            staging="/opt/pinker/releases/pink/.staging-${commit}-$$"
-            install -d -o root -g root "$staging/bin"
-            install -o root -g root -m 0755 "$bundle/pink" "$staging/bin/pink"
-            mv "$staging" "$release_root"
+        manifest="$forja_root/pinker/manifests/pink-${version}-${commit:0:12}.json"
+        install -d "${own[@]}" "$forja_root/pinker/releases/pink" "$forja_root/pinker/bin" \
+            "$forja_root/pinker/manifests"
+
+        publish_scratch="$forja_root/pinker/releases/pink/.publish-${commit}-$$"
+        [[ ! -e "$publish_scratch" ]] || fail "staging já existe"
+        install -d "${own[@]}" "$publish_scratch"
+        trap 'publish_cleanup_scratch' EXIT
+
+        # Fase 1 — captura do estado vivo anterior, antes da primeira mutação.
+        # Capturar depois de mutar já seria tarde: um abort na fase da release
+        # não pode remover um manifest que esta publicação nunca instalou.
+        if [[ -e "$manifest" ]]; then
+            publish_manifest_existed=1
+            publish_manifest_backup="$publish_scratch/manifest.anterior"
+            cp "$manifest" "$publish_manifest_backup"
         fi
-        render_manifest "$release_root" >"$manifest.tmp-$$"
-        install -o root -g root -m 0644 "$manifest.tmp-$$" "$manifest"
-        rm -f "$manifest.tmp-$$"
-        next_link="/opt/pinker/bin/.pink-next-$$"
-        ln -s "$release_binary" "$next_link"
-        mv -Tf "$next_link" /opt/pinker/bin/pink
-        verification="$(/opt/pinker/bin/pink --version-json || true)"
-        [[ "$verification" == *"\"binary_commit\":\"$commit\""* ]] || fail "verificação pós-publicação falhou"
-        # O manifest emitido é conferido pela autoridade que o valida, e não pelo
-        # próprio emissor: um registro que o validador canônico rejeita não conta
-        # como registro. A checagem vem depois da troca porque o comando de
-        # verificação do manifest é o próprio launcher já publicado.
+        if [[ -L "$exposed_command" ]]; then
+            publish_link_kind=symlink
+            publish_link_target="$(readlink "$exposed_command")"
+        elif [[ -e "$exposed_command" ]]; then
+            publish_link_kind=file
+            publish_link_backup="$publish_scratch/pink.anterior"
+            cp "$exposed_command" "$publish_link_backup"
+        else
+            publish_link_kind=absent
+        fi
+
+        # Fase 2 — preparo. O diretório da release entra por rename de staging e
+        # nada exposto muda ainda. Se já existia, ele precisa bater com o bundle.
+        if [[ -e "$release_root" ]]; then
+            [[ -x "$release_binary" ]] || abort_publication "release existente está incompleta"
+            existing_sha256="$(sha256sum "$release_binary" | awk '{print $1}')"
+            [[ "$existing_sha256" == "$expected_sha256" ]] ||
+                abort_publication "release existente possui checksum divergente"
+        else
+            install -d "${own[@]}" "$publish_scratch/release/bin"
+            install "${own[@]}" -m 0755 "$bundle/pink" "$publish_scratch/release/bin/pink"
+            mv "$publish_scratch/release" "$release_root"
+            publish_release_created=1
+        fi
+
+        # Fase 3 — o candidato é julgado inteiro antes da ativação. Ele declara o
+        # binário da release como comando exposto, então o validador canônico
+        # exerce forma, campos, posse, cobertura de checksums e a execução real
+        # do launcher sem que o comando exposto tenha sido tocado.
+        candidate="$publish_scratch/candidate.json"
+        final="$publish_scratch/manifest.json"
+        render_manifest "$release_root" "$release_binary" >"$candidate"
+        render_manifest "$release_root" "$exposed_command" >"$final"
+        pre_activation_validation=UNAVAILABLE
+        if command -v pinker-manifest-verify >/dev/null 2>&1; then
+            pinker-manifest-verify "$candidate" >/dev/null ||
+                abort_publication "candidato rejeitado por pinker-manifest-verify antes da ativação"
+            pre_activation_validation=pinker-manifest-verify
+        fi
+
+        # Fase 4 — commit operacional. Daqui até o fim, qualquer falha restaura.
+        install "${own[@]}" -m 0644 "$final" "$manifest" ||
+            abort_publication "instalação do manifest falhou"
+        next_link="$forja_root/pinker/bin/.pink-next-$$"
+        ln -s "$release_binary" "$next_link" ||
+            abort_publication "não foi possível preparar o link candidato"
+        mv -Tf "$next_link" "$exposed_command" || {
+            rm -f "$next_link"
+            abort_publication "troca atômica do launcher falhou"
+        }
+        publish_activated=1
+
+        # Fase 5 — conferência pela autoridade que consome o registro, não pelo
+        # emissor. Um manifest que o validador canônico rejeita não conta como
+        # registro; e agora reprovar não deixa estado inválido vivo.
+        verification="$("$exposed_command" --version-json || true)"
+        [[ "$verification" == *"\"binary_commit\":\"$commit\""* ]] ||
+            abort_publication "launcher publicado não declara $commit"
         if command -v pinker-manifest-verify >/dev/null 2>&1; then
             pinker-manifest-verify "$manifest" >/dev/null ||
-                fail "manifest emitido rejeitado por pinker-manifest-verify: $manifest"
+                abort_publication "manifest emitido rejeitado por pinker-manifest-verify: $manifest"
         fi
-        printf 'status=PUBLISHED\nbinary=/opt/pinker/bin/pink\nrelease=%s\nmanifest=%s\ncommit=%s\n' "$release_root" "$manifest" "$commit"
+        printf 'status=PUBLISHED\nbinary=%s\nrelease=%s\nmanifest=%s\ncommit=%s\npre_activation_validation=%s\n' \
+            "$exposed_command" "$release_root" "$manifest" "$commit" "$pre_activation_validation"
         ;;
     *)
         usage >&2

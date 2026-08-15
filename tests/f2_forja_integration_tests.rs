@@ -18,7 +18,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 // @pinker-nav:start evidencia.tooling.f2.registros-derivados
 // @pinker-nav:domain tooling
 // @pinker-nav:layer evidence
-// @pinker-nav:summary Contratos positivos e negativos dos registros derivados pelo publicador do baseline: manifest bem-formado e em forma canônica, cobertura de checksums, identidade de verificação, ficha de catálogo com launcher declarado e idempotente, e recusa de bundle inválido.
+// @pinker-nav:summary Contratos positivos e negativos dos registros derivados pelo publicador do baseline: manifest bem-formado e em forma canônica, cobertura de checksums, identidade de verificação, ficha de catálogo com launcher declarado e idempotente, e recusa de bundle inválido; e a transação de publicação, que valida o candidato integralmente antes de ativar e restaura o estado vivo anterior exatamente quando a conferência posterior reprova.
 
 const COMMIT: &str = "9e53cbf286f9500114bd6141bfeace21a7b5f7c3";
 const SHA256: &str = "d63f71c6218f392080672edaab472c145d83a1b0d129ab57cc2baa2d2eb9b363";
@@ -652,4 +652,353 @@ fn manifest_e_ficha_derivam_da_mesma_identidade() {
     assert!(manifest.contains(field(&fields, "arquivo_principal")));
     fs::remove_dir_all(&dir).ok();
 }
+// ---------------------------------------------------------------------------
+// Transação de publicação
+//
+// `publish` altera três coisas: o diretório da release, o manifest ativo e o
+// comando exposto. Só a última é ativação. A conferência do manifest pela
+// autoridade canônica vinha depois da troca do launcher e sem volta, então uma
+// rejeição deixava estado inválido vivo — e era justamente esse o caso real, já
+// que o manifest publicado pela F1 é recusado pelo validador.
+//
+// Nada aqui toca `/opt`: a publicação roda em raiz isolada, e as duas
+// autoridades externas — o launcher e o validador — são stubs que contam as
+// próprias invocações. Contar invocação é o que permite exigir a falha em uma
+// fase escolhida, em vez de torcer para ela cair no lugar certo.
+// ---------------------------------------------------------------------------
+
+#[cfg(unix)]
+const COMMIT_TX: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+#[cfg(unix)]
+const COMMIT_OUTRO: &str = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+
+#[cfg(unix)]
+const LAUNCHER_STUB: &str = r#"#!/bin/sh
+n=$(( $(cat "$PINK_TESTE_CONTADOR" 2>/dev/null || echo 0) + 1 ))
+echo "$n" > "$PINK_TESTE_CONTADOR"
+if [ "$1" = "--version-json" ]; then
+  if [ "$n" = "${PINK_TESTE_MENTIR:-0}" ]; then
+    printf '{"binary_commit":"@OUTRO@"}\n'
+  else
+    printf '{"binary_commit":"@COMMIT@"}\n'
+  fi
+fi
+exit 0
+"#;
+
+#[cfg(unix)]
+const VERIFICADOR_STUB: &str = r#"#!/bin/sh
+n=$(( $(cat "$PINK_TESTE_VERIFY_CONTADOR" 2>/dev/null || echo 0) + 1 ))
+echo "$n" > "$PINK_TESTE_VERIFY_CONTADOR"
+if [ "$n" = "${PINK_TESTE_REPROVAR:-0}" ]; then
+  exit 1
+fi
+exit 0
+"#;
+
+#[cfg(unix)]
+fn sha256_de(path: &Path) -> String {
+    let output = Command::new("sha256sum")
+        .arg(path)
+        .output()
+        .expect("executar sha256sum");
+    assert!(output.status.success(), "sha256sum falhou em {path:?}");
+    String::from_utf8_lossy(&output.stdout)
+        .split_whitespace()
+        .next()
+        .expect("digest")
+        .to_string()
+}
+
+#[cfg(unix)]
+struct Cenario {
+    dir: PathBuf,
+    raiz: PathBuf,
+    stubs: PathBuf,
+    bundle: PathBuf,
+    manifest: PathBuf,
+    link: PathBuf,
+    release: PathBuf,
+}
+
+#[cfg(unix)]
+fn cenario(nome: &str) -> Cenario {
+    let dir = temp(nome);
+    let raiz = dir.join("raiz");
+    let stubs = dir.join("stubs");
+    let bundle_dir = dir.join("bundle");
+    fs::create_dir_all(raiz.join("pinker")).expect("criar raiz isolada");
+    fs::create_dir_all(&stubs).expect("criar stubs");
+    fs::create_dir_all(&bundle_dir).expect("criar bundle");
+
+    let launcher = bundle_dir.join("pink");
+    fs::write(
+        &launcher,
+        LAUNCHER_STUB
+            .replace("@COMMIT@", COMMIT_TX)
+            .replace("@OUTRO@", COMMIT_OUTRO),
+    )
+    .expect("escrever launcher stub");
+    make_executable(&launcher);
+    let sha = sha256_de(&launcher);
+    fs::write(
+        bundle_dir.join("identity.env"),
+        format!(
+            "schema=forja-pink-bundle-v1\nversion=0.1.0\ncommit={COMMIT_TX}\nsha256={sha}\nsource={}\n",
+            root().display()
+        ),
+    )
+    .expect("escrever identity.env");
+
+    let verificador = stubs.join("pinker-manifest-verify");
+    fs::write(&verificador, VERIFICADOR_STUB).expect("escrever verificador stub");
+    make_executable(&verificador);
+
+    Cenario {
+        manifest: raiz.join(format!(
+            "pinker/manifests/pink-0.1.0-{}.json",
+            &COMMIT_TX[..12]
+        )),
+        link: raiz.join("pinker/bin/pink"),
+        release: raiz.join(format!("pinker/releases/pink/{COMMIT_TX}")),
+        dir,
+        raiz,
+        stubs,
+        bundle: bundle_dir,
+    }
+}
+
+#[cfg(unix)]
+impl Cenario {
+    fn publicar(&self, extra: &[(&str, &str)]) -> Output {
+        // Contadores zerados por publicação: a fase alvo é indexada a partir da
+        // primeira invocação desta tentativa, não da vida inteira do cenário.
+        fs::remove_file(self.dir.join("contador")).ok();
+        fs::remove_file(self.dir.join("verify-contador")).ok();
+        let path = format!(
+            "{}:{}",
+            self.stubs.display(),
+            std::env::var("PATH").unwrap_or_default()
+        );
+        let mut command = Command::new(root().join("scripts/pink-baseline"));
+        command
+            .args(["publish", "--bundle", self.bundle.to_str().unwrap()])
+            .current_dir(root())
+            .env("PATH", path)
+            .env("PINK_BASELINE_ROOT", &self.raiz)
+            .env("PINK_TESTE_CONTADOR", self.dir.join("contador"))
+            .env(
+                "PINK_TESTE_VERIFY_CONTADOR",
+                self.dir.join("verify-contador"),
+            );
+        for (chave, valor) in extra {
+            command.env(chave, valor);
+        }
+        command.output().expect("executar publish")
+    }
+
+    /// Estado vivo anterior deliberadamente diferente do que a republicação
+    /// produziria. Restauração só é observável contra um anterior distinto.
+    fn com_estado_anterior_distinto(&self) -> (String, PathBuf) {
+        fs::write(&self.manifest, "manifest anterior invalido {\n").expect("manifest anterior");
+        let decoy = self.raiz.join("pinker/releases/decoy/bin/pink");
+        fs::create_dir_all(decoy.parent().unwrap()).expect("criar decoy");
+        fs::write(&decoy, "#!/bin/sh\nexit 0\n").expect("escrever decoy");
+        make_executable(&decoy);
+        fs::remove_file(&self.link).ok();
+        std::os::unix::fs::symlink(&decoy, &self.link).expect("apontar link para o decoy");
+        (sha256_de(&self.manifest), decoy)
+    }
+
+    fn residuos(&self) -> Vec<PathBuf> {
+        fn varrer(dir: &Path, achados: &mut Vec<PathBuf>) {
+            let Ok(entradas) = fs::read_dir(dir) else {
+                return;
+            };
+            for entrada in entradas.flatten() {
+                let caminho = entrada.path();
+                let nome = entrada.file_name().to_string_lossy().to_string();
+                if nome.starts_with(".publish-")
+                    || nome.starts_with(".pink-next-")
+                    || nome.starts_with(".pink-restore-")
+                    || nome.starts_with(".staging-")
+                    || nome.contains(".tmp-")
+                {
+                    achados.push(caminho.clone());
+                }
+                if caminho.is_dir() && !caminho.is_symlink() {
+                    varrer(&caminho, achados);
+                }
+            }
+        }
+        let mut achados = Vec::new();
+        varrer(&self.raiz, &mut achados);
+        achados
+    }
+
+    fn exigir_estado_anterior(&self, sha_manifest: &str, alvo_link: &Path, caso: &str) {
+        assert_eq!(
+            sha256_de(&self.manifest),
+            sha_manifest,
+            "{caso}: o manifest anterior precisa voltar byte a byte, não ser substituído por algo plausível"
+        );
+        assert!(
+            self.link.is_symlink(),
+            "{caso}: o comando exposto era symlink e precisa continuar symlink"
+        );
+        assert_eq!(
+            fs::read_link(&self.link).expect("ler link"),
+            alvo_link,
+            "{caso}: o symlink anterior precisa voltar ao alvo exato"
+        );
+        assert!(
+            self.residuos().is_empty(),
+            "{caso}: resíduo enganoso deixado para trás: {:?}",
+            self.residuos()
+        );
+    }
+
+    fn limpar(self) {
+        fs::remove_dir_all(self.dir).ok();
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn publicacao_limpa_ativa_release_manifest_e_link_sem_residuo() {
+    let cenario = cenario("publicacao_limpa");
+    let saida = cenario.publicar(&[]);
+    assert!(
+        saida.status.success(),
+        "publicação limpa falhou: {}",
+        String::from_utf8_lossy(&saida.stderr)
+    );
+    let relato = stdout(&saida);
+    assert!(relato.contains("status=PUBLISHED"));
+    // O relato precisa dizer QUEM validou antes de ativar: uma publicação que
+    // não conseguiu validar nada antes não pode se parecer com uma que validou.
+    assert!(
+        relato.contains("pre_activation_validation=pinker-manifest-verify"),
+        "o relato deve nomear a autoridade que julgou o candidato: {relato}"
+    );
+    assert!(cenario.manifest.is_file());
+    assert_eq!(
+        fs::read_link(&cenario.link).expect("ler link"),
+        cenario.release.join("bin/pink")
+    );
+    assert!(cenario.residuos().is_empty());
+    cenario.limpar();
+}
+
+#[cfg(unix)]
+#[test]
+fn candidato_rejeitado_nao_chega_a_ativar_nada() {
+    let cenario = cenario("candidato_rejeitado");
+    cenario.publicar(&[]);
+    let (sha, decoy) = cenario.com_estado_anterior_distinto();
+
+    // Reprovar na PRIMEIRA invocação do validador é reprovar o candidato, que
+    // por construção acontece antes da troca do launcher.
+    let saida = cenario.publicar(&[("PINK_TESTE_REPROVAR", "1")]);
+    assert!(!saida.status.success());
+    let erro = String::from_utf8_lossy(&saida.stderr);
+    assert!(
+        erro.contains("antes da ativação"),
+        "o erro precisa dizer que a reprovação foi anterior à ativação: {erro}"
+    );
+    cenario.exigir_estado_anterior(&sha, &decoy, "candidato rejeitado");
+    cenario.limpar();
+}
+
+#[cfg(unix)]
+#[test]
+fn launcher_publicado_que_nao_declara_o_commit_restaura_o_estado_anterior() {
+    let cenario = cenario("identidade_pos_ativacao");
+    cenario.publicar(&[]);
+    let (sha, decoy) = cenario.com_estado_anterior_distinto();
+
+    // Invocação 1 do launcher = conferência do bundle; invocação 2 = conferência
+    // do comando exposto, já ativado. Mentir só na segunda coloca a falha
+    // exatamente depois da ativação, sem mexer nos bytes conferidos por sha256.
+    let saida = cenario.publicar(&[("PINK_TESTE_MENTIR", "2")]);
+    assert!(!saida.status.success());
+    let erro = String::from_utf8_lossy(&saida.stderr);
+    assert!(erro.contains("não declara"), "erro inesperado: {erro}");
+    assert!(
+        erro.contains("RESTORED_EXACTLY"),
+        "a restauração precisa ser afirmada por observação, não presumida: {erro}"
+    );
+    cenario.exigir_estado_anterior(&sha, &decoy, "identidade divergente");
+    cenario.limpar();
+}
+
+#[cfg(unix)]
+#[test]
+fn manifest_rejeitado_depois_da_ativacao_restaura_o_estado_anterior() {
+    let cenario = cenario("manifest_pos_ativacao");
+    cenario.publicar(&[]);
+    let (sha, decoy) = cenario.com_estado_anterior_distinto();
+
+    // Invocação 2 do validador é a conferência do manifest já instalado: é o
+    // caso vivo da F2, em que o registro publicado é recusado pela autoridade.
+    let saida = cenario.publicar(&[("PINK_TESTE_REPROVAR", "2")]);
+    assert!(!saida.status.success());
+    let erro = String::from_utf8_lossy(&saida.stderr);
+    assert!(
+        erro.contains("rejeitado por pinker-manifest-verify"),
+        "erro inesperado: {erro}"
+    );
+    assert!(erro.contains("RESTORED_EXACTLY"), "erro inesperado: {erro}");
+    cenario.exigir_estado_anterior(&sha, &decoy, "manifest rejeitado");
+    cenario.limpar();
+}
+
+#[cfg(unix)]
+#[test]
+fn publicacao_falha_em_raiz_virgem_nao_deixa_release_nem_manifest() {
+    let cenario = cenario("raiz_virgem");
+    let saida = cenario.publicar(&[("PINK_TESTE_REPROVAR", "1")]);
+    assert!(!saida.status.success());
+    // Nada existia antes; a falha não pode inventar meia instalação. Uma release
+    // órfã é exatamente o resíduo que faz a próxima publicação achar que o
+    // trabalho já estava feito.
+    assert!(!cenario.release.exists(), "release órfã sobreviveu à falha");
+    assert!(
+        !cenario.manifest.exists(),
+        "manifest apareceu apesar da falha"
+    );
+    assert!(
+        !cenario.link.exists(),
+        "launcher foi exposto apesar da falha"
+    );
+    assert!(cenario.residuos().is_empty(), "{:?}", cenario.residuos());
+    cenario.limpar();
+}
+
+#[cfg(unix)]
+#[test]
+fn a_seam_de_isolamento_nunca_alcanca_a_instalacao_real() {
+    let dir = temp("seam");
+    let bundle_dir = bundle(&dir, SHA256);
+    // Sem a variável, o default é literalmente /opt: a seam não pode ter mudado
+    // o comportamento de produção.
+    let padrao = baseline(&["manifest", "--bundle", bundle_dir.to_str().unwrap()]);
+    assert!(stdout(&padrao).contains("\"/opt/pinker/bin/pink\""));
+
+    for alvo in ["/opt/pinker", "/", "relativo"] {
+        let saida = Command::new(root().join("scripts/pink-baseline"))
+            .args(["manifest", "--bundle", bundle_dir.to_str().unwrap()])
+            .current_dir(root())
+            .env("PINK_BASELINE_ROOT", alvo)
+            .output()
+            .expect("executar pink-baseline");
+        assert!(
+            !saida.status.success(),
+            "a seam aceitou uma raiz proibida: {alvo}"
+        );
+        assert!(String::from_utf8_lossy(&saida.stderr).contains("PINK_BASELINE_ROOT"));
+    }
+    fs::remove_dir_all(&dir).ok();
+}
+
 // @pinker-nav:end evidencia.tooling.f2.registros-derivados
