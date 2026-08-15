@@ -655,6 +655,15 @@ fn paridade_nativa_erros_utf8_e_timeouts_inclusive_hr5() {
         }
     }
 
+    // Evidência de timeout: erro do contrato MAIS ausência do marker de
+    // conclusão natural. O relógio de parede do programa inteiro não serve como
+    // autoridade semântica — ele inclui exec, carga do ELF, inicialização do
+    // runtime e o pipeline Pinker antes de a operação processual sequer começar.
+    //
+    //   WHOLE_PROGRAM_WALL_CLOCK != PROCESS_TIMEOUT_SEMANTIC_CLOCK
+    //
+    // A contenção temporal continua existindo no watchdog de 4 s do harness, que
+    // é proteção catastrófica e não SLA de `LimiteTempo`.
     for (nome, modo, janela, limite) in [
         ("timeout-zero", "sleep", "2000", "LimiteTempo.Ate(0)"),
         ("timeout-simples", "sleep", "2000", "LimiteTempo.Ate(150)"),
@@ -671,29 +680,92 @@ fn paridade_nativa_erros_utf8_e_timeouts_inclusive_hr5() {
             "LimiteTempo.Ate(150)",
         ),
     ] {
-        let codigo = fonte(
-            fixture,
-            &[modo.to_string(), janela.to_string()],
-            "",
-            "",
-            &BTreeMap::new(),
-            limite,
-            "falar(\"OK_INESPERADO\");",
-        );
-        let (i, n, tempo_i, tempo_n) =
-            paridade(&dir, nome, &codigo, &[], None, Duration::from_secs(4));
-        for texto in [
-            String::from_utf8(i.stdout).unwrap(),
-            String::from_utf8(n.stdout).unwrap(),
-        ] {
-            assert!(texto.starts_with("ERRO\n"), "{nome}: {texto}");
+        let marker_i = dir.path().join(format!("{nome}-interpretado.natural"));
+        let marker_n = dir.path().join(format!("{nome}-nativo.natural"));
+        for (sufixo, marker) in [("interpretado", &marker_i), ("nativo", &marker_n)] {
+            let codigo = fonte(
+                fixture,
+                &[
+                    modo.to_string(),
+                    janela.to_string(),
+                    marker.display().to_string(),
+                ],
+                "",
+                "",
+                &BTreeMap::new(),
+                limite,
+                "falar(\"OK_INESPERADO\");",
+            );
+            let programa = compilar(&dir, &format!("{nome}-{sufixo}"), &codigo);
+            let (output, _) = executar(
+                &programa,
+                sufixo == "nativo",
+                &[],
+                None,
+                Duration::from_secs(4),
+                &format!("{nome}-{sufixo}"),
+            );
+            let texto = String::from_utf8(output.stdout).unwrap();
+            assert!(texto.starts_with("ERRO\n"), "{nome}/{sufixo}: {texto}");
             assert!(
                 texto.contains("limite de tempo excedido"),
-                "{nome}: {texto}"
+                "{nome}/{sufixo}: {texto}"
+            );
+            assert!(
+                !marker.exists(),
+                "{nome}/{sufixo}: a fixture alcançou a conclusão natural apesar do timeout"
             );
         }
-        assert!(tempo_i < Duration::from_millis(1200), "{nome}: {tempo_i:?}");
-        assert!(tempo_n < Duration::from_millis(1200), "{nome}: {tempo_n:?}");
+    }
+
+    // Controle positivo do oráculo. Sem ele, "marker ausente" poderia
+    // significar apenas que a fixture nunca escreveria marker nenhum.
+    //
+    //   MARKER_ORACLE_REQUIRES_POSITIVE_CONTROL
+    for (nome, modo) in [
+        ("natural-sleep", "sleep"),
+        ("natural-continuous", "continuous-stdout"),
+    ] {
+        for sufixo in ["interpretado", "nativo"] {
+            let marker = dir.path().join(format!("{nome}-{sufixo}.natural"));
+            let codigo = fonte(
+                fixture,
+                &[
+                    modo.to_string(),
+                    "100".to_string(),
+                    marker.display().to_string(),
+                ],
+                "",
+                "",
+                &BTreeMap::new(),
+                // Limite folgado: a fixture conclui naturalmente.
+                "LimiteTempo.Ate(3000)",
+                "falar(\"CONCLUIU\");",
+            );
+            let programa = compilar(&dir, &format!("{nome}-{sufixo}"), &codigo);
+            let (output, _) = executar(
+                &programa,
+                sufixo == "nativo",
+                &[],
+                None,
+                Duration::from_secs(8),
+                &format!("{nome}-{sufixo}"),
+            );
+            let texto = String::from_utf8(output.stdout).unwrap();
+            assert!(
+                !texto.starts_with("ERRO\n"),
+                "{nome}/{sufixo}: deveria concluir sem timeout: {texto}"
+            );
+            assert!(
+                texto.contains("CONCLUIU"),
+                "{nome}/{sufixo}: a fixture deveria ter concluído: {texto}"
+            );
+            assert!(
+                marker.exists(),
+                "{nome}/{sufixo}: o marker precisa existir quando a fixture conclui, \
+                 senão a ausência dele não prova nada"
+            );
+        }
     }
 }
 
@@ -815,12 +887,14 @@ fn nativo_faz_um_spawn_accessors_nao_reexecutam_e_timeout_reapeia() {
 
     for ponta in ["interpretado", "nativo"] {
         let pidfile = dir.path().join(format!("timeout-{ponta}.pid"));
+        let marker = dir.path().join(format!("timeout-{ponta}.natural"));
         let codigo = fonte(
             fixture,
             &[
                 "sleep-pid".to_string(),
                 "2000".to_string(),
                 pidfile.display().to_string(),
+                marker.display().to_string(),
             ],
             "",
             "",
@@ -829,7 +903,7 @@ fn nativo_faz_um_spawn_accessors_nao_reexecutam_e_timeout_reapeia() {
             "falar(\"OK_INESPERADO\");",
         );
         let programa = compilar(&dir, &format!("reap-{ponta}"), &codigo);
-        let (output, elapsed) = executar(
+        let (output, _elapsed) = executar(
             &programa,
             ponta == "nativo",
             &[],
@@ -840,7 +914,13 @@ fn nativo_faz_um_spawn_accessors_nao_reexecutam_e_timeout_reapeia() {
         assert!(String::from_utf8(output.stdout)
             .unwrap()
             .starts_with("ERRO\n"));
-        assert!(elapsed < Duration::from_millis(1200));
+        // (A) o filho não chegou à conclusão natural...
+        assert!(
+            !marker.exists(),
+            "reap-{ponta}: a fixture concluiu naturalmente apesar do timeout"
+        );
+        // (B) ...e o filho DIRETO foi terminado e reapado. São duas
+        // propriedades distintas: o marker prova (A), o /proc prova (B).
         #[cfg(target_os = "linux")]
         assert!(!Path::new(&format!(
             "/proc/{}",
@@ -852,12 +932,15 @@ fn nativo_faz_um_spawn_accessors_nao_reexecutam_e_timeout_reapeia() {
     #[cfg(target_os = "linux")]
     for ponta in ["interpretado", "nativo"] {
         let pidfile = dir.path().join(format!("descendente-{ponta}.pid"));
+        // Marker do filho DIRETO, cuja janela natural é de 5 s neste modo.
+        let marker = dir.path().join(format!("descendente-{ponta}.natural"));
         let codigo = fonte(
             fixture,
             &[
                 "descendant".to_string(),
                 "2000".to_string(),
                 pidfile.display().to_string(),
+                marker.display().to_string(),
             ],
             "",
             "",
@@ -866,7 +949,7 @@ fn nativo_faz_um_spawn_accessors_nao_reexecutam_e_timeout_reapeia() {
             "falar(\"OK_INESPERADO\");",
         );
         let programa = compilar(&dir, &format!("descendente-{ponta}"), &codigo);
-        let (output, elapsed) = executar(
+        let (output, _elapsed) = executar(
             &programa,
             ponta == "nativo",
             &[],
@@ -877,7 +960,13 @@ fn nativo_faz_um_spawn_accessors_nao_reexecutam_e_timeout_reapeia() {
         assert!(String::from_utf8(output.stdout)
             .unwrap()
             .starts_with("ERRO\n"));
-        assert!(elapsed < Duration::from_millis(1200));
+        // O filho DIRETO não alcançou o fim da sua janela natural de 5 s. A
+        // política continua sendo `process_tree_scope = direct child`: nada aqui
+        // exige que o descendente tenha morrido.
+        assert!(
+            !marker.exists(),
+            "descendente-{ponta}: o filho direto concluiu naturalmente apesar do timeout"
+        );
         let pid = fs::read_to_string(&pidfile).unwrap().trim().to_string();
         assert!(!pid.is_empty(), "fixture descendente não atingida");
         // O runtime mata somente o filho direto. O watchdog ControlledCommand
