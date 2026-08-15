@@ -124,17 +124,8 @@ const BINARIO: &str = "3b176240af7e44f416dc193f9c5c09326139230e230ea2b9ae194d624
 const CRLF: &str = "18745f36a05e29072709042d6062ce54f1b08ff36c27ba80c39f81fb010c8ce2";
 const LF: &str = "7e18f737311b2dc3b2f269dd78396b0351f14fb66efa879f768cb23181883c78";
 
-/// Artefato do workflow real: 5000 bytes determinísticos, e o mesmo conteúdo
-/// com um único bit invertido no meio.
-const ARTEFATO_BYTES: usize = 5_000;
-const ARTEFATO: &str = "8026e5c96cf1e502c8deb3e89f8b8bc342f5039b871911a92eb10edf9c6542d3";
-
 fn grande_conteudo() -> Vec<u8> {
     (0..GRANDE_BYTES).map(|i| (i % 251) as u8).collect()
-}
-
-fn artefato_conteudo() -> Vec<u8> {
-    (0..ARTEFATO_BYTES).map(|i| (i % 256) as u8).collect()
 }
 
 fn escrever_caso(dir: &NativeArtifactDir, nome: &str, fonte: &str) -> PathBuf {
@@ -546,52 +537,96 @@ fn workflow_real_de_verificacao_de_integridade() {
         return;
     };
 
-    let dir = NativeArtifactDir::create().expect("diretório workflow Parte E2");
-    let artefato = dir.path().join("artefato.bin");
-    // Conteúdo binário real, do tipo que um artefato publicado tem.
+    // Aceitação read-only sobre CONTEÚDO REAL E VERSIONADO deste repositório,
+    // não sobre um arquivo inventado para o teste:
     //
-    // O digest esperado é o valor congelado do oráculo externo, não um valor
-    // recalculado por esta implementação: é assim que um manifesto de verdade
-    // funciona — o esperado vem de fora, de quem publicou o artefato.
-    let bytes = artefato_conteudo();
-    fs::write(&artefato, &bytes).expect("escrever artefato");
-    let digest_esperado = ARTEFATO.to_string();
+    // - `LICENSE`, estável desde a Fase 34;
+    // - `.pinker/changes/pr-378.yaml`, registro histórico de mudança que a
+    //   política forward-only trata como imutável.
+    //
+    // Os digests esperados vêm de oráculo externo, como o esperado de um
+    // manifesto de verdade vem de quem publicou o artefato — nunca recalculado
+    // pela implementação sob teste.
+    //
+    // O formato é o mesmo `sha256=<hex>` que `scripts/pink-baseline` já usa
+    // para conferir um bundle publicado. É o recorte de VERIFICAÇÃO desse
+    // workflow, não a ferramenta inteira: nada de build, publish, root ou
+    // instalação atômica.
+    //
+    // ```text
+    // REAL_INTEGRITY_WORKFLOW != FULL_TOOL_PORT
+    // ```
+    let raiz = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let reais: [(&str, &str); 2] = [
+        (
+            "LICENSE",
+            "5d4e64d9e1af36bb5a50289d272e5fa5c645c9f3e6be52d54e37f1826981c8fa",
+        ),
+        (
+            ".pinker/changes/pr-378.yaml",
+            "cedec2ce8bfc9e76952b3a01a108162a1ecec6fba12108d0b642368d3f37992e",
+        ),
+    ];
 
-    // Íntegro: o digest observado bate com o esperado do "manifesto".
-    let integro = paridade(
-        "verificacao_integra",
-        FONTE_VERIFICACAO,
-        &[
-            artefato.to_string_lossy().into_owned(),
-            digest_esperado.clone(),
-        ],
-        &runtime_lib,
-    );
-    integro.exigir("verificacao_integra", "INTEGRO\n");
-    assert_eq!(integro.exit_interpretador, Some(0));
+    for (relativo, esperado) in reais {
+        let alvo = raiz.join(relativo);
+        assert!(alvo.is_file(), "conteúdo real ausente: {relativo}");
 
-    // Corrompido: um único byte alterado tem de ser detectado.
-    let mut corrompido = bytes.clone();
-    corrompido[2500] ^= 0x01;
-    fs::write(&artefato, &corrompido).expect("corromper artefato");
+        // REAL_CONTENT -> SHA256 -> COMPARE_WITH_EXPECTED -> MATERIAL_DECISION
+        //
+        // Se este caso falhar, a leitura correta é que um arquivo versionado
+        // mudou — que é exatamente o que uma verificação de integridade existe
+        // para dizer, e não um defeito do SHA-256.
+        let caso = format!("integro_{}", relativo.replace(['/', '.'], "_"));
+        let integro = paridade(
+            &caso,
+            FONTE_VERIFICACAO,
+            &[alvo.to_string_lossy().into_owned(), esperado.to_string()],
+            &runtime_lib,
+        );
+        integro.exigir(&caso, "INTEGRO\n");
+        assert_eq!(
+            integro.exit_interpretador,
+            Some(0),
+            "{relativo}: exit íntegro"
+        );
+    }
+
+    // Adulteração de um único byte do conteúdo REAL tem de ser detectada.
+    // A cópia é adulterada num diretório temporário: a aceitação permanece
+    // read-only sobre o repositório.
+    let dir = NativeArtifactDir::create().expect("diretório workflow Parte E2");
+    let original = fs::read(raiz.join("LICENSE")).expect("ler LICENSE real");
+    let mut adulterado = original.clone();
+    let meio = adulterado.len() / 2;
+    adulterado[meio] ^= 0x01;
+    assert_ne!(adulterado, original, "a adulteração precisa mudar os bytes");
+    let copia = dir.path().join("LICENSE.adulterado");
+    fs::write(&copia, &adulterado).expect("escrever cópia adulterada");
+
     let detectado = paridade(
-        "verificacao_corrompida",
+        "verificacao_adulterada",
         FONTE_VERIFICACAO,
-        &[
-            artefato.to_string_lossy().into_owned(),
-            digest_esperado.clone(),
-        ],
+        &[copia.to_string_lossy().into_owned(), reais[0].1.to_string()],
         &runtime_lib,
     );
-    detectado.exigir("verificacao_corrompida", "CORROMPIDO\n");
-    assert_eq!(detectado.exit_interpretador, Some(1));
+    detectado.exigir("verificacao_adulterada", "CORROMPIDO\n");
+    assert_eq!(
+        detectado.exit_interpretador,
+        Some(1),
+        "um bit trocado no conteúdo real tem de virar decisão material"
+    );
 
-    // Ilegível: o artefato some, e a verificação distingue isso de corrupção.
-    fs::remove_file(&artefato).expect("remover artefato");
+    // Artefato ausente é decisão distinta de artefato corrompido: um manifesto
+    // que confundisse as duas mandaria investigar a coisa errada.
+    let ausente = dir.path().join("nao-publicado.bin");
     let ilegivel = paridade(
         "verificacao_ilegivel",
         FONTE_VERIFICACAO,
-        &[artefato.to_string_lossy().into_owned(), digest_esperado],
+        &[
+            ausente.to_string_lossy().into_owned(),
+            reais[0].1.to_string(),
+        ],
         &runtime_lib,
     );
     ilegivel.exigir("verificacao_ilegivel", "ILEGIVEL\n");
