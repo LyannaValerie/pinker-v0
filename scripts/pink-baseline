@@ -197,6 +197,20 @@ publish_link_target=''
 publish_link_backup=''
 publish_activated=''
 
+# Estado da transação. É o menor estado necessário para decidir, em QUALQUER
+# saída, se há algo a desfazer:
+#
+#   PRE_TRANSACTION  nada preparado, nada a desfazer
+#   PREPARED         staging e backups existem; nada exposto mudou
+#   ACTIVATED        entrou na região de commit; manifest e/ou link podem ter mudado
+#   COMMITTED        conferido; desfazer aqui seria destruir uma publicação boa
+#   FINALIZED        o funil já decidiu e já agiu; reentrar não pode desfazer de novo
+#
+# FINALIZED é a guarda de reentrância. Ela não é um flag à parte porque um flag à
+# parte seria um segundo mecanismo dizendo a mesma coisa que o estado.
+publish_state=PRE_TRANSACTION
+publish_abort_reason=''
+
 publish_cleanup_scratch() {
     [[ -n "$publish_scratch" && -d "$publish_scratch" ]] && rm -rf "$publish_scratch"
     return 0
@@ -264,13 +278,64 @@ publish_restoration_verdict() {
     printf '%s' "$verdict"
 }
 
+# Funil único de término.
+#
+# Com `set -e`, uma falha inesperada já vira saída do shell, então EXIT é o funil
+# natural e cobre tanto o abort explícito quanto o erro que ninguém roteou.
+# Somar um trap ERR ao de EXIT só produziria rollback duplo. INT e TERM não
+# desfazem nada por conta própria: eles apenas convertem o sinal em saída, para
+# que o mesmo funil decida, e depois devolvem a semântica do sinal.
+#
+# A limpeza do scratch é a ÚLTIMA coisa: é lá que vivem os backups, e apagá-los
+# antes de terminar a restauração é exatamente o defeito que este handler fecha.
+publish_finalize() {
+    local motivo="$1" verdict='NOT_ATTEMPTED' estado="$publish_state"
+    publish_state=FINALIZED
+
+    case "$estado" in
+        PREPARED | ACTIVATED)
+            # Durante a restauração o `set -e` sai de cena de propósito: um
+            # comando que falhe aqui não pode abortar o rollback pela metade nem
+            # reentrar no trap. A divergência é medida, não sofrida.
+            set +e
+            publish_restore
+            verdict="$(publish_restoration_verdict)"
+            set -e
+            ;;
+        COMMITTED | PRE_TRANSACTION | FINALIZED) verdict=NOT_NEEDED ;;
+    esac
+
+    [[ -n "$publish_abort_reason" ]] &&
+        printf 'pink-baseline: publicação abortada: %s\n' "$publish_abort_reason" >&2
+    if [[ "$verdict" != 'NOT_NEEDED' ]]; then
+        printf 'pink-baseline: término por %s; estado anterior %s\n' "$motivo" "$verdict" >&2
+    fi
+    publish_cleanup_scratch
+    # Restauração divergente é mais grave que o motivo do término: quem chamou
+    # precisa saber que o host ficou num estado que ninguém prometeu.
+    [[ "$verdict" == 'RESTORATION_DIVERGED' ]] && exit 3
+    return 0
+}
+
+publish_on_signal() {
+    local signo="$1"
+    trap - INT TERM EXIT
+    publish_finalize "SIG$signo"
+    trap - "$signo"
+    kill -"$signo" $$
+}
+
+publish_arm_traps() {
+    trap 'publish_finalize saída' EXIT
+    trap 'publish_on_signal INT' INT
+    trap 'publish_on_signal TERM' TERM
+}
+
+# O abort explícito não desfaz nada por conta própria: ele nomeia a causa e sai.
+# Quem desfaz é o funil. Assim existe um caminho de rollback só, e não dois que
+# podem divergir ou rodar em sequência.
 abort_publication() {
-    local reason="$1" verdict
-    publish_restore
-    verdict="$(publish_restoration_verdict)"
-    printf 'pink-baseline: publicação abortada: %s\n' "$reason" >&2
-    printf 'pink-baseline: estado anterior %s\n' "$verdict" >&2
-    [[ "$verdict" == 'RESTORED_EXACTLY' ]] || exit 3
+    publish_abort_reason="$1"
     exit 1
 }
 
@@ -396,9 +461,10 @@ EOF
 
         publish_scratch="$forja_root/pinker/releases/pink/.publish-${commit}-$$"
         [[ ! -e "$publish_scratch" ]] || fail "staging já existe"
-        # A limpeza é armada antes de haver o que limpar: armá-la depois deixaria
-        # uma janela em que um sinal entre criar e armar vaza o staging.
-        trap 'publish_cleanup_scratch' EXIT
+        # BEGIN. Os traps são armados antes de existir o que desfazer: armá-los
+        # depois deixaria uma janela em que um sinal entre criar e armar leva o
+        # staging embora sem passar pelo funil.
+        publish_arm_traps
         install -d "${own[@]}" "$publish_scratch"
 
         # Fase 1 — captura do estado vivo anterior, antes da primeira mutação.
@@ -419,6 +485,9 @@ EOF
         else
             publish_link_kind=absent
         fi
+        # PREPARE. A partir daqui existe o que desfazer, mesmo que nada exposto
+        # tenha mudado: a release preparada por esta tentativa não pode ficar.
+        publish_state=PREPARED
 
         # Fase 2 — preparo. O diretório da release entra por rename de staging e
         # nada exposto muda ainda. Se já existia, ele precisa bater com o bundle.
@@ -449,7 +518,9 @@ EOF
             pre_activation_validation=pinker-manifest-verify
         fi
 
-        # Fase 4 — commit operacional. Daqui até o fim, qualquer falha restaura.
+        # Fase 4 — commit operacional. ACTIVATE: daqui até a conferência passar,
+        # o estado vivo pode estar mudado, e qualquer término restaura.
+        publish_state=ACTIVATED
         install "${own[@]}" -m 0644 "$final" "$manifest" ||
             abort_publication "instalação do manifest falhou"
         next_link="$forja_root/pinker/bin/.pink-next-$$"
@@ -471,6 +542,13 @@ EOF
             pinker-manifest-verify "$manifest" >/dev/null ||
                 abort_publication "manifest emitido rejeitado por pinker-manifest-verify: $manifest"
         fi
+
+        # COMMIT. Só aqui o rollback é desarmado, e por estado, não por `trap -`:
+        # o funil continua armado para limpar o scratch, mas deixa de ter algo a
+        # desfazer. Desarmar antes desta linha deixaria uma publicação ativada e
+        # não conferida sem caminho de volta; desarmar por trap deixaria o
+        # scratch para trás.
+        publish_state=COMMITTED
         printf 'status=PUBLISHED\nbinary=%s\nrelease=%s\nmanifest=%s\ncommit=%s\npre_activation_validation=%s\n' \
             "$exposed_command" "$release_root" "$manifest" "$commit" "$pre_activation_validation"
         ;;

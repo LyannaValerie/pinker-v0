@@ -676,6 +676,11 @@ const COMMIT_OUTRO: &str = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 const LAUNCHER_STUB: &str = r#"#!/bin/sh
 n=$(( $(cat "$PINK_TESTE_CONTADOR" 2>/dev/null || echo 0) + 1 ))
 echo "$n" > "$PINK_TESTE_CONTADOR"
+if [ "$n" = "${PINK_TESTE_BLOQUEAR_LAUNCHER:-0}" ]; then
+  [ -n "${PINK_TESTE_SABOTAR_BIN:-}" ] && chmod 500 "$PINK_TESTE_SABOTAR_BIN"
+  echo "launcher:$n" > "$PINK_TESTE_ALCANCOU"
+  cat "$PINK_TESTE_PORTA" > /dev/null
+fi
 if [ "$1" = "--version-json" ]; then
   if [ "$n" = "${PINK_TESTE_MENTIR:-0}" ]; then
     printf '{"binary_commit":"@OUTRO@"}\n'
@@ -690,11 +695,21 @@ exit 0
 const VERIFICADOR_STUB: &str = r#"#!/bin/sh
 n=$(( $(cat "$PINK_TESTE_VERIFY_CONTADOR" 2>/dev/null || echo 0) + 1 ))
 echo "$n" > "$PINK_TESTE_VERIFY_CONTADOR"
+if [ "$n" = "${PINK_TESTE_BLOQUEAR_VERIFY:-0}" ]; then
+  echo "verify:$n" > "$PINK_TESTE_ALCANCOU"
+  cat "$PINK_TESTE_PORTA" > /dev/null
+fi
 if [ "$n" = "${PINK_TESTE_REPROVAR:-0}" ]; then
   exit 1
 fi
 exit 0
 "#;
+
+/// python3 que falha. Serve a um caso só: `render_manifest` é chamado DEPOIS de
+/// a release entrar por rename e usa `fail`, que é `exit 1` puro — uma saída
+/// inesperada que não passa por `abort_publication`.
+#[cfg(unix)]
+const PYTHON_QUE_FALHA: &str = "#!/bin/sh\nexit 7\n";
 
 #[cfg(unix)]
 fn sha256_de(path: &Path) -> String {
@@ -797,9 +812,124 @@ impl Cenario {
         command.output().expect("executar publish")
     }
 
+    /// Publica em sessão própria, espera a fase alvo ser REALMENTE alcançada e
+    /// só então sinaliza o grupo.
+    ///
+    /// A sincronização é handshake, não espera cega: o stub da fase alvo escreve
+    /// um arquivo e bloqueia lendo um FIFO, e o sinal só sai depois que esse
+    /// arquivo aparece. O poll existe para observar o handshake, não para
+    /// adivinhar o tempo da fase.
+    ///
+    /// O sinal vai ao GRUPO porque o bash pai fica preso dentro da substituição
+    /// de comando enquanto o stub bloqueia; sinalizar só o pai não o alcançaria
+    /// na fase desejada.
+    fn publicar_e_sinalizar(&self, sinal: &str, extra: &[(&str, &str)]) -> (i32, String) {
+        let porta = self.dir.join("porta");
+        let alcancou = self.dir.join("alcancou");
+        let pidfile = self.dir.join("pgid");
+        for caminho in [&porta, &alcancou, &pidfile] {
+            fs::remove_file(caminho).ok();
+        }
+        fs::remove_file(self.dir.join("contador")).ok();
+        fs::remove_file(self.dir.join("verify-contador")).ok();
+        assert!(
+            Command::new("mkfifo")
+                .arg(&porta)
+                .status()
+                .expect("mkfifo")
+                .success(),
+            "criar FIFO de handshake"
+        );
+
+        let path = format!(
+            "{}:{}",
+            self.stubs.display(),
+            std::env::var("PATH").unwrap_or_default()
+        );
+        // `setsid sh -c` faz do sh o líder de sessão: $$ é o pgid, e o `exec`
+        // preserva esse pid ao virar o publish.
+        let roteiro = format!(
+            "echo $$ > {pid}; exec {script} publish --bundle {bundle}",
+            pid = pidfile.display(),
+            script = root().join("scripts/pink-baseline").display(),
+            bundle = self.bundle.display()
+        );
+        let mut command = Command::new("setsid");
+        command
+            .args(["sh", "-c", &roteiro])
+            .current_dir(root())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .env("PATH", path)
+            .env("PINK_BASELINE_ROOT", &self.raiz)
+            .env("PINK_TESTE_CONTADOR", self.dir.join("contador"))
+            .env(
+                "PINK_TESTE_VERIFY_CONTADOR",
+                self.dir.join("verify-contador"),
+            )
+            .env("PINK_TESTE_PORTA", &porta)
+            .env("PINK_TESTE_ALCANCOU", &alcancou);
+        for (chave, valor) in extra {
+            command.env(chave, valor);
+        }
+        let mut filho = command.spawn().expect("iniciar publish");
+
+        let mut fase = String::new();
+        for _ in 0..600 {
+            if let Ok(conteudo) = fs::read_to_string(&alcancou) {
+                fase = conteudo.trim().to_string();
+                break;
+            }
+            if filho.try_wait().expect("try_wait").is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(25));
+        }
+        assert!(
+            !fase.is_empty(),
+            "a fase alvo não foi alcançada — o sinal seria enviado às cegas"
+        );
+
+        let pgid = fs::read_to_string(&pidfile)
+            .expect("pgid")
+            .trim()
+            .to_string();
+        Command::new("kill")
+            .args([&format!("-{sinal}"), &format!("-{pgid}")])
+            .status()
+            .expect("enviar sinal ao grupo");
+        // Destrava o FIFO caso o stub tenha sobrevivido; limitado no tempo para
+        // que abrir para escrita sem leitor nunca pendure o teste.
+        Command::new("timeout")
+            .args(["5", "sh", "-c", &format!("echo > {}", porta.display())])
+            .status()
+            .ok();
+
+        let saida = filho.wait_with_output().expect("aguardar publish");
+        fs::remove_file(&porta).ok();
+        let erro = String::from_utf8_lossy(&saida.stderr).to_string();
+        // O handler devolve a semântica do sinal matando o próprio processo com
+        // ele, então o filho morre PELO sinal e não tem código de saída. A
+        // convenção 128+n é a tradução usual, e é ela que prova que o sinal foi
+        // preservado em vez de virar um exit qualquer.
+        use std::os::unix::process::ExitStatusExt;
+        let codigo = match (saida.status.code(), saida.status.signal()) {
+            (Some(c), _) => c,
+            (None, Some(s)) => 128 + s,
+            (None, None) => -1,
+        };
+        (codigo, format!("{fase}\n{erro}"))
+    }
+
     /// Estado vivo anterior deliberadamente diferente do que a republicação
     /// produziria. Restauração só é observável contra um anterior distinto.
     fn com_estado_anterior_distinto(&self) -> (String, PathBuf) {
+        for pai in [self.manifest.parent(), self.link.parent()]
+            .into_iter()
+            .flatten()
+        {
+            fs::create_dir_all(pai).expect("criar diretório do estado anterior");
+        }
         fs::write(&self.manifest, "manifest anterior invalido {\n").expect("manifest anterior");
         let decoy = self.raiz.join("pinker/releases/decoy/bin/pink");
         fs::create_dir_all(decoy.parent().unwrap()).expect("criar decoy");
@@ -972,6 +1102,188 @@ fn publicacao_falha_em_raiz_virgem_nao_deixa_release_nem_manifest() {
         "launcher foi exposto apesar da falha"
     );
     assert!(cenario.residuos().is_empty(), "{:?}", cenario.residuos());
+    cenario.limpar();
+}
+
+// ---------------------------------------------------------------------------
+// Término inesperado
+//
+// A transação anterior cobria só as falhas que chegavam a `abort_publication`.
+// O único trap era `EXIT -> publish_cleanup_scratch`, e o scratch é justamente
+// onde vivem os backups: qualquer saída que não fosse pela rota explícita
+// apagava a única forma de voltar. Reproduzido antes de corrigir — SIGTERM
+// durante a conferência pós-ativação deixava manifest e launcher ativados,
+// não conferidos, e sem estado anterior.
+//
+// Agora há um funil só. `set -e` já transforma falha inesperada em saída, então
+// EXIT é o funil natural; INT e TERM apenas convertem o sinal em saída e depois
+// devolvem a semântica dele. O estado da transação decide o que desfazer, e a
+// limpeza do scratch é sempre a última coisa.
+// ---------------------------------------------------------------------------
+
+#[cfg(unix)]
+#[test]
+fn t1_sinal_antes_da_ativacao_nao_deixa_nada_ativo_nem_release_orfa() {
+    let cenario = cenario("t1_term_pre_ativacao");
+    let (sha, decoy) = cenario.com_estado_anterior_distinto();
+
+    // Bloquear a primeira invocação do validador é parar exatamente na
+    // prevalidation: a release já entrou por rename, nada foi ativado.
+    let (codigo, relato) =
+        cenario.publicar_e_sinalizar("TERM", &[("PINK_TESTE_BLOQUEAR_VERIFY", "1")]);
+    assert!(
+        relato.starts_with("verify:1"),
+        "fase alvo inesperada: {relato}"
+    );
+    assert_eq!(codigo, 143, "TERM precisa preservar a semântica do sinal");
+
+    cenario.exigir_estado_anterior(&sha, &decoy, "T1");
+    assert!(
+        !cenario.release.exists(),
+        "a release preparada por esta tentativa não pode ficar órfã"
+    );
+    cenario.limpar();
+}
+
+#[cfg(unix)]
+#[test]
+fn t2_sigterm_depois_da_ativacao_restaura_o_estado_anterior() {
+    let cenario = cenario("t2_term_pos_ativacao");
+    cenario.publicar(&[]);
+    let (sha, decoy) = cenario.com_estado_anterior_distinto();
+
+    // Invocação 1 do launcher é a conferência do bundle; a 2 é a do comando
+    // exposto, já ativado. Bloquear ali põe o sinal na janela em que o estado
+    // vivo mudou e ainda não foi conferido — a janela que estava descoberta.
+    let (codigo, relato) =
+        cenario.publicar_e_sinalizar("TERM", &[("PINK_TESTE_BLOQUEAR_LAUNCHER", "2")]);
+    assert!(
+        relato.starts_with("launcher:2"),
+        "fase alvo inesperada: {relato}"
+    );
+    assert_eq!(codigo, 143);
+    assert!(
+        relato.contains("RESTORED_EXACTLY"),
+        "a restauração precisa ser afirmada por observação: {relato}"
+    );
+    cenario.exigir_estado_anterior(&sha, &decoy, "T2");
+    cenario.limpar();
+}
+
+#[cfg(unix)]
+#[test]
+fn t3_sigint_em_fase_material_restaura_igualmente() {
+    let cenario = cenario("t3_int");
+    cenario.publicar(&[]);
+    let (sha, decoy) = cenario.com_estado_anterior_distinto();
+
+    let (codigo, relato) =
+        cenario.publicar_e_sinalizar("INT", &[("PINK_TESTE_BLOQUEAR_LAUNCHER", "2")]);
+    assert!(
+        relato.starts_with("launcher:2"),
+        "fase alvo inesperada: {relato}"
+    );
+    assert_eq!(codigo, 130, "INT precisa preservar a semântica do sinal");
+    cenario.exigir_estado_anterior(&sha, &decoy, "T3");
+    cenario.limpar();
+}
+
+#[cfg(unix)]
+#[test]
+fn t4_falha_inesperada_sob_set_e_restaura_em_vez_de_so_limpar() {
+    let cenario = cenario("t4_set_e");
+    let (sha, decoy) = cenario.com_estado_anterior_distinto();
+
+    // `render_manifest` roda depois de a release entrar por rename e chama
+    // `fail`, que é `exit 1` puro: uma saída que nunca passou por
+    // `abort_publication`. Antes, isso deixava release órfã e apagava backups.
+    let python = cenario.stubs.join("python3");
+    fs::write(&python, PYTHON_QUE_FALHA).expect("escrever python3 que falha");
+    make_executable(&python);
+
+    let saida = cenario.publicar(&[]);
+    assert!(!saida.status.success());
+    cenario.exigir_estado_anterior(&sha, &decoy, "T4");
+    assert!(
+        !cenario.release.exists(),
+        "falha não roteada também precisa desfazer a release preparada"
+    );
+    fs::remove_file(&python).ok();
+    cenario.limpar();
+}
+
+#[cfg(unix)]
+#[test]
+fn t5_caminho_de_sucesso_nao_executa_rollback() {
+    let cenario = cenario("t5_sucesso");
+    cenario.publicar(&[]);
+    // Estado anterior distinto para que um rollback indevido seja visível: se o
+    // funil desfizesse depois do commit, o decoy voltaria.
+    let (_sha, decoy) = cenario.com_estado_anterior_distinto();
+
+    let saida = cenario.publicar(&[]);
+    assert!(
+        saida.status.success(),
+        "{}",
+        String::from_utf8_lossy(&saida.stderr)
+    );
+    let relato = stdout(&saida);
+    assert!(relato.contains("status=PUBLISHED"));
+    assert!(
+        !String::from_utf8_lossy(&saida.stderr).contains("estado anterior"),
+        "sucesso não pode emitir veredito de restauração"
+    );
+    assert_eq!(
+        fs::read_link(&cenario.link).expect("ler link"),
+        cenario.release.join("bin/pink"),
+        "o estado novo precisa permanecer ativo"
+    );
+    assert_ne!(
+        fs::read_link(&cenario.link).expect("ler link"),
+        decoy,
+        "o rollback não pode ter rodado no caminho de sucesso"
+    );
+    assert!(cenario.residuos().is_empty(), "{:?}", cenario.residuos());
+    cenario.limpar();
+}
+
+#[cfg(unix)]
+#[test]
+fn t6_falha_durante_o_proprio_rollback_termina_como_divergente() {
+    let cenario = cenario("t6_rollback_falho");
+    cenario.publicar(&[]);
+    let (_sha, _decoy) = cenario.com_estado_anterior_distinto();
+
+    // O stub sabota o diretório do launcher ANTES de bloquear, então a
+    // restauração do symlink não tem como funcionar. O contrato aqui não é
+    // "restaurar sempre" — é não mentir: sem recursão, sem laço, e com terminal
+    // de alta severidade dizendo que o anterior não voltou.
+    let bin = cenario.raiz.join("pinker/bin");
+    let (codigo, relato) = cenario.publicar_e_sinalizar(
+        "TERM",
+        &[
+            ("PINK_TESTE_BLOQUEAR_LAUNCHER", "2"),
+            ("PINK_TESTE_SABOTAR_BIN", bin.to_str().unwrap()),
+        ],
+    );
+    make_executable(&bin); // devolve a permissão para poder limpar
+    assert!(
+        relato.starts_with("launcher:2"),
+        "fase alvo inesperada: {relato}"
+    );
+    assert!(
+        relato.contains("RESTORATION_DIVERGED"),
+        "restauração impossível precisa terminar como divergente: {relato}"
+    );
+    assert_eq!(
+        codigo, 3,
+        "divergência de restauração é mais grave que o sinal e precisa de terminal próprio"
+    );
+    assert_eq!(
+        relato.matches("estado anterior").count(),
+        1,
+        "o rollback não pode rodar duas vezes nem recursar: {relato}"
+    );
     cenario.limpar();
 }
 
