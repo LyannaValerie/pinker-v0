@@ -13,6 +13,10 @@ use std::time::Duration;
 // @pinker-nav:summary Evidência da Parte E2: SHA-256 geral sobre `verso` e sobre arquivo atravessa interpretador e ELF nativo com digest idêntico byte a byte. A matriz fixa os vetores oficiais de FIPS 180-4 (vazio, `abc`, multibloco), prova que o domínio é BYTE e não codepoint por UTF-8 multibyte e por duas sequências Unicode distintas, prova que newline não é normalizado, e cobre no arquivo os casos que a leitura textual histórica não alcança — UTF-8 inválido, NUL, CRLF preservado e arquivo grande de múltiplos blocos —, além de vazio, ausente, diretório, permissão e symlink seguido. As falhas recuperáveis atravessam `Resultado<verso,verso>` como valor, e a forma canônica do digest (64 caracteres hexadecimais minúsculos, sem prefixo) é asserida em vez de presumida.
 
 /// Digest de `verso`: superfície pura, sem `Resultado`.
+///
+/// Os dois últimos são os vetores oficiais de 448 e 896 bits de FIPS 180-4:
+/// 56 bytes, que já atravessa dois blocos por causa do padding, e 112 bytes,
+/// que atravessa múltiplos blocos por conteúdo.
 const FONTE_VERSO: &str = r#"
 pacote main;
 
@@ -20,6 +24,7 @@ carinho principal() -> bombom {
     falar(sha256_verso(""));
     falar(sha256_verso("abc"));
     falar(sha256_verso("abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq"));
+    falar(sha256_verso("abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu"));
     mimo 0;
 }
 "#;
@@ -94,9 +99,43 @@ carinho principal() -> bombom {
 }
 "#;
 
+// Digests esperados. TODOS são independentes desta implementação: os quatro
+// primeiros são vetores publicados de FIPS 180-4 e os demais foram derivados
+// por um oráculo externo (hashlib) durante o desenvolvimento e congelados aqui.
+//
+// ```text
+// EXTERNAL_ORACLE_MAY_VALIDATE BUT MUST_NOT_IMPLEMENT_THE_FEATURE
+// ```
+//
+// Congelar o valor em vez de recalculá-lo em tempo de teste é o que mantém a
+// suíte independente de ferramenta externa no CI — e é também o que impede o
+// erro clássico de comparar a implementação com ela mesma, que passaria mesmo
+// se ela estivesse inteiramente errada.
 const VAZIO: &str = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
 const ABC: &str = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
 const MULTIBLOCO: &str = "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1";
+const MULTIBLOCO_LONGO: &str = "cf5b16a778af8380036ce59e7b0492370b249b11e8f07a51afac45037afee9d1";
+
+/// Conteúdo do arquivo grande: determinístico, 300000 bytes, muitos blocos e
+/// mais de uma leitura do buffer de 64 KiB.
+const GRANDE_BYTES: usize = 300_000;
+const GRANDE: &str = "3c65ea93424a9c362fec0e3a69ea36031e8a358441479dd665cc6110eabe7b08";
+const BINARIO: &str = "3b176240af7e44f416dc193f9c5c09326139230e230ea2b9ae194d6240a4da7d";
+const CRLF: &str = "18745f36a05e29072709042d6062ce54f1b08ff36c27ba80c39f81fb010c8ce2";
+const LF: &str = "7e18f737311b2dc3b2f269dd78396b0351f14fb66efa879f768cb23181883c78";
+
+/// Artefato do workflow real: 5000 bytes determinísticos, e o mesmo conteúdo
+/// com um único bit invertido no meio.
+const ARTEFATO_BYTES: usize = 5_000;
+const ARTEFATO: &str = "8026e5c96cf1e502c8deb3e89f8b8bc342f5039b871911a92eb10edf9c6542d3";
+
+fn grande_conteudo() -> Vec<u8> {
+    (0..GRANDE_BYTES).map(|i| (i % 251) as u8).collect()
+}
+
+fn artefato_conteudo() -> Vec<u8> {
+    (0..ARTEFATO_BYTES).map(|i| (i % 256) as u8).collect()
+}
 
 fn escrever_caso(dir: &NativeArtifactDir, nome: &str, fonte: &str) -> PathBuf {
     let caminho = dir.path().join(format!("{nome}.pink"));
@@ -238,7 +277,7 @@ fn sha256_verso_bate_vetores_oficiais_com_paridade() {
         return;
     };
 
-    let esperado = format!("{VAZIO}\n{ABC}\n{MULTIBLOCO}\n");
+    let esperado = format!("{VAZIO}\n{ABC}\n{MULTIBLOCO}\n{MULTIBLOCO_LONGO}\n");
     let vetores = paridade("verso_vetores", FONTE_VERSO, &[], &runtime_lib);
     vetores.exigir("verso_vetores", &esperado);
 
@@ -273,6 +312,17 @@ fn sha256_verso_opera_sobre_bytes_utf8_e_nao_codepoints() {
 
     // Pré-composto (U+00E9) e decomposto (U+0065 U+0301) renderizam igual mas
     // têm bytes UTF-8 diferentes: normalização Unicode implícita os colapsaria.
+    //
+    // Ambos conferidos contra valor conhecido, não só entre si: dois digests
+    // errados também seriam diferentes um do outro.
+    assert_eq!(
+        linhas[2], "4a99557e4033c3539de2eb65472017cad5f9557f7a0625a09f1c3f6e2ba69c4c",
+        "é pré-composto (U+00E9)"
+    );
+    assert_eq!(
+        linhas[3], "bf12767b0f2a56b2190075bae8169f656e3ce8d6357d4aff184bc6c7ea48f9f6",
+        "é decomposto (U+0065 U+0301)"
+    );
     assert_ne!(
         linhas[2], linhas[3],
         "sequências Unicode com bytes diferentes não podem colapsar no mesmo digest"
@@ -315,9 +365,15 @@ carinho principal() -> bombom {
     let stdout = String::from_utf8_lossy(&saida.stdout);
     let linhas: Vec<&str> = stdout.lines().collect();
     assert_eq!(linhas.len(), 2, "dois digests esperados");
+    // Valor conhecido de "a\0b", derivado por oráculo externo: o NUL entra no
+    // digest em vez de truncar a entrada.
+    assert_eq!(
+        linhas[0], "59b271ae1bbcb1d31d41929817f4b16fb439eb4f31520b5ad1d5ce98920a7138",
+        "NUL embutido tem de participar do digest"
+    );
     assert_ne!(
         linhas[0], linhas[1],
-        "o NUL embutido tem de participar do digest"
+        "\"a\\0b\" não pode colapsar em \"ab\""
     );
     exigir_forma_canonica("verso_nul", linhas[0]);
 }
@@ -354,8 +410,7 @@ fn sha256_arquivo_cobre_bytes_exatos_com_paridade() {
 
     // Grande o bastante para múltiplas leituras e muitos blocos SHA-256.
     let grande = base.join("grande.bin");
-    let conteudo_grande: Vec<u8> = (0..300_000u32).map(|i| (i % 251) as u8).collect();
-    fs::write(&grande, &conteudo_grande).expect("escrever grande");
+    fs::write(&grande, grande_conteudo()).expect("escrever grande");
 
     let digest_de = |nome: &str, caminho: &Path| -> String {
         let execucao = paridade(nome, FONTE_ARQUIVO, &arg(caminho), &runtime_lib);
@@ -368,24 +423,28 @@ fn sha256_arquivo_cobre_bytes_exatos_com_paridade() {
     assert_eq!(digest_de("arq_vazio", &vazio), VAZIO, "arquivo vazio");
     assert_eq!(digest_de("arq_textual", &textual), ABC, "arquivo textual");
 
-    // O binário produz digest — prova de que não há validação UTF-8 no caminho.
-    let digest_binario = digest_de("arq_binario", &binario);
-    assert_ne!(digest_binario, VAZIO, "binário não pode virar vazio");
-
-    // CRLF e LF são conteúdos diferentes e têm de ter digests diferentes.
-    assert_ne!(
-        digest_de("arq_crlf", &crlf),
-        digest_de("arq_lf", &lf),
-        "newline do arquivo não pode ser normalizado"
+    // Binário com UTF-8 inválido e NUL: valor conhecido, derivado por oráculo
+    // externo. `read_to_string` teria falhado antes de chegar ao digest, então
+    // este caso é o que separa hash de arquivo de leitura textual.
+    assert_eq!(
+        digest_de("arq_binario", &binario),
+        BINARIO,
+        "arquivo binário/UTF-8 inválido"
     );
 
-    // Arquivo grande: o digest tem de bater com o do mesmo conteúdo calculado
-    // de uma tacada só pelo núcleo compartilhado — prova de que o streaming
-    // interno não altera o resultado.
+    // CRLF e LF: valores conhecidos e distintos. Normalizar fim de linha
+    // transformaria o primeiro no segundo.
+    assert_eq!(digest_de("arq_crlf", &crlf), CRLF, "CRLF preservado");
+    assert_eq!(digest_de("arq_lf", &lf), LF, "LF preservado");
+    assert_ne!(CRLF, LF, "CRLF e LF são conteúdos diferentes");
+
+    // Arquivo grande: valor conhecido. Bater com ele prova de uma vez que o
+    // streaming interno atravessa múltiplas leituras e múltiplos blocos sem
+    // alterar o resultado — sem comparar a implementação com ela mesma.
     assert_eq!(
         digest_de("arq_grande", &grande),
-        pinker_sha256_contract::sha256_hex(&conteudo_grande),
-        "streaming interno divergiu do cálculo de uma tacada só"
+        GRANDE,
+        "arquivo grande de múltiplos blocos"
     );
 }
 
@@ -490,9 +549,13 @@ fn workflow_real_de_verificacao_de_integridade() {
     let dir = NativeArtifactDir::create().expect("diretório workflow Parte E2");
     let artefato = dir.path().join("artefato.bin");
     // Conteúdo binário real, do tipo que um artefato publicado tem.
-    let bytes: Vec<u8> = (0..5000u32).map(|i| (i % 256) as u8).collect();
+    //
+    // O digest esperado é o valor congelado do oráculo externo, não um valor
+    // recalculado por esta implementação: é assim que um manifesto de verdade
+    // funciona — o esperado vem de fora, de quem publicou o artefato.
+    let bytes = artefato_conteudo();
     fs::write(&artefato, &bytes).expect("escrever artefato");
-    let digest_esperado = pinker_sha256_contract::sha256_hex(&bytes);
+    let digest_esperado = ARTEFATO.to_string();
 
     // Íntegro: o digest observado bate com o esperado do "manifesto".
     let integro = paridade(
