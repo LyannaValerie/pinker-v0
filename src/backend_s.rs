@@ -3675,6 +3675,11 @@ fn runtime_intrinsic_symbol(callee: &str) -> Option<&'static str> {
     if let Some(simbolo) = crate::valor_json::simbolo_runtime(callee) {
         return Some(simbolo);
     }
+    // Parte E2: mesma disciplina — a família SHA-256 declara nome e símbolo
+    // numa autoridade só e o backend consulta em vez de copiar a lista.
+    if let Some(simbolo) = crate::sha256::simbolo_runtime(callee) {
+        return Some(simbolo);
+    }
     match callee {
         "alocar" => Some("pinker_publico_alocar"),
         "liberar" => Some("pinker_publico_liberar"),

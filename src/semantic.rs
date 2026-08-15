@@ -7850,6 +7850,33 @@ impl SemanticChecker {
             }
             return Ok(Type::Verso(expr_span));
         }
+        // Parte E2: `sha256_verso(verso) -> verso`. Aridade e tipo errados são
+        // INVALID_PROGRAM_USE — erro de compilação, nunca `Resultado`.
+        if name == crate::sha256::intrinsecas::VERSO {
+            if args.len() != 1 {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "chamada de 'sha256_verso' com aridade inválida: esperado 1, recebido {}",
+                        args.len()
+                    ),
+                    span: expr_span,
+                });
+            }
+            let arg_ty = self.check_value_expr(
+                &args[0],
+                "resultado de função sem retorno não pode ser usado como argumento",
+            )?;
+            if !matches!(arg_ty, Type::Verso(_)) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo inválido no argumento 1 da chamada 'sha256_verso': esperado 'verso', encontrado '{}'",
+                        arg_ty.name()
+                    ),
+                    span: args[0].span,
+                });
+            }
+            return Ok(Type::Verso(expr_span));
+        }
         if name == "minusculo_verso" {
             if args.len() != 1 {
                 return Err(PinkerError::Semantic {

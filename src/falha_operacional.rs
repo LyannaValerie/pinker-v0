@@ -238,6 +238,8 @@ pub enum OperacaoFalivel {
     ExecutarProcessoEstruturado,
     /// Parte E1: interpreta texto JSON externo em valor estruturado.
     InterpretarJson,
+    /// Parte E2: hash SHA-256 dos bytes exatos de um arquivo por caminho.
+    HashArquivo,
 }
 
 /// Uma superfície que devolve falha operacional recuperável como valor.
@@ -508,6 +510,33 @@ pub const SUPERFICIES_FALIVEIS: &[SuperficieFalivel] = &[
         // `mapa<verso,bombom>` e aborta. Registrar um gêmeo aqui inventaria uma
         // compatibilidade que não existe — a reconciliação das duas é feita
         // pela implementação comum, não por este campo.
+        historica: None,
+    },
+    // Parte E2 — SHA-256 dos bytes EXATOS de um arquivo por caminho.
+    // Sem gêmeo histórico: a capacidade não existia, e verificar integridade em
+    // Pinker exigia delegar a `sha256sum`. A carga de sucesso é o digest na
+    // forma canônica (`verso` de 64 caracteres hexadecimais minúsculos), então
+    // nenhuma carga nova é inventada.
+    //
+    // A leitura é em BYTES, deliberadamente distinta de `ler_arquivo_resultado`:
+    // aquela usa `read_to_string` e rejeita UTF-8 inválido, o que tornaria
+    // impossível hashear um arquivo binário — e um hash que recusa metade dos
+    // arquivos não é hash de arquivo.
+    //
+    // Symlink é SEGUIDO, porque isto é uma operação de open/read e reutiliza a
+    // política vigente dessa família. Não confundir com o no-follow de
+    // `tipo_de_entrada`/`tamanho_de_entrada`, que usam `symlink_metadata`.
+    //
+    // Não abre handle visível ao usuário: o arquivo é aberto, lido em streaming
+    // e fechado dentro da própria chamada, logo uma falha não pode deixar
+    // recurso parcialmente vivo nem sem dono.
+    SuperficieFalivel {
+        intrinseca: crate::sha256::ARQUIVO,
+        operacao: OperacaoFalivel::HashArquivo,
+        argumentos: ASSINATURA_VERSO,
+        sucesso: CargaResultado::Verso,
+        falha: CargaResultado::Verso,
+        simbolo_runtime: crate::sha256::SIMBOLO_ARQUIVO,
         historica: None,
     },
 ];

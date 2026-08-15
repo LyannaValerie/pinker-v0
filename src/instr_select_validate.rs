@@ -221,6 +221,11 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
             .expect("acessor JSON sem assinatura na autoridade");
         sigs.insert(nome.to_string(), retorno);
     }
+    for nome in crate::sha256::ACESSORES {
+        let (retorno, _) = crate::sha256::assinatura_ir(nome)
+            .expect("acessor SHA-256 sem assinatura na autoridade");
+        sigs.insert(nome.to_string(), retorno);
+    }
     sigs.insert(
         crate::saida_processo::ACESSOR_CODIGO.to_string(),
         TypeIR::Bombom,
