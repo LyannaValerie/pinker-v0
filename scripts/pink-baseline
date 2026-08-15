@@ -5,9 +5,14 @@ usage() {
     cat <<'EOF'
 Uso:
   scripts/pink-baseline build --output DIRETÓRIO
+  scripts/pink-baseline manifest --bundle DIRETÓRIO [--release-root DIRETÓRIO]
+  scripts/pink-baseline ficha --bundle DIRETÓRIO [--release-root DIRETÓRIO]
+                              [--perfil NOME] [--data AAAA-MM-DD]
   sudo scripts/pink-baseline publish --bundle DIRETÓRIO
 
 build cria um bundle release identificado como usuário comum.
+manifest e ficha apenas renderizam registros derivados do bundle, sem root e
+sem escrever fora da saída padrão.
 publish valida o bundle e troca /opt/pinker/bin/pink atomicamente como root.
 EOF
 }
@@ -19,6 +24,135 @@ fail() {
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "$script_dir/.." && pwd)"
+
+exposed_command='/opt/pinker/bin/pink'
+
+# Lê identity.env do bundle para as variáveis de identidade. Um bundle é a única
+# origem aceita: nada aqui recalcula versão, commit ou checksum por conta própria.
+read_bundle_identity() {
+    local bundle="$1"
+    [[ -d "$bundle" && -x "$bundle/pink" && -f "$bundle/identity.env" ]] || fail "bundle incompleto"
+    schema=''
+    version=''
+    commit=''
+    expected_sha256=''
+    source=''
+    while IFS='=' read -r key value; do
+        case "$key" in
+            schema) schema="$value" ;;
+            version) version="$value" ;;
+            commit) commit="$value" ;;
+            sha256) expected_sha256="$value" ;;
+            source) source="$value" ;;
+            *) fail "campo desconhecido no bundle: $key" ;;
+        esac
+    done <"$bundle/identity.env"
+    [[ "$schema" == 'forja-pink-bundle-v1' ]] || fail "schema do bundle inválido"
+    [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "versão inválida"
+    [[ "$commit" =~ ^[0-9a-f]{40}$ ]] || fail "commit inválido"
+    [[ "$expected_sha256" =~ ^[0-9a-f]{64}$ ]] || fail "SHA-256 esperado inválido"
+    [[ "$source" =~ ^/[A-Za-z0-9_./-]+$ ]] || fail "origem do bundle inválida"
+}
+
+# O manifest é serializado pela mesma construção que a autoridade validadora usa
+# para decidir se a forma é canônica (json.dumps ordenado, indent=2). Formatar
+# JSON à mão dentro de heredoc já produziu manifest inválido; a corretude aqui é
+# por construção, não por acerto de aspas.
+render_manifest() {
+    local release_root="$1"
+    command -v python3 >/dev/null 2>&1 || fail "python3 ausente: renderização canônica indisponível"
+    PINK_VERSION="$version" \
+        PINK_COMMIT="$commit" \
+        PINK_SHA256="$expected_sha256" \
+        PINK_SOURCE="$source" \
+        PINK_RELEASE_ROOT="$release_root" \
+        PINK_EXPOSED="$exposed_command" \
+        PINK_BUNDLE_SCHEMA="$schema" \
+        python3 - <<'PYTHON'
+import json
+import os
+
+release_root = os.environ["PINK_RELEASE_ROOT"]
+exposed = os.environ["PINK_EXPOSED"]
+commit = os.environ["PINK_COMMIT"]
+sha256 = os.environ["PINK_SHA256"]
+release_binary = f"{release_root}/bin/pink"
+
+# O comando exposto é um symlink para o binário da release: o validador segue o
+# link ao somar o checksum, então ambos os caminhos declaram o mesmo digest.
+declared = sorted({release_binary, exposed})
+
+print(
+    json.dumps(
+        {
+            "checksums": [{"path": path, "sha256": sha256} for path in declared],
+            "exposed_commands": [exposed],
+            "installation_root": release_root,
+            "installed_executables": [release_binary],
+            "name": "Pinker CLI",
+            "ownership_policy": {
+                "group": "root",
+                "owner": "root",
+                "writable_by_non_admin": False,
+            },
+            "schema": "forja-software-manifest-v1",
+            "source_or_provenance": {
+                "kind": "repository-release-build",
+                "source": os.environ["PINK_SOURCE"],
+                "commit": commit,
+                "bundle_schema": os.environ["PINK_BUNDLE_SCHEMA"],
+            },
+            "verification": {
+                "command": [exposed, "--version-json"],
+                "expected_contains": f'"binary_commit":"{commit}"',
+            },
+            "version": os.environ["PINK_VERSION"],
+            "wrappers": [],
+        },
+        ensure_ascii=False,
+        indent=2,
+        sort_keys=True,
+    )
+)
+PYTHON
+}
+
+# Ficha de catálogo da Forja derivada do mesmo bundle. Não escreve em
+# /pinker/msg: o regime de escrita daquele espaço é por perfil e pertence ao
+# agente, não ao publicador administrativo.
+render_ficha() {
+    local release_root="$1" perfil="$2" data="$3"
+    [[ -n "$perfil" ]] || fail "perfil vazio"
+    [[ "$data" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || fail "data inválida: $data"
+    cat <<EOF
+---
+tipo: ferramenta
+nome: pink
+versao: $version
+perfil: $perfil
+data: $data
+pinker: nao
+motivo_pinker: é o próprio compilador e CLI da Pinker, escrito em Rust, e precisa existir antes de qualquer build Pinker
+invocacao: pink
+local: $exposed_command (release em $release_root)
+arquivo_principal: $exposed_command
+executavel: sim
+interface_padrao: sim
+estado: instalado
+linguagem: Rust
+resumo: launcher canônico da Pinker publicado por scripts/pink-baseline, com identidade verificável por --version-json
+---
+
+# \`pink\`
+
+Registro derivado de \`scripts/pink-baseline ficha\`, não digitado à mão.
+A release publicada é \`$commit\` e o comando exposto é \`$exposed_command\`.
+
+\`interface_padrao\` está declarado porque o próprio launcher responde
+\`--help\` e \`--version\`: a saúde derivada desta entrada passa a depender do
+launcher real, e não apenas da existência de metadata.
+EOF
+}
 
 [[ $# -ge 1 ]] || {
     usage >&2
@@ -71,6 +205,50 @@ EOF
         trap - EXIT
         printf 'bundle=%s\ncommit=%s\nsha256=%s\n' "$output" "$commit" "$sha256"
         ;;
+    manifest)
+        bundle=''
+        release_root=''
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                --bundle) [[ $# -ge 2 ]] || { usage >&2; exit 2; }; bundle="$2"; shift 2 ;;
+                --release-root) [[ $# -ge 2 ]] || { usage >&2; exit 2; }; release_root="$2"; shift 2 ;;
+                *) usage >&2; exit 2 ;;
+            esac
+        done
+        [[ -n "$bundle" ]] || { usage >&2; exit 2; }
+        read_bundle_identity "$bundle"
+        [[ -n "$release_root" ]] || release_root="/opt/pinker/releases/pink/$commit"
+        [[ "$release_root" == /* ]] || fail "release-root deve ser absoluto"
+        render_manifest "$release_root"
+        ;;
+    ficha)
+        bundle=''
+        release_root=''
+        perfil=''
+        data=''
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                --bundle) [[ $# -ge 2 ]] || { usage >&2; exit 2; }; bundle="$2"; shift 2 ;;
+                --release-root) [[ $# -ge 2 ]] || { usage >&2; exit 2; }; release_root="$2"; shift 2 ;;
+                --perfil) [[ $# -ge 2 ]] || { usage >&2; exit 2; }; perfil="$2"; shift 2 ;;
+                --data) [[ $# -ge 2 ]] || { usage >&2; exit 2; }; data="$2"; shift 2 ;;
+                *) usage >&2; exit 2 ;;
+            esac
+        done
+        [[ -n "$bundle" ]] || { usage >&2; exit 2; }
+        read_bundle_identity "$bundle"
+        [[ -n "$release_root" ]] || release_root="/opt/pinker/releases/pink/$commit"
+        [[ "$release_root" == /* ]] || fail "release-root deve ser absoluto"
+        [[ -n "$perfil" ]] || perfil="$(id -un)"
+        if [[ -z "$data" ]]; then
+            # A data da ficha é a data do commit da release, não a de hoje: o
+            # registro precisa ser reproduzível byte a byte a qualquer momento.
+            [[ -e "$source/.git" ]] || fail "data não derivável: origem $source indisponível; use --data AAAA-MM-DD"
+            data="$(git -C "$source" show -s --format=%cs "$commit")" ||
+                fail "data não derivável do commit $commit"
+        fi
+        render_ficha "$release_root" "$perfil" "$data"
+        ;;
     publish)
         [[ "${1-}" == "--bundle" && $# -eq 2 ]] || {
             usage >&2
@@ -78,27 +256,8 @@ EOF
         }
         [[ "${EUID:-$(id -u)}" -eq 0 ]] || fail "publish exige root"
         bundle="$2"
-        [[ -d "$bundle" && -x "$bundle/pink" && -f "$bundle/identity.env" ]] || fail "bundle incompleto"
-        schema=''
-        version=''
-        commit=''
-        expected_sha256=''
-        source=''
-        while IFS='=' read -r key value; do
-            case "$key" in
-                schema) schema="$value" ;;
-                version) version="$value" ;;
-                commit) commit="$value" ;;
-                sha256) expected_sha256="$value" ;;
-                source) source="$value" ;;
-                *) fail "campo desconhecido no bundle: $key" ;;
-            esac
-        done <"$bundle/identity.env"
-        [[ "$schema" == 'forja-pink-bundle-v1' ]] || fail "schema do bundle inválido"
-        [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "versão inválida"
-        [[ "$commit" =~ ^[0-9a-f]{40}$ ]] || fail "commit inválido"
-        [[ "$expected_sha256" =~ ^[0-9a-f]{64}$ ]] || fail "SHA-256 esperado inválido"
-        [[ "$source" =~ ^/[A-Za-z0-9_./-]+$ && -d "$source/.git" || -f "$source/.git" ]] || fail "origem do bundle inválida"
+        read_bundle_identity "$bundle"
+        [[ -e "$source/.git" ]] || fail "origem do bundle inválida"
         observed_sha256="$(sha256sum "$bundle/pink" | awk '{print $1}')"
         [[ "$observed_sha256" == "$expected_sha256" ]] || fail "checksum do bundle diverge"
         identity="$($bundle/pink --version-json || true)"
@@ -118,21 +277,7 @@ EOF
             install -o root -g root -m 0755 "$bundle/pink" "$staging/bin/pink"
             mv "$staging" "$release_root"
         fi
-        cat >"$manifest.tmp-$$" <<EOF
-{
-  "checksums": [{"path": "$release_binary", "sha256": "$expected_sha256"}],
-  "exposed_commands": ["/opt/pinker/bin/pink"],
-  "installation_root": "$release_root",
-  "installed_executables": ["$release_binary"],
-  "name": "Pinker CLI",
-  "ownership_policy": {"group": "root", "owner": "root", "writable_by_non_admin": false},
-  "schema": "forja-software-manifest-v1",
-  "source_or_provenance": {"kind": "repository-release-build", "source": "$source", "commit": "$commit", "bundle_schema": "$schema"},
-  "verification": {"command": ["/opt/pinker/bin/pink", "--version-json"], "expected_contains": "\\\"binary_commit\\\":\\\"$commit\\\""},
-  "version": "$version",
-  "wrappers": []
-}
-EOF
+        render_manifest "$release_root" >"$manifest.tmp-$$"
         install -o root -g root -m 0644 "$manifest.tmp-$$" "$manifest"
         rm -f "$manifest.tmp-$$"
         next_link="/opt/pinker/bin/.pink-next-$$"
@@ -140,6 +285,14 @@ EOF
         mv -Tf "$next_link" /opt/pinker/bin/pink
         verification="$(/opt/pinker/bin/pink --version-json || true)"
         [[ "$verification" == *"\"binary_commit\":\"$commit\""* ]] || fail "verificação pós-publicação falhou"
+        # O manifest emitido é conferido pela autoridade que o valida, e não pelo
+        # próprio emissor: um registro que o validador canônico rejeita não conta
+        # como registro. A checagem vem depois da troca porque o comando de
+        # verificação do manifest é o próprio launcher já publicado.
+        if command -v pinker-manifest-verify >/dev/null 2>&1; then
+            pinker-manifest-verify "$manifest" >/dev/null ||
+                fail "manifest emitido rejeitado por pinker-manifest-verify: $manifest"
+        fi
         printf 'status=PUBLISHED\nbinary=/opt/pinker/bin/pink\nrelease=%s\nmanifest=%s\ncommit=%s\n' "$release_root" "$manifest" "$commit"
         ;;
     *)
