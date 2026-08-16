@@ -679,7 +679,7 @@ echo "$n" > "$PINK_TESTE_CONTADOR"
 if [ "$n" = "${PINK_TESTE_BLOQUEAR_LAUNCHER:-0}" ]; then
   [ -n "${PINK_TESTE_SABOTAR_BIN:-}" ] && chmod 500 "$PINK_TESTE_SABOTAR_BIN"
   echo "launcher:$n" > "$PINK_TESTE_ALCANCOU"
-  cat "$PINK_TESTE_PORTA" > /dev/null
+  timeout 30 cat "$PINK_TESTE_PORTA" > /dev/null || true
 fi
 if [ "$1" = "--version-json" ]; then
   if [ "$n" = "${PINK_TESTE_MENTIR:-0}" ]; then
@@ -704,7 +704,7 @@ n=$(( $(cat "$PINK_TESTE_VERIFY_CONTADOR" 2>/dev/null || echo 0) + 1 ))
 echo "$n" > "$PINK_TESTE_VERIFY_CONTADOR"
 if [ "$n" = "${PINK_TESTE_BLOQUEAR_VERIFY:-0}" ]; then
   echo "verify:$n" > "$PINK_TESTE_ALCANCOU"
-  cat "$PINK_TESTE_PORTA" > /dev/null
+  timeout 30 cat "$PINK_TESTE_PORTA" > /dev/null || true
 fi
 if [ "$n" = "${PINK_TESTE_REPROVAR:-0}" ]; then
   exit 1
@@ -816,22 +816,21 @@ impl Cenario {
         command.output().expect("executar publish")
     }
 
-    /// Publica em sessão própria, espera a fase alvo ser REALMENTE alcançada e
-    /// só então sinaliza o grupo.
+    /// Publica, espera a fase alvo ser REALMENTE alcançada e só então sinaliza.
     ///
     /// A sincronização é handshake, não espera cega: o stub da fase alvo escreve
     /// um arquivo e bloqueia lendo um FIFO, e o sinal só sai depois que esse
-    /// arquivo aparece. O poll existe para observar o handshake, não para
-    /// adivinhar o tempo da fase.
+    /// arquivo aparece.
     ///
-    /// O sinal vai ao GRUPO porque o bash pai fica preso dentro da substituição
-    /// de comando enquanto o stub bloqueia; sinalizar só o pai não o alcançaria
-    /// na fase desejada.
+    /// O sinal vai para o processo do publish e para mais ninguém. Sinalizar o
+    /// GRUPO alcançaria quem estiver no mesmo grupo — em CI, o próprio runner —,
+    /// e não é preciso: o bash adia o tratamento do trap enquanto há comando em
+    /// primeiro plano, então basta destravar o FIFO logo depois de sinalizar
+    /// para que o stub termine e o handler rode em seguida.
     fn publicar_e_sinalizar(&self, sinal: &str, extra: &[(&str, &str)]) -> (i32, String) {
         let porta = self.dir.join("porta");
         let alcancou = self.dir.join("alcancou");
-        let pidfile = self.dir.join("pgid");
-        for caminho in [&porta, &alcancou, &pidfile] {
+        for caminho in [&porta, &alcancou] {
             fs::remove_file(caminho).ok();
         }
         fs::remove_file(self.dir.join("contador")).ok();
@@ -850,17 +849,9 @@ impl Cenario {
             self.stubs.display(),
             std::env::var("PATH").unwrap_or_default()
         );
-        // `setsid sh -c` faz do sh o líder de sessão: $$ é o pgid, e o `exec`
-        // preserva esse pid ao virar o publish.
-        let roteiro = format!(
-            "echo $$ > {pid}; exec {script} publish --bundle {bundle}",
-            pid = pidfile.display(),
-            script = root().join("scripts/pink-baseline").display(),
-            bundle = self.bundle.display()
-        );
-        let mut command = Command::new("setsid");
+        let mut command = Command::new(root().join("scripts/pink-baseline"));
         command
-            .args(["sh", "-c", &roteiro])
+            .args(["publish", "--bundle", self.bundle.to_str().unwrap()])
             .current_dir(root())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -894,18 +885,15 @@ impl Cenario {
             "a fase alvo não foi alcançada — o sinal seria enviado às cegas"
         );
 
-        let pgid = fs::read_to_string(&pidfile)
-            .expect("pgid")
-            .trim()
-            .to_string();
+        let alvo = filho.id().to_string();
         Command::new("kill")
-            .args([&format!("-{sinal}"), &format!("-{pgid}")])
+            .args([&format!("-{sinal}"), &alvo])
             .status()
-            .expect("enviar sinal ao grupo");
-        // Destrava o FIFO caso o stub tenha sobrevivido; limitado no tempo para
-        // que abrir para escrita sem leitor nunca pendure o teste.
+            .expect("sinalizar o publish");
+        // Destrava o FIFO: o stub retorna, o comando em primeiro plano termina e
+        // o bash passa a tratar o sinal que já está pendente.
         Command::new("timeout")
-            .args(["5", "sh", "-c", &format!("echo > {}", porta.display())])
+            .args(["10", "sh", "-c", &format!("echo > {}", porta.display())])
             .status()
             .ok();
 
@@ -914,8 +902,7 @@ impl Cenario {
         let erro = String::from_utf8_lossy(&saida.stderr).to_string();
         // O handler devolve a semântica do sinal matando o próprio processo com
         // ele, então o filho morre PELO sinal e não tem código de saída. A
-        // convenção 128+n é a tradução usual, e é ela que prova que o sinal foi
-        // preservado em vez de virar um exit qualquer.
+        // convenção 128+n é o que prova que a semântica foi preservada.
         use std::os::unix::process::ExitStatusExt;
         let codigo = match (saida.status.code(), saida.status.signal()) {
             (Some(c), _) => c,
