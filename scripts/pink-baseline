@@ -195,7 +195,6 @@ publish_manifest_backup=''
 publish_link_kind=''
 publish_link_target=''
 publish_link_backup=''
-publish_activated=''
 
 # Estado da transação. É o menor estado necessário para decidir, em QUALQUER
 # saída, se há algo a desfazer:
@@ -208,6 +207,19 @@ publish_activated=''
 #
 # FINALIZED é a guarda de reentrância. Ela não é um flag à parte porque um flag à
 # parte seria um segundo mecanismo dizendo a mesma coisa que o estado.
+#
+# Pela mesma razão não existe mais um `publish_activated`. Ele era um segundo
+# mecanismo tentando descrever um subconjunto de ACTIVATED, e como era atribuído
+# DEPOIS da troca do launcher, havia um instante em que o launcher novo já estava
+# vivo e o rollback ainda lia "launcher intacto": o término restaurava o manifest
+# e deixava o launcher novo. Uma flag que só fica verdadeira depois do efeito que
+# ela descreve não é autoridade sobre esse efeito.
+#
+# O estado marca a REGIÃO em que o launcher PODE ter mudado, e é isso que o
+# rollback precisa saber. Restaurar dentro da região quando a troca ainda não
+# ocorreu reescreve o alvo anterior por cima dele mesmo — idempotente por
+# construção, porque o alvo restaurado é o que foi capturado antes da primeira
+# mutação.
 publish_state=PRE_TRANSACTION
 publish_abort_reason=''
 
@@ -216,19 +228,20 @@ publish_cleanup_scratch() {
     return 0
 }
 
+# Quem chama já decidiu, pelo estado, que a transação entrou numa região com o
+# que desfazer. Aqui não se pergunta de novo "mas o launcher chegou a mudar?":
+# essa pergunta só teria resposta honesta depois do efeito, e é tarde.
 publish_restore() {
-    if [[ -n "$publish_activated" ]]; then
-        case "$publish_link_kind" in
-            symlink)
-                local back="$forja_root/pinker/bin/.pink-restore-$$"
-                rm -f "$back"
-                ln -s "$publish_link_target" "$back"
-                mv -Tf "$back" "$exposed_command"
-                ;;
-            file) install "${own[@]}" -m 0755 "$publish_link_backup" "$exposed_command" ;;
-            absent) rm -f "$exposed_command" ;;
-        esac
-    fi
+    case "$publish_link_kind" in
+        symlink)
+            local back="$forja_root/pinker/bin/.pink-restore-$$"
+            rm -f "$back"
+            ln -s "$publish_link_target" "$back"
+            mv -Tf "$back" "$exposed_command"
+            ;;
+        file) install "${own[@]}" -m 0755 "$publish_link_backup" "$exposed_command" ;;
+        absent) rm -f "$exposed_command" ;;
+    esac
     if [[ -n "$publish_manifest_existed" ]]; then
         install "${own[@]}" -m 0644 "$publish_manifest_backup" "$manifest"
     else
@@ -241,30 +254,30 @@ publish_restore() {
 # Conferir a restauração faz parte da restauração: um rollback que não é
 # observado é uma alegação, não um estado.
 publish_restoration_verdict() {
-    local verdict='RESTORED_EXACTLY' ok
-    if [[ -n "$publish_activated" ]]; then
-        ok=''
-        case "$publish_link_kind" in
-            symlink)
-                if [[ -L "$exposed_command" ]] &&
-                    [[ "$(readlink "$exposed_command")" == "$publish_link_target" ]]; then
-                    ok=1
-                fi
-                ;;
-            file)
-                if [[ -f "$exposed_command" && ! -L "$exposed_command" ]] &&
-                    [[ "$(sha256sum <"$exposed_command")" == "$(sha256sum <"$publish_link_backup")" ]]; then
-                    ok=1
-                fi
-                ;;
-            absent)
-                if [[ ! -e "$exposed_command" ]]; then
-                    ok=1
-                fi
-                ;;
-        esac
-        [[ -n "$ok" ]] || verdict='RESTORATION_DIVERGED'
-    fi
+    local verdict='RESTORED_EXACTLY' ok=''
+    # A conferência do launcher usa a mesma autoridade que a restauração. Guardá-la
+    # atrás de uma condição própria era o que fazia o veredito afirmar
+    # RESTORED_EXACTLY justamente na janela em que o launcher não voltara.
+    case "$publish_link_kind" in
+        symlink)
+            if [[ -L "$exposed_command" ]] &&
+                [[ "$(readlink "$exposed_command")" == "$publish_link_target" ]]; then
+                ok=1
+            fi
+            ;;
+        file)
+            if [[ -f "$exposed_command" && ! -L "$exposed_command" ]] &&
+                [[ "$(sha256sum <"$exposed_command")" == "$(sha256sum <"$publish_link_backup")" ]]; then
+                ok=1
+            fi
+            ;;
+        absent)
+            if [[ ! -e "$exposed_command" ]]; then
+                ok=1
+            fi
+            ;;
+    esac
+    [[ -n "$ok" ]] || verdict='RESTORATION_DIVERGED'
     ok=''
     if [[ -n "$publish_manifest_existed" ]]; then
         if [[ -f "$manifest" ]] &&
@@ -576,11 +589,14 @@ EOF
         next_link="$forja_root/pinker/bin/.pink-next-$$"
         ln -s "$release_binary" "$next_link" ||
             abort_publication "não foi possível preparar o link candidato"
+        # Não há transição a marcar aqui. O estado já entrou em ACTIVATED antes da
+        # primeira mutação viva, que é o único ponto em que uma marca ainda chega
+        # a tempo: qualquer marca DEPOIS do `mv` deixaria uma janela com o
+        # launcher novo vivo e o rollback pensando que nada mudou.
         mv -Tf "$next_link" "$exposed_command" || {
             rm -f "$next_link"
             abort_publication "troca atômica do launcher falhou"
         }
-        publish_activated=1
 
         # Fase 5 — conferência pela autoridade que consome o registro, não pelo
         # emissor. Um manifest que o validador canônico rejeita não conta como
