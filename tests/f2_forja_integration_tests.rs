@@ -792,6 +792,79 @@ fi
 exit $rc
 "#;
 
+/// `mv` que instala a release de verdade e só então bloqueia. Intercepta SOMENTE
+/// a instalação da release — origem dentro de `.publish-<commit>-<pid>` e
+/// terminando em `/release`. A troca do launcher (`-Tf`, `.pink-next-*`) e o
+/// rename do próprio rollback (`-Tf`, `.pink-restore-*`) passam direto.
+#[cfg(unix)]
+const MV_QUE_BLOQUEIA_APOS_INSTALAR_A_RELEASE: &str = r#"#!/bin/sh
+origem=""
+for a in "$@"; do
+  case "$a" in
+    -*) ;;
+    *) [ -z "$origem" ] && origem="$a" ;;
+  esac
+done
+
+instalacao_da_release=no
+case "$origem" in
+  */.publish-*/release) instalacao_da_release=yes ;;
+esac
+
+/usr/bin/mv "$@"
+rc=$?
+
+if [ "$instalacao_da_release" = yes ] && [ "$rc" = 0 ] && [ ! -f "$PINK_TESTE_ALCANCOU" ]; then
+  # Prova lida DE DENTRO da janela: a release já está instalada e o publicador
+  # ainda não executou a instrução seguinte.
+  printf 'mv:release-installed binario=%s exposto=%s\n' \
+    "$([ -x "$PINK_TESTE_RELEASE/bin/pink" ] && echo sim || echo nao)" \
+    "$(readlink "$PINK_TESTE_EXPOSTO" 2>/dev/null || echo AUSENTE)" \
+    > "$PINK_TESTE_ALCANCOU"
+  timeout 30 cat "$PINK_TESTE_PORTA" > /dev/null || true
+fi
+exit $rc
+"#;
+
+/// `mv` que simula OUTRA execução criando `release_root` na janela entre a
+/// checagem de ausência e a instalação. Determinístico: não depende de
+/// agendamento nem de duas publicações reais concorrentes.
+#[cfg(unix)]
+const MV_QUE_SIMULA_OUTRA_EXECUCAO: &str = r#"#!/bin/sh
+origem=""
+for a in "$@"; do
+  case "$a" in
+    -*) ;;
+    *) [ -z "$origem" ] && origem="$a" ;;
+  esac
+done
+case "$origem" in
+  */.publish-*/release)
+    if [ ! -f "$PINK_TESTE_ALCANCOU" ]; then
+      echo "outra-execucao-criou-o-destino" > "$PINK_TESTE_ALCANCOU"
+      mkdir -p "$PINK_TESTE_RELEASE/bin"
+      printf '#!/bin/sh\nexit 0\n' > "$PINK_TESTE_RELEASE/bin/pink"
+      chmod 755 "$PINK_TESTE_RELEASE/bin/pink"
+      printf 'alheio\n' > "$PINK_TESTE_RELEASE/PERTENCE-A-OUTRA-EXECUCAO"
+    fi
+    ;;
+esac
+exec /usr/bin/mv "$@"
+"#;
+
+/// `mv` que deixa a troca de volta do rollback FALHAR, sem executá-la. Serve para
+/// alcançar o único caminho em que o link temporário do rollback sobrevive: ele é
+/// criado em `pinker/bin`, fora do scratch, e só é consumido se o rename der certo.
+#[cfg(unix)]
+const MV_QUE_FALHA_NA_VOLTA_DO_ROLLBACK: &str = r#"#!/bin/sh
+for a in "$@"; do
+  case "$a" in
+    */.pink-restore-*) exit 1 ;;
+  esac
+done
+exec /usr/bin/mv "$@"
+"#;
+
 /// python3 que falha. Serve a um caso só: `render_manifest` é chamado DEPOIS de
 /// a release entrar por rename e usa `fail`, que é `exit 1` puro — uma saída
 /// inesperada que não passa por `abort_publication`.
@@ -904,7 +977,8 @@ impl Cenario {
                 "PINK_TESTE_VERIFY_CONTADOR",
                 self.dir.join("verify-contador"),
             )
-            .env("PINK_TESTE_EXPOSTO", &self.link);
+            .env("PINK_TESTE_EXPOSTO", &self.link)
+            .env("PINK_TESTE_RELEASE", &self.release);
         for (chave, valor) in extra {
             command.env(chave, valor);
         }
@@ -958,6 +1032,7 @@ impl Cenario {
                 self.dir.join("verify-contador"),
             )
             .env("PINK_TESTE_EXPOSTO", &self.link)
+            .env("PINK_TESTE_RELEASE", &self.release)
             .env("PINK_TESTE_PORTA", &porta)
             .env("PINK_TESTE_ALCANCOU", &alcancou);
         for (chave, valor) in extra {
@@ -1682,6 +1757,204 @@ fn t10_sinal_depois_do_link_candidato_e_antes_da_troca_nao_deixa_temporario() {
     assert!(
         candidatos.is_empty(),
         "o link candidato desta transação precisa ser removido pelo término: {candidatos:?}"
+    );
+    cenario.limpar();
+}
+
+#[cfg(unix)]
+#[test]
+fn t11_sinal_depois_de_instalar_a_release_e_antes_do_marcador_nao_deixa_orfa() {
+    // A release entra por rename de um diretório montado no scratch. O marcador
+    // que dizia ao rollback "fui eu que criei" só era atribuído DEPOIS do rename,
+    // então um término nessa janela restaurava manifest e launcher e deixava a
+    // release órfã — o mesmo formato de defeito da flag tardia do launcher.
+    let cenario = cenario("t11_release_orfa");
+    let (sha, decoy) = cenario.com_estado_anterior_distinto();
+    assert!(
+        !cenario.release.exists(),
+        "a janela exige que a release NÃO exista antes da tentativa"
+    );
+
+    let mv = cenario.stubs.join("mv");
+    fs::write(&mv, MV_QUE_BLOQUEIA_APOS_INSTALAR_A_RELEASE).expect("escrever mv stub");
+    make_executable(&mv);
+
+    let (codigo, relato) = cenario.publicar_e_sinalizar("TERM", &[]);
+    fs::remove_file(&mv).ok();
+
+    assert!(
+        relato.starts_with("mv:release-installed"),
+        "fase alvo inesperada: {relato}"
+    );
+    // Dentro da janela a release já estava completa e o launcher ainda era o antigo.
+    assert!(
+        relato.contains("binario=sim"),
+        "a release precisa estar instalada de verdade antes do sinal: {relato}"
+    );
+    assert!(
+        relato.contains(&format!("exposto={}", decoy.display())),
+        "a troca viva do launcher não podia ter acontecido ainda: {relato}"
+    );
+    assert_eq!(codigo, 143, "TERM precisa preservar a semântica do sinal");
+
+    cenario.exigir_estado_anterior(&sha, &decoy, "T11");
+    assert!(
+        !cenario.release.exists(),
+        "a release instalada por esta tentativa não pode ficar órfã"
+    );
+    cenario.limpar();
+}
+
+#[cfg(unix)]
+#[test]
+fn t12_release_de_outra_execucao_nao_e_reivindicada_nem_destruida() {
+    // Janela check-then-act: entre `[[ -e $release_root ]]` e a instalação, outra
+    // execução legítima cria o destino.
+    //
+    // Sem `-T`, `mv` sobre diretório existente ANINHA a origem dentro do destino e
+    // retorna 0 — a transação instalaria `release_root/release/bin/pink`, marcaria
+    // a release como sua e, no rollback, apagaria a release da outra execução.
+    // Release é artefato imutável endereçado pelo commit e compartilhável: remover
+    // a de outra execução é destruir recurso alheio, não desfazer o próprio efeito.
+    let cenario = cenario("t12_release_alheia");
+    let (sha, decoy) = cenario.com_estado_anterior_distinto();
+
+    let mv = cenario.stubs.join("mv");
+    fs::write(&mv, MV_QUE_SIMULA_OUTRA_EXECUCAO).expect("escrever mv stub");
+    make_executable(&mv);
+    // O stub usa PINK_TESTE_ALCANCOU como marca de "já agi"; aqui não há handshake.
+    let marca = cenario.dir.join("outro-ator");
+    let saida = cenario.publicar(&[("PINK_TESTE_ALCANCOU", marca.to_str().unwrap())]);
+    fs::remove_file(&mv).ok();
+
+    assert!(
+        marca.exists(),
+        "a outra execução precisa ter agido para o caso existir"
+    );
+    assert!(
+        !saida.status.success(),
+        "instalar sobre release alheia não pode ser reportado como sucesso"
+    );
+
+    let alheio = cenario.release.join("PERTENCE-A-OUTRA-EXECUCAO");
+    assert!(
+        alheio.is_file(),
+        "a release da outra execução jamais pode ser removida por esta transação"
+    );
+    assert!(
+        !cenario.release.join("release").exists(),
+        "sem -T o mv aninharia a origem dentro do destino alheio"
+    );
+    cenario.exigir_estado_anterior(&sha, &decoy, "T12");
+    cenario.limpar();
+}
+
+#[cfg(unix)]
+#[test]
+fn t13_veredito_observa_a_release_e_nao_so_launcher_e_manifest() {
+    // O veredito é a observação do rollback. Se ele mede launcher e manifest mas
+    // não a release, uma remoção que falhou passa por restauração completa — a
+    // mesma classe de falso positivo já corrigida para o launcher.
+    let cenario = cenario("t13_veredito_release");
+    let (_sha, _decoy) = cenario.com_estado_anterior_distinto();
+
+    // Sabota a remoção da release: o diretório-pai fica sem permissão de escrita
+    // logo depois de a release ser instalada, então o `rm -rf` do rollback não
+    // consegue removê-la e o veredito precisa acusar divergência.
+    let mv = cenario.stubs.join("mv");
+    fs::write(
+        &mv,
+        MV_QUE_BLOQUEIA_APOS_INSTALAR_A_RELEASE.replace(
+            "  timeout 30 cat \"$PINK_TESTE_PORTA\" > /dev/null || true",
+            "  chmod 500 \"$PINK_TESTE_RELEASE/..\"\n  timeout 30 cat \"$PINK_TESTE_PORTA\" > /dev/null || true",
+        ),
+    )
+    .expect("escrever mv stub");
+    make_executable(&mv);
+
+    let (codigo, relato) = cenario.publicar_e_sinalizar("TERM", &[]);
+    // Devolve a permissão (0755) para poder inspecionar e limpar.
+    let pai = cenario
+        .release
+        .parent()
+        .expect("pai da release")
+        .to_path_buf();
+    make_executable(&pai);
+    fs::remove_file(&mv).ok();
+
+    assert!(
+        relato.starts_with("mv:release-installed"),
+        "fase alvo inesperada: {relato}"
+    );
+    assert!(
+        relato.contains("RESTORATION_DIVERGED"),
+        "release não removida precisa ser acusada pelo veredito: {relato}"
+    );
+    assert_eq!(
+        codigo, 3,
+        "divergência de restauração tem terminal próprio, acima do sinal"
+    );
+    cenario.limpar();
+}
+
+#[cfg(unix)]
+#[test]
+fn t14_temporario_do_rollback_nao_sobrevive_quando_a_volta_falha() {
+    // O link temporário do rollback vive em `pinker/bin`, fora do scratch, pela
+    // mesma razão física que o candidato: a volta também é um rename atômico.
+    // No caminho feliz o rename o consome, então ele passava despercebido — mas
+    // se a volta falha, ele fica. Um `.pink-restore-<pid>` abandonado quebra o
+    // rollback da próxima execução que receba aquele PID, porque `rm -f` não
+    // remove diretório e `ln -s` não sobrescreve.
+    let cenario = cenario("t14_temp_do_rollback");
+    cenario.publicar(&[]);
+    let (sha, _decoy) = cenario.com_estado_anterior_distinto();
+
+    let mv = cenario.stubs.join("mv");
+    fs::write(&mv, MV_QUE_FALHA_NA_VOLTA_DO_ROLLBACK).expect("escrever mv stub");
+    make_executable(&mv);
+
+    // Sinal na conferência pós-ativação: garante que o rollback do launcher é
+    // realmente tentado, e é ele que falha.
+    let (codigo, relato) =
+        cenario.publicar_e_sinalizar("TERM", &[("PINK_TESTE_BLOQUEAR_LAUNCHER", "2")]);
+    fs::remove_file(&mv).ok();
+
+    assert!(
+        relato.starts_with("launcher:2"),
+        "fase alvo inesperada: {relato}"
+    );
+    // A volta falhou de propósito: o veredito precisa dizer isso.
+    assert!(
+        relato.contains("RESTORATION_DIVERGED"),
+        "volta impossível precisa ser acusada: {relato}"
+    );
+    assert_eq!(codigo, 3, "divergência tem terminal próprio");
+
+    // E o temporário do rollback não pode ficar para trás mesmo assim.
+    let restos: Vec<PathBuf> = fs::read_dir(cenario.raiz.join("pinker/bin"))
+        .expect("ler pinker/bin")
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| {
+            p.file_name()
+                .map(|n| n.to_string_lossy().starts_with(".pink-restore-"))
+                .unwrap_or(false)
+        })
+        .collect();
+    assert!(
+        restos.is_empty(),
+        "o temporário do rollback precisa ser removido pelo término: {restos:?}"
+    );
+    assert!(cenario.residuos().is_empty(), "{:?}", cenario.residuos());
+
+    // E falhar na PRIMEIRA operação do rollback não pode abortar as seguintes: o
+    // manifest anterior ainda tem de voltar byte a byte. Um rollback que desiste
+    // no primeiro erro deixaria o host pior do que um que tenta tudo e mede.
+    assert_eq!(
+        sha256_de(&cenario.manifest),
+        sha,
+        "a falha na volta do launcher não pode impedir a restauração do manifest"
     );
     cenario.limpar();
 }
