@@ -189,7 +189,22 @@ EOF
 # ---------------------------------------------------------------------------
 own=()
 publish_scratch=''
-publish_release_created=''
+# Release instalada por esta transação, e a PROVA de que foi esta transação que
+# a instalou.
+#
+# Uma release é artefato imutável endereçado pelo commit: o publicador aceita e
+# REUSA uma release preexistente cujo checksum bate, então o diretório é
+# compartilhável e não exclusivo desta publicação. Logo o rollback não pode
+# remover `release_root` por saber apenas que "tentou criar" — precisa provar que
+# aquele objeto é o que ele mesmo instalou, ou apagaria a release de outra
+# execução legítima.
+#
+# A prova é a identidade do objeto: `rename(2)` preserva o inode (medido), então
+# o par dispositivo:inode capturado do diretório montado no scratch, ANTES da
+# instalação, continua identificando exatamente o mesmo objeto depois dela. Uma
+# release criada por outra execução tem outro inode e nunca casa.
+publish_release_root=''
+publish_release_claim=''
 publish_manifest_existed=''
 publish_manifest_backup=''
 publish_link_kind=''
@@ -199,6 +214,12 @@ publish_link_backup=''
 # por glob `.pink-next-*` — porque o publicador só pode remover o que ele mesmo
 # criou: um glob alcançaria o candidato de outra execução simultânea.
 publish_next_link=''
+# Link temporário do rollback. Vive em `pinker/bin` pela mesma razão física que o
+# candidato — a restauração do symlink também é um rename atômico — e portanto
+# também precisa de registro próprio: se a troca de volta falhar, ele sobrevive, e
+# um `.pink-restore-<pid>` abandonado quebra o rollback da próxima execução que
+# receba aquele PID, porque `rm -f` não remove diretório e `ln -s` não sobrescreve.
+publish_restore_link=''
 
 # Estado da transação. É o menor estado necessário para decidir, em QUALQUER
 # saída, se há algo a desfazer:
@@ -239,6 +260,7 @@ publish_abort_reason=''
 publish_cleanup_temporaries() {
     [[ -n "$publish_scratch" && -d "$publish_scratch" ]] && rm -rf "$publish_scratch"
     [[ -n "$publish_next_link" ]] && rm -f "$publish_next_link"
+    [[ -n "$publish_restore_link" ]] && rm -f "$publish_restore_link"
     return 0
 }
 
@@ -248,10 +270,13 @@ publish_cleanup_temporaries() {
 publish_restore() {
     case "$publish_link_kind" in
         symlink)
-            local back="$forja_root/pinker/bin/.pink-restore-$$"
-            rm -f "$back"
-            ln -s "$publish_link_target" "$back"
-            mv -Tf "$back" "$exposed_command"
+            # Registrado antes de existir, como todo temporário material desta
+            # transação. O rename o consome no caminho feliz; se falhar, a limpeza
+            # final ainda sabe removê-lo.
+            publish_restore_link="$forja_root/pinker/bin/.pink-restore-$$"
+            rm -f "$publish_restore_link"
+            ln -s "$publish_link_target" "$publish_restore_link"
+            mv -Tf "$publish_restore_link" "$exposed_command"
             ;;
         file) install "${own[@]}" -m 0755 "$publish_link_backup" "$exposed_command" ;;
         absent) rm -f "$exposed_command" ;;
@@ -261,7 +286,15 @@ publish_restore() {
     else
         rm -f "$manifest"
     fi
-    [[ -n "$publish_release_created" ]] && rm -rf "$release_root"
+    # Só remove a release se o objeto que está lá AGORA for o mesmo que esta
+    # transação instalou. A prova é medida no momento do rollback, não herdada de
+    # uma intenção: se a instalação não chegou a acontecer, ou se quem está no
+    # caminho é a release de outra execução, a identidade não bate e nada é
+    # removido. É o que separa desfazer o próprio efeito de destruir recurso alheio.
+    if [[ -n "$publish_release_claim" ]] &&
+        [[ "$(stat -c '%d:%i' "$publish_release_root" 2>/dev/null)" == "$publish_release_claim" ]]; then
+        rm -rf "$publish_release_root"
+    fi
     return 0
 }
 
@@ -302,6 +335,15 @@ publish_restoration_verdict() {
         ok=1
     fi
     [[ -n "$ok" ]] || verdict='RESTORATION_DIVERGED'
+    # A release é o terceiro objeto material da transação, e o veredito precisa
+    # medi-la também: afirmar RESTORED_EXACTLY tendo observado só launcher e
+    # manifest deixaria uma remoção que falhou passar por restauração completa.
+    # O critério é o mesmo do rollback — se o objeto que esta transação instalou
+    # ainda está lá, ele não foi desfeito.
+    if [[ -n "$publish_release_claim" ]] &&
+        [[ "$(stat -c '%d:%i' "$publish_release_root" 2>/dev/null)" == "$publish_release_claim" ]]; then
+        verdict='RESTORATION_DIVERGED'
+    fi
     printf '%s' "$verdict"
 }
 
@@ -352,15 +394,22 @@ publish_finalize() {
     local motivo="$1" verdict='NOT_ATTEMPTED' estado="$publish_state"
     publish_state=FINALIZED
 
+    # O `set -e` sai de cena por todo o funil, e não só durante o rollback.
+    #
+    # Durante a restauração, porque um comando que falhe não pode abortá-la pela
+    # metade nem reentrar no trap: a divergência é medida, não sofrida.
+    #
+    # E depois dela, porque a limpeza também não pode preemptar um terminal já
+    # decidido. A limpeza falha justamente quando o rollback falhou — a causa
+    # costuma ser a mesma, um diretório que ficou sem permissão —, e com `set -e`
+    # ativo o `rm -rf` malsucedido encerrava o shell ali mesmo, com status 1,
+    # antes de chegar ao `exit 3`. O host ficava num estado que ninguém prometeu
+    # e quem chamou recebia um erro genérico dizendo que nada de especial houve.
+    set +e
     case "$estado" in
         PREPARED | ACTIVATED)
-            # Durante a restauração o `set -e` sai de cena de propósito: um
-            # comando que falhe aqui não pode abortar o rollback pela metade nem
-            # reentrar no trap. A divergência é medida, não sofrida.
-            set +e
             publish_restore
             verdict="$(publish_restoration_verdict)"
-            set -e
             ;;
         COMMITTED | PRE_TRANSACTION | FINALIZED) verdict=NOT_NEEDED ;;
     esac
@@ -374,6 +423,7 @@ publish_finalize() {
     # Restauração divergente é mais grave que o motivo do término: quem chamou
     # precisa saber que o host ficou num estado que ninguém prometeu.
     [[ "$verdict" == 'RESTORATION_DIVERGED' ]] && exit 3
+    set -e
     return 0
 }
 
@@ -563,8 +613,18 @@ EOF
         else
             install -d "${own[@]}" "$publish_scratch/release/bin"
             install "${own[@]}" -m 0755 "$bundle/pink" "$publish_scratch/release/bin/pink"
-            mv "$publish_scratch/release" "$release_root"
-            publish_release_created=1
+            # A prova de posse é registrada ANTES do efeito que ela governa. Não é
+            # um marcador otimista: registrar cedo aqui é seguro justamente porque
+            # o rollback ainda mede a identidade antes de remover — se a instalação
+            # não acontecer, a medição não casa e nada é apagado.
+            publish_release_root="$release_root"
+            publish_release_claim="$(stat -c '%d:%i' "$publish_scratch/release")"
+            # `-T` trata o destino como o próprio objeto. Sem ele, `mv` sobre um
+            # diretório existente ANINHA a origem dentro do destino e ainda retorna
+            # 0 (medido), o que instalaria `release_root/release/bin/pink` e faria
+            # esta transação reivindicar a release de outra execução.
+            mv -T "$publish_scratch/release" "$release_root" ||
+                abort_publication "instalação da release falhou"
         fi
 
         # Fase 3 — o candidato é julgado inteiro antes da ativação. Ele declara o
