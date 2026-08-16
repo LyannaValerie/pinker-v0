@@ -762,6 +762,36 @@ fi
 exit $rc
 "#;
 
+/// `ln` que cria o link candidato de verdade e só então bloqueia. Alcança a
+/// janela entre o candidato existir e o `mv` consumi-lo — instante que nem T7
+/// (bloqueia na instalação do manifest, antes do `ln`) nem T9 (bloqueia depois
+/// do `mv`, com o candidato já consumido) tocam.
+///
+/// O `ln` do PRÓPRIO rollback (`.pink-restore-*`) não é interceptado: bloquear o
+/// rollback observaria o experimento em vez do sujeito.
+#[cfg(unix)]
+const LN_QUE_BLOQUEIA_APOS_O_CANDIDATO: &str = r#"#!/bin/sh
+candidato=no
+for a in "$@"; do
+  case "$a" in
+    */.pink-next-*) candidato=yes ;;
+  esac
+done
+
+/usr/bin/ln "$@"
+rc=$?
+
+if [ "$candidato" = yes ] && [ "$rc" = 0 ] && [ ! -f "$PINK_TESTE_ALCANCOU" ]; then
+  # Prova lida DE DENTRO da janela: o candidato existe e o comando exposto ainda
+  # é o anterior — a troca viva não aconteceu.
+  printf 'ln:candidato-criado exposto=%s\n' \
+    "$(readlink "$PINK_TESTE_EXPOSTO" 2>/dev/null || echo AUSENTE)" \
+    > "$PINK_TESTE_ALCANCOU"
+  timeout 30 cat "$PINK_TESTE_PORTA" > /dev/null || true
+fi
+exit $rc
+"#;
+
 /// python3 que falha. Serve a um caso só: `render_manifest` é chamado DEPOIS de
 /// a release entrar por rename e usa `fail`, que é `exit 1` puro — uma saída
 /// inesperada que não passa por `abort_publication`.
@@ -1597,6 +1627,61 @@ fn t9_sinal_depois_da_troca_do_link_e_antes_da_proxima_transicao_restaura_os_doi
     assert!(
         relato.contains("RESTORED_EXACTLY"),
         "com o launcher de volta, o veredito precisa afirmá-lo: {relato}"
+    );
+    cenario.limpar();
+}
+
+#[cfg(unix)]
+#[test]
+fn t10_sinal_depois_do_link_candidato_e_antes_da_troca_nao_deixa_temporario() {
+    // Terceira janela da região de troca, entre T7 e T9: o link candidato JÁ
+    // existe e o `mv` ainda não o consumiu.
+    //
+    // Aqui o estado vivo voltava certo — manifest e launcher anteriores — mas o
+    // `.pink-next-<pid>` sobrevivia, porque a limpeza só conhecia o scratch e o
+    // candidato vive em `pinker/bin`, fora dele. Término limpo não é só estado
+    // vivo correto; é também não deixar temporário para trás. E o `ln -s` que
+    // cria o candidato não usa `-f`, então o resto abandonado faz a próxima
+    // publicação que receba aquele PID abortar na preparação do link.
+    let cenario = cenario("t10_candidato_pre_troca");
+    cenario.publicar(&[]);
+    let (sha, decoy) = cenario.com_estado_anterior_distinto();
+
+    let ln = cenario.stubs.join("ln");
+    fs::write(&ln, LN_QUE_BLOQUEIA_APOS_O_CANDIDATO).expect("escrever ln stub");
+    make_executable(&ln);
+
+    let (codigo, relato) = cenario.publicar_e_sinalizar("TERM", &[]);
+    fs::remove_file(&ln).ok();
+
+    assert!(
+        relato.starts_with("ln:candidato-criado"),
+        "fase alvo inesperada: {relato}"
+    );
+    // A janela é ANTES da troca viva: o comando exposto ainda precisa ser o decoy.
+    assert!(
+        relato.contains(&format!("exposto={}", decoy.display())),
+        "o sinal precisa cair antes da troca viva do launcher: {relato}"
+    );
+    assert_eq!(codigo, 143, "TERM precisa preservar a semântica do sinal");
+
+    // Estado vivo anterior de volta, e nenhum temporário sobrevivente.
+    cenario.exigir_estado_anterior(&sha, &decoy, "T10");
+
+    // Explícito, para que a regressão nomeie a causa em vez de dizer só "resíduo".
+    let candidatos: Vec<PathBuf> = fs::read_dir(cenario.raiz.join("pinker/bin"))
+        .expect("ler pinker/bin")
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| {
+            p.file_name()
+                .map(|n| n.to_string_lossy().starts_with(".pink-next-"))
+                .unwrap_or(false)
+        })
+        .collect();
+    assert!(
+        candidatos.is_empty(),
+        "o link candidato desta transação precisa ser removido pelo término: {candidatos:?}"
     );
     cenario.limpar();
 }
