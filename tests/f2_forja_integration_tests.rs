@@ -729,6 +729,39 @@ done
 exit 0
 "#;
 
+/// `mv` que faz a troca REAL do launcher, PROVA que ela aconteceu e só então
+/// bloqueia. É o único instrumento que alcança a janela do outro lado da troca:
+/// depois de `mv -Tf` retornar 0 e antes de a instrução seguinte do publicador
+/// rodar. Stub de launcher ou de validador nunca chega ali — quando eles são
+/// chamados, o publicador já executou tudo que vinha depois do `mv`.
+///
+/// Só a troca do launcher é interceptada, reconhecida pelo link candidato
+/// `.pink-next-*`. O rename do staging da release e — decisivo — o `mv` do
+/// PRÓPRIO rollback passam direto: bloquear o rollback destruiria o
+/// experimento em vez de observá-lo.
+#[cfg(unix)]
+const MV_QUE_BLOQUEIA_APOS_A_TROCA: &str = r#"#!/bin/sh
+troca_do_launcher=no
+for a in "$@"; do
+  case "$a" in
+    */.pink-next-*) troca_do_launcher=yes ;;
+  esac
+done
+
+/usr/bin/mv "$@"
+rc=$?
+
+if [ "$troca_do_launcher" = yes ] && [ "$rc" = 0 ] && [ ! -f "$PINK_TESTE_ALCANCOU" ]; then
+  # A prova de que a superfície alvo foi atingida é lida DE DENTRO da janela:
+  # o comando exposto já é o novo, e o publicador ainda não seguiu adiante.
+  printf 'mv:launcher-trocado alvo=%s\n' \
+    "$(readlink "$PINK_TESTE_EXPOSTO" 2>/dev/null || echo AUSENTE)" \
+    > "$PINK_TESTE_ALCANCOU"
+  timeout 30 cat "$PINK_TESTE_PORTA" > /dev/null || true
+fi
+exit $rc
+"#;
+
 /// python3 que falha. Serve a um caso só: `render_manifest` é chamado DEPOIS de
 /// a release entrar por rename e usa `fail`, que é `exit 1` puro — uma saída
 /// inesperada que não passa por `abort_publication`.
@@ -840,7 +873,8 @@ impl Cenario {
             .env(
                 "PINK_TESTE_VERIFY_CONTADOR",
                 self.dir.join("verify-contador"),
-            );
+            )
+            .env("PINK_TESTE_EXPOSTO", &self.link);
         for (chave, valor) in extra {
             command.env(chave, valor);
         }
@@ -893,6 +927,7 @@ impl Cenario {
                 "PINK_TESTE_VERIFY_CONTADOR",
                 self.dir.join("verify-contador"),
             )
+            .env("PINK_TESTE_EXPOSTO", &self.link)
             .env("PINK_TESTE_PORTA", &porta)
             .env("PINK_TESTE_ALCANCOU", &alcancou);
         for (chave, valor) in extra {
@@ -1515,6 +1550,54 @@ fn t7_sinal_entre_o_manifest_novo_e_a_troca_do_link_restaura_os_dois() {
     assert_eq!(codigo, 143);
     cenario.exigir_estado_anterior(&sha, &decoy, "T7");
     fs::remove_file(&install).ok();
+    cenario.limpar();
+}
+
+#[cfg(unix)]
+#[test]
+fn t9_sinal_depois_da_troca_do_link_e_antes_da_proxima_transicao_restaura_os_dois() {
+    // O outro lado da janela de T7. Lá o manifest já mudara e o link ainda não;
+    // aqui o link JÁ foi trocado e o publicador ainda não executou uma linha
+    // sequer depois do `mv`.
+    //
+    // Era a janela em que uma flag tardia — atribuída DEPOIS da troca — dizia ao
+    // rollback que o launcher estava intacto. O término restaurava o manifest,
+    // deixava o launcher novo, e o veredito ainda afirmava RESTORED_EXACTLY.
+    // OLD_MANIFEST + NEW_LAUNCHER: nem o estado anterior, nem o novo.
+    let cenario = cenario("t9_pos_troca_do_link");
+    cenario.publicar(&[]);
+    let (sha, decoy) = cenario.com_estado_anterior_distinto();
+
+    let mv = cenario.stubs.join("mv");
+    fs::write(&mv, MV_QUE_BLOQUEIA_APOS_A_TROCA).expect("escrever mv stub");
+    make_executable(&mv);
+
+    let (codigo, relato) = cenario.publicar_e_sinalizar("TERM", &[]);
+    fs::remove_file(&mv).ok();
+
+    // A superfície alvo não é "perto do mv": é o mv REAL concluído, com o comando
+    // exposto já apontando para a release nova, observado de dentro da janela.
+    assert!(
+        relato.starts_with("mv:launcher-trocado"),
+        "fase alvo inesperada: {relato}"
+    );
+    assert!(
+        relato.contains(&format!(
+            "alvo={}",
+            cenario.release.join("bin/pink").display()
+        )),
+        "a troca precisa ter acontecido de verdade antes do sinal: {relato}"
+    );
+    assert_eq!(codigo, 143, "TERM precisa preservar a semântica do sinal");
+
+    // O contrato é o filesystem da fixture, não o stderr: um veredito que afirma
+    // restauração é exatamente o que este defeito emitia enquanto o launcher novo
+    // seguia vivo.
+    cenario.exigir_estado_anterior(&sha, &decoy, "T9");
+    assert!(
+        relato.contains("RESTORED_EXACTLY"),
+        "com o launcher de volta, o veredito precisa afirmá-lo: {relato}"
+    );
     cenario.limpar();
 }
 
