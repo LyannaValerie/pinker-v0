@@ -712,11 +712,42 @@ fi
 exit 0
 "#;
 
+/// `install` que faz o trabalho real e só então bloqueia. Serve a uma janela que
+/// nenhum stub de launcher ou validador alcança: o instante entre o manifest já
+/// instalado e o link ainda não trocado.
+#[cfg(unix)]
+const INSTALL_QUE_BLOQUEIA: &str = r#"#!/bin/sh
+/usr/bin/install "$@" || exit $?
+for arg in "$@"; do
+  case "$arg" in
+    *manifests/pink-*)
+      echo "install:manifest" > "$PINK_TESTE_ALCANCOU"
+      timeout 30 cat "$PINK_TESTE_PORTA" > /dev/null || true
+      ;;
+  esac
+done
+exit 0
+"#;
+
 /// python3 que falha. Serve a um caso só: `render_manifest` é chamado DEPOIS de
 /// a release entrar por rename e usa `fail`, que é `exit 1` puro — uma saída
 /// inesperada que não passa por `abort_publication`.
 #[cfg(unix)]
 const PYTHON_QUE_FALHA: &str = "#!/bin/sh\nexit 7\n";
+
+#[cfg(unix)]
+fn conjunto_de_manifests(raiz: &Path) -> Vec<String> {
+    let mut nomes: Vec<String> = fs::read_dir(raiz.join("pinker/manifests"))
+        .map(|entradas| {
+            entradas
+                .flatten()
+                .map(|e| e.file_name().to_string_lossy().to_string())
+                .collect()
+        })
+        .unwrap_or_default();
+    nomes.sort();
+    nomes
+}
 
 #[cfg(unix)]
 fn sha256_de(path: &Path) -> String {
@@ -1459,6 +1490,55 @@ fn colecao_quebrada_por_software_alheio_e_declarada_sem_bloquear() {
     );
     // E o manifest próprio continua sendo exigido válido.
     assert!(relato.contains("status=PUBLISHED"));
+    cenario.limpar();
+}
+
+#[cfg(unix)]
+#[test]
+fn t7_sinal_entre_o_manifest_novo_e_a_troca_do_link_restaura_os_dois() {
+    // Janela específica: o manifest já mudou, o link ainda não. Aqui
+    // publish_activated está vazio mas o estado vivo JÁ está alterado — se o
+    // rollback olhasse só para o link, o manifest novo ficaria.
+    let cenario = cenario("t7_entre_manifest_e_link");
+    cenario.publicar(&[]);
+    let (sha, decoy) = cenario.com_estado_anterior_distinto();
+
+    let install = cenario.stubs.join("install");
+    fs::write(&install, INSTALL_QUE_BLOQUEIA).expect("escrever install stub");
+    make_executable(&install);
+
+    let (codigo, relato) = cenario.publicar_e_sinalizar("TERM", &[]);
+    assert!(
+        relato.starts_with("install:manifest"),
+        "fase alvo inesperada: {relato}"
+    );
+    assert_eq!(codigo, 143);
+    cenario.exigir_estado_anterior(&sha, &decoy, "T7");
+    fs::remove_file(&install).ok();
+    cenario.limpar();
+}
+
+#[cfg(unix)]
+#[test]
+fn t8_abort_restaura_o_conjunto_de_manifests_e_nao_so_o_arquivo() {
+    // Restaurar o manifest certo mas deixar a coleção com outro conjunto seria
+    // trocar um defeito por outro: quem valida é a coleção inteira.
+    let cenario = cenario("t8_conjunto");
+    cenario.publicar(&[]);
+    let alheio = cenario.raiz.join("pinker/manifests/outro-1.0.0.json");
+    fs::write(&alheio, "{\n  \"name\": \"Outro Software\"\n}\n").expect("manifest alheio");
+    let (sha, decoy) = cenario.com_estado_anterior_distinto();
+
+    let antes = conjunto_de_manifests(&cenario.raiz);
+    let saida = cenario.publicar(&[("PINK_TESTE_REPROVAR", "2")]);
+    assert!(!saida.status.success());
+    assert_eq!(
+        conjunto_de_manifests(&cenario.raiz),
+        antes,
+        "o conjunto de manifests precisa voltar exatamente, não só o arquivo próprio"
+    );
+    assert!(alheio.is_file(), "manifest alheio jamais é tocado");
+    cenario.exigir_estado_anterior(&sha, &decoy, "T8");
     cenario.limpar();
 }
 
