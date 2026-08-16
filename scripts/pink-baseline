@@ -195,6 +195,10 @@ publish_manifest_backup=''
 publish_link_kind=''
 publish_link_target=''
 publish_link_backup=''
+# Link candidato desta transação. Registrado numa variável — e não redescoberto
+# por glob `.pink-next-*` — porque o publicador só pode remover o que ele mesmo
+# criou: um glob alcançaria o candidato de outra execução simultânea.
+publish_next_link=''
 
 # Estado da transação. É o menor estado necessário para decidir, em QUALQUER
 # saída, se há algo a desfazer:
@@ -223,8 +227,18 @@ publish_link_backup=''
 publish_state=PRE_TRANSACTION
 publish_abort_reason=''
 
-publish_cleanup_scratch() {
+# Temporários da transação. O staging não é o único: o link candidato vive em
+# `pinker/bin`, fora do scratch, porque precisa estar no MESMO diretório do
+# comando exposto para que a troca seja um rename atômico. Logo, apagar só o
+# scratch deixava um `.pink-next-<pid>` para trás sempre que o término caía entre
+# criar o candidato e consumi-lo — estado vivo restaurado, temporário sobrevivente.
+#
+# Isso não é cosmético: o `ln -s` que cria o candidato não usa `-f`, então um
+# `.pink-next-<pid>` abandonado faz a próxima publicação que receba aquele PID
+# abortar já na preparação do link.
+publish_cleanup_temporaries() {
     [[ -n "$publish_scratch" && -d "$publish_scratch" ]] && rm -rf "$publish_scratch"
+    [[ -n "$publish_next_link" ]] && rm -f "$publish_next_link"
     return 0
 }
 
@@ -330,8 +344,10 @@ PYTHON
 # desfazem nada por conta própria: eles apenas convertem o sinal em saída, para
 # que o mesmo funil decida, e depois devolvem a semântica do sinal.
 #
-# A limpeza do scratch é a ÚLTIMA coisa: é lá que vivem os backups, e apagá-los
-# antes de terminar a restauração é exatamente o defeito que este handler fecha.
+# A limpeza dos temporários é a ÚLTIMA coisa: é no scratch que vivem os backups,
+# e apagá-los antes de terminar a restauração é exatamente o defeito que este
+# handler fecha. O link candidato é removido no mesmo passo, pela mesma razão de
+# ordem: ele só deixa de importar depois que o rollback já decidiu e agiu.
 publish_finalize() {
     local motivo="$1" verdict='NOT_ATTEMPTED' estado="$publish_state"
     publish_state=FINALIZED
@@ -354,7 +370,7 @@ publish_finalize() {
     if [[ "$verdict" != 'NOT_NEEDED' ]]; then
         printf 'pink-baseline: término por %s; estado anterior %s\n' "$motivo" "$verdict" >&2
     fi
-    publish_cleanup_scratch
+    publish_cleanup_temporaries
     # Restauração divergente é mais grave que o motivo do término: quem chamou
     # precisa saber que o host ficou num estado que ninguém prometeu.
     [[ "$verdict" == 'RESTORATION_DIVERGED' ]] && exit 3
@@ -586,17 +602,21 @@ EOF
         publish_state=ACTIVATED
         install "${own[@]}" -m 0644 "$final" "$manifest" ||
             abort_publication "instalação do manifest falhou"
-        next_link="$forja_root/pinker/bin/.pink-next-$$"
-        ln -s "$release_binary" "$next_link" ||
+        # O candidato é registrado ANTES de existir, pela mesma razão que os traps
+        # são armados antes de haver o que desfazer: registrar depois deixaria uma
+        # janela em que o link existe e o finalizador não sabe que ele é dele.
+        publish_next_link="$forja_root/pinker/bin/.pink-next-$$"
+        ln -s "$release_binary" "$publish_next_link" ||
             abort_publication "não foi possível preparar o link candidato"
         # Não há transição a marcar aqui. O estado já entrou em ACTIVATED antes da
         # primeira mutação viva, que é o único ponto em que uma marca ainda chega
         # a tempo: qualquer marca DEPOIS do `mv` deixaria uma janela com o
         # launcher novo vivo e o rollback pensando que nada mudou.
-        mv -Tf "$next_link" "$exposed_command" || {
-            rm -f "$next_link"
+        mv -Tf "$publish_next_link" "$exposed_command" ||
             abort_publication "troca atômica do launcher falhou"
-        }
+        # Consumido pelo rename: não há mais o que limpar, e insistir removeria o
+        # comando exposto que acabou de ser publicado.
+        publish_next_link=''
 
         # Fase 5 — conferência pela autoridade que consome o registro, não pelo
         # emissor. Um manifest que o validador canônico rejeita não conta como
