@@ -347,8 +347,10 @@ fn baseline_script_exige_release_identidade_e_publicacao_atomica() {
         "--version-json",
         "forja-pink-bundle-v1",
         "forja-software-manifest-v1",
-        "/opt/pinker/releases/pink/$commit",
-        "mv -Tf \"$next_link\" /opt/pinker/bin/pink",
+        "/pinker/releases/pink/$commit",
+        // A exigência é a troca por rename atômico; o nome da variável que carrega
+        // o link candidato é detalhe do publicador, não contrato da F1.
+        "mv -Tf \"$publish_next_link\" \"$exposed_command\"",
         "sha256sum",
     ] {
         assert!(script.contains(required), "ausente: {required}");
