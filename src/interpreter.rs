@@ -157,12 +157,6 @@ enum IntrinsicCall {
     Done(Option<RuntimeValue>),
 }
 
-enum NamedArgLookup<'a> {
-    Missing,
-    PresentWithoutValue,
-    PresentValue(&'a str),
-}
-
 struct RuntimeIoState {
     open_files: HashMap<u64, RuntimeOpenFile>,
     next_file_handle: u64,
@@ -5692,10 +5686,7 @@ fn try_call_intrinsic(
                 )));
             };
             ensure_named_arg_key_valid(intrinsic_name, key)?;
-            let found = matches!(
-                find_named_cli_argument(&io_state.cli_args, key),
-                NamedArgLookup::PresentValue(_)
-            );
+            let found = pinker_argv_contract::chave_tem_valor(&io_state.cli_args, key);
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Bool(found))))
         }
         intrinsic_name @ ("pedir_argumento" | "argumento_nomeado_ou") => {
@@ -5718,17 +5709,17 @@ fn try_call_intrinsic(
                 )));
             };
             ensure_named_arg_key_valid(intrinsic_name, key)?;
-            match find_named_cli_argument(&io_state.cli_args, key) {
-                NamedArgLookup::Missing => Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(
-                    default_value.clone(),
-                )))),
-                NamedArgLookup::PresentValue(value) => Ok(IntrinsicCall::Done(Some(
+            let estado = pinker_argv_contract::estado_da_chave(&io_state.cli_args, key);
+            match pinker_argv_contract::resolver_pedido(estado) {
+                pinker_argv_contract::Pedido::Valor(value) => Ok(IntrinsicCall::Done(Some(
                     RuntimeValue::Str(value.to_string()),
                 ))),
-                NamedArgLookup::PresentWithoutValue => Err(runtime_err(&format!(
-                    "intrínseca '{}' encontrou chave '{}' sem valor na forma '--chave valor'",
-                    intrinsic_name, key
+                pinker_argv_contract::Pedido::Padrao => Ok(IntrinsicCall::Done(Some(
+                    RuntimeValue::Str(default_value.clone()),
                 ))),
+                pinker_argv_contract::Pedido::ChaveSemValor => Err(runtime_err(
+                    &pinker_argv_contract::mensagem_chave_sem_valor(intrinsic_name, key),
+                )),
             }
         }
         "tem_flag" => {
@@ -5741,7 +5732,7 @@ fn try_call_intrinsic(
                 return Err(runtime_err("intrínseca 'tem_flag' exige chave em verso"));
             };
             ensure_named_arg_key_valid("tem_flag", key)?;
-            let found = io_state.cli_args.iter().any(|a| a == key);
+            let found = pinker_argv_contract::contem_token_exato(&io_state.cli_args, key);
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Bool(found))))
         }
         "ambiente_ou" => {
@@ -5758,6 +5749,17 @@ fn try_call_intrinsic(
                     "intrínseca 'ambiente_ou' exige valor padrão em verso",
                 ));
             };
+            // A chave vazia é recusada como no resto da família. O nativo já
+            // recusava; o interpretador devolvia o padrão em silêncio, e
+            // `env::var("")` nunca teria sucesso — o padrão não era fallback,
+            // era o único desfecho possível de uma chamada inválida. A grafia
+            // da mensagem é a genérica, e não a de ambiente, porque
+            // `ambiente_ou` tem uma chave só: não há qual delas desambiguar.
+            if key.is_empty() {
+                return Err(runtime_err(&pinker_argv_contract::mensagem_chave_vazia(
+                    "ambiente_ou",
+                )));
+            }
             let value = env::var(key).unwrap_or_else(|_| default_value.clone());
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(value))))
         }
@@ -5788,18 +5790,18 @@ fn try_call_intrinsic(
             };
             ensure_named_arg_key_valid(intrinsic_name, arg_key)?;
             ensure_env_key_valid(intrinsic_name, env_key)?;
-            match find_named_cli_argument(&io_state.cli_args, arg_key) {
-                NamedArgLookup::PresentValue(value) => Ok(IntrinsicCall::Done(Some(
+            let estado = pinker_argv_contract::estado_da_chave(&io_state.cli_args, arg_key);
+            match pinker_argv_contract::resolver_contexto(estado) {
+                pinker_argv_contract::Contexto::Valor(value) => Ok(IntrinsicCall::Done(Some(
                     RuntimeValue::Str(value.to_string()),
                 ))),
-                NamedArgLookup::PresentWithoutValue => Err(runtime_err(&format!(
-                    "intrínseca '{}' encontrou chave '{}' sem valor na forma '--chave valor'",
-                    intrinsic_name, arg_key
-                ))),
-                NamedArgLookup::Missing => {
+                pinker_argv_contract::Contexto::Ambiente => {
                     let value = env::var(env_key).unwrap_or_else(|_| default_value.clone());
                     Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(value))))
                 }
+                pinker_argv_contract::Contexto::ChaveSemValor => Err(runtime_err(
+                    &pinker_argv_contract::mensagem_chave_sem_valor(intrinsic_name, arg_key),
+                )),
             }
         }
         "caminho_existe" => {
@@ -6827,7 +6829,7 @@ fn try_call_intrinsic(
 // @pinker-nav:start interpreter.hospedeiro.servicos-auxiliares
 // @pinker-nav:domain hospedeiro
 // @pinker-nav:layer interpreter
-// @pinker-nav:summary Reúne helpers hospedados usados pelas intrínsecas para stdin, aleatoriedade, argumentos nomeados, ambiente, formatação textual, CSV, JSON mínimo, tempo UTC e processos; encapsula efeitos e normalizações auxiliares sem criar novas ferramentas da Trama nem alterar a semântica do dispatcher, e concentra em comando_de_processo a construção de todo Command das famílias de subprocesso, que instala um pre_exec devolvendo SIGPIPE a SIG_DFL no filho antes do exec em paridade com o runtime nativo.
+// @pinker-nav:summary Reúne helpers hospedados usados pelas intrínsecas para stdin, aleatoriedade, ambiente, formatação textual, CSV, JSON mínimo, tempo UTC e processos; encapsula efeitos e normalizações auxiliares sem criar novas ferramentas da Trama nem alterar a semântica do dispatcher, e concentra em comando_de_processo a construção de todo Command das famílias de subprocesso, que instala um pre_exec devolvendo SIGPIPE a SIG_DFL no filho antes do exec em paridade com o runtime nativo. A leitura de argumento nomeado deixou de morar aqui: sobraram os dois guardas de chave vazia, e eles só escolhem qual mensagem de `pinker_argv_contract` usar — a classificação da chave é da autoridade compartilhada com o runtime nativo (#492).
 fn read_stdin_line_minima(intrinsic_name: &str) -> Result<Option<String>, PinkerError> {
     let mut raw = String::new();
     let bytes = io::stdin().read_line(&mut raw).map_err(|err| {
@@ -6852,9 +6854,8 @@ fn advance_random_generator(state: &mut u64) -> u64 {
 
 fn ensure_named_arg_key_valid(intrinsic_name: &str, key: &str) -> Result<(), PinkerError> {
     if key.is_empty() {
-        return Err(runtime_err(&format!(
-            "intrínseca '{}' exige chave não vazia",
-            intrinsic_name
+        return Err(runtime_err(&pinker_argv_contract::mensagem_chave_vazia(
+            intrinsic_name,
         )));
     }
     Ok(())
@@ -6862,10 +6863,9 @@ fn ensure_named_arg_key_valid(intrinsic_name: &str, key: &str) -> Result<(), Pin
 
 fn ensure_env_key_valid(intrinsic_name: &str, key: &str) -> Result<(), PinkerError> {
     if key.is_empty() {
-        return Err(runtime_err(&format!(
-            "intrínseca '{}' exige chave de ambiente não vazia",
-            intrinsic_name
-        )));
+        return Err(runtime_err(
+            &pinker_argv_contract::mensagem_chave_ambiente_vazia(intrinsic_name),
+        ));
     }
     Ok(())
 }
@@ -7263,22 +7263,6 @@ fn civil_from_days(days_since_unix_epoch: i64) -> Result<(i64, u64, u64), Pinker
             runtime_err("timestamp inválido em 'formatar_tempo_unix': dia fora da faixa")
         })?,
     ))
-}
-
-fn find_named_cli_argument<'a>(args: &'a [String], key: &str) -> NamedArgLookup<'a> {
-    let key_eq = format!("{key}=");
-    for (index, arg) in args.iter().enumerate() {
-        if arg == key {
-            return match args.get(index + 1) {
-                Some(value) => NamedArgLookup::PresentValue(value),
-                None => NamedArgLookup::PresentWithoutValue,
-            };
-        }
-        if let Some(value) = arg.strip_prefix(&key_eq) {
-            return NamedArgLookup::PresentValue(value);
-        }
-    }
-    NamedArgLookup::Missing
 }
 
 fn trim_final_newline_minimo(mut line: String) -> String {

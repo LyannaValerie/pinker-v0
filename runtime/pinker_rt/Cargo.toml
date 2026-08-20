@@ -13,6 +13,7 @@ crate-type = ["staticlib", "rlib"]
 
 [dependencies]
 # Nenhuma dependência externa — mesma disciplina zero-dependency do compilador.
+pinker_argv_contract = { path = "../pinker_argv_contract" }
 pinker_memory_contract = { path = "../pinker_memory_contract" }
 pinker_json_contract = { path = "../pinker_json_contract" }
 pinker_sha256_contract = { path = "../pinker_sha256_contract" }

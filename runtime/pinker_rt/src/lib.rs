@@ -2626,15 +2626,17 @@ pub extern "C" fn pinker_aleatorio_entre(handle: u64, min: u64, max: u64) -> u64
 // Os argumentos do programa vêm do `argc`/`argv` capturados por
 // `pinker_rt_iniciar` (B1): `argv[0]` é o binário, então os "argumentos do
 // programa" são `argv[1..]` — o equivalente nativo do `cli_args` do
-// interpretador. A busca por chave nomeada replica `find_named_cli_argument`
-// (`chave valor` ou `chave=valor`). Subprocessos usam `std::process` com as
+// interpretador. A busca por chave nomeada não é reescrita aqui: vem de
+// `pinker_argv_contract`, a mesma autoridade que o interpretador consome, para
+// que os três estados da chave não possam divergir entre os backends (#492).
+// Subprocessos usam `std::process` com as
 // mesmas validações (comando não vazio, UTF-8 estrito, exit code exigido).
 // ---------------------------------------------------------------------------
 
 // @pinker-nav:start runtime.ambiente.argumentos
 // @pinker-nav:domain ambiente
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Leitura dos argumentos de linha de comando a partir do argc/argv global capturado em pinker_rt_iniciar (argv[0] descartado como nome do binário) e das variáveis de ambiente via std::env::var, incluindo busca por chave nomeada no formato `chave valor` ou `chave=valor`; argumento ausente ou chave vazia abortam via erro_fatal.
+// @pinker-nav:summary Leitura dos argumentos de linha de comando a partir do argc/argv global capturado em pinker_rt_iniciar (argv[0] descartado como nome do binário) e das variáveis de ambiente via std::env::var. A classificação da chave nomeada não mora aqui: `estado_da_chave`, `resolver_pedido`, `resolver_contexto`, `chave_tem_valor` e `contem_token_exato` vêm de `pinker_argv_contract`, a autoridade única que o interpretador também consome, e este arquivo só decide **como** o nativo falha. Argumento posicional ausente, chave vazia, chave de ambiente vazia e chave presente sem valor abortam via erro_fatal, com a mensagem produzida pela autoridade.
 fn argumentos_do_programa() -> Vec<String> {
     let argc = pinker_rt_argc();
     let argv = pinker_rt_argv();
@@ -2655,24 +2657,15 @@ fn argumentos_do_programa() -> Vec<String> {
     argumentos
 }
 
-/// Réplica de `find_named_cli_argument`: `chave valor` ou `chave=valor`;
-/// devolve `Some(valor)` apenas quando há valor presente.
-fn buscar_argumento_nomeado(argumentos: &[String], chave: &str) -> Option<String> {
-    let chave_igual = format!("{chave}=");
-    for (indice, argumento) in argumentos.iter().enumerate() {
-        if argumento == chave {
-            return argumentos.get(indice + 1).cloned();
-        }
-        if let Some(valor) = argumento.strip_prefix(&chave_igual) {
-            return Some(valor.to_string());
-        }
-    }
-    None
-}
-
 fn exigir_chave_nao_vazia(nome: &str, chave: &str) {
     if chave.is_empty() {
-        erro_fatal(&format!("intrínseca '{nome}' exige chave não vazia"));
+        erro_fatal(&pinker_argv_contract::mensagem_chave_vazia(nome));
+    }
+}
+
+fn exigir_chave_ambiente_nao_vazia(nome: &str, chave: &str) {
+    if chave.is_empty() {
+        erro_fatal(&pinker_argv_contract::mensagem_chave_ambiente_vazia(nome));
     }
 }
 
@@ -2712,7 +2705,10 @@ pub extern "C" fn pinker_ambiente_tem_argumento(indice: u64) -> u64 {
 pub unsafe extern "C" fn pinker_ambiente_tem_chave(chave: *const u8) -> u64 {
     let chave = verso_str(chave);
     exigir_chave_nao_vazia("tem_chave", chave);
-    u64::from(buscar_argumento_nomeado(&argumentos_do_programa(), chave).is_some())
+    u64::from(pinker_argv_contract::chave_tem_valor(
+        &argumentos_do_programa(),
+        chave,
+    ))
 }
 
 /// # Safety
@@ -2724,9 +2720,14 @@ pub unsafe extern "C" fn pinker_ambiente_pedir_argumento(
 ) -> *mut u8 {
     let chave = verso_str(chave);
     exigir_chave_nao_vazia("pedir_argumento", chave);
-    match buscar_argumento_nomeado(&argumentos_do_programa(), chave) {
-        Some(valor) => verso_alocar(&valor),
-        None => verso_alocar(verso_str(padrao)),
+    let argumentos = argumentos_do_programa();
+    let estado = pinker_argv_contract::estado_da_chave(&argumentos, chave);
+    match pinker_argv_contract::resolver_pedido(estado) {
+        pinker_argv_contract::Pedido::Valor(valor) => verso_alocar(valor),
+        pinker_argv_contract::Pedido::Padrao => verso_alocar(verso_str(padrao)),
+        pinker_argv_contract::Pedido::ChaveSemValor => erro_fatal(
+            &pinker_argv_contract::mensagem_chave_sem_valor("pedir_argumento", chave),
+        ),
     }
 }
 
@@ -2736,11 +2737,10 @@ pub unsafe extern "C" fn pinker_ambiente_pedir_argumento(
 pub unsafe extern "C" fn pinker_ambiente_tem_flag(chave: *const u8) -> u64 {
     let chave = verso_str(chave);
     exigir_chave_nao_vazia("tem_flag", chave);
-    u64::from(
-        argumentos_do_programa()
-            .iter()
-            .any(|argumento| argumento == chave),
-    )
+    u64::from(pinker_argv_contract::contem_token_exato(
+        &argumentos_do_programa(),
+        chave,
+    ))
 }
 
 /// # Safety
@@ -2766,13 +2766,18 @@ pub unsafe extern "C" fn pinker_ambiente_buscar_contexto(
     let chave_arg = verso_str(chave_arg);
     let chave_env = verso_str(chave_env);
     exigir_chave_nao_vazia("buscar_contexto", chave_arg);
-    exigir_chave_nao_vazia("buscar_contexto", chave_env);
-    if let Some(valor) = buscar_argumento_nomeado(&argumentos_do_programa(), chave_arg) {
-        return verso_alocar(&valor);
-    }
-    match std::env::var(chave_env) {
-        Ok(valor) => verso_alocar(&valor),
-        Err(_) => verso_alocar(verso_str(padrao)),
+    exigir_chave_ambiente_nao_vazia("buscar_contexto", chave_env);
+    let argumentos = argumentos_do_programa();
+    let estado = pinker_argv_contract::estado_da_chave(&argumentos, chave_arg);
+    match pinker_argv_contract::resolver_contexto(estado) {
+        pinker_argv_contract::Contexto::Valor(valor) => verso_alocar(valor),
+        pinker_argv_contract::Contexto::Ambiente => match std::env::var(chave_env) {
+            Ok(valor) => verso_alocar(&valor),
+            Err(_) => verso_alocar(verso_str(padrao)),
+        },
+        pinker_argv_contract::Contexto::ChaveSemValor => erro_fatal(
+            &pinker_argv_contract::mensagem_chave_sem_valor("buscar_contexto", chave_arg),
+        ),
     }
 }
 // @pinker-nav:end runtime.ambiente.argumentos
