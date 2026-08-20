@@ -3568,7 +3568,7 @@ fn run_analyze(config: Config) {
 // @pinker-nav:start cli.build.nativo
 // @pinker-nav:domain build
 // @pinker-nav:layer cli
-// @pinker-nav:summary run_build repete o front-end (lex/parse/imports/semântica/IR/CFG/seleção) e grava o `.s` resultante em <out_dir>/<stem>.s via fs::write; com --nativo, emite via emit_external_toolchain_subset_nativo e, após gravar, chama link_nativo. locate_pinker_rt_lib localiza (não constrói) a staticlib libpinker_rt.a pré-buildada: usa a env PINKER_RT_LIB se apontar para um arquivo existente, senão procura ao lado do executável atual via std::env::current_exe; retorna Err com uma mensagem sugerindo `cargo build` se não encontrar. detect_cc_driver detecta um driver C disponível testando `cc --version`/`gcc --version`/`clang --version` via std::process::Command e retorna o primeiro que responder com status de sucesso. link_nativo invoca esse driver externo passando o `.s`, a staticlib localizada e -lpthread/-ldl/-lm para produzir o binário via -o; a montagem e a linkedição são feitas pelo driver externo, não por este arquivo. Antes de linkar, link_nativo chama verificar_artefato_sussurro, que relê o `.s` gravado e delega a inline_asm::verify_native_artifact — o invariante de artefato roda no caminho produtivo, não só em fixture de teste: monta o assembly emitido e a baseline derivada sem os envelopes num diretório intermediário `.pinker-sussurro-verificacao` sob o out_dir, compara as superfícies dos dois objetos e aborta o build com E-BACKEND-ASM-ARTIFACT diante de qualquer delta de seção ou de símbolo definido; o diretório intermediário é removido em qualquer desfecho e a verificação só imprime linha de confirmação quando existe ao menos um envelope.
+// @pinker-nav:summary run_build repete o front-end (lex/parse/imports/semântica/IR/CFG/seleção) e grava o `.s` resultante em <out_dir>/<stem>.s via fs::write; com --nativo, emite via emit_external_toolchain_subset_nativo e, após gravar, chama link_nativo. locate_pinker_rt_lib localiza (não constrói) a staticlib libpinker_rt.a pré-buildada: usa a env PINKER_RT_LIB se apontar para um arquivo existente, senão procura ao lado do executável atual via std::env::current_exe; retorna Err com uma mensagem sugerindo `cargo build` se não encontrar. detect_cc_driver detecta um driver C disponível testando `cc --version`/`gcc --version`/`clang --version` via std::process::Command e retorna o primeiro que responder com status de sucesso. link_nativo invoca esse driver externo em dois passos: primeiro `-c` sobre o `.s` para um objeto de nome derivado do próprio `.s`, depois a linkedição desse objeto com a staticlib localizada e -lpthread/-ldl/-lm para produzir o binário via -o; o objeto intermediário é removido em qualquer desfecho. A montagem e a linkedição continuam sendo feitas pelo driver externo, não por este arquivo; o que este arquivo controla é o nome do objeto, porque entregar o `.s` direto ao driver deixaria o intermediário com nome temporário aleatório e o linker o registraria como símbolo `STT_FILE` do executável, quebrando o determinismo byte a byte entre dois builds da mesma fonte. Antes de linkar, link_nativo chama verificar_artefato_sussurro, que relê o `.s` gravado e delega a inline_asm::verify_native_artifact — o invariante de artefato roda no caminho produtivo, não só em fixture de teste: monta o assembly emitido e a baseline derivada sem os envelopes num diretório intermediário `.pinker-sussurro-verificacao` sob o out_dir, compara as superfícies dos dois objetos e aborta o build com E-BACKEND-ASM-ARTIFACT diante de qualquer delta de seção ou de símbolo definido; o diretório intermediário é removido em qualquer desfecho e a verificação só imprime linha de confirmação quando existe ao menos um envelope.
 fn run_build(config: BuildConfig) {
     let source = match fs::read_to_string(&config.input) {
         Ok(source) => source,
@@ -3728,8 +3728,30 @@ fn link_nativo(asm_path: &Path, bin_path: &Path) -> Result<(), String> {
             check.envelopes, check.sections, check.defined_symbols
         );
     }
-    let output = std::process::Command::new(&driver)
+    // A montagem é um passo próprio, com nome de objeto derivado do `.s`.
+    // Entregar o `.s` direto ao driver deixa o objeto intermediário com um nome
+    // temporário aleatório, e o linker o registra como símbolo `STT_FILE` do
+    // executável assim que o objeto passa a contribuir símbolos locais — o
+    // binário deixaria de ser byte-determinístico entre dois builds da mesma
+    // fonte. O objeto é intermediário e não sobrevive ao build.
+    let object_path = asm_path.with_extension("o");
+    let assemble = std::process::Command::new(&driver)
+        .arg("-c")
         .arg(asm_path)
+        .arg("-o")
+        .arg(&object_path)
+        .output()
+        .map_err(|err| format!("falha ao invocar '{}': {}", driver, err))?;
+    if !assemble.status.success() {
+        let _ = fs::remove_file(&object_path);
+        return Err(format!(
+            "'{}' retornou erro:\n{}",
+            driver,
+            String::from_utf8_lossy(&assemble.stderr)
+        ));
+    }
+    let output = std::process::Command::new(&driver)
+        .arg(&object_path)
         .arg(&runtime_lib)
         .arg("-lpthread")
         .arg("-ldl")
@@ -3738,6 +3760,7 @@ fn link_nativo(asm_path: &Path, bin_path: &Path) -> Result<(), String> {
         .arg(bin_path)
         .output()
         .map_err(|err| format!("falha ao invocar '{}': {}", driver, err))?;
+    let _ = fs::remove_file(&object_path);
     if !output.status.success() {
         return Err(format!(
             "'{}' retornou erro:\n{}",

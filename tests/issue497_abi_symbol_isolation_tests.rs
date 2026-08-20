@@ -1055,6 +1055,55 @@ fn sensitivity_a_ligacao_por_classe() {
     );
 }
 
+/// A emissão de símbolos locais fez o objeto do programa passar a contribuir
+/// símbolos locais para o executável. Entregar o `.s` direto ao driver deixa o
+/// objeto intermediário com nome temporário aleatório, que o linker registra
+/// como `STT_FILE` — e o binário deixa de ser byte-determinístico.
+#[test]
+fn build_nativo_continua_byte_deterministico_entre_diretorios() {
+    const FONTE: &str = r#"
+pacote main;
+
+carinho auxiliar(n: bombom) -> bombom {
+    mimo n + 1;
+}
+
+carinho principal() -> bombom {
+    falar(auxiliar(41));
+    mimo 0;
+}
+"#;
+    let Some(primeiro) = build_nativo(concat!(module_path!(), ":", line!()), "determinismo", FONTE)
+    else {
+        return;
+    };
+    let Some(segundo) = build_nativo(concat!(module_path!(), ":", line!()), "determinismo", FONTE)
+    else {
+        return;
+    };
+    assert_ne!(
+        primeiro.executable, segundo.executable,
+        "os dois builds precisam estar em diretórios distintos"
+    );
+    assert_eq!(
+        primeiro.assembly, segundo.assembly,
+        "o `.s` do mesmo programa não pode variar"
+    );
+    assert_eq!(
+        fs::read(&primeiro.executable).expect("ELF A"),
+        fs::read(&segundo.executable).expect("ELF B"),
+        "o executável do mesmo programa precisa ser byte-idêntico"
+    );
+
+    // O objeto intermediário é do build, não do produto.
+    let objeto = primeiro.executable.with_extension("o");
+    assert!(
+        !objeto.exists(),
+        "o objeto intermediário não deve sobreviver ao build: {}",
+        objeto.display()
+    );
+}
+
 #[test]
 fn sensitivity_nenhum_gc_sections_no_link_do_produto() {
     let fonte = fs::read_to_string("src/main.rs").expect("CLI legível");
