@@ -2,8 +2,8 @@ schema = 2
 id = "normalizacao-corrente-para-historico"
 
 [reconstruction]
-expected_overrides = 64
-expected_exclusions = 90
+expected_overrides = 68
+expected_exclusions = 95
 
 [[rules]]
 op = "exclude-key"
@@ -122,6 +122,21 @@ expected_matches = 1
 
 [[rules]]
 op = "exclude-key"
+key = "evidencia.importacoes.parte-g-carregador-e-paridade"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.importacoes.parte-g-diagnosticos-e-precedencia"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.importacoes.parte-g-superficie-familia"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
 key = "evidencia.integridade.parte-e2-sha256"
 expected_matches = 1
 
@@ -202,6 +217,11 @@ expected_matches = 1
 
 [[rules]]
 op = "exclude-key"
+key = "familia.superficie.registro"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
 key = "filesystem.tipo-entrada.taxonomia"
 expected_matches = 1
 
@@ -233,6 +253,11 @@ expected_matches = 1
 [[rules]]
 op = "exclude-key"
 key = "parser.genericos.inferencia-local"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "parser.importacoes.superficie-familia"
 expected_matches = 1
 
 [[rules]]
@@ -634,8 +659,10 @@ expect_layer = "cli"
 [[rules]]
 op = "override-region"
 key = "cli.modulos.importacao"
-from_hash = "fnv1a64:4d58bd09b03b48f4"
+from_hash = "fnv1a64:17faa277890963bd"
 to_hash = "fnv1a64:ec330060a090d4c0"
+from_summary = "parse_program_from_source tokeniza e parseia uma string de fonte (sem resolver imports). importable_item_name e importable_item_clone reconhecem e clonam os itens importáveis Function, Const, Struct, TypeAlias, Enum e Trait; qualified_type_item_clone requalifica com o prefixo `<módulo>.` somente Struct e TypeAlias, não Function, Const, Enum ou Trait. load_module_program lê o arquivo `<módulo>.pink` a partir de `base_dir`, detecta ciclo de módulos comparando com a pilha `loading` e recursa nos imports do módulo carregado antes de inserir o programa em `loaded`. load_program_with_imports é o ponto de entrada: para cada import do programa raiz, pula famílias built-in importáveis, detecta import duplicado pela chave `módulo::símbolo`, carrega o módulo via load_module_program e insere os itens importados (todo o módulo ou um símbolo específico) em `root_program.items`, reportando colisão de nome com itens locais ou com outro import. Import de família built-in não vira item: `modulo_real_existe` decide a precedência `REAL_MODULE_X > BUILTIN_FAMILY_X` — a forma seletiva cede a vez a um `<família>.pink` que exista de fato, e só na ausência dele o import sobrevive em `root_program.imports` para a autoridade semântica validá-lo."
+to_summary = "parse_program_from_source tokeniza e parseia uma string de fonte (sem resolver imports). importable_item_name e importable_item_clone reconhecem e clonam os itens importáveis Function, Const, Struct, TypeAlias, Enum e Trait; qualified_type_item_clone requalifica com o prefixo `<módulo>.` somente Struct e TypeAlias, não Function, Const, Enum ou Trait. load_module_program lê o arquivo `<módulo>.pink` a partir de `base_dir`, detecta ciclo de módulos comparando com a pilha `loading` e recursa nos imports do módulo carregado antes de inserir o programa em `loaded`. load_program_with_imports é o ponto de entrada: para cada import do programa raiz, pula famílias built-in importáveis, detecta import duplicado pela chave `módulo::símbolo`, carrega o módulo via load_module_program e insere os itens importados (todo o módulo ou um símbolo específico) em `root_program.items`, reportando colisão de nome com itens locais ou com outro import antes de limpar `root_program.imports`."
 expect_file = "src/main.rs"
 expect_domain = "modulos"
 expect_layer = "cli"
@@ -720,6 +747,17 @@ from_hash = "fnv1a64:960718fef752bbc0"
 to_hash = "fnv1a64:7755e0a2fbbe2743"
 expect_file = "tests/parser_tests.rs"
 expect_domain = "parser"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.semantica.imports-por-familia"
+from_hash = "fnv1a64:c34bd7ba1c7d15db"
+to_hash = "fnv1a64:b48164ab8a48fd79"
+from_summary = "Exercita importação por família via `trazer` (tempo, ambiente, acaso, texto, arquivo, caminho, processo) e o acesso legado global sem trazer, rejeitando família desconhecida e membro que a família não exporta, nos casos presentes. Importação aceita não implica uso real do símbolo. A superfície por família em si — grafias qualificada e seletiva, canonicalização e paridade — tem evidência própria em `tests/part_g_familia_superficie_tests.rs`."
+to_summary = "Exercita importação por família via `trazer` (tempo, ambiente, acaso, texto, arquivo, caminho, processo) e o acesso legado global sem trazer, rejeitando família desconhecida e trazer seletivo não suportado, nos casos presentes. Importação aceita não implica uso real do símbolo."
+expect_file = "tests/semantic_tests.rs"
+expect_domain = "semantica"
 expect_layer = "evidencia"
 
 [[rules]]
@@ -859,7 +897,7 @@ expect_layer = "parser"
 [[rules]]
 op = "override-region"
 key = "parser.encaixe.expressao"
-from_hash = "fnv1a64:eddad8459b267274"
+from_hash = "fnv1a64:1d38d4a535298ac7"
 to_hash = "fnv1a64:a57b831878d2376a"
 from_summary = "Parser de `encaixe`: preserva leques como `EnumMatchStmt` com `EnumPattern` recursivo (variantes e bindings) e mantém uniões estruturais no `UnionMatchStmt` vigente; tipo, exaustividade, duplicatas e unreachable patterns pertencem à semântica."
 to_summary = "Desugaring de `encaixe` (pattern matching sobre leques): reconhece os `caso Variante(bind) { ... }` e o `senao`, exige exaustividade e produz uma âncora `nova` seguida de cadeia `talvez`/`senao` comparando tags — nós `ast::Stmt`."
@@ -870,7 +908,7 @@ expect_layer = "parser"
 [[rules]]
 op = "override-region"
 key = "parser.expressoes.postfix"
-from_hash = "fnv1a64:d740b52a43d2bff0"
+from_hash = "fnv1a64:880dfd2ed8be59d0"
 to_hash = "fnv1a64:a0e90b7e07211b9b"
 from_summary = "Cadeia postfix de expressão: chamadas, acesso a campo, índice, chamada genérica explícita e sufixo de cast (`virar`), aplicados sobre a expressão base para produzir o `ast::Expr` final."
 to_summary = "Cadeia postfix de expressão: chamadas, acesso a campo, índice, chamada genérica explícita e sufixo de cast (`virar`), aplicados sobre a expressão base para produzir o `ast::Expr` final."
@@ -950,7 +988,7 @@ expect_layer = "parser"
 [[rules]]
 op = "override-region"
 key = "parser.programa.estrutura"
-from_hash = "fnv1a64:edb27ca28889f54d"
+from_hash = "fnv1a64:2927838533e91513"
 to_hash = "fnv1a64:c8ac56b28a5a6113"
 from_summary = "Ponto de entrada do parser: constrói o `Program` reconhecendo `pacote`, `trazer` (imports) e a marca freestanding, e despacha os itens de topo via `parse_item`. Um prepass estreito de autoridade detecta templates genéricos de usuário antes de registrar o `Resultado<T,E>` builtin, tornando USER_WINS independente da ordem textual sem resolver tipos. A redeclaração continua formando com a produção runtime a conjunção inválida da Parte B1."
 to_summary = "Ponto de entrada do parser: constrói o `Program` reconhecendo `pacote`, `trazer` (imports) e a marca freestanding, e despacha os itens de topo (funções, structs, leques, tratos, impl, aliases, constantes) via `parse_item`. Predeclara os leques genéricos da biblioteca padrão (Fase 241, `Resultado<T,E>`) antes do laço de itens e suprime o predeclarado quando o usuário declara o mesmo nome."
@@ -1028,7 +1066,7 @@ expect_layer = "select"
 [[rules]]
 op = "override-region"
 key = "semantic.chamadas.despacho"
-from_hash = "fnv1a64:366f0828600c8f2a"
+from_hash = "fnv1a64:47f59967b49e7ea4"
 to_hash = "fnv1a64:786f0d551629e7a5"
 expect_file = "src/semantic.rs"
 expect_domain = "chamadas"
@@ -1045,6 +1083,15 @@ expect_layer = "semantic"
 
 [[rules]]
 op = "override-region"
+key = "semantic.expressoes.verificacao"
+from_hash = "fnv1a64:90ad50e09db9c824"
+to_hash = "fnv1a64:e44e9bbce88ccd3a"
+expect_file = "src/semantic.rs"
+expect_domain = "expressoes"
+expect_layer = "semantic"
+
+[[rules]]
+op = "override-region"
 key = "semantic.fluxo.retornos"
 from_hash = "fnv1a64:33f15cbd2f0750c9"
 to_hash = "fnv1a64:b5ad0bb16507db91"
@@ -1052,6 +1099,26 @@ from_summary = "Fluxo e retornos: verificação de ramo `talvez`/`senão` aninha
 to_summary = "Fluxo e retornos: verificação de ramo `talvez`/`senão` aninhado com escopo próprio, checagem de `mimo` de retorno contra o tipo declarado (presença/ausência de valor, tipo e faixa) e análise superficial de alcançabilidade — um bloco retorna se contém `mimo` direto ou um `talvez`/`senão` em que ambos os ramos retornam."
 expect_file = "src/semantic.rs"
 expect_domain = "fluxo"
+expect_layer = "semantic"
+
+[[rules]]
+op = "override-region"
+key = "semantic.importacoes.familias"
+from_hash = "fnv1a64:2ad993d7d430896a"
+to_hash = "fnv1a64:6e55b22c24a44135"
+from_summary = "Validação semântica de `trazer` sobre famílias built-in. A lista de famílias e a superfície que cada uma exporta não moram aqui: são consultadas em `familia_superficie`, a autoridade única que o parser também consulta ao canonicalizar. Esta camada decide só o que é decisão de import — família desconhecida e membro inexistente na forma seletiva —, e a mensagem de membro inexistente vem da própria autoridade para que a lista de membros exista num lugar só."
+to_summary = "Famílias de intrínsecas importáveis (`tempo`, `ambiente`, `acaso`, `texto`, `arquivo`, `caminho`, `processo`) e a validação de `trazer`: aceita a importação da família inteira e rejeita importação seletiva (`familia.simbolo`) ou família desconhecida."
+expect_file = "src/semantic.rs"
+expect_domain = "importacoes"
+expect_layer = "semantic"
+
+[[rules]]
+op = "override-region"
+key = "semantic.programa.duas-passagens"
+from_hash = "fnv1a64:ba75078e4ac9157e"
+to_hash = "fnv1a64:ed421619927ac329"
+expect_file = "src/semantic.rs"
+expect_domain = "programa"
 expect_layer = "semantic"
 
 [[rules]]
