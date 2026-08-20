@@ -588,7 +588,7 @@ expect_layer = "interpreter"
 [[rules]]
 op = "override-hash"
 key = "interpreter.modelo.valores-estado"
-from = "fnv1a64:8d3fd895411112e3"
+from = "fnv1a64:934e2bed27e9072b"
 to = "fnv1a64:bb92bae9203294f9"
 expect_file = "src/interpreter.rs"
 expect_domain = "modelo"

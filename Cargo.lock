@@ -6,10 +6,15 @@ version = 4
 name = "pinker-v0"
 version = "0.1.0"
 dependencies = [
+ "pinker_argv_contract",
  "pinker_json_contract",
  "pinker_memory_contract",
  "pinker_sha256_contract",
 ]
+
+[[package]]
+name = "pinker_argv_contract"
+version = "0.1.0"
 
 [[package]]
 name = "pinker_json_contract"
@@ -23,6 +28,7 @@ version = "0.1.0"
 name = "pinker_rt"
 version = "0.1.0"
 dependencies = [
+ "pinker_argv_contract",
  "pinker_json_contract",
  "pinker_memory_contract",
  "pinker_sha256_contract",

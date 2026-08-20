@@ -2,8 +2,8 @@ schema = 2
 id = "normalizacao-corrente-para-historico"
 
 [reconstruction]
-expected_overrides = 72
-expected_exclusions = 95
+expected_overrides = 74
+expected_exclusions = 96
 
 [[rules]]
 op = "exclude-key"
@@ -68,6 +68,11 @@ expected_matches = 1
 [[rules]]
 op = "exclude-key"
 key = "cli.nav.projecao"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.ambiente.issue-492-paridade-argumento-nomeado"
 expected_matches = 1
 
 [[rules]]
@@ -785,8 +790,10 @@ expect_layer = "evidencia"
 [[rules]]
 op = "override-region"
 key = "interpreter.hospedeiro.servicos-auxiliares"
-from_hash = "fnv1a64:664abcd7941c8669"
+from_hash = "fnv1a64:14dfaace9c8d818a"
 to_hash = "fnv1a64:7228e896f97547b7"
+from_summary = "Reúne helpers hospedados usados pelas intrínsecas para stdin, aleatoriedade, ambiente, formatação textual, CSV, JSON mínimo, tempo UTC e processos; encapsula efeitos e normalizações auxiliares sem criar novas ferramentas da Trama nem alterar a semântica do dispatcher, e concentra em comando_de_processo a construção de todo Command das famílias de subprocesso, que instala um pre_exec devolvendo SIGPIPE a SIG_DFL no filho antes do exec em paridade com o runtime nativo. A leitura de argumento nomeado deixou de morar aqui: sobraram os dois guardas de chave vazia, e eles só escolhem qual mensagem de `pinker_argv_contract` usar — a classificação da chave é da autoridade compartilhada com o runtime nativo (#492)."
+to_summary = "Reúne helpers hospedados usados pelas intrínsecas para stdin, aleatoriedade, argumentos nomeados, ambiente, formatação textual, CSV, JSON mínimo, tempo UTC e processos; encapsula efeitos e normalizações auxiliares sem criar novas ferramentas da Trama nem alterar a semântica do dispatcher, e concentra em comando_de_processo a construção de todo Command das famílias de subprocesso, que instala um pre_exec devolvendo SIGPIPE a SIG_DFL no filho antes do exec em paridade com o runtime nativo."
 expect_file = "src/interpreter.rs"
 expect_domain = "hospedeiro"
 expect_layer = "interpreter"
@@ -796,6 +803,15 @@ op = "override-region"
 key = "interpreter.intrinsecos.io-arquivo-texto"
 from_hash = "fnv1a64:f07b9feac0db78c0"
 to_hash = "fnv1a64:41b06b9dbe9462df"
+expect_file = "src/interpreter.rs"
+expect_domain = "intrinsecos"
+expect_layer = "interpreter"
+
+[[rules]]
+op = "override-region"
+key = "interpreter.intrinsecos.tempo-processos-ambiente"
+from_hash = "fnv1a64:f6c99876509e5fb8"
+to_hash = "fnv1a64:251af980a687effd"
 expect_file = "src/interpreter.rs"
 expect_domain = "intrinsecos"
 expect_layer = "interpreter"
@@ -1066,6 +1082,17 @@ to_hash = "fnv1a64:b84752baa2afebcf"
 expect_file = "src/printer.rs"
 expect_domain = "ast"
 expect_layer = "printer"
+
+[[rules]]
+op = "override-region"
+key = "runtime.ambiente.argumentos"
+from_hash = "fnv1a64:bbc2b8516eae9369"
+to_hash = "fnv1a64:43cf715088e74b14"
+from_summary = "Leitura dos argumentos de linha de comando a partir do argc/argv global capturado em pinker_rt_iniciar (argv[0] descartado como nome do binário) e das variáveis de ambiente via std::env::var. A classificação da chave nomeada não mora aqui: `estado_da_chave`, `resolver_pedido`, `resolver_contexto`, `chave_tem_valor` e `contem_token_exato` vêm de `pinker_argv_contract`, a autoridade única que o interpretador também consome, e este arquivo só decide **como** o nativo falha. Argumento posicional ausente, chave vazia, chave de ambiente vazia e chave presente sem valor abortam via erro_fatal, com a mensagem produzida pela autoridade."
+to_summary = "Leitura dos argumentos de linha de comando a partir do argc/argv global capturado em pinker_rt_iniciar (argv[0] descartado como nome do binário) e das variáveis de ambiente via std::env::var, incluindo busca por chave nomeada no formato `chave valor` ou `chave=valor`; argumento ausente ou chave vazia abortam via erro_fatal."
+expect_file = "runtime/pinker_rt/src/lib.rs"
+expect_domain = "ambiente"
+expect_layer = "runtime"
 
 [[rules]]
 op = "override-region"

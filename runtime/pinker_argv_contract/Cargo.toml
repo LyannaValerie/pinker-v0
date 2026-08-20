@@ -1,0 +1,12 @@
+[package]
+name = "pinker_argv_contract"
+version = "0.1.0"
+edition = "2021"
+description = "Contrato puro da leitura de argumentos nomeados da Pinker — estado da chave e resolução compartilhados pelo compilador e pelo runtime nativo"
+license = "MIT"
+
+[lib]
+name = "pinker_argv_contract"
+
+[dependencies]
+# Nenhuma dependência externa — mesma disciplina zero-dependency do resto.
