@@ -2990,7 +2990,7 @@ fn api_ampla_de_aleatoriedade_permanece_fora_do_recorte() {
 // @pinker-nav:start evidencia.semantica.imports-por-familia
 // @pinker-nav:domain semantica
 // @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita importação por família via `trazer` (tempo, ambiente, acaso, texto, arquivo, caminho, processo) e o acesso legado global sem trazer, rejeitando família desconhecida e trazer seletivo não suportado, nos casos presentes. Importação aceita não implica uso real do símbolo.
+// @pinker-nav:summary Exercita importação por família via `trazer` (tempo, ambiente, acaso, texto, arquivo, caminho, processo) e o acesso legado global sem trazer, rejeitando família desconhecida e membro que a família não exporta, nos casos presentes. Importação aceita não implica uso real do símbolo. A superfície por família em si — grafias qualificada e seletiva, canonicalização e paridade — tem evidência própria em `tests/part_g_familia_superficie_tests.rs`.
 #[test]
 fn trazer_tempo_familia_aceita() {
     let code = r#"
@@ -3121,26 +3121,38 @@ fn legado_global_texto_sem_trazer_continua_valido() {
     assert!(parse_and_check(code).is_ok());
 }
 
+/// A recusa deixou de ser categórica: o que se recusa é um membro que a
+/// família não exporta. `texto` continua importável inteira e continua sem
+/// membro nenhum a selecionar nesta fase.
 #[test]
-fn trazer_seletivo_texto_nao_suportado_falha() {
+fn trazer_seletivo_de_familia_sem_membros_falha() {
     let code = r#"
         pacote main;
         trazer texto.juntar_verso;
         carinho principal() -> bombom { mimo 0; }
     "#;
     let err = parse_and_check(code).unwrap_err().to_string();
-    assert!(err.contains("importação seletiva"), "{}", err);
+    assert!(
+        err.contains("membro 'juntar_verso' não existe na família 'texto'"),
+        "{}",
+        err
+    );
+    assert!(err.contains("não exporta membros nesta fase"), "{}", err);
 }
 
 #[test]
-fn trazer_seletivo_nao_suportado_falha() {
+fn trazer_seletivo_de_familia_de_tempo_falha() {
     let code = r#"
         pacote main;
         trazer tempo.tempo_unix;
         carinho principal() -> bombom { mimo 0; }
     "#;
     let err = parse_and_check(code).unwrap_err().to_string();
-    assert!(err.contains("importação seletiva"), "{}", err);
+    assert!(
+        err.contains("membro 'tempo_unix' não existe na família 'tempo'"),
+        "{}",
+        err
+    );
 }
 
 #[test]
@@ -3229,15 +3241,38 @@ fn legado_global_processo_sem_trazer_continua_valido() {
     assert!(parse_and_check(code).is_ok());
 }
 
+/// `arquivo` exporta membros, mas `criar_arquivo` é o nome GLOBAL: sob a
+/// família o membro se chama `criar`. O diagnóstico precisa dizer isso, e não
+/// procurar `arquivo.pink`.
 #[test]
-fn trazer_seletivo_arquivo_nao_suportado_falha() {
+fn trazer_seletivo_de_nome_global_em_vez_de_membro_falha() {
     let code = r#"
         pacote main;
         trazer arquivo.criar_arquivo;
         carinho principal() -> bombom { mimo 0; }
     "#;
     let err = parse_and_check(code).unwrap_err().to_string();
-    assert!(err.contains("importação seletiva"), "{}", err);
+    assert!(
+        err.contains("membro 'criar_arquivo' não existe na família 'arquivo'"),
+        "{}",
+        err
+    );
+    assert!(err.contains("'criar'"), "{}", err);
+}
+
+/// O contrapositivo: o membro aprovado é aceito.
+#[test]
+fn trazer_seletivo_de_membro_aprovado_e_aceito() {
+    let code = r#"
+        pacote main;
+        trazer arquivo.criar;
+        carinho principal() -> bombom {
+            nova h: bombom = criar("alvo.txt");
+            fechar(h);
+            mimo 0;
+        }
+    "#;
+    assert!(parse_and_check(code).is_ok());
 }
 // @pinker-nav:end evidencia.semantica.imports-por-familia
 

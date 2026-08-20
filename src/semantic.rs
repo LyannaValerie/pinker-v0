@@ -23,50 +23,66 @@ use std::collections::{HashMap, HashSet};
 // @pinker-nav:start semantic.importacoes.familias
 // @pinker-nav:domain importacoes
 // @pinker-nav:layer semantic
-// @pinker-nav:summary Famílias de intrínsecas importáveis (`tempo`, `ambiente`, `acaso`, `texto`, `arquivo`, `caminho`, `processo`) e a validação de `trazer`: aceita a importação da família inteira e rejeita importação seletiva (`familia.simbolo`) ou família desconhecida.
-const IMPORTABLE_BUILTIN_FAMILIES: &[&str] = &[
-    "tempo", "ambiente", "acaso", "texto", "arquivo", "caminho", "processo",
-];
-
-pub fn importable_builtin_families() -> &'static [&'static str] {
-    IMPORTABLE_BUILTIN_FAMILIES
-}
-
-pub fn is_importable_builtin_family(module: &str, symbol: Option<&str>) -> bool {
-    symbol.is_none() && IMPORTABLE_BUILTIN_FAMILIES.contains(&module)
-}
-
-pub fn is_importable_builtin_family_import(import: &ImportDecl) -> bool {
-    is_importable_builtin_family(import.module.as_str(), import.symbol.as_deref())
-}
-
-fn importable_builtin_families_list() -> String {
-    importable_builtin_families()
-        .iter()
-        .map(|family| format!("'{}'", family))
-        .collect::<Vec<_>>()
-        .join(", ")
-}
-
-pub fn validate_builtin_family_import(import: &ImportDecl) -> Result<(), PinkerError> {
-    if import.symbol.is_some() {
+// @pinker-nav:summary Validação semântica de `trazer` sobre famílias built-in, e dono único da política de colisão de import de família. A lista de famílias e a superfície que cada uma exporta não moram aqui: são consultadas em `familia_superficie`, a autoridade única que o parser também consulta ao canonicalizar. Esta camada decide o que é decisão de import — família desconhecida, membro inexistente na forma seletiva e colisão do membro seletivo com item de topo (`validate_family_import_collision`, atravessada tanto pela CLI quanto pelo caminho de biblioteca). A mensagem de membro inexistente vem da própria autoridade para que a lista de membros exista num lugar só. Identidade homônima trazida por `trazer <modulo>;` não é recusada aqui nem em lugar nenhum: ela vence a família em silêncio, no parser, porque a autoridade de import a entrega como identidade de topo antes da canonicalização.
+/// Parte G: o membro trazido seletivamente colide com um item de topo?
+///
+/// A regra existia só em `main.rs`, o que deixava o caminho de biblioteca
+/// (`parse` + `check_program`, que é o que a crate expõe e o que os testes
+/// usam) aceitar em silêncio um `trazer arquivo.criar;` sobre um `carinho
+/// criar` do próprio arquivo. Duas políticas para a mesma pergunta é uma
+/// política a mais: a decisão mora aqui, na autoridade que todo caminho
+/// atravessa, com a mesma mensagem que a CLI já dava.
+pub fn validate_family_import_collision(
+    import: &ImportDecl,
+    items: &[Item],
+) -> Result<(), PinkerError> {
+    let Some(symbol) = import.symbol.as_deref() else {
+        return Ok(());
+    };
+    if !crate::familia_superficie::familia_conhecida(import.module.as_str()) {
+        return Ok(());
+    }
+    let colide = items.iter().any(|item| match item {
+        Item::Function(function) => function.name == symbol,
+        Item::Const(constant) => constant.name == symbol,
+        Item::Struct(struct_decl) => struct_decl.name == symbol,
+        Item::TypeAlias(alias) => alias.name == symbol,
+        Item::Enum(enum_decl) => enum_decl.name == symbol,
+        Item::Trait(trait_decl) => trait_decl.name == symbol,
+    });
+    if colide {
         return Err(PinkerError::Semantic {
             msg: format!(
-                "importação seletiva 'trazer {}.{}' não é suportada; use 'trazer {};' para importar a família inteira",
-                import.module,
-                import.symbol.as_deref().unwrap_or(""),
-                import.module
+                "colisão de nome no import: '{}' já existe no arquivo principal",
+                symbol
             ),
             span: import.span,
         });
     }
-    if !is_importable_builtin_family_import(import) {
+    Ok(())
+}
+
+pub fn validate_builtin_family_import(import: &ImportDecl) -> Result<(), PinkerError> {
+    if !crate::familia_superficie::familia_conhecida(import.module.as_str()) {
         return Err(PinkerError::Semantic {
             msg: format!(
                 "família '{}' não é reconhecida como família importável; famílias disponíveis nesta fase: {}",
                 import.module,
-                importable_builtin_families_list()
+                crate::familia_superficie::familias_disponiveis()
             ),
+            span: import.span,
+        });
+    }
+    let Some(symbol) = import.symbol.as_deref() else {
+        return Ok(());
+    };
+    // A recusa categórica de importação seletiva deixou de existir: o que se
+    // recusa agora é um membro que a família não exporta. A família sem
+    // exportações continua importável inteira e continua sem membro nenhum a
+    // selecionar, e é isso que a mensagem diz.
+    if !crate::familia_superficie::import_seletivo_valido(import.module.as_str(), symbol) {
+        return Err(PinkerError::Semantic {
+            msg: crate::familia_superficie::membro_inexistente(import.module.as_str(), symbol),
             span: import.span,
         });
     }
@@ -1175,6 +1191,46 @@ impl SemanticChecker {
     // @pinker-nav:domain programa
     // @pinker-nav:layer semantic
     // @pinker-nav:summary Entrada em duas passagens sobre o `Program`: passagem 1 valida importações e coleta funções, constantes, aliases, structs, leques e tratos em tabelas globais (detectando duplicações e conflitos de nome entre categorias, cargas de variante e recursão de alias/struct); passagem 2 dispara a verificação de contratos e de todos os corpos.
+    /// Parte G: o identificador não resolve para identidade alguma?
+    ///
+    /// Só isto autoriza falar de família em posição de base: enquanto qualquer
+    /// leitura histórica do nome existir, ela vence e a família se cala.
+    fn nome_sem_identidade(&self, nome: &str) -> bool {
+        self.resolve_var(nome).is_none()
+            && self.resolve_enum_base_name(nome).is_none()
+            && !self.funcs.contains_key(nome)
+            && !self.consts.contains_key(nome)
+            && !self.structs.contains_key(nome)
+            && !self.enums.contains_key(nome)
+            && !self.traits.contains_key(nome)
+            && !self.type_aliases.contains_key(nome)
+    }
+
+    /// Parte G: dica de família não importada, emitida só como último recurso.
+    ///
+    /// A dica nasceu no parser e quebrava programa legado: lá não se sabe se o
+    /// nome tem dono, e a Parte G recusava `x.campo` de qualquer ligação cujo
+    /// tipo o parser não tivesse inferido. Aqui a pergunta é respondível — se
+    /// nada reivindica o nome e a família exporta o membro, o programador quis
+    /// a superfície nova e esqueceu o `trazer`.
+    fn dica_de_familia_nao_importada(
+        &self,
+        base: &str,
+        campo: &str,
+        span: Span,
+    ) -> Option<PinkerError> {
+        if !crate::familia_superficie::forma_qualificada_valida(base, campo) {
+            return None;
+        }
+        if !self.nome_sem_identidade(base) {
+            return None;
+        }
+        Some(PinkerError::Semantic {
+            msg: crate::familia_superficie::familia_nao_importada(base, campo),
+            span,
+        })
+    }
+
     // --- Passagem 1: declaração global ---
     // Registra funções e constantes antes de verificar qualquer corpo.
     // Erros aqui interrompem antes da passagem 2.
@@ -1185,6 +1241,7 @@ impl SemanticChecker {
         // Importação seletiva (`trazer familia.simbolo;`) e demais famílias continuam rejeitadas.
         for import in &program.imports {
             validate_builtin_family_import(import)?;
+            validate_family_import_collision(import, &program.items)?;
             // `trazer tempo;`, `trazer ambiente;` e `trazer acaso;` são válidos
             // — as intrínsecas dessas famílias já estão disponíveis globalmente.
         }
@@ -3397,6 +3454,16 @@ impl SemanticChecker {
                         });
                     }
                 }
+                // Parte G: `familia.membro` sem o `trazer`. Só chega aqui o
+                // que o parser NÃO canonicalizou, e só vira erro de família
+                // depois de provado que nada mais reivindica o nome.
+                if let ExprKind::Ident(base_name) = &base.kind {
+                    if let Some(erro) =
+                        self.dica_de_familia_nao_importada(base_name, field, expr.span)
+                    {
+                        return Err(erro);
+                    }
+                }
                 let base_ty = self.check_value_expr(
                     base,
                     "resultado de função sem retorno não pode ser base de acesso a campo",
@@ -4212,6 +4279,13 @@ impl SemanticChecker {
                         name: enum_name,
                         span: expr_span,
                     });
+                }
+                // Parte G: `familia.membro(...)` sem o `trazer`, em posição de
+                // chamada. Mesma regra do acesso a campo — a dica só sai
+                // depois de o nome se provar órfão.
+                if let Some(erro) = self.dica_de_familia_nao_importada(base_name, field, expr_span)
+                {
+                    return Err(erro);
                 }
                 if self.traits.contains_key(base_name) {
                     if args.is_empty() {

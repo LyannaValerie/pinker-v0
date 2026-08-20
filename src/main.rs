@@ -23,7 +23,7 @@ use pinker_v0::nav;
 use pinker_v0::nav_projection_lifecycle::{self, ProjectionError};
 use pinker_v0::nav_projection_report;
 use pinker_v0::nav_projection_store::ProjectionStore;
-use pinker_v0::parser::Parser;
+use pinker_v0::parser::{ContextoDeImport, Parser};
 use pinker_v0::printer;
 use pinker_v0::project_state;
 use pinker_v0::project_state_report;
@@ -31,7 +31,7 @@ use pinker_v0::projection;
 use pinker_v0::repl;
 use pinker_v0::semantic;
 use pinker_v0::symbol_index;
-use pinker_v0::token::Span;
+use pinker_v0::token::{Span, Token};
 use pinker_v0::tooling;
 use pinker_v0::{ast, error::PinkerError};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
@@ -3384,7 +3384,11 @@ fn run_analyze(config: Config) {
         }
     }
 
-    let mut parser = Parser::new(tokens);
+    // Parte G: o que só a autoridade de import sabe é resolvido aqui e
+    // entregue pronto ao parser — nunca depois da canonicalização, que é
+    // irreversível.
+    let contexto = contexto_de_import(&tokens, &base_dir_de(&config.input));
+    let mut parser = Parser::com_contexto_de_import(tokens, GenericOrigin::Root, contexto);
     let parsed_program = try_or_exit!(parser.parse(), &source);
     let program = try_or_exit!(
         load_program_with_imports(&config.input, parsed_program),
@@ -3576,7 +3580,11 @@ fn run_build(config: BuildConfig) {
 
     let mut lexer = Lexer::new(&source);
     let tokens = try_or_exit!(lexer.tokenize(), &source);
-    let mut parser = Parser::new(tokens);
+    // Parte G: o que só a autoridade de import sabe é resolvido aqui e
+    // entregue pronto ao parser — nunca depois da canonicalização, que é
+    // irreversível.
+    let contexto = contexto_de_import(&tokens, &base_dir_de(&config.input));
+    let mut parser = Parser::com_contexto_de_import(tokens, GenericOrigin::Root, contexto);
     let parsed_program = try_or_exit!(parser.parse(), &source);
     let program = try_or_exit!(
         load_program_with_imports(&config.input, parsed_program),
@@ -3744,15 +3752,90 @@ fn link_nativo(asm_path: &Path, bin_path: &Path) -> Result<(), String> {
 // @pinker-nav:start cli.modulos.importacao
 // @pinker-nav:domain modulos
 // @pinker-nav:layer cli
-// @pinker-nav:summary parse_program_from_source tokeniza e parseia uma string de fonte (sem resolver imports). importable_item_name e importable_item_clone reconhecem e clonam os itens importáveis Function, Const, Struct, TypeAlias, Enum e Trait; qualified_type_item_clone requalifica com o prefixo `<módulo>.` somente Struct e TypeAlias, não Function, Const, Enum ou Trait. load_module_program lê o arquivo `<módulo>.pink` a partir de `base_dir`, detecta ciclo de módulos comparando com a pilha `loading` e recursa nos imports do módulo carregado antes de inserir o programa em `loaded`. load_program_with_imports é o ponto de entrada: para cada import do programa raiz, pula famílias built-in importáveis, detecta import duplicado pela chave `módulo::símbolo`, carrega o módulo via load_module_program e insere os itens importados (todo o módulo ou um símbolo específico) em `root_program.items`, reportando colisão de nome com itens locais ou com outro import antes de limpar `root_program.imports`.
+// @pinker-nav:summary parse_program_from_source tokeniza e parseia uma string de fonte, entregando ao parser o contexto de import já resolvido. base_dir_de devolve o diretório de resolução dos `.pink`; contexto_de_import responde, ANTES do parse, as duas perguntas que o parser não pode responder sozinho — quais nomes de `trazer X.y;` são módulo Pinker real (via modulo_real_existe) e que identidades de topo os `trazer <modulo>;` deste arquivo trazem (via nomes_trazidos_por_modulo, leitura best-effort e sem diagnóstico próprio, porque o carregador refaz a mesma leitura pra valer logo em seguida). importable_item_name e importable_item_clone reconhecem e clonam os itens importáveis Function, Const, Struct, TypeAlias, Enum e Trait; qualified_type_item_clone requalifica com o prefixo `<módulo>.` somente Struct e TypeAlias, não Function, Const, Enum ou Trait. load_module_program lê o arquivo `<módulo>.pink` a partir de `base_dir`, detecta ciclo de módulos comparando com a pilha `loading` e recursa nos imports do módulo carregado — pulando ali a mesma família built-in que o programa raiz pula, para que a superfície aprovada valha também dentro de um módulo — antes de inserir o programa em `loaded`. load_program_with_imports é o ponto de entrada: para cada import do programa raiz, pula famílias built-in importáveis, detecta import duplicado pela chave `módulo::símbolo`, carrega o módulo via load_module_program e insere os itens importados (todo o módulo ou um símbolo específico) em `root_program.items`, reportando colisão de nome com itens locais ou com outro import. Import de família built-in não vira item: `modulo_real_existe` decide a precedência `REAL_MODULE_X > BUILTIN_FAMILY_X` — a forma seletiva cede a vez a um `<família>.pink` que exista de fato, e só na ausência dele o import sobrevive em `root_program.imports` para a autoridade semântica validá-lo.
 fn parse_program_from_source(
     source: &str,
+    base_dir: &Path,
     generic_origin: GenericOrigin,
 ) -> Result<ast::Program, PinkerError> {
     let mut lexer = Lexer::new(source);
     let tokens = lexer.tokenize()?;
-    let mut parser = Parser::with_generic_origin(tokens, generic_origin);
+    let contexto = contexto_de_import(&tokens, base_dir);
+    let mut parser = Parser::com_contexto_de_import(tokens, generic_origin, contexto);
     parser.parse()
+}
+
+/// Diretório a partir do qual os `.pink` importados são resolvidos.
+///
+/// É a mesma conta que `load_program_with_imports` sempre fez; virou função
+/// porque a classificação de import precisa dela **antes** do parse.
+fn base_dir_de(source_file: &str) -> PathBuf {
+    let source_path = PathBuf::from(source_file);
+    source_path
+        .parent()
+        .filter(|path| !path.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."))
+        .to_path_buf()
+}
+
+/// Parte G — `NO_PRECANONICALIZATION_BEFORE_IMPORT_KIND_AUTHORITY`.
+///
+/// Responde, ANTES do parse, as duas perguntas que o parser não pode responder
+/// sozinho. As perguntas vêm dele, que lê os tokens e não conhece filesystem; a
+/// resposta vem daqui, que é o dono da resolução de módulos e usa exatamente as
+/// mesmas consultas que `load_program_with_imports` faria em seguida.
+///
+/// Sem esta ordem, o parser canonicalizaria e o carregador descobriria os fatos
+/// depois — e a canonicalização é irreversível. É a única forma de
+/// `REAL_MODULE_X > BUILTIN_FAMILY_X` e de `TODA_IDENTIDADE_EXISTENTE > FAMÍLIA`
+/// valerem de fato, e não só no carregador.
+fn contexto_de_import(tokens: &[Token], base_dir: &Path) -> ContextoDeImport {
+    ContextoDeImport {
+        modulos_reais: Parser::familias_seletivas_candidatas(tokens)
+            .into_iter()
+            .filter(|module| modulo_real_existe(base_dir, module))
+            .collect(),
+        nomes_importados: nomes_trazidos_por_modulo(tokens, base_dir),
+    }
+}
+
+/// Parte G: identidades de topo que os `trazer <modulo>;` deste arquivo trazem.
+///
+/// Os nomes de um módulo importado inteiro não passam pelo fluxo de tokens do
+/// arquivo que o importa: sem esta consulta, a família responderia por um nome
+/// que o módulo já reivindicou, em silêncio, e um programa que só usa a grafia
+/// histórica deixaria de compilar ou mudaria de significado.
+///
+/// A consulta é **best-effort e sem diagnóstico próprio**: módulo ausente,
+/// ilegível ou com erro de sintaxe não contribui nome nenhum e não interrompe
+/// nada aqui. O carregador logo em seguida faz a mesma leitura pra valer e
+/// produz o erro histórico, na ordem histórica. Só a leitura direta importa —
+/// `trazer <modulo>;` traz os itens do próprio módulo, não os que ele importa.
+fn nomes_trazidos_por_modulo(tokens: &[Token], base_dir: &Path) -> HashSet<String> {
+    let mut nomes = HashSet::new();
+    for modulo in Parser::modulos_trazidos_inteiros(tokens) {
+        let caminho = base_dir.join(format!("{}.pink", modulo));
+        let Ok(fonte) = fs::read_to_string(&caminho) else {
+            continue;
+        };
+        let Ok(tokens_do_modulo) = Lexer::new(&fonte).tokenize() else {
+            continue;
+        };
+        let Ok(programa) =
+            Parser::with_generic_origin(tokens_do_modulo, GenericOrigin::module(modulo.as_str()))
+                .parse()
+        else {
+            continue;
+        };
+        nomes.extend(
+            programa
+                .items
+                .iter()
+                .filter_map(importable_item_name)
+                .map(ToOwned::to_owned),
+        );
+    }
+    nomes
 }
 
 fn importable_item_name(item: &ast::Item) -> Option<&str> {
@@ -3824,8 +3907,8 @@ fn load_module_program(
         ),
         span: import_span,
     })?;
-    let program = parse_program_from_source(&source, GenericOrigin::module(module)).map_err(
-        |err| match err {
+    let program = parse_program_from_source(&source, base_dir, GenericOrigin::module(module))
+        .map_err(|err| match err {
             PinkerError::Lexer { msg, span }
             | PinkerError::Parse { msg, span }
             | PinkerError::Expected {
@@ -3838,11 +3921,22 @@ fn load_module_program(
                 span,
             },
             other => other,
-        },
-    )?;
+        })?;
 
     loading.push(module.to_string());
     for import in &program.imports {
+        // Parte G: a mesma precedência que o programa raiz aplica vale dentro
+        // de um módulo. `trazer arquivo;` é import de família e não procura
+        // `arquivo.pink`; a forma seletiva cede a vez a um módulo real que
+        // exista de fato. Sem isto, a superfície aprovada existiria só no
+        // arquivo raiz e um módulo que a usasse levaria "módulo 'arquivo' não
+        // encontrado" — que é o comportamento histórico, mas historicamente
+        // `trazer arquivo;` num módulo não tinha o que oferecer.
+        if pinker_v0::familia_superficie::familia_conhecida(import.module.as_str())
+            && !(import.symbol.is_some() && modulo_real_existe(base_dir, &import.module))
+        {
+            continue;
+        }
         load_module_program(
             import.module.as_str(),
             base_dir,
@@ -3857,6 +3951,15 @@ fn load_module_program(
     Ok(())
 }
 
+/// Parte G: existe um módulo `.pink` real com este nome ao lado da fonte?
+///
+/// Só a forma seletiva pergunta. A resposta decide precedência de import, e a
+/// pergunta é a mesma que `load_module_program` faria em seguida — não é uma
+/// busca nova, é a busca histórica antecipada para poder ceder a vez a ela.
+fn modulo_real_existe(base_dir: &Path, module: &str) -> bool {
+    base_dir.join(format!("{}.pink", module)).is_file()
+}
+
 fn load_program_with_imports(
     source_file: &str,
     mut root_program: ast::Program,
@@ -3866,11 +3969,7 @@ fn load_program_with_imports(
     }
 
     let source_path = PathBuf::from(source_file);
-    let base_dir = source_path
-        .parent()
-        .filter(|path| !path.as_os_str().is_empty())
-        .unwrap_or_else(|| Path::new("."))
-        .to_path_buf();
+    let base_dir = base_dir_de(source_file);
 
     let mut loaded = HashMap::new();
     let mut loading = Vec::new();
@@ -3885,11 +3984,46 @@ fn load_program_with_imports(
         .map(ToOwned::to_owned)
         .collect();
 
+    let mut family_imports = Vec::new();
     for import in &root_program.imports {
         // Fases 186–188 — famílias built-in importáveis não correspondem a
         // arquivo .pink. As intrínsecas já estão disponíveis globalmente; basta
         // pular a carga de módulo.
-        if semantic::is_importable_builtin_family_import(import) {
+        //
+        // Parte G — `REAL_MODULE_X > BUILTIN_FAMILY_X`.
+        //
+        // A família built-in não corresponde a arquivo `.pink`, mas o nome dela
+        // não é reservado: um módulo real chamado `texto.pink` existia antes
+        // desta Parte e continua vencendo. A precedência NÃO pode ser decidida
+        // perguntando "a família exporta este membro?" — isso arrancaria de um
+        // módulo histórico qualquer export cujo nome coincidisse com o de um
+        // membro aprovado. Pergunta-se primeiro se o módulo resolve.
+        //
+        // `trazer X;` (família inteira) nunca carregou módulo, nem antes desta
+        // Parte; só a forma seletiva tinha semântica de módulo, e é só ela que
+        // precisa consultar o disco. Isso mantém intacto o invariante de que a
+        // superfície aprovada não procura `<familia>.pink`.
+        if pinker_v0::familia_superficie::familia_conhecida(import.module.as_str())
+            && !(import.symbol.is_some() && modulo_real_existe(&base_dir, &import.module))
+        {
+            if let Some(symbol) = &import.symbol {
+                // Colisão com item de topo é decidida pela autoridade semântica
+                // — a mesma que o caminho de biblioteca atravessa. Repetir a
+                // regra aqui daria duas políticas para uma pergunta só, que é
+                // exatamente o defeito que a Parte G acabou de fechar.
+                pinker_v0::semantic::validate_family_import_collision(import, &root_program.items)?;
+                if let Some(previous_span) = imported_names.get(symbol) {
+                    return Err(PinkerError::Semantic {
+                        msg: format!(
+                            "colisão de nome no import: '{}' trazido por múltiplos módulos",
+                            symbol
+                        ),
+                        span: previous_span.merge(import.span),
+                    });
+                }
+                imported_names.insert(symbol.clone(), import.span);
+            }
+            family_imports.push(import.clone());
             continue;
         }
 
@@ -4007,7 +4141,10 @@ fn load_program_with_imports(
     }
 
     root_program.items.splice(0..0, imported_items);
-    root_program.imports.clear();
+    // Imports de módulo já foram materializados como itens de topo e somem.
+    // Imports de família sobrevivem porque quem os valida é a autoridade
+    // semântica, não o carregador de arquivos.
+    root_program.imports = family_imports;
     Ok(root_program)
 }
 // @pinker-nav:end cli.modulos.importacao

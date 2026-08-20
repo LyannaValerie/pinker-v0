@@ -19,6 +19,7 @@ pub mod elf;
 pub mod enum_payload;
 pub mod error;
 pub mod falha_operacional;
+pub mod familia_superficie;
 pub mod generic_identity;
 pub mod inline_asm;
 pub mod instr_select;

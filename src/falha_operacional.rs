@@ -558,6 +558,20 @@ pub fn superficie(nome: &str) -> Option<&'static SuperficieFalivel> {
         .find(|superficie| superficie.intrinseca == nome)
 }
 
+/// Resolve a superfície pela **identidade operacional**, nunca pelo texto do
+/// nome público.
+///
+/// Existe para que uma camada que precise falar sobre uma superfície falível —
+/// a resolução por família, hoje — possa referenciá-la sem repetir o nome
+/// público fora desta autoridade. O invariante fixado por
+/// `nome_publico_de_superficie_falivel_existe_so_na_autoridade` continua
+/// intacto: quem consulta cita `OperacaoFalivel`, e o nome sai daqui.
+pub fn superficie_por_operacao(operacao: OperacaoFalivel) -> Option<&'static SuperficieFalivel> {
+    SUPERFICIES_FALIVEIS
+        .iter()
+        .find(|superficie| superficie.operacao == operacao)
+}
+
 /// Parte B1: o nome é a identidade de resultado **produzida pelo runtime**?
 ///
 /// A Fase 241 predeclarou `Resultado<T,E>` como conveniência de biblioteca e
