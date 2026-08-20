@@ -598,7 +598,7 @@ fn a_grafia_de_membro_existe_em_exatamente_uma_camada() {
 // @pinker-nav:start evidencia.importacoes.parte-g-diagnosticos-e-precedencia
 // @pinker-nav:domain importacoes
 // @pinker-nav:layer evidencia
-// @pinker-nav:summary Recusas e precedência da superfície por família: cada modo de erro tem mensagem própria — família não importada, membro inexistente em uso qualificado, membro inexistente em import seletivo, família sem membros exportados, colisão com item de topo, colisão entre imports e módulo Pinker ausente —, e nenhum deles procura `<familia>.pink`. A precedência aprovada (toda identidade já existente vence a família) é exercitada com variável local, leque, ninho, apelido e função de topo homônimos, inclusive declarados depois do uso, e o legado global continua resolvendo sem import e sem ser escondido por ele.
+// @pinker-nav:summary Recusas e precedência da superfície por família: cada modo de erro tem mensagem própria — família não importada, membro inexistente em uso qualificado, membro inexistente em import seletivo, família sem membros exportados, colisão com item de topo, colisão entre imports e módulo Pinker ausente —, e nenhum deles procura `<familia>.pink`. A precedência aprovada (toda identidade já existente vence a família) é exercitada com variável local, leque, ninho, apelido e função de topo homônimos, inclusive declarados depois do uso, e o legado global continua resolvendo sem import e sem ser escondido por ele. A metade ESCOPADA da precedência tem oráculo positivo — o chamado canonicalizado na AST, não a ausência de uma palavra numa mensagem: local, parâmetro e campo de `ninho` em um ponto não desabilitam a família em outro; ligação do mesmo escopo, de bloco interno, de braço de `caso`, de braço de `tentar`, de braço de encaixe de união, de `para cada` e de parâmetro de `carinho` anônimo continuam sombreando onde estão visíveis, e param de valer onde o escopo fecha; identidade de topo posterior vence e ligação local posterior não vence, que é a regra histórica de hoisting da Pinker preservada dos dois lados.
 
 fn erro_de(fonte: &str) -> String {
     parse_and_check(fonte)
@@ -801,6 +801,60 @@ fn funcao_de_topo_homonima_vence_a_familia() {
     assert!(
         !erro.contains("não existe na família"),
         "a família capturou um nome que já pertencia a uma função de topo: {erro}"
+    );
+    // Asserção POSITIVA: não basta a família se calar, o erro tem de ser o
+    // histórico de acesso a campo sobre o valor devolvido pela função de topo.
+    assert!(
+        erro.contains("campo") || erro.contains("método"),
+        "o diagnóstico deveria ser o histórico de acesso a campo: {erro}"
+    );
+    // E a AST não pode ter canonicalizado nada.
+    assert!(
+        !arvore_de(
+            "pacote main;
+             trazer arquivo;
+             carinho arquivo() -> bombom { mimo 1; }
+             carinho principal() -> bombom { falar(arquivo.ler_caminho_verso(\"x\")); mimo 0; }"
+        )
+        .contains("ler_arquivo_verso"),
+        "a função de topo homônima foi atropelada pela canonicalização"
+    );
+}
+
+/// BLOCKER da revisão adversarial II: uma ligação de VALOR-FUNÇÃO não emite
+/// `Stmt::Let` quando o literal é um `carinho` anônimo não-capturante — o alias
+/// vai direto para `function_value_scopes` e o bloco não tem o que ler.
+///
+/// Sem registrá-la, a família reescrevia em silêncio uma ligação que o
+/// programador acabara de criar, e a chamada ia parar na intrínseca: no repro
+/// original a closure nunca executava e um arquivo aparecia no disco.
+#[test]
+fn ligacao_de_valor_funcao_vence_o_membro_seletivo() {
+    let seletivo = arvore_de(
+        "pacote main;
+         trazer arquivo.criar;
+         carinho principal() -> bombom {
+             nova criar: carinho(verso) -> bombom = carinho(p: verso) -> bombom { mimo 42; };
+             mimo criar(\"x\");
+         }",
+    );
+    assert!(
+        !seletivo.contains("criar_arquivo"),
+        "a família capturou uma ligação de valor-função: {seletivo}"
+    );
+
+    // Mesma ligação, forma qualificada: o nome é o da família.
+    let qualificado = arvore_de(
+        "pacote main;
+         trazer arquivo;
+         carinho principal() -> bombom {
+             nova arquivo: carinho(verso) -> bombom = carinho(p: verso) -> bombom { mimo 42; };
+             mimo arquivo(\"x\");
+         }",
+    );
+    assert!(
+        !qualificado.contains("criar_arquivo") && !qualificado.contains("ler_arquivo"),
+        "a família capturou o nome de uma ligação de valor-função: {qualificado}"
     );
 }
 
@@ -1016,7 +1070,13 @@ fn f5_colisao_de_import_seletivo_vale_no_caminho_de_biblioteca() {
     assert!(erro.contains("'criar'"), "{erro}");
 }
 
-/// A dica de família continua existindo — mas só quando o nome é órfão.
+/// A dica de família continua existindo — mas só quando o nome é órfão, e ela
+/// sai da camada CERTA.
+///
+/// A dica nasceu no parser e foi de lá que quebrou programa legado (F1/F3/F4):
+/// o parser não sabe se o nome tem dono. A camada é parte do contrato, não
+/// detalhe de apresentação — por isso a asserção lê `Erro Semântico`, e um
+/// retorno ao `Erro Sintático` do parser fica vermelho aqui.
 #[test]
 fn dica_de_familia_so_aparece_quando_o_nome_nao_tem_dono() {
     let erro = erro_de(
@@ -1026,6 +1086,10 @@ fn dica_de_familia_so_aparece_quando_o_nome_nao_tem_dono() {
     assert!(
         erro.contains("família 'arquivo' não foi importada"),
         "{erro}"
+    );
+    assert!(
+        erro.starts_with("Erro Semântico:"),
+        "a dica tem de vir da camada que enxerga o programa inteiro: {erro}"
     );
 
     // Com qualquer identidade homônima, a dica cede lugar ao erro histórico.
@@ -1040,12 +1104,396 @@ fn dica_de_familia_so_aparece_quando_o_nome_nao_tem_dono() {
     );
 }
 
+// ---------------------------------------------------------------------------
+// B2 — escopo é escopo: `EXISTE_EM_ALGUM_ESCOPO` != `ESTÁ_VISÍVEL_NESTE_PONTO`
+//
+// O censo de nomes ligados era um saco de nomes do arquivo inteiro, e por isso
+// uma ligação local em QUALQUER função desabilitava a família em TODAS. Os
+// casos abaixo têm oráculo POSITIVO — o chamado canonicalizado — e não apenas
+// a ausência da palavra "família" numa mensagem de erro.
+// ---------------------------------------------------------------------------
+
+/// A AST contém uma chamada à identidade canônica?
+///
+/// Oráculo POSITIVO que não depende de a chamada ser o primeiro comando do
+/// corpo, o que `chamado_do_programa` exige.
+fn arvore_de(fonte: &str) -> String {
+    pinker_v0::printer::render_program(&parse(fonte).expect("programa válido"))
+}
+
+fn canonicalizou(fonte: &str, canonica: &str) -> bool {
+    arvore_de(fonte).contains(&format!("callee Ident({canonica})"))
+}
+
+/// T2 — local em `f` não pode desabilitar a família em `principal`.
+#[test]
+fn t2_local_em_uma_funcao_nao_desabilita_a_familia_em_outra() {
+    assert_eq!(
+        chamado_do_programa(
+            "pacote main;
+             trazer arquivo;
+             carinho f() -> bombom { nova arquivo: bombom = 3; mimo arquivo; }
+             carinho principal() -> bombom { arquivo.criar(\"x\"); mimo 0; }"
+        ),
+        "criar_arquivo"
+    );
+}
+
+/// T3 — parâmetro em `f` não pode desabilitar a família em `principal`.
+///
+/// É o repro literal do review: a ligação local vence em `f`, e a família
+/// continua disponível em `principal`.
+#[test]
+fn t3_parametro_em_uma_funcao_nao_desabilita_a_familia_em_outra() {
+    let fonte = "pacote main;
+         trazer arquivo;
+         carinho f(arquivo: bombom) -> bombom { mimo arquivo; }
+         carinho principal() -> bombom { arquivo.criar(\"x\"); mimo 0; }";
+    assert_eq!(chamado_do_programa(fonte), "criar_arquivo");
+
+    // E o parâmetro continua sendo o parâmetro dentro de `f`: nada nele foi
+    // reescrito para a família.
+    let arvore = arvore_de(fonte);
+    assert!(
+        arvore.contains("value Ident(arquivo)"),
+        "o parâmetro homônimo sumiu da AST: {arvore}"
+    );
+}
+
+/// T3 (forma seletiva) — local homônimo do MEMBRO em `f` não pode desabilitar
+/// o membro importado em `principal`.
+#[test]
+fn t3b_local_homonimo_de_membro_nao_desabilita_o_seletivo_em_outra_funcao() {
+    assert_eq!(
+        chamado_do_programa(
+            "pacote main;
+             trazer arquivo.criar;
+             carinho f() -> bombom { nova criar: bombom = 3; mimo criar; }
+             carinho principal() -> bombom { criar(\"x\"); mimo 0; }"
+        ),
+        "criar_arquivo"
+    );
+}
+
+/// T4 — campo de `ninho` não é nome no espaço de valores e não pode sombrear a
+/// família no arquivo inteiro.
+#[test]
+fn t4_campo_de_ninho_nao_desabilita_a_familia_no_arquivo() {
+    assert_eq!(
+        chamado_do_programa(
+            "pacote main;
+             trazer arquivo;
+             ninho Registro { arquivo: bombom; }
+             carinho principal() -> bombom { arquivo.criar(\"x\"); mimo 0; }"
+        ),
+        "criar_arquivo"
+    );
+}
+
+/// T5 — no MESMO escopo a ligação local continua vencendo, e o acesso a campo
+/// histórico continua sendo construído.
+#[test]
+fn t5_ligacao_no_mesmo_escopo_ainda_sombreia_a_familia() {
+    let fonte = "pacote main;
+         trazer arquivo;
+         ninho Estado { criar: bombom; }
+         carinho fabricar() -> Estado { nova e: seta<Estado> = 1; mimo *e; }
+         carinho principal() -> bombom {
+             nova arquivo = fabricar();
+             mimo arquivo.criar;
+         }";
+    parse_and_check(fonte).expect("o campo histórico tem de continuar resolvendo");
+    let arvore = pinker_v0::printer::render_program(&parse(fonte).expect("programa válido"));
+    assert!(
+        arvore.contains("FieldAccess"),
+        "a família capturou uma ligação do próprio escopo: {arvore}"
+    );
+    assert!(
+        !arvore.contains("criar_arquivo"),
+        "a família canonicalizou por cima do local: {arvore}"
+    );
+}
+
+/// T5 (bloco interno) — a ligação de um bloco aninhado não escapa para o bloco
+/// externo. Sem pilha de escopos isto era indistinguível de T5.
+#[test]
+fn t5b_ligacao_de_bloco_interno_nao_escapa_para_o_bloco_externo() {
+    assert!(canonicalizou(
+        "pacote main;
+         trazer arquivo;
+         carinho principal() -> bombom {
+             talvez 1 == 1 { nova arquivo: bombom = 3; falar(arquivo); }
+             arquivo.criar(\"x\");
+             mimo 0;
+         }",
+        "criar_arquivo"
+    ));
+}
+
+/// T6 — identidade de TOPO declarada depois do uso continua vencendo, porque é
+/// assim que a Pinker resolve o topo: a passagem 1 da semântica coleta todos os
+/// itens antes de verificar qualquer corpo.
+#[test]
+fn t6_identidade_de_topo_posterior_vence_pela_regra_historica() {
+    for declaracao in [
+        "carinho arquivo(x: bombom) -> bombom { mimo x; }",
+        "eterno arquivo: bombom = 3;",
+        "ninho arquivo { criar: bombom; }",
+        "apelido arquivo = bombom;",
+    ] {
+        let fonte = format!(
+            "pacote main;
+             trazer arquivo;
+             carinho principal() -> bombom {{ falar(arquivo.criar(\"x\")); mimo 0; }}
+             {declaracao}"
+        );
+        let arvore = pinker_v0::printer::render_program(&parse(&fonte).expect("programa válido"));
+        assert!(
+            !arvore.contains("criar_arquivo"),
+            "a família capturou um nome de topo declarado depois do uso: {declaracao}\n{arvore}"
+        );
+    }
+}
+
+/// T6 (contraprova) — ligação LOCAL declarada depois do uso NÃO é hoisted, e a
+/// Parte G não pode inventar hoisting onde a Pinker não tem.
+#[test]
+fn t6b_ligacao_local_posterior_nao_e_hoisted() {
+    assert_eq!(
+        chamado_do_programa(
+            "pacote main;
+             trazer arquivo;
+             carinho principal() -> bombom {
+                 arquivo.criar(\"x\");
+                 nova arquivo: bombom = 3;
+                 mimo arquivo;
+             }"
+        ),
+        "criar_arquivo"
+    );
+}
+
+/// T7 — sem módulo real ao lado, o import seletivo continua canonicalizando no
+/// caminho de biblioteca, que é o que a crate expõe.
+#[test]
+fn t7_seletivo_canonicaliza_no_caminho_de_biblioteca() {
+    for (familia, membro, canonica) in MATRIZ_APROVADA {
+        let fonte = format!(
+            "pacote main;
+             trazer {familia}.{membro};
+             carinho principal() -> bombom {{ {membro}(); mimo 0; }}"
+        );
+        assert_eq!(
+            &chamado_do_programa(&fonte).as_str(),
+            canonica,
+            "{familia}.{membro} deixou de canonicalizar na forma seletiva"
+        );
+    }
+}
+
+/// A carga de um braço `caso` liga nome, e liga só naquele braço.
+#[test]
+fn carga_de_encaixe_fica_no_proprio_braco() {
+    let fonte = "pacote main;
+         trazer arquivo;
+         leque Passo { Um(bombom), Dois(bombom) }
+         carinho principal() -> bombom {
+             nova p: Passo = Passo.Um(1);
+             encaixe p {
+                 caso Passo.Um(arquivo) { falar(arquivo); }
+                 caso Passo.Dois(outro) { falar(outro); }
+             }
+             arquivo.criar(\"x\");
+             mimo 0;
+         }";
+    let arvore = pinker_v0::printer::render_program(&parse(fonte).expect("programa válido"));
+    assert!(
+        arvore.contains("criar_arquivo"),
+        "a carga de um braço desabilitou a família fora dele: {arvore}"
+    );
+}
+
+/// Parâmetro de `carinho` anônimo também liga nome — e o caminho dele não passa
+/// por `parse_callable_body`.
+#[test]
+fn parametro_de_carinho_anonimo_sombreia_dentro_da_closure() {
+    // Dentro da closure o parâmetro vence: o acesso a campo histórico continua
+    // sendo construído.
+    let dentro = "pacote main;
+         trazer arquivo;
+         ninho Estado { criar: bombom; }
+         carinho principal() -> bombom {
+             nova f = carinho(arquivo: Estado) -> bombom { mimo arquivo.criar; };
+             mimo 0;
+         }";
+    let arvore = arvore_de(dentro);
+    assert!(
+        arvore.contains("FieldAccess"),
+        "a família capturou o parâmetro do `carinho` anônimo: {arvore}"
+    );
+    assert!(
+        !arvore.contains("criar_arquivo"),
+        "a família canonicalizou por cima do parâmetro da closure: {arvore}"
+    );
+
+    // E o escopo dele fecha com a closure: fora dela a família responde.
+    assert!(canonicalizou(
+        "pacote main;
+         trazer arquivo;
+         carinho principal() -> bombom {
+             nova f = carinho(arquivo: bombom) -> bombom { mimo arquivo; };
+             arquivo.criar(\"x\");
+             mimo f(1);
+         }",
+        "criar_arquivo"
+    ));
+}
+
+/// A variável de `para cada` vale dentro do corpo do laço, e só lá.
+#[test]
+fn variavel_de_para_cada_nao_escapa_do_corpo() {
+    assert!(canonicalizou(
+        "pacote main;
+         trazer arquivo;
+         carinho principal() -> bombom {
+             nova xs: lista<bombom> = lista_nova();
+             para cada arquivo em xs { falar(arquivo); }
+             arquivo.criar(\"x\");
+             mimo 0;
+         }",
+        "criar_arquivo"
+    ));
+}
+
+/// Método de `trato` não é identidade de topo.
+///
+/// Ele vive em profundidade 1 e não pode ser chamado como `arquivo(...)`: não
+/// disputa o espaço de valores do arquivo e, portanto, não sombreia a família.
+/// É o caso que o filtro de profundidade zero do censo existe para separar.
+#[test]
+fn metodo_de_trato_homonimo_de_familia_nao_e_identidade_de_topo() {
+    assert!(canonicalizou(
+        "pacote main;
+         trazer arquivo;
+         trato Guardiao {
+             carinho arquivo(item: si) -> bombom;
+         }
+         carinho principal() -> bombom { arquivo.criar(\"x\"); mimo 0; }",
+        "criar_arquivo"
+    ));
+}
+
+/// Campo de `ninho` idem — mesma profundidade, mesma razão. O par com o teste
+/// acima é o que dá ao filtro de profundidade um detector de verdade.
+#[test]
+fn campo_de_ninho_homonimo_de_familia_nao_e_identidade_de_topo() {
+    assert!(canonicalizou(
+        "pacote main;
+         trazer arquivo;
+         ninho Registro { arquivo: bombom; }
+         carinho principal() -> bombom { arquivo.criar(\"x\"); mimo 0; }",
+        "criar_arquivo"
+    ));
+}
+
+/// A variável de `para cada` vence dentro do corpo do laço.
+///
+/// Sem esta ligação o corpo do laço seria o único lugar do arquivo onde a
+/// família captura um nome que o programador acabou de ligar.
+#[test]
+fn variavel_de_para_cada_sombreia_dentro_do_corpo() {
+    let arvore = arvore_de(
+        "pacote main;
+         trazer arquivo;
+         carinho principal() -> bombom {
+             nova xs: lista<bombom> = lista_nova();
+             para cada arquivo em xs { falar(arquivo.criar); }
+             mimo 0;
+         }",
+    );
+    assert!(
+        arvore.contains("FieldAccess"),
+        "a família capturou a variável do laço: {arvore}"
+    );
+    assert!(
+        !arvore.contains("criar_arquivo"),
+        "a família canonicalizou por cima da variável do laço: {arvore}"
+    );
+}
+
+/// A ligação de um braço de `tentar` vence dentro do braço, e só nele.
+#[test]
+fn ligacao_de_braco_de_tentar_sombreia_dentro_do_braco() {
+    let fonte = "pacote main;
+         trazer arquivo;
+         leque Resultado { Ok(bombom), Erro(verso) }
+         carinho principal() -> bombom {
+             nova r: Resultado = Resultado.Ok(1);
+             tentar r {
+                 sucesso Resultado.Ok(arquivo) { falar(arquivo.criar); }
+                 falha Resultado.Erro(msg) { falar(msg); }
+             }
+             mimo 0;
+         }";
+    let arvore = arvore_de(fonte);
+    assert!(
+        arvore.contains("FieldAccess"),
+        "a família capturou a ligação do braço de `tentar`: {arvore}"
+    );
+    assert!(
+        !arvore.contains("criar_arquivo"),
+        "a família canonicalizou por cima da ligação do braço: {arvore}"
+    );
+
+    // E o escopo do braço fecha: depois do `tentar` a família responde.
+    assert!(canonicalizou(
+        "pacote main;
+         trazer arquivo;
+         leque Resultado { Ok(bombom), Erro(verso) }
+         carinho principal() -> bombom {
+             nova r: Resultado = Resultado.Ok(1);
+             tentar r {
+                 sucesso Resultado.Ok(arquivo) { falar(arquivo); }
+                 falha Resultado.Erro(msg) { falar(msg); }
+             }
+             arquivo.criar(\"x\");
+             mimo 0;
+         }",
+        "criar_arquivo"
+    ));
+}
+
+/// A ligação de um braço de encaixe de UNIÃO vence dentro do braço, e só nele.
+#[test]
+fn ligacao_de_braco_de_uniao_sombreia_dentro_do_braco() {
+    let fonte = "pacote main;
+         trazer arquivo;
+         apelido aa = u8;
+         apelido zz = u64;
+         carinho principal() -> bombom {
+             nova valor: uniao<aa, zz> = (8 virar zz) virar uniao<aa, zz>;
+             encaixe valor {
+                 caso aa(arquivo) { falar(arquivo.criar); }
+                 caso zz(outro) { falar(outro virar bombom); }
+             }
+             mimo 0;
+         }";
+    let arvore = arvore_de(fonte);
+    assert!(
+        arvore.contains("FieldAccess"),
+        "a família capturou a ligação do braço de união: {arvore}"
+    );
+    assert!(
+        !arvore.contains("criar_arquivo"),
+        "a família canonicalizou por cima da ligação do braço de união: {arvore}"
+    );
+}
 // @pinker-nav:end evidencia.importacoes.parte-g-diagnosticos-e-precedencia
 
 // @pinker-nav:start evidencia.importacoes.parte-g-carregador-e-paridade
 // @pinker-nav:domain importacoes
 // @pinker-nav:layer evidencia
-// @pinker-nav:summary Evidência de ponta a ponta da Parte G pela CLI: `trazer familia.membro;` deixa de procurar `<familia>.pink` e passa pela autoridade de import, enquanto módulo Pinker comum — inteiro, seletivo e misturado com família no mesmo arquivo — mantém o comportamento histórico, inclusive as duas colisões. A matriz de paridade emite o MESMO programa nas três grafias sobre uma fixture com symlink e diretório controlados, executa cada um no interpretador e no ELF nativo e exige observáveis idênticos entre as seis execuções — o que fixa junto o par FOLLOW (`tamanho_arquivo` = 4) × NO_FOLLOW (`tamanho_de_entrada` = 6) medido na mesma entrada.
+// @pinker-nav:summary Evidência de ponta a ponta da Parte G pela CLI: `trazer familia.membro;` deixa de procurar `<familia>.pink` e passa pela autoridade de import, enquanto módulo Pinker comum — inteiro, seletivo e misturado com família no mesmo arquivo — mantém o comportamento histórico, inclusive as duas colisões. `REAL_MODULE_X > BUILTIN_FAMILY_X` é provado no caso em que o export do módulo COINCIDE com membro aprovado, por execução e por efeito colateral no disco, e o export ausente de um módulo real continua dando o erro do módulo; a identidade homônima trazida por `trazer <modulo>;` é recusada em vez de capturada, nas duas ordens de import, e continua resolvendo historicamente quando a família não é importada. A matriz de paridade emite o MESMO programa nas três grafias sobre uma fixture com symlink e diretório controlados, executa cada um no interpretador e no ELF nativo e exige observáveis idênticos entre as seis execuções — o que fixa junto o par FOLLOW (`tamanho_arquivo` = 4) × NO_FOLLOW (`tamanho_de_entrada` = 6) medido na mesma entrada.
 
 fn escrever(dir: &NativeArtifactDir, nome: &str, fonte: &str) -> PathBuf {
     let caminho = dir.path().join(nome);
@@ -1921,6 +2369,13 @@ fn as_tres_grafias_produzem_o_mesmo_assembly() {
 /// outras duas, com a mesma classe de erro. Registrar isso aqui impede que a
 /// Parte G leve a culpa por ele — e faz o teste quebrar no dia em que o limite
 /// for removido, em vez de deixá-lo esquecido.
+///
+/// A asserção nomeia a CLASSE do limite e o tipo `verso` que o provoca, mas não
+/// qual slot o diagnóstico escolhe: `SelectedFunction::slot_types` é um
+/// `HashMap`, e o validador recusa o primeiro slot não suportado que a
+/// iteração entregar. Ora sai `verso`, ora sai `lista<verso>`, na mesma fonte.
+/// É indeterminismo PRÉ-EXISTENTE do diagnóstico do backend `.s`, alheio a esta
+/// Parte e alheio ao próprio limite — registrado aqui, não corrigido aqui.
 #[test]
 fn limite_do_backend_s_textual_e_pre_existente() {
     let dir = NativeArtifactDir::create().expect("diretório Parte G");
@@ -1945,10 +2400,319 @@ fn limite_do_backend_s_textual_e_pre_existente() {
         );
         let erro = stderr_de(&saida);
         assert!(
-            erro.contains("backend .s textual ainda não suporta slot") && erro.contains("'verso'"),
+            erro.contains("backend .s textual ainda não suporta slot") && erro.contains("verso"),
             "o .s textual passou a falhar por outro motivo em {}: {erro}",
             grafia.nome()
         );
     }
 }
+
+// ---------------------------------------------------------------------------
+// B1 — `REAL_MODULE_X > BUILTIN_FAMILY_X` quando o export COINCIDE com membro
+//
+// O caso que faltava. Com `<familia>.pink` real ao lado exportando um nome que
+// TAMBÉM é membro aprovado, o carregador decidia certo e o parser já tinha
+// decidido errado: o módulo entrava no programa e o corpo já chamava a
+// intrínseca. O oráculo aqui é a EXECUÇÃO, e a diferença entre as duas
+// identidades é observável a olho nu.
+// ---------------------------------------------------------------------------
+
+fn executar(caminho: &Path, caso: &str) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_pink"))
+        .arg("--run")
+        .arg(caminho)
+        .logical_case(caso)
+        .timeout(Duration::from_secs(60))
+        .output()
+        .expect("executar Parte G sob envelope")
+}
+
+fn stdout_de(saida: &Output) -> String {
+    String::from_utf8_lossy(&saida.stdout).into_owned()
+}
+
+/// T1 — módulo real chamado como família, exportando um nome que é membro
+/// aprovado da família. A semântica histórica do módulo vence INTEGRALMENTE.
+#[test]
+fn t1_modulo_real_com_membro_coincidente_vence_a_familia() {
+    let dir = NativeArtifactDir::create().expect("diretório Parte G");
+
+    escrever(
+        &dir,
+        "arquivo.pink",
+        "pacote arquivo;
+carinho criar(x: bombom) -> bombom { mimo x + 1000; }
+",
+    );
+
+    let fonte = escrever(
+        &dir,
+        "usa_modulo_criar.pink",
+        "pacote main;
+trazer arquivo.criar;
+carinho principal() -> bombom {
+    falar(criar(1));
+    mimo 0;
+}
+",
+    );
+
+    let saida = executar(&fonte, "parte-g-b1-modulo-membro-coincidente");
+    assert!(
+        saida.status.success(),
+        "o módulo real tem de continuar sendo chamado: {}",
+        stderr_de(&saida)
+    );
+    assert_eq!(
+        stdout_de(&saida).trim(),
+        "1001",
+        "quem respondeu não foi o `criar` do módulo: {}",
+        stderr_de(&saida)
+    );
+}
+
+/// T1 (efeito colateral) — a prova de que a captura não é só de nome.
+///
+/// Aqui as assinaturas coincidem, então nenhum erro de tipo denuncia a troca:
+/// o único sinal é o disco. `criar_arquivo` cria o arquivo; o `criar` do módulo
+/// devolve 7 e não toca em nada. Se a família capturar, o arquivo aparece.
+#[test]
+fn t1b_modulo_real_com_membro_coincidente_nao_dispara_a_intrinseca() {
+    let dir = NativeArtifactDir::create().expect("diretório Parte G");
+
+    escrever(
+        &dir,
+        "arquivo.pink",
+        "pacote arquivo;
+carinho criar(alvo: verso) -> bombom { mimo 7; }
+",
+    );
+
+    let prova = dir.path().join("prova-de-captura.txt");
+    let fonte = escrever(
+        &dir,
+        "usa_modulo_criar_verso.pink",
+        &format!(
+            "pacote main;
+trazer arquivo.criar;
+carinho principal() -> bombom {{
+    falar(criar(\"{}\"));
+    mimo 0;
+}}
+",
+            prova.display()
+        ),
+    );
+
+    let saida = executar(&fonte, "parte-g-b1-efeito-colateral");
+    assert!(saida.status.success(), "{}", stderr_de(&saida));
+    assert_eq!(stdout_de(&saida).trim(), "7", "{}", stderr_de(&saida));
+    assert!(
+        !prova.exists(),
+        "a intrínseca da família rodou no lugar do módulo e criou {}",
+        prova.display()
+    );
+}
+
+/// T9 — com módulo real ao lado, um export ausente continua sendo erro DE
+/// MÓDULO, inclusive quando o nome pedido é membro aprovado da família.
+#[test]
+fn t9_export_ausente_de_modulo_real_usa_o_erro_do_modulo() {
+    let dir = NativeArtifactDir::create().expect("diretório Parte G");
+
+    escrever(
+        &dir,
+        "arquivo.pink",
+        "pacote arquivo;
+carinho outra_coisa(x: bombom) -> bombom { mimo x; }
+",
+    );
+
+    let fonte = escrever(
+        &dir,
+        "export_ausente_membro_aprovado.pink",
+        "pacote main;
+trazer arquivo.criar;
+carinho principal() -> bombom { mimo 0; }
+",
+    );
+
+    let saida = checar(&fonte, "parte-g-t9-export-ausente");
+    assert!(!saida.status.success(), "export ausente deveria falhar");
+    let erro = stderr_de(&saida);
+    assert!(
+        erro.contains("símbolo 'criar' não encontrado no módulo 'arquivo'"),
+        "o erro tem de ser o do módulo, não o da família: {erro}"
+    );
+}
+
+/// T10 — identidade de topo trazida por `trazer <modulo>;` é invisível ao fluxo
+/// de tokens deste arquivo, e mesmo assim vence a família — em silêncio, como
+/// vence qualquer outra identidade de topo.
+///
+/// `B2b_REPRODUCED`. Antes desta correção o programa abaixo COMPILAVA, com
+/// `arquivo.abrir` virando a intrínseca por cima de um `eterno arquivo` que o
+/// módulo tinha acabado de trazer.
+///
+/// A primeira tentativa de fechar isso foi RECUSAR o par de imports — e a
+/// revisão adversarial provou que recusar quebra um programa que o baseline
+/// ACEITA: o que importa a família e usa só a grafia histórica. A resposta
+/// correta não é uma recusa nova, é a família ceder; para isso a autoridade de
+/// import entrega ao parser os nomes do módulo ANTES da canonicalização.
+#[test]
+fn t10_identidade_importada_homonima_vence_a_familia() {
+    let dir = NativeArtifactDir::create().expect("diretório Parte G");
+
+    escrever(
+        &dir,
+        "deposito.pink",
+        "pacote deposito;
+eterno arquivo: bombom = 5;
+",
+    );
+
+    for (rotulo, imports) in [
+        ("modulo-antes", "trazer deposito;\ntrazer arquivo;"),
+        ("familia-antes", "trazer arquivo;\ntrazer deposito;"),
+    ] {
+        // O programa que usa SÓ a grafia histórica continua compilando, que é
+        // exatamente o que o baseline faz. Recusar aqui seria regressão.
+        let legado = escrever(
+            &dir,
+            &format!("importado_legado_{rotulo}.pink"),
+            &format!(
+                "pacote main;
+{imports}
+carinho principal() -> bombom {{
+    nova d: verso = diretorio_atual();
+    mimo arquivo;
+}}
+"
+            ),
+        );
+        let saida = checar(&legado, &format!("parte-g-t10-legado-{rotulo}"));
+        assert!(
+            saida.status.success(),
+            "a família derrubou um programa que só usa o legado ({rotulo}): {}",
+            stderr_de(&saida)
+        );
+
+        // E a forma qualificada volta ao diagnóstico HISTÓRICO: o nome tem
+        // dono, e o dono é o item importado.
+        let qualificado = escrever(
+            &dir,
+            &format!("importado_qualificado_{rotulo}.pink"),
+            &format!(
+                "pacote main;
+{imports}
+carinho principal() -> bombom {{
+    nova h: bombom = arquivo.abrir(\"x.txt\");
+    mimo 0;
+}}
+"
+            ),
+        );
+        let saida = checar(&qualificado, &format!("parte-g-t10-qualificado-{rotulo}"));
+        assert!(
+            !saida.status.success(),
+            "a família capturou uma identidade importada ({rotulo})"
+        );
+        let erro = stderr_de(&saida);
+        assert!(
+            erro.contains("método 'abrir' não implementado para tipo 'bombom'"),
+            "o erro tem de ser o histórico do item importado ({rotulo}): {erro}"
+        );
+        assert!(
+            !erro.contains("família"),
+            "a família não tem o que dizer sobre um nome que já tem dono ({rotulo}): {erro}"
+        );
+    }
+}
+
+/// T10 (contraprova) — sem `trazer arquivo;`, a identidade importada continua
+/// respondendo pelo comportamento histórico.
+#[test]
+fn t10b_identidade_importada_sem_import_de_familia_segue_historica() {
+    let dir = NativeArtifactDir::create().expect("diretório Parte G");
+
+    escrever(
+        &dir,
+        "deposito.pink",
+        "pacote deposito;
+eterno arquivo: bombom = 5;
+",
+    );
+
+    let fonte = escrever(
+        &dir,
+        "so_o_modulo.pink",
+        "pacote main;
+trazer deposito;
+carinho principal() -> bombom { mimo arquivo; }
+",
+    );
+
+    let saida = checar(&fonte, "parte-g-t10b-sem-familia");
+    assert!(
+        saida.status.success(),
+        "o item importado tem de continuar resolvendo: {}",
+        stderr_de(&saida)
+    );
+}
+
+/// A superfície aprovada vale DENTRO de um módulo importado, não só no arquivo
+/// raiz.
+///
+/// A recursão do carregador não pulava família built-in: um módulo que
+/// escrevesse `trazer arquivo;` levava "módulo 'arquivo' não encontrado". Era
+/// idêntico ao baseline — mas no baseline `trazer arquivo;` num módulo não
+/// tinha nada a oferecer, e agora tem. Uma superfície que só existe no arquivo
+/// raiz é meia superfície.
+#[test]
+fn superficie_por_familia_vale_dentro_de_modulo_importado() {
+    let dir = NativeArtifactDir::create().expect("diretório Parte G");
+
+    escrever(
+        &dir,
+        "biblioteca.pink",
+        "pacote biblioteca;
+trazer arquivo;
+
+carinho fabricar(alvo: verso) -> bombom {
+    mimo arquivo.criar(alvo);
+}
+",
+    );
+
+    let alvo = dir.path().join("criado-pelo-modulo.txt");
+    let fonte = escrever(
+        &dir,
+        "usa_biblioteca.pink",
+        &format!(
+            "pacote main;
+trazer biblioteca.fabricar;
+
+carinho principal() -> bombom {{
+    nova h: bombom = fabricar(\"{}\");
+    fechar(h);
+    mimo 0;
+}}
+",
+            alvo.display()
+        ),
+    );
+
+    let saida = executar(&fonte, "parte-g-familia-dentro-de-modulo");
+    assert!(
+        saida.status.success(),
+        "a superfície por família tem de valer dentro de um módulo: {}",
+        stderr_de(&saida)
+    );
+    assert!(
+        alvo.exists(),
+        "o membro qualificado dentro do módulo não executou: {}",
+        alvo.display()
+    );
+}
+
 // @pinker-nav:end evidencia.importacoes.parte-g-carregador-e-paridade
