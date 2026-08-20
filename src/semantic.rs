@@ -23,7 +23,7 @@ use std::collections::{HashMap, HashSet};
 // @pinker-nav:start semantic.importacoes.familias
 // @pinker-nav:domain importacoes
 // @pinker-nav:layer semantic
-// @pinker-nav:summary Validação semântica de `trazer` sobre famílias built-in. A lista de famílias e a superfície que cada uma exporta não moram aqui: são consultadas em `familia_superficie`, a autoridade única que o parser também consulta ao canonicalizar. Esta camada decide só o que é decisão de import — família desconhecida e membro inexistente na forma seletiva —, e a mensagem de membro inexistente vem da própria autoridade para que a lista de membros exista num lugar só.
+// @pinker-nav:summary Validação semântica de `trazer` sobre famílias built-in, e dono único da política de colisão de import de família. A lista de famílias e a superfície que cada uma exporta não moram aqui: são consultadas em `familia_superficie`, a autoridade única que o parser também consulta ao canonicalizar. Esta camada decide o que é decisão de import — família desconhecida, membro inexistente na forma seletiva e colisão do membro seletivo com item de topo (`validate_family_import_collision`, atravessada tanto pela CLI quanto pelo caminho de biblioteca). A mensagem de membro inexistente vem da própria autoridade para que a lista de membros exista num lugar só. Identidade homônima trazida por `trazer <modulo>;` não é recusada aqui nem em lugar nenhum: ela vence a família em silêncio, no parser, porque a autoridade de import a entrega como identidade de topo antes da canonicalização.
 /// Parte G: o membro trazido seletivamente colide com um item de topo?
 ///
 /// A regra existia só em `main.rs`, o que deixava o caminho de biblioteca

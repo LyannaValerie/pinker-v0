@@ -64,22 +64,41 @@ pub struct Parser {
     /// O parser guarda a identidade, não o membro: depois deste ponto a grafia
     /// do membro não existe mais em lugar nenhum do pipeline.
     membros_familia_importados: HashMap<String, &'static str>,
-    /// Parte G: censo de nomes LIGADOS no arquivo, colhido do fluxo de tokens
-    /// antes de qualquer resolução.
+    /// Parte G: identidades de **topo** do arquivo, colhidas do fluxo de tokens
+    /// em profundidade zero antes de qualquer resolução.
     ///
-    /// Existe porque a resolução por família é FALLBACK: ela só pode responder
-    /// pelo que nenhuma outra identidade reivindica. Perguntar isso às tabelas
-    /// incrementais do parser (`value_type_scopes` e amigas) foi o erro que
-    /// deixou passar ligação sem anotação, variável de `para` e `eterno` de
-    /// topo — cada uma delas uma captura silenciosa de identidade alheia.
+    /// Só entram aqui as declarações que a Pinker resolve com precedência
+    /// independente da ordem textual — `carinho`, `eterno`, `ninho`, `leque`,
+    /// `trato`, `apelido` e o símbolo de `trazer modulo.simbolo;`. São as
+    /// únicas cujo alcance é o programa inteiro, e por isso as únicas cuja
+    /// existência pode desabilitar a família em todo o arquivo.
     ///
-    /// O censo é deliberadamente uma SOBREAPROXIMAÇÃO: colhe todo `Ident` em
-    /// posição de ligação e todo `Ident` seguido de `:`. Para um mecanismo de
-    /// fallback isso é seguro por construção — sobrar nome no censo só faz a
-    /// família CEDER, nunca capturar. O custo de errar para mais é um erro que
-    /// o programador vê; o de errar para menos é um programa que muda de
-    /// significado em silêncio.
-    nomes_ligados: HashSet<String>,
+    /// `EXISTE_EM_ALGUM_ESCOPO` não é `ESTÁ_VISÍVEL_NESTE_PONTO`: parâmetro,
+    /// local, variável de laço, carga de padrão e campo de `ninho` NÃO moram
+    /// aqui. Eles têm escopo, e escopo é decidido no ponto de uso por
+    /// `escopos_locais`.
+    nomes_de_topo: HashSet<String>,
+    /// Parte G: pilha de escopos léxicos reais das ligações locais.
+    ///
+    /// Empilha e desempilha junto de `value_type_scopes`, e recebe todo nome
+    /// que o parser liga de fato: parâmetro (de função, de método e de
+    /// `carinho` anônimo), `nova`/`muda`, variável de `para`/`para cada`,
+    /// carga de `caso`, ligação de braço de `tentar` e de encaixe de união.
+    ///
+    /// A pergunta que ela responde é a única correta para um fallback:
+    /// «alguma ligação VISÍVEL NESTE PONTO já reivindica este nome?».
+    escopos_locais: Vec<HashSet<String>>,
+    /// Parte G: o que a autoridade de import já sabe e o parser não pode
+    /// descobrir sozinho.
+    ///
+    /// `NO_PRECANONICALIZATION_BEFORE_IMPORT_KIND_AUTHORITY`. O parser não
+    /// sabe — e não pode saber — o que é um módulo no disco nem o que um
+    /// `trazer <modulo>;` traz: isso é política do carregador. Ele recebe aqui
+    /// o veredito pronto, só para os nomes deste arquivo, e nunca consulta
+    /// filesystem. Vazio significa «o chamador não tem autoridade de resolução
+    /// de módulo», que é a verdade dos caminhos de biblioteca, REPL, editor e
+    /// impressora.
+    contexto_de_import: ContextoDeImport,
     /// Mapeamento plano de nomes de variáveis/parâmetros para o tipo de coleção detectado.
     /// Reiniciado no início de cada função para evitar contaminação entre escopos de função.
     collection_types: HashMap<String, CollectionKind>,
@@ -201,12 +220,49 @@ fn merge_span(a: Span, b: Span) -> Span {
     a.merge(b)
 }
 
+/// Parte G: o que a autoridade de import entrega pronto ao parser.
+///
+/// São as duas perguntas cuja resposta o parser não pode produzir — uma pede
+/// filesystem, a outra pede o conteúdo de outro arquivo — e cuja resposta
+/// precisa chegar **antes** da canonicalização, que é irreversível.
+///
+/// Nenhuma delas é política: são fatos. A política de módulo continua inteira
+/// em `main.rs`, e a de família em `familia_superficie` e `semantic`.
+#[derive(Debug, Clone, Default)]
+pub struct ContextoDeImport {
+    /// Nomes de `trazer X.y;` que resolvem para um módulo Pinker real ao lado
+    /// da fonte. `REAL_MODULE_X > BUILTIN_FAMILY_X` se decide por esta lista.
+    pub modulos_reais: HashSet<String>,
+    /// Identidades de topo que os `trazer <modulo>;` deste arquivo trazem.
+    /// Entram no censo de topo e vencem a família como qualquer outro item.
+    pub nomes_importados: HashSet<String>,
+}
+
 impl Parser {
     pub fn new(tokens: Vec<Token>) -> Self {
         Self::with_generic_origin(tokens, GenericOrigin::Root)
     }
 
     pub fn with_generic_origin(tokens: Vec<Token>, generic_origin: GenericOrigin) -> Self {
+        Self::com_contexto_de_import(tokens, generic_origin, ContextoDeImport::default())
+    }
+
+    /// Parte G — `REAL_MODULE_CLASSIFICATION MUST_PRECEDE FAMILY_SELECTIVE_CANONICALIZATION`.
+    ///
+    /// Constrói o parser já sabendo o que só a autoridade de import sabe: quais
+    /// nomes de `trazer X.y;` são módulo Pinker real, e que identidades de topo
+    /// um `trazer <modulo>;` traz para este arquivo. Sem essas respostas o
+    /// parser canonicalizaria **antes** de o carregador descobrir os fatos, e a
+    /// identidade original desapareceria da AST sem diagnóstico.
+    ///
+    /// O parser continua sem qualquer política de módulo: recebe o veredito,
+    /// não o calcula. Quem calcula é `main.rs`, dono da resolução de módulos,
+    /// pelas mesmas consultas que `load_program_with_imports` faria em seguida.
+    pub fn com_contexto_de_import(
+        tokens: Vec<Token>,
+        generic_origin: GenericOrigin,
+        contexto_de_import: ContextoDeImport,
+    ) -> Self {
         Self {
             tokens,
             current: 0,
@@ -214,7 +270,9 @@ impl Parser {
             generic_origin,
             familias_importadas: HashSet::new(),
             membros_familia_importados: HashMap::new(),
-            nomes_ligados: HashSet::new(),
+            nomes_de_topo: HashSet::new(),
+            escopos_locais: Vec::new(),
+            contexto_de_import,
             collection_types: HashMap::new(),
             enum_decls: HashMap::new(),
             enum_names: HashSet::new(),
@@ -475,12 +533,14 @@ impl Parser {
     // @pinker-nav:start parser.programa.estrutura
     // @pinker-nav:domain programa
     // @pinker-nav:layer parser
-    // @pinker-nav:summary Ponto de entrada do parser: constrói o `Program` reconhecendo `pacote`, `trazer` (imports) e a marca freestanding, e despacha os itens de topo via `parse_item`. Um prepass estreito de autoridade detecta templates genéricos de usuário antes de registrar o `Resultado<T,E>` builtin, tornando USER_WINS independente da ordem textual sem resolver tipos. A redeclaração continua formando com a produção runtime a conjunção inválida da Parte B1.
+    // @pinker-nav:summary Ponto de entrada do parser: constrói o `Program` reconhecendo `pacote`, `trazer` (imports) e a marca freestanding, e despacha os itens de topo via `parse_item`. Dois prepasses estreitos de autoridade precedem qualquer resolução, ambos sobre tokens e sem resolver tipos: um detecta templates genéricos de usuário antes de registrar o `Resultado<T,E>` builtin, tornando USER_WINS independente da ordem textual; outro colhe as identidades de topo do arquivo (`coletar_nomes_de_topo`), que é o que dá à superfície por família a mesma independência de ordem. A redeclaração continua formando com a produção runtime a conjunção inválida da Parte B1.
     pub fn parse(&mut self) -> Result<Program, PinkerError> {
-        // Parte G: o censo de nomes ligados precede toda resolução. A família é
-        // fallback, e fallback precisa saber o que já está reivindicado antes
-        // de responder pela primeira vez.
-        self.coletar_nomes_ligados();
+        // Parte G: o censo de identidades de topo precede toda resolução. A
+        // família é fallback, e fallback precisa saber o que já está
+        // reivindicado antes de responder pela primeira vez. As ligações com
+        // escopo não entram aqui: elas são decididas no ponto de uso, pela
+        // pilha `escopos_locais`.
+        self.coletar_nomes_de_topo();
 
         let package = if self.match_token(TokenKind::KwPacote) {
             let start_span = self.previous().span;
@@ -1517,9 +1577,11 @@ impl Parser {
         while !self.check(TokenKind::RBrace) && self.peek().is_some() {
             if self.match_token(TokenKind::KwCaso) {
                 let arm_span = self.previous().span;
-                let pattern = self.parse_enum_pattern()?;
-                self.register_enum_pattern_collections(&pattern);
-                let body = self.parse_block()?;
+                // Parte G: a carga do padrão liga nome, e liga só neste braço.
+                self.abrir_escopo_local();
+                let arm_result = self.parse_braco_de_caso();
+                self.fechar_escopo_local();
+                let (pattern, body) = arm_result?;
                 arms.push(EnumMatchArm {
                     pattern,
                     body,
@@ -1552,6 +1614,17 @@ impl Parser {
         })])
     }
 
+    /// Padrão e corpo de um braço `caso`, lidos como uma unidade.
+    ///
+    /// Existe para que `parse_encaixe` possa abrir e fechar o escopo léxico do
+    /// braço em volta dos dois — a carga do padrão liga nome e o corpo o usa.
+    fn parse_braco_de_caso(&mut self) -> Result<(EnumPattern, Block), PinkerError> {
+        let pattern = self.parse_enum_pattern()?;
+        self.register_enum_pattern_collections(&pattern);
+        let body = self.parse_block()?;
+        Ok((pattern, body))
+    }
+
     fn parse_enum_pattern(&mut self) -> Result<EnumPattern, PinkerError> {
         let enum_token = self.consume(TokenKind::Ident, "nome do leque no padrão do caso")?;
         let enum_name = enum_token.lexeme.clone();
@@ -1576,10 +1649,11 @@ impl Parser {
                                 )?
                                 .clone();
                             // Parte G: a carga de variante liga nome sem
-                            // palavra-chave e sem `:`, então o censo de tokens
-                            // não a alcança. É registrada aqui, onde o parser
-                            // acabou de decidir que aquilo é uma ligação.
-                            self.registrar_nome_ligado(&binding.lexeme);
+                            // palavra-chave e sem `:`. É registrada aqui, no
+                            // escopo que `parse_encaixe` abriu para este braço,
+                            // porque é aqui que o parser acaba de decidir que
+                            // aquilo é uma ligação — e ela vale só neste braço.
+                            self.registrar_ligacao_local(&binding.lexeme);
                             EnumPattern::Binding {
                                 name: binding.lexeme.clone(),
                                 span: binding.span,
@@ -1669,7 +1743,12 @@ impl Parser {
                 .lexeme
                 .clone();
             self.consume(TokenKind::RParen, ")")?;
-            let body = self.parse_block()?;
+            // Parte G: a ligação do membro da união vale só neste braço.
+            self.abrir_escopo_local();
+            self.registrar_ligacao_local(&binding);
+            let body_result = self.parse_block();
+            self.fechar_escopo_local();
+            let body = body_result?;
             arms.push(UnionMatchArm {
                 member_type,
                 binding,
@@ -1825,7 +1904,16 @@ impl Parser {
                 }
             }
 
-            let body = self.parse_block()?;
+            // Parte G: as ligações do braço valem só dentro do corpo dele — é
+            // lá que o desugaring emite os `Stmt::Let`. Mesmo motivo pelo qual
+            // a categoria de coleção acima também precisa existir antes.
+            self.abrir_escopo_local();
+            for bind_name in &bindings {
+                self.registrar_ligacao_local(bind_name);
+            }
+            let body_result = self.parse_block();
+            self.fechar_escopo_local();
+            let body = body_result?;
             arms.push(TentarArm {
                 variant,
                 bindings,
@@ -2423,7 +2511,15 @@ impl Parser {
             self.register_collection_type(&param.name, &param.ty);
         }
         self.push_callable_param_scope(&params);
+        // Parte G: o `carinho` anônimo não passa por `parse_callable_body`, e
+        // os parâmetros dele ligam nome exatamente como os de uma função de
+        // topo. Sem este escopo, a família capturaria um parâmetro de closure.
+        self.abrir_escopo_local();
+        for param in &params {
+            self.registrar_ligacao_local(&param.name);
+        }
         let body_result = self.parse_block();
+        self.fechar_escopo_local();
         self.function_value_scopes.pop();
         let body = body_result?;
         self.collection_types = saved_collection_types;
@@ -2572,6 +2668,12 @@ impl Parser {
                             span: init.span,
                         });
                     }
+                    // Parte G: este ramo NÃO emite `Stmt::Let` — o alias vai
+                    // direto para `function_value_scopes` e o bloco não tem o
+                    // que ler. Sem registrar aqui, o nome ficava invisível para
+                    // `escopos_locais` e a família capturava, em silêncio, uma
+                    // ligação que o programador acabou de criar.
+                    self.registrar_ligacao_local(&local_name);
                     self.current_function_value_scope_mut()
                         .insert(local_name, function_name);
                     return Ok(None);
@@ -2701,7 +2803,13 @@ impl Parser {
 
         self.push_callable_param_scope(params);
         self.push_value_param_scope(params);
+        // Parte G: parâmetro é ligação local com escopo — o corpo, e só ele.
+        self.abrir_escopo_local();
+        for param in params {
+            self.registrar_ligacao_local(&param.name);
+        }
         let body_result = self.parse_block();
+        self.fechar_escopo_local();
         self.value_type_scopes.pop();
         self.function_value_scopes.pop();
         let mut body = body_result?;
@@ -3311,7 +3419,95 @@ impl Parser {
     // @pinker-nav:start parser.importacoes.superficie-familia
     // @pinker-nav:domain importacoes
     // @pinker-nav:layer parser
-    // @pinker-nav:summary Resolução da superfície por família dentro do parser: o censo de nomes ligados colhido dos tokens do arquivo inteiro, o registro do efeito de `trazer familia;` e `trazer familia.membro;`, a consulta de identidade léxica existente e os dois pontos de canonicalização precoce. A família é FALLBACK: só responde pelo nome que nenhuma outra identidade reivindica, e sem o import não opina nem recusa — devolve `None` e o `FieldAccess` histórico é construído como antes desta Parte existir. A ligação `(família, membro) -> identidade` não mora aqui; vem inteira de `familia_superficie`.
+    // @pinker-nav:summary Resolução da superfície por família dentro do parser, e as duas autoridades de precedência que a governam: `nomes_de_topo`, censo de tokens em profundidade zero com as identidades que a Pinker resolve independentemente da ordem textual, e `escopos_locais`, pilha de escopos léxicos reais alimentada em cada ponto onde o parser liga um nome. A família é FALLBACK e o último a responder: cede a identidade de topo em todo o arquivo, cede a ligação local apenas onde ela está visível, e sem o import não opina nem recusa — devolve `None` e o `FieldAccess` histórico é construído como antes desta Parte existir. Antes das duas, a família cede ao `ContextoDeImport` que a autoridade de import entrega pronto: `modulos_reais` decide a classificação `MODULE vs FAMILY` da forma seletiva, e `nomes_importados` traz as identidades de topo de `trazer <modulo>;`, que não passam pelo fluxo de tokens deste arquivo e por isso entram no censo por veredito, não por leitura. A ligação `(família, membro) -> identidade` não mora aqui; vem inteira de `familia_superficie`.
+
+    /// Parte G: nomes de módulo em `trazer <nome>.<simbolo>;` cuja classificação
+    /// o parser **não pode** fazer sozinho.
+    ///
+    /// `<nome>` pode ser uma família built-in ou um módulo Pinker real ao lado
+    /// da fonte, e as duas leituras dão programas diferentes. Quem sabe o que é
+    /// módulo é o carregador; esta função só devolve a pergunta, lida do fluxo
+    /// de tokens, para que a resposta volte em `Parser::com_contexto_de_import`.
+    ///
+    /// A forma inteira (`trazer <nome>;`) não aparece aqui de propósito: ela
+    /// nunca carregou módulo, nem antes desta Parte, e continuar sem consultar
+    /// o disco é preservar o comportamento histórico, não uma omissão.
+    pub fn familias_seletivas_candidatas(tokens: &[Token]) -> Vec<String> {
+        let mut candidatos: Vec<String> = Vec::new();
+        for (indice, token) in tokens.iter().enumerate() {
+            if token.kind != TokenKind::KwTrazer {
+                continue;
+            }
+            let (Some(modulo), Some(ponto), Some(simbolo)) = (
+                tokens.get(indice + 1),
+                tokens.get(indice + 2),
+                tokens.get(indice + 3),
+            ) else {
+                continue;
+            };
+            if modulo.kind != TokenKind::Ident
+                || ponto.kind != TokenKind::Dot
+                || simbolo.kind != TokenKind::Ident
+            {
+                continue;
+            }
+            if !crate::familia_superficie::familia_conhecida(modulo.lexeme.as_str()) {
+                continue;
+            }
+            if !candidatos.contains(&modulo.lexeme) {
+                candidatos.push(modulo.lexeme.clone());
+            }
+        }
+        candidatos
+    }
+
+    /// Parte G: `trazer X.y;` é import seletivo de FAMÍLIA, e não de módulo?
+    ///
+    /// Autoridade única da classificação, consultada tanto pelo censo de
+    /// identidades de topo quanto pelo registro do import. Duas cópias desta
+    /// pergunta faziam uma cobrir a outra: desligar qualquer uma das duas
+    /// deixava o comportamento intacto, e um guarda que não pode ser derrubado
+    /// não guarda nada.
+    ///
+    /// `REAL_MODULE_X > BUILTIN_FAMILY_X`: a precedência é decidida pela
+    /// EXISTÊNCIA do módulo real — veredito que a autoridade de import entregou
+    /// em `modulos_reais` — e nunca perguntando o que a família contém, que
+    /// arrancaria de um módulo histórico todo export homônimo de membro
+    /// aprovado.
+    fn seletivo_de_familia(&self, modulo: &str, membro: &str) -> bool {
+        !self.contexto_de_import.modulos_reais.contains(modulo)
+            && crate::familia_superficie::resolver(modulo, membro).is_some()
+    }
+
+    /// Parte G: nomes de `trazer <nome>;` que **podem** ser módulo Pinker.
+    ///
+    /// Famílias built-in ficam de fora de propósito: `trazer arquivo;` nunca
+    /// carregou módulo, nem antes desta Parte, e continuar sem consultar o
+    /// disco é preservar o comportamento histórico. O que sobra é a lista de
+    /// módulos cujos itens de topo entram neste arquivo — e cujos nomes o
+    /// parser precisa conhecer para não capturá-los.
+    pub fn modulos_trazidos_inteiros(tokens: &[Token]) -> Vec<String> {
+        let mut modulos: Vec<String> = Vec::new();
+        for (indice, token) in tokens.iter().enumerate() {
+            if token.kind != TokenKind::KwTrazer {
+                continue;
+            }
+            let (Some(modulo), Some(seguinte)) = (tokens.get(indice + 1), tokens.get(indice + 2))
+            else {
+                continue;
+            };
+            if modulo.kind != TokenKind::Ident || seguinte.kind != TokenKind::Semi {
+                continue;
+            }
+            if crate::familia_superficie::familia_conhecida(modulo.lexeme.as_str()) {
+                continue;
+            }
+            if !modulos.contains(&modulo.lexeme) {
+                modulos.push(modulo.lexeme.clone());
+            }
+        }
+        modulos
+    }
 
     /// Parte G: registra o efeito de um `trazer` de família built-in.
     ///
@@ -3329,16 +3525,34 @@ impl Parser {
         }
         match symbol {
             None => {
-                // Uma identidade homônima vence a família mesmo quando é
-                // declarada depois do uso: o censo de nomes ligados é colhido
-                // do arquivo inteiro justamente para que a precedência não
-                // dependa da ordem do texto.
-                if self.nomes_ligados.contains(module) {
+                // Uma identidade de TOPO homônima vence a família mesmo quando
+                // é declarada depois do uso: o censo é colhido do arquivo
+                // inteiro justamente para que a precedência não dependa da
+                // ordem do texto.
+                //
+                // Ligação local homônima NÃO entra nesta decisão. Ela tem
+                // escopo, e desabilitar a família no arquivo inteiro por causa
+                // de um parâmetro de uma função era confundir
+                // `EXISTE_EM_ALGUM_ESCOPO` com `ESTÁ_VISÍVEL_NESTE_PONTO`.
+                // Onde a ligação estiver visível, quem cede é
+                // `resolver_membro_de_familia`, no ponto de uso.
+                if self.nomes_de_topo.contains(module) {
                     return;
                 }
                 self.familias_importadas.insert(module.to_string());
             }
             Some(membro) => {
+                // A classificação `MODULE vs FAMILY` precede a canonicalização,
+                // que é irreversível. Se `module` é módulo Pinker real, este
+                // `trazer` é import de módulo e o parser não tem nada a
+                // reescrever: a semântica histórica do módulo vence inteira.
+                //
+                // Colisão do membro com item de topo NÃO é decidida aqui: é
+                // recusa da autoridade semântica de import, que atravessa CLI e
+                // biblioteca e produz a mensagem única.
+                if !self.seletivo_de_familia(module, membro) {
+                    return;
+                }
                 if let Some(canonica) = crate::familia_superficie::resolver(module, membro) {
                     self.membros_familia_importados
                         .insert(membro.to_string(), canonica);
@@ -3347,118 +3561,164 @@ impl Parser {
         }
     }
 
-    /// Parte G: colhe o censo de nomes ligados do arquivo inteiro.
+    /// Parte G: colhe as identidades de **topo** do arquivo.
     ///
     /// Uma passada única sobre os tokens, antes de qualquer decisão de
-    /// resolução. Colhe:
+    /// resolução, contando apenas o que está em profundidade zero de chaves:
     ///
-    /// * o `Ident` que segue uma palavra que LIGA nome — `carinho`, `eterno`,
-    ///   `nova`, `muda`, `apelido`, `ninho`, `leque`, `trato`, `para`,
-    ///   `para cada`;
-    /// * todo `Ident` seguido de `:` — parâmetro, ligação anotada e campo de
-    ///   `ninho` caem todos aqui;
-    /// * o símbolo de um `trazer modulo.simbolo;`.
+    /// * o `Ident` que segue `carinho`, `eterno`, `ninho`, `leque`, `trato` ou
+    ///   `apelido` — exatamente as seis categorias de `ast::Item`;
+    /// * o símbolo de um `trazer modulo.simbolo;` que vira item de topo.
     ///
-    /// Não há profundidade: um nome ligado em qualquer ponto do arquivo conta.
-    /// Isso é intencional. A pergunta que o censo responde não é "qual
-    /// identidade este nome tem aqui", que pertence ao semântico, e sim "alguém
-    /// além da família reivindica este nome neste arquivo". Para um fallback,
-    /// responder `true` a mais é sempre seguro.
-    fn coletar_nomes_ligados(&mut self) {
-        const LIGAM_NOME: &[TokenKind] = &[
+    /// `TOP_LEVEL_PREPASS = ONLY_IDENTITIES_WITH_REAL_PROGRAM_SCOPE_FORWARD_PRECEDENCE`.
+    /// Estas são as identidades que a semântica coleta na passagem 1, antes de
+    /// verificar qualquer corpo, e por isso vencem a família mesmo declaradas
+    /// depois do uso. O que tem escopo — parâmetro, local, variável de laço,
+    /// carga de padrão — não entra aqui: cabe a `escopos_locais` dizer onde
+    /// está visível. Campo de `ninho` não entra por não estar em profundidade
+    /// zero, que é a verdade sobre ele: campo não é nome no espaço de valores.
+    fn coletar_nomes_de_topo(&mut self) {
+        const DECLARAM_ITEM_DE_TOPO: &[TokenKind] = &[
             TokenKind::KwCarinho,
             TokenKind::KwEterno,
-            TokenKind::KwNova,
-            TokenKind::KwMuda,
-            TokenKind::KwApelido,
             TokenKind::KwNinho,
             TokenKind::KwLeque,
             TokenKind::KwTrato,
-            TokenKind::KwPara,
-            TokenKind::KwCada,
+            TokenKind::KwApelido,
         ];
 
+        // As identidades que `trazer <modulo>;` traz não passam pelo fluxo de
+        // tokens deste arquivo — o parser não tem como enxergá-las. Elas entram
+        // aqui pelo veredito da autoridade de import, e a partir daí são
+        // identidade de topo como qualquer outra: a família cede a elas em
+        // silêncio, exatamente como cede a um `carinho` de topo homônimo.
+        let mut nomes: HashSet<String> = self.contexto_de_import.nomes_importados.clone();
+        let mut profundidade: i64 = 0;
         for (indice, token) in self.tokens.iter().enumerate() {
-            if token.kind == TokenKind::Ident {
-                // `x:` — parâmetro, ligação anotada, campo de ninho.
-                if self
-                    .tokens
-                    .get(indice + 1)
-                    .is_some_and(|seguinte| seguinte.kind == TokenKind::Colon)
-                {
-                    self.nomes_ligados.insert(token.lexeme.clone());
+            match token.kind {
+                TokenKind::LBrace => {
+                    profundidade += 1;
+                    continue;
                 }
+                TokenKind::RBrace => {
+                    profundidade -= 1;
+                    continue;
+                }
+                _ => {}
+            }
+            // Profundidade zero é o que separa item de topo de tudo o mais.
+            // Método de `trato` e campo de `ninho` vivem em profundidade 1 e não
+            // são nome no espaço de valores do arquivo: nenhum deles pode ser
+            // chamado como `arquivo(...)` nem sombrear a família.
+            if profundidade != 0 {
                 continue;
             }
 
-            if LIGAM_NOME.contains(&token.kind) {
-                if let Some(ligado) = self.tokens.get(indice + 1) {
-                    if ligado.kind == TokenKind::Ident {
-                        self.nomes_ligados.insert(ligado.lexeme.clone());
+            if DECLARAM_ITEM_DE_TOPO.contains(&token.kind) {
+                if let Some(declarado) = self.tokens.get(indice + 1) {
+                    if declarado.kind == TokenKind::Ident {
+                        nomes.insert(declarado.lexeme.clone());
                     }
                 }
                 continue;
             }
 
-            // `trazer modulo.simbolo;` liga `simbolo` no arquivo — exceto
-            // quando o par é exatamente a superfície aprovada de uma família.
-            // Ali o `simbolo` NÃO é um concorrente: é o próprio nome que o
-            // import acaba de criar. Contá-lo faria o import seletivo sombrear
-            // a si mesmo e nunca resolver.
+            // `trazer modulo.simbolo;` liga `simbolo` no topo do arquivo —
+            // exceto quando o par é a superfície aprovada de uma família E
+            // nenhum módulo real reivindicou o nome. Ali o `simbolo` não é um
+            // concorrente: é o próprio nome que o import acaba de criar, e
+            // contá-lo faria o import seletivo sombrear a si mesmo.
             if token.kind == TokenKind::KwTrazer {
-                if let (Some(modulo), Some(ponto), Some(simbolo)) = (
+                let (Some(modulo), Some(ponto), Some(simbolo)) = (
                     self.tokens.get(indice + 1),
                     self.tokens.get(indice + 2),
                     self.tokens.get(indice + 3),
-                ) {
-                    let seletivo_de_familia = modulo.kind == TokenKind::Ident
-                        && crate::familia_superficie::resolver(
-                            modulo.lexeme.as_str(),
-                            simbolo.lexeme.as_str(),
-                        )
-                        .is_some();
-                    if ponto.kind == TokenKind::Dot
-                        && simbolo.kind == TokenKind::Ident
-                        && !seletivo_de_familia
-                    {
-                        self.nomes_ligados.insert(simbolo.lexeme.clone());
-                    }
+                ) else {
+                    continue;
+                };
+                if modulo.kind != TokenKind::Ident
+                    || ponto.kind != TokenKind::Dot
+                    || simbolo.kind != TokenKind::Ident
+                {
+                    continue;
+                }
+                if !self.seletivo_de_familia(modulo.lexeme.as_str(), simbolo.lexeme.as_str()) {
+                    nomes.insert(simbolo.lexeme.clone());
                 }
             }
         }
+        self.nomes_de_topo = nomes;
     }
 
-    /// Parte G: registra uma ligação descoberta durante o parse.
+    /// Parte G: abre um escopo léxico para ligações locais.
     ///
-    /// Complementa o censo de tokens onde ele não alcança: a ligação de carga
-    /// de variante em `encaixe` não é anunciada por palavra-chave nem seguida
-    /// de `:`.
-    fn registrar_nome_ligado(&mut self, nome: &str) {
-        self.nomes_ligados.insert(nome.to_string());
+    /// Anda junto de `value_type_scopes`: todo lugar que empilha um escopo de
+    /// tipo empilha um escopo de nome, e a simetria é o que garante que a
+    /// pilha não vaze de um corpo para outro.
+    fn abrir_escopo_local(&mut self) {
+        self.escopos_locais.push(HashSet::new());
     }
 
-    /// Parte G: alguma identidade léxica já existente responde por este nome?
+    /// Parte G: fecha o escopo léxico mais interno.
+    fn fechar_escopo_local(&mut self) {
+        self.escopos_locais.pop();
+    }
+
+    /// Parte G: registra uma ligação no escopo mais interno aberto.
+    fn registrar_ligacao_local(&mut self, nome: &str) {
+        if let Some(escopo) = self.escopos_locais.last_mut() {
+            escopo.insert(nome.to_string());
+        }
+    }
+
+    /// Parte G: registra as ligações que um trecho de bloco acabou de produzir.
     ///
-    /// A política aprovada é `TODA IDENTIDADE JÁ EXISTENTE VENCE A FAMÍLIA`:
-    /// local, parâmetro, variável de `para`, carga de `encaixe`, `eterno`,
-    /// `carinho`, `leque`, `ninho`, `trato` e `apelido` resolvem primeiro, e a
-    /// família só responde pelo que sobra.
+    /// Todo local da Pinker chega ao bloco como `Stmt::Let` — inclusive os que
+    /// nascem de desugaring (`para`, `tentar`, `propagar`, encaixe). Ler o que
+    /// o parser produziu, em vez de repetir a lista de construtos que ligam
+    /// nome, é o que mantém uma autoridade só: se um construto novo abaixar
+    /// para `Stmt::Let`, ele já está coberto.
     ///
-    /// A autoridade é o censo de `nomes_ligados`, colhido dos tokens do arquivo
-    /// inteiro. As tabelas incrementais do parser continuam sendo consultadas
-    /// como reforço, mas não são mais a fonte: elas só enxergam o que já foi
-    /// parseado e o que teve tipo inferido, e foi exatamente essa parcialidade
-    /// que permitiu à família capturar ligação sem anotação.
+    /// Uso ANTES da ligação continua resolvendo pela família, e é o correto:
+    /// local da Pinker não é hoisted, vale do ponto de declaração em diante.
+    fn registrar_ligacoes_de_stmts(&mut self, stmts: &[Stmt]) {
+        let ligados: Vec<String> = stmts
+            .iter()
+            .filter_map(|stmt| match stmt {
+                Stmt::Let(let_stmt) => Some(let_stmt.name.clone()),
+                _ => None,
+            })
+            .collect();
+        for nome in ligados {
+            self.registrar_ligacao_local(&nome);
+        }
+    }
+
+    /// Parte G: existe ligação local VISÍVEL NESTE PONTO para este nome?
+    fn ligacao_local_visivel(&self, nome: &str) -> bool {
+        self.escopos_locais
+            .iter()
+            .any(|escopo| escopo.contains(nome))
+    }
+
+    /// Parte G: alguma identidade léxica já existente responde por este nome,
+    /// aqui?
+    ///
+    /// A política aprovada é `TODA IDENTIDADE JÁ EXISTENTE VENCE A FAMÍLIA`, e
+    /// ela tem duas metades com autoridades distintas, porque as duas perguntas
+    /// são distintas:
+    ///
+    /// * `nomes_de_topo` responde «o programa inteiro reivindica este nome?» —
+    ///   `carinho`, `eterno`, `ninho`, `leque`, `trato`, `apelido` e símbolo
+    ///   importado, com precedência independente da ordem textual;
+    /// * `escopos_locais` responde «alguma ligação visível AQUI reivindica este
+    ///   nome?» — parâmetro, `nova`/`muda`, variável de laço, carga de padrão.
+    ///
+    /// Não há terceira lista. Um saco de nomes do arquivo inteiro respondia às
+    /// duas perguntas ao mesmo tempo e errava a segunda: um parâmetro de uma
+    /// função desabilitava a família em todas as outras.
     fn identidade_lexical_existente(&self, nome: &str) -> bool {
-        self.nomes_ligados.contains(nome)
-            || self.resolve_value_type(nome).is_some()
-            || self.collection_types.contains_key(nome)
-            || self.resolve_function_value_alias(nome).is_some()
-            || self.enum_names.contains(nome)
-            || self.enum_decls.contains_key(nome)
-            || self.struct_names.contains(nome)
-            || self.trait_decls.contains_key(nome)
-            || self.type_alias_targets.contains_key(nome)
+        self.nomes_de_topo.contains(nome) || self.ligacao_local_visivel(nome)
     }
 
     /// Parte G — CANONICALIZATION_BOUNDARY, forma qualificada.
@@ -3511,10 +3771,10 @@ impl Parser {
 
     /// Parte G — CANONICALIZATION_BOUNDARY, forma seletiva.
     ///
-    /// Membro trazido por `trazer familia.membro;` em posição de chamada. Um
-    /// local homônimo vence, pela mesma precedência da forma qualificada; a
-    /// colisão com item de topo é recusada antes, pela política de import que
-    /// já existe.
+    /// Membro trazido por `trazer familia.membro;` em posição de chamada. Uma
+    /// ligação local visível aqui vence, pela mesma precedência da forma
+    /// qualificada; a colisão com item de topo é recusada antes, pela política
+    /// de import que já existe.
     fn resolver_membro_seletivo(&self, name: &str) -> Option<&'static str> {
         if self.identidade_lexical_existente(name) {
             return None;
@@ -4682,11 +4942,31 @@ impl Parser {
     // @pinker-nav:summary Blocos e comandos: reconhece `{ ... }`, declarações locais (`nova`/`muda`), atribuições, `mimo` (retorno), `talvez`/`senao`, laços (`sempre`/`repetir`), `quebrar`/`continuar`, `falar` e asm inline, produzindo `ast::Block`/`ast::Stmt`.
     fn parse_block(&mut self) -> Result<Block, PinkerError> {
         let start_span = self.consume(TokenKind::LBrace, "{")?.span;
-        let mut stmts = Vec::new();
         self.function_value_scopes.push(HashMap::new());
         self.value_type_scopes.push(HashMap::new());
+        // Parte G: o bloco é a unidade de escopo léxico das ligações locais, e
+        // o corpo vive numa função à parte para que a pilha desempilhe também
+        // no caminho de erro — simetria que `value_type_scopes` já tinha.
+        self.abrir_escopo_local();
+        let corpo = self.parse_block_stmts();
+        self.fechar_escopo_local();
+        self.value_type_scopes.pop();
+        self.function_value_scopes.pop();
+        let stmts = corpo?;
+        Ok(Block {
+            stmts,
+            span: merge_span(start_span, self.previous().span),
+        })
+    }
 
+    /// Comandos de um bloco, até o `}` que o fecha.
+    ///
+    /// Separado de `parse_block` só para que o escopo léxico da Parte G tenha
+    /// um ponto único de fechamento.
+    fn parse_block_stmts(&mut self) -> Result<Vec<Stmt>, PinkerError> {
+        let mut stmts = Vec::new();
         while !self.check(TokenKind::RBrace) && self.peek().is_some() {
+            let ja_produzidos = stmts.len();
             if self.check(TokenKind::KwPara) {
                 stmts.extend(self.parse_for_stmt_desugared()?);
             } else if self.check(TokenKind::KwEncaixe) {
@@ -4707,15 +4987,14 @@ impl Parser {
                 }
                 stmts.push(stmt);
             }
+            // Parte G: o que este comando acabou de ligar passa a ser visível
+            // do ponto seguinte em diante, e só dentro deste bloco. Ler o
+            // resultado do parser cobre `nova`/`muda`, alias de função e todo
+            // local nascido de desugaring sem repetir a lista de construtos.
+            self.registrar_ligacoes_de_stmts(&stmts[ja_produzidos..]);
         }
-
         self.consume(TokenKind::RBrace, "}")?;
-        self.value_type_scopes.pop();
-        self.function_value_scopes.pop();
-        Ok(Block {
-            stmts,
-            span: merge_span(start_span, self.previous().span),
-        })
+        Ok(stmts)
     }
 
     fn parse_stmt(&mut self) -> Result<Stmt, PinkerError> {
@@ -5133,6 +5412,10 @@ impl Parser {
             .consume(TokenKind::Ident, "variável do iterador em 'para'")?
             .lexeme
             .clone();
+        // Parte G: a variável do laço precisa estar visível ANTES de o corpo
+        // ser lido. O escopo é o bloco envolvente porque é exatamente lá que o
+        // desugaring emite o `Stmt::Let` dela.
+        self.registrar_ligacao_local(&var_name);
         self.consume(TokenKind::KwEm, "em")?;
         let start_expr = self.parse_expr()?;
         self.consume(TokenKind::DotDot, "..")?;
@@ -5209,7 +5492,14 @@ impl Parser {
             .clone();
         self.consume(TokenKind::KwEm, "em")?;
         let collection_expr = self.parse_expr()?;
-        let body = self.parse_block()?;
+        // Parte G: o item do laço vale só dentro do corpo — é lá que o
+        // desugaring emite o `Stmt::Let` dele. O escopo extra existe para que a
+        // ligação não escape para o resto do bloco envolvente.
+        self.abrir_escopo_local();
+        self.registrar_ligacao_local(&item_name);
+        let body_result = self.parse_block();
+        self.fechar_escopo_local();
+        let body = body_result?;
         let loop_span = merge_span(start_span, body.span);
 
         let collection_kind = match &collection_expr.kind {
