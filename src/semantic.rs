@@ -20,6 +20,26 @@ use crate::token::{Position, Span};
 use crate::union_canon;
 use std::collections::{HashMap, HashSet};
 
+// @pinker-nav:start semantic.identificadores.namespace-produtor-de-simbolo
+// @pinker-nav:domain identificadores
+// @pinker-nav:layer semantic
+// @pinker-nav:summary Fronteira única das definições top-level que produzem símbolo nativo (`carinho` e `eterno`): consulta os namespaces de escopo `SymbolDefinition` da autoridade `native_symbol` — hoje o prefixo `pinker_` do runtime e os símbolos de entrypoint de plataforma `main` e `_start` — e recusa com `E-SEMANTIC-RESERVED-NAMESPACE` e span da declaração, antes de qualquer assembler ou linker. Não é possível aplicá-los na fronteira léxica porque `main` é nome legítimo de pacote; e não é preciso repetir aqui o prefixo `__`, já recusado no lexer. Nomes do host continuam legais: `malloc`, `memcpy`, `write`, `getenv`, `free` e `environ` passam por aqui sem diagnóstico e são isolados por STB_LOCAL na emissão.
+/// Recusa, com span da declaração, um nome de definição que invadiria um
+/// namespace de fato possuído pela Pinker.
+pub fn validar_namespace_pinker_owned(name: &str, span: Span) -> Result<(), PinkerError> {
+    if let Some(namespace) = crate::native_symbol::reserved_namespace(
+        name,
+        crate::native_symbol::ReservedScope::SymbolDefinition,
+    ) {
+        return Err(PinkerError::Semantic {
+            msg: crate::native_symbol::reserved_namespace_message(name, namespace),
+            span,
+        });
+    }
+    Ok(())
+}
+// @pinker-nav:end semantic.identificadores.namespace-produtor-de-simbolo
+
 // @pinker-nav:start semantic.importacoes.familias
 // @pinker-nav:domain importacoes
 // @pinker-nav:layer semantic
@@ -1249,6 +1269,7 @@ impl SemanticChecker {
         for item in &program.items {
             match item {
                 Item::Function(function) => {
+                    validar_namespace_pinker_owned(&function.name, function.span)?;
                     if self.funcs.contains_key(&function.name) {
                         return Err(PinkerError::Semantic {
                             msg: format!("função '{}' já declarada", function.name),
@@ -1295,6 +1316,7 @@ impl SemanticChecker {
                     self.funcs.insert(function.name.clone(), function.clone());
                 }
                 Item::Const(constant) => {
+                    validar_namespace_pinker_owned(&constant.name, constant.span)?;
                     if self.consts.contains_key(&constant.name) {
                         return Err(PinkerError::Semantic {
                             msg: format!("constante '{}' já declarada", constant.name),

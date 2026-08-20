@@ -1,9 +1,10 @@
 // @pinker-nav:start boot.geracao.fronteira-freestanding
 // @pinker-nav:domain geracao
 // @pinker-nav:layer boot
-// @pinker-nav:summary FREESTANDING_BOOT_ENTRY_FUNCTION ("principal") e FREESTANDING_BOOT_ENTRY_SYMBOL ("_start") são constantes textuais; freestanding_linker_script retorna a string literal de um script de linker GNU ld com `. = 1M;` e as seções .text/.rodata/.data/.bss; freestanding_kernel_stub monta via format! uma string de duas instruções (`call principal` seguido de um rótulo `.Lpinker_hang` com `jmp` para si mesmo, um laço infinito). As duas funções e as duas constantes só produzem strings/constantes de fronteira — nenhuma delas executa, aloca, linka, monta ou inicializa hardware/stack/Multiboot/UEFI; `1M` e `principal` aqui são apenas texto embutido no output, não valores calculados ou verificados contra o restante do pipeline.
-pub const FREESTANDING_BOOT_ENTRY_FUNCTION: &str = "principal";
-pub const FREESTANDING_BOOT_ENTRY_SYMBOL: &str = "_start";
+// @pinker-nav:summary FREESTANDING_BOOT_ENTRY_FUNCTION ("principal") e FREESTANDING_BOOT_ENTRY_SYMBOL ("_start") são constantes textuais derivadas da autoridade única `native_symbol` (não literais próprios); freestanding_linker_script retorna a string literal de um script de linker GNU ld com `. = 1M;` e as seções .text/.rodata/.data/.bss; freestanding_kernel_stub monta via format! uma string de duas instruções (`call principal` seguido de um rótulo `.Lpinker_hang` com `jmp` para si mesmo, um laço infinito). As duas funções e as duas constantes só produzem strings/constantes de fronteira — nenhuma delas executa, aloca, linka, monta ou inicializa hardware/stack/Multiboot/UEFI; `1M` e `principal` aqui são apenas texto embutido no output, não valores calculados ou verificados contra o restante do pipeline.
+pub const FREESTANDING_BOOT_ENTRY_FUNCTION: &str = crate::native_symbol::ENTRYPOINT_SOURCE_IDENTITY;
+pub const FREESTANDING_BOOT_ENTRY_SYMBOL: &str =
+    crate::native_symbol::FREESTANDING_ENTRYPOINT_SYMBOL;
 
 pub fn freestanding_linker_script() -> &'static str {
     "ENTRY(_start)\nSECTIONS\n{\n  . = 1M;\n  .text : { *(.text*) }\n  .rodata : { *(.rodata*) }\n  .data : { *(.data*) }\n  .bss : { *(.bss*) *(COMMON) }\n}"
