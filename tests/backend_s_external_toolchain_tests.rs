@@ -16,7 +16,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 // @pinker-nav:start evidencia.backend-s-externo.renderizacao-recortes-versionados
 // @pinker-nav:domain backend-s
 // @pinker-nav:layer evidencia
-// @pinker-nav:summary Fornece fonte inline ou exemplos versionados (fase111–125) ao helper render_backend_s_external_subset, que executa parse, semântica, IR, CFG e seleção em memória e emite assembly via emit_external_toolchain_subset; valida por contains o cabeçalho do subset, `.globl main`, rótulos `.L<fn>_*`, `jmp`/`cmpq`/`jne`/`setb`, seção `.rodata`, movimentos de argumento e instruções de deref. Nenhum processo externo é criado: não monta, não linka e não executa; a evidência é sobre o texto emitido, não sobre a corretude do código de máquina.
+// @pinker-nav:summary Fornece fonte inline ou exemplos versionados (fase111–125) ao helper render_backend_s_external_subset, que executa parse, semântica, IR, CFG e seleção em memória e emite assembly via emit_external_toolchain_subset; valida por contains o cabeçalho do subset, `.globl main` para o entrypoint e `.local <nome>` para toda definição não-entrypoint, rótulos locais injetivos `.Lp<len>_<fn><len>_<bloco>`, `jmp`/`cmpq`/`jne`/`setb`, seção `.rodata`, movimentos de argumento e instruções de deref. Nenhum processo externo é criado: não monta, não linka e não executa; a evidência é sobre o texto emitido, não sobre a corretude do código de máquina.
 #[test]
 fn asm_s_external_subset_emite_main_montavel() {
     let code = "pacote main; carinho principal() -> bombom { mimo 42; }";
@@ -24,8 +24,8 @@ fn asm_s_external_subset_emite_main_montavel() {
     assert!(out.contains("# pinker v0 external toolchain subset (fase 135"));
     assert!(out.contains("composto minimo com deref_store/deref_load heterogeneo camada 4"));
     assert!(out.contains(".globl main"));
-    assert!(out.contains("jmp .Lprincipal_entry"));
-    assert!(out.contains(".Lprincipal_entry:"));
+    assert!(out.contains("jmp .Lp9_principal5_entry"));
+    assert!(out.contains(".Lp9_principal5_entry:"));
     assert!(out.contains("movabsq $42, %rax"));
 }
 
@@ -33,27 +33,27 @@ fn asm_s_external_subset_emite_main_montavel() {
 fn asm_s_external_subset_fase111_exemplo_versionado_emite_labels_e_jmp_incondicional() {
     let code = include_str!("../examples/fase111_blocos_labels_salto_incondicional_valido.pink");
     let out = render_backend_s_external_subset(code).unwrap();
-    assert!(out.contains(".Lprincipal_entry:"));
-    assert!(out.contains("jmp .Lprincipal_entry"));
+    assert!(out.contains(".Lp9_principal5_entry:"));
+    assert!(out.contains("jmp .Lp9_principal5_entry"));
 }
 
 #[test]
 fn asm_s_external_subset_fase112_exemplo_versionado_emite_cmp_e_jcc() {
     let code = include_str!("../examples/fase112_branch_condicional_minimo_valido.pink");
     let out = render_backend_s_external_subset(code).unwrap();
-    assert!(out.contains(".Lprincipal_entry:"));
+    assert!(out.contains(".Lp9_principal5_entry:"));
     assert!(out.contains("cmpq %r10, %rax"));
     assert!(out.contains("cmpq $0, %rax"));
-    assert!(out.contains("jne .Lprincipal_"));
+    assert!(out.contains("jne .Lp9_principal"));
 }
 
 #[test]
 fn asm_s_external_subset_fase113_exemplo_versionado_emite_ciclo_com_label_de_loop() {
     let code = include_str!("../examples/fase113_loops_reais_minimos_validos.pink");
     let out = render_backend_s_external_subset(code).unwrap();
-    assert!(out.contains(".Lprincipal_loop_cond_0:"));
+    assert!(out.contains(".Lp9_principal11_loop_cond_0:"));
     assert!(out.contains("setb %al"));
-    assert!(out.contains("jmp .Lprincipal_loop_cond_0"));
+    assert!(out.contains("jmp .Lp9_principal11_loop_cond_0"));
 }
 
 #[test]
@@ -61,7 +61,7 @@ fn asm_s_external_subset_fase114_exemplo_versionado_emite_rodata_e_load_global()
     let code = include_str!("../examples/fase114_globais_minimas_rodata_base_valido.pink");
     let out = render_backend_s_external_subset(code).unwrap();
     assert!(out.contains(".section .rodata"));
-    assert!(out.contains(".globl BASE"));
+    assert!(out.contains(".local BASE"));
     assert!(out.contains("BASE:"));
     assert!(out.contains("movq BASE(%rip), %rax"));
 }
@@ -78,7 +78,7 @@ fn asm_s_external_subset_fase115_exemplo_versionado_emite_terceiro_argumento() {
 fn asm_s_external_subset_fase116_exemplo_versionado_emite_deref_load_minimo() {
     let code = include_str!("../examples/fase116_compostos_minimos_camada1_valida.pink");
     let out = render_backend_s_external_subset(code).unwrap();
-    assert!(out.contains(".globl soma_par_minimo"));
+    assert!(out.contains(".local soma_par_minimo"));
     assert!(out.contains("movq (%rax), %rax"));
     assert!(out.contains("call pinker_ponteiro_derivar_tipado"));
     assert!(out.contains("movq $8, %rdx"));
@@ -88,7 +88,7 @@ fn asm_s_external_subset_fase116_exemplo_versionado_emite_deref_load_minimo() {
 fn asm_s_external_subset_fase117_exemplo_versionado_emite_offset_explicito_em_local_ponteiro() {
     let code = include_str!("../examples/fase117_compostos_minimos_camada2_valida.pink");
     let out = render_backend_s_external_subset(code).unwrap();
-    assert!(out.contains(".globl soma_par_offset_local"));
+    assert!(out.contains(".local soma_par_offset_local"));
     assert!(out.contains("call pinker_ponteiro_derivar_tipado"));
     assert!(out.contains("movq $8, %rdx"));
     assert!(out.matches("movq (%rax), %rax").count() >= 2);
@@ -98,7 +98,7 @@ fn asm_s_external_subset_fase117_exemplo_versionado_emite_offset_explicito_em_lo
 fn asm_s_external_subset_fase118_exemplo_versionado_emite_deref_store_minimo() {
     let code = include_str!("../examples/fase118_compostos_minimos_camada3_valida.pink");
     let out = render_backend_s_external_subset(code).unwrap();
-    assert!(out.contains(".globl soma_tripla_com_store_minimo"));
+    assert!(out.contains(".local soma_tripla_com_store_minimo"));
     assert!(out.contains("movq %r10, (%rax)"));
     assert!(out.matches("movq (%rax), %rax").count() >= 3);
 }
@@ -107,7 +107,7 @@ fn asm_s_external_subset_fase118_exemplo_versionado_emite_deref_store_minimo() {
 fn asm_s_external_subset_fase119_exemplo_versionado_consolida_par_homogeneo_minimo() {
     let code = include_str!("../examples/fase119_compostos_minimos_camada4_valida.pink");
     let out = render_backend_s_external_subset(code).unwrap();
-    assert!(out.contains(".globl consolida_par_homogeneo_minimo"));
+    assert!(out.contains(".local consolida_par_homogeneo_minimo"));
     assert!(out.matches("movq %r10, (%rax)").count() >= 2);
     assert!(out.matches("movq (%rax), %rax").count() >= 4);
     assert!(out.matches("call pinker_ponteiro_derivar_tipado").count() >= 2);
@@ -118,7 +118,7 @@ fn asm_s_external_subset_fase119_exemplo_versionado_consolida_par_homogeneo_mini
 fn asm_s_external_subset_fase120_exemplo_versionado_u32_minimo_em_param_local() {
     let code = include_str!("../examples/fase120_tipos_inteiros_mais_largos_valido.pink");
     let out = render_backend_s_external_subset(code).unwrap();
-    assert!(out.contains(".globl eco_u32_minimo"));
+    assert!(out.contains(".local eco_u32_minimo"));
     assert!(out.contains("call eco_u32_minimo"));
     assert!(out.contains("movq %rdi, -8(%rbp)"));
 }
@@ -127,7 +127,7 @@ fn asm_s_external_subset_fase120_exemplo_versionado_u32_minimo_em_param_local() 
 fn asm_s_external_subset_fase121_exemplo_versionado_u64_minimo_em_param_local() {
     let code = include_str!("../examples/fase121_tipos_inteiros_mais_largos_camada2_valido.pink");
     let out = render_backend_s_external_subset(code).unwrap();
-    assert!(out.contains(".globl eco_u64_minimo"));
+    assert!(out.contains(".local eco_u64_minimo"));
     assert!(out.contains("call eco_u64_minimo"));
     assert!(out.contains("movq %rdi, -8(%rbp)"));
 }
@@ -135,7 +135,7 @@ fn asm_s_external_subset_fase121_exemplo_versionado_u64_minimo_em_param_local() 
 fn asm_s_external_subset_fase122_exemplo_versionado_comparacao_ne_minima() {
     let code = include_str!("../examples/fase122_comparacoes_ampliadas_camada1_valido.pink");
     let out = render_backend_s_external_subset(code).unwrap();
-    assert!(out.contains(".globl diferente_u64_minimo"));
+    assert!(out.contains(".local diferente_u64_minimo"));
     assert!(out.contains("setne %al"));
     assert!(out.contains("cmpq %r10, %rax"));
 }
@@ -144,7 +144,7 @@ fn asm_s_external_subset_fase122_exemplo_versionado_comparacao_ne_minima() {
 fn asm_s_external_subset_fase123_exemplo_versionado_comparacao_gt_minima() {
     let code = include_str!("../examples/fase123_comparacoes_ampliadas_camada2_valido.pink");
     let out = render_backend_s_external_subset(code).unwrap();
-    assert!(out.contains(".globl maior_u64_minimo"));
+    assert!(out.contains(".local maior_u64_minimo"));
     assert!(out.contains("seta %al"));
     assert!(out.contains("cmpq %r10, %rax"));
 }
@@ -153,7 +153,7 @@ fn asm_s_external_subset_fase123_exemplo_versionado_comparacao_gt_minima() {
 fn asm_s_external_subset_fase124_exemplo_versionado_comparacao_le_minima() {
     let code = include_str!("../examples/fase124_comparacoes_ampliadas_camada3_valido.pink");
     let out = render_backend_s_external_subset(code).unwrap();
-    assert!(out.contains(".globl menor_ou_igual_u64_minimo"));
+    assert!(out.contains(".local menor_ou_igual_u64_minimo"));
     assert!(out.contains("setbe %al"));
     assert!(out.contains("cmpq %r10, %rax"));
 }
@@ -162,7 +162,7 @@ fn asm_s_external_subset_fase124_exemplo_versionado_comparacao_le_minima() {
 fn asm_s_external_subset_fase125_exemplo_versionado_comparacao_ge_minima() {
     let code = include_str!("../examples/fase125_comparacoes_ampliadas_camada4_valido.pink");
     let out = render_backend_s_external_subset(code).unwrap();
-    assert!(out.contains(".globl maior_ou_igual_u64_minimo"));
+    assert!(out.contains(".local maior_ou_igual_u64_minimo"));
     assert!(out.contains("setae %al"));
     assert!(out.contains("cmpq %r10, %rax"));
 }
@@ -176,7 +176,7 @@ fn asm_s_external_subset_fase125_exemplo_versionado_comparacao_ge_minima() {
 fn asm_s_external_subset_fase129_exemplo_versionado_ninho_heterogeneo_camada1() {
     let code = include_str!("../examples/fase129_ninho_heterogeneo_camada1_valido.pink");
     let out = render_backend_s_external_subset(code).unwrap();
-    assert!(out.contains(".globl ler_marca_heterogenea_minima"));
+    assert!(out.contains(".local ler_marca_heterogenea_minima"));
     assert!(out.contains("movabsq $8, %r10"));
     assert!(out.contains("sete %al"));
     assert!(out.contains("movabsq $129, %rax"));
@@ -186,7 +186,7 @@ fn asm_s_external_subset_fase129_exemplo_versionado_ninho_heterogeneo_camada1() 
 fn asm_s_external_subset_fase130_exemplo_versionado_ninho_heterogeneo_camada2() {
     let code = include_str!("../examples/fase130_ninho_heterogeneo_camada2_valido.pink");
     let out = render_backend_s_external_subset(code).unwrap();
-    assert!(out.contains(".globl ler_selo_heterogeneo_camada2"));
+    assert!(out.contains(".local ler_selo_heterogeneo_camada2"));
     assert!(out.contains("movabsq $8, %r10"));
     assert!(out.contains("sete %al"));
     assert!(out.contains("movabsq $130, %rax"));
@@ -218,7 +218,7 @@ fn asm_s_external_subset_fase130_recusa_campo_heterogeneo_fora_recorte() {
 fn asm_s_external_subset_fase131_exemplo_versionado_ninho_heterogeneo_camada3() {
     let code = include_str!("../examples/fase131_ninho_heterogeneo_camada3_valido.pink");
     let out = render_backend_s_external_subset(code).unwrap();
-    assert!(out.contains(".globl escrever_selo_heterogeneo_camada3"));
+    assert!(out.contains(".local escrever_selo_heterogeneo_camada3"));
     assert!(out.contains("movabsq $8, %r10"));
     assert!(out.contains("movq %r10, (%rax)"));
     assert!(out.contains("sete %al"));
@@ -244,7 +244,7 @@ fn asm_s_external_subset_fase131_recusa_campo_heterogeneo_fora_recorte() {
 fn asm_s_external_subset_fase132_exemplo_versionado_ninho_heterogeneo_camada4() {
     let code = include_str!("../examples/fase132_ninho_heterogeneo_camada4_valido.pink");
     let out = render_backend_s_external_subset(code).unwrap();
-    assert!(out.contains(".globl compor_ninho_heterogeneo_camada4"));
+    assert!(out.contains(".local compor_ninho_heterogeneo_camada4"));
     assert!(out.matches("movq %r10, (%rax)").count() >= 2);
     assert!(out.matches("movq (%rax), %rax").count() >= 2);
     assert!(out.contains("movabsq $8, %r10"));
@@ -333,32 +333,32 @@ fn asm_s_external_subset_fase215_aceita_retorno_verso_com_layout_length_prefixed
 fn asm_s_external_subset_fase128_exemplo_versionado_quebrar_continuar_camada3() {
     let code = include_str!("../examples/fase128_quebrar_continuar_camada3_valido.pink");
     let out = render_backend_s_external_subset(code).unwrap();
-    assert!(out.contains(".Lprincipal_loop_cond_0:"));
-    assert!(out.contains(".Lprincipal_loop_cond_2:"));
-    assert!(out.contains(".Lprincipal_loop_cond_6:"));
-    assert!(out.matches(".Lprincipal_loop_break_cont_").count() >= 3);
-    assert!(out.matches(".Lprincipal_loop_continue_cont_").count() >= 3);
+    assert!(out.contains(".Lp9_principal11_loop_cond_0:"));
+    assert!(out.contains(".Lp9_principal11_loop_cond_2:"));
+    assert!(out.contains(".Lp9_principal11_loop_cond_6:"));
+    assert!(out.matches("_loop_break_cont_").count() >= 3);
+    assert!(out.matches("_loop_continue_cont_").count() >= 3);
 }
 
 #[test]
 fn asm_s_external_subset_fase127_exemplo_versionado_quebrar_continuar_camada2() {
     let code = include_str!("../examples/fase127_quebrar_continuar_camada2_valido.pink");
     let out = render_backend_s_external_subset(code).unwrap();
-    assert!(out.contains(".Lprincipal_loop_cond_0:"));
-    assert!(out.contains(".Lprincipal_loop_cond_2:"));
-    assert!(out.contains(".Lprincipal_loop_break_cont_"));
-    assert!(out.contains(".Lprincipal_loop_continue_cont_"));
-    assert!(out.matches("jmp .Lprincipal_loop_cond_").count() >= 2);
+    assert!(out.contains(".Lp9_principal11_loop_cond_0:"));
+    assert!(out.contains(".Lp9_principal11_loop_cond_2:"));
+    assert!(out.contains("_loop_break_cont_"));
+    assert!(out.contains("_loop_continue_cont_"));
+    assert!(out.matches("jmp .Lp9_principal11_loop_cond_").count() >= 2);
 }
 
 #[test]
 fn asm_s_external_subset_fase126_exemplo_versionado_quebrar_continuar_camada1() {
     let code = include_str!("../examples/fase126_quebrar_continuar_camada1_valido.pink");
     let out = render_backend_s_external_subset(code).unwrap();
-    assert!(out.contains(".Lprincipal_loop_cond_0:"));
-    assert!(out.contains(".Lprincipal_loop_break_cont_"));
-    assert!(out.contains(".Lprincipal_loop_continue_cont_"));
-    assert!(out.contains("jmp .Lprincipal_loop_cond_0"));
+    assert!(out.contains(".Lp9_principal11_loop_cond_0:"));
+    assert!(out.contains("_loop_break_cont_"));
+    assert!(out.contains("_loop_continue_cont_"));
+    assert!(out.contains("jmp .Lp9_principal11_loop_cond_0"));
 }
 // @pinker-nav:end evidencia.backend-s-externo.renderizacao-quebrar-continuar
 
@@ -376,7 +376,7 @@ fn asm_s_external_subset_fluxo_real_fase117_composto_minimo_camada2() {
 
     let code = include_str!("../examples/fase117_compostos_minimos_camada2_valida.pink");
     let asm = render_backend_s_external_subset(code).unwrap();
-    assert!(asm.contains(".globl soma_par_offset_local"));
+    assert!(asm.contains(".local soma_par_offset_local"));
     assert!(asm.matches("movq (%rax), %rax").count() >= 2);
 
     let workdir = unique_temp_dir();
@@ -418,7 +418,7 @@ fn asm_s_external_subset_fluxo_real_fase118_composto_minimo_camada3() {
 
     let code = include_str!("../examples/fase118_compostos_minimos_camada3_valida.pink");
     let asm = render_backend_s_external_subset(code).unwrap();
-    assert!(asm.contains(".globl soma_tripla_com_store_minimo"));
+    assert!(asm.contains(".local soma_tripla_com_store_minimo"));
     assert!(asm.contains("movq %r10, (%rax)"));
     assert!(asm.matches("movq (%rax), %rax").count() >= 3);
 
@@ -461,7 +461,7 @@ fn asm_s_external_subset_fluxo_real_fase119_composto_minimo_camada4() {
 
     let code = include_str!("../examples/fase119_compostos_minimos_camada4_valida.pink");
     let asm = render_backend_s_external_subset(code).unwrap();
-    assert!(asm.contains(".globl consolida_par_homogeneo_minimo"));
+    assert!(asm.contains(".local consolida_par_homogeneo_minimo"));
     assert!(asm.matches("movq %r10, (%rax)").count() >= 2);
     assert!(asm.matches("movq (%rax), %rax").count() >= 4);
 
@@ -504,7 +504,7 @@ fn asm_s_external_subset_fluxo_real_fase120_u32_minimo_em_param_local() {
 
     let code = include_str!("../examples/fase120_tipos_inteiros_mais_largos_valido.pink");
     let asm = render_backend_s_external_subset(code).unwrap();
-    assert!(asm.contains(".globl eco_u32_minimo"));
+    assert!(asm.contains(".local eco_u32_minimo"));
     assert!(asm.contains("call eco_u32_minimo"));
 
     let workdir = unique_temp_dir();
@@ -546,7 +546,7 @@ fn asm_s_external_subset_fluxo_real_fase121_u64_minimo_em_param_local() {
 
     let code = include_str!("../examples/fase121_tipos_inteiros_mais_largos_camada2_valido.pink");
     let asm = render_backend_s_external_subset(code).unwrap();
-    assert!(asm.contains(".globl eco_u64_minimo"));
+    assert!(asm.contains(".local eco_u64_minimo"));
     assert!(asm.contains("call eco_u64_minimo"));
 
     let workdir = unique_temp_dir();
@@ -588,7 +588,7 @@ fn asm_s_external_subset_fluxo_real_fase122_comparacao_ne_minima() {
 
     let code = include_str!("../examples/fase122_comparacoes_ampliadas_camada1_valido.pink");
     let asm = render_backend_s_external_subset(code).unwrap();
-    assert!(asm.contains(".globl diferente_u64_minimo"));
+    assert!(asm.contains(".local diferente_u64_minimo"));
     assert!(asm.contains("setne %al"));
 
     let workdir = unique_temp_dir();
@@ -630,7 +630,7 @@ fn asm_s_external_subset_fluxo_real_fase123_comparacao_gt_minima() {
 
     let code = include_str!("../examples/fase123_comparacoes_ampliadas_camada2_valido.pink");
     let asm = render_backend_s_external_subset(code).unwrap();
-    assert!(asm.contains(".globl maior_u64_minimo"));
+    assert!(asm.contains(".local maior_u64_minimo"));
     assert!(asm.contains("seta %al"));
 
     let workdir = unique_temp_dir();
@@ -672,7 +672,7 @@ fn asm_s_external_subset_fluxo_real_fase124_comparacao_le_minima() {
 
     let code = include_str!("../examples/fase124_comparacoes_ampliadas_camada3_valido.pink");
     let asm = render_backend_s_external_subset(code).unwrap();
-    assert!(asm.contains(".globl menor_ou_igual_u64_minimo"));
+    assert!(asm.contains(".local menor_ou_igual_u64_minimo"));
     assert!(asm.contains("setbe %al"));
 
     let workdir = unique_temp_dir();
@@ -714,7 +714,7 @@ fn asm_s_external_subset_fluxo_real_fase125_comparacao_ge_minima() {
 
     let code = include_str!("../examples/fase125_comparacoes_ampliadas_camada4_valido.pink");
     let asm = render_backend_s_external_subset(code).unwrap();
-    assert!(asm.contains(".globl maior_ou_igual_u64_minimo"));
+    assert!(asm.contains(".local maior_ou_igual_u64_minimo"));
     assert!(asm.contains("setae %al"));
 
     let workdir = unique_temp_dir();
@@ -756,7 +756,7 @@ fn asm_s_external_subset_fluxo_real_fase129_ninho_heterogeneo_camada1() {
 
     let code = include_str!("../examples/fase129_ninho_heterogeneo_camada1_valido.pink");
     let asm = render_backend_s_external_subset(code).unwrap();
-    assert!(asm.contains(".globl ler_marca_heterogenea_minima"));
+    assert!(asm.contains(".local ler_marca_heterogenea_minima"));
     assert!(asm.contains("movabsq $8, %r10"));
 
     let workdir = unique_temp_dir();
@@ -798,7 +798,7 @@ fn asm_s_external_subset_fluxo_real_fase130_ninho_heterogeneo_camada2() {
 
     let code = include_str!("../examples/fase130_ninho_heterogeneo_camada2_valido.pink");
     let asm = render_backend_s_external_subset(code).unwrap();
-    assert!(asm.contains(".globl ler_selo_heterogeneo_camada2"));
+    assert!(asm.contains(".local ler_selo_heterogeneo_camada2"));
     assert!(asm.contains("movabsq $8, %r10"));
 
     let workdir = unique_temp_dir();
@@ -840,7 +840,7 @@ fn asm_s_external_subset_fluxo_real_fase131_ninho_heterogeneo_camada3() {
 
     let code = include_str!("../examples/fase131_ninho_heterogeneo_camada3_valido.pink");
     let asm = render_backend_s_external_subset(code).unwrap();
-    assert!(asm.contains(".globl escrever_selo_heterogeneo_camada3"));
+    assert!(asm.contains(".local escrever_selo_heterogeneo_camada3"));
     assert!(asm.contains("movabsq $8, %r10"));
     assert!(asm.contains("movq %r10, (%rax)"));
 
@@ -883,7 +883,7 @@ fn asm_s_external_subset_fluxo_real_fase132_ninho_heterogeneo_camada4() {
 
     let code = include_str!("../examples/fase132_ninho_heterogeneo_camada4_valido.pink");
     let asm = render_backend_s_external_subset(code).unwrap();
-    assert!(asm.contains(".globl compor_ninho_heterogeneo_camada4"));
+    assert!(asm.contains(".local compor_ninho_heterogeneo_camada4"));
     assert!(asm.matches("movq %r10, (%rax)").count() >= 2);
     assert!(asm.matches("movq (%rax), %rax").count() >= 2);
 
@@ -1048,11 +1048,11 @@ fn asm_s_external_subset_fluxo_real_fase128_quebrar_continuar_camada3() {
 
     let code = include_str!("../examples/fase128_quebrar_continuar_camada3_valido.pink");
     let asm = render_backend_s_external_subset(code).unwrap();
-    assert!(asm.contains(".Lprincipal_loop_cond_0:"));
-    assert!(asm.contains(".Lprincipal_loop_cond_2:"));
-    assert!(asm.contains(".Lprincipal_loop_cond_6:"));
-    assert!(asm.matches(".Lprincipal_loop_break_cont_").count() >= 3);
-    assert!(asm.matches(".Lprincipal_loop_continue_cont_").count() >= 3);
+    assert!(asm.contains(".Lp9_principal11_loop_cond_0:"));
+    assert!(asm.contains(".Lp9_principal11_loop_cond_2:"));
+    assert!(asm.contains(".Lp9_principal11_loop_cond_6:"));
+    assert!(asm.matches("_loop_break_cont_").count() >= 3);
+    assert!(asm.matches("_loop_continue_cont_").count() >= 3);
 
     let workdir = unique_temp_dir();
     fs::create_dir_all(&workdir).expect("falha ao criar diretório temporário");
@@ -1093,10 +1093,10 @@ fn asm_s_external_subset_fluxo_real_fase127_quebrar_continuar_camada2() {
 
     let code = include_str!("../examples/fase127_quebrar_continuar_camada2_valido.pink");
     let asm = render_backend_s_external_subset(code).unwrap();
-    assert!(asm.contains(".Lprincipal_loop_cond_0:"));
-    assert!(asm.contains(".Lprincipal_loop_cond_2:"));
-    assert!(asm.contains(".Lprincipal_loop_break_cont_"));
-    assert!(asm.contains(".Lprincipal_loop_continue_cont_"));
+    assert!(asm.contains(".Lp9_principal11_loop_cond_0:"));
+    assert!(asm.contains(".Lp9_principal11_loop_cond_2:"));
+    assert!(asm.contains("_loop_break_cont_"));
+    assert!(asm.contains("_loop_continue_cont_"));
 
     let workdir = unique_temp_dir();
     fs::create_dir_all(&workdir).expect("falha ao criar diretório temporário");
@@ -1137,8 +1137,8 @@ fn asm_s_external_subset_fluxo_real_fase126_quebrar_continuar_camada1() {
 
     let code = include_str!("../examples/fase126_quebrar_continuar_camada1_valido.pink");
     let asm = render_backend_s_external_subset(code).unwrap();
-    assert!(asm.contains(".Lprincipal_loop_break_cont_"));
-    assert!(asm.contains(".Lprincipal_loop_continue_cont_"));
+    assert!(asm.contains("_loop_break_cont_"));
+    assert!(asm.contains("_loop_continue_cont_"));
 
     let workdir = unique_temp_dir();
     fs::create_dir_all(&workdir).expect("falha ao criar diretório temporário");
@@ -1178,7 +1178,7 @@ fn asm_s_external_subset_fluxo_real_fase116_composto_minimo_camada1() {
 
     let code = include_str!("../examples/fase116_compostos_minimos_camada1_valida.pink");
     let asm = render_backend_s_external_subset(code).unwrap();
-    assert!(asm.contains(".globl soma_par_minimo"));
+    assert!(asm.contains(".local soma_par_minimo"));
     assert!(asm.contains("movq (%rax), %rax"));
 
     let workdir = unique_temp_dir();
@@ -1262,8 +1262,8 @@ fn asm_s_external_subset_fluxo_real_loop_minimo() {
 
     let code = include_str!("../examples/fase113_loops_reais_minimos_validos.pink");
     let asm = render_backend_s_external_subset(code).unwrap();
-    assert!(asm.contains(".Lprincipal_loop_cond_0:"));
-    assert!(asm.contains("jmp .Lprincipal_loop_cond_0"));
+    assert!(asm.contains(".Lp9_principal11_loop_cond_0:"));
+    assert!(asm.contains("jmp .Lp9_principal11_loop_cond_0"));
     assert!(asm.contains("setb %al"));
 
     let workdir = unique_temp_dir();
@@ -1354,7 +1354,7 @@ fn asm_s_external_subset_fluxo_real_com_call_e_parametro_unico() {
     let code = include_str!("../examples/fase74_backend_externo_call_minimo_valido.pink");
     let asm = render_backend_s_external_subset(code).unwrap();
     assert!(asm.contains(".globl main"));
-    assert!(asm.contains(".globl dobro"));
+    assert!(asm.contains(".local dobro"));
     assert!(asm.contains("movq %rdi"));
     assert!(asm.contains("call dobro"));
     assert!(asm.contains("imulq %r10, %rax"));
@@ -1742,7 +1742,7 @@ fn asm_s_external_subset_fase112_aceita_talvez_senao_no_recorte_minimo() {
 
     let asm = render_backend_s_external_subset(code).unwrap();
     assert!(asm.contains("cmpq $0, %rax"));
-    assert!(asm.contains("jne .Lprincipal_"));
+    assert!(asm.contains("jne .Lp9_principal"));
 }
 
 #[test]
@@ -1751,7 +1751,7 @@ fn asm_s_external_subset_fase113_loop_historico_agora_aceito() {
 
     let asm = render_backend_s_external_subset(code).unwrap();
     assert!(asm.contains("pinker_erro_divisao_zero"));
-    assert!(asm.contains(".Lprincipal_loop_cond_0:"));
+    assert!(asm.contains(".Lp9_principal11_loop_cond_0:"));
 }
 
 #[test]
@@ -1786,12 +1786,12 @@ fn asm_s_external_subset_fase84_matriz_fronteira_auditavel() {
         include_str!("../examples/fase112_branch_condicional_minimo_valido.pink");
     let asm_branch = render_backend_s_external_subset(caso_branch_valido).unwrap();
     assert!(asm_branch.contains("cmpq $0, %rax"));
-    assert!(asm_branch.contains("jne .Lprincipal_"));
+    assert!(asm_branch.contains("jne .Lp9_principal"));
 
     let caso_loop_valido = include_str!("../examples/fase113_loops_reais_minimos_validos.pink");
     let asm_loop = render_backend_s_external_subset(caso_loop_valido).unwrap();
-    assert!(asm_loop.contains(".Lprincipal_loop_cond_0:"));
-    assert!(asm_loop.contains("jmp .Lprincipal_loop_cond_0"));
+    assert!(asm_loop.contains(".Lp9_principal11_loop_cond_0:"));
+    assert!(asm_loop.contains("jmp .Lp9_principal11_loop_cond_0"));
 
     let caso_historico_sempre_que =
         include_str!("../examples/fase113_loop_condicao_invalida_invalido.pink");

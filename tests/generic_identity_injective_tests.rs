@@ -609,10 +609,10 @@ carinho principal() -> bombom {
 }
 "#;
 
-fn generated_global_symbols(assembly: &str) -> BTreeSet<String> {
+fn generated_local_symbols(assembly: &str) -> BTreeSet<String> {
     assembly
         .lines()
-        .filter_map(|line| line.trim().strip_prefix(".globl "))
+        .filter_map(|line| line.trim().strip_prefix(".local "))
         .filter(|name| name.starts_with("__gen_") && !name.starts_with("__gen_leque_"))
         .map(ToOwned::to_owned)
         .collect()
@@ -655,7 +655,7 @@ fn backend_emite_monta_liga_e_executa_dois_simbolos_distintos() {
 
     let assembly = fs::read_to_string(dir.path().join("generic_identity_backend.s"))
         .expect("assembly preservado");
-    let symbols = generated_global_symbols(&assembly);
+    let symbols = generated_local_symbols(&assembly);
     assert_eq!(
         symbols.len(),
         2,
