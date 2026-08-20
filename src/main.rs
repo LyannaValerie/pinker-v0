@@ -3744,7 +3744,7 @@ fn link_nativo(asm_path: &Path, bin_path: &Path) -> Result<(), String> {
 // @pinker-nav:start cli.modulos.importacao
 // @pinker-nav:domain modulos
 // @pinker-nav:layer cli
-// @pinker-nav:summary parse_program_from_source tokeniza e parseia uma string de fonte (sem resolver imports). importable_item_name e importable_item_clone reconhecem e clonam os itens importáveis Function, Const, Struct, TypeAlias, Enum e Trait; qualified_type_item_clone requalifica com o prefixo `<módulo>.` somente Struct e TypeAlias, não Function, Const, Enum ou Trait. load_module_program lê o arquivo `<módulo>.pink` a partir de `base_dir`, detecta ciclo de módulos comparando com a pilha `loading` e recursa nos imports do módulo carregado antes de inserir o programa em `loaded`. load_program_with_imports é o ponto de entrada: para cada import do programa raiz, pula famílias built-in importáveis, detecta import duplicado pela chave `módulo::símbolo`, carrega o módulo via load_module_program e insere os itens importados (todo o módulo ou um símbolo específico) em `root_program.items`, reportando colisão de nome com itens locais ou com outro import antes de limpar `root_program.imports`.
+// @pinker-nav:summary parse_program_from_source tokeniza e parseia uma string de fonte (sem resolver imports). importable_item_name e importable_item_clone reconhecem e clonam os itens importáveis Function, Const, Struct, TypeAlias, Enum e Trait; qualified_type_item_clone requalifica com o prefixo `<módulo>.` somente Struct e TypeAlias, não Function, Const, Enum ou Trait. load_module_program lê o arquivo `<módulo>.pink` a partir de `base_dir`, detecta ciclo de módulos comparando com a pilha `loading` e recursa nos imports do módulo carregado antes de inserir o programa em `loaded`. load_program_with_imports é o ponto de entrada: para cada import do programa raiz, pula famílias built-in importáveis, detecta import duplicado pela chave `módulo::símbolo`, carrega o módulo via load_module_program e insere os itens importados (todo o módulo ou um símbolo específico) em `root_program.items`, reportando colisão de nome com itens locais ou com outro import. Import de família built-in não vira item: `modulo_real_existe` decide a precedência `REAL_MODULE_X > BUILTIN_FAMILY_X` — a forma seletiva cede a vez a um `<família>.pink` que exista de fato, e só na ausência dele o import sobrevive em `root_program.imports` para a autoridade semântica validá-lo.
 fn parse_program_from_source(
     source: &str,
     generic_origin: GenericOrigin,
@@ -3857,6 +3857,15 @@ fn load_module_program(
     Ok(())
 }
 
+/// Parte G: existe um módulo `.pink` real com este nome ao lado da fonte?
+///
+/// Só a forma seletiva pergunta. A resposta decide precedência de import, e a
+/// pergunta é a mesma que `load_module_program` faria em seguida — não é uma
+/// busca nova, é a busca histórica antecipada para poder ceder a vez a ela.
+fn modulo_real_existe(base_dir: &Path, module: &str) -> bool {
+    base_dir.join(format!("{}.pink", module)).is_file()
+}
+
 fn load_program_with_imports(
     source_file: &str,
     mut root_program: ast::Program,
@@ -3885,11 +3894,46 @@ fn load_program_with_imports(
         .map(ToOwned::to_owned)
         .collect();
 
+    let mut family_imports = Vec::new();
     for import in &root_program.imports {
         // Fases 186–188 — famílias built-in importáveis não correspondem a
         // arquivo .pink. As intrínsecas já estão disponíveis globalmente; basta
         // pular a carga de módulo.
-        if semantic::is_importable_builtin_family_import(import) {
+        //
+        // Parte G — `REAL_MODULE_X > BUILTIN_FAMILY_X`.
+        //
+        // A família built-in não corresponde a arquivo `.pink`, mas o nome dela
+        // não é reservado: um módulo real chamado `texto.pink` existia antes
+        // desta Parte e continua vencendo. A precedência NÃO pode ser decidida
+        // perguntando "a família exporta este membro?" — isso arrancaria de um
+        // módulo histórico qualquer export cujo nome coincidisse com o de um
+        // membro aprovado. Pergunta-se primeiro se o módulo resolve.
+        //
+        // `trazer X;` (família inteira) nunca carregou módulo, nem antes desta
+        // Parte; só a forma seletiva tinha semântica de módulo, e é só ela que
+        // precisa consultar o disco. Isso mantém intacto o invariante de que a
+        // superfície aprovada não procura `<familia>.pink`.
+        if pinker_v0::familia_superficie::familia_conhecida(import.module.as_str())
+            && !(import.symbol.is_some() && modulo_real_existe(&base_dir, &import.module))
+        {
+            if let Some(symbol) = &import.symbol {
+                // Colisão com item de topo é decidida pela autoridade semântica
+                // — a mesma que o caminho de biblioteca atravessa. Repetir a
+                // regra aqui daria duas políticas para uma pergunta só, que é
+                // exatamente o defeito que a Parte G acabou de fechar.
+                pinker_v0::semantic::validate_family_import_collision(import, &root_program.items)?;
+                if let Some(previous_span) = imported_names.get(symbol) {
+                    return Err(PinkerError::Semantic {
+                        msg: format!(
+                            "colisão de nome no import: '{}' trazido por múltiplos módulos",
+                            symbol
+                        ),
+                        span: previous_span.merge(import.span),
+                    });
+                }
+                imported_names.insert(symbol.clone(), import.span);
+            }
+            family_imports.push(import.clone());
             continue;
         }
 
@@ -4007,7 +4051,10 @@ fn load_program_with_imports(
     }
 
     root_program.items.splice(0..0, imported_items);
-    root_program.imports.clear();
+    // Imports de módulo já foram materializados como itens de topo e somem.
+    // Imports de família sobrevivem porque quem os valida é a autoridade
+    // semântica, não o carregador de arquivos.
+    root_program.imports = family_imports;
     Ok(root_program)
 }
 // @pinker-nav:end cli.modulos.importacao

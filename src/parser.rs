@@ -55,6 +55,31 @@ pub struct Parser {
     current: usize,
     synthetic_counter: usize,
     generic_origin: GenericOrigin,
+    /// Parte G: famílias built-in trazidas inteiras (`trazer arquivo;`).
+    /// Habilitam a forma qualificada `arquivo.<membro>(...)` neste arquivo, e
+    /// só nele — a família não é um nome global e não vaza para outro módulo.
+    familias_importadas: HashSet<String>,
+    /// Parte G: membros trazidos por import seletivo (`trazer arquivo.<membro>;`),
+    /// já resolvidos para a identidade executiva canônica no ponto do import.
+    /// O parser guarda a identidade, não o membro: depois deste ponto a grafia
+    /// do membro não existe mais em lugar nenhum do pipeline.
+    membros_familia_importados: HashMap<String, &'static str>,
+    /// Parte G: censo de nomes LIGADOS no arquivo, colhido do fluxo de tokens
+    /// antes de qualquer resolução.
+    ///
+    /// Existe porque a resolução por família é FALLBACK: ela só pode responder
+    /// pelo que nenhuma outra identidade reivindica. Perguntar isso às tabelas
+    /// incrementais do parser (`value_type_scopes` e amigas) foi o erro que
+    /// deixou passar ligação sem anotação, variável de `para` e `eterno` de
+    /// topo — cada uma delas uma captura silenciosa de identidade alheia.
+    ///
+    /// O censo é deliberadamente uma SOBREAPROXIMAÇÃO: colhe todo `Ident` em
+    /// posição de ligação e todo `Ident` seguido de `:`. Para um mecanismo de
+    /// fallback isso é seguro por construção — sobrar nome no censo só faz a
+    /// família CEDER, nunca capturar. O custo de errar para mais é um erro que
+    /// o programador vê; o de errar para menos é um programa que muda de
+    /// significado em silêncio.
+    nomes_ligados: HashSet<String>,
     /// Mapeamento plano de nomes de variáveis/parâmetros para o tipo de coleção detectado.
     /// Reiniciado no início de cada função para evitar contaminação entre escopos de função.
     collection_types: HashMap<String, CollectionKind>,
@@ -187,6 +212,9 @@ impl Parser {
             current: 0,
             synthetic_counter: 0,
             generic_origin,
+            familias_importadas: HashSet::new(),
+            membros_familia_importados: HashMap::new(),
+            nomes_ligados: HashSet::new(),
             collection_types: HashMap::new(),
             enum_decls: HashMap::new(),
             enum_names: HashSet::new(),
@@ -449,6 +477,11 @@ impl Parser {
     // @pinker-nav:layer parser
     // @pinker-nav:summary Ponto de entrada do parser: constrói o `Program` reconhecendo `pacote`, `trazer` (imports) e a marca freestanding, e despacha os itens de topo via `parse_item`. Um prepass estreito de autoridade detecta templates genéricos de usuário antes de registrar o `Resultado<T,E>` builtin, tornando USER_WINS independente da ordem textual sem resolver tipos. A redeclaração continua formando com a produção runtime a conjunção inválida da Parte B1.
     pub fn parse(&mut self) -> Result<Program, PinkerError> {
+        // Parte G: o censo de nomes ligados precede toda resolução. A família é
+        // fallback, e fallback precisa saber o que já está reivindicado antes
+        // de responder pela primeira vez.
+        self.coletar_nomes_ligados();
+
         let package = if self.match_token(TokenKind::KwPacote) {
             let start_span = self.previous().span;
             let name = self
@@ -491,6 +524,7 @@ impl Parser {
                 None
             };
             self.consume(TokenKind::Semi, ";")?;
+            self.registrar_import_de_familia(&module, symbol.as_deref());
             imports.push(ImportDecl {
                 module,
                 symbol,
@@ -1535,10 +1569,17 @@ impl Parser {
                         if self.check(TokenKind::Ident) && self.check_at(1, TokenKind::Dot) {
                             self.parse_enum_pattern()?
                         } else {
-                            let binding = self.consume(
-                                TokenKind::Ident,
-                                "binding ou padrão aninhado da carga do caso",
-                            )?;
+                            let binding = self
+                                .consume(
+                                    TokenKind::Ident,
+                                    "binding ou padrão aninhado da carga do caso",
+                                )?
+                                .clone();
+                            // Parte G: a carga de variante liga nome sem
+                            // palavra-chave e sem `:`, então o censo de tokens
+                            // não a alcança. É registrada aqui, onde o parser
+                            // acabou de decidir que aquilo é uma ligação.
+                            self.registrar_nome_ligado(&binding.lexeme);
                             EnumPattern::Binding {
                                 name: binding.lexeme.clone(),
                                 span: binding.span,
@@ -3266,6 +3307,222 @@ impl Parser {
     }
 
     // @pinker-nav:end parser.genericos.inferencia-local
+
+    // @pinker-nav:start parser.importacoes.superficie-familia
+    // @pinker-nav:domain importacoes
+    // @pinker-nav:layer parser
+    // @pinker-nav:summary Resolução da superfície por família dentro do parser: o censo de nomes ligados colhido dos tokens do arquivo inteiro, o registro do efeito de `trazer familia;` e `trazer familia.membro;`, a consulta de identidade léxica existente e os dois pontos de canonicalização precoce. A família é FALLBACK: só responde pelo nome que nenhuma outra identidade reivindica, e sem o import não opina nem recusa — devolve `None` e o `FieldAccess` histórico é construído como antes desta Parte existir. A ligação `(família, membro) -> identidade` não mora aqui; vem inteira de `familia_superficie`.
+
+    /// Parte G: registra o efeito de um `trazer` de família built-in.
+    ///
+    /// `trazer familia;` habilita a forma qualificada; `trazer familia.membro;`
+    /// habilita a forma bare **daquele membro**, já canonicalizada. Nenhuma das
+    /// duas injeta nomes globais: o legado continua disponível sem import, e o
+    /// que o import controla é apenas a superfície nova.
+    ///
+    /// Aqui não se diagnostica. Membro inexistente e família desconhecida
+    /// continuam sendo recusa da autoridade semântica de import, que enxerga o
+    /// programa inteiro e produz a mensagem única.
+    fn registrar_import_de_familia(&mut self, module: &str, symbol: Option<&str>) {
+        if !crate::familia_superficie::familia_conhecida(module) {
+            return;
+        }
+        match symbol {
+            None => {
+                // Uma identidade homônima vence a família mesmo quando é
+                // declarada depois do uso: o censo de nomes ligados é colhido
+                // do arquivo inteiro justamente para que a precedência não
+                // dependa da ordem do texto.
+                if self.nomes_ligados.contains(module) {
+                    return;
+                }
+                self.familias_importadas.insert(module.to_string());
+            }
+            Some(membro) => {
+                if let Some(canonica) = crate::familia_superficie::resolver(module, membro) {
+                    self.membros_familia_importados
+                        .insert(membro.to_string(), canonica);
+                }
+            }
+        }
+    }
+
+    /// Parte G: colhe o censo de nomes ligados do arquivo inteiro.
+    ///
+    /// Uma passada única sobre os tokens, antes de qualquer decisão de
+    /// resolução. Colhe:
+    ///
+    /// * o `Ident` que segue uma palavra que LIGA nome — `carinho`, `eterno`,
+    ///   `nova`, `muda`, `apelido`, `ninho`, `leque`, `trato`, `para`,
+    ///   `para cada`;
+    /// * todo `Ident` seguido de `:` — parâmetro, ligação anotada e campo de
+    ///   `ninho` caem todos aqui;
+    /// * o símbolo de um `trazer modulo.simbolo;`.
+    ///
+    /// Não há profundidade: um nome ligado em qualquer ponto do arquivo conta.
+    /// Isso é intencional. A pergunta que o censo responde não é "qual
+    /// identidade este nome tem aqui", que pertence ao semântico, e sim "alguém
+    /// além da família reivindica este nome neste arquivo". Para um fallback,
+    /// responder `true` a mais é sempre seguro.
+    fn coletar_nomes_ligados(&mut self) {
+        const LIGAM_NOME: &[TokenKind] = &[
+            TokenKind::KwCarinho,
+            TokenKind::KwEterno,
+            TokenKind::KwNova,
+            TokenKind::KwMuda,
+            TokenKind::KwApelido,
+            TokenKind::KwNinho,
+            TokenKind::KwLeque,
+            TokenKind::KwTrato,
+            TokenKind::KwPara,
+            TokenKind::KwCada,
+        ];
+
+        for (indice, token) in self.tokens.iter().enumerate() {
+            if token.kind == TokenKind::Ident {
+                // `x:` — parâmetro, ligação anotada, campo de ninho.
+                if self
+                    .tokens
+                    .get(indice + 1)
+                    .is_some_and(|seguinte| seguinte.kind == TokenKind::Colon)
+                {
+                    self.nomes_ligados.insert(token.lexeme.clone());
+                }
+                continue;
+            }
+
+            if LIGAM_NOME.contains(&token.kind) {
+                if let Some(ligado) = self.tokens.get(indice + 1) {
+                    if ligado.kind == TokenKind::Ident {
+                        self.nomes_ligados.insert(ligado.lexeme.clone());
+                    }
+                }
+                continue;
+            }
+
+            // `trazer modulo.simbolo;` liga `simbolo` no arquivo — exceto
+            // quando o par é exatamente a superfície aprovada de uma família.
+            // Ali o `simbolo` NÃO é um concorrente: é o próprio nome que o
+            // import acaba de criar. Contá-lo faria o import seletivo sombrear
+            // a si mesmo e nunca resolver.
+            if token.kind == TokenKind::KwTrazer {
+                if let (Some(modulo), Some(ponto), Some(simbolo)) = (
+                    self.tokens.get(indice + 1),
+                    self.tokens.get(indice + 2),
+                    self.tokens.get(indice + 3),
+                ) {
+                    let seletivo_de_familia = modulo.kind == TokenKind::Ident
+                        && crate::familia_superficie::resolver(
+                            modulo.lexeme.as_str(),
+                            simbolo.lexeme.as_str(),
+                        )
+                        .is_some();
+                    if ponto.kind == TokenKind::Dot
+                        && simbolo.kind == TokenKind::Ident
+                        && !seletivo_de_familia
+                    {
+                        self.nomes_ligados.insert(simbolo.lexeme.clone());
+                    }
+                }
+            }
+        }
+    }
+
+    /// Parte G: registra uma ligação descoberta durante o parse.
+    ///
+    /// Complementa o censo de tokens onde ele não alcança: a ligação de carga
+    /// de variante em `encaixe` não é anunciada por palavra-chave nem seguida
+    /// de `:`.
+    fn registrar_nome_ligado(&mut self, nome: &str) {
+        self.nomes_ligados.insert(nome.to_string());
+    }
+
+    /// Parte G: alguma identidade léxica já existente responde por este nome?
+    ///
+    /// A política aprovada é `TODA IDENTIDADE JÁ EXISTENTE VENCE A FAMÍLIA`:
+    /// local, parâmetro, variável de `para`, carga de `encaixe`, `eterno`,
+    /// `carinho`, `leque`, `ninho`, `trato` e `apelido` resolvem primeiro, e a
+    /// família só responde pelo que sobra.
+    ///
+    /// A autoridade é o censo de `nomes_ligados`, colhido dos tokens do arquivo
+    /// inteiro. As tabelas incrementais do parser continuam sendo consultadas
+    /// como reforço, mas não são mais a fonte: elas só enxergam o que já foi
+    /// parseado e o que teve tipo inferido, e foi exatamente essa parcialidade
+    /// que permitiu à família capturar ligação sem anotação.
+    fn identidade_lexical_existente(&self, nome: &str) -> bool {
+        self.nomes_ligados.contains(nome)
+            || self.resolve_value_type(nome).is_some()
+            || self.collection_types.contains_key(nome)
+            || self.resolve_function_value_alias(nome).is_some()
+            || self.enum_names.contains(nome)
+            || self.enum_decls.contains_key(nome)
+            || self.struct_names.contains(nome)
+            || self.trait_decls.contains_key(nome)
+            || self.type_alias_targets.contains_key(nome)
+    }
+
+    /// Parte G — CANONICALIZATION_BOUNDARY, forma qualificada.
+    ///
+    /// `familia.membro` vira a identidade executiva antes de existir como
+    /// `FieldAccess`. Devolve `None` quando a forma não é superfície de família:
+    /// aí o chamador constrói o `FieldAccess` normal e todo o comportamento
+    /// histórico (`Leque.Variante`, campo de ninho, método de trato, tipo
+    /// qualificado por módulo) fica preservado por construção.
+    fn resolver_membro_de_familia(
+        &self,
+        base: &Expr,
+        field: &str,
+    ) -> Result<Option<&'static str>, PinkerError> {
+        let ExprKind::Ident(familia) = &base.kind else {
+            return Ok(None);
+        };
+        if !crate::familia_superficie::familia_conhecida(familia.as_str()) {
+            return Ok(None);
+        }
+        // Qualquer identidade já existente com o mesmo nome vence a família,
+        // inclusive quando a família foi importada.
+        if self.identidade_lexical_existente(familia.as_str()) {
+            return Ok(None);
+        }
+        if !self.familias_importadas.contains(familia.as_str()) {
+            // `FAMILY_RESOLUTION_IS_FALLBACK`. Sem o import, esta camada não
+            // resolve e não opina: devolve `None` e o `FieldAccess` histórico é
+            // construído exatamente como antes da Parte G existir.
+            //
+            // Aqui já se sabe que o parser não conhece ligação para o nome, mas
+            // NÃO se sabe que o programa não conhece: quem enxerga todas as
+            // identidades é a autoridade semântica. Emitir daqui a dica de
+            // "família não importada" é o que quebrava programa legado sem um
+            // único `trazer` no arquivo. A dica passou para `semantic`, que a
+            // produz só depois de provar que o identificador não resolve.
+            return Ok(None);
+        }
+        match crate::familia_superficie::resolver(familia.as_str(), field) {
+            Some(canonica) => Ok(Some(canonica)),
+            // Família importada e não sombreada: membro inexistente é erro
+            // determinístico aqui, e nunca queda silenciosa para um global
+            // homônimo.
+            None => Err(PinkerError::Parse {
+                msg: crate::familia_superficie::membro_inexistente(familia.as_str(), field),
+                span: base.span,
+            }),
+        }
+    }
+
+    /// Parte G — CANONICALIZATION_BOUNDARY, forma seletiva.
+    ///
+    /// Membro trazido por `trazer familia.membro;` em posição de chamada. Um
+    /// local homônimo vence, pela mesma precedência da forma qualificada; a
+    /// colisão com item de topo é recusada antes, pela política de import que
+    /// já existe.
+    fn resolver_membro_seletivo(&self, name: &str) -> Option<&'static str> {
+        if self.identidade_lexical_existente(name) {
+            return None;
+        }
+        self.membros_familia_importados.get(name).copied()
+    }
+
+    // @pinker-nav:end parser.importacoes.superficie-familia
 
     // @pinker-nav:start parser.genericos.leques-template
     // @pinker-nav:domain genericos
@@ -6384,6 +6641,18 @@ impl Parser {
                     }
                 }
                 self.consume(TokenKind::RParen, ")")?;
+                // Parte G — CANONICALIZATION_BOUNDARY (forma seletiva).
+                // Vem antes da monomorfização genérica e antes de
+                // `falha_operacional::superficie`, de modo que a materialização
+                // de `Resultado<T,E>` já enxergue a identidade canônica.
+                if let ExprKind::Ident(name) = &expr.kind {
+                    if let Some(canonica) = self.resolver_membro_seletivo(name) {
+                        expr = Expr {
+                            kind: ExprKind::Ident(canonica.to_string()),
+                            span: expr.span,
+                        };
+                    }
+                }
                 if let ExprKind::Ident(name) = &expr.kind {
                     if let Some(template) = self.generic_templates.get(name).cloned() {
                         let type_args =
@@ -6494,6 +6763,17 @@ impl Parser {
                     .consume(TokenKind::Ident, "nome do campo após '.'")?
                     .clone();
                 let field = field_token.lexeme.clone();
+                // Parte G — CANONICALIZATION_BOUNDARY (forma qualificada).
+                // `familia.membro` vira a identidade executiva ANTES de existir
+                // como `FieldAccess`. Nada a jusante — nem o resto deste laço —
+                // vê família ou membro.
+                if let Some(canonica) = self.resolver_membro_de_familia(&base_expr, &field)? {
+                    expr = Expr {
+                        kind: ExprKind::Ident(canonica.to_string()),
+                        span: merge_span(base_expr.span, field_token.span),
+                    };
+                    continue;
+                }
                 expr = Expr {
                     span: merge_span(base_expr.span, field_token.span),
                     kind: ExprKind::FieldAccess {
