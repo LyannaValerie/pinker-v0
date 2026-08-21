@@ -303,21 +303,32 @@ impl Parser {
             Type::Alias { name, .. }
             | Type::Struct { name, .. }
             | Type::OpaqueHandle { name, .. }
-            | Type::Enum { name, .. }
-            | Type::Applied { name, .. } => name.clone(),
-            _ => ty.name().to_string(),
+            | Type::Enum { name, .. } => name.clone(),
+            Type::Bombom(_)
+            | Type::U8(_)
+            | Type::U16(_)
+            | Type::U32(_)
+            | Type::U64(_)
+            | Type::I8(_)
+            | Type::I16(_)
+            | Type::I32(_)
+            | Type::I64(_)
+            | Type::Logica(_)
+            | Type::Verso(_)
+            | Type::Nulo(_) => ty.name().to_string(),
+            // Tipos estruturais/monomorfizados precisam apenas de transporte
+            // injetivo neste estágio. A identidade semântica continua sendo
+            // decidida depois da resolução integral, nunca por este texto.
+            _ => generic_identity::render_monomorphization_type_identity(ty),
         }
     }
 
     fn impl_function_name(trait_name: &str, target_ty: &Type, method_name: &str) -> String {
         let target_key = Self::impl_type_key(target_ty);
-        format!(
-            "__impl_{}_{}_{}_{}_{}",
-            trait_name.len(),
+        crate::method_identity::render_provisional_function_name(
             trait_name,
-            target_key.len(),
-            target_key,
-            method_name
+            &target_key,
+            method_name,
         )
     }
 
@@ -1304,28 +1315,20 @@ impl Parser {
         while !self.check(TokenKind::RBrace) && self.peek().is_some() {
             self.consume(TokenKind::KwCarinho, "carinho dentro de impl")?;
             let mut function = self.parse_function()?;
-            if let Some(first_param) = function.params.first() {
-                let expected = Self::impl_type_key(&target_ty);
-                let found = Self::impl_type_key(&first_param.ty);
-                if expected != found {
-                    return Err(PinkerError::Parse {
-                        msg: format!(
-                            "impl '{}' para '{}' exige primeiro parâmetro do método com tipo '{}' (encontrado '{}')",
-                            trait_name, expected, expected, found
-                        ),
-                        span: first_param.span,
-                    });
-                }
-            } else {
+            if function.params.is_empty() {
                 return Err(PinkerError::Parse {
                     msg: format!(
                         "impl '{}' para '{}' exige métodos com receiver explícito como primeiro parâmetro",
                         trait_name,
-                        Self::impl_type_key(&target_ty)
+                        target_ty.display_name()
                     ),
                     span: function.span,
                 });
             }
+            function.impl_facts = Some(ImplFunctionFacts {
+                target_ty: target_ty.clone(),
+                generated_default: false,
+            });
             explicit_method_names.insert(function.name.clone());
             function.name = Self::impl_function_name(&trait_name, &target_ty, &function.name);
             methods.push(function);
@@ -1383,30 +1386,24 @@ impl Parser {
                     receiver.ty = target_ty.clone();
                 }
 
-                let expected = Self::impl_type_key(target_ty);
-                let found = Self::impl_type_key(&receiver.ty);
-                if expected != found {
-                    return Err(PinkerError::Parse {
-                        msg: format!(
-                            "default '{}.{}' materializado para '{}' exige receiver '{}' (encontrado '{}')",
-                            trait_name, method.name, expected, expected, found
-                        ),
-                        span: receiver.span,
-                    });
-                }
-
                 // O corpo default pertence ao contrato mesmo quando um override
                 // vence a seleção. Nesse caso materializamos uma função privada
                 // somente para a checagem semântica; ela não usa o prefixo
                 // `__impl_`, portanto nunca entra em method_index nem em vtable.
-                let name = if pending.explicit_method_names.contains(&method.name) {
-                    Self::trait_default_check_function_name(trait_name, target_ty, &method.name)
-                } else {
+                let is_generated_impl_default =
+                    !pending.explicit_method_names.contains(&method.name);
+                let name = if is_generated_impl_default {
                     Self::impl_function_name(trait_name, target_ty, &method.name)
+                } else {
+                    Self::trait_default_check_function_name(trait_name, target_ty, &method.name)
                 };
 
                 let mut function = FunctionDecl {
                     name,
+                    impl_facts: is_generated_impl_default.then(|| ImplFunctionFacts {
+                        target_ty: target_ty.clone(),
+                        generated_default: true,
+                    }),
                     type_params: Vec::new(),
                     params,
                     ret_type: method.ret_type.clone(),
@@ -2533,6 +2530,7 @@ impl Parser {
         let span = merge_span(start_span, body.span);
         let function = FunctionDecl {
             name: name.clone(),
+            impl_facts: None,
             type_params: Vec::new(),
             params,
             ret_type,
@@ -2747,6 +2745,7 @@ impl Parser {
 
         Ok(FunctionDecl {
             name,
+            impl_facts: None,
             type_params,
             params,
             ret_type,
@@ -4812,6 +4811,7 @@ impl Parser {
             }
             out.push(FunctionDecl {
                 name: mono_name,
+                impl_facts: None,
                 type_params: Vec::new(),
                 params: template
                     .params
@@ -4867,6 +4867,7 @@ impl Parser {
                 .collect::<HashMap<_, _>>();
             out.push(FunctionDecl {
                 name: mono_name,
+                impl_facts: None,
                 type_params: Vec::new(),
                 params: template
                     .params

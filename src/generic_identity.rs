@@ -13,7 +13,7 @@ pub use crate::source_origin::SourceOrigin as GenericOrigin;
 // @pinker-nav:start genericos.identidade-canonica
 // @pinker-nav:domain genericos
 // @pinker-nav:layer identidade
-// @pinker-nav:summary Autoridade única da identidade do estágio atual de monomorfização: consome a proveniência compartilhada builtin/raiz/módulo, preserva apenas equivalências AST já exigidas nesse estágio, enquadra kind/origem/nome/argumentos e tipos recursivos sem fingir resolução semântica de aliases, e renderiza o fluxo completo como hexadecimal ASCII montável.
+// @pinker-nav:summary Autoridade única da identidade do estágio atual de monomorfização: consome a proveniência compartilhada builtin/raiz/módulo, preserva apenas equivalências AST já exigidas nesse estágio, enquadra kind/origem/nome/argumentos e tipos recursivos sem fingir resolução semântica de aliases, e fornece também um renderer injetivo estritamente de transporte parser-stage para tipos estruturais.
 
 const FORMAT_MAGIC: &[u8] = b"pinker-generic-specialization-v1";
 
@@ -195,6 +195,13 @@ pub fn monomorphization_type_bytes(ty: &Type) -> Vec<u8> {
     let mut encoder = MonomorphizationBytes::default();
     encoder.ty(ty);
     encoder.bytes
+}
+
+/// Renderização textual injetiva da identidade de tipo disponível neste
+/// estágio. Consumidores podem usá-la como componente de transporte sem
+/// promovê-la à identidade semântica resolvida.
+pub fn render_monomorphization_type_identity(ty: &Type) -> String {
+    format!("__type_{}", full_hex(&monomorphization_type_bytes(ty)))
 }
 
 /// Bytes completos da identidade de uma especialização no estágio atual.

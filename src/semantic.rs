@@ -16,9 +16,10 @@ use crate::ast::*;
 use crate::error::PinkerError;
 use crate::ir::TypeIR;
 use crate::layout;
+use crate::method_identity::{self, MethodIdentity};
 use crate::token::{Position, Span};
 use crate::union_canon;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 // @pinker-nav:start semantic.identificadores.namespace-produtor-de-simbolo
 // @pinker-nav:domain identificadores
@@ -122,10 +123,12 @@ struct Scope {
 
 #[derive(Clone)]
 struct ImplMethodMeta {
-    trait_name: String,
-    target_type: String,
-    method_name: String,
+    identity: MethodIdentity<String>,
+    target_spelling: String,
+    resolved_target_display: String,
     function_name: String,
+    is_generated_default: bool,
+    span: Span,
 }
 
 pub struct SemanticChecker {
@@ -135,7 +138,11 @@ pub struct SemanticChecker {
     structs: HashMap<String, StructDecl>,
     enums: HashMap<String, EnumDecl>,
     traits: HashMap<String, TraitDecl>,
+    // Registro autoritativo aceito pela semântica. Cada entrada carrega uma
+    // MethodIdentity cujo alvo é a chave canônica do tipo já resolvido.
     impl_methods: Vec<ImplMethodMeta>,
+    // Visão derivada para lookup não qualificado; a chave vem exclusivamente
+    // do registro acima e nunca de spelling do receiver.
     method_index: HashMap<(String, String), Vec<String>>,
     scopes: Vec<Scope>,
     current_func_name: Option<String>,
@@ -328,28 +335,6 @@ impl SemanticChecker {
             Type::Applied { args, .. } => args.iter().any(Self::type_contains_contextual_self),
             _ => false,
         }
-    }
-
-    fn parse_impl_function_name(name: &str) -> Option<(String, String, String)> {
-        let rest = name.strip_prefix("__impl_")?;
-        let (trait_len, rest) = rest.split_once('_')?;
-        let trait_len: usize = trait_len.parse().ok()?;
-        if rest.len() < trait_len + 1 {
-            return None;
-        }
-        let trait_name = rest[..trait_len].to_string();
-        let rest = rest.get(trait_len + 1..)?;
-        let (target_len, rest) = rest.split_once('_')?;
-        let target_len: usize = target_len.parse().ok()?;
-        if rest.len() < target_len + 1 {
-            return None;
-        }
-        let target_type = rest[..target_len].to_string();
-        let method_name = rest.get(target_len + 1..)?.to_string();
-        if method_name.is_empty() {
-            return None;
-        }
-        Some((trait_name, target_type, method_name))
     }
 
     fn push_scope(&mut self) {
@@ -839,6 +824,18 @@ impl SemanticChecker {
         self.resolve_type_named(ty, &mut resolving)
     }
 
+    fn resolved_type_identity(&self, ty: &Type) -> Result<String, PinkerError> {
+        let resolved = self.resolve_type_or_error(ty)?;
+        let identity = union_canon::canonical_type_key(&resolved);
+        if union_canon::is_poisoned_key(&identity) {
+            return Err(PinkerError::Semantic {
+                msg: "identidade semântica de tipo perdida após resolução".to_string(),
+                span: ty.span(),
+            });
+        }
+        Ok(identity)
+    }
+
     fn validate_struct_decl(&self, struct_decl: &StructDecl) -> Result<(), PinkerError> {
         let mut field_names = HashSet::new();
         for field in &struct_decl.fields {
@@ -1270,7 +1267,10 @@ impl SemanticChecker {
             match item {
                 Item::Function(function) => {
                     validar_namespace_pinker_owned(&function.name, function.span)?;
-                    if self.funcs.contains_key(&function.name) {
+                    if self.funcs.contains_key(&function.name)
+                        && method_identity::parse_provisional_function_name(&function.name)
+                            .is_none()
+                    {
                         return Err(PinkerError::Semantic {
                             msg: format!("função '{}' já declarada", function.name),
                             span: function.span,
@@ -1283,34 +1283,6 @@ impl SemanticChecker {
                                 function.name
                             ),
                             span: function.span,
-                        });
-                    }
-                    if let Some((trait_name, target_type, method_name)) =
-                        Self::parse_impl_function_name(&function.name)
-                    {
-                        if let Some(previous) = self.impl_methods.iter().find(|meta| {
-                            meta.trait_name == trait_name
-                                && meta.target_type == target_type
-                                && meta.method_name == method_name
-                        }) {
-                            return Err(PinkerError::Semantic {
-                                msg: format!(
-                                    "método '{}' do trato '{}' para tipo '{}' já implementado por '{}'",
-                                    method_name, trait_name, target_type, previous.function_name
-                                ),
-                                span: function.span,
-                            });
-                        }
-                        let key = (target_type.clone(), method_name.clone());
-                        self.method_index
-                            .entry(key)
-                            .or_default()
-                            .push(function.name.clone());
-                        self.impl_methods.push(ImplMethodMeta {
-                            trait_name,
-                            target_type,
-                            method_name,
-                            function_name: function.name.clone(),
                         });
                     }
                     self.funcs.insert(function.name.clone(), function.clone());
@@ -1488,6 +1460,7 @@ impl SemanticChecker {
             }
         }
 
+        self.register_impl_methods(program)?;
         self.validate_impl_contracts(program)?;
         self.validate_trait_contracts()?;
 
@@ -1529,25 +1502,135 @@ impl SemanticChecker {
     // @pinker-nav:start semantic.tratos.contratos
     // @pinker-nav:domain tratos
     // @pinker-nav:layer semantic
-    // @pinker-nav:summary Contratos de tratos e implementações: agrupa os métodos `__impl_*` por (trato, tipo-alvo) e exige cobertura exata do trato (sem método estranho, sem duplicata, sem faltante), garante que todo trato tenha método compatível declarado no topo e confere aridade e tipos de parâmetros/retorno entre a assinatura do trato e a função.
+    // @pinker-nav:summary Autoridade semântica de métodos e contratos de tratos: depois da coleta completa, resolve integralmente o tipo-alvo declarado transportado em `ImplFunctionFacts`, deriva sua chave por `union_canon`, registra `MethodIdentity(trato, tipo resolvido, método)` e compara separadamente o receiver resolvido; `method_index` é somente a visão derivada para chamadas não qualificadas. A validação agrupa blocos pela mesma identidade resolvida e preserva a política vigente: métodos distintos podem completar a mesma relação, mas o mesmo método não pode coexistir duas vezes.
+    fn register_impl_methods(&mut self, program: &Program) -> Result<(), PinkerError> {
+        let mut candidates: BTreeMap<MethodIdentity<String>, Vec<ImplMethodMeta>> = BTreeMap::new();
+        for item in &program.items {
+            let Item::Function(function) = item else {
+                continue;
+            };
+            let Some((trait_name, _target_transport, method_name)) =
+                method_identity::parse_provisional_function_name(&function.name)
+            else {
+                continue;
+            };
+            let impl_facts = function
+                .impl_facts
+                .as_ref()
+                .ok_or_else(|| PinkerError::Semantic {
+                    msg: format!(
+                        "método provisório '{}.{}' perdeu o alvo declarado do impl",
+                        trait_name, method_name
+                    ),
+                    span: function.span,
+                })?;
+            let target_spelling = Self::type_key(&impl_facts.target_ty);
+            let resolved_target = self.resolve_type_or_error(&impl_facts.target_ty)?;
+            let canonical_target = union_canon::canonical_type_key(&resolved_target);
+            if union_canon::is_poisoned_key(&canonical_target) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "identidade resolvida do alvo '{}' do impl '{}' foi perdida",
+                        target_spelling, trait_name
+                    ),
+                    span: impl_facts.target_ty.span(),
+                });
+            }
+            let resolved_target_display = Self::type_key(&resolved_target);
+            let identity = MethodIdentity::new(trait_name, canonical_target, method_name);
+            candidates
+                .entry(identity.clone())
+                .or_default()
+                .push(ImplMethodMeta {
+                    identity,
+                    target_spelling,
+                    resolved_target_display,
+                    function_name: function.name.clone(),
+                    is_generated_default: impl_facts.generated_default,
+                    span: function.span,
+                });
+        }
+
+        for (identity, mut candidates) in candidates {
+            candidates.sort_by(|left, right| left.function_name.cmp(&right.function_name));
+            let explicit = candidates
+                .iter()
+                .filter(|candidate| !candidate.is_generated_default)
+                .collect::<Vec<_>>();
+            if explicit.len() > 1 {
+                let previous = explicit[0];
+                let conflicting = explicit[1];
+                if previous.target_spelling == conflicting.target_spelling {
+                    return Err(PinkerError::Semantic {
+                        msg: format!(
+                            "método '{}' do trato '{}' para tipo '{}' já implementado; outra implementação já declarada em {}",
+                            identity.method_name,
+                            identity.trait_name,
+                            conflicting.target_spelling,
+                            previous.span
+                        ),
+                        span: conflicting.span,
+                    });
+                }
+                let equivalence = format!(
+                    "'{}' e '{}' resolvem para '{}'",
+                    conflicting.target_spelling,
+                    previous.target_spelling,
+                    conflicting.resolved_target_display
+                );
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "método '{}' do trato '{}' para tipo '{}' conflita com implementação para '{}'; {} (outra declaração em {})",
+                        identity.method_name,
+                        identity.trait_name,
+                        conflicting.target_spelling,
+                        previous.target_spelling,
+                        equivalence,
+                        previous.span
+                    ),
+                    span: conflicting.span,
+                });
+            }
+
+            // Um override explícito vence defaults materializados da mesma
+            // relação resolvida. Sem override, escolhemos pelo símbolo
+            // provisório (ordem total), nunca pela ordem de fonte/import.
+            let selected = explicit
+                .first()
+                .copied()
+                .unwrap_or_else(|| &candidates[0])
+                .clone();
+            self.method_index
+                .entry((identity.target.clone(), identity.method_name.clone()))
+                .or_default()
+                .push(selected.function_name.clone());
+            self.impl_methods.push(selected);
+        }
+        Ok(())
+    }
+
     fn validate_impl_contracts(&self, program: &Program) -> Result<(), PinkerError> {
-        let mut groups: HashMap<(String, String), Vec<&ImplMethodMeta>> = HashMap::new();
+        let mut groups: BTreeMap<(String, String), (String, Vec<&ImplMethodMeta>)> =
+            BTreeMap::new();
         for impl_decl in &program.impls {
+            let resolved = self.resolve_type_or_error(&impl_decl.target_ty)?;
+            let canonical = union_canon::canonical_type_key(&resolved);
             groups
-                .entry((
-                    impl_decl.trait_name.clone(),
-                    Self::type_key(&impl_decl.target_ty),
-                ))
-                .or_default();
+                .entry((impl_decl.trait_name.clone(), canonical))
+                .or_insert_with(|| (Self::type_key(&resolved), Vec::new()));
         }
         for meta in &self.impl_methods {
             groups
-                .entry((meta.trait_name.clone(), meta.target_type.clone()))
-                .or_default()
+                .entry((
+                    meta.identity.trait_name.clone(),
+                    meta.identity.target.clone(),
+                ))
+                .or_insert_with(|| (meta.resolved_target_display.clone(), Vec::new()))
+                .1
                 .push(meta);
         }
 
-        for ((trait_name, target_type), methods) in groups {
+        for ((trait_name, _canonical_target), (target_type, methods)) in groups {
             let Some(trait_decl) = self.traits.get(&trait_name) else {
                 return Err(PinkerError::Semantic {
                     msg: format!(
@@ -1566,7 +1649,7 @@ impl SemanticChecker {
                 let Some(method) = trait_decl
                     .methods
                     .iter()
-                    .find(|method| method.name == meta.method_name)
+                    .find(|method| method.name == meta.identity.method_name)
                 else {
                     let span = self
                         .funcs
@@ -1576,12 +1659,12 @@ impl SemanticChecker {
                     return Err(PinkerError::Semantic {
                         msg: format!(
                             "impl '{}' para '{}' declara método '{}' que não existe no trato",
-                            trait_name, target_type, meta.method_name
+                            trait_name, target_type, meta.identity.method_name
                         ),
                         span,
                     });
                 };
-                if !seen.insert(meta.method_name.as_str()) {
+                if !seen.insert(meta.identity.method_name.as_str()) {
                     let span = self
                         .funcs
                         .get(&meta.function_name)
@@ -1590,7 +1673,7 @@ impl SemanticChecker {
                     return Err(PinkerError::Semantic {
                         msg: format!(
                             "impl '{}' para '{}' declara método '{}' mais de uma vez",
-                            trait_name, target_type, meta.method_name
+                            trait_name, target_type, meta.identity.method_name
                         ),
                         span,
                     });
@@ -1722,7 +1805,7 @@ impl SemanticChecker {
                     method.name,
                     trait_decl.name,
                     method.params.len(),
-                    meta.target_type,
+                    meta.target_spelling,
                     function.params.len()
                 ),
                 span: function.span,
@@ -1733,20 +1816,20 @@ impl SemanticChecker {
             return Err(PinkerError::Semantic {
                 msg: format!(
                     "método '{}' do trato '{}' exige receiver no impl para '{}'",
-                    method.name, trait_decl.name, meta.target_type
+                    method.name, trait_decl.name, meta.target_spelling
                 ),
                 span: function.span,
             });
         };
 
         let receiver_direct = Self::type_key(&receiver.ty);
-        let receiver_resolved = Self::type_key(&self.resolve_type_or_error(&receiver.ty)?);
+        let receiver_identity = self.resolved_type_identity(&receiver.ty)?;
 
-        if meta.target_type != receiver_direct && meta.target_type != receiver_resolved {
+        if meta.identity.target != receiver_identity {
             return Err(PinkerError::Semantic {
                 msg: format!(
                     "receiver do método '{}' no impl '{}' para '{}' usa '{}'",
-                    method.name, trait_decl.name, meta.target_type, receiver_direct
+                    method.name, trait_decl.name, meta.target_spelling, receiver_direct
                 ),
                 span: receiver.span,
             });
@@ -1759,14 +1842,16 @@ impl SemanticChecker {
         if !Self::is_contextual_self_type(&expected_receiver.ty) {
             let expected_ty = self.resolve_type_or_error(&expected_receiver.ty)?;
             let found_ty = self.resolve_type_or_error(&receiver.ty)?;
-            if Self::type_key(&expected_ty) != Self::type_key(&found_ty) {
+            if union_canon::canonical_type_key(&expected_ty)
+                != union_canon::canonical_type_key(&found_ty)
+            {
                 return Err(PinkerError::Semantic {
                     msg: format!(
                         "receiver do método '{}' no trato '{}' espera '{}', mas impl para '{}' usa '{}'",
                         method.name,
                         trait_decl.name,
                         Self::type_key(&expected_ty),
-                        meta.target_type,
+                        meta.target_spelling,
                         Self::type_key(&found_ty)
                     ),
                     span: receiver.span,
@@ -1783,7 +1868,9 @@ impl SemanticChecker {
             let expected_ty = self.resolve_type_or_error(&expected.ty)?;
             let found_ty = self.resolve_type_or_error(&found.ty)?;
 
-            if Self::type_key(&expected_ty) != Self::type_key(&found_ty) {
+            if union_canon::canonical_type_key(&expected_ty)
+                != union_canon::canonical_type_key(&found_ty)
+            {
                 return Err(PinkerError::Semantic {
                     msg: format!(
                         "parâmetro '{}' do método '{}' no trato '{}' espera '{}', mas impl para '{}' usa '{}'",
@@ -1791,7 +1878,7 @@ impl SemanticChecker {
                         method.name,
                         trait_decl.name,
                         Self::type_key(&expected_ty),
-                        meta.target_type,
+                        meta.target_spelling,
                         Self::type_key(&found_ty)
                     ),
                     span: found.span,
@@ -1805,14 +1892,16 @@ impl SemanticChecker {
                 let expected_ty = self.resolve_type_or_error(expected)?;
                 let found_ty = self.resolve_type_or_error(found)?;
 
-                if Self::type_key(&expected_ty) != Self::type_key(&found_ty) {
+                if union_canon::canonical_type_key(&expected_ty)
+                    != union_canon::canonical_type_key(&found_ty)
+                {
                     return Err(PinkerError::Semantic {
                         msg: format!(
                             "retorno do método '{}' no trato '{}' espera '{}', mas impl para '{}' usa '{}'",
                             method.name,
                             trait_decl.name,
                             Self::type_key(&expected_ty),
-                            meta.target_type,
+                            meta.target_spelling,
                             Self::type_key(&found_ty)
                         ),
                         span: found.span(),
@@ -1823,7 +1912,7 @@ impl SemanticChecker {
                 return Err(PinkerError::Semantic {
                     msg: format!(
                         "retorno do método '{}' no trato '{}' é incompatível no impl para '{}'",
-                        method.name, trait_decl.name, meta.target_type
+                        method.name, trait_decl.name, meta.target_spelling
                     ),
                     span: function.span,
                 });
@@ -1853,7 +1942,8 @@ impl SemanticChecker {
                         .impl_methods
                         .iter()
                         .filter(|meta| {
-                            meta.trait_name == trait_decl.name && meta.method_name == method.name
+                            meta.identity.trait_name == trait_decl.name
+                                && meta.identity.method_name == method.name
                         })
                         .filter_map(|meta| {
                             self.funcs
@@ -1888,7 +1978,9 @@ impl SemanticChecker {
                 }
 
                 for meta in &self.impl_methods {
-                    if meta.trait_name == trait_decl.name && meta.method_name == method.name {
+                    if meta.identity.trait_name == trait_decl.name
+                        && meta.identity.method_name == method.name
+                    {
                         if let Some(function) = self.funcs.get(&meta.function_name) {
                             candidates.push(function);
                         }
@@ -3402,7 +3494,7 @@ impl SemanticChecker {
                 }
                 if name.starts_with("__anon_carinho_")
                     || name.starts_with("__fnref_env_")
-                    || Self::parse_impl_function_name(name).is_some()
+                    || method_identity::parse_provisional_function_name(name).is_some()
                 {
                     return Err(PinkerError::Semantic {
                         msg: format!(
@@ -3586,12 +3678,11 @@ impl SemanticChecker {
                     }
 
                     let source_direct = Self::type_key(&source_ty);
-                    let source_resolved = Self::type_key(&self.resolve_type_or_error(&source_ty)?);
+                    let source_identity = self.resolved_type_identity(&source_ty)?;
 
                     let has_impl = self.impl_methods.iter().any(|meta| {
-                        meta.trait_name == trait_name
-                            && (meta.target_type == source_direct
-                                || meta.target_type == source_resolved)
+                        meta.identity.trait_name == trait_name
+                            && meta.identity.target == source_identity
                     });
 
                     if !has_impl {
@@ -4093,25 +4184,12 @@ impl SemanticChecker {
         span: Span,
     ) -> Result<String, PinkerError> {
         let direct_key = Self::type_key(receiver_ty);
-        let mut candidates = self
+        let resolved_key = self.resolved_type_identity(receiver_ty)?;
+        let candidates = self
             .method_index
-            .get(&(direct_key.clone(), method_name.to_string()))
+            .get(&(resolved_key, method_name.to_string()))
             .cloned()
             .unwrap_or_default();
-        let resolved_ty = self.resolve_type_or_error(receiver_ty)?;
-        let resolved_key = Self::type_key(&resolved_ty);
-        if resolved_key != direct_key {
-            for function_name in self
-                .method_index
-                .get(&(resolved_key.clone(), method_name.to_string()))
-                .cloned()
-                .unwrap_or_default()
-            {
-                if !candidates.contains(&function_name) {
-                    candidates.push(function_name);
-                }
-            }
-        }
 
         match candidates.as_slice() {
             [function_name] => Ok(function_name.clone()),
@@ -4140,16 +4218,13 @@ impl SemanticChecker {
         span: Span,
     ) -> Result<String, PinkerError> {
         let direct_key = Self::type_key(receiver_ty);
-        let resolved_ty = self.resolve_type_or_error(receiver_ty)?;
-        let resolved_key = Self::type_key(&resolved_ty);
-        for target_key in [&direct_key, &resolved_key] {
-            if let Some(meta) = self.impl_methods.iter().find(|meta| {
-                meta.trait_name == trait_name
-                    && meta.target_type == *target_key
-                    && meta.method_name == method_name
-            }) {
-                return Ok(meta.function_name.clone());
-            }
+        let resolved_key = self.resolved_type_identity(receiver_ty)?;
+        if let Some(meta) = self.impl_methods.iter().find(|meta| {
+            meta.identity.trait_name == trait_name
+                && meta.identity.target == resolved_key
+                && meta.identity.method_name == method_name
+        }) {
+            return Ok(meta.function_name.clone());
         }
         Err(PinkerError::Semantic {
             msg: format!(

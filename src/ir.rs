@@ -18,9 +18,10 @@ use crate::ast::{
 };
 use crate::error::PinkerError;
 use crate::layout;
+use crate::method_identity::{self, MethodIdentity};
 use crate::token::{Position, Span};
 use crate::union_canon;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 // @pinker-nav:start ir.modelo.representacao
 // @pinker-nav:domain modelo
@@ -1699,6 +1700,12 @@ struct LoweringContext {
     enum_decl_names: HashSet<String>,
     // Fase 244: método e slot seguem a ordem declarada no `trato`.
     traits: HashMap<String, TraitMetaIR>,
+    // Visão derivada da decisão semântica: a mesma identidade estruturada usa
+    // aqui o `ResolvedTypeId` já internado, nunca o spelling do `__impl_*`.
+    impl_methods: BTreeMap<MethodIdentity<ResolvedTypeId>, String>,
+    // Defaults redundantes produzidos provisoriamente para spellings
+    // alias-equivalentes não são funções aceitas e não chegam à IR emitida.
+    ignored_impl_functions: HashSet<String>,
     // Nome da função -> identidade nominal do objeto de trato retornado.
     function_ret_trait_names: HashMap<String, String>,
     // Fase 242: nome de função -> tipo de retorno DA FUNÇÃO REFERENCIADA
@@ -1882,28 +1889,6 @@ fn generic_map_monomorphic_callee(map_ty: TypeIR, name: &str) -> Option<&'static
         (TypeIR::MapBombomVerso, "mapa_remover") => Some("mapa_bombom_verso_remover"),
         _ => None,
     }
-}
-
-fn parse_impl_function_name(name: &str) -> Option<(String, String, String)> {
-    let rest = name.strip_prefix("__impl_")?;
-    let (trait_len, rest) = rest.split_once('_')?;
-    let trait_len: usize = trait_len.parse().ok()?;
-    if rest.len() < trait_len + 1 {
-        return None;
-    }
-    let trait_name = rest[..trait_len].to_string();
-    let rest = rest.get(trait_len + 1..)?;
-    let (target_len, rest) = rest.split_once('_')?;
-    let target_len: usize = target_len.parse().ok()?;
-    if rest.len() < target_len + 1 {
-        return None;
-    }
-    let target_type = rest[..target_len].to_string();
-    let method_name = rest.get(target_len + 1..)?.to_string();
-    if method_name.is_empty() {
-        return None;
-    }
-    Some((trait_name, target_type, method_name))
 }
 
 fn trait_object_name_from_type(
@@ -2107,6 +2092,8 @@ pub fn lower_program(program: &Program) -> Result<ProgramIR, PinkerError> {
     for item in &program.items {
         match item {
             Item::Const(const_decl) => consts.push(lower_const(const_decl, &context)?),
+            Item::Function(function_decl)
+                if context.ignored_impl_functions.contains(&function_decl.name) => {}
             // Fase 243: closures (`__anon_carinho_*`) são abaixadas lazily
             // no ponto de criação (`FunctionLowerer::resolve_closure`), com
             // o ambiente correto — não aqui, isoladas.
@@ -3134,6 +3121,8 @@ impl LoweringContext {
             enum_variants,
             enum_decl_names,
             traits,
+            impl_methods: BTreeMap::new(),
+            ignored_impl_functions: HashSet::new(),
             function_ret_trait_names,
             callable_metadata,
             raw_function_return_metadata,
@@ -3144,9 +3133,84 @@ impl LoweringContext {
             closure_state: std::cell::RefCell::new(ClosureLoweringState::default()),
         };
         context.seal_declared_signature_identities(pending_declared_sigs)?;
+        context.register_impl_methods(program)?;
         Ok(context)
     }
     // @pinker-nav:end ir.lowering.assinaturas-intrinsecos
+
+    // @pinker-nav:start ir.lowering.metodos-identidade
+    // @pinker-nav:domain tratos
+    // @pinker-nav:layer lowering
+    // @pinker-nav:summary Visão derivada de métodos aceita pela semântica: percorre funções provisórias, resolve integralmente o tipo-alvo declarado transportado em `ImplFunctionFacts` para `ResolvedTypeId` e indexa `MethodIdentity(trato, identidade resolvida, método)` até o símbolo transportado; chamadas e vtables consultam somente essa visão, sem decodificar spelling para decidir identidade.
+    fn register_impl_methods(&mut self, program: &Program) -> Result<(), PinkerError> {
+        let mut candidates: BTreeMap<MethodIdentity<ResolvedTypeId>, Vec<&FunctionDecl>> =
+            BTreeMap::new();
+        for item in &program.items {
+            let Item::Function(function) = item else {
+                continue;
+            };
+            let Some((trait_name, _target_spelling, method_name)) =
+                method_identity::parse_provisional_function_name(&function.name)
+            else {
+                continue;
+            };
+            let impl_facts = function
+                .impl_facts
+                .as_ref()
+                .ok_or_else(|| PinkerError::Ir {
+                    msg: format!(
+                        "lowering recebeu método '{}.{}' sem alvo declarado do impl",
+                        trait_name, method_name
+                    ),
+                    span: function.span,
+                })?;
+            let target = self.resolved_identity(&impl_facts.target_ty)?;
+            let identity = MethodIdentity::new(trait_name, target, method_name);
+            candidates.entry(identity).or_default().push(function);
+        }
+
+        for (identity, mut candidates) in candidates {
+            candidates.sort_by(|left, right| left.name.cmp(&right.name));
+            let explicit = candidates
+                .iter()
+                .copied()
+                .filter(|candidate| {
+                    !candidate
+                        .impl_facts
+                        .as_ref()
+                        .expect("método provisório carrega fatos do impl")
+                        .generated_default
+                })
+                .collect::<Vec<_>>();
+            if explicit.len() > 1 {
+                return Err(PinkerError::Ir {
+                    msg: format!(
+                        "lowering recebeu identidade de método duplicada para '{}.{}' (símbolos '{}' e '{}')",
+                        identity.trait_name,
+                        identity.method_name,
+                        explicit[0].name,
+                        explicit[1].name
+                    ),
+                    span: explicit[1].span,
+                });
+            }
+            let selected = explicit.first().copied().unwrap_or(candidates[0]);
+            for candidate in candidates {
+                if candidate.name != selected.name
+                    && candidate
+                        .impl_facts
+                        .as_ref()
+                        .expect("método provisório carrega fatos do impl")
+                        .generated_default
+                {
+                    self.ignored_impl_functions.insert(candidate.name.clone());
+                }
+            }
+            self.impl_methods.insert(identity, selected.name.clone());
+        }
+        Ok(())
+    }
+    // @pinker-nav:end ir.lowering.metodos-identidade
 
     fn resolve_type(&self, ty: &Type) -> Result<TypeIR, PinkerError> {
         let resolved = self.resolve_union_ast_type(ty, &mut Vec::new())?;
@@ -4144,20 +4208,25 @@ impl<'a> FunctionLowerer<'a> {
         }
     }
 
-    fn resolve_impl_method(&self, receiver: &TypedValueIR, method_name: &str) -> Option<String> {
-        let receiver_key = self.impl_receiver_key(receiver)?;
+    fn resolve_impl_method(
+        &self,
+        receiver: &TypedValueIR,
+        method_name: &str,
+        span: Span,
+    ) -> Result<Option<String>, PinkerError> {
+        let receiver_identity = receiver.identity(self.context, span)?;
         let candidates: Vec<String> = self
             .context
-            .function_sigs
-            .keys()
-            .filter_map(|name| {
-                let (_, target_type, method) = parse_impl_function_name(name)?;
-                (target_type == receiver_key && method == method_name).then(|| name.clone())
+            .impl_methods
+            .iter()
+            .filter(|(identity, _function_name)| {
+                identity.target == receiver_identity && identity.method_name == method_name
             })
+            .map(|(_identity, function_name)| function_name.clone())
             .collect();
         match candidates.as_slice() {
-            [function_name] => Some(function_name.clone()),
-            _ => None,
+            [function_name] => Ok(Some(function_name.clone())),
+            _ => Ok(None),
         }
     }
 
@@ -4166,30 +4235,25 @@ impl<'a> FunctionLowerer<'a> {
         receiver: &TypedValueIR,
         trait_name: &str,
         method_name: &str,
-    ) -> Option<String> {
-        let receiver_key = self.impl_receiver_key(receiver)?;
-        self.context.function_sigs.keys().find_map(|name| {
-            let (candidate_trait, target_type, method) = parse_impl_function_name(name)?;
-            (candidate_trait == trait_name && target_type == receiver_key && method == method_name)
-                .then(|| name.clone())
-        })
+        span: Span,
+    ) -> Result<Option<String>, PinkerError> {
+        let receiver_identity = receiver.identity(self.context, span)?;
+        let identity = MethodIdentity::new(
+            trait_name.to_string(),
+            receiver_identity,
+            method_name.to_string(),
+        );
+        Ok(self.context.impl_methods.get(&identity).cloned())
     }
 
     fn resolve_trait_impl_symbol(
         &self,
         trait_name: &str,
-        target_type: &str,
+        target: ResolvedTypeId,
         method_name: &str,
     ) -> Option<String> {
-        self.context.function_sigs.keys().find_map(|name| {
-            let (candidate_trait, candidate_target, candidate_method) =
-                parse_impl_function_name(name)?;
-
-            (candidate_trait == trait_name
-                && candidate_target == target_type
-                && candidate_method == method_name)
-                .then(|| name.clone())
-        })
+        let identity = MethodIdentity::new(trait_name.to_string(), target, method_name.to_string());
+        self.context.impl_methods.get(&identity).cloned()
     }
 
     fn trait_object_name_for_expr(&self, expr: &Expr) -> Result<Option<String>, PinkerError> {
@@ -4374,7 +4438,8 @@ impl<'a> FunctionLowerer<'a> {
     fn trait_vtable(
         &self,
         trait_name: &str,
-        target_type: &str,
+        target: ResolvedTypeId,
+        target_display: &str,
         span: Span,
     ) -> Result<Vec<String>, PinkerError> {
         let trait_meta = self
@@ -4390,11 +4455,11 @@ impl<'a> FunctionLowerer<'a> {
             .methods
             .iter()
             .map(|method| {
-                self.resolve_trait_impl_symbol(trait_name, target_type, &method.name)
+                self.resolve_trait_impl_symbol(trait_name, target, &method.name)
                     .ok_or_else(|| PinkerError::Ir {
                         msg: format!(
                             "lowering não encontrou impl de '{}.{}' para '{}'",
-                            trait_name, method.name, target_type
+                            trait_name, method.name, target_display
                         ),
                         span,
                     })
@@ -6110,9 +6175,9 @@ impl<'a> FunctionLowerer<'a> {
                                 );
                             }
 
-                            if let Some(function_name) =
-                                self.resolve_qualified_impl_method(&receiver, trait_name, field)
-                            {
+                            if let Some(function_name) = self.resolve_qualified_impl_method(
+                                &receiver, trait_name, field, expr.span,
+                            )? {
                                 let mut ir_args = Vec::with_capacity(args.len());
                                 ir_args.push(receiver.value);
                                 for arg in args.iter().skip(1) {
@@ -6170,22 +6235,23 @@ impl<'a> FunctionLowerer<'a> {
                         );
                     }
 
-                    let function_name =
-                        if let Some(function_name) = self.resolve_impl_method(&receiver, field) {
-                            function_name
-                        } else if self.context.function_sigs.contains_key(field) {
-                            field.clone()
-                        } else {
-                            return Err(PinkerError::Ir {
-                                msg: format!(
-                                    "lowering falhou ao resolver método '{}' para receiver '{}'",
-                                    field,
-                                    self.impl_receiver_key(&receiver)
-                                        .unwrap_or_else(|| receiver.ty.name().to_string())
-                                ),
-                                span: expr.span,
-                            });
-                        };
+                    let function_name = if let Some(function_name) =
+                        self.resolve_impl_method(&receiver, field, expr.span)?
+                    {
+                        function_name
+                    } else if self.context.function_sigs.contains_key(field) {
+                        field.clone()
+                    } else {
+                        return Err(PinkerError::Ir {
+                            msg: format!(
+                                "lowering falhou ao resolver método '{}' para receiver '{}'",
+                                field,
+                                self.impl_receiver_key(&receiver)
+                                    .unwrap_or_else(|| receiver.ty.name().to_string())
+                            ),
+                            span: expr.span,
+                        });
+                    };
                     let mut ir_args = Vec::with_capacity(args.len() + 1);
                     ir_args.push(receiver.value);
                     for arg in args {
@@ -6777,10 +6843,15 @@ impl<'a> FunctionLowerer<'a> {
                                 span: expr.span,
                             })?;
 
+                    let concrete_identity = lowered_source.identity(self.context, expr.span)?;
                     let concrete_size = self.concrete_snapshot_size(&lowered_source, expr.span)?;
 
-                    let vtable_methods =
-                        self.trait_vtable(&trait_name, &concrete_type_name, expr.span)?;
+                    let vtable_methods = self.trait_vtable(
+                        &trait_name,
+                        concrete_identity,
+                        &concrete_type_name,
+                        expr.span,
+                    )?;
 
                     // A identidade do objeto de trato é `trato<Nome>`: dois
                     // tratos diferentes compartilham `TypeIR::TraitObject` e não

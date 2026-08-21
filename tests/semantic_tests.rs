@@ -4982,7 +4982,7 @@ fn impl_trato_exige_receiver_do_tipo_alvo() {
     "#;
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(
-        err.contains("exige primeiro parâmetro do método com tipo 'u32'"),
+        err.contains("receiver do método 'dobrar' no impl 'Dobravel' para 'u32' usa 'bombom'"),
         "erro inesperado: {err}"
     );
 }
