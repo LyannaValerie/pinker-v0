@@ -8,11 +8,12 @@
 //! integral: não é digest e não perde informação.
 
 use crate::ast::Type;
+pub use crate::source_origin::SourceOrigin as GenericOrigin;
 
 // @pinker-nav:start genericos.identidade-canonica
 // @pinker-nav:domain genericos
 // @pinker-nav:layer identidade
-// @pinker-nav:summary Autoridade única da identidade do estágio atual de monomorfização: preserva apenas equivalências AST já exigidas nesse estágio, distingue proveniência builtin, fonte raiz e fonte modular, enquadra kind/origem/nome/argumentos e tipos recursivos sem fingir resolução semântica de aliases, e renderiza o fluxo completo como hexadecimal ASCII montável.
+// @pinker-nav:summary Autoridade única da identidade do estágio atual de monomorfização: consome a proveniência compartilhada builtin/raiz/módulo, preserva apenas equivalências AST já exigidas nesse estágio, enquadra kind/origem/nome/argumentos e tipos recursivos sem fingir resolução semântica de aliases, e renderiza o fluxo completo como hexadecimal ASCII montável.
 
 const FORMAT_MAGIC: &[u8] = b"pinker-generic-specialization-v1";
 
@@ -39,19 +40,6 @@ impl GenericKind {
     }
 }
 
-/// Proveniência do template no estágio atual de monomorfização.
-///
-/// `Builtin` identifica um template sintético global. `Root` identifica somente
-/// templates declarados na fonte raiz. `Module` recebe a chave textual de
-/// `ImportDecl::module`, a mesma usada pelo loader para ciclo, deduplicação e
-/// lookup. Caminho físico, cwd e worktree não participam da identidade.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum GenericOrigin {
-    Builtin,
-    Root,
-    Module(String),
-}
-
 /// Cabeçalho estrutural recuperável de um símbolo produzido por esta
 /// autoridade. Os argumentos permanecem enquadrados nos bytes, mas os
 /// consumidores que só precisam reconhecer a autoridade do template não
@@ -61,12 +49,6 @@ pub struct GenericTemplateIdentity {
     pub kind: GenericKind,
     pub origin: GenericOrigin,
     pub local_name: String,
-}
-
-impl GenericOrigin {
-    pub fn module(module_key: impl Into<String>) -> Self {
-        Self::Module(module_key.into())
-    }
 }
 
 #[derive(Default)]

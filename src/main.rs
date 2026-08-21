@@ -3834,7 +3834,7 @@ impl Drop for DiretorioIntermediario {
 // @pinker-nav:start cli.modulos.importacao
 // @pinker-nav:domain modulos
 // @pinker-nav:layer cli
-// @pinker-nav:summary parse_program_from_source tokeniza e parseia uma string de fonte, entregando ao parser o contexto de import já resolvido. base_dir_de devolve o diretório de resolução dos `.pink`; contexto_de_import responde, ANTES do parse, as duas perguntas que o parser não pode responder sozinho — quais nomes de `trazer X.y;` são módulo Pinker real (via modulo_real_existe) e que identidades de topo os `trazer <modulo>;` deste arquivo trazem (via nomes_trazidos_por_modulo, leitura best-effort e sem diagnóstico próprio, porque o carregador refaz a mesma leitura pra valer logo em seguida). importable_item_name e importable_item_clone reconhecem e clonam os itens importáveis Function, Const, Struct, TypeAlias, Enum e Trait; qualified_type_item_clone requalifica com o prefixo `<módulo>.` somente Struct e TypeAlias, não Function, Const, Enum ou Trait. load_module_program lê o arquivo `<módulo>.pink` a partir de `base_dir`, detecta ciclo de módulos comparando com a pilha `loading` e recursa nos imports do módulo carregado — pulando ali a mesma família built-in que o programa raiz pula, para que a superfície aprovada valha também dentro de um módulo — antes de inserir o programa em `loaded`. load_program_with_imports é o ponto de entrada: para cada import do programa raiz, pula famílias built-in importáveis, detecta import duplicado pela chave `módulo::símbolo`, carrega o módulo via load_module_program e insere os itens importados (todo o módulo ou um símbolo específico) em `root_program.items`, reportando colisão de nome com itens locais ou com outro import. Import de família built-in não vira item: `modulo_real_existe` decide a precedência `REAL_MODULE_X > BUILTIN_FAMILY_X` — a forma seletiva cede a vez a um `<família>.pink` que exista de fato, e só na ausência dele o import sobrevive em `root_program.imports` para a autoridade semântica validá-lo.
+// @pinker-nav:summary parse_program_from_source tokeniza e parseia uma string de fonte, entregando ao parser o contexto de import já resolvido. base_dir_de devolve o diretório de resolução dos `.pink`; contexto_de_import responde, ANTES do parse, as duas perguntas que o parser não pode responder sozinho — quais nomes de `trazer X.y;` são módulo Pinker real (via modulo_real_existe) e que identidades de topo os `trazer <modulo>;` deste arquivo trazem (via nomes_trazidos_por_modulo, leitura best-effort e sem diagnóstico próprio, porque o carregador refaz a mesma leitura pra valer logo em seguida). importable_item_name e importable_item_clone reconhecem e clonam os itens importáveis Function, Const, Struct, TypeAlias, Enum e Trait; qualified_type_item_clone requalifica com o prefixo `<módulo>.` somente Struct e TypeAlias, não Function, Const, Enum ou Trait. load_module_program lê o arquivo `<módulo>.pink` a partir de `base_dir`, detecta ciclo de módulos comparando com a pilha `loading` e recursa nos imports do módulo carregado — pulando ali a mesma família built-in que o programa raiz pula, para que a superfície aprovada valha também dentro de um módulo — antes de inserir o programa em `loaded`. load_program_with_imports é o ponto de entrada: para cada import do programa raiz, pula famílias built-in importáveis, detecta import duplicado pela chave `módulo::símbolo`, carrega o módulo via load_module_program e insere os itens importados (todo o módulo ou um símbolo específico) em `root_program.items`, reportando colisão de nome com itens locais ou com outro import; na forma seletiva, a função solicitada traz transitivamente somente as funções anônimas sintéticas alcançáveis de que depende. Import de família built-in não vira item: `modulo_real_existe` decide a precedência `REAL_MODULE_X > BUILTIN_FAMILY_X` — a forma seletiva cede a vez a um `<família>.pink` que exista de fato, e só na ausência dele o import sobrevive em `root_program.imports` para a autoridade semântica validá-lo.
 fn parse_program_from_source(
     source: &str,
     base_dir: &Path,
@@ -3940,6 +3940,57 @@ fn importable_item_clone(item: &ast::Item) -> Option<ast::Item> {
         | ast::Item::Enum(_)
         | ast::Item::Trait(_) => Some(item.clone()),
     }
+}
+
+fn anonymous_callable_dependencies(
+    owner: &ast::FunctionDecl,
+    module_program: &ast::Program,
+) -> Result<Vec<ast::Item>, PinkerError> {
+    let anonymous_functions: HashMap<&str, &ast::FunctionDecl> = module_program
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            ast::Item::Function(function)
+                if function
+                    .name
+                    .starts_with(pinker_v0::anonymous_identity::ANONYMOUS_CALLABLE_PREFIX) =>
+            {
+                Some((function.name.as_str(), function))
+            }
+            _ => None,
+        })
+        .collect();
+    let mut required = HashSet::new();
+    let mut pending = vec![owner];
+
+    while let Some(function) = pending.pop() {
+        for candidate in ast::capture_candidates_in_function(function) {
+            if !candidate.starts_with(pinker_v0::anonymous_identity::ANONYMOUS_CALLABLE_PREFIX)
+                || !required.insert(candidate.clone())
+            {
+                continue;
+            }
+            let Some(dependency) = anonymous_functions.get(candidate.as_str()).copied() else {
+                return Err(PinkerError::Semantic {
+                    msg:
+                        "dependência anônima requerida pela função importada não foi materializada"
+                            .to_string(),
+                    span: function.span,
+                });
+            };
+            pending.push(dependency);
+        }
+    }
+
+    Ok(module_program
+        .items
+        .iter()
+        .filter(|item| match item {
+            ast::Item::Function(function) => required.contains(&function.name),
+            _ => false,
+        })
+        .cloned()
+        .collect())
 }
 
 fn qualified_type_item_clone(module: &str, item: &ast::Item) -> Option<ast::Item> {
@@ -4058,6 +4109,7 @@ fn load_program_with_imports(
     let mut seen_imports = HashSet::new();
     let mut imported_items = Vec::new();
     let mut imported_names = HashMap::<String, Span>::new();
+    let mut imported_generated_owners = HashMap::<String, String>::new();
     let mut imported_qualified_type_names = HashSet::<String>::new();
     let local_names: HashSet<String> = root_program
         .items
@@ -4173,8 +4225,43 @@ fn load_program_with_imports(
                     span: import.span,
                 });
             };
+            let dependencies = match item {
+                ast::Item::Function(function) => {
+                    anonymous_callable_dependencies(function, module_program)?
+                }
+                _ => Vec::new(),
+            };
             imported_items.push(item.clone());
             imported_names.insert(symbol.clone(), import.span);
+            for dependency in dependencies {
+                let dependency_name = importable_item_name(&dependency)
+                    .expect("anonymous callable dependency is an importable function")
+                    .to_string();
+                if local_names.contains(&dependency_name) {
+                    return Err(PinkerError::Semantic {
+                        msg: format!(
+                            "colisão de nome no import: '{}' já existe no arquivo principal",
+                            dependency_name
+                        ),
+                        span: import.span,
+                    });
+                }
+                if let Some(previous_module) = imported_generated_owners.get(&dependency_name) {
+                    if previous_module == &import.module {
+                        continue;
+                    }
+                    return Err(PinkerError::Semantic {
+                        msg: format!(
+                            "colisão de identidade anônima entre módulos '{}' e '{}'",
+                            previous_module, import.module
+                        ),
+                        span: import.span,
+                    });
+                }
+                imported_generated_owners.insert(dependency_name.clone(), import.module.clone());
+                imported_names.insert(dependency_name, import.span);
+                imported_items.push(dependency);
+            }
             let qualified_name = format!("{}.{}", import.module, symbol);
             if imported_qualified_type_names.insert(qualified_name) {
                 if let Some(qualified_item) =

@@ -2,8 +2,8 @@ schema = 2
 id = "normalizacao-corrente-para-historico"
 
 [reconstruction]
-expected_overrides = 97
-expected_exclusions = 103
+expected_overrides = 99
+expected_exclusions = 106
 
 [[rules]]
 op = "exclude-key"
@@ -127,6 +127,11 @@ expected_matches = 1
 
 [[rules]]
 op = "exclude-key"
+key = "evidencia.identidades.anonima-proveniencia"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
 key = "evidencia.importacoes.parte-g-carregador-e-paridade"
 expected_matches = 1
 
@@ -238,6 +243,16 @@ expected_matches = 1
 [[rules]]
 op = "exclude-key"
 key = "genericos.identidade-canonica"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "identidades.anonima-callable"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "identidades.proveniencia-fonte"
 expected_matches = 1
 
 [[rules]]
@@ -848,9 +863,9 @@ expect_layer = "cli"
 [[rules]]
 op = "override-region"
 key = "cli.modulos.importacao"
-from_hash = "fnv1a64:fbbbc8fc0e568d11"
+from_hash = "fnv1a64:ddd901026d379d8b"
 to_hash = "fnv1a64:ec330060a090d4c0"
-from_summary = "parse_program_from_source tokeniza e parseia uma string de fonte, entregando ao parser o contexto de import já resolvido. base_dir_de devolve o diretório de resolução dos `.pink`; contexto_de_import responde, ANTES do parse, as duas perguntas que o parser não pode responder sozinho — quais nomes de `trazer X.y;` são módulo Pinker real (via modulo_real_existe) e que identidades de topo os `trazer <modulo>;` deste arquivo trazem (via nomes_trazidos_por_modulo, leitura best-effort e sem diagnóstico próprio, porque o carregador refaz a mesma leitura pra valer logo em seguida). importable_item_name e importable_item_clone reconhecem e clonam os itens importáveis Function, Const, Struct, TypeAlias, Enum e Trait; qualified_type_item_clone requalifica com o prefixo `<módulo>.` somente Struct e TypeAlias, não Function, Const, Enum ou Trait. load_module_program lê o arquivo `<módulo>.pink` a partir de `base_dir`, detecta ciclo de módulos comparando com a pilha `loading` e recursa nos imports do módulo carregado — pulando ali a mesma família built-in que o programa raiz pula, para que a superfície aprovada valha também dentro de um módulo — antes de inserir o programa em `loaded`. load_program_with_imports é o ponto de entrada: para cada import do programa raiz, pula famílias built-in importáveis, detecta import duplicado pela chave `módulo::símbolo`, carrega o módulo via load_module_program e insere os itens importados (todo o módulo ou um símbolo específico) em `root_program.items`, reportando colisão de nome com itens locais ou com outro import. Import de família built-in não vira item: `modulo_real_existe` decide a precedência `REAL_MODULE_X > BUILTIN_FAMILY_X` — a forma seletiva cede a vez a um `<família>.pink` que exista de fato, e só na ausência dele o import sobrevive em `root_program.imports` para a autoridade semântica validá-lo."
+from_summary = "parse_program_from_source tokeniza e parseia uma string de fonte, entregando ao parser o contexto de import já resolvido. base_dir_de devolve o diretório de resolução dos `.pink`; contexto_de_import responde, ANTES do parse, as duas perguntas que o parser não pode responder sozinho — quais nomes de `trazer X.y;` são módulo Pinker real (via modulo_real_existe) e que identidades de topo os `trazer <modulo>;` deste arquivo trazem (via nomes_trazidos_por_modulo, leitura best-effort e sem diagnóstico próprio, porque o carregador refaz a mesma leitura pra valer logo em seguida). importable_item_name e importable_item_clone reconhecem e clonam os itens importáveis Function, Const, Struct, TypeAlias, Enum e Trait; qualified_type_item_clone requalifica com o prefixo `<módulo>.` somente Struct e TypeAlias, não Function, Const, Enum ou Trait. load_module_program lê o arquivo `<módulo>.pink` a partir de `base_dir`, detecta ciclo de módulos comparando com a pilha `loading` e recursa nos imports do módulo carregado — pulando ali a mesma família built-in que o programa raiz pula, para que a superfície aprovada valha também dentro de um módulo — antes de inserir o programa em `loaded`. load_program_with_imports é o ponto de entrada: para cada import do programa raiz, pula famílias built-in importáveis, detecta import duplicado pela chave `módulo::símbolo`, carrega o módulo via load_module_program e insere os itens importados (todo o módulo ou um símbolo específico) em `root_program.items`, reportando colisão de nome com itens locais ou com outro import; na forma seletiva, a função solicitada traz transitivamente somente as funções anônimas sintéticas alcançáveis de que depende. Import de família built-in não vira item: `modulo_real_existe` decide a precedência `REAL_MODULE_X > BUILTIN_FAMILY_X` — a forma seletiva cede a vez a um `<família>.pink` que exista de fato, e só na ausência dele o import sobrevive em `root_program.imports` para a autoridade semântica validá-lo."
 to_summary = "parse_program_from_source tokeniza e parseia uma string de fonte (sem resolver imports). importable_item_name e importable_item_clone reconhecem e clonam os itens importáveis Function, Const, Struct, TypeAlias, Enum e Trait; qualified_type_item_clone requalifica com o prefixo `<módulo>.` somente Struct e TypeAlias, não Function, Const, Enum ou Trait. load_module_program lê o arquivo `<módulo>.pink` a partir de `base_dir`, detecta ciclo de módulos comparando com a pilha `loading` e recursa nos imports do módulo carregado antes de inserir o programa em `loaded`. load_program_with_imports é o ponto de entrada: para cada import do programa raiz, pula famílias built-in importáveis, detecta import duplicado pela chave `módulo::símbolo`, carrega o módulo via load_module_program e insere os itens importados (todo o módulo ou um símbolo específico) em `root_program.items`, reportando colisão de nome com itens locais ou com outro import antes de limpar `root_program.imports`."
 expect_file = "src/main.rs"
 expect_domain = "modulos"
@@ -1001,6 +1016,17 @@ from_hash = "fnv1a64:a368abab19dab90c"
 to_hash = "fnv1a64:2ee58ac88e4484cd"
 expect_file = "tests/backend_s_tests.rs"
 expect_domain = "backend-s"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.ir.lowering-tipos-compostos"
+from_hash = "fnv1a64:adddfd8bc905e077"
+to_hash = "fnv1a64:5fb70e644e9d546c"
+from_summary = "Exercita acessos e a preservação observada de aliases, arrays, ninhos e categorias de ponteiro na IR textual."
+to_summary = "Exercita acessos e a preservação observada de aliases, arrays, ninhos e categorias de ponteiro na IR textual."
+expect_file = "tests/ir_tests.rs"
+expect_domain = "ir"
 expect_layer = "evidencia"
 
 [[rules]]
@@ -1180,9 +1206,9 @@ expect_layer = "parser"
 [[rules]]
 op = "override-region"
 key = "parser.closures.expressao"
-from_hash = "fnv1a64:4ddfd678b2a99a46"
+from_hash = "fnv1a64:35ebc9fdfc4403ac"
 to_hash = "fnv1a64:f374c2b2eb1b9d4c"
-from_summary = "Funções anônimas e vínculos de valor-função: reconhece a closure `(params) -> tipo { corpo }` e os `nova f = ...` que ligam nomes a funções, mantendo o escopo de aliases de valor-função e produzindo `ast::Expr`/vínculos locais."
+from_summary = "Funções anônimas e vínculos de valor-função: reconhece a closure `(params) -> tipo { corpo }`, materializa sua identidade sintética com proveniência canônica da fonte mais índice local e reconhece os `nova f = ...` que ligam nomes a funções, mantendo o escopo de aliases de valor-função e produzindo `ast::Expr`/vínculos locais."
 to_summary = "Funções anônimas e vínculos de valor-função: reconhece a closure `(params) -> tipo { corpo }` e os `nova f = ...` que ligam nomes a funções, mantendo o escopo de aliases de valor-função e produzindo `ast::Expr`/vínculos locais."
 expect_file = "src/parser.rs"
 expect_domain = "closures"
@@ -1426,6 +1452,17 @@ from_summary = "Fluxo e retornos: verificação de ramo `talvez`/`senão` aninha
 to_summary = "Fluxo e retornos: verificação de ramo `talvez`/`senão` aninhado com escopo próprio, checagem de `mimo` de retorno contra o tipo declarado (presença/ausência de valor, tipo e faixa) e análise superficial de alcançabilidade — um bloco retorna se contém `mimo` direto ou um `talvez`/`senão` em que ambos os ramos retornam."
 expect_file = "src/semantic.rs"
 expect_domain = "fluxo"
+expect_layer = "semantic"
+
+[[rules]]
+op = "override-region"
+key = "semantic.funcoes.verificacao"
+from_hash = "fnv1a64:bd1ca776d2a89478"
+to_hash = "fnv1a64:e3bfef29a6eb8153"
+from_summary = "Verificação de corpos de topo: política fixa de `principal` (sem parâmetros, retorno `bombom`), checagem de constante (tipo do inicializador e faixa) e de função (parâmetros no escopo, corpo, e alcançabilidade de retorno em todos os caminhos simples quando há retorno declarado), redigindo identidades sintéticas de callables anônimos nos diagnósticos."
+to_summary = "Verificação de corpos de topo: política fixa de `principal` (sem parâmetros, retorno `bombom`), checagem de constante (tipo do inicializador e faixa) e de função (parâmetros no escopo, corpo, e alcançabilidade de retorno em todos os caminhos simples quando há retorno declarado)."
+expect_file = "src/semantic.rs"
+expect_domain = "funcoes"
 expect_layer = "semantic"
 
 [[rules]]
