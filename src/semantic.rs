@@ -1997,7 +1997,7 @@ impl SemanticChecker {
     // @pinker-nav:start semantic.funcoes.verificacao
     // @pinker-nav:domain funcoes
     // @pinker-nav:layer semantic
-    // @pinker-nav:summary Verificação de corpos de topo: política fixa de `principal` (sem parâmetros, retorno `bombom`), checagem de constante (tipo do inicializador e faixa) e de função (parâmetros no escopo, corpo, e alcançabilidade de retorno em todos os caminhos simples quando há retorno declarado).
+    // @pinker-nav:summary Verificação de corpos de topo: política fixa de `principal` (sem parâmetros, retorno `bombom`), checagem de constante (tipo do inicializador e faixa) e de função (parâmetros no escopo, corpo, e alcançabilidade de retorno em todos os caminhos simples quando há retorno declarado), redigindo identidades sintéticas de callables anônimos nos diagnósticos.
     // `principal` é a política fixa de entrada da v0: sem parâmetros e retorno bombom.
     fn check_principal(&self, program: &Program) -> Result<(), PinkerError> {
         let Some(main_fn) = self.funcs.get("principal") else {
@@ -2060,7 +2060,7 @@ impl SemanticChecker {
     }
 
     fn check_function(&mut self, function: &FunctionDecl) -> Result<(), PinkerError> {
-        self.current_func_name = Some(function.name.clone());
+        self.current_func_name = Some(Self::function_name_for_diagnostic(&function.name));
         self.current_func_ret = function
             .ret_type
             .as_ref()
@@ -2082,7 +2082,7 @@ impl SemanticChecker {
             return Err(PinkerError::Semantic {
                 msg: format!(
                     "função '{}' com retorno declarado não retorna em todos os caminhos simples",
-                    function.name
+                    Self::function_name_for_diagnostic(&function.name)
                 ),
                 span: function.body.span,
             });
@@ -2188,7 +2188,7 @@ impl SemanticChecker {
         let saved_func_ret = self.current_func_ret.take();
         let saved_loop_depth = self.loop_depth;
 
-        self.current_func_name = Some(function.name.clone());
+        self.current_func_name = Some(Self::function_name_for_diagnostic(&function.name));
         self.current_func_ret = function
             .ret_type
             .as_ref()
@@ -2212,7 +2212,7 @@ impl SemanticChecker {
             return Err(PinkerError::Semantic {
                 msg: format!(
                     "função '{}' com retorno declarado não retorna em todos os caminhos simples",
-                    function.name
+                    Self::function_name_for_diagnostic(&function.name)
                 ),
                 span: function.body.span,
             });
@@ -2224,6 +2224,14 @@ impl SemanticChecker {
         self.current_func_ret = saved_func_ret;
         self.loop_depth = saved_loop_depth;
         Ok(())
+    }
+
+    fn function_name_for_diagnostic(name: &str) -> String {
+        if name.starts_with(crate::anonymous_identity::ANONYMOUS_CALLABLE_PREFIX) {
+            "<anônima>".to_string()
+        } else {
+            name.to_string()
+        }
     }
     // @pinker-nav:end semantic.funcoes.verificacao
 

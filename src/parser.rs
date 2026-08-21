@@ -1,3 +1,4 @@
+use crate::anonymous_identity;
 use crate::ast::*;
 use crate::error::PinkerError;
 use crate::generic_identity::{self, GenericKind, GenericOrigin};
@@ -384,7 +385,10 @@ impl Parser {
             self.synthetic_counter += 1;
             replacements.insert(
                 old_name.clone(),
-                format!("__anon_carinho_{}", self.synthetic_counter),
+                anonymous_identity::anonymous_callable_name(
+                    &self.generic_origin,
+                    self.synthetic_counter,
+                ),
             );
         }
 
@@ -2474,7 +2478,7 @@ impl Parser {
     // @pinker-nav:start parser.closures.expressao
     // @pinker-nav:domain closures
     // @pinker-nav:layer parser
-    // @pinker-nav:summary Funções anônimas e vínculos de valor-função: reconhece a closure `(params) -> tipo { corpo }` e os `nova f = ...` que ligam nomes a funções, mantendo o escopo de aliases de valor-função e produzindo `ast::Expr`/vínculos locais.
+    // @pinker-nav:summary Funções anônimas e vínculos de valor-função: reconhece a closure `(params) -> tipo { corpo }`, materializa sua identidade sintética com proveniência canônica da fonte mais índice local e reconhece os `nova f = ...` que ligam nomes a funções, mantendo o escopo de aliases de valor-função e produzindo `ast::Expr`/vínculos locais.
     fn parse_anonymous_function_expr(&mut self, start_span: Span) -> Result<Expr, PinkerError> {
         self.consume(TokenKind::LParen, "(")?;
         let mut params = Vec::new();
@@ -2504,7 +2508,10 @@ impl Parser {
             None
         };
         self.synthetic_counter += 1;
-        let name = format!("__anon_carinho_{}", self.synthetic_counter);
+        let name = anonymous_identity::anonymous_callable_name(
+            &self.generic_origin,
+            self.synthetic_counter,
+        );
         let saved_collection_types = self.collection_types.clone();
         self.collection_types.clear();
         for param in &params {

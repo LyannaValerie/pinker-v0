@@ -598,7 +598,9 @@ carinho principal() -> bombom {
 "#;
     let ir = render_ir(code).unwrap();
     assert!(
-        ir.contains("make_closure __anon_carinho_1[]"),
+        ir.lines().any(|line| {
+            line.contains("make_closure __anon_carinho_") && line.trim_end().ends_with("[]")
+        }),
         "closure sem captura com nova muda deveria usar make_closure com lista vazia: {}",
         ir
     );
@@ -622,7 +624,12 @@ carinho principal() -> bombom {
     let ir = render_ir(code).unwrap();
     assert!(!ir.contains("make_closure"), "{}", ir);
     assert!(!ir.contains("call_indirect"), "{}", ir);
-    assert!(ir.contains("call __anon_carinho_1("), "{}", ir);
+    assert!(
+        ir.lines()
+            .any(|line| line.contains("call __anon_carinho_") && line.contains('(')),
+        "{}",
+        ir
+    );
 }
 
 #[test]
