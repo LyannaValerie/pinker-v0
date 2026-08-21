@@ -3568,7 +3568,7 @@ fn run_analyze(config: Config) {
 // @pinker-nav:start cli.build.nativo
 // @pinker-nav:domain build
 // @pinker-nav:layer cli
-// @pinker-nav:summary run_build repete o front-end (lex/parse/imports/semântica/IR/CFG/seleção) e grava o `.s` resultante em <out_dir>/<stem>.s via fs::write; com --nativo, emite via emit_external_toolchain_subset_nativo e, após gravar, chama link_nativo. locate_pinker_rt_lib localiza (não constrói) a staticlib libpinker_rt.a pré-buildada: usa a env PINKER_RT_LIB se apontar para um arquivo existente, senão procura ao lado do executável atual via std::env::current_exe; retorna Err com uma mensagem sugerindo `cargo build` se não encontrar. detect_cc_driver detecta um driver C disponível testando `cc --version`/`gcc --version`/`clang --version` via std::process::Command e retorna o primeiro que responder com status de sucesso. link_nativo invoca esse driver externo em dois passos: primeiro `-c` sobre o `.s` para um objeto de nome derivado do próprio `.s`, depois a linkedição desse objeto com a staticlib localizada e -lpthread/-ldl/-lm para produzir o binário via -o; o objeto intermediário é removido em qualquer desfecho. A montagem e a linkedição continuam sendo feitas pelo driver externo, não por este arquivo; o que este arquivo controla é o nome do objeto, porque entregar o `.s` direto ao driver deixaria o intermediário com nome temporário aleatório e o linker o registraria como símbolo `STT_FILE` do executável, quebrando o determinismo byte a byte entre dois builds da mesma fonte. Antes de linkar, link_nativo chama verificar_artefato_sussurro, que relê o `.s` gravado e delega a inline_asm::verify_native_artifact — o invariante de artefato roda no caminho produtivo, não só em fixture de teste: monta o assembly emitido e a baseline derivada sem os envelopes num diretório intermediário `.pinker-sussurro-verificacao` sob o out_dir, compara as superfícies dos dois objetos e aborta o build com E-BACKEND-ASM-ARTIFACT diante de qualquer delta de seção ou de símbolo definido; o diretório intermediário é removido em qualquer desfecho e a verificação só imprime linha de confirmação quando existe ao menos um envelope.
+// @pinker-nav:summary run_build repete o front-end (lex/parse/imports/semântica/IR/CFG/seleção) e grava o `.s` resultante em <out_dir>/<stem>.s via fs::write; com --nativo, emite via emit_external_toolchain_subset_nativo e, após gravar, chama link_nativo. locate_pinker_rt_lib localiza (não constrói) a staticlib libpinker_rt.a pré-buildada: usa a env PINKER_RT_LIB se apontar para um arquivo existente, senão procura ao lado do executável atual via std::env::current_exe; retorna Err com uma mensagem sugerindo `cargo build` se não encontrar. detect_cc_driver detecta um driver C disponível testando `cc --version`/`gcc --version`/`clang --version` via std::process::Command e retorna o primeiro que responder com status de sucesso. link_nativo invoca esse driver externo em dois passos: primeiro `-c` sobre o `.s` para um objeto cujo basename deriva do próprio `.s` mas que vive dentro de um DiretorioIntermediario possuído pela execução, depois a linkedição desse objeto com a staticlib localizada e -lpthread/-ldl/-lm para produzir o binário via -o. A montagem e a linkedição continuam sendo feitas pelo driver externo, não por este arquivo; o que este arquivo controla é o basename do objeto, porque entregar o `.s` direto ao driver deixaria o intermediário com nome temporário aleatório e o linker o registraria como símbolo `STT_FILE` do executável, quebrando o determinismo byte a byte entre dois builds da mesma fonte. O diretório do objeto não atravessa a linkedição, então o intermediário nunca ocupa `<out_dir>/<stem>.o`: arquivo preexistente do usuário com esse nome não é sobrescrito nem apagado, em nenhum desfecho. Antes de linkar, link_nativo chama verificar_artefato_sussurro, que relê o `.s` gravado e delega a inline_asm::verify_native_artifact — o invariante de artefato roda no caminho produtivo, não só em fixture de teste: monta o assembly emitido e a baseline derivada sem os envelopes noutro DiretorioIntermediario sob o out_dir, compara as superfícies dos dois objetos e aborta o build com E-BACKEND-ASM-ARTIFACT diante de qualquer delta de seção ou de símbolo definido; os dois diretórios intermediários são removidos em qualquer desfecho pelo próprio Drop e a verificação só imprime linha de confirmação quando existe ao menos um envelope. DiretorioIntermediario é esse espaço de scratch: `criar` monta `<out_dir>/.pinker-<propósito>-<pid>[-<n>]` com fs::create_dir, que falha com AlreadyExists em vez de adotar diretório preexistente — a posse fica provada, não presumida —, e Drop remove recursivamente só o que essa criação exclusiva produziu, de modo que nenhum desfecho (sucesso, recusa do assembler, recusa do linker, erro de I/O) apaga arquivo que a execução não criou.
 fn run_build(config: BuildConfig) {
     let source = match fs::read_to_string(&config.input) {
         Ok(source) => source,
@@ -3706,11 +3706,10 @@ fn verificar_artefato_sussurro(
 ) -> Result<Option<inline_asm::ArtifactCheck>, String> {
     let asm = fs::read_to_string(asm_path)
         .map_err(|err| format!("falha ao reler '{}': {}", asm_path.display(), err))?;
-    let workdir = out_dir.join(".pinker-sussurro-verificacao");
-    let resultado = inline_asm::verify_native_artifact(&asm, driver, &workdir);
-    // O diretório de verificação é intermediário: não sobrevive ao build, nem
-    // quando a verificação recusa.
-    let _ = fs::remove_dir_all(&workdir);
+    // O diretório de verificação é intermediário e possuído por esta execução:
+    // não sobrevive ao build, nem quando a verificação recusa.
+    let workdir = DiretorioIntermediario::criar(out_dir, "sussurro-verificacao")?;
+    let resultado = inline_asm::verify_native_artifact(&asm, driver, workdir.path());
     let check = resultado.map_err(|error| error.to_string())?;
     Ok((check.envelopes > 0).then_some(check))
 }
@@ -3728,13 +3727,21 @@ fn link_nativo(asm_path: &Path, bin_path: &Path) -> Result<(), String> {
             check.envelopes, check.sections, check.defined_symbols
         );
     }
-    // A montagem é um passo próprio, com nome de objeto derivado do `.s`.
+    // A montagem é um passo próprio, com basename de objeto derivado do `.s`.
     // Entregar o `.s` direto ao driver deixa o objeto intermediário com um nome
     // temporário aleatório, e o linker o registra como símbolo `STT_FILE` do
     // executável assim que o objeto passa a contribuir símbolos locais — o
     // binário deixaria de ser byte-determinístico entre dois builds da mesma
-    // fonte. O objeto é intermediário e não sobrevive ao build.
-    let object_path = asm_path.with_extension("o");
+    // fonte. O que atravessa a linkedição é o basename, não o diretório: por
+    // isso o objeto vive num diretório intermediário possuído por esta
+    // execução, e não em `<out_dir>/<stem>.o`, que é pathname do usuário.
+    let workdir = DiretorioIntermediario::criar(&out_dir, "montagem")?;
+    let object_name = asm_path
+        .with_extension("o")
+        .file_name()
+        .map(PathBuf::from)
+        .ok_or_else(|| format!("assembly sem nome de arquivo: '{}'", asm_path.display()))?;
+    let object_path = workdir.path().join(object_name);
     let assemble = std::process::Command::new(&driver)
         .arg("-c")
         .arg(asm_path)
@@ -3743,7 +3750,6 @@ fn link_nativo(asm_path: &Path, bin_path: &Path) -> Result<(), String> {
         .output()
         .map_err(|err| format!("falha ao invocar '{}': {}", driver, err))?;
     if !assemble.status.success() {
-        let _ = fs::remove_file(&object_path);
         return Err(format!(
             "'{}' retornou erro:\n{}",
             driver,
@@ -3760,7 +3766,6 @@ fn link_nativo(asm_path: &Path, bin_path: &Path) -> Result<(), String> {
         .arg(bin_path)
         .output()
         .map_err(|err| format!("falha ao invocar '{}': {}", driver, err))?;
-    let _ = fs::remove_file(&object_path);
     if !output.status.success() {
         return Err(format!(
             "'{}' retornou erro:\n{}",
@@ -3770,6 +3775,60 @@ fn link_nativo(asm_path: &Path, bin_path: &Path) -> Result<(), String> {
     }
     Ok(())
 }
+/// Diretório intermediário do build, criado e possuído por esta execução.
+struct DiretorioIntermediario {
+    path: PathBuf,
+}
+
+impl DiretorioIntermediario {
+    /// Limite de tentativas de nome. Só é alcançado se muitos diretórios do
+    /// mesmo pid já existirem no out_dir, o que indica lixo de execução morta.
+    const MAX_TENTATIVAS: u32 = 64;
+
+    /// Cria um diretório novo sob `out_dir`, provando a posse.
+    ///
+    /// `fs::create_dir` falha com `AlreadyExists` quando o caminho já existe;
+    /// a criação nunca adota diretório de terceiros, e por isso o `Drop` pode
+    /// remover recursivamente sem risco de apagar arquivo alheio.
+    fn criar(out_dir: &Path, proposito: &str) -> Result<Self, String> {
+        let pid = std::process::id();
+        for tentativa in 0..Self::MAX_TENTATIVAS {
+            let nome = if tentativa == 0 {
+                format!(".pinker-{proposito}-{pid}")
+            } else {
+                format!(".pinker-{proposito}-{pid}-{tentativa}")
+            };
+            let candidato = out_dir.join(nome);
+            match fs::create_dir(&candidato) {
+                Ok(()) => return Ok(Self { path: candidato }),
+                Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(err) => {
+                    return Err(format!(
+                        "falha ao criar diretório intermediário '{}': {}",
+                        candidato.display(),
+                        err
+                    ))
+                }
+            }
+        }
+        Err(format!(
+            "falha ao criar diretório intermediário de '{proposito}' em '{}': todos os nomes candidatos já existem",
+            out_dir.display()
+        ))
+    }
+
+    fn path(&self) -> &Path {
+        &self.path
+    }
+}
+
+impl Drop for DiretorioIntermediario {
+    fn drop(&mut self) {
+        // Só o que `criar` produziu: diretório preexistente nunca foi adotado.
+        let _ = fs::remove_dir_all(&self.path);
+    }
+}
+
 // @pinker-nav:end cli.build.nativo
 
 // @pinker-nav:start cli.modulos.importacao

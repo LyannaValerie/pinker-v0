@@ -106,10 +106,14 @@ pub enum NativeDefinition {
 }
 
 /// Classifica uma função pelo nome de identidade já materializado.
+///
+/// A identidade gerada não é reconhecida por superprefixo: quem responde é a
+/// mesma autoridade canônica que reserva os namespaces, via
+/// [`is_compiler_generated`].
 pub fn classify_function(source_name: &str) -> NativeDefinition {
     if is_entrypoint(source_name) {
         NativeDefinition::Entrypoint
-    } else if source_name.starts_with(COMPILER_GENERATED_PREFIX) {
+    } else if is_compiler_generated(source_name) {
         NativeDefinition::GeneratedFunction
     } else {
         NativeDefinition::UserFunction
@@ -139,13 +143,25 @@ pub fn function_binding(source_name: &str) -> NativeBinding {
 // @pinker-nav:start nativo.simbolo.namespace-reservado
 // @pinker-nav:domain identificadores
 // @pinker-nav:layer nativo
-// @pinker-nav:summary Reserva dirigida dos namespaces que a Pinker realmente possui, derivada de uma tabela única: o prefixo `__` (toda identidade sintética do compilador), o prefixo `pinker_` (símbolos definidos e consumidos por `libpinker_rt.a`) e os símbolos de entrypoint de plataforma `main` e `_start`. Cada entrada declara a fronteira exata em que é aplicada — `AnyIdentifier` na fronteira léxica de fonte, `SymbolDefinition` na fronteira de definição produtora de símbolo — e cada fronteira consulta só as entradas do seu escopo, porque `main` é nome legítimo de pacote e nomes gerados sob `__` são criados pelo próprio compilador depois do lexer. Nomes do host (`malloc`, `memcpy`, `write`, `getenv`, `free`, `environ`, ...) NÃO são reservados: continuam legais como nomes Pinker e são isolados por STB_LOCAL.
+// @pinker-nav:summary Reserva dirigida dos namespaces que a Pinker realmente possui, derivada de uma tabela única: as dezenove formas de identidade sintética que o compilador de fato materializa (dezessete prefixos, de `__pinker_internal_` a `__propagar_falha_`, e dois nomes exatos, `__env` e `__ternario`), o prefixo `pinker_` (símbolos definidos e consumidos por `libpinker_rt.a`) e os símbolos de entrypoint de plataforma `main` e `_start`. A reserva é da forma realmente possuída, não do superprefixo comum a ela: `__` continua livre, então `__usuario` é nome Pinker legal, e uma entrada `Exact` nunca vira `Prefix` por conveniência — `__env` é reservado e `__envio` não. Cada entrada declara seu dono (`NamespaceOwner`) e a fronteira exata em que é aplicada — `AnyIdentifier` na fronteira léxica de fonte, `SymbolDefinition` na fronteira de definição produtora de símbolo — e cada fronteira consulta só as entradas do seu escopo, porque `main` é nome legítimo de pacote e as identidades sintéticas são criadas pelo próprio compilador depois do lexer. `is_compiler_generated` é o único ponto que reconhece identidade gerada, e `classify_function` o consome em vez de testar prefixo por conta própria. Nomes do host (`malloc`, `memcpy`, `write`, `getenv`, `free`, `environ`, ...) NÃO são reservados: continuam legais como nomes Pinker e são isolados por STB_LOCAL.
 
-/// Prefixo sob o qual vive toda identidade sintética do compilador.
-pub const COMPILER_GENERATED_PREFIX: &str = "__";
+/// Prefixo histórico das intrínsecas internas materializadas pelo lowering.
+/// Continua reservado; hoje é uma das dezenove formas da tabela canônica.
+pub const COMPILER_INTERNAL_PREFIX: &str = "__pinker_internal_";
 
 /// Prefixo do namespace ABI do runtime nativo.
 pub const RUNTIME_ABI_PREFIX: &str = "pinker_";
+
+/// Quem, dentro da Pinker, materializa nomes num namespace reservado.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NamespaceOwner {
+    /// O compilador materializa identidades sintéticas nesta forma.
+    CompilerGenerated,
+    /// O runtime nativo define e consome estes símbolos em `libpinker_rt.a`.
+    RuntimeAbi,
+    /// A plataforma consome este símbolo de entrypoint.
+    PlatformEntrypoint,
+}
 
 /// Fronteira em que uma reserva é aplicada.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -185,6 +201,8 @@ impl ReservedShape {
 pub struct PinkerOwnedNamespace {
     pub shape: ReservedShape,
     pub scope: ReservedScope,
+    /// Quem materializa nomes neste espaço.
+    pub owner: NamespaceOwner,
     /// Por que a Pinker é dona deste espaço.
     pub reason: &'static str,
 }
@@ -192,24 +210,142 @@ pub struct PinkerOwnedNamespace {
 /// Tabela canônica. Cobre exatamente o que a Pinker produz: compilador,
 /// runtime e entrypoint. Não congela lista de libc.
 pub const PINKER_OWNED_NAMESPACES: &[PinkerOwnedNamespace] = &[
+    // Identidades sintéticas do compilador. Cada entrada é uma forma que o
+    // compilador de fato materializa; o superprefixo `__` que todas
+    // compartilham NÃO é reservado, porque a Pinker não o possui.
+    // `__gen_leque_` precede `__gen_` só para o diagnóstico nomear a família
+    // exata; a reserva seria a mesma em qualquer ordem.
     PinkerOwnedNamespace {
-        shape: ReservedShape::Prefix(COMPILER_GENERATED_PREFIX),
+        shape: ReservedShape::Prefix(COMPILER_INTERNAL_PREFIX),
         scope: ReservedScope::AnyIdentifier,
-        reason: "o compilador materializa suas identidades sintéticas sob este prefixo",
+        owner: NamespaceOwner::CompilerGenerated,
+        reason: "o lowering materializa as intrínsecas internas de leque e mapa sob este prefixo",
     },
+    PinkerOwnedNamespace {
+        shape: ReservedShape::Prefix("__anon_carinho_"),
+        scope: ReservedScope::AnyIdentifier,
+        owner: NamespaceOwner::CompilerGenerated,
+        reason: "o parser materializa cada `carinho` anônimo sob este prefixo",
+    },
+    PinkerOwnedNamespace {
+        shape: ReservedShape::Prefix("__impl_"),
+        scope: ReservedScope::AnyIdentifier,
+        owner: NamespaceOwner::CompilerGenerated,
+        reason: "o parser materializa cada método de `trato` implementado sob este prefixo",
+    },
+    PinkerOwnedNamespace {
+        shape: ReservedShape::Prefix("__trait_default_check_"),
+        scope: ReservedScope::AnyIdentifier,
+        owner: NamespaceOwner::CompilerGenerated,
+        reason: "o parser materializa a checagem de método padrão de `trato` sob este prefixo",
+    },
+    PinkerOwnedNamespace {
+        shape: ReservedShape::Prefix("__gen_leque_"),
+        scope: ReservedScope::AnyIdentifier,
+        owner: NamespaceOwner::CompilerGenerated,
+        reason: "a identidade genérica materializa cada `leque` monomorfizado sob este prefixo",
+    },
+    PinkerOwnedNamespace {
+        shape: ReservedShape::Prefix("__gen_"),
+        scope: ReservedScope::AnyIdentifier,
+        owner: NamespaceOwner::CompilerGenerated,
+        reason: "a identidade genérica materializa cada função monomorfizada sob este prefixo",
+    },
+    PinkerOwnedNamespace {
+        shape: ReservedShape::Prefix("__fnref_env_"),
+        scope: ReservedScope::AnyIdentifier,
+        owner: NamespaceOwner::CompilerGenerated,
+        reason: "o IR materializa o wrapper de referência a função top-level sob este prefixo",
+    },
+    PinkerOwnedNamespace {
+        shape: ReservedShape::Prefix("__fnparam_"),
+        scope: ReservedScope::AnyIdentifier,
+        owner: NamespaceOwner::CompilerGenerated,
+        reason: "o parser materializa cada especialização de callback estático sob este prefixo",
+    },
+    PinkerOwnedNamespace {
+        shape: ReservedShape::Prefix("__iter_lista_"),
+        scope: ReservedScope::AnyIdentifier,
+        owner: NamespaceOwner::CompilerGenerated,
+        reason: "o parser materializa o slot de lista da iteração sob este prefixo",
+    },
+    PinkerOwnedNamespace {
+        shape: ReservedShape::Prefix("__iter_mapa_"),
+        scope: ReservedScope::AnyIdentifier,
+        owner: NamespaceOwner::CompilerGenerated,
+        reason: "o parser materializa o slot de mapa da iteração sob este prefixo",
+    },
+    PinkerOwnedNamespace {
+        shape: ReservedShape::Prefix("__iter_indice_"),
+        scope: ReservedScope::AnyIdentifier,
+        owner: NamespaceOwner::CompilerGenerated,
+        reason: "o parser materializa o slot de índice da iteração sob este prefixo",
+    },
+    PinkerOwnedNamespace {
+        shape: ReservedShape::Prefix("__iter_tamanho_"),
+        scope: ReservedScope::AnyIdentifier,
+        owner: NamespaceOwner::CompilerGenerated,
+        reason: "o parser materializa o slot de tamanho da iteração sob este prefixo",
+    },
+    PinkerOwnedNamespace {
+        shape: ReservedShape::Prefix("__iter_cursor_"),
+        scope: ReservedScope::AnyIdentifier,
+        owner: NamespaceOwner::CompilerGenerated,
+        reason: "o parser materializa o slot de cursor da iteração sob este prefixo",
+    },
+    PinkerOwnedNamespace {
+        shape: ReservedShape::Prefix("__range_limite_"),
+        scope: ReservedScope::AnyIdentifier,
+        owner: NamespaceOwner::CompilerGenerated,
+        reason: "o parser materializa o slot de limite do intervalo sob este prefixo",
+    },
+    PinkerOwnedNamespace {
+        shape: ReservedShape::Prefix("__tentar_alvo_"),
+        scope: ReservedScope::AnyIdentifier,
+        owner: NamespaceOwner::CompilerGenerated,
+        reason: "o parser materializa o alvo de `tentar` sob este prefixo",
+    },
+    PinkerOwnedNamespace {
+        shape: ReservedShape::Prefix("__propagar_alvo_"),
+        scope: ReservedScope::AnyIdentifier,
+        owner: NamespaceOwner::CompilerGenerated,
+        reason: "o parser materializa o alvo da propagação de falha sob este prefixo",
+    },
+    PinkerOwnedNamespace {
+        shape: ReservedShape::Prefix("__propagar_falha_"),
+        scope: ReservedScope::AnyIdentifier,
+        owner: NamespaceOwner::CompilerGenerated,
+        reason: "o parser materializa o slot de falha da propagação sob este prefixo",
+    },
+    PinkerOwnedNamespace {
+        shape: ReservedShape::Exact("__env"),
+        scope: ReservedScope::AnyIdentifier,
+        owner: NamespaceOwner::CompilerGenerated,
+        reason: "é o parâmetro oculto de ambiente que o IR injeta em cada closure",
+    },
+    PinkerOwnedNamespace {
+        shape: ReservedShape::Exact("__ternario"),
+        scope: ReservedScope::AnyIdentifier,
+        owner: NamespaceOwner::CompilerGenerated,
+        reason: "é a chamada sintética que o lowering emite para a escolha ternária",
+    },
+    // Runtime e plataforma.
     PinkerOwnedNamespace {
         shape: ReservedShape::Prefix(RUNTIME_ABI_PREFIX),
         scope: ReservedScope::SymbolDefinition,
+        owner: NamespaceOwner::RuntimeAbi,
         reason: "o runtime nativo define e consome os símbolos deste prefixo em 'libpinker_rt.a'",
     },
     PinkerOwnedNamespace {
         shape: ReservedShape::Exact(ENTRYPOINT_NATIVE_SYMBOL),
         scope: ReservedScope::SymbolDefinition,
+        owner: NamespaceOwner::PlatformEntrypoint,
         reason: "é o símbolo de plataforma produzido exclusivamente por 'principal'",
     },
     PinkerOwnedNamespace {
         shape: ReservedShape::Exact(FREESTANDING_ENTRYPOINT_SYMBOL),
         scope: ReservedScope::SymbolDefinition,
+        owner: NamespaceOwner::PlatformEntrypoint,
         reason: "é o símbolo de boot produzido exclusivamente por 'principal' no modo livre",
     },
 ];
@@ -217,15 +353,26 @@ pub const PINKER_OWNED_NAMESPACES: &[PinkerOwnedNamespace] = &[
 /// Consulta única da reserva.
 ///
 /// Cada entrada é aplicada em exatamente uma fronteira, e a fronteira é parte
-/// da política: `__` já é recusado quando o texto da fonte vira `Ident`, então
-/// todo nome sob `__` que chega à fronteira de definição foi criado pelo
-/// próprio compilador; e `main` é nome legítimo de pacote, então só pode ser
-/// recusado onde de fato produziria um símbolo.
+/// da política: as formas geradas já são recusadas quando o texto da fonte
+/// vira `Ident`, então todo nome dessas formas que chega à fronteira de
+/// definição foi criado pelo próprio compilador; e `main` é nome legítimo de
+/// pacote, então só pode ser recusado onde de fato produziria um símbolo.
 pub fn reserved_namespace(name: &str, scope: ReservedScope) -> Option<PinkerOwnedNamespace> {
     PINKER_OWNED_NAMESPACES
         .iter()
         .copied()
         .find(|entry| entry.scope == scope && entry.shape.matches(name))
+}
+
+/// `true` quando o nome pertence a uma forma que o compilador materializa.
+///
+/// Único ponto que reconhece identidade gerada. Não é `starts_with("__")`: o
+/// superprefixo comum às famílias não é propriedade da Pinker, e um nome de
+/// usuário como `__usuario` não é identidade gerada.
+pub fn is_compiler_generated(name: &str) -> bool {
+    PINKER_OWNED_NAMESPACES
+        .iter()
+        .any(|entry| entry.owner == NamespaceOwner::CompilerGenerated && entry.shape.matches(name))
 }
 
 /// Mensagem única do diagnóstico de namespace reservado.
@@ -411,7 +558,7 @@ mod tests {
 
     #[test]
     fn namespaces_reservados_valem_na_fronteira_declarada() {
-        // `__` é recusado em qualquer posição de identificador da fonte.
+        // Forma gerada real: recusada em qualquer posição de identificador.
         assert!(reserved_namespace("__impl_x", ReservedScope::AnyIdentifier).is_some());
         // `main` é nome legítimo de pacote: só é recusado onde produz símbolo.
         assert!(reserved_namespace("main", ReservedScope::AnyIdentifier).is_none());
@@ -423,6 +570,54 @@ mod tests {
             reserved_namespace(ENTRYPOINT_SOURCE_IDENTITY, ReservedScope::SymbolDefinition)
                 .is_none()
         );
+    }
+
+    #[test]
+    fn a_reserva_e_da_forma_possuida_e_nao_do_superprefixo() {
+        // O superprefixo comum às famílias não pertence à Pinker.
+        for livre in ["__usuario", "__coisa", "__abc123", "__", "___", "__x"] {
+            assert!(
+                reserved_namespace(livre, ReservedScope::AnyIdentifier).is_none(),
+                "'{livre}' não pertence a nenhuma família realmente gerada"
+            );
+            assert!(!is_compiler_generated(livre));
+            assert_eq!(classify_function(livre), NativeDefinition::UserFunction);
+            assert_eq!(function_binding(livre), NativeBinding::Local);
+        }
+    }
+
+    #[test]
+    fn entrada_exata_nunca_vira_prefixo() {
+        for exato in ["__env", "__ternario"] {
+            assert!(reserved_namespace(exato, ReservedScope::AnyIdentifier).is_some());
+        }
+        // Extensões da grafia exata continuam livres.
+        for extensao in ["__envio", "__env_", "__ternarios", "__ternario_x"] {
+            assert!(
+                reserved_namespace(extensao, ReservedScope::AnyIdentifier).is_none(),
+                "'{extensao}' estende um nome exato e não é forma possuída"
+            );
+        }
+    }
+
+    #[test]
+    fn classificacao_de_gerada_consome_a_autoridade_canonica() {
+        for entry in PINKER_OWNED_NAMESPACES {
+            if entry.owner != NamespaceOwner::CompilerGenerated {
+                continue;
+            }
+            let representante = match entry.shape {
+                ReservedShape::Prefix(prefix) => format!("{prefix}amostra"),
+                ReservedShape::Exact(exact) => exact.to_string(),
+            };
+            assert!(is_compiler_generated(&representante), "{representante}");
+            assert_eq!(
+                classify_function(&representante),
+                NativeDefinition::GeneratedFunction,
+                "{representante}"
+            );
+            assert_eq!(entry.scope, ReservedScope::AnyIdentifier);
+        }
     }
 
     #[test]

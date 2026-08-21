@@ -554,11 +554,29 @@ fn a_politica_nao_congela_lista_de_libc() {
             "'{nome}' não pode ser reservado: seria blacklist de libc"
         );
     }
-    // A tabela inteira cobre só espaços realmente possuídos pela Pinker.
+    // A tabela inteira cobre só espaços realmente possuídos pela Pinker: as
+    // formas que o compilador materializa, o namespace do runtime e os dois
+    // símbolos de entrypoint de plataforma. Nada mais.
+    let por_dono = |dono| {
+        native_symbol::PINKER_OWNED_NAMESPACES
+            .iter()
+            .filter(|entry| entry.owner == dono)
+            .count()
+    };
+    assert_eq!(
+        por_dono(native_symbol::NamespaceOwner::CompilerGenerated),
+        FAMILIAS_GERADAS_REAIS.len(),
+        "uma entrada gerada por família realmente materializada, nem mais nem menos"
+    );
+    assert_eq!(por_dono(native_symbol::NamespaceOwner::RuntimeAbi), 1);
+    assert_eq!(
+        por_dono(native_symbol::NamespaceOwner::PlatformEntrypoint),
+        2
+    );
     assert_eq!(
         native_symbol::PINKER_OWNED_NAMESPACES.len(),
-        4,
-        "a reserva é dirigida: compilador, runtime e os dois entrypoints de plataforma"
+        FAMILIAS_GERADAS_REAIS.len() + 3,
+        "a tabela não tem entrada de outro dono"
     );
 }
 
@@ -602,54 +620,156 @@ fn namespace_do_runtime_produz_diagnostico_pinker() {
     assert!(erro.contains("libpinker_rt.a"), "{erro}");
 }
 
+/// Inventário das dezenove formas de identidade que o compilador realmente
+/// materializa, com um representante grafável de cada uma.
+///
+/// A lista é a fronteira de auditoria desta Task: cada entrada corresponde a
+/// um sítio de construção real em `src/` (parser, IR, identidade genérica,
+/// lowering). Se uma família nova aparecer no compilador sem entrar na tabela
+/// canônica, `familia_gerada_real_tem_entrada_canonica` acusa.
+const FAMILIAS_GERADAS_REAIS: &[(&str, &str)] = &[
+    ("__pinker_internal_", "__pinker_internal_mapa_obter"),
+    ("__anon_carinho_", "__anon_carinho_0"),
+    ("__impl_", "__impl_7_Medivel_5_Ponto_medir"),
+    ("__trait_default_check_", "__trait_default_check_0_a_1_b_2"),
+    ("__gen_leque_", "__gen_leque_616263"),
+    ("__gen_", "__gen_616263"),
+    ("__fnref_env_", "__fnref_env_somar"),
+    ("__fnparam_", "__fnparam_somar_0"),
+    ("__iter_lista_", "__iter_lista_0"),
+    ("__iter_mapa_", "__iter_mapa_0"),
+    ("__iter_indice_", "__iter_indice_0"),
+    ("__iter_tamanho_", "__iter_tamanho_0"),
+    ("__iter_cursor_", "__iter_cursor_0"),
+    ("__range_limite_", "__range_limite_0"),
+    ("__tentar_alvo_", "__tentar_alvo_0"),
+    ("__propagar_alvo_", "__propagar_alvo_0"),
+    ("__propagar_falha_", "__propagar_falha_0"),
+    ("__env", "__env"),
+    ("__ternario", "__ternario"),
+];
+
+/// Positive controls: representante de TODA família realmente gerada é
+/// recusado quando vem da fonte (F-15).
 #[test]
 fn namespace_gerado_pelo_compilador_e_recusado_na_fonte() {
-    // Representantes reais de cada família de prefixo gerado (F-15).
-    for nome in [
-        "__pinker_internal_mapa_obter",
-        "__anon_carinho_0",
-        "__impl_7_Medivel_5_Ponto_medir",
-        "__gen_616263",
-        "__gen_leque_616263",
-        "__fnref_env_somar",
-    ] {
+    for (familia, nome) in FAMILIAS_GERADAS_REAIS {
         let fonte =
             format!("pacote main;\ncarinho {nome}() -> bombom {{ mimo 1; }}\ncarinho principal() -> bombom {{ mimo 0; }}\n");
-        let erro = checar(&fonte).expect_err(&format!("'{nome}' é namespace do compilador"));
+        let erro =
+            checar(&fonte).expect_err(&format!("'{nome}' pertence à família gerada '{familia}'"));
         assert!(erro.contains("E-SEMANTIC-RESERVED-NAMESPACE"), "{erro}");
     }
 }
 
+/// A tabela canônica cobre exatamente as famílias reais — nem menos (uma
+/// família nova sem entrada passaria a ser grafável pelo usuário) nem mais
+/// (uma entrada sem família real reservaria espaço que a Pinker não possui).
 #[test]
-fn todo_prefixo_gerado_vive_sob_o_namespace_reservado() {
-    // Sensitivity: se alguém introduzir um prefixo gerado fora de `__`, a
-    // reserva dirigida deixaria de cobrir a família nova.
-    for prefixo in [
-        "__pinker_internal_",
-        "__anon_carinho_",
-        "__impl_",
-        "__trait_default_check_",
-        "__gen_",
-        "__gen_leque_",
-        "__fnref_env_",
-        "__fnparam_",
-        "__iter_cursor_",
-        "__iter_indice_",
-        "__iter_lista_",
-        "__iter_mapa_",
-        "__iter_tamanho_",
-        "__propagar_alvo_",
-        "__propagar_falha_",
-        "__tentar_alvo_",
-        "__range_limite_",
-        "__ternario",
-        "__env",
-    ] {
-        assert!(
-            prefixo.starts_with(native_symbol::COMPILER_GENERATED_PREFIX),
-            "prefixo gerado '{prefixo}' fora do namespace reservado"
+fn familia_gerada_real_tem_entrada_canonica() {
+    let mut cobertas = BTreeSet::new();
+    for (familia, nome) in FAMILIAS_GERADAS_REAIS {
+        let entrada = native_symbol::reserved_namespace(nome, ReservedScope::AnyIdentifier)
+            .unwrap_or_else(|| panic!("família gerada '{familia}' fora da tabela canônica"));
+        assert_eq!(
+            entrada.owner,
+            native_symbol::NamespaceOwner::CompilerGenerated,
+            "'{nome}' é identidade do compilador"
         );
-        assert!(native_symbol::reserved_namespace(prefixo, ReservedScope::AnyIdentifier).is_some());
+        assert!(native_symbol::is_compiler_generated(nome), "{nome}");
+        cobertas.insert(*familia);
+    }
+
+    // Nenhuma entrada gerada da tabela sem família real correspondente.
+    for entrada in native_symbol::PINKER_OWNED_NAMESPACES {
+        if entrada.owner != native_symbol::NamespaceOwner::CompilerGenerated {
+            continue;
+        }
+        let forma = match entrada.shape {
+            native_symbol::ReservedShape::Prefix(prefix) => prefix,
+            native_symbol::ReservedShape::Exact(exact) => exact,
+        };
+        assert!(
+            cobertas.contains(forma),
+            "a tabela reserva '{forma}', que não corresponde a família gerada real"
+        );
+    }
+    assert_eq!(cobertas.len(), FAMILIAS_GERADAS_REAIS.len());
+}
+
+/// Negative controls: a reserva é da forma possuída, não do superprefixo `__`.
+/// Um identificador de usuário sob `__` que não pertence a família real
+/// continua legal — na fronteira, no `--check` e no build nativo de verdade.
+#[test]
+fn nome_de_usuario_sob_duplo_sublinhado_continua_legal() {
+    for nome in ["__usuario", "__coisa", "__abc123", "__", "___", "__x"] {
+        assert!(
+            native_symbol::reserved_namespace(nome, ReservedScope::AnyIdentifier).is_none(),
+            "'{nome}' não pertence a nenhuma família realmente gerada"
+        );
+        assert!(
+            native_symbol::reserved_namespace(nome, ReservedScope::SymbolDefinition).is_none(),
+            "'{nome}' também não é símbolo possuído pela Pinker"
+        );
+        assert!(!native_symbol::is_compiler_generated(nome), "{nome}");
+    }
+
+    const FONTE: &str = r#"
+pacote main;
+
+eterno __abc123: bombom = 1;
+
+carinho __usuario(__coisa: bombom) -> bombom {
+    nova __x: bombom = __coisa + __abc123;
+    mimo __x;
+}
+
+carinho principal() -> bombom {
+    falar(__usuario(40));
+    mimo 0;
+}
+"#;
+    checar(FONTE).expect("identificador de usuário sob `__` continua legal");
+    let Some(program) = build_nativo(
+        concat!(module_path!(), ":", line!()),
+        "duplo_sublinhado_usuario",
+        FONTE,
+    ) else {
+        return;
+    };
+    let (codigo, saida) = program.run("issue497-duplo-sublinhado");
+    assert_eq!((codigo, saida.as_str()), (Some(0), "41\n"));
+    assert_eq!(
+        interpretar("duplo_sublinhado_usuario", FONTE),
+        (Some(0), saida)
+    );
+
+    // Continua sendo definição de usuário: LOCAL, e não classe gerada.
+    let simbolo = program.defined("__usuario").expect("__usuario definida");
+    assert_eq!(simbolo.bind, "LOCAL");
+    assert_eq!(
+        native_symbol::classify_function("__usuario"),
+        NativeDefinition::UserFunction
+    );
+}
+
+/// Uma entrada `Exact` nunca é promovida a `Prefix`: `__env` é possuído,
+/// `__envio` não.
+#[test]
+fn nome_exato_gerado_nao_vira_prefixo() {
+    for (exato, extensao) in [("__env", "__envio"), ("__ternario", "__ternarios")] {
+        assert!(
+            native_symbol::reserved_namespace(exato, ReservedScope::AnyIdentifier).is_some(),
+            "'{exato}' é identidade gerada exata"
+        );
+        assert!(
+            native_symbol::reserved_namespace(extensao, ReservedScope::AnyIdentifier).is_none(),
+            "'{extensao}' apenas estende a grafia exata e não é forma possuída"
+        );
+        let fonte = format!(
+            "pacote main;\ncarinho {extensao}() -> bombom {{ mimo 7; }}\ncarinho principal() -> bombom {{ falar({extensao}()); mimo 0; }}\n"
+        );
+        checar(&fonte).unwrap_or_else(|erro| panic!("'{extensao}' deveria ser legal: {erro}"));
     }
 }
 
@@ -673,11 +793,19 @@ fn simbolos_de_boot_de_plataforma_sao_reservados_mas_crt_nao() {
 // Seção 6 — encoding injetivo de labels (F-04)
 // ---------------------------------------------------------------------------
 
-/// O caso histórico exato: antes da correção, `f` com laço e `f_loop` com dois
-/// `talvez` definiam `.Lf_loop_join_1` duas vezes e o GNU as recusava o
-/// programa válido.
+/// Fixture **estruturalmente equivalente** ao caso F-04: `f` com laço e
+/// `f_loop` com dois `talvez` produzem o par de identidades `("f",
+/// "loop_join_1")` e `("f_loop", "join_1")`, que a concatenação ingênua
+/// colapsava em `.Lf_loop_join_1`.
+///
+/// O fonte literal do reproducer G-05 da #496 não é recuperável a partir dos
+/// artifacts disponíveis, então este fixture NÃO é apresentado como o
+/// histórico exato — só como equivalente na propriedade que importa. A
+/// semântica observável registrada pelo artifact G-05 (`interpretador imprime
+/// 3 e 1`) é coberta separadamente por
+/// `fixture_com_semantica_do_artifact_g05_nao_colide`.
 #[test]
-fn caso_historico_f04_monta_e_executa() {
+fn fixture_estruturalmente_equivalente_a_f04_monta_e_executa() {
     const FONTE: &str = r#"
 pacote main;
 
@@ -706,27 +834,98 @@ carinho principal() -> bombom {
     mimo 0;
 }
 "#;
-    checar(FONTE).expect("programa válido");
-    let asm = common::render_backend_s_external_subset_nativo(FONTE).expect("assembly nativo");
+    verificar_fixture_f04(FONTE, "f04_equivalente", "3\n2\n");
+}
+
+/// Fixture cuja semântica observável corresponde ao artifact G-05 da #496:
+///
+/// ```text
+/// interpreter_result  = imprime 3 e 1
+/// assembler_result    = duplicate .Lf_loop_join_1
+/// ```
+///
+/// A colisão histórica é provada aqui a partir do próprio `.s` emitido, e não
+/// por afirmação: cada rótulo injetivo é decodificado de volta em seus
+/// componentes `(função, bloco)` e reescrito pela concatenação antiga
+/// `.L{fn}_{label}`. O conjunto antigo tem `.Lf_loop_join_1` duas vezes; o
+/// conjunto novo não tem duplicata alguma.
+#[test]
+fn fixture_com_semantica_do_artifact_g05_nao_colide() {
+    const FONTE: &str = r#"
+pacote main;
+
+carinho f() -> bombom {
+    nova muda i = 0;
+    sempre que i < 3 {
+        i = i + 1;
+    }
+    mimo i;
+}
+
+carinho f_loop(a: bombom) -> bombom {
+    nova muda r = 0;
+    talvez a > 1 {
+        r = 1;
+    }
+    talvez a > 2 {
+        r = 2;
+    }
+    mimo r;
+}
+
+carinho principal() -> bombom {
+    falar(f());
+    falar(f_loop(2));
+    mimo 0;
+}
+"#;
+    let asm = verificar_fixture_f04(FONTE, "f04_g05", "3\n1\n");
+
+    // O renderer antigo, reconstruído a partir das identidades recuperadas:
+    // `.Lf_loop_join_1` aparece duas vezes.
+    let antigos = rotulos_pela_concatenacao_antiga(&asm);
+    let repetidos: Vec<&String> = antigos
+        .iter()
+        .filter(|label| antigos.iter().filter(|other| other == label).count() > 1)
+        .collect();
+    assert!(
+        repetidos.contains(&&".Lf_loop_join_1".to_string()),
+        "o artifact G-05 registra `duplicate .Lf_loop_join_1`; a reconstrução do renderer antigo produziu {antigos:?}"
+    );
+}
+
+/// Checa, monta e executa uma fixture de F-04, devolvendo o assembly emitido.
+///
+/// Exige o mesmo de todas: programa aceito, nenhum rótulo pela concatenação
+/// ingênua, conjunto de rótulos injetivo, execução nativa correta e paridade
+/// com o interpretador.
+fn verificar_fixture_f04(fonte: &str, stem: &str, saida_esperada: &str) -> String {
+    checar(fonte).expect("programa válido");
+    let asm = common::render_backend_s_external_subset_nativo(fonte).expect("assembly nativo");
     assert!(
         !asm.contains(".Lf_loop_join_1"),
         "a concatenação ingênua voltou: {asm}"
     );
+    let definidos = rotulos_definidos(&asm);
     assert_eq!(
-        rotulos_definidos(&asm).len(),
-        rotulos_definidos(&asm)
-            .into_iter()
-            .collect::<BTreeSet<_>>()
-            .len(),
+        definidos.len(),
+        definidos.iter().collect::<BTreeSet<_>>().len(),
         "o conjunto de rótulos definidos precisa ser injetivo"
     );
 
-    let Some(program) = build_nativo(concat!(module_path!(), ":", line!()), "f04", FONTE) else {
-        return;
+    let (codigo_interpretado, saida_interpretada) = interpretar(stem, fonte);
+    assert_eq!(
+        (codigo_interpretado, saida_interpretada.as_str()),
+        (Some(0), saida_esperada)
+    );
+
+    let Some(program) = build_nativo(concat!(module_path!(), ":", line!()), stem, fonte) else {
+        return asm;
     };
     let (codigo, saida) = program.run("issue497-f04");
-    assert_eq!((codigo, saida.as_str()), (Some(0), "3\n2\n"));
-    assert_eq!(interpretar("f04", FONTE), (Some(0), saida));
+    assert_eq!((codigo, saida.as_str()), (Some(0), saida_esperada));
+    assert_eq!(saida, saida_interpretada);
+    asm
 }
 
 fn rotulos_definidos(asm: &str) -> Vec<String> {
@@ -734,6 +933,18 @@ fn rotulos_definidos(asm: &str) -> Vec<String> {
         .map(str::trim)
         .filter(|line| line.starts_with(".L") && line.ends_with(':'))
         .map(|line| line.trim_end_matches(':').to_string())
+        .collect()
+}
+
+/// Reescreve cada rótulo definido pela concatenação textual que o renderer
+/// usava antes da correção. A recuperabilidade do encoding injetivo é o que
+/// torna essa reconstrução possível — e é ela que prova a colisão histórica
+/// sem depender de rodar o renderer antigo.
+fn rotulos_pela_concatenacao_antiga(asm: &str) -> Vec<String> {
+    rotulos_definidos(asm)
+        .iter()
+        .filter_map(|label| native_symbol::decode_injective_local_label(label))
+        .map(|componentes| format!(".L{}", componentes.join("_")))
         .collect()
 }
 
@@ -996,6 +1207,82 @@ carinho principal() -> bombom {
     assert!(auxiliar.size > 0);
 }
 
+/// F-08 real: `sussurro` referencia um símbolo nativo **por operando**, sem
+/// transferência nominal de controle.
+///
+/// O programa move o endereço do símbolo para um registrador com `lea` e
+/// devolve o valor ao mundo Pinker por `saida`. É esse canal — e não os
+/// operandos estruturados de registrador/valor — que a #496 registrou como
+/// F-08, e é ele que a mudança para STB_LOCAL poderia ter quebrado, já que a
+/// referência precisa continuar resolvendo dentro da mesma unidade.
+fn fonte_sussurro_referencia_por_operando(simbolo: &str) -> String {
+    format!(
+        r#"
+pacote main;
+
+carinho auxiliar(n: bombom) -> bombom {{
+    mimo n + 1;
+}}
+
+carinho principal() -> bombom {{
+    nova muda endereco: bombom = 0;
+    sussurro(
+        "lea {{endereco}}, [rip + {simbolo}]";
+        saida endereco: r11 = endereco;
+        destroi(flags, memoria)
+    );
+    talvez endereco != 0 {{
+        falar(auxiliar(41));
+    }}
+    mimo 0;
+}}
+"#
+    )
+}
+
+/// Exercita um caso de F-08 de ponta a ponta: `--check`, verificação do
+/// artefato de `sussurro`, montagem, linkedição e execução nativa real.
+fn verificar_referencia_por_operando(simbolo: &str, stem: &str) {
+    let fonte = fonte_sussurro_referencia_por_operando(simbolo);
+    checar(&fonte)
+        .unwrap_or_else(|erro| panic!("referência por operando a '{simbolo}' recusada: {erro}"));
+
+    let Some(program) = build_nativo(concat!(module_path!(), ":", line!()), stem, &fonte) else {
+        return;
+    };
+    // A referência sobreviveu ao renderer: está no `.s` entregue à toolchain.
+    assert!(
+        program.assembly.contains(&format!("[rip + {simbolo}]")),
+        "a referência por operando a '{simbolo}' sumiu do assembly:\n{}",
+        program.assembly
+    );
+    let (codigo, saida) = program.run("issue497-f08");
+    assert_eq!(
+        (codigo, saida.as_str()),
+        (Some(0), "42\n"),
+        "referência por operando a '{simbolo}'"
+    );
+}
+
+/// A. entrypoint: o símbolo de plataforma continua referenciável por operando.
+#[test]
+fn f08_referencia_por_operando_ao_entrypoint() {
+    verificar_referencia_por_operando(native_symbol::ENTRYPOINT_NATIVE_SYMBOL, "f08_entrypoint");
+}
+
+/// B. função Pinker local: agora STB_LOCAL, continua referenciável dentro da
+/// mesma unidade de link.
+#[test]
+fn f08_referencia_por_operando_a_funcao_pinker_local() {
+    verificar_referencia_por_operando("auxiliar", "f08_funcao_local");
+}
+
+/// C. runtime: símbolo `pinker_*` resolvido a partir de `libpinker_rt.a`.
+#[test]
+fn f08_referencia_por_operando_a_simbolo_do_runtime() {
+    verificar_referencia_por_operando("pinker_rt_iniciar", "f08_runtime");
+}
+
 // ---------------------------------------------------------------------------
 // Seção 10 — sensitivity contra as mutações óbvias
 // ---------------------------------------------------------------------------
@@ -1095,12 +1382,152 @@ carinho principal() -> bombom {
         "o executável do mesmo programa precisa ser byte-idêntico"
     );
 
-    // O objeto intermediário é do build, não do produto.
+    // O objeto intermediário é do build, não do produto: nunca ocupou o
+    // pathname `<out_dir>/<stem>.o`, e o diretório privado onde vive não
+    // sobrevive ao build.
     let objeto = primeiro.executable.with_extension("o");
     assert!(
         !objeto.exists(),
-        "o objeto intermediário não deve sobreviver ao build: {}",
+        "o objeto intermediário não deve ocupar pathname do usuário: {}",
         objeto.display()
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Seção 11 — o intermediário do build não é pathname do usuário
+// ---------------------------------------------------------------------------
+
+/// Bytes-sentinela de um arquivo do usuário que o build não pode tocar.
+const SENTINELA: &[u8] = b"SENTINELA-DO-USUARIO-NAO-TOCAR\n";
+
+/// Executa `pink build --nativo` num diretório em que `<stem>.o` já existe
+/// como arquivo do usuário, opcionalmente com um driver C que recusa a
+/// montagem. Devolve o sucesso do build e os bytes que sobraram no sentinela.
+fn build_com_sentinela(
+    test: &str,
+    stem: &str,
+    fonte: &str,
+    driver_que_recusa: bool,
+) -> Option<(bool, Option<Vec<u8>>)> {
+    let (_driver, Some(runtime_lib)) = common::require_native_evidence(test, true)? else {
+        return None;
+    };
+    let artifacts = NativeArtifactDir::create().expect("diretório marcado");
+    let dir = artifacts.path();
+    let source_path = dir.join(format!("{stem}.pink"));
+    fs::write(&source_path, fonte).expect("gravar fonte temporária");
+
+    // O arquivo preexistente do usuário, exatamente no pathname que a
+    // montagem em dois passos derivaria do `.s`.
+    let sentinela = dir.join(format!("{stem}.o"));
+    fs::write(&sentinela, SENTINELA).expect("gravar sentinela");
+
+    let mut build = Command::new(env!("CARGO_BIN_EXE_pink"));
+    build
+        .args(["build", "--nativo", "--out-dir"])
+        .arg(dir)
+        .arg(&source_path)
+        .env("PINKER_RT_LIB", &runtime_lib)
+        .logical_case("issue497-sentinela")
+        .timeout(Duration::from_secs(120));
+
+    if driver_que_recusa {
+        // Falha controlada: um `cc` que responde `--version` para ser
+        // detectado e recusa qualquer outra invocação. O build morre depois
+        // de gravar o `.s`, no passo de montagem.
+        let stub_dir = dir.join("driver-que-recusa");
+        fs::create_dir_all(&stub_dir).expect("diretório do driver");
+        let stub = stub_dir.join("cc");
+        fs::write(
+            &stub,
+            "#!/bin/sh\nfor a in \"$@\"; do\n  if [ \"$a\" = \"--version\" ]; then echo 'stub cc 0'; exit 0; fi\ndone\necho 'stub cc: recusa deliberada' >&2\nexit 1\n",
+        )
+        .expect("gravar driver que recusa");
+        let mut permissoes = fs::metadata(&stub).expect("metadata do stub").permissions();
+        std::os::unix::fs::PermissionsExt::set_mode(&mut permissoes, 0o755);
+        fs::set_permissions(&stub, permissoes).expect("driver executável");
+        build.env("PATH", &stub_dir);
+    }
+
+    let output = build.output().expect("build contido");
+    let restante = fs::read(&sentinela).ok();
+    Some((output.status.success(), restante))
+}
+
+const FONTE_SENTINELA: &str = r#"
+pacote main;
+
+carinho auxiliar(n: bombom) -> bombom {
+    mimo n + 1;
+}
+
+carinho principal() -> bombom {
+    falar(auxiliar(41));
+    mimo 0;
+}
+"#;
+
+/// Um `<out_dir>/<stem>.o` preexistente do usuário não é scratch space do
+/// build: o build completa e o arquivo continua lá, byte-idêntico.
+#[test]
+fn objeto_preexistente_do_usuario_sobrevive_ao_build() {
+    let Some((sucesso, restante)) = build_com_sentinela(
+        concat!(module_path!(), ":", line!()),
+        "sentinela",
+        FONTE_SENTINELA,
+        false,
+    ) else {
+        return;
+    };
+    assert!(sucesso, "o build precisa completar mesmo com `<stem>.o` lá");
+    assert_eq!(
+        restante.as_deref(),
+        Some(SENTINELA),
+        "o arquivo preexistente do usuário foi sobrescrito ou apagado"
+    );
+}
+
+/// Mesma propriedade no desfecho de erro: com o assembler recusando, o
+/// cleanup do build também não toca no arquivo preexistente.
+#[test]
+fn objeto_preexistente_sobrevive_a_falha_do_assembler() {
+    let Some((sucesso, restante)) = build_com_sentinela(
+        concat!(module_path!(), ":", line!()),
+        "sentinela_falha",
+        FONTE_SENTINELA,
+        true,
+    ) else {
+        return;
+    };
+    assert!(!sucesso, "o driver que recusa precisa reprovar o build");
+    assert_eq!(
+        restante.as_deref(),
+        Some(SENTINELA),
+        "o cleanup de erro apagou arquivo que a execução não criou"
+    );
+}
+
+/// O diretório intermediário é possuído pela execução e não sobrevive a
+/// nenhum desfecho.
+#[test]
+fn nenhum_diretorio_intermediario_sobrevive_ao_build() {
+    let Some(program) = build_nativo(
+        concat!(module_path!(), ":", line!()),
+        "intermediario",
+        FONTE_SENTINELA,
+    ) else {
+        return;
+    };
+    let dir = program.executable.parent().expect("out_dir");
+    let restos: Vec<String> = fs::read_dir(dir)
+        .expect("out_dir legível")
+        .filter_map(Result::ok)
+        .map(|entry| entry.file_name().to_string_lossy().to_string())
+        .filter(|nome| nome.starts_with(".pinker-"))
+        .collect();
+    assert!(
+        restos.is_empty(),
+        "diretórios intermediários sobreviveram: {restos:?}"
     );
 }
 
