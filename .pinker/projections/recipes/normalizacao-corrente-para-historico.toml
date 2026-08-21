@@ -2,8 +2,8 @@ schema = 2
 id = "normalizacao-corrente-para-historico"
 
 [reconstruction]
-expected_overrides = 74
-expected_exclusions = 96
+expected_overrides = 97
+expected_exclusions = 103
 
 [[rules]]
 op = "exclude-key"
@@ -157,6 +157,11 @@ expected_matches = 1
 
 [[rules]]
 op = "exclude-key"
+key = "evidencia.nativo.simbolo"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
 key = "evidencia.processos.ambiente-overlay"
 expected_matches = 1
 
@@ -257,6 +262,31 @@ expected_matches = 1
 
 [[rules]]
 op = "exclude-key"
+key = "nativo.simbolo.conjunto-emitido"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "nativo.simbolo.entrypoint"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "nativo.simbolo.ligacao"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "nativo.simbolo.namespace-reservado"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "nativo.simbolo.rotulo-injetivo"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
 key = "parser.genericos.inferencia-local"
 expected_matches = 1
 
@@ -328,6 +358,11 @@ expected_matches = 1
 [[rules]]
 op = "exclude-key"
 key = "runtime.sha256.superficies"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "semantic.identificadores.namespace-produtor-de-simbolo"
 expected_matches = 1
 
 [[rules]]
@@ -550,6 +585,28 @@ expect_layer = "ast"
 
 [[rules]]
 op = "override-region"
+key = "backend-s.abi.blocos-terminadores"
+from_hash = "fnv1a64:a7ee013b619ddd48"
+to_hash = "fnv1a64:48d71c0490589bff"
+from_summary = "Emissão de blocos e terminadores do renderer montável: rótulos locais injetivos de `native_symbol::injective_local_label` (`.Lp<len>_<fn><len>_<bloco>`, prefixados por comprimento e portanto recuperáveis), corpo já textualizado linha a linha, e cada terminador — `Jmp` → `jmp`; `Br` carrega a condição (`load_operand` com `.expect`), `cmpq $0,%rax` + `jne`/`jmp`; `Ret` carrega o valor (`.expect`), `leave` e `ret`. Fecha a função com `.size`, exceto quando ela carrega envelope de `sussurro` — declarar o tamanho ali tornaria falso o invariante de artefato de D4, que compara o objeto real contra a baseline sem os envelopes. No fim, verifica o conjunto emitido: duas identidades distintas no mesmo símbolo viram diagnóstico Pinker determinístico em vez de erro cru do GNU as. Os `.expect` dependem de invariantes garantidas antes, no lowering (condição/retorno carregáveis)."
+to_summary = "Emissão de blocos e terminadores do renderer montável: `jmp .L<fn>_entry`, rótulos `.L<fn>_<label>:`, corpo já textualizado linha a linha, e cada terminador — `Jmp` → `jmp`; `Br` carrega a condição (`load_operand` com `.expect`), `cmpq $0,%rax` + `jne`/`jmp`; `Ret` carrega o valor (`.expect`), `leave` e `ret`. Fecha a função e devolve o `.s`. Os `.expect` dependem de invariantes garantidas antes, no lowering (condição/retorno carregáveis)."
+expect_file = "src/backend_s.rs"
+expect_domain = "abi"
+expect_layer = "backend-s"
+
+[[rules]]
+op = "override-region"
+key = "backend-s.abi.prologo-parametros"
+from_hash = "fnv1a64:854fcff9195bce72"
+to_hash = "fnv1a64:5f4279cdbbc69fc2"
+from_summary = "Prólogo e passagem de parâmetros do renderer montável: pede o símbolo e a ligação à autoridade única `native_symbol` (`principal` produz `main`, GLOBAL; toda outra definição é `.local`), emite a diretiva de ligação e `.type @function`, depois `pushq %rbp`/`movq %rsp,%rbp`, insere a chamada a `pinker_rt_iniciar` quando `runtime_init` e a identidade é a do entrypoint (pilha alinhada a 16 após o push), reserva o frame (`subq $stack_size,%rsp`), armazena os 6 primeiros parâmetros de `ARG_REGS` nos slots e carrega o 7º+ a partir de `16(%rbp)`. A única diferença observável entre os dois caminhos externos é essa chamada de runtime."
+to_summary = "Prólogo e passagem de parâmetros do renderer montável: mapeia `principal` para o símbolo `main`, emite `pushq %rbp`/`movq %rsp,%rbp`, insere a chamada a `pinker_rt_iniciar` quando `runtime_init` e o símbolo é `main` (pilha alinhada a 16 após o push), reserva o frame (`subq $stack_size,%rsp`), armazena os 6 primeiros parâmetros de `ARG_REGS` nos slots e carrega o 7º+ a partir de `16(%rbp)`. A única diferença observável entre os dois caminhos externos é essa chamada de runtime."
+expect_file = "src/backend_s.rs"
+expect_domain = "abi"
+expect_layer = "backend-s"
+
+[[rules]]
+op = "override-region"
 key = "backend-s.lowering.chamadas-sysv"
 from_hash = "fnv1a64:02720fd7a19167d7"
 to_hash = "fnv1a64:9bcbd95ce8c3a26f"
@@ -557,6 +614,89 @@ from_summary = "Lowering de chamadas no corpo do bloco (ABI SysV): `Call` com de
 to_summary = "Lowering de chamadas no corpo do bloco (ABI SysV): `Call` com destino trata `__ternario` de braços trivialmente puros como seleção por `cmpq`+`cmoveq`; ternários com efeitos já chegam como ramos CFG lazy. Demais chamadas resolvem intrínsecas por aridade (`runtime_intrinsic_symbol_por_aridade`) e por nome (`runtime_intrinsic_symbol`) ou chamam função Pinker por símbolo direto, passam os 6 primeiros argumentos em `ARG_REGS`, empilham o 7º+ do último ao primeiro com padding de alinhamento e limpam a pilha após o `call`, guardando `%rax` no slot de destino. Símbolo desconhecido é recusado."
 expect_file = "src/backend_s.rs"
 expect_domain = "lowering"
+expect_layer = "backend-s"
+
+[[rules]]
+op = "override-region"
+key = "backend-s.lowering.funcoes-frames"
+from_hash = "fnv1a64:fed3101e88b14de8"
+to_hash = "fnv1a64:4ee82be358d7923e"
+expect_file = "src/backend_s.rs"
+expect_domain = "lowering"
+expect_layer = "backend-s"
+
+[[rules]]
+op = "override-region"
+key = "backend-s.lowering.globais-rodata"
+from_hash = "fnv1a64:493031228b8f0897"
+to_hash = "fnv1a64:bfb8b321d0801139"
+expect_file = "src/backend_s.rs"
+expect_domain = "lowering"
+expect_layer = "backend-s"
+
+[[rules]]
+op = "override-region"
+key = "backend-s.lowering.operacoes-lineares"
+from_hash = "fnv1a64:36600d6d3d3199bf"
+to_hash = "fnv1a64:dba3b311c745eabc"
+expect_file = "src/backend_s.rs"
+expect_domain = "lowering"
+expect_layer = "backend-s"
+
+[[rules]]
+op = "override-region"
+key = "backend-s.lowering.operandos-slots"
+from_hash = "fnv1a64:b8caa2000247bd9b"
+to_hash = "fnv1a64:ee789296c5a523c6"
+expect_file = "src/backend_s.rs"
+expect_domain = "lowering"
+expect_layer = "backend-s"
+
+[[rules]]
+op = "override-region"
+key = "backend-s.pipeline.nativo-runtime"
+from_hash = "fnv1a64:fff0fd1d3989760d"
+to_hash = "fnv1a64:41e695d461719cb8"
+expect_file = "src/backend_s.rs"
+expect_domain = "pipeline"
+expect_layer = "backend-s"
+
+[[rules]]
+op = "override-region"
+key = "backend-s.pipeline.toolchain-externa"
+from_hash = "fnv1a64:7cf7ca033e488ae8"
+to_hash = "fnv1a64:129d271bb9be53db"
+expect_file = "src/backend_s.rs"
+expect_domain = "pipeline"
+expect_layer = "backend-s"
+
+[[rules]]
+op = "override-region"
+key = "backend-s.renderizacao.abi-textual-instrucoes"
+from_hash = "fnv1a64:c921dfcc68e8dd38"
+to_hash = "fnv1a64:36f812f92d5cc74c"
+expect_file = "src/backend_s.rs"
+expect_domain = "renderizacao"
+expect_layer = "backend-s"
+
+[[rules]]
+op = "override-region"
+key = "backend-s.renderizacao.abi-textual-programa"
+from_hash = "fnv1a64:e7a6aa7b7cdd1011"
+to_hash = "fnv1a64:12c03f5d9127cecb"
+expect_file = "src/backend_s.rs"
+expect_domain = "renderizacao"
+expect_layer = "backend-s"
+
+[[rules]]
+op = "override-region"
+key = "backend-s.renderizacao.callconv-programa"
+from_hash = "fnv1a64:a4260bfb85b1e08a"
+to_hash = "fnv1a64:92859a1f1782e0b4"
+from_summary = "`render_external_x86_64_linux_callconv_impl` (início): cabeçalho comentado e emissão da seção `.rodata` — globais (ligação decidida por `native_symbol`, hoje `.local`, mais `.type @object`/label/`.quad valor`/`.size`) e strings com layout length-prefixed `[.quad tamanho][.ascii bytes]` (via `escape_gas_string`), seguida da diretiva `.text`. O parâmetro `runtime_init` distingue o caminho nativo do hospedado. Renderer do modelo `ExternalCallConvProgram`, separado do renderer `.s` textual baseado em `BackendTextProgram`."
+to_summary = "`render_external_x86_64_linux_callconv_impl` (início): cabeçalho comentado e emissão da seção `.rodata` — globais (`.globl`/label/`.quad valor`) e strings com layout length-prefixed `[.quad tamanho][.ascii bytes]` (via `escape_gas_string`), seguida da diretiva `.text`. O parâmetro `runtime_init` distingue o caminho nativo do hospedado. Renderer do modelo `ExternalCallConvProgram`, separado do renderer `.s` textual baseado em `BackendTextProgram`."
+expect_file = "src/backend_s.rs"
+expect_domain = "renderizacao"
 expect_layer = "backend-s"
 
 [[rules]]
@@ -578,6 +718,28 @@ to_hash = "fnv1a64:e57b8a35f588a616"
 expect_file = "src/backend_s.rs"
 expect_domain = "runtime"
 expect_layer = "backend-s"
+
+[[rules]]
+op = "override-region"
+key = "backend-s.validacao.labels-tipos"
+from_hash = "fnv1a64:0339cffa0080d12c"
+to_hash = "fnv1a64:0339cffa0080d12c"
+from_summary = "Validação de rótulos e predicados de tipo do caminho montável: `validate_external_block_labels` (recusa bloco sem label, label duplicado, exige bloco `entry`, valida alvos de `jmp`/`br` e a condição de `br`) e os predicados `is_supported_type`, `is_external_deref_load_type`/`_store_type`, `is_external_param_type`/`_local_type`/`_ret_type` e `is_external_call_ret_type` (retornos de função mais `nulo` para intrínsecas de efeito). Nomes de função/global são usados diretamente como símbolos, sem sanitização nesta camada; quem decide símbolo e ligação é `native_symbol`."
+to_summary = "Validação de rótulos e predicados de tipo do caminho montável: `validate_external_block_labels` (recusa bloco sem label, label duplicado, exige bloco `entry`, valida alvos de `jmp`/`br` e a condição de `br`) e os predicados `is_supported_type`, `is_external_deref_load_type`/`_store_type`, `is_external_param_type`/`_local_type`/`_ret_type` e `is_external_call_ret_type` (retornos de função mais `nulo` para intrínsecas de efeito). Nomes de função/global são usados diretamente como símbolos, sem sanitização nesta camada."
+expect_file = "src/backend_s.rs"
+expect_domain = "validacao"
+expect_layer = "backend-s"
+
+[[rules]]
+op = "override-region"
+key = "boot.geracao.fronteira-freestanding"
+from_hash = "fnv1a64:97a3b6e375d8e402"
+to_hash = "fnv1a64:107e39c1d2e9bef4"
+from_summary = "FREESTANDING_BOOT_ENTRY_FUNCTION (\"principal\") e FREESTANDING_BOOT_ENTRY_SYMBOL (\"_start\") são constantes textuais derivadas da autoridade única `native_symbol` (não literais próprios); freestanding_linker_script retorna a string literal de um script de linker GNU ld com `. = 1M;` e as seções .text/.rodata/.data/.bss; freestanding_kernel_stub monta via format! uma string de duas instruções (`call principal` seguido de um rótulo `.Lpinker_hang` com `jmp` para si mesmo, um laço infinito). As duas funções e as duas constantes só produzem strings/constantes de fronteira — nenhuma delas executa, aloca, linka, monta ou inicializa hardware/stack/Multiboot/UEFI; `1M` e `principal` aqui são apenas texto embutido no output, não valores calculados ou verificados contra o restante do pipeline."
+to_summary = "FREESTANDING_BOOT_ENTRY_FUNCTION (\"principal\") e FREESTANDING_BOOT_ENTRY_SYMBOL (\"_start\") são constantes textuais; freestanding_linker_script retorna a string literal de um script de linker GNU ld com `. = 1M;` e as seções .text/.rodata/.data/.bss; freestanding_kernel_stub monta via format! uma string de duas instruções (`call principal` seguido de um rótulo `.Lpinker_hang` com `jmp` para si mesmo, um laço infinito). As duas funções e as duas constantes só produzem strings/constantes de fronteira — nenhuma delas executa, aloca, linka, monta ou inicializa hardware/stack/Multiboot/UEFI; `1M` e `principal` aqui são apenas texto embutido no output, não valores calculados ou verificados contra o restante do pipeline."
+expect_file = "src/boot.rs"
+expect_domain = "geracao"
+expect_layer = "boot"
 
 [[rules]]
 op = "override-region"
@@ -631,9 +793,9 @@ expect_layer = "cli"
 [[rules]]
 op = "override-region"
 key = "cli.build.nativo"
-from_hash = "fnv1a64:25513ad3a40189b6"
+from_hash = "fnv1a64:47904d178e7c76e1"
 to_hash = "fnv1a64:091813dd853692c4"
-from_summary = "run_build repete o front-end (lex/parse/imports/semântica/IR/CFG/seleção) e grava o `.s` resultante em <out_dir>/<stem>.s via fs::write; com --nativo, emite via emit_external_toolchain_subset_nativo e, após gravar, chama link_nativo. locate_pinker_rt_lib localiza (não constrói) a staticlib libpinker_rt.a pré-buildada: usa a env PINKER_RT_LIB se apontar para um arquivo existente, senão procura ao lado do executável atual via std::env::current_exe; retorna Err com uma mensagem sugerindo `cargo build` se não encontrar. detect_cc_driver detecta um driver C disponível testando `cc --version`/`gcc --version`/`clang --version` via std::process::Command e retorna o primeiro que responder com status de sucesso. link_nativo invoca esse driver externo passando o `.s`, a staticlib localizada e -lpthread/-ldl/-lm para produzir o binário via -o; a montagem e a linkedição são feitas pelo driver externo, não por este arquivo. Antes de linkar, link_nativo chama verificar_artefato_sussurro, que relê o `.s` gravado e delega a inline_asm::verify_native_artifact — o invariante de artefato roda no caminho produtivo, não só em fixture de teste: monta o assembly emitido e a baseline derivada sem os envelopes num diretório intermediário `.pinker-sussurro-verificacao` sob o out_dir, compara as superfícies dos dois objetos e aborta o build com E-BACKEND-ASM-ARTIFACT diante de qualquer delta de seção ou de símbolo definido; o diretório intermediário é removido em qualquer desfecho e a verificação só imprime linha de confirmação quando existe ao menos um envelope."
+from_summary = "run_build repete o front-end (lex/parse/imports/semântica/IR/CFG/seleção) e grava o `.s` resultante em <out_dir>/<stem>.s via fs::write; com --nativo, emite via emit_external_toolchain_subset_nativo e, após gravar, chama link_nativo. locate_pinker_rt_lib localiza (não constrói) a staticlib libpinker_rt.a pré-buildada: usa a env PINKER_RT_LIB se apontar para um arquivo existente, senão procura ao lado do executável atual via std::env::current_exe; retorna Err com uma mensagem sugerindo `cargo build` se não encontrar. detect_cc_driver detecta um driver C disponível testando `cc --version`/`gcc --version`/`clang --version` via std::process::Command e retorna o primeiro que responder com status de sucesso. link_nativo invoca esse driver externo em dois passos: primeiro `-c` sobre o `.s` para um objeto cujo basename deriva do próprio `.s` mas que vive dentro de um DiretorioIntermediario possuído pela execução, depois a linkedição desse objeto com a staticlib localizada e -lpthread/-ldl/-lm para produzir o binário via -o. A montagem e a linkedição continuam sendo feitas pelo driver externo, não por este arquivo; o que este arquivo controla é o basename do objeto, porque entregar o `.s` direto ao driver deixaria o intermediário com nome temporário aleatório e o linker o registraria como símbolo `STT_FILE` do executável, quebrando o determinismo byte a byte entre dois builds da mesma fonte. O diretório do objeto não atravessa a linkedição, então o intermediário nunca ocupa `<out_dir>/<stem>.o`: arquivo preexistente do usuário com esse nome não é sobrescrito nem apagado, em nenhum desfecho. Antes de linkar, link_nativo chama verificar_artefato_sussurro, que relê o `.s` gravado e delega a inline_asm::verify_native_artifact — o invariante de artefato roda no caminho produtivo, não só em fixture de teste: monta o assembly emitido e a baseline derivada sem os envelopes noutro DiretorioIntermediario sob o out_dir, compara as superfícies dos dois objetos e aborta o build com E-BACKEND-ASM-ARTIFACT diante de qualquer delta de seção ou de símbolo definido; os dois diretórios intermediários são removidos em qualquer desfecho pelo próprio Drop e a verificação só imprime linha de confirmação quando existe ao menos um envelope. DiretorioIntermediario é esse espaço de scratch: `criar` monta `<out_dir>/.pinker-<propósito>-<pid>[-<n>]` com fs::create_dir, que falha com AlreadyExists em vez de adotar diretório preexistente — a posse fica provada, não presumida —, e Drop remove recursivamente só o que essa criação exclusiva produziu, de modo que nenhum desfecho (sucesso, recusa do assembler, recusa do linker, erro de I/O) apaga arquivo que a execução não criou."
 to_summary = "run_build repete o front-end (lex/parse/imports/semântica/IR/CFG/seleção) e grava o `.s` resultante em <out_dir>/<stem>.s via fs::write; com --nativo, emite via emit_external_toolchain_subset_nativo e, após gravar, chama link_nativo. locate_pinker_rt_lib localiza (não constrói) a staticlib libpinker_rt.a pré-buildada: usa a env PINKER_RT_LIB se apontar para um arquivo existente, senão procura ao lado do executável atual via std::env::current_exe; retorna Err com uma mensagem sugerindo `cargo build` se não encontrar. detect_cc_driver detecta um driver C disponível testando `cc --version`/`gcc --version`/`clang --version` via std::process::Command e retorna o primeiro que responder com status de sucesso. link_nativo invoca esse driver externo passando o `.s`, a staticlib localizada e -lpthread/-ldl/-lm para produzir o binário via -o; a montagem e a linkedição são feitas pelo driver externo, não por este arquivo. Antes de linkar, link_nativo chama verificar_artefato_sussurro, que relê o `.s` gravado e delega a inline_asm::verify_native_artifact — o invariante de artefato roda no caminho produtivo, não só em fixture de teste: monta o assembly emitido e a baseline derivada sem os envelopes num diretório intermediário `.pinker-sussurro-verificacao` sob o out_dir, compara as superfícies dos dois objetos e aborta o build com E-BACKEND-ASM-ARTIFACT diante de qualquer delta de seção ou de símbolo definido; o diretório intermediário é removido em qualquer desfecho e a verificação só imprime linha de confirmação quando existe ao menos um envelope."
 expect_file = "src/main.rs"
 expect_domain = "build"
@@ -757,6 +919,89 @@ to_summary = "Ciclo iniciar/executar/verificar/status/relatorio: snapshots Git, 
 expect_file = "src/agent.rs"
 expect_domain = "development"
 expect_layer = "agent"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.backend-s-externo.execucao-real-abi-frame-interprocedural"
+from_hash = "fnv1a64:fa06b7a98f4f9f56"
+to_hash = "fnv1a64:7936c70a45a1b19f"
+expect_file = "tests/backend_s_external_toolchain_tests.rs"
+expect_domain = "backend-s"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.backend-s-externo.execucao-real-recortes-versionados"
+from_hash = "fnv1a64:1babe834ec6966eb"
+to_hash = "fnv1a64:3f65bf07145379db"
+expect_file = "tests/backend_s_external_toolchain_tests.rs"
+expect_domain = "backend-s"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.backend-s-externo.fronteira-ninho-heterogeneo"
+from_hash = "fnv1a64:c958865c82989418"
+to_hash = "fnv1a64:93ed6ab19a2f9f60"
+expect_file = "tests/backend_s_external_toolchain_tests.rs"
+expect_domain = "backend-s"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.backend-s-externo.fronteira-subset-textual"
+from_hash = "fnv1a64:3ceeab077cb80371"
+to_hash = "fnv1a64:1a5ff550e4878e3f"
+expect_file = "tests/backend_s_external_toolchain_tests.rs"
+expect_domain = "backend-s"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.backend-s-externo.renderizacao-quebrar-continuar"
+from_hash = "fnv1a64:a4c502fd17954b59"
+to_hash = "fnv1a64:cce30fce756c25ef"
+expect_file = "tests/backend_s_external_toolchain_tests.rs"
+expect_domain = "backend-s"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.backend-s-externo.renderizacao-recortes-versionados"
+from_hash = "fnv1a64:bdc00636a82b7929"
+to_hash = "fnv1a64:a69aeb49ccfa844c"
+from_summary = "Fornece fonte inline ou exemplos versionados (fase111–125) ao helper render_backend_s_external_subset, que executa parse, semântica, IR, CFG e seleção em memória e emite assembly via emit_external_toolchain_subset; valida por contains o cabeçalho do subset, `.globl main` para o entrypoint e `.local <nome>` para toda definição não-entrypoint, rótulos locais injetivos `.Lp<len>_<fn><len>_<bloco>`, `jmp`/`cmpq`/`jne`/`setb`, seção `.rodata`, movimentos de argumento e instruções de deref. Nenhum processo externo é criado: não monta, não linka e não executa; a evidência é sobre o texto emitido, não sobre a corretude do código de máquina."
+to_summary = "Fornece fonte inline ou exemplos versionados (fase111–125) ao helper render_backend_s_external_subset, que executa parse, semântica, IR, CFG e seleção em memória e emite assembly via emit_external_toolchain_subset; valida por contains o cabeçalho do subset, `.globl main`, rótulos `.L<fn>_*`, `jmp`/`cmpq`/`jne`/`setb`, seção `.rodata`, movimentos de argumento e instruções de deref. Nenhum processo externo é criado: não monta, não linka e não executa; a evidência é sobre o texto emitido, não sobre a corretude do código de máquina."
+expect_file = "tests/backend_s_external_toolchain_tests.rs"
+expect_domain = "backend-s"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.backend-s.apresentacao-cli-asm-s"
+from_hash = "fnv1a64:0e716a2aa5547d85"
+to_hash = "fnv1a64:381ef8eaedc48070"
+expect_file = "tests/backend_s_tests.rs"
+expect_domain = "backend-s"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.backend-s.build-cli-artefato-textual"
+from_hash = "fnv1a64:b35a144df96d8216"
+to_hash = "fnv1a64:a593d0af72297092"
+expect_file = "tests/interpreter_tests.rs"
+expect_domain = "backend-s"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.backend-s.renderizacao-fluxo-e-abi-textual"
+from_hash = "fnv1a64:a368abab19dab90c"
+to_hash = "fnv1a64:2ee58ac88e4484cd"
+expect_file = "tests/backend_s_tests.rs"
+expect_domain = "backend-s"
+expect_layer = "evidencia"
 
 [[rules]]
 op = "override-region"
@@ -902,6 +1147,17 @@ to_hash = "fnv1a64:5f08cdd8f098b577"
 expect_file = "src/enum_payload.rs"
 expect_domain = "leques"
 expect_layer = "semantica"
+
+[[rules]]
+op = "override-region"
+key = "lexer.identificadores.namespace-reservado"
+from_hash = "fnv1a64:b237098c9265994d"
+to_hash = "fnv1a64:63e8eb1e03e131f5"
+from_summary = "Fronteira única de identificadores originados da fonte: os namespaces de escopo `AnyIdentifier` da autoridade `native_symbol` — as dezenove formas que o compilador de fato materializa (`__pinker_internal_`, `__anon_carinho_`, `__impl_`, `__gen_`, `__gen_leque_`, `__fnref_env_`, os slots de iteração, os alvos de `tentar`/propagação, `__env`, `__ternario`, ...) — são recusados com `E-SEMANTIC-RESERVED-NAMESPACE` em toda posição de identificador: declaração de função, variável, parâmetro, constante, apelido, ninho, leque, trato, método e campo, e também qualquer referência. A reserva é da forma possuída, não do superprefixo `__` comum a elas, então `__usuario` continua identificador Pinker legal. Por estar no ponto em que o texto da fonte se torna `TokenKind::Ident`, nenhum consumidor a jusante pode observar um identificador reservado; identificadores sintéticos construídos diretamente pelo compilador não são lexados e portanto não passam por esta fronteira. A lista não é duplicada aqui: a tabela canônica é `native_symbol::PINKER_OWNED_NAMESPACES`."
+to_summary = "Fronteira única de identificadores originados da fonte: o prefixo `__pinker_internal_` é reservado ao compilador e recusado com `E-SEMANTIC-RESERVED-NAMESPACE` em toda posição de identificador — declaração de função, variável, parâmetro, constante, apelido, ninho, leque, trato, método e campo, e também qualquer referência. Por estar no ponto em que o texto da fonte se torna `TokenKind::Ident`, nenhum consumidor a jusante pode observar um identificador reservado; identificadores sintéticos construídos diretamente pelo compilador não são lexados e portanto não passam por esta fronteira."
+expect_file = "src/lexer.rs"
+expect_domain = "identificadores"
+expect_layer = "lexer"
 
 [[rules]]
 op = "override-region"
@@ -1186,7 +1442,7 @@ expect_layer = "semantic"
 [[rules]]
 op = "override-region"
 key = "semantic.programa.duas-passagens"
-from_hash = "fnv1a64:ba75078e4ac9157e"
+from_hash = "fnv1a64:87747cdbbb2cb3e4"
 to_hash = "fnv1a64:ed421619927ac329"
 expect_file = "src/semantic.rs"
 expect_domain = "programa"

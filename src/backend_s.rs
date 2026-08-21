@@ -8,6 +8,7 @@ use crate::cfg_ir::OperandIR;
 use crate::error::PinkerError;
 use crate::instr_select::{SelectedInstr, SelectedProgram, SelectedTerminator};
 use crate::ir::{BinaryOpIR, TypeIR, UnaryOpIR};
+use crate::native_symbol::{self, EmittedDefinitions, NativeDefinition, NativeSurface};
 use crate::token::{Position, Span};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::fmt::Write as _;
@@ -46,7 +47,7 @@ pub fn emit_from_selected(selected: &SelectedProgram) -> Result<String, PinkerEr
 /// via driver C (`cc`/`gcc`/`clang`) sem runtime próprio.
 pub fn emit_external_toolchain_subset(selected: &SelectedProgram) -> Result<String, PinkerError> {
     let program = extract_external_callconv_program(selected, false)?;
-    Ok(render_external_x86_64_linux_callconv_impl(&program, false))
+    render_external_x86_64_linux_callconv_impl(&program, false)
 }
 // @pinker-nav:end backend-s.pipeline.toolchain-externa
 
@@ -62,7 +63,7 @@ pub fn emit_external_toolchain_subset_nativo(
     selected: &SelectedProgram,
 ) -> Result<String, PinkerError> {
     let program = extract_external_callconv_program(selected, true)?;
-    Ok(render_external_x86_64_linux_callconv_impl(&program, true))
+    render_external_x86_64_linux_callconv_impl(&program, true)
 }
 // @pinker-nav:end backend-s.pipeline.nativo-runtime
 
@@ -222,7 +223,10 @@ fn extract_external_callconv_program(
         });
     }
 
-    let has_main = selected.functions.iter().any(|f| f.name == "principal");
+    let has_main = selected
+        .functions
+        .iter()
+        .any(|f| native_symbol::is_entrypoint(&f.name));
     if !has_main {
         return Err(err(
             "subset externo montável (Fase 84) exige função `principal`",
@@ -245,7 +249,7 @@ fn extract_external_callconv_program(
                 "subset externo montável (Fase 215) aceita retorno `bombom`, `verso` ou `logica` em funções",
             ));
         }
-        if function.name == "principal" && !function.params.is_empty() {
+        if native_symbol::is_entrypoint(&function.name) && !function.params.is_empty() {
             return Err(err(
                 "subset externo montável (Fase 84) exige `principal()` sem parâmetros",
             ));
@@ -1857,12 +1861,16 @@ fn collect_function_refs_in_function(
 // @pinker-nav:start backend-s.renderizacao.callconv-programa
 // @pinker-nav:domain renderizacao
 // @pinker-nav:layer backend-s
-// @pinker-nav:summary `render_external_x86_64_linux_callconv_impl` (início): cabeçalho comentado e emissão da seção `.rodata` — globais (`.globl`/label/`.quad valor`) e strings com layout length-prefixed `[.quad tamanho][.ascii bytes]` (via `escape_gas_string`), seguida da diretiva `.text`. O parâmetro `runtime_init` distingue o caminho nativo do hospedado. Renderer do modelo `ExternalCallConvProgram`, separado do renderer `.s` textual baseado em `BackendTextProgram`.
+// @pinker-nav:summary `render_external_x86_64_linux_callconv_impl` (início): cabeçalho comentado e emissão da seção `.rodata` — globais (ligação decidida por `native_symbol`, hoje `.local`, mais `.type @object`/label/`.quad valor`/`.size`) e strings com layout length-prefixed `[.quad tamanho][.ascii bytes]` (via `escape_gas_string`), seguida da diretiva `.text`. O parâmetro `runtime_init` distingue o caminho nativo do hospedado. Renderer do modelo `ExternalCallConvProgram`, separado do renderer `.s` textual baseado em `BackendTextProgram`.
 fn render_external_x86_64_linux_callconv_impl(
     program: &ExternalCallConvProgram,
     runtime_init: bool,
-) -> String {
+) -> Result<String, PinkerError> {
     let mut out = String::new();
+    // R2: o conjunto que este renderer vai emitir é verificado por ele mesmo,
+    // antes de o `.s` chegar ao assembler. Colisão conhecível pelo compilador
+    // vira diagnóstico Pinker, não `Error: symbol already defined` do GNU as.
+    let mut definitions = EmittedDefinitions::new();
     line(
         &mut out,
         0,
@@ -1875,14 +1883,25 @@ fn render_external_x86_64_linux_callconv_impl(
     {
         line(&mut out, 0, ".section .rodata");
         for global in &program.rodata_globals {
-            line(&mut out, 0, &format!(".globl {}", global.name));
+            // F-14: dado global Pinker também captura símbolo do host quando
+            // é GLOBAL. `eterno` não atravessa a unidade de link.
+            let binding = native_symbol::native_binding(NativeDefinition::UserGlobal);
+            definitions.define(&global.name, &format!("eterno {}", global.name));
+            line(&mut out, 0, &binding.directive(&global.name));
+            line(&mut out, 0, &format!(".type {}, @object", global.name));
             line(&mut out, 0, &format!("{}:", global.name));
             line(&mut out, 1, &format!(".quad {}", global.value));
+            line(
+                &mut out,
+                0,
+                &format!(".size {}, .-{}", global.name, global.name),
+            );
         }
         for text in &program.rodata_strings {
             // Layout length-prefixed (Fase 215/B4): todo verso — estático ou
             // de heap — é um ponteiro para `[u64 tamanho_em_bytes][bytes]`.
             line(&mut out, 0, ".align 8");
+            definitions.define(&text.label, &format!("literal verso #{}", text.label));
             line(&mut out, 0, &format!("{}:", text.label));
             line(&mut out, 1, &format!(".quad {}", text.value.len()));
             if !text.value.is_empty() {
@@ -1897,22 +1916,17 @@ fn render_external_x86_64_linux_callconv_impl(
             // Fase 242: descritor callable estático {code_ptr, env_ptr} de
             // função não-capturante. `principal` vira `main` na ABI C, então
             // o descritor aponta para o símbolo renomeado.
-            let symbol = if name == "principal" {
-                "main".to_string()
-            } else {
-                name.clone()
-            };
+            let symbol = native_symbol::function_symbol(NativeSurface::Assemblable, name);
             line(&mut out, 0, ".align 16");
-            line(
-                &mut out,
-                0,
-                &format!("{}:", function_ref_descriptor_label(name)),
-            );
+            let descriptor = function_ref_descriptor_label(name);
+            definitions.define(&descriptor, &format!("descritor callable de {}", name));
+            line(&mut out, 0, &format!("{}:", descriptor));
             line(&mut out, 1, &format!(".quad {}", symbol));
             line(&mut out, 1, ".quad 0");
         }
         for vtable in &program.trait_vtables {
             line(&mut out, 0, ".align 8");
+            definitions.define(&vtable.symbol, &format!("vtable {}", vtable.symbol));
             line(&mut out, 0, &format!("{}:", vtable.symbol));
             for entry in &vtable.entries {
                 line(&mut out, 1, &format!(".quad {}", entry));
@@ -1933,6 +1947,13 @@ fn render_external_x86_64_linux_callconv_impl(
         // O subset hospedado continua deliberadamente linkável sem `libpinker_rt`.
         // Esta implementação local conserva os mesmos checks de null e overflow
         // do helper do runtime; layouts inválidos já foram barrados no lowering.
+        let helper = "pinker_ponteiro_derivar_tipado";
+        definitions.define(helper, "implementação local do subset hospedado");
+        line(
+            &mut out,
+            0,
+            &native_symbol::native_binding(NativeDefinition::BackendHelper).directive(helper),
+        );
         line(
             &mut out,
             0,
@@ -1960,6 +1981,16 @@ fn render_external_x86_64_linux_callconv_impl(
         );
     }
     for adapter in &program.trait_adapters {
+        definitions.define(
+            &adapter.symbol,
+            &format!("adapter de trato -> {}", adapter.target),
+        );
+        line(
+            &mut out,
+            0,
+            &native_symbol::native_binding(NativeDefinition::BackendHelper)
+                .directive(&adapter.symbol),
+        );
         line(&mut out, 0, &format!(".type {}, @function", adapter.symbol));
         line(&mut out, 0, &format!("{}:", adapter.symbol));
         line(
@@ -1979,18 +2010,17 @@ fn render_external_x86_64_linux_callconv_impl(
     // @pinker-nav:start backend-s.abi.prologo-parametros
     // @pinker-nav:domain abi
     // @pinker-nav:layer backend-s
-    // @pinker-nav:summary Prólogo e passagem de parâmetros do renderer montável: mapeia `principal` para o símbolo `main`, emite `pushq %rbp`/`movq %rsp,%rbp`, insere a chamada a `pinker_rt_iniciar` quando `runtime_init` e o símbolo é `main` (pilha alinhada a 16 após o push), reserva o frame (`subq $stack_size,%rsp`), armazena os 6 primeiros parâmetros de `ARG_REGS` nos slots e carrega o 7º+ a partir de `16(%rbp)`. A única diferença observável entre os dois caminhos externos é essa chamada de runtime.
+    // @pinker-nav:summary Prólogo e passagem de parâmetros do renderer montável: pede o símbolo e a ligação à autoridade única `native_symbol` (`principal` produz `main`, GLOBAL; toda outra definição é `.local`), emite a diretiva de ligação e `.type @function`, depois `pushq %rbp`/`movq %rsp,%rbp`, insere a chamada a `pinker_rt_iniciar` quando `runtime_init` e a identidade é a do entrypoint (pilha alinhada a 16 após o push), reserva o frame (`subq $stack_size,%rsp`), armazena os 6 primeiros parâmetros de `ARG_REGS` nos slots e carrega o 7º+ a partir de `16(%rbp)`. A única diferença observável entre os dois caminhos externos é essa chamada de runtime.
     for function in &program.functions {
-        let symbol = if function.name == "principal" {
-            "main".to_string()
-        } else {
-            function.name.clone()
-        };
-        line(&mut out, 0, &format!(".globl {}", symbol));
+        let symbol = native_symbol::function_symbol(NativeSurface::Assemblable, &function.name);
+        let binding = native_symbol::function_binding(&function.name);
+        definitions.define(&symbol, &function.name);
+        line(&mut out, 0, &binding.directive(&symbol));
+        line(&mut out, 0, &format!(".type {}, @function", symbol));
         line(&mut out, 0, &format!("{}:", symbol));
         line(&mut out, 1, "pushq %rbp");
         line(&mut out, 1, "movq %rsp, %rbp");
-        if runtime_init && symbol == "main" {
+        if runtime_init && native_symbol::is_entrypoint(&function.name) {
             // argc em %rdi e argv em %rsi (ABI C do main); pilha alinhada a 16
             // após o push do %rbp, então a chamada é válida aqui.
             line(&mut out, 1, "call pinker_rt_iniciar");
@@ -2035,14 +2065,22 @@ fn render_external_x86_64_linux_callconv_impl(
         // @pinker-nav:start backend-s.abi.blocos-terminadores
         // @pinker-nav:domain abi
         // @pinker-nav:layer backend-s
-        // @pinker-nav:summary Emissão de blocos e terminadores do renderer montável: `jmp .L<fn>_entry`, rótulos `.L<fn>_<label>:`, corpo já textualizado linha a linha, e cada terminador — `Jmp` → `jmp`; `Br` carrega a condição (`load_operand` com `.expect`), `cmpq $0,%rax` + `jne`/`jmp`; `Ret` carrega o valor (`.expect`), `leave` e `ret`. Fecha a função e devolve o `.s`. Os `.expect` dependem de invariantes garantidas antes, no lowering (condição/retorno carregáveis).
-        line(&mut out, 1, &format!("jmp .L{}_entry", function.name));
+        // @pinker-nav:summary Emissão de blocos e terminadores do renderer montável: rótulos locais injetivos de `native_symbol::injective_local_label` (`.Lp<len>_<fn><len>_<bloco>`, prefixados por comprimento e portanto recuperáveis), corpo já textualizado linha a linha, e cada terminador — `Jmp` → `jmp`; `Br` carrega a condição (`load_operand` com `.expect`), `cmpq $0,%rax` + `jne`/`jmp`; `Ret` carrega o valor (`.expect`), `leave` e `ret`. Fecha a função com `.size`, exceto quando ela carrega envelope de `sussurro` — declarar o tamanho ali tornaria falso o invariante de artefato de D4, que compara o objeto real contra a baseline sem os envelopes. No fim, verifica o conjunto emitido: duas identidades distintas no mesmo símbolo viram diagnóstico Pinker determinístico em vez de erro cru do GNU as. Os `.expect` dependem de invariantes garantidas antes, no lowering (condição/retorno carregáveis).
+        line(
+            &mut out,
+            1,
+            &format!(
+                "jmp {}",
+                native_symbol::injective_local_label(&[&function.name, "entry"])
+            ),
+        );
         for block in &function.blocks {
-            line(
-                &mut out,
-                0,
-                &format!(".L{}_{}:", function.name, block.label),
+            let block_label = native_symbol::injective_local_label(&[&function.name, &block.label]);
+            definitions.define(
+                &block_label,
+                &format!("bloco {} de {}", block.label, function.name),
             );
+            line(&mut out, 0, &format!("{}:", block_label));
             for stmt in &block.body {
                 if !runtime_init && stmt.starts_with("call pinker_publico_validar_") {
                     continue;
@@ -2051,7 +2089,14 @@ fn render_external_x86_64_linux_callconv_impl(
             }
             match &block.terminator {
                 ExternalCallConvTerminator::Jmp(target) => {
-                    line(&mut out, 1, &format!("jmp .L{}_{}", function.name, target));
+                    line(
+                        &mut out,
+                        1,
+                        &format!(
+                            "jmp {}",
+                            native_symbol::injective_local_label(&[&function.name, target])
+                        ),
+                    );
                 }
                 ExternalCallConvTerminator::Br {
                     cond,
@@ -2072,12 +2117,18 @@ fn render_external_x86_64_linux_callconv_impl(
                     line(
                         &mut out,
                         1,
-                        &format!("jne .L{}_{}", function.name, then_label),
+                        &format!(
+                            "jne {}",
+                            native_symbol::injective_local_label(&[&function.name, then_label])
+                        ),
                     );
                     line(
                         &mut out,
                         1,
-                        &format!("jmp .L{}_{}", function.name, else_label),
+                        &format!(
+                            "jmp {}",
+                            native_symbol::injective_local_label(&[&function.name, else_label])
+                        ),
                     );
                 }
                 ExternalCallConvTerminator::Ret(value) => {
@@ -2100,8 +2151,34 @@ fn render_external_x86_64_linux_callconv_impl(
                 }
             }
         }
+        // F-09: `.size` só é omitido na única classe em que o próprio produto
+        // proíbe declará-lo — função que carrega envelope de `sussurro`. O
+        // invariante de artefato de D4 compara o objeto real contra a baseline
+        // sem os envelopes, e o envelope muda o tamanho da função por
+        // construção. Declarar o tamanho aqui abortaria todo build com
+        // `sussurro`; inventar um tamanho seria pior. D4 não é reaberta nesta
+        // Task.
+        if !function_carries_inline_asm_envelope(function) {
+            line(&mut out, 0, &format!(".size {}, .-{}", symbol, symbol));
+        }
     }
-    out
+    if let Some(collision) = definitions.first_collision() {
+        return Err(err(&native_symbol::emitted_collision_message(collision)));
+    }
+    Ok(out)
+}
+
+/// A função carrega um envelope de `sussurro`?
+///
+/// Só é consultado para decidir a emissão de `.size`; nenhuma outra decisão de
+/// renderização depende da presença do envelope.
+fn function_carries_inline_asm_envelope(function: &ExternalCallConvFunction) -> bool {
+    function.blocks.iter().any(|block| {
+        block.body.iter().any(|stmt| {
+            stmt.trim_start()
+                .starts_with(crate::inline_asm::SENTINEL_BEGIN_PREFIX)
+        })
+    })
 }
 // @pinker-nav:end backend-s.abi.blocos-terminadores
 
@@ -2180,7 +2257,8 @@ fn lower_shift(
         TypeIR::U32 | TypeIR::I32 => 32,
         _ => 64,
     };
-    let valid_label = format!(".L{}_shift_valid_{}", function_name, dest.0);
+    let valid_label =
+        native_symbol::injective_local_label(&[function_name, "shift_valid", &dest.0.to_string()]);
     let mut body = Vec::new();
     register_rodata_strings_for_operand(lhs, rodata_string_labels, rodata_strings);
     register_rodata_strings_for_operand(rhs, rodata_string_labels, rodata_strings);
@@ -2224,9 +2302,10 @@ fn lower_div_mod(
     rodata_string_labels: &mut HashMap<String, String>,
     rodata_strings: &mut Vec<ExternalCallConvString>,
 ) -> Result<Vec<String>, PinkerError> {
-    let nonzero = format!(".L{}_div_nonzero_{}", function_name, dest.0);
-    let regular = format!(".L{}_div_regular_{}", function_name, dest.0);
-    let done = format!(".L{}_div_done_{}", function_name, dest.0);
+    let temp = dest.0.to_string();
+    let nonzero = native_symbol::injective_local_label(&[function_name, "div_nonzero", &temp]);
+    let regular = native_symbol::injective_local_label(&[function_name, "div_regular", &temp]);
+    let done = native_symbol::injective_local_label(&[function_name, "div_done", &temp]);
     let mut body = Vec::new();
     register_rodata_strings_for_operand(lhs, rodata_string_labels, rodata_strings);
     register_rodata_strings_for_operand(rhs, rodata_string_labels, rodata_strings);
@@ -3132,7 +3211,7 @@ fn load_operand(
             ));
         }
         OperandIR::RawFunctionRef(name) => {
-            let symbol = if name == "principal" { "main" } else { name };
+            let symbol = native_symbol::function_symbol(NativeSurface::Assemblable, name);
             lines.push(format!("leaq {}(%rip), {}", symbol, reg));
         }
     }
@@ -3371,7 +3450,7 @@ fn temp_key(temp: crate::cfg_ir::TempIR) -> String {
 // @pinker-nav:start backend-s.validacao.labels-tipos
 // @pinker-nav:domain validacao
 // @pinker-nav:layer backend-s
-// @pinker-nav:summary Validação de rótulos e predicados de tipo do caminho montável: `validate_external_block_labels` (recusa bloco sem label, label duplicado, exige bloco `entry`, valida alvos de `jmp`/`br` e a condição de `br`) e os predicados `is_supported_type`, `is_external_deref_load_type`/`_store_type`, `is_external_param_type`/`_local_type`/`_ret_type` e `is_external_call_ret_type` (retornos de função mais `nulo` para intrínsecas de efeito). Nomes de função/global são usados diretamente como símbolos, sem sanitização nesta camada.
+// @pinker-nav:summary Validação de rótulos e predicados de tipo do caminho montável: `validate_external_block_labels` (recusa bloco sem label, label duplicado, exige bloco `entry`, valida alvos de `jmp`/`br` e a condição de `br`) e os predicados `is_supported_type`, `is_external_deref_load_type`/`_store_type`, `is_external_param_type`/`_local_type`/`_ret_type` e `is_external_call_ret_type` (retornos de função mais `nulo` para intrínsecas de efeito). Nomes de função/global são usados diretamente como símbolos, sem sanitização nesta camada; quem decide símbolo e ligação é `native_symbol`.
 fn validate_external_block_labels(
     function: &crate::instr_select::SelectedFunction,
 ) -> Result<(), PinkerError> {
@@ -3935,7 +4014,8 @@ pub fn render_program(program: &BackendTextProgram) -> String {
         line(
             &mut out,
             0,
-            &format!(".globl {}", FREESTANDING_BOOT_ENTRY_SYMBOL),
+            &native_symbol::native_binding(NativeDefinition::Entrypoint)
+                .directive(FREESTANDING_BOOT_ENTRY_SYMBOL),
         );
         line(&mut out, 0, &format!("{}:", FREESTANDING_BOOT_ENTRY_SYMBOL));
         line(
@@ -3950,7 +4030,12 @@ pub fn render_program(program: &BackendTextProgram) -> String {
     if !program.globals.is_empty() {
         line(&mut out, 0, ".section .rodata");
         for global in &program.globals {
-            line(&mut out, 0, &format!(".globl {}", global.name));
+            line(
+                &mut out,
+                0,
+                &native_symbol::native_binding(NativeDefinition::UserGlobal)
+                    .directive(&global.name),
+            );
             line(&mut out, 0, &format!("{}:", global.name));
             line(
                 &mut out,
@@ -3973,17 +4058,21 @@ pub fn render_program(program: &BackendTextProgram) -> String {
             0,
             &format!("; abi.ret {}", render_abi_return(function.ret_type)),
         );
+        let symbol = native_symbol::function_symbol(NativeSurface::TextualAbi, &function.name);
+        let prologue = native_symbol::injective_local_label(&[&function.name, "prologue"]);
+        let epilogue = native_symbol::injective_local_label(&[&function.name, "epilogue"]);
         line(
             &mut out,
             0,
-            &format!(
-                "; abi.frame prologue=.L{}_prologue epilogue=.L{}_epilogue",
-                function.name, function.name
-            ),
+            &format!("; abi.frame prologue={} epilogue={}", prologue, epilogue),
         );
-        line(&mut out, 0, &format!(".globl {}", function.name));
-        line(&mut out, 0, &format!("{}:", function.name));
-        line(&mut out, 1, &format!(".L{}_prologue:", function.name));
+        line(
+            &mut out,
+            0,
+            &native_symbol::function_binding(&function.name).directive(&symbol),
+        );
+        line(&mut out, 0, &format!("{}:", symbol));
+        line(&mut out, 1, &format!("{}:", prologue));
         line(&mut out, 2, "; abi.prologue (textual)");
         line(
             &mut out,
@@ -3999,7 +4088,10 @@ pub fn render_program(program: &BackendTextProgram) -> String {
             line(
                 &mut out,
                 1,
-                &format!(".L{}_{}:", function.name, block.label),
+                &format!(
+                    "{}:",
+                    native_symbol::injective_local_label(&[&function.name, &block.label])
+                ),
             );
             for instruction in &block.instructions {
                 line(&mut out, 2, &render_instruction(instruction));
@@ -4010,7 +4102,7 @@ pub fn render_program(program: &BackendTextProgram) -> String {
                 &render_terminator(&block.terminator, &function.name),
             );
         }
-        line(&mut out, 1, &format!(".L{}_epilogue:", function.name));
+        line(&mut out, 1, &format!("{}:", epilogue));
         line(&mut out, 2, "; abi.epilogue (textual)");
     }
 
@@ -4221,19 +4313,20 @@ fn render_terminator(
 ) -> String {
     match term {
         crate::backend_text::BackendTextTerminator::Jump(label) => {
-            format!("jmp .L{}_{}", function_name, label)
+            format!(
+                "jmp {}",
+                native_symbol::injective_local_label(&[function_name, label])
+            )
         }
         crate::backend_text::BackendTextTerminator::Branch {
             cond,
             then_label,
             else_label,
         } => format!(
-            "br {}, .L{}_{}, .L{}_{}",
+            "br {}, {}, {}",
             render_operand(cond),
-            function_name,
-            then_label,
-            function_name,
-            else_label
+            native_symbol::injective_local_label(&[function_name, then_label]),
+            native_symbol::injective_local_label(&[function_name, else_label])
         ),
         crate::backend_text::BackendTextTerminator::Return(Some(value)) => {
             format!("ret @ret, {}", render_operand(value))

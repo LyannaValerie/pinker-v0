@@ -22,15 +22,15 @@ fn asm_s_header_estavel() {
 ; abi.func principal
 ; abi.params []
 ; abi.ret @ret
-; abi.frame prologue=.Lprincipal_prologue epilogue=.Lprincipal_epilogue
+; abi.frame prologue=.Lp9_principal8_prologue epilogue=.Lp9_principal8_epilogue
 .globl principal
 principal:
-  .Lprincipal_prologue:
+  .Lp9_principal8_prologue:
     ; abi.prologue (textual)
   ; slots params=[] locals=[]
-  .Lprincipal_entry:
+  .Lp9_principal5_entry:
     ret @ret, 0
-  .Lprincipal_epilogue:
+  .Lp9_principal8_epilogue:
     ; abi.epilogue (textual)
 Análise semântica concluída sem erros.
 "
@@ -50,11 +50,11 @@ carinho principal() -> bombom {
     talvez verdade { mimo 1; } senao { mimo 0; }
 }";
     let out = render_backend_s(code).unwrap();
-    assert!(out.contains(".Lprincipal_entry:"));
-    assert!(out.contains("br 1, .Lprincipal_then_0, .Lprincipal_else_1"));
-    assert!(out.contains(".Lprincipal_then_0:"));
+    assert!(out.contains(".Lp9_principal5_entry:"));
+    assert!(out.contains("br 1, .Lp9_principal6_then_0, .Lp9_principal6_else_1"));
+    assert!(out.contains(".Lp9_principal6_then_0:"));
     assert!(out.contains("ret @ret, 1"));
-    assert!(out.contains(".Lprincipal_else_1:"));
+    assert!(out.contains(".Lp9_principal6_else_1:"));
     assert!(out.contains("ret @ret, 0"));
 }
 
@@ -69,7 +69,7 @@ carinho principal() -> bombom { mimo soma(1, 2); }";
     assert!(out.contains("; abi.func soma"));
     assert!(out.contains("; abi.params [@arg0=$%x#0, @arg1=$%y#0]"));
     assert!(out.contains("; abi.ret @ret"));
-    assert!(out.contains("; abi.frame prologue=.Lsoma_prologue epilogue=.Lsoma_epilogue"));
+    assert!(out.contains("; abi.frame prologue=.Lp4_soma8_prologue epilogue=.Lp4_soma8_epilogue"));
     assert!(out.contains("call soma, 1, 2 ; abi.call [@arg0=1, @arg1=2] -> %t0"));
     assert!(out.contains("ret @ret, %t0"));
 }

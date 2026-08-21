@@ -2482,6 +2482,8 @@ fn cli_build_com_imports_gera_artefato_no_out_dir() {
         artifact.display()
     );
     let artifact_content = fs::read_to_string(&artifact).unwrap();
+    // A superfície textual `pinker.text.v0` preserva a grafia Pinker do
+    // entrypoint, que continua global por ser o entrypoint.
     assert!(artifact_content.contains(".globl principal"));
     let _ = fs::remove_dir_all(&temp);
 }

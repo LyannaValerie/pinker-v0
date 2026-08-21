@@ -4,22 +4,26 @@ use crate::token::{Position, Span, Token, TokenKind};
 // @pinker-nav:start lexer.identificadores.namespace-reservado
 // @pinker-nav:domain identificadores
 // @pinker-nav:layer lexer
-// @pinker-nav:summary Fronteira única de identificadores originados da fonte: o prefixo `__pinker_internal_` é reservado ao compilador e recusado com `E-SEMANTIC-RESERVED-NAMESPACE` em toda posição de identificador — declaração de função, variável, parâmetro, constante, apelido, ninho, leque, trato, método e campo, e também qualquer referência. Por estar no ponto em que o texto da fonte se torna `TokenKind::Ident`, nenhum consumidor a jusante pode observar um identificador reservado; identificadores sintéticos construídos diretamente pelo compilador não são lexados e portanto não passam por esta fronteira.
+// @pinker-nav:summary Fronteira única de identificadores originados da fonte: os namespaces de escopo `AnyIdentifier` da autoridade `native_symbol` — as dezenove formas que o compilador de fato materializa (`__pinker_internal_`, `__anon_carinho_`, `__impl_`, `__gen_`, `__gen_leque_`, `__fnref_env_`, os slots de iteração, os alvos de `tentar`/propagação, `__env`, `__ternario`, ...) — são recusados com `E-SEMANTIC-RESERVED-NAMESPACE` em toda posição de identificador: declaração de função, variável, parâmetro, constante, apelido, ninho, leque, trato, método e campo, e também qualquer referência. A reserva é da forma possuída, não do superprefixo `__` comum a elas, então `__usuario` continua identificador Pinker legal. Por estar no ponto em que o texto da fonte se torna `TokenKind::Ident`, nenhum consumidor a jusante pode observar um identificador reservado; identificadores sintéticos construídos diretamente pelo compilador não são lexados e portanto não passam por esta fronteira. A lista não é duplicada aqui: a tabela canônica é `native_symbol::PINKER_OWNED_NAMESPACES`.
 
-/// Prefixo de identificador reservado ao compilador.
-pub const RESERVED_INTERNAL_PREFIX: &str = "__pinker_internal_";
+/// Prefixo de identificador reservado ao compilador, derivado da autoridade
+/// única de namespace Pinker-owned. É uma das formas da tabela canônica, não
+/// a reserva inteira: a fronteira consulta `reserved_namespace`, não este
+/// prefixo isolado.
+pub const RESERVED_INTERNAL_PREFIX: &str = crate::native_symbol::COMPILER_INTERNAL_PREFIX;
 
 /// Fronteira única dos identificadores originados da fonte.
 ///
-/// Recusa o prefixo reservado antes de o texto da fonte virar um
-/// `TokenKind::Ident`, de modo que a garantia não depende de auditar cada
-/// consumidor de identificador.
+/// Recusa os namespaces reservados de escopo `AnyIdentifier` antes de o texto
+/// da fonte virar um `TokenKind::Ident`, de modo que a garantia não depende de
+/// auditar cada consumidor de identificador.
 fn consume_source_identifier(lexeme: &str, span: Span) -> Result<(), PinkerError> {
-    if lexeme.starts_with(RESERVED_INTERNAL_PREFIX) {
+    if let Some(namespace) = crate::native_symbol::reserved_namespace(
+        lexeme,
+        crate::native_symbol::ReservedScope::AnyIdentifier,
+    ) {
         return Err(PinkerError::Lexer {
-            msg: format!(
-                "E-SEMANTIC-RESERVED-NAMESPACE\nidentificador '{lexeme}' usa o prefixo '{RESERVED_INTERNAL_PREFIX}', reservado ao compilador"
-            ),
+            msg: crate::native_symbol::reserved_namespace_message(lexeme, namespace),
             span,
         });
     }

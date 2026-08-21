@@ -31,6 +31,7 @@ pub mod jsonl;
 pub mod layout;
 pub mod lexer;
 pub mod limite_tempo;
+pub mod native_symbol;
 pub mod nav;
 pub mod nav_projection_lifecycle;
 pub mod nav_projection_recipe;
