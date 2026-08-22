@@ -26,6 +26,7 @@ pub mod inline_asm;
 pub mod instr_select;
 pub mod instr_select_validate;
 pub mod interpreter;
+pub mod intrinsic_authority;
 pub mod ir;
 pub mod ir_validate;
 pub mod jsonl;

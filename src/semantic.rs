@@ -41,6 +41,50 @@ pub fn validar_namespace_pinker_owned(name: &str, span: Span) -> Result<(), Pink
 }
 // @pinker-nav:end semantic.identificadores.namespace-produtor-de-simbolo
 
+fn active_intrinsic_declaration_conflict(
+    program: &Program,
+    name: &str,
+) -> Option<crate::intrinsic_authority::PublicIntrinsicSpelling> {
+    crate::intrinsic_authority::canonical_public_intrinsic_spelling(name).or_else(|| {
+        program.imports.iter().find_map(|import| {
+            if !crate::familia_superficie::familia_conhecida(&import.module) {
+                return None;
+            }
+            if import
+                .symbol
+                .as_deref()
+                .is_some_and(|symbol| symbol != name)
+            {
+                return None;
+            }
+            crate::intrinsic_authority::family_public_intrinsic_spelling(&import.module, name)
+        })
+    })
+}
+
+fn validate_intrinsic_declaration_conflicts(program: &Program) -> Result<(), PinkerError> {
+    for function in program.items.iter().filter_map(|item| match item {
+        Item::Function(function) => Some(function),
+        _ => None,
+    }) {
+        let Some(spelling) = active_intrinsic_declaration_conflict(program, &function.name) else {
+            continue;
+        };
+        if crate::intrinsic_authority::declaration_conflict_policy(spelling)
+            == crate::intrinsic_authority::DeclarationConflictPolicy::DeclarationIsRejected
+        {
+            return Err(PinkerError::Semantic {
+                msg: format!(
+                    "declaração callable '{}' pertence à superfície intrínseca Pinker e não pode ser redeclarada pelo usuário",
+                    function.name
+                ),
+                span: function.span,
+            });
+        }
+    }
+    Ok(())
+}
+
 // @pinker-nav:start semantic.importacoes.familias
 // @pinker-nav:domain importacoes
 // @pinker-nav:layer semantic
@@ -1252,6 +1296,7 @@ impl SemanticChecker {
     // Registra funções e constantes antes de verificar qualquer corpo.
     // Erros aqui interrompem antes da passagem 2.
     pub fn check_program(&mut self, program: &Program) -> Result<(), PinkerError> {
+        validate_intrinsic_declaration_conflicts(program)?;
         // Fases 186–188 — validação mínima de importações por família.
         // Recorte atual: apenas `trazer tempo;`, `trazer ambiente;`
         // e `trazer acaso;` são reconhecidos.
