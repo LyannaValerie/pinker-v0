@@ -2,8 +2,8 @@ schema = 2
 id = "normalizacao-corrente-para-historico"
 
 [reconstruction]
-expected_overrides = 99
-expected_exclusions = 106
+expected_overrides = 105
+expected_exclusions = 109
 
 [[rules]]
 op = "exclude-key"
@@ -227,6 +227,11 @@ expected_matches = 1
 
 [[rules]]
 op = "exclude-key"
+key = "evidencia.tratos.identidade-resolvida-u2-f05"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
 key = "falha.operacional.superficies"
 expected_matches = 1
 
@@ -263,6 +268,11 @@ expected_matches = 1
 [[rules]]
 op = "exclude-key"
 key = "interpreter.intrinsecos.falha-operacional"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "ir.lowering.metodos-identidade"
 expected_matches = 1
 
 [[rules]]
@@ -536,9 +546,14 @@ key = "trama.snapshots.verificacao"
 expected_matches = 1
 
 [[rules]]
+op = "exclude-key"
+key = "tratos.metodos.identidade"
+expected_matches = 1
+
+[[rules]]
 op = "override-hash"
 key = "ast.programa.estrutura"
-from = "fnv1a64:dadb0ffd36419836"
+from = "fnv1a64:36950a3ace35d6f4"
 to = "fnv1a64:cfb11086f045d187"
 expect_file = "src/ast.rs"
 expect_domain = "programa"
@@ -579,6 +594,42 @@ to = "fnv1a64:6a55d0547cdd5ba2"
 expect_file = "runtime/pinker_rt/src/lib.rs"
 expect_domain = "memoria"
 expect_layer = "evidencia"
+
+[[rules]]
+op = "override-hash"
+key = "evidencia.semantica.tratos-e-impls"
+from = "fnv1a64:b35392b66568bdc7"
+to = "fnv1a64:6ed9f7ae341ffde4"
+expect_file = "tests/semantic_tests.rs"
+expect_domain = "semantica"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-hash"
+key = "ir.lowering.programa-orquestracao"
+from = "fnv1a64:b79c1e1fcae0a08c"
+to = "fnv1a64:4e1d3b50087502d1"
+expect_file = "src/ir.rs"
+expect_domain = "lowering"
+expect_layer = "ir"
+
+[[rules]]
+op = "override-hash"
+key = "parser.callbacks.instanciacao-estatica"
+from = "fnv1a64:03bed40b44ca4e0b"
+to = "fnv1a64:0710ab894b382a6b"
+expect_file = "src/parser.rs"
+expect_domain = "callbacks"
+expect_layer = "parser"
+
+[[rules]]
+op = "override-hash"
+key = "parser.declaracoes.tipos"
+from = "fnv1a64:404cf6dbd80e2d96"
+to = "fnv1a64:2170891af39bd205"
+expect_file = "src/parser.rs"
+expect_domain = "declaracoes"
+expect_layer = "parser"
 
 [[rules]]
 op = "override-region"
@@ -1090,7 +1141,7 @@ expect_layer = "interpreter"
 [[rules]]
 op = "override-region"
 key = "ir.lowering.assinaturas-intrinsecos"
-from_hash = "fnv1a64:6f08b1c710afe5b4"
+from_hash = "fnv1a64:e1b0b42da6485f57"
 to_hash = "fnv1a64:4c474d5f9416a278"
 expect_file = "src/ir.rs"
 expect_domain = "lowering"
@@ -1108,10 +1159,19 @@ expect_layer = "ir"
 [[rules]]
 op = "override-region"
 key = "ir.lowering.expressoes-valores"
-from_hash = "fnv1a64:fba68970f58e4a6d"
+from_hash = "fnv1a64:4a53027342effdba"
 to_hash = "fnv1a64:6db653d36e8d840b"
 from_summary = "Grande despachante que abaixa expressões AST para `TypedValueIR` (valor, representação e identidade resolvida): literais, bindings/globais, operadores, dereferência, chamadas, métodos, intrínsecas genéricas, construção/leitura de leque, campos, índices, cast, `peso` e `alinhamento`. Operações de lista/mapa que devolvem elemento preservam a identidade exata do container, inclusive leques representados como `bombom`; não executa nem seleciona instruções de máquina."
 to_summary = "Grande despachante que abaixa expressões AST para `TypedValueIR` (valor + `TypeIR` + nome de struct + metadados de ponteiro-para-array): literais, identificadores locais e constantes globais, operadores unários/binários, dereferência, chamadas diretas (com tipo de retorno vindo do catálogo de assinaturas), métodos de `impl` e qualificados, intrínsecas genéricas de lista/mapa direcionadas ao nome monomórfico, construção/leitura de leque (discriminante/handle), acesso a campo e offset de struct, indexação, cast, `peso` e `alinhamento`. Consome informação já validada; não executa a expressão nem seleciona instruções de máquina."
+expect_file = "src/ir.rs"
+expect_domain = "lowering"
+expect_layer = "ir"
+
+[[rules]]
+op = "override-region"
+key = "ir.lowering.funcoes-blocos"
+from_hash = "fnv1a64:449b14bc52f78f97"
+to_hash = "fnv1a64:cb1a742852669151"
 expect_file = "src/ir.rs"
 expect_domain = "lowering"
 expect_layer = "ir"
@@ -1206,7 +1266,7 @@ expect_layer = "parser"
 [[rules]]
 op = "override-region"
 key = "parser.closures.expressao"
-from_hash = "fnv1a64:35ebc9fdfc4403ac"
+from_hash = "fnv1a64:2df6241fe28ad21c"
 to_hash = "fnv1a64:f374c2b2eb1b9d4c"
 from_summary = "Funções anônimas e vínculos de valor-função: reconhece a closure `(params) -> tipo { corpo }`, materializa sua identidade sintética com proveniência canônica da fonte mais índice local e reconhece os `nova f = ...` que ligam nomes a funções, mantendo o escopo de aliases de valor-função e produzindo `ast::Expr`/vínculos locais."
 to_summary = "Funções anônimas e vínculos de valor-função: reconhece a closure `(params) -> tipo { corpo }` e os `nova f = ...` que ligam nomes a funções, mantendo o escopo de aliases de valor-função e produzindo `ast::Expr`/vínculos locais."
@@ -1259,7 +1319,7 @@ expect_layer = "parser"
 [[rules]]
 op = "override-region"
 key = "parser.funcoes.declaracao"
-from_hash = "fnv1a64:f517e5e9177df876"
+from_hash = "fnv1a64:e020fd8ff32c1a72"
 to_hash = "fnv1a64:ed8f8585939365d0"
 from_summary = "Declaração de função: reconhece `carinho nome<params-de-tipo>(params) -> tipo { corpo }`, incluindo os parâmetros de tipo genéricos opcionais, e produz o nó `ast::FunctionDecl`."
 to_summary = "Declaração de função: reconhece `carinho nome<params-de-tipo>(params) -> tipo { corpo }`, incluindo os parâmetros de tipo genéricos opcionais, e produz o nó `ast::FunctionDecl`."
@@ -1270,7 +1330,7 @@ expect_layer = "parser"
 [[rules]]
 op = "override-region"
 key = "parser.genericos.funcoes-instanciacao"
-from_hash = "fnv1a64:c670bcab60807537"
+from_hash = "fnv1a64:b8b6baafb2e2add7"
 to_hash = "fnv1a64:bebfe84d79c2f4c3"
 expect_file = "src/parser.rs"
 expect_domain = "genericos"
@@ -1419,7 +1479,7 @@ expect_layer = "select"
 [[rules]]
 op = "override-region"
 key = "semantic.chamadas.despacho"
-from_hash = "fnv1a64:47f59967b49e7ea4"
+from_hash = "fnv1a64:59ba6f02ca450e70"
 to_hash = "fnv1a64:786f0d551629e7a5"
 expect_file = "src/semantic.rs"
 expect_domain = "chamadas"
@@ -1437,7 +1497,7 @@ expect_layer = "semantic"
 [[rules]]
 op = "override-region"
 key = "semantic.expressoes.verificacao"
-from_hash = "fnv1a64:90ad50e09db9c824"
+from_hash = "fnv1a64:a1006353383547ed"
 to_hash = "fnv1a64:e44e9bbce88ccd3a"
 expect_file = "src/semantic.rs"
 expect_domain = "expressoes"
@@ -1479,7 +1539,7 @@ expect_layer = "semantic"
 [[rules]]
 op = "override-region"
 key = "semantic.programa.duas-passagens"
-from_hash = "fnv1a64:87747cdbbb2cb3e4"
+from_hash = "fnv1a64:df21d7cd275d40c1"
 to_hash = "fnv1a64:ed421619927ac329"
 expect_file = "src/semantic.rs"
 expect_domain = "programa"
@@ -1488,10 +1548,21 @@ expect_layer = "semantic"
 [[rules]]
 op = "override-region"
 key = "semantic.tipos.sistema"
-from_hash = "fnv1a64:2fbc6a641c54d51e"
+from_hash = "fnv1a64:98cf8a257fab6f18"
 to_hash = "fnv1a64:6a47e5af048057da"
 expect_file = "src/semantic.rs"
 expect_domain = "tipos"
+expect_layer = "semantic"
+
+[[rules]]
+op = "override-region"
+key = "semantic.tratos.contratos"
+from_hash = "fnv1a64:d1e296d3d99db7be"
+to_hash = "fnv1a64:da684f6016d99d13"
+from_summary = "Autoridade semântica de métodos e contratos de tratos: depois da coleta completa, resolve integralmente o tipo-alvo declarado transportado em `ImplFunctionFacts`, deriva sua chave por `union_canon`, registra `MethodIdentity(trato, tipo resolvido, método)` e compara separadamente o receiver resolvido; `method_index` é somente a visão derivada para chamadas não qualificadas. A validação agrupa blocos pela mesma identidade resolvida e preserva a política vigente: métodos distintos podem completar a mesma relação, mas o mesmo método não pode coexistir duas vezes."
+to_summary = "Contratos de tratos e implementações: agrupa os métodos `__impl_*` por (trato, tipo-alvo) e exige cobertura exata do trato (sem método estranho, sem duplicata, sem faltante), garante que todo trato tenha método compatível declarado no topo e confere aridade e tipos de parâmetros/retorno entre a assinatura do trato e a função."
+expect_file = "src/semantic.rs"
+expect_domain = "tratos"
 expect_layer = "semantic"
 
 [[rules]]

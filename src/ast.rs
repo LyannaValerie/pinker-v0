@@ -292,8 +292,19 @@ impl StructField {
 }
 
 #[derive(Debug, Clone)]
+pub struct ImplFunctionFacts {
+    /// Alvo escrito no cabeçalho `impl`, preservado sem resolução pelo parser.
+    pub target_ty: Type,
+    /// O corpo veio do default do trato, não de método explícito no bloco.
+    pub generated_default: bool,
+}
+
+#[derive(Debug, Clone)]
 pub struct FunctionDecl {
     pub name: String,
+    /// Fatos de transporte de um método impl. `None` para funções comuns e
+    /// funções privadas criadas apenas para checar um default sobrescrito.
+    pub impl_facts: Option<ImplFunctionFacts>,
     pub type_params: Vec<String>,
     pub params: Vec<Param>,
     pub ret_type: Option<Type>,
