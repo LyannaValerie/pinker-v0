@@ -1053,8 +1053,10 @@ fn carga_de_encaixe_homonima_de_familia_vence_a_familia() {
     );
 }
 
-/// F5 — a política de colisão vale no caminho de biblioteca, não só na CLI.
-/// `parse_and_check` é exatamente o caminho que a crate expõe.
+/// F5 — a política de ownership intrínseco vale no caminho de biblioteca, não
+/// só na CLI. `parse_and_check` é exatamente o caminho que a crate expõe.
+/// #504 registra a disposição humana que moveu este caso da colisão histórica
+/// de import para a declaração callable conflitante.
 #[test]
 fn f5_colisao_de_import_seletivo_vale_no_caminho_de_biblioteca() {
     let erro = erro_de(
@@ -1064,10 +1066,15 @@ fn f5_colisao_de_import_seletivo_vale_no_caminho_de_biblioteca() {
          carinho principal() -> bombom { mimo criar(1); }",
     );
     assert!(
-        erro.contains("colisão de nome no import"),
-        "biblioteca e CLI têm de recusar igual: {erro}"
+        erro.contains("declaração callable 'criar'"),
+        "a declaração callable precisa ser a dona da falha: {erro}"
     );
-    assert!(erro.contains("'criar'"), "{erro}");
+    assert!(erro.contains("superfície intrínseca Pinker"), "{erro}");
+    assert!(erro.contains("não pode ser redeclarada"), "{erro}");
+    assert!(
+        !erro.contains("colisão de nome no import"),
+        "a expectativa histórica foi substituída por #504: {erro}"
+    );
 }
 
 /// A dica de família continua existindo — mas só quando o nome é órfão, e ela

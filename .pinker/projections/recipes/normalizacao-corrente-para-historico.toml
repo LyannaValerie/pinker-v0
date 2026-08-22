@@ -1539,7 +1539,7 @@ expect_layer = "semantic"
 [[rules]]
 op = "override-region"
 key = "semantic.programa.duas-passagens"
-from_hash = "fnv1a64:df21d7cd275d40c1"
+from_hash = "fnv1a64:e18aec40b20e2969"
 to_hash = "fnv1a64:ed421619927ac329"
 expect_file = "src/semantic.rs"
 expect_domain = "programa"
