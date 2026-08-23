@@ -265,12 +265,15 @@ fn remover_a_diretiva_faz_o_executavel_voltar_a_exigir_pilha_executavel() {
     let mutilado: String = asm
         .lines()
         .filter(|linha| !linha.contains(".note.GNU-stack"))
-        .map(|linha| format!("{linha}\n"))
-        .collect();
+        .fold(String::new(), |mut acc, linha| {
+            acc.push_str(linha);
+            acc.push('\n');
+            acc
+        });
 
     let objeto = dir.join("mutilado.o");
     let asm_path = dir.join("mutilado.s");
-    fs::write(&asm_path, &mutilado).expect("gravar .s mutilado");
+    fs::write(&asm_path, mutilado).expect("gravar .s mutilado");
     let montagem = Command::new(&driver)
         .arg("-c")
         .arg(&asm_path)
