@@ -228,3 +228,82 @@ pub fn parse(bytes: &[u8]) -> Result<ElfObject, String> {
     Ok(ElfObject { sections, symbols })
 }
 // @pinker-nav:end build.elf.leitor
+
+// @pinker-nav:start build.elf.segmentos
+// @pinker-nav:domain build
+// @pinker-nav:layer elf
+// @pinker-nav:summary Leitor dos cabeçalhos de programa (segmentos) do mesmo ELF64 little-endian: `parse_program_headers` valida o prefixo compartilhado com `parse`, lê `e_phoff`/`e_phentsize`/`e_phnum`, exige `e_phentsize == 56` e devolve o par `(p_type, p_flags)` de cada segmento em `ElfProgramHeader`. Existe porque a seção `.note.GNU-stack` do objeto só é observável no executável final como `PT_GNU_STACK`, que vive na tabela de segmentos e não na de seções; um objeto relocável não tem tabela de programa e devolve lista vazia, o que não é erro. Nenhum conteúdo de segmento é interpretado.
+
+/// `PT_GNU_STACK`: segmento sintético em que o linker registra o requisito de
+/// pilha do executável. Suas permissões — e não a presença do segmento —
+/// dizem se a pilha precisa ser executável.
+pub const PT_GNU_STACK: u32 = 0x6474_e551;
+/// `PF_X`: bit de execução nas permissões de um segmento.
+pub const PF_X: u32 = 1;
+
+/// Um cabeçalho de programa (segmento) lido do ELF.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ElfProgramHeader {
+    /// `p_type`, por exemplo [`PT_GNU_STACK`].
+    pub p_type: u32,
+    /// `p_flags`: combinação de `PF_R`/`PF_W`/[`PF_X`].
+    pub flags: u32,
+}
+
+impl ElfProgramHeader {
+    /// O segmento pede permissão de execução?
+    pub fn is_executable(&self) -> bool {
+        self.flags & PF_X != 0
+    }
+}
+
+/// Lê a tabela de cabeçalhos de programa de um ELF64 little-endian.
+///
+/// Um objeto relocável (`.o`) não tem tabela de programa: o resultado é uma
+/// lista vazia, não um erro. Qualquer arquivo que não seja ELF64
+/// little-endian, ou cuja tabela esteja truncada, devolve `Err` com detalhe
+/// legível.
+pub fn parse_program_headers(bytes: &[u8]) -> Result<Vec<ElfProgramHeader>, String> {
+    if bytes.len() < 64 {
+        return Err(format!(
+            "arquivo com {} byte(s) é menor que um cabeçalho ELF64",
+            bytes.len()
+        ));
+    }
+    if &bytes[0..4] != b"\x7fELF" {
+        return Err("arquivo não começa com o magic ELF".to_string());
+    }
+    if bytes[4] != 2 {
+        return Err(format!("classe ELF {} não é ELF64", bytes[4]));
+    }
+    if bytes[5] != 1 {
+        return Err(format!("ordem de bytes {} não é little-endian", bytes[5]));
+    }
+
+    let program_header_offset = as_index(read_u64(bytes, 0x20)?, "e_phoff")?;
+    let program_header_size = read_u16(bytes, 0x36)? as usize;
+    let program_header_count = read_u16(bytes, 0x38)? as usize;
+
+    if program_header_offset == 0 || program_header_count == 0 {
+        return Ok(Vec::new());
+    }
+    if program_header_size != 56 {
+        return Err(format!(
+            "cabeçalho de programa com {program_header_size} byte(s); ELF64 exige 56"
+        ));
+    }
+
+    let mut headers = Vec::with_capacity(program_header_count);
+    for index in 0..program_header_count {
+        let at = index
+            .checked_mul(program_header_size)
+            .and_then(|scaled| scaled.checked_add(program_header_offset))
+            .ok_or_else(|| format!("índice de segmento {index} estoura o deslocamento"))?;
+        headers.push(ElfProgramHeader {
+            p_type: read_u32(bytes, at)?,
+            flags: read_u32(bytes, at + 0x04)?,
+        });
+    }
+    Ok(headers)
+}
+// @pinker-nav:end build.elf.segmentos

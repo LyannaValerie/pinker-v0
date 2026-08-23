@@ -2165,6 +2165,16 @@ fn render_external_x86_64_linux_callconv_impl(
     if let Some(collision) = definitions.first_collision() {
         return Err(err(&native_symbol::emitted_collision_message(collision)));
     }
+    // F-10: a unidade declara explicitamente que não exige pilha executável.
+    // Sem esta nota o `as` marca o objeto como "requer stack executável" por
+    // omissão e o linker propaga isso para `PT_GNU_STACK = RWE` no executável
+    // final, mesmo com todos os membros de `libpinker_rt.a` já compatíveis.
+    // A declaração pertence à unidade, não à função: é emitida uma única vez,
+    // depois de todas as seções executáveis e de dados, e não toca label,
+    // símbolo, `.size`, CFI ou alinhamento. Este renderer é o único caminho
+    // montável do backend e é sempre ELF/GNU (x86-64 Linux SysV), então a
+    // diretiva não é condicional — o renderer `.s` textual não passa por aqui.
+    line(&mut out, 0, ".section .note.GNU-stack,\"\",@progbits");
     Ok(out)
 }
 
