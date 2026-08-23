@@ -14,7 +14,7 @@
 // @pinker-nav:start build.elf.leitor
 // @pinker-nav:domain build
 // @pinker-nav:layer elf
-// @pinker-nav:summary Leitor mínimo de ELF64 little-endian sem dependência externa: valida o magic `\x7fELF`, a classe 64 bits, a ordem little-endian e a consistência de `e_shentsize`/`e_shoff`, resolve `e_shnum`/`e_shstrndx` inclusive nas formas estendidas (`shnum == 0` lê `sh_size` da seção 0 e `shstrndx == SHN_XINDEX` lê `sh_link`), coleta os nomes das seções pela `.shstrtab` e percorre toda seção `SHT_SYMTAB` extraindo nome, ligação (`st_info >> 4`), tipo (`st_info & 0xf`), visibilidade (`st_other & 0x3`), índice de seção e tamanho de cada símbolo. Toda leitura é limitada por índice conferido contra o tamanho do buffer, de modo que um arquivo truncado ou malformado devolve `Err` com detalhe legível em vez de pânico; nenhum conteúdo de seção, relocação ou informação de depuração é interpretado.
+// @pinker-nav:summary Leitor mínimo de ELF64 little-endian sem dependência externa: valida o magic `\x7fELF`, a classe 64 bits, a ordem little-endian e a consistência de `e_shentsize`/`e_shoff`, resolve `e_shnum`/`e_shstrndx` inclusive nas formas estendidas (`shnum == 0` lê `sh_size` da seção 0 e `shstrndx == SHN_XINDEX` lê `sh_link`), coleta os nomes das seções pela `.shstrtab` junto de `sh_flags` (consultável por nome via `section_flags_of`/`section_is_non_executable`, de modo que uma seção possa ser distinguida de uma seção com permissão de execução) e percorre toda seção `SHT_SYMTAB` extraindo nome, ligação (`st_info >> 4`), tipo (`st_info & 0xf`), visibilidade (`st_other & 0x3`), índice de seção e tamanho de cada símbolo. Toda leitura é limitada por índice conferido contra o tamanho do buffer, de modo que um arquivo truncado ou malformado devolve `Err` com detalhe legível em vez de pânico; nenhum conteúdo de seção, relocação ou informação de depuração é interpretado. `parse_program_headers` lê a tabela de segmentos do mesmo arquivo: valida o mesmo prefixo, lê `e_phoff`/`e_phentsize`/`e_phnum`, resolve a forma estendida `PN_XNUM` (`e_phnum == 0xffff` lê `sh_info` da seção 0), exige `e_phentsize == 56` e devolve `(p_type, p_flags)` de cada segmento em `ElfProgramHeader`. Existe porque a `.note.GNU-stack` do objeto só é observável no executável final como `PT_GNU_STACK`, que vive na tabela de programa e não na de seções; um objeto relocável não tem essa tabela e devolve lista vazia, o que não é erro.
 
 /// Índice de seção especial: símbolo apenas referenciado, não definido aqui.
 pub const SHN_UNDEF: u16 = 0;
@@ -52,7 +52,30 @@ impl ElfSymbol {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ElfObject {
     pub sections: Vec<String>,
+    /// `sh_flags` de cada seção, na mesma ordem de [`ElfObject::sections`].
+    /// Consulte por nome com [`ElfObject::section_flags_of`] em vez de indexar.
+    pub section_flags: Vec<u64>,
     pub symbols: Vec<ElfSymbol>,
+}
+
+/// `SHF_EXECINSTR`: a seção contém instruções executáveis.
+pub const SHF_EXECINSTR: u64 = 0x4;
+
+impl ElfObject {
+    /// `sh_flags` da primeira seção com este nome, se existir.
+    pub fn section_flags_of(&self, name: &str) -> Option<u64> {
+        let at = self.sections.iter().position(|s| s == name)?;
+        self.section_flags.get(at).copied()
+    }
+
+    /// A seção existe e **não** pede execução?
+    ///
+    /// `None` quando a seção não existe — ausência não é o mesmo que ausência
+    /// de permissão, e quem pergunta precisa distinguir os dois casos.
+    pub fn section_is_non_executable(&self, name: &str) -> Option<bool> {
+        self.section_flags_of(name)
+            .map(|flags| flags & SHF_EXECINSTR == 0)
+    }
 }
 
 fn read_u16(bytes: &[u8], at: usize) -> Result<u16, String> {
@@ -141,6 +164,7 @@ pub fn parse(bytes: &[u8]) -> Result<ElfObject, String> {
         // Sem tabela de seções não há nem seção nem símbolo a inspecionar.
         return Ok(ElfObject {
             sections: Vec::new(),
+            section_flags: Vec::new(),
             symbols: Vec::new(),
         });
     }
@@ -168,20 +192,29 @@ pub fn parse(bytes: &[u8]) -> Result<ElfObject, String> {
     };
 
     // Passo 1: deslocamento e tamanho brutos de cada seção, mais o nome cru.
-    let mut raw: Vec<(u32, u32, usize, usize, u32, u64)> = Vec::with_capacity(section_count);
+    let mut raw: Vec<(u32, u32, usize, usize, u32, u64, u64)> = Vec::with_capacity(section_count);
     for index in 0..section_count {
         let at = header_at(index)?;
         let name_offset = read_u32(bytes, at)?;
         let section_type = read_u32(bytes, at + 0x04)?;
+        let flags = read_u64(bytes, at + 0x08)?;
         let offset = as_index(read_u64(bytes, at + 0x18)?, "sh_offset")?;
         let size = as_index(read_u64(bytes, at + 0x20)?, "sh_size")?;
         let link = read_u32(bytes, at + 0x28)?;
         let entry_size = read_u64(bytes, at + 0x38)?;
-        raw.push((name_offset, section_type, offset, size, link, entry_size));
+        raw.push((
+            name_offset,
+            section_type,
+            offset,
+            size,
+            link,
+            entry_size,
+            flags,
+        ));
     }
 
     let strings = |index: usize| -> Result<(usize, usize), String> {
-        let (_, _, offset, size, _, _) = *raw
+        let (_, _, offset, size, _, _, _) = *raw
             .get(index)
             .ok_or_else(|| format!("tabela de strings {index} não existe"))?;
         Ok((offset, size))
@@ -189,14 +222,16 @@ pub fn parse(bytes: &[u8]) -> Result<ElfObject, String> {
 
     let name_table = strings(string_table_index)?;
     let mut sections = Vec::with_capacity(section_count);
-    for (name_offset, _, _, _, _, _) in &raw {
+    let mut section_flags = Vec::with_capacity(section_count);
+    for (name_offset, _, _, _, _, _, flags) in &raw {
         sections.push(read_str(bytes, name_table, *name_offset)?);
+        section_flags.push(*flags);
     }
 
     // Passo 2: toda `SHT_SYMTAB`. Objetos do `as` têm uma; binários linkados
     // podem ter `.symtab` e, separadamente, `.dynsym` (que não é `SHT_SYMTAB`).
     let mut symbols = Vec::new();
-    for (_, section_type, offset, size, link, entry_size) in &raw {
+    for (_, section_type, offset, size, link, entry_size, _) in &raw {
         if *section_type != SHT_SYMTAB {
             continue;
         }
@@ -225,6 +260,103 @@ pub fn parse(bytes: &[u8]) -> Result<ElfObject, String> {
         }
     }
 
-    Ok(ElfObject { sections, symbols })
+    Ok(ElfObject {
+        sections,
+        section_flags,
+        symbols,
+    })
+}
+
+/// `PN_XNUM`: `e_phnum` é sentinela; a contagem real está em `sh_info` da
+/// seção 0.
+const PN_XNUM: u16 = 0xffff;
+
+/// `PT_GNU_STACK`: segmento sintético em que o linker registra o requisito de
+/// pilha do executável. Suas permissões — e não a presença do segmento —
+/// dizem se a pilha precisa ser executável.
+pub const PT_GNU_STACK: u32 = 0x6474_e551;
+/// `PF_X`: bit de execução nas permissões de um segmento.
+pub const PF_X: u32 = 1;
+
+/// Um cabeçalho de programa (segmento) lido do ELF.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ElfProgramHeader {
+    /// `p_type`, por exemplo [`PT_GNU_STACK`].
+    pub p_type: u32,
+    /// `p_flags`: combinação de `PF_R`/`PF_W`/[`PF_X`].
+    pub flags: u32,
+}
+
+impl ElfProgramHeader {
+    /// O segmento pede permissão de execução?
+    pub fn is_executable(&self) -> bool {
+        self.flags & PF_X != 0
+    }
+}
+
+/// Lê a tabela de cabeçalhos de programa de um ELF64 little-endian.
+///
+/// Um objeto relocável (`.o`) não tem tabela de programa: o resultado é uma
+/// lista vazia, não um erro. Qualquer arquivo que não seja ELF64
+/// little-endian, ou cuja tabela esteja truncada, devolve `Err` com detalhe
+/// legível.
+pub fn parse_program_headers(bytes: &[u8]) -> Result<Vec<ElfProgramHeader>, String> {
+    if bytes.len() < 64 {
+        return Err(format!(
+            "arquivo com {} byte(s) é menor que um cabeçalho ELF64",
+            bytes.len()
+        ));
+    }
+    if &bytes[0..4] != b"\x7fELF" {
+        return Err("arquivo não começa com o magic ELF".to_string());
+    }
+    if bytes[4] != 2 {
+        return Err(format!("classe ELF {} não é ELF64", bytes[4]));
+    }
+    if bytes[5] != 1 {
+        return Err(format!("ordem de bytes {} não é little-endian", bytes[5]));
+    }
+
+    let program_header_offset = as_index(read_u64(bytes, 0x20)?, "e_phoff")?;
+    let program_header_size = read_u16(bytes, 0x36)? as usize;
+    let mut program_header_count = read_u16(bytes, 0x38)? as usize;
+
+    // Forma estendida, simétrica ao que `parse` faz com `e_shnum`: com mais de
+    // 0xffff segmentos, `e_phnum` é o sentinela `PN_XNUM` e a contagem real
+    // mora em `sh_info` da seção 0. Sem isto o sentinela seria lido como
+    // literalmente 65535 segmentos e o arquivo pareceria truncado.
+    if program_header_count == PN_XNUM as usize {
+        let section_header_offset = as_index(read_u64(bytes, 0x28)?, "e_shoff")?;
+        if section_header_offset == 0 {
+            return Err(
+                "e_phnum é PN_XNUM mas o arquivo não tem tabela de seções para \
+                 informar a contagem real"
+                    .to_string(),
+            );
+        }
+        program_header_count = read_u32(bytes, section_header_offset + 0x2c)? as usize;
+    }
+
+    if program_header_offset == 0 || program_header_count == 0 {
+        return Ok(Vec::new());
+    }
+    if program_header_size != 56 {
+        return Err(format!(
+            "cabeçalho de programa com {program_header_size} byte(s); ELF64 exige 56"
+        ));
+    }
+
+    let mut headers = Vec::with_capacity(program_header_count);
+    for index in 0..program_header_count {
+        let at = index
+            .checked_mul(program_header_size)
+            .and_then(|scaled| scaled.checked_add(program_header_offset))
+            .ok_or_else(|| format!("índice de segmento {index} estoura o deslocamento"))?;
+        headers.push(ElfProgramHeader {
+            p_type: read_u32(bytes, at)?,
+            flags: read_u32(bytes, at + 0x04)?,
+        });
+    }
+    Ok(headers)
 }
 // @pinker-nav:end build.elf.leitor

@@ -2,7 +2,7 @@ schema = 2
 id = "normalizacao-corrente-para-historico"
 
 [reconstruction]
-expected_overrides = 105
+expected_overrides = 106
 expected_exclusions = 109
 
 [[rules]]
@@ -652,9 +652,9 @@ expect_layer = "ast"
 [[rules]]
 op = "override-region"
 key = "backend-s.abi.blocos-terminadores"
-from_hash = "fnv1a64:a7ee013b619ddd48"
+from_hash = "fnv1a64:e8c61723dab7560c"
 to_hash = "fnv1a64:48d71c0490589bff"
-from_summary = "Emissão de blocos e terminadores do renderer montável: rótulos locais injetivos de `native_symbol::injective_local_label` (`.Lp<len>_<fn><len>_<bloco>`, prefixados por comprimento e portanto recuperáveis), corpo já textualizado linha a linha, e cada terminador — `Jmp` → `jmp`; `Br` carrega a condição (`load_operand` com `.expect`), `cmpq $0,%rax` + `jne`/`jmp`; `Ret` carrega o valor (`.expect`), `leave` e `ret`. Fecha a função com `.size`, exceto quando ela carrega envelope de `sussurro` — declarar o tamanho ali tornaria falso o invariante de artefato de D4, que compara o objeto real contra a baseline sem os envelopes. No fim, verifica o conjunto emitido: duas identidades distintas no mesmo símbolo viram diagnóstico Pinker determinístico em vez de erro cru do GNU as. Os `.expect` dependem de invariantes garantidas antes, no lowering (condição/retorno carregáveis)."
+from_summary = "Emissão de blocos e terminadores do renderer montável: rótulos locais injetivos de `native_symbol::injective_local_label` (`.Lp<len>_<fn><len>_<bloco>`, prefixados por comprimento e portanto recuperáveis), corpo já textualizado linha a linha, e cada terminador — `Jmp` → `jmp`; `Br` carrega a condição (`load_operand` com `.expect`), `cmpq $0,%rax` + `jne`/`jmp`; `Ret` carrega o valor (`.expect`), `leave` e `ret`. Fecha a função com `.size`, exceto quando ela carrega envelope de `sussurro` — declarar o tamanho ali tornaria falso o invariante de artefato de D4, que compara o objeto real contra a baseline sem os envelopes. No fim, verifica o conjunto emitido: duas identidades distintas no mesmo símbolo viram diagnóstico Pinker determinístico em vez de erro cru do GNU as. Os `.expect` dependem de invariantes garantidas antes, no lowering (condição/retorno carregáveis). Encerra a unidade declarando `.section .note.GNU-stack,\"\",@progbits` uma única vez, depois de todas as seções executáveis e de dados: a unidade informa que não exige pilha executável, sem o que o assembler marca esse requisito por omissão e o linker o propaga para `PT_GNU_STACK` do executável final. A declaração pertence à unidade e não à função, e não toca rótulo, símbolo, `.size`, CFI ou alinhamento."
 to_summary = "Emissão de blocos e terminadores do renderer montável: `jmp .L<fn>_entry`, rótulos `.L<fn>_<label>:`, corpo já textualizado linha a linha, e cada terminador — `Jmp` → `jmp`; `Br` carrega a condição (`load_operand` com `.expect`), `cmpq $0,%rax` + `jne`/`jmp`; `Ret` carrega o valor (`.expect`), `leave` e `ret`. Fecha a função e devolve o `.s`. Os `.expect` dependem de invariantes garantidas antes, no lowering (condição/retorno carregáveis)."
 expect_file = "src/backend_s.rs"
 expect_domain = "abi"
@@ -806,6 +806,17 @@ to_summary = "FREESTANDING_BOOT_ENTRY_FUNCTION (\"principal\") e FREESTANDING_BO
 expect_file = "src/boot.rs"
 expect_domain = "geracao"
 expect_layer = "boot"
+
+[[rules]]
+op = "override-region"
+key = "build.elf.leitor"
+from_hash = "fnv1a64:8fc3e153be74c858"
+to_hash = "fnv1a64:8aad2bd74103f43b"
+from_summary = "Leitor mínimo de ELF64 little-endian sem dependência externa: valida o magic `\\x7fELF`, a classe 64 bits, a ordem little-endian e a consistência de `e_shentsize`/`e_shoff`, resolve `e_shnum`/`e_shstrndx` inclusive nas formas estendidas (`shnum == 0` lê `sh_size` da seção 0 e `shstrndx == SHN_XINDEX` lê `sh_link`), coleta os nomes das seções pela `.shstrtab` junto de `sh_flags` (consultável por nome via `section_flags_of`/`section_is_non_executable`, de modo que uma seção possa ser distinguida de uma seção com permissão de execução) e percorre toda seção `SHT_SYMTAB` extraindo nome, ligação (`st_info >> 4`), tipo (`st_info & 0xf`), visibilidade (`st_other & 0x3`), índice de seção e tamanho de cada símbolo. Toda leitura é limitada por índice conferido contra o tamanho do buffer, de modo que um arquivo truncado ou malformado devolve `Err` com detalhe legível em vez de pânico; nenhum conteúdo de seção, relocação ou informação de depuração é interpretado. `parse_program_headers` lê a tabela de segmentos do mesmo arquivo: valida o mesmo prefixo, lê `e_phoff`/`e_phentsize`/`e_phnum`, resolve a forma estendida `PN_XNUM` (`e_phnum == 0xffff` lê `sh_info` da seção 0), exige `e_phentsize == 56` e devolve `(p_type, p_flags)` de cada segmento em `ElfProgramHeader`. Existe porque a `.note.GNU-stack` do objeto só é observável no executável final como `PT_GNU_STACK`, que vive na tabela de programa e não na de seções; um objeto relocável não tem essa tabela e devolve lista vazia, o que não é erro."
+to_summary = "Leitor mínimo de ELF64 little-endian sem dependência externa: valida o magic `\\x7fELF`, a classe 64 bits, a ordem little-endian e a consistência de `e_shentsize`/`e_shoff`, resolve `e_shnum`/`e_shstrndx` inclusive nas formas estendidas (`shnum == 0` lê `sh_size` da seção 0 e `shstrndx == SHN_XINDEX` lê `sh_link`), coleta os nomes das seções pela `.shstrtab` e percorre toda seção `SHT_SYMTAB` extraindo nome, ligação (`st_info >> 4`), tipo (`st_info & 0xf`), visibilidade (`st_other & 0x3`), índice de seção e tamanho de cada símbolo. Toda leitura é limitada por índice conferido contra o tamanho do buffer, de modo que um arquivo truncado ou malformado devolve `Err` com detalhe legível em vez de pânico; nenhum conteúdo de seção, relocação ou informação de depuração é interpretado."
+expect_file = "src/elf.rs"
+expect_domain = "build"
+expect_layer = "elf"
 
 [[rules]]
 op = "override-region"
