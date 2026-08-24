@@ -3419,7 +3419,7 @@ fn run_analyze(config: Config) {
 
     // --- Semântica ---
     try_or_exit!(
-        semantic::check_program_composto(&program, tratos_visiveis),
+        semantic::check_program_composto(&program, tratos_visiveis.clone()),
         &sources
     );
 
@@ -3452,7 +3452,10 @@ fn run_analyze(config: Config) {
 
     // --- IR estruturada ---
     let program_ir = if needs_ir {
-        let lowered = try_or_exit!(ir::lower_program(&program), &sources);
+        let lowered = try_or_exit!(
+            ir::lower_program_composto(&program, tratos_visiveis.clone()),
+            &sources
+        );
         try_or_exit!(ir_validate::validate_program(&lowered), &sources);
         Some(lowered)
     } else {
@@ -3612,11 +3615,14 @@ fn run_build(config: BuildConfig) {
     let (program, grafo) = try_or_exit!(carregado, &sources);
     let tratos_visiveis = module_resolve::tratos_visiveis_por_fonte(&grafo);
     try_or_exit!(
-        semantic::check_program_composto(&program, tratos_visiveis),
+        semantic::check_program_composto(&program, tratos_visiveis.clone()),
         &sources
     );
 
-    let program_ir = try_or_exit!(ir::lower_program(&program), &sources);
+    let program_ir = try_or_exit!(
+        ir::lower_program_composto(&program, tratos_visiveis.clone()),
+        &sources
+    );
     try_or_exit!(ir_validate::validate_program(&program_ir), &sources);
     let cfg_program = try_or_exit!(cfg_ir::lower_program(&program_ir), &sources);
     try_or_exit!(cfg_ir_validate::validate_program(&cfg_program), &sources);
@@ -3961,10 +3967,12 @@ fn importable_item_name(item: &ast::Item) -> Option<&str> {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn load_module_program(
     module: &str,
     base_dir: &Path,
     source_path: &Path,
+    raiz_fisica: Option<&Path>,
     import_span: Span,
     loading: &mut Vec<String>,
     sources: &mut SourceMap,
@@ -3995,8 +4003,15 @@ fn load_module_program(
     })?;
     // A unidade-fonte é registrada ANTES do parse: é o registro que dá ao
     // léxico do módulo a identidade que todo span dele vai carregar.
-    let module_source_id =
-        sources.register_module(module, module_path.display().to_string(), source.clone());
+    //
+    // Um arquivo que importa a si mesmo é o mesmo texto sob duas chaves. Ele
+    // continua sendo um ciclo e continua sendo recusado, mas reusar a fonte
+    // primária evita que o diagnóstico rotule o arquivo principal como se
+    // viesse de outro lugar.
+    let module_source_id = match (raiz_fisica, fs::canonicalize(&module_path).ok()) {
+        (Some(raiz), Some(fisica)) if raiz == fisica => SourceId::ROOT,
+        _ => sources.register_module(module, module_path.display().to_string(), source.clone()),
+    };
     let program = parse_program_from_source(
         &source,
         base_dir,
@@ -4039,6 +4054,7 @@ fn load_module_program(
             import.module.as_str(),
             base_dir,
             &module_path,
+            raiz_fisica,
             import.span,
             loading,
             sources,
@@ -4087,6 +4103,7 @@ fn carregar_e_projetar(
 
     let source_path = PathBuf::from(source_file);
     let base_dir = base_dir_de(source_file);
+    let raiz_fisica = fs::canonicalize(&source_path).ok();
 
     let mut loading = Vec::new();
     let mut seen_imports = HashSet::new();
@@ -4167,6 +4184,7 @@ fn carregar_e_projetar(
             import.module.as_str(),
             &base_dir,
             &source_path,
+            raiz_fisica.as_deref(),
             import.span,
             &mut loading,
             sources,

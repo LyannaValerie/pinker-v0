@@ -109,12 +109,9 @@ impl PinkerError {
                 let Some(span) = self.span() else {
                     return base;
                 };
-                let origem = match sources.label_for(span.source) {
-                    Some(label) if span.source != crate::source_map::SourceId::ROOT => {
-                        Some(format!("  em: {}", label))
-                    }
-                    _ => None,
-                };
+                let origem = sources
+                    .label_for(span.source)
+                    .map(|label| format!("  em: {}", label));
                 let snippet = sources
                     .text_for(span.source)
                     .and_then(|text| extract_source_snippet(text, span));

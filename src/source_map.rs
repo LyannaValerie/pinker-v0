@@ -181,8 +181,20 @@ impl SourceMap {
     }
 
     /// Rótulo da fonte para uso em diagnóstico, quando ela não é a raiz.
+    ///
+    /// A comparação é pelo rótulo, não pelo id: um arquivo que importa a si
+    /// mesmo é registrado uma segunda vez, como módulo, e ganha um id próprio.
+    /// Rotulá-lo como fonte estrangeira seria dizer ao leitor que o trecho veio
+    /// de outro arquivo quando ele veio do mesmo.
     pub fn label_for(&self, id: SourceId) -> Option<&str> {
-        self.get(id).map(|record| record.display.as_str())
+        let registro = self.get(id)?;
+        if id == SourceId::ROOT {
+            return None;
+        }
+        match self.root() {
+            Some(raiz) if raiz.display == registro.display => None,
+            _ => Some(registro.display.as_str()),
+        }
     }
 
     pub fn is_empty(&self) -> bool {

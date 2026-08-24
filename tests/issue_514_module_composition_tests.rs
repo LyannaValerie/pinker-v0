@@ -845,3 +845,317 @@ fn paridade_interpretador_e_nativo_de_programa_composto() {
     assert_eq!(String::from_utf8_lossy(&nativo.stdout), "30\n");
 }
 // @pinker-nav:end evidencia.modulos.composicao-integridade
+
+// @pinker-nav:start evidencia.modulos.revisao-adversarial
+// @pinker-nav:domain modulos
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Regressões das seis correções vindas da revisão adversarial independente da #514: grafia builtin não é entidade de unidade e por isso não é capturável nos dois sentidos, com guarda de deriva contra a autoridade de intrínsecas; `--check` e o lowering concordam sobre despacho de método em programa composto; a forma qualificada `<módulo>.<entidade>` passa pelo ambiente como qualquer outra referência; a superfície de import é validada em toda unidade e não só na raiz; `impl` duplicado dentro de módulo não é engolido pela deduplicação de identidades geradas; e um arquivo que importa a si mesmo não é rotulado como fonte estrangeira.
+
+/// Revisão adversarial N1 — grafia builtin não pertence a unidade alguma.
+///
+/// Um módulo que declare `mapa_criar` não pode fazer a RAIZ perder a chamada
+/// builtin: era código previamente válido que passava a falhar por causa de um
+/// módulo não relacionado.
+#[test]
+fn revisao_n1_declaracao_de_grafia_builtin_em_modulo_nao_quebra_a_raiz() {
+    let c = caso(
+        "raiz_n1",
+        "pacote main;\ntrazer n1_mod.ua;\n\ncarinho principal() -> bombom {\n    nova mm: mapa<verso, bombom> = mapa_criar();\n    mimo ua();\n}\n",
+        &[(
+            "n1_mod",
+            "pacote n1_mod;\n\ncarinho mapa_criar() -> bombom {\n    mimo 1;\n}\n\ncarinho ua() -> bombom {\n    mimo 2;\n}\n",
+        )],
+    );
+    let saida = executar(&c, "revisao-n1-raiz");
+    assert_eq!(codigo(&saida), 2, "{}", stderr(&saida));
+}
+
+/// Revisão adversarial N1, sentido simétrico — a raiz declarando uma grafia
+/// builtin não pode fazer o MÓDULO perder a chamada builtin.
+#[test]
+fn revisao_n1_declaracao_de_grafia_builtin_na_raiz_nao_quebra_o_modulo() {
+    let c = caso(
+        "raiz_n1b",
+        "pacote main;\ntrazer n1b_mod.ua;\n\ncarinho mapa_criar() -> bombom {\n    mimo 0;\n}\n\ncarinho principal() -> bombom {\n    mimo ua();\n}\n",
+        &[(
+            "n1b_mod",
+            "pacote n1b_mod;\n\ncarinho ua() -> bombom {\n    nova mm: mapa<verso, bombom> = mapa_criar();\n    mimo 7;\n}\n",
+        )],
+    );
+    let saida = executar(&c, "revisao-n1-modulo");
+    assert_eq!(codigo(&saida), 7, "{}", stderr(&saida));
+}
+
+/// Revisão adversarial N1 — guarda de deriva.
+///
+/// A resolução modular distingue "grafia builtin" de "entidade declarada por
+/// alguma unidade" consultando `intrinsic_authority::e_grafia_builtin_chamavel`.
+/// Se a autoridade semântica ganhar uma grafia builtin nova sem registrá-la
+/// ali, um módulo que a declare volta a capturá-la — silenciosamente. Este
+/// teste lê a própria fonte para que a lacuna apareça como falha, não como
+/// defeito de composição meses depois.
+#[test]
+fn revisao_n1_autoridade_de_builtin_cobre_as_grafias_da_semantica() {
+    // Não são chamadas: `si` é o marcador de receiver em assinatura de trato e
+    // `trato` é palavra-chave. Qualquer outra grafia precisa ser reconhecida.
+    const NAO_CHAMAVEIS: &[&str] = &["si", "trato"];
+
+    let fonte =
+        fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/semantic.rs"))
+            .expect("ler src/semantic.rs");
+
+    let mut ausentes: Vec<String> = Vec::new();
+    for pedaco in fonte.split("name == \"").skip(1) {
+        let Some(fim) = pedaco.find('"') else {
+            continue;
+        };
+        let grafia = &pedaco[..fim];
+        if grafia.starts_with("__") || NAO_CHAMAVEIS.contains(&grafia) {
+            continue;
+        }
+        if !grafia
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+        {
+            continue;
+        }
+        if !pinker_v0::intrinsic_authority::e_grafia_builtin_chamavel(grafia)
+            && !ausentes.iter().any(|ja| ja == grafia)
+        {
+            ausentes.push(grafia.to_string());
+        }
+    }
+
+    assert!(
+        ausentes.is_empty(),
+        "grafias builtin de src/semantic.rs que a autoridade de intrínsecas não reconhece: {ausentes:?}. \
+         Registre-as em intrinsic_authority, ou um módulo que as declare voltará a capturá-las."
+    );
+}
+
+/// Revisão adversarial N2 — `--check` e o lowering concordam.
+///
+/// O filtro de visibilidade de trato vivia só na autoridade semântica. O
+/// lowering continuava despachando pela tabela global, então um programa
+/// composto podia passar em `--check` e falhar ao ser abaixado: válido para o
+/// compilador e inemitível pelo mesmo compilador.
+#[test]
+fn revisao_n2_check_e_lowering_concordam_sobre_despacho_de_metodo() {
+    let c = caso(
+        "raiz_n2",
+        concat!(
+            "pacote main;\n",
+            "trazer n2_mod.ua;\n\n",
+            "trato Med2 {\n    carinho medir(v: si) -> bombom;\n}\n\n",
+            "impl Med2 para bombom {\n",
+            "    carinho medir(v: bombom) -> bombom { mimo v + 100; }\n",
+            "}\n\n",
+            "carinho principal() -> bombom {\n    mimo ua();\n}\n"
+        ),
+        &[(
+            "n2_mod",
+            concat!(
+                "pacote n2_mod;\n\n",
+                "trato Med {\n    carinho medir(v: si) -> bombom;\n}\n\n",
+                "impl Med para bombom {\n",
+                "    carinho medir(v: bombom) -> bombom { mimo v + 1; }\n",
+                "}\n\n",
+                "carinho ua() -> bombom {\n    nova b: bombom = 5;\n    mimo b.medir();\n}\n"
+            ),
+        )],
+    );
+    let checagem = checar(&c, "revisao-n2-check");
+    assert_eq!(codigo(&checagem), 0, "{}", stderr(&checagem));
+    let execucao = executar(&c, "revisao-n2-run");
+    assert_eq!(
+        codigo(&execucao),
+        6,
+        "o módulo despachou para o trato da raiz: {}",
+        stderr(&execucao)
+    );
+}
+
+/// Revisão adversarial N3 — a forma qualificada passa pelo ambiente.
+///
+/// `<módulo>.<entidade>` é escrita direto no texto e não passa por grafia, então
+/// escapava inteira do `ModuleEnvironment` e alcançava qualquer unidade
+/// carregada.
+#[test]
+fn revisao_n3_forma_qualificada_exige_autorizacao_do_ambiente() {
+    let modulos: &[(&str, &str)] = &[
+        (
+            "n3_b",
+            "pacote n3_b;\n\nninho Segredo {\n    a: bombom;\n    b: bombom;\n    c: bombom;\n}\n\ncarinho ub() -> bombom {\n    mimo 1;\n}\n",
+        ),
+        (
+            "n3_a",
+            "pacote n3_a;\ntrazer n3_b.ub;\n\ncarinho ua() -> bombom {\n    mimo ub();\n}\n",
+        ),
+    ];
+
+    // A raiz importa apenas `n3_a`; `n3_b` está no grafo, mas não no ambiente.
+    let sem_autorizacao = caso(
+        "raiz_n3",
+        "pacote main;\ntrazer n3_a.ua;\n\ncarinho principal() -> bombom {\n    mimo peso(n3_b.Segredo) + ua();\n}\n",
+        modulos,
+    );
+    let saida = checar(&sem_autorizacao, "revisao-n3-sem-autorizacao");
+    let erro = stderr(&saida);
+    assert_eq!(
+        codigo(&saida),
+        1,
+        "forma qualificada não autorizada passou: {erro}"
+    );
+    assert!(erro.contains("n3_b.Segredo"), "{erro}");
+
+    let com_autorizacao = caso(
+        "raiz_n3b",
+        "pacote main;\ntrazer n3_b.Segredo;\ntrazer n3_a.ua;\n\ncarinho principal() -> bombom {\n    mimo peso(n3_b.Segredo) + ua();\n}\n",
+        modulos,
+    );
+    let saida = executar(&com_autorizacao, "revisao-n3-com-autorizacao");
+    assert_eq!(codigo(&saida), 25, "{}", stderr(&saida));
+}
+
+/// Revisão adversarial N3, dentro de um módulo — a mesma pergunta vale para o
+/// corpo de um módulo que escreva a forma qualificada de um irmão.
+#[test]
+fn revisao_n3_forma_qualificada_de_irmao_nao_autorizada_e_recusada() {
+    let c = caso(
+        "raiz_n3c",
+        "pacote main;\ntrazer n3c_a.ua;\ntrazer n3c_b.ub;\n\ncarinho principal() -> bombom {\n    mimo ua() + ub();\n}\n",
+        &[
+            (
+                "n3c_b",
+                "pacote n3c_b;\n\nninho Segredo {\n    a: bombom;\n}\n\ncarinho ub() -> bombom {\n    mimo 1;\n}\n",
+            ),
+            (
+                "n3c_a",
+                "pacote n3c_a;\n\ncarinho ua() -> bombom {\n    mimo peso(n3c_b.Segredo);\n}\n",
+            ),
+        ],
+    );
+    let saida = checar(&c, "revisao-n3-irmao");
+    let erro = stderr(&saida);
+    assert_eq!(codigo(&saida), 1, "{erro}");
+    assert!(erro.contains("n3c_b.Segredo"), "{erro}");
+}
+
+/// Revisão adversarial N4 — a superfície de import é validada em toda unidade.
+///
+/// A validação de colisão e de import duplicado rodava só sobre os imports da
+/// raiz. Dentro de um módulo, o último import vencia em silêncio.
+#[test]
+fn revisao_n4_superficie_de_import_e_validada_tambem_dentro_do_modulo() {
+    let origens: &[(&str, &str)] = &[
+        (
+            "n4_n",
+            "pacote n4_n;\n\ncarinho x() -> bombom {\n    mimo 1;\n}\n",
+        ),
+        (
+            "n4_p",
+            "pacote n4_p;\n\ncarinho x() -> bombom {\n    mimo 2;\n}\n",
+        ),
+    ];
+
+    let mut colisao: Vec<(&str, &str)> = origens.to_vec();
+    colisao.push((
+        "n4_a",
+        "pacote n4_a;\ntrazer n4_n.x;\ntrazer n4_p.x;\n\ncarinho usa() -> bombom {\n    mimo x();\n}\n",
+    ));
+    let c = caso(
+        "raiz_n4",
+        "pacote main;\ntrazer n4_a.usa;\n\ncarinho principal() -> bombom {\n    mimo usa();\n}\n",
+        &colisao,
+    );
+    let saida = checar(&c, "revisao-n4-colisao");
+    let erro = stderr(&saida);
+    assert_eq!(codigo(&saida), 1, "colisão dentro do módulo passou: {erro}");
+    assert!(erro.contains("'x' trazido por múltiplos módulos"), "{erro}");
+
+    let mut duplicado: Vec<(&str, &str)> = origens.to_vec();
+    duplicado.push((
+        "n4_b",
+        "pacote n4_b;\ntrazer n4_n.x;\ntrazer n4_n.x;\n\ncarinho usa() -> bombom {\n    mimo x();\n}\n",
+    ));
+    let c = caso(
+        "raiz_n4b",
+        "pacote main;\ntrazer n4_b.usa;\n\ncarinho principal() -> bombom {\n    mimo usa();\n}\n",
+        &duplicado,
+    );
+    let saida = checar(&c, "revisao-n4-duplicado");
+    let erro = stderr(&saida);
+    assert_eq!(
+        codigo(&saida),
+        1,
+        "import duplicado dentro do módulo passou: {erro}"
+    );
+    assert!(erro.contains("import duplicado para 'n4_n.x'"), "{erro}");
+}
+
+/// Revisão adversarial N5 — `impl` duplicado não é engolido pela deduplicação.
+///
+/// A projeção deduplicava por prefixo `__`, tratando todo nome do compilador
+/// como endereçado por conteúdo. `__impl_*` codifica só `(trato, alvo, método)`:
+/// dois corpos distintos colapsavam num, sem diagnóstico.
+#[test]
+fn revisao_n5_impl_duplicado_em_modulo_continua_recusado() {
+    const CORPO: &str = concat!(
+        "trato N5T {\n    carinho a(v: si) -> bombom;\n}\n\n",
+        "impl N5T para bombom {\n    carinho a(v: bombom) -> bombom { mimo 11; }\n}\n\n",
+        "impl N5T para bombom {\n    carinho a(v: bombom) -> bombom { mimo 22; }\n}\n"
+    );
+
+    let como_raiz = caso(
+        "raiz_n5",
+        &format!("pacote main;\n\n{CORPO}\ncarinho principal() -> bombom {{\n    mimo 0;\n}}\n"),
+        &[],
+    );
+    assert_eq!(
+        codigo(&checar(&como_raiz, "revisao-n5-controle")),
+        1,
+        "controle: duplicata já era recusada na raiz"
+    );
+
+    let como_modulo = caso(
+        "raiz_n5b",
+        "pacote main;\ntrazer n5_mod.usa;\n\ncarinho principal() -> bombom {\n    mimo usa();\n}\n",
+        &[(
+            "n5_mod",
+            &format!(
+                "pacote n5_mod;\n\n{CORPO}\ncarinho usa() -> bombom {{\n    nova b: bombom = 1;\n    mimo b.a();\n}}\n"
+            ),
+        )],
+    );
+    let saida = checar(&como_modulo, "revisao-n5-modulo");
+    let erro = stderr(&saida);
+    assert_eq!(
+        codigo(&saida),
+        1,
+        "duplicata sobreviveu dentro do módulo: {erro}"
+    );
+    assert!(erro.contains("já implementado"), "{erro}");
+}
+
+/// Revisão adversarial N7 — arquivo que importa a si mesmo.
+///
+/// Ele era registrado uma segunda vez como módulo e ganhava id próprio, então o
+/// diagnóstico rotulava o arquivo principal como fonte estrangeira. Continua
+/// sendo ciclo e continua sendo recusado; só deixa de mentir sobre a origem.
+#[test]
+fn revisao_n7_auto_import_nao_rotula_a_raiz_como_fonte_estrangeira() {
+    let c = caso(
+        "raiz_n7",
+        "pacote main;\ntrazer raiz_n7.principal;\n\ncarinho principal() -> bombom {\n    mimo 0;\n}\n",
+        &[],
+    );
+    let saida = checar(&c, "revisao-n7");
+    let erro = stderr(&saida);
+    assert_eq!(codigo(&saida), 1, "{erro}");
+    assert!(erro.contains("ciclo de módulos detectado"), "{erro}");
+    assert!(
+        !erro.contains("  em: "),
+        "a raiz foi rotulada como estrangeira: {erro}"
+    );
+}
+// @pinker-nav:end evidencia.modulos.revisao-adversarial

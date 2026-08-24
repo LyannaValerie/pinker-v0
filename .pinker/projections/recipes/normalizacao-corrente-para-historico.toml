@@ -3,7 +3,7 @@ id = "normalizacao-corrente-para-historico"
 
 [reconstruction]
 expected_overrides = 109
-expected_exclusions = 117
+expected_exclusions = 118
 
 [[rules]]
 op = "exclude-key"
@@ -168,6 +168,11 @@ expected_matches = 1
 [[rules]]
 op = "exclude-key"
 key = "evidencia.modulos.composicao-integridade"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.modulos.revisao-adversarial"
 expected_matches = 1
 
 [[rules]]
@@ -647,7 +652,7 @@ expect_layer = "evidencia"
 [[rules]]
 op = "override-hash"
 key = "ir.lowering.programa-orquestracao"
-from = "fnv1a64:b79c1e1fcae0a08c"
+from = "fnv1a64:2c6636c77d58cd05"
 to = "fnv1a64:4e1d3b50087502d1"
 expect_file = "src/ir.rs"
 expect_domain = "lowering"
@@ -899,7 +904,7 @@ expect_layer = "cli"
 [[rules]]
 op = "override-region"
 key = "cli.analise.pipeline"
-from_hash = "fnv1a64:79ab2567c8fdfc18"
+from_hash = "fnv1a64:70ce093ebdf8b183"
 to_hash = "fnv1a64:8dfca2cbd60710cd"
 from_summary = "run_analyze lê o arquivo de entrada, registra-o como unidade-fonte primária no SourceMap para que todo span nasça vinculado, e conduz o pipeline de análise: tokeniza, parseia, compõe os módulos preservando a unidade (carregar_e_projetar, que devolve o programa projetado e o grafo resolvido), roda a verificação semântica ciente da composição (semantic::check_program_composto, que recebe os tratos visíveis por fonte) e, conforme as flags do Config, cada etapa a jusante (IR, CFG IR, seleção de instruções, máquina abstrata, backend `.s` textual, execução via interpretador, backend pseudo-asm) só é computada se alguma flag de saída a exigir (`needs_ir`/`needs_cfg`/`needs_selected`/`needs_machine`); a falha ao ler o arquivo é tratada diretamente com `eprintln!` e `process::exit(1)`, enquanto erros Pinker das etapas de tokenização, parsing, importação, semântica e lowerings são tratados por `try_or_exit!`; esta função não monta nem linka um binário — a emissão `--asm-s` é apenas texto impresso, e `--run` executa via interpreter::run_program_with_args, não via processo nativo."
 to_summary = "run_analyze lê o arquivo de entrada e conduz o pipeline de análise: tokeniza, parseia, resolve imports (load_program_with_imports), roda a verificação semântica (semantic::check_program) e, conforme as flags do Config, cada etapa a jusante (IR, CFG IR, seleção de instruções, máquina abstrata, backend `.s` textual, execução via interpretador, backend pseudo-asm) só é computada se alguma flag de saída a exigir (`needs_ir`/`needs_cfg`/`needs_selected`/`needs_machine`); a falha ao ler o arquivo é tratada diretamente com `eprintln!` e `process::exit(1)`, enquanto erros Pinker das etapas de tokenização, parsing, importação, semântica e lowerings são tratados por `try_or_exit!`; esta função não monta nem linka um binário — a emissão `--asm-s` é apenas texto impresso, e `--run` executa via interpreter::run_program_with_args, não via processo nativo."
@@ -910,7 +915,7 @@ expect_layer = "cli"
 [[rules]]
 op = "override-region"
 key = "cli.build.nativo"
-from_hash = "fnv1a64:3ee5fe88cf104a5d"
+from_hash = "fnv1a64:77945088c2316df4"
 to_hash = "fnv1a64:091813dd853692c4"
 from_summary = "run_build repete o front-end (lex/parse/imports/semântica/IR/CFG/seleção) e grava o `.s` resultante em <out_dir>/<stem>.s via fs::write; com --nativo, emite via emit_external_toolchain_subset_nativo e, após gravar, chama link_nativo. locate_pinker_rt_lib localiza (não constrói) a staticlib libpinker_rt.a pré-buildada: usa a env PINKER_RT_LIB se apontar para um arquivo existente, senão procura ao lado do executável atual via std::env::current_exe; retorna Err com uma mensagem sugerindo `cargo build` se não encontrar. detect_cc_driver detecta um driver C disponível testando `cc --version`/`gcc --version`/`clang --version` via std::process::Command e retorna o primeiro que responder com status de sucesso. link_nativo invoca esse driver externo em dois passos: primeiro `-c` sobre o `.s` para um objeto cujo basename deriva do próprio `.s` mas que vive dentro de um DiretorioIntermediario possuído pela execução, depois a linkedição desse objeto com a staticlib localizada e -lpthread/-ldl/-lm para produzir o binário via -o. A montagem e a linkedição continuam sendo feitas pelo driver externo, não por este arquivo; o que este arquivo controla é o basename do objeto, porque entregar o `.s` direto ao driver deixaria o intermediário com nome temporário aleatório e o linker o registraria como símbolo `STT_FILE` do executável, quebrando o determinismo byte a byte entre dois builds da mesma fonte. O diretório do objeto não atravessa a linkedição, então o intermediário nunca ocupa `<out_dir>/<stem>.o`: arquivo preexistente do usuário com esse nome não é sobrescrito nem apagado, em nenhum desfecho. Antes de linkar, link_nativo chama verificar_artefato_sussurro, que relê o `.s` gravado e delega a inline_asm::verify_native_artifact — o invariante de artefato roda no caminho produtivo, não só em fixture de teste: monta o assembly emitido e a baseline derivada sem os envelopes noutro DiretorioIntermediario sob o out_dir, compara as superfícies dos dois objetos e aborta o build com E-BACKEND-ASM-ARTIFACT diante de qualquer delta de seção ou de símbolo definido; os dois diretórios intermediários são removidos em qualquer desfecho pelo próprio Drop e a verificação só imprime linha de confirmação quando existe ao menos um envelope. DiretorioIntermediario é esse espaço de scratch: `criar` monta `<out_dir>/.pinker-<propósito>-<pid>[-<n>]` com fs::create_dir, que falha com AlreadyExists em vez de adotar diretório preexistente — a posse fica provada, não presumida —, e Drop remove recursivamente só o que essa criação exclusiva produziu, de modo que nenhum desfecho (sucesso, recusa do assembler, recusa do linker, erro de I/O) apaga arquivo que a execução não criou."
 to_summary = "run_build repete o front-end (lex/parse/imports/semântica/IR/CFG/seleção) e grava o `.s` resultante em <out_dir>/<stem>.s via fs::write; com --nativo, emite via emit_external_toolchain_subset_nativo e, após gravar, chama link_nativo. locate_pinker_rt_lib localiza (não constrói) a staticlib libpinker_rt.a pré-buildada: usa a env PINKER_RT_LIB se apontar para um arquivo existente, senão procura ao lado do executável atual via std::env::current_exe; retorna Err com uma mensagem sugerindo `cargo build` se não encontrar. detect_cc_driver detecta um driver C disponível testando `cc --version`/`gcc --version`/`clang --version` via std::process::Command e retorna o primeiro que responder com status de sucesso. link_nativo invoca esse driver externo passando o `.s`, a staticlib localizada e -lpthread/-ldl/-lm para produzir o binário via -o; a montagem e a linkedição são feitas pelo driver externo, não por este arquivo. Antes de linkar, link_nativo chama verificar_artefato_sussurro, que relê o `.s` gravado e delega a inline_asm::verify_native_artifact — o invariante de artefato roda no caminho produtivo, não só em fixture de teste: monta o assembly emitido e a baseline derivada sem os envelopes num diretório intermediário `.pinker-sussurro-verificacao` sob o out_dir, compara as superfícies dos dois objetos e aborta o build com E-BACKEND-ASM-ARTIFACT diante de qualquer delta de seção ou de símbolo definido; o diretório intermediário é removido em qualquer desfecho e a verificação só imprime linha de confirmação quando existe ao menos um envelope."
@@ -965,7 +970,7 @@ expect_layer = "cli"
 [[rules]]
 op = "override-region"
 key = "cli.modulos.importacao"
-from_hash = "fnv1a64:01b9d9736c8be258"
+from_hash = "fnv1a64:9011126499ea3113"
 to_hash = "fnv1a64:ec330060a090d4c0"
 from_summary = "parse_program_from_source tokeniza e parseia uma string de fonte já vinculada ao SourceId da unidade, entregando ao parser o contexto de import resolvido antes do parse. base_dir_de devolve o diretório de resolução dos `.pink`; contexto_de_import responde, ANTES do parse, as duas perguntas que o parser não pode responder sozinho — quais nomes de `trazer X.y;` são módulo Pinker real (via modulo_real_existe) e que identidades de topo os `trazer <modulo>;` deste arquivo trazem (via nomes_trazidos_por_modulo, leitura best-effort e sem diagnóstico próprio). load_module_program registra a fonte do módulo no SourceMap antes de parseá-lo, detecta ciclo comparando com a pilha `loading`, recursa nos imports do módulo — pulando ali a mesma família built-in que o programa raiz pula — e só então insere a unidade no ModuleGraph, de modo que a ordem de inserção já seja ordem de dependência. carregar_e_projetar é o ponto de entrada: monta o grafo sem descartar nada da unidade, valida cada import da raiz pela superfície que o importador passa a enxergar (colisão com item local, colisão entre imports, import duplicado, símbolo inexistente) SEM materializar item algum, roda a validação modular local de cada unidade com os imports de família que ela escreveu, resolve o grafo para identidades canônicas e só então o projeta num Program único. Import de família built-in continua sem virar item e sobrevive na projeção para a autoridade semântica validá-lo."
 to_summary = "parse_program_from_source tokeniza e parseia uma string de fonte (sem resolver imports). importable_item_name e importable_item_clone reconhecem e clonam os itens importáveis Function, Const, Struct, TypeAlias, Enum e Trait; qualified_type_item_clone requalifica com o prefixo `<módulo>.` somente Struct e TypeAlias, não Function, Const, Enum ou Trait. load_module_program lê o arquivo `<módulo>.pink` a partir de `base_dir`, detecta ciclo de módulos comparando com a pilha `loading` e recursa nos imports do módulo carregado antes de inserir o programa em `loaded`. load_program_with_imports é o ponto de entrada: para cada import do programa raiz, pula famílias built-in importáveis, detecta import duplicado pela chave `módulo::símbolo`, carrega o módulo via load_module_program e insere os itens importados (todo o módulo ou um símbolo específico) em `root_program.items`, reportando colisão de nome com itens locais ou com outro import antes de limpar `root_program.imports`."
@@ -1040,7 +1045,7 @@ expect_layer = "agent"
 [[rules]]
 op = "override-region"
 key = "error.diagnostico.contexto-fonte"
-from_hash = "fnv1a64:401c6740c3e3c6f9"
+from_hash = "fnv1a64:75a40b6d150725ad"
 to_hash = "fnv1a64:139b652061d006d5"
 expect_file = "src/error.rs"
 expect_domain = "diagnostico"
@@ -1201,7 +1206,7 @@ expect_layer = "interpreter"
 [[rules]]
 op = "override-region"
 key = "ir.lowering.assinaturas-intrinsecos"
-from_hash = "fnv1a64:e1b0b42da6485f57"
+from_hash = "fnv1a64:f150dfc109630462"
 to_hash = "fnv1a64:4c474d5f9416a278"
 expect_file = "src/ir.rs"
 expect_domain = "lowering"
@@ -1230,7 +1235,7 @@ expect_layer = "ir"
 [[rules]]
 op = "override-region"
 key = "ir.lowering.funcoes-blocos"
-from_hash = "fnv1a64:449b14bc52f78f97"
+from_hash = "fnv1a64:f4e446b9a681e700"
 to_hash = "fnv1a64:cb1a742852669151"
 expect_file = "src/ir.rs"
 expect_domain = "lowering"

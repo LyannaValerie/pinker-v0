@@ -615,7 +615,7 @@ expect_layer = "ir"
 [[rules]]
 op = "override-hash"
 key = "ir.lowering.contexto-declaracoes"
-from = "fnv1a64:587de18af35ae201"
+from = "fnv1a64:56184077c78a03b4"
 to = "fnv1a64:5a3886a51d4f003d"
 expect_file = "src/ir.rs"
 expect_domain = "lowering"

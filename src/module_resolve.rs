@@ -64,11 +64,31 @@ pub struct ModuleEnvironment {
     /// trouxe. Serve ao diagnóstico: um binding declarado é diferente de um
     /// binding que a unidade só possui porque declarou a entidade.
     imported_spans: HashMap<String, Span>,
+    /// Módulos trazidos INTEIROS por esta unidade.
+    ///
+    /// Import inteiro autoriza a superfície do módulo, então a forma
+    /// qualificada `<módulo>.<membro>` pode consultar qualquer membro dele — a
+    /// existência do membro é pergunta da autoridade semântica, não desta
+    /// camada. Import seletivo autoriza um símbolo, e só ele.
+    modulos_inteiros: HashSet<String>,
 }
 
 impl ModuleEnvironment {
     pub fn lookup(&self, spelling: &str) -> Option<&str> {
         self.bindings.get(spelling).map(String::as_str)
+    }
+
+    /// O nome canônico está autorizado por esta unidade?
+    ///
+    /// A forma qualificada `<módulo>.<Tipo>` é escrita direto no texto e não
+    /// passa por grafia: sem esta pergunta, ela alcançaria qualquer unidade
+    /// carregada, importada ou não.
+    pub fn autoriza_canonico(&self, canonical: &str) -> bool {
+        self.bindings.values().any(|valor| valor == canonical)
+    }
+
+    pub fn importou_inteiro(&self, module_key: &str) -> bool {
+        self.modulos_inteiros.contains(module_key)
     }
 
     pub fn is_imported(&self, spelling: &str) -> bool {
@@ -117,10 +137,27 @@ fn e_nome_do_compilador(name: &str) -> bool {
     name.starts_with("__")
 }
 
+/// A identidade gerada é endereçada pelo próprio conteúdo?
+///
+/// `__gen_*` (especialização genérica) e `__anon_carinho_*` (callable anônimo)
+/// codificam integralmente a identidade que os produziu: nomes iguais provam
+/// entidades iguais, e materializar as duas cópias duplicaria símbolo de
+/// runtime sem criar entidade nova.
+///
+/// `__impl_*` NÃO pertence a este conjunto. Ele codifica apenas
+/// `(trato, alvo, método)`; dois corpos genuinamente distintos da mesma relação
+/// produzem o mesmo nome. Deduplicá-lo descartaria uma implementação em
+/// silêncio, exatamente onde a autoridade de contratos de trato precisa ver as
+/// duas para recusar a duplicata.
+fn e_identidade_endereçada_por_conteudo(name: &str) -> bool {
+    name.starts_with("__gen_")
+        || name.starts_with(crate::anonymous_identity::ANONYMOUS_CALLABLE_PREFIX)
+}
+
 /// Superfície global aprovada: intrínseca pública ou forma qualificada de
 /// família. Nenhuma das duas pertence a uma unidade-fonte.
 fn e_superficie_global(name: &str) -> bool {
-    if crate::intrinsic_authority::public_intrinsic_spelling(name).is_some() {
+    if crate::intrinsic_authority::e_grafia_builtin_chamavel(name) {
         return true;
     }
     match name.split_once('.') {
@@ -149,6 +186,39 @@ pub fn ambientes_do_grafo(
     Ok(ambientes)
 }
 
+/// Uma grafia entra na superfície de uma unidade uma vez só.
+///
+/// É a mesma regra que a raiz sempre teve; ela apenas nunca havia sido aplicada
+/// às demais unidades. As mensagens são as históricas porque a pergunta é a
+/// mesma — só o lugar em que ela passou a ser feita é novo.
+fn declarar_superficie(
+    nome: &str,
+    span: Span,
+    declaracoes_proprias: &HashSet<String>,
+    grafias_importadas: &mut HashMap<String, Span>,
+) -> Result<(), PinkerError> {
+    if declaracoes_proprias.contains(nome) {
+        return Err(PinkerError::Semantic {
+            msg: format!(
+                "colisão de nome no import: '{}' já existe no arquivo principal",
+                nome
+            ),
+            span,
+        });
+    }
+    if let Some(anterior) = grafias_importadas.get(nome) {
+        return Err(PinkerError::Semantic {
+            msg: format!(
+                "colisão de nome no import: '{}' trazido por múltiplos módulos",
+                nome
+            ),
+            span: anterior.merge(span),
+        });
+    }
+    grafias_importadas.insert(nome.to_string(), span);
+    Ok(())
+}
+
 fn ambiente_da_unidade(
     graph: &ModuleGraph,
     unit: &ModuleUnit,
@@ -170,6 +240,19 @@ fn ambiente_da_unidade(
     //
     // NO_IMPLICIT_REEXPORT: só os itens do próprio módulo importado entram.
     // O que ELE importou continua sendo ambiente de implementação dele.
+    //
+    // A superfície de QUALQUER unidade é validada aqui, não só a da raiz: um
+    // módulo que importe duas grafias iguais de módulos distintos, ou que
+    // importe por cima da própria declaração, tinha o último import vencendo em
+    // silêncio.
+    let declaracoes_proprias: HashSet<String> = unit
+        .items
+        .iter()
+        .filter_map(importable_item_name)
+        .map(ToOwned::to_owned)
+        .collect();
+    let mut chaves_de_import: HashSet<String> = HashSet::new();
+    let mut grafias_importadas: HashMap<String, Span> = HashMap::new();
     for import in &unit.imports {
         let existe_modulo = graph.module(import.module.as_str()).is_some();
         if e_import_de_familia(
@@ -183,6 +266,27 @@ fn ambiente_da_unidade(
             // O carregador já recusou módulo inexistente antes de chegar aqui.
             continue;
         };
+        if !unit.is_root() {
+            let chave = format!(
+                "{}::{}",
+                import.module,
+                import.symbol.as_deref().unwrap_or("*")
+            );
+            if !chaves_de_import.insert(chave) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "import duplicado para '{}{}'",
+                        import.module,
+                        import
+                            .symbol
+                            .as_ref()
+                            .map(|symbol| format!(".{}", symbol))
+                            .unwrap_or_default()
+                    ),
+                    span: import.span,
+                });
+            }
+        }
         match &import.symbol {
             Some(symbol) => {
                 // SELECTIVE_IMPORT_SURFACE: entra o símbolo pedido, e só ele.
@@ -201,15 +305,32 @@ fn ambiente_da_unidade(
                         span: import.span,
                     });
                 }
+                if !unit.is_root() {
+                    declarar_superficie(
+                        symbol,
+                        import.span,
+                        &declaracoes_proprias,
+                        &mut grafias_importadas,
+                    )?;
+                }
                 env.import(symbol, origem.canonical(symbol), import.span);
             }
             None => {
+                env.modulos_inteiros.insert(import.module.clone());
                 for item in &origem.items {
                     let Some(name) = importable_item_name(item) else {
                         continue;
                     };
                     if e_nome_do_compilador(name) {
                         continue;
+                    }
+                    if !unit.is_root() {
+                        declarar_superficie(
+                            name,
+                            import.span,
+                            &declaracoes_proprias,
+                            &mut grafias_importadas,
+                        )?;
                     }
                     env.import(name, origem.canonical(name), import.span);
                 }
@@ -228,6 +349,9 @@ fn ambiente_da_unidade(
 struct Resolvedor<'a> {
     unit_key: ModuleKey,
     env: &'a ModuleEnvironment,
+    /// Chaves de todos os módulos carregados, para reconhecer a forma
+    /// qualificada `<módulo>.<entidade>` escrita direto no texto.
+    modulos_carregados: &'a HashSet<String>,
     /// Grafias de topo declaradas em QUALQUER unidade. Serve só para
     /// distinguir "não existe" de "existe alhures e não foi pedido".
     declaradas_no_grafo: &'a HashMap<String, Vec<Declaracao>>,
@@ -241,11 +365,13 @@ impl<'a> Resolvedor<'a> {
     fn new(
         unit_key: ModuleKey,
         env: &'a ModuleEnvironment,
+        modulos_carregados: &'a HashSet<String>,
         declaradas_no_grafo: &'a HashMap<String, Vec<Declaracao>>,
     ) -> Self {
         Self {
             unit_key,
             env,
+            modulos_carregados,
             declaradas_no_grafo,
             bound: Vec::new(),
             type_bound: Vec::new(),
@@ -279,9 +405,44 @@ impl<'a> Resolvedor<'a> {
         if e_superficie_global(name) {
             return Ok(None);
         }
+        // Forma qualificada `<módulo>.<entidade>`, escrita direto no texto.
+        // Ela já É um nome canônico, então nenhuma reescrita se aplica — mas
+        // por isso mesmo ela contorna a grafia, e sem esta pergunta alcançaria
+        // qualquer unidade carregada. Autorização continua sendo do ambiente.
+        if let Some((prefixo, sufixo)) = name.split_once('.') {
+            if self.modulos_carregados.contains(prefixo) {
+                let e_propria = self.unit_key.module_key() == Some(prefixo);
+                // Import inteiro autoriza a superfície: se o membro existe é
+                // pergunta da autoridade semântica, com a redação histórica.
+                if e_propria
+                    || self.env.importou_inteiro(prefixo)
+                    || self.env.autoriza_canonico(name)
+                {
+                    return Ok(None);
+                }
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "tipo '{}' não existe neste ambiente: {} não importou '{}' de '{}'",
+                        name,
+                        descricao_unidade(&self.unit_key),
+                        sufixo,
+                        prefixo,
+                    ),
+                    span,
+                });
+            }
+        }
         // Não autorizado por esta unidade. Se a grafia existe em outra
         // unidade, deixá-la passar seria exatamente a captura ambiental que
         // esta camada existe para impedir.
+        //
+        // A raiz nunca é capturável: depois da canonicalização, item de módulo
+        // se chama `M.x` e nenhuma grafia crua da raiz pode ser satisfeita por
+        // ele. Recusar aqui só produziria falso positivo — inclusive sobre
+        // grafia builtin que uma unidade qualquer resolva declarar.
+        if matches!(self.unit_key, ModuleKey::Root) {
+            return Ok(None);
+        }
         if let Some(declaracoes) = self.declaradas_no_grafo.get(name) {
             let propria = self.unit_key.to_string();
             let alheias: Vec<&Declaracao> = declaracoes
@@ -814,6 +975,11 @@ fn canonizar_grafia(name: &str, env: &ModuleEnvironment) -> String {
 pub fn resolver_grafo(graph: &ModuleGraph) -> Result<ModuleGraph, PinkerError> {
     let ambientes = ambientes_do_grafo(graph)?;
     let declaradas = declaracoes_do_grafo(graph);
+    let modulos_carregados: HashSet<String> = graph
+        .units()
+        .iter()
+        .filter_map(|unit| unit.key.module_key().map(ToOwned::to_owned))
+        .collect();
     let mut resolvido = graph.clone();
 
     for id in graph.dependency_order() {
@@ -824,7 +990,7 @@ pub fn resolver_grafo(graph: &ModuleGraph) -> Result<ModuleGraph, PinkerError> {
         // originais, contra o ambiente; só depois as declarações passam a se
         // chamar pelo nome canônico.
         let unit = resolvido.unit_mut(id);
-        let mut resolvedor = Resolvedor::new(key.clone(), env, &declaradas);
+        let mut resolvedor = Resolvedor::new(key.clone(), env, &modulos_carregados, &declaradas);
         for item in &mut unit.items {
             resolvedor.resolver_item(item)?;
         }
@@ -890,7 +1056,9 @@ pub fn projetar_programa(graph: &ModuleGraph) -> Program {
             if !e_metodo_de_impl && !alcancaveis.contains(nome) {
                 continue;
             }
-            if e_nome_do_compilador(nome) && !gerados_emitidos.insert(nome.to_string()) {
+            if e_identidade_endereçada_por_conteudo(nome)
+                && !gerados_emitidos.insert(nome.to_string())
+            {
                 continue;
             }
             items.push(item.clone());
@@ -900,7 +1068,9 @@ pub fn projetar_programa(graph: &ModuleGraph) -> Program {
 
     for item in &root.items {
         if let Some(nome) = importable_item_name(item) {
-            if e_nome_do_compilador(nome) && !gerados_emitidos.insert(nome.to_string()) {
+            if e_identidade_endereçada_por_conteudo(nome)
+                && !gerados_emitidos.insert(nome.to_string())
+            {
                 continue;
             }
         }
@@ -1007,13 +1177,11 @@ fn fecho_alcancavel(graph: &ModuleGraph) -> HashSet<String> {
         }
     }
 
-    // A raiz já está inteira na projeção; o que ela referencia dos módulos
-    // entra pelo fecho.
-    for item in &graph.root().items {
-        for referenciado in referencias_do_item(item) {
-            semear(referenciado, &mut alcancaveis, &mut pendentes);
-        }
-    }
+    // A raiz NÃO semeia por referência crua. Semear pelo que ela escreveu faria
+    // a forma qualificada `<módulo>.<entidade>` materializar qualquer unidade
+    // carregada, autorizada ou não — a materialização passaria a decidir
+    // visibilidade, que é exatamente a confusão que esta camada desfaz. O que a
+    // raiz autorizou já entrou pelos imports dela, acima.
 
     while let Some(nome) = pendentes.pop() {
         let Some((item, unidade)) = por_nome.get(nome.as_str()).copied() else {
