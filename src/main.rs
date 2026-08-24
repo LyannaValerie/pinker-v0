@@ -19,6 +19,7 @@ use pinker_v0::interpreter;
 use pinker_v0::ir;
 use pinker_v0::ir_validate;
 use pinker_v0::lexer::Lexer;
+use pinker_v0::module_graph::ModuleGraph;
 use pinker_v0::nav;
 use pinker_v0::nav_projection_lifecycle::{self, ProjectionError};
 use pinker_v0::nav_projection_report;
@@ -30,6 +31,7 @@ use pinker_v0::project_state_report;
 use pinker_v0::projection;
 use pinker_v0::repl;
 use pinker_v0::semantic;
+use pinker_v0::source_map::{SourceId, SourceMap};
 use pinker_v0::symbol_index;
 use pinker_v0::token::{Span, Token};
 use pinker_v0::tooling;
@@ -1565,11 +1567,14 @@ fn parse_args() -> Result<CliCommand, String> {
 // @pinker-nav:summary main preserva exits de domínio ao despachar análise e os nove comandos, incluindo adaptadores estruturados read-only para doctor, nav impacto e verificar.
 /// Macro para encurtar o padrão "try or exit(1)" repetido no pipeline.
 macro_rules! try_or_exit {
-    ($result:expr, $source:expr) => {
+    ($result:expr, $sources:expr) => {
         match $result {
             Ok(val) => val,
             Err(err) => {
-                eprintln!("{}", err.render_for_cli_with_source($source));
+                // O trecho vem da fonte que o span reivindica. Passar o texto
+                // primário aqui era o que fazia um erro de módulo ser desenhado
+                // sobre a raiz.
+                eprintln!("{}", err.render_for_cli_with_sources($sources));
                 std::process::exit(EXIT_FAILURE);
             }
         }
@@ -3374,8 +3379,13 @@ fn run_analyze(config: Config) {
     };
 
     // --- Frontend: léxico + parsing ---
-    let mut lexer = Lexer::new(&source);
-    let tokens = try_or_exit!(lexer.tokenize(), &source);
+    // A raiz é a primeira unidade-fonte registrada, então recebe
+    // `SourceId::ROOT`. Todo span produzido a partir daqui já nasce sabendo a
+    // que texto pertence.
+    let mut sources = SourceMap::new();
+    let root_source_id = sources.register_root(config.input.clone(), source.clone());
+    let mut lexer = Lexer::com_fonte(&source, root_source_id);
+    let tokens = try_or_exit!(lexer.tokenize(), &sources);
 
     if config.print_tokens && !config.check_only {
         println!("=== TOKENS ===");
@@ -3389,11 +3399,11 @@ fn run_analyze(config: Config) {
     // irreversível.
     let contexto = contexto_de_import(&tokens, &base_dir_de(&config.input));
     let mut parser = Parser::com_contexto_de_import(tokens, GenericOrigin::Root, contexto);
-    let parsed_program = try_or_exit!(parser.parse(), &source);
-    let program = try_or_exit!(
-        load_program_with_imports(&config.input, parsed_program),
-        &source
-    );
+    let parsed_program = try_or_exit!(parser.parse(), &sources);
+    // O empréstimo mutável do mapa de fontes termina antes da renderização de
+    // erro, que precisa lê-lo.
+    let carregado = load_program_with_imports(&config.input, parsed_program, &mut sources);
+    let program = try_or_exit!(carregado, &sources);
 
     if config.print_ast && !config.check_only {
         println!("=== AST TEXTUAL ===");
@@ -3406,7 +3416,7 @@ fn run_analyze(config: Config) {
     }
 
     // --- Semântica ---
-    try_or_exit!(semantic::check_program(&program), &source);
+    try_or_exit!(semantic::check_program(&program), &sources);
 
     if config.check_only {
         return;
@@ -3437,8 +3447,8 @@ fn run_analyze(config: Config) {
 
     // --- IR estruturada ---
     let program_ir = if needs_ir {
-        let lowered = try_or_exit!(ir::lower_program(&program), &source);
-        try_or_exit!(ir_validate::validate_program(&lowered), &source);
+        let lowered = try_or_exit!(ir::lower_program(&program), &sources);
+        try_or_exit!(ir_validate::validate_program(&lowered), &sources);
         Some(lowered)
     } else {
         None
@@ -3451,8 +3461,11 @@ fn run_analyze(config: Config) {
 
     // --- CFG IR ---
     let cfg_ir_program = if needs_cfg {
-        let cfg = try_or_exit!(cfg_ir::lower_program(program_ir.as_ref().unwrap()), &source);
-        try_or_exit!(cfg_ir_validate::validate_program(&cfg), &source);
+        let cfg = try_or_exit!(
+            cfg_ir::lower_program(program_ir.as_ref().unwrap()),
+            &sources
+        );
+        try_or_exit!(cfg_ir_validate::validate_program(&cfg), &sources);
         Some(cfg)
     } else {
         None
@@ -3470,9 +3483,9 @@ fn run_analyze(config: Config) {
     let selected_program = if needs_selected {
         let selected = try_or_exit!(
             instr_select::lower_program(cfg_ir_program.as_ref().unwrap()),
-            &source
+            &sources
         );
-        try_or_exit!(instr_select_validate::validate_program(&selected), &source);
+        try_or_exit!(instr_select_validate::validate_program(&selected), &sources);
         Some(selected)
     } else {
         None
@@ -3490,11 +3503,11 @@ fn run_analyze(config: Config) {
     let machine_program = if needs_machine {
         let machine = try_or_exit!(
             abstract_machine::lower_program(selected_program.as_ref().unwrap()),
-            &source
+            &sources
         );
         try_or_exit!(
             abstract_machine_validate::validate_program(&machine),
-            &source
+            &sources
         );
         Some(machine)
     } else {
@@ -3515,7 +3528,7 @@ fn run_analyze(config: Config) {
     if config.print_asm_s {
         let out = try_or_exit!(
             backend_s::emit_from_selected(selected_program.as_ref().unwrap()),
-            &source
+            &sources
         );
         println!("=== ASM .S (TEXTUAL) ===");
         print!("{}", out);
@@ -3525,7 +3538,7 @@ fn run_analyze(config: Config) {
     if config.run_program {
         let result = try_or_exit!(
             interpreter::run_program_with_args(machine_program.as_ref().unwrap(), &config.run_args),
-            &source
+            &sources
         );
         std::process::exit(result.exit_status.unwrap_or(0));
     }
@@ -3538,11 +3551,11 @@ fn run_analyze(config: Config) {
     if config.print_pseudo_asm {
         let lowered_backend = try_or_exit!(
             backend_text::lower_selected_program(selected_program.as_ref().unwrap()),
-            &source
+            &sources
         );
         try_or_exit!(
             backend_text_validate::validate_program(&lowered_backend),
-            &source
+            &sources
         );
         println!("=== PSEUDO ASM ===");
         print!("{}", backend_text::render_program(&lowered_backend));
@@ -3578,36 +3591,38 @@ fn run_build(config: BuildConfig) {
         }
     };
 
-    let mut lexer = Lexer::new(&source);
-    let tokens = try_or_exit!(lexer.tokenize(), &source);
+    let mut sources = SourceMap::new();
+    let root_source_id = sources.register_root(config.input.clone(), source.clone());
+    let mut lexer = Lexer::com_fonte(&source, root_source_id);
+    let tokens = try_or_exit!(lexer.tokenize(), &sources);
     // Parte G: o que só a autoridade de import sabe é resolvido aqui e
     // entregue pronto ao parser — nunca depois da canonicalização, que é
     // irreversível.
     let contexto = contexto_de_import(&tokens, &base_dir_de(&config.input));
     let mut parser = Parser::com_contexto_de_import(tokens, GenericOrigin::Root, contexto);
-    let parsed_program = try_or_exit!(parser.parse(), &source);
-    let program = try_or_exit!(
-        load_program_with_imports(&config.input, parsed_program),
-        &source
-    );
-    try_or_exit!(semantic::check_program(&program), &source);
+    let parsed_program = try_or_exit!(parser.parse(), &sources);
+    // O empréstimo mutável do mapa de fontes termina antes da renderização de
+    // erro, que precisa lê-lo.
+    let carregado = load_program_with_imports(&config.input, parsed_program, &mut sources);
+    let program = try_or_exit!(carregado, &sources);
+    try_or_exit!(semantic::check_program(&program), &sources);
 
-    let program_ir = try_or_exit!(ir::lower_program(&program), &source);
-    try_or_exit!(ir_validate::validate_program(&program_ir), &source);
-    let cfg_program = try_or_exit!(cfg_ir::lower_program(&program_ir), &source);
-    try_or_exit!(cfg_ir_validate::validate_program(&cfg_program), &source);
-    let selected_program = try_or_exit!(instr_select::lower_program(&cfg_program), &source);
+    let program_ir = try_or_exit!(ir::lower_program(&program), &sources);
+    try_or_exit!(ir_validate::validate_program(&program_ir), &sources);
+    let cfg_program = try_or_exit!(cfg_ir::lower_program(&program_ir), &sources);
+    try_or_exit!(cfg_ir_validate::validate_program(&cfg_program), &sources);
+    let selected_program = try_or_exit!(instr_select::lower_program(&cfg_program), &sources);
     try_or_exit!(
         instr_select_validate::validate_program(&selected_program),
-        &source
+        &sources
     );
     let output = if config.nativo {
         try_or_exit!(
             backend_s::emit_external_toolchain_subset_nativo(&selected_program),
-            &source
+            &sources
         )
     } else {
-        try_or_exit!(backend_s::emit_from_selected(&selected_program), &source)
+        try_or_exit!(backend_s::emit_from_selected(&selected_program), &sources)
     };
 
     let out_dir = PathBuf::from(&config.out_dir);
@@ -3839,12 +3854,18 @@ fn parse_program_from_source(
     source: &str,
     base_dir: &Path,
     generic_origin: GenericOrigin,
+    source_id: SourceId,
 ) -> Result<ast::Program, PinkerError> {
-    let mut lexer = Lexer::new(source);
+    let mut lexer = Lexer::com_fonte(source, source_id);
     let tokens = lexer.tokenize()?;
     let contexto = contexto_de_import(&tokens, base_dir);
     let mut parser = Parser::com_contexto_de_import(tokens, generic_origin, contexto);
-    parser.parse()
+    // O parser deriva os spans dos tokens, que já vieram vinculados. O carimbo
+    // aqui é a rede para span sintético que o parser tenha criado sem token de
+    // origem; span já vinculado nunca é reatribuído.
+    parser
+        .parse()
+        .map_err(|err| err.com_fonte_padrao(source_id))
 }
 
 /// Diretório a partir do qual os `.pink` importados são resolvidos.
@@ -3944,10 +3965,9 @@ fn importable_item_clone(item: &ast::Item) -> Option<ast::Item> {
 
 fn anonymous_callable_dependencies(
     owner: &ast::FunctionDecl,
-    module_program: &ast::Program,
+    module_items: &[ast::Item],
 ) -> Result<Vec<ast::Item>, PinkerError> {
-    let anonymous_functions: HashMap<&str, &ast::FunctionDecl> = module_program
-        .items
+    let anonymous_functions: HashMap<&str, &ast::FunctionDecl> = module_items
         .iter()
         .filter_map(|item| match item {
             ast::Item::Function(function)
@@ -3982,8 +4002,7 @@ fn anonymous_callable_dependencies(
         }
     }
 
-    Ok(module_program
-        .items
+    Ok(module_items
         .iter()
         .filter(|item| match item {
             ast::Item::Function(function) => required.contains(&function.name),
@@ -4015,9 +4034,10 @@ fn load_module_program(
     source_path: &Path,
     import_span: Span,
     loading: &mut Vec<String>,
-    loaded: &mut HashMap<String, ast::Program>,
+    sources: &mut SourceMap,
+    graph: &mut ModuleGraph,
 ) -> Result<(), PinkerError> {
-    if loaded.contains_key(module) {
+    if graph.module_id(module).is_some() {
         return Ok(());
     }
     if loading.iter().any(|entry| entry == module) {
@@ -4040,24 +4060,36 @@ fn load_module_program(
         ),
         span: import_span,
     })?;
-    let program = parse_program_from_source(&source, base_dir, GenericOrigin::module(module))
-        .map_err(|err| match err {
-            PinkerError::Lexer { msg, span }
-            | PinkerError::Parse { msg, span }
-            | PinkerError::Expected {
-                expected: msg,
-                span,
-                ..
-            }
-            | PinkerError::Semantic { msg, span } => PinkerError::Semantic {
-                msg: format!("falha ao ler módulo '{}': {}", module, msg),
-                span,
-            },
-            other => other,
-        })?;
+    // A unidade-fonte é registrada ANTES do parse: é o registro que dá ao
+    // léxico do módulo a identidade que todo span dele vai carregar.
+    let module_source_id =
+        sources.register_module(module, module_path.display().to_string(), source.clone());
+    let program = parse_program_from_source(
+        &source,
+        base_dir,
+        GenericOrigin::module(module),
+        module_source_id,
+    )
+    .map_err(|err| match err {
+        PinkerError::Lexer { msg, span }
+        | PinkerError::Parse { msg, span }
+        | PinkerError::Expected {
+            expected: msg,
+            span,
+            ..
+        }
+        | PinkerError::Semantic { msg, span } => PinkerError::Semantic {
+            msg: format!("falha ao ler módulo '{}': {}", module, msg),
+            span,
+        },
+        other => other,
+    })?;
 
     loading.push(module.to_string());
-    for import in &program.imports {
+    // O módulo é inserido no grafo DEPOIS de recursar nos imports dele, de
+    // modo que a ordem de inserção já é ordem de dependência.
+    let module_imports = program.imports.clone();
+    for import in &module_imports {
         // Parte G: a mesma precedência que o programa raiz aplica vale dentro
         // de um módulo. `trazer arquivo;` é import de família e não procura
         // `arquivo.pink`; a forma seletiva cede a vez a um módulo real que
@@ -4076,11 +4108,17 @@ fn load_module_program(
             &module_path,
             import.span,
             loading,
-            loaded,
+            sources,
+            graph,
         )?;
     }
     loading.pop();
-    loaded.insert(module.to_string(), program);
+    graph.insert_module(
+        module,
+        module_source_id,
+        module_path.display().to_string(),
+        program,
+    );
     Ok(())
 }
 
@@ -4095,16 +4133,34 @@ fn modulo_real_existe(base_dir: &Path, module: &str) -> bool {
 
 fn load_program_with_imports(
     source_file: &str,
-    mut root_program: ast::Program,
+    root_program: ast::Program,
+    sources: &mut SourceMap,
 ) -> Result<ast::Program, PinkerError> {
+    let (program, _graph) = carregar_e_projetar(source_file, root_program, sources)?;
+    Ok(program)
+}
+
+/// Carrega a composição preservando a unidade modular e devolve, junto do
+/// programa projetado, o grafo de onde ele saiu.
+///
+/// A projeção continua sendo a mesma de sempre — o que mudou é que ela agora é
+/// derivada de um grafo que ainda existe depois dela. Antes, a unidade era
+/// destruída no ato do carregamento e não havia de onde derivar nada.
+fn carregar_e_projetar(
+    source_file: &str,
+    mut root_program: ast::Program,
+    sources: &mut SourceMap,
+) -> Result<(ast::Program, ModuleGraph), PinkerError> {
+    let mut graph = ModuleGraph::new();
+    graph.insert_root(SourceId::ROOT, source_file, root_program.clone());
+
     if root_program.imports.is_empty() {
-        return Ok(root_program);
+        return Ok((root_program, graph));
     }
 
     let source_path = PathBuf::from(source_file);
     let base_dir = base_dir_de(source_file);
 
-    let mut loaded = HashMap::new();
     let mut loading = Vec::new();
     let mut seen_imports = HashSet::new();
     let mut imported_items = Vec::new();
@@ -4187,10 +4243,11 @@ fn load_program_with_imports(
             &source_path,
             import.span,
             &mut loading,
-            &mut loaded,
+            sources,
+            &mut graph,
         )?;
-        let module_program = loaded
-            .get(import.module.as_str())
+        let module_program = graph
+            .module(import.module.as_str())
             .expect("módulo carregado");
 
         if let Some(symbol) = &import.symbol {
@@ -4227,7 +4284,7 @@ fn load_program_with_imports(
             };
             let dependencies = match item {
                 ast::Item::Function(function) => {
-                    anonymous_callable_dependencies(function, module_program)?
+                    anonymous_callable_dependencies(function, &module_program.items)?
                 }
                 _ => Vec::new(),
             };
@@ -4310,10 +4367,12 @@ fn load_program_with_imports(
     }
 
     root_program.items.splice(0..0, imported_items);
-    // Imports de módulo já foram materializados como itens de topo e somem.
-    // Imports de família sobrevivem porque quem os valida é a autoridade
-    // semântica, não o carregador de arquivos.
+    // Imports de módulo já foram materializados como itens de topo e somem
+    // DA PROJEÇÃO. Eles continuam existindo na unidade raiz dentro do grafo,
+    // que é o que permite validar e resolver a raiz pelo ambiente que ela
+    // declarou. Imports de família sobrevivem também na projeção porque quem
+    // os valida é a autoridade semântica, não o carregador de arquivos.
     root_program.imports = family_imports;
-    Ok(root_program)
+    Ok((root_program, graph))
 }
 // @pinker-nav:end cli.modulos.importacao

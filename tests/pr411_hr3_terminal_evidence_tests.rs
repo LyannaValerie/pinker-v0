@@ -46,6 +46,7 @@ const POSICAO: Position = Position { line: 1, col: 1 };
 const SPAN: Span = Span {
     start: POSICAO,
     end: POSICAO,
+    source: pinker_v0::source_map::SourceId::UNKNOWN,
 };
 
 /// Sequência para diretórios temporários únicos por binário nativo montado.
