@@ -1,0 +1,8 @@
+// L-15 — o léxico aceita apenas `\n`, `\t`, `\r`, `\0`, `\\` e `\"`.
+// Sem `\e` e sem `\u`, a shell não emite sequência ANSI direto.
+pacote main;
+
+carinho principal() -> bombom {
+    falar("\e[31mvermelho\e[0m");
+    mimo 0;
+}

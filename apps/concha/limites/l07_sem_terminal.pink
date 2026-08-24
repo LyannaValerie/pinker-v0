@@ -1,0 +1,19 @@
+// L-07 — o filho nunca recebe um terminal: stdin, stdout e stderr são sempre
+// pipes. Programas interativos (vim, less, top, ssh) não funcionam.
+pacote main;
+
+apelido Res = Resultado<SaidaProcesso, verso>;
+
+carinho principal() -> bombom {
+    nova muda argv: lista<verso> = lista_verso_criar();
+    lista_verso_anexar(argv, "-c");
+    lista_verso_anexar(argv, "test -t 0; echo stdin_e_terminal=$?; test -t 1; echo stdout_e_terminal=$?");
+    nova muda amb: mapa<verso,verso> = mapa_verso_verso_criar();
+    nova r: Res = executar_processo_estruturado("sh", argv, "", "", amb, LimiteTempo.SemLimite);
+    encaixe r {
+        caso Res.Ok(s) { falar(processo_saida(s)); }
+        caso Res.Erro(e) { falar("ERRO:", e); }
+    }
+    falar("(0 = verdadeiro no test do shell; 1 = falso)");
+    mimo 0;
+}

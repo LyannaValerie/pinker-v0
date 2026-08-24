@@ -1,0 +1,10 @@
+// L-09 — `falar` é a única saída de texto da linguagem: sempre junta os
+// argumentos com espaço e sempre termina com quebra de linha. Não existe
+// `echo -n` de verdade, nem prompt na mesma linha da digitação.
+pacote main;
+
+carinho principal() -> bombom {
+    falar("prompt$");
+    falar("a", "b");
+    mimo 0;
+}

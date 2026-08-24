@@ -1,0 +1,8 @@
+// L-14 — não há `$$` nem `$!`: o processo não sabe o próprio identificador e
+// não recebe o do filho.
+pacote main;
+
+carinho principal() -> bombom {
+    falar(processo_id());
+    mimo 0;
+}

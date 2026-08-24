@@ -1,0 +1,9 @@
+// L-11 — `verso` não tem comparação de ordem nem conversão para código de
+// caractere. Ordenar nomes de arquivo (que o glob do shell exige) só é
+// possível com uma tabela de caracteres escrita à mão.
+pacote main;
+
+carinho principal() -> bombom {
+    falar(menor_verso("azul", "rosa"));
+    mimo 0;
+}

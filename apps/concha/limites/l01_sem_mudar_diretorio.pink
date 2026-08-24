@@ -1,0 +1,9 @@
+// L-01 — a concha não consegue mudar o diretório do próprio processo.
+// Existe `diretorio_atual()` para ler, mas nenhuma intrínseca para escrever.
+pacote main;
+
+carinho principal() -> bombom {
+    falar(diretorio_atual());
+    mudar_diretorio("/tmp");
+    mimo 0;
+}

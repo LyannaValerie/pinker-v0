@@ -1,0 +1,18 @@
+// L-16 — o PATH do filho é fixado pelo runtime antes do overlay do usuário.
+// Sem overlay explícito, o filho NUNCA vê o PATH do pai.
+pacote main;
+
+apelido Res = Resultado<SaidaProcesso, verso>;
+
+carinho principal() -> bombom {
+    nova muda argv: lista<verso> = lista_verso_criar();
+    lista_verso_anexar(argv, "-c");
+    lista_verso_anexar(argv, "echo PATH_DO_FILHO=$PATH");
+    nova muda amb: mapa<verso,verso> = mapa_verso_verso_criar();
+    nova r: Res = executar_processo_estruturado("sh", argv, "", "", amb, LimiteTempo.SemLimite);
+    encaixe r {
+        caso Res.Ok(s) { falar(processo_saida(s)); }
+        caso Res.Erro(e) { falar("ERRO:", e); }
+    }
+    mimo 0;
+}

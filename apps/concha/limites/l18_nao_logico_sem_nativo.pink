@@ -1,0 +1,18 @@
+// L-18 — o operador `!` existe no léxico, no parser, na semântica e no
+// interpretador, mas não tem lowering no backend nativo: o recorte da Fase 135
+// lista o que aceita e `!` não está lá.
+//
+//   pink --run          -> imprime
+//   pink build --nativo -> recusa
+//
+// O diagnóstico sai (a Pinker cospe o motivo), mas cospe o catálogo inteiro do
+// subset aceito, sem nomear o operador nem apontar a linha: o span é 1:1..1:1.
+pacote main;
+
+carinho principal() -> bombom {
+    nova b: logica = falso;
+    talvez !b {
+        falar("negado com operador");
+    }
+    mimo 0;
+}

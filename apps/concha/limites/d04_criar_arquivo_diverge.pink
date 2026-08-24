@@ -1,0 +1,18 @@
+// D-04 — DEFEITO DE PARIDADE: `criar_arquivo` sobre um caminho que já existe.
+//
+//   interpretador: `fs::write(path, "")` -> trunca e segue (src/interpreter.rs)
+//   nativo:        `OpenOptions::create_new(true)` -> "File exists" e aborta
+//                  (runtime/pinker_rt/src/lib.rs, `abrir_descritor`)
+//
+// Para um shell isso é o `>` do bash: o mesmo redirecionamento funciona no
+// interpretador e mata o binário nativo na segunda execução do mesmo roteiro.
+// Rode duas vezes para ver a diferença.
+pacote main;
+
+carinho principal() -> bombom {
+    nova h: bombom = criar_arquivo("/tmp/pinker_d04.txt");
+    escrever_verso(h, "conteudo\n");
+    fechar(h);
+    falar("criou/truncou /tmp/pinker_d04.txt");
+    mimo 0;
+}

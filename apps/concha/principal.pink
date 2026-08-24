@@ -1,0 +1,1643 @@
+// @pinker-nav:start apps.concha.shell
+// @pinker-nav:domain concha
+// @pinker-nav:layer apps
+// @pinker-nav:summary Concha — interpretador de linha de comando escrito só em Pinker: tokenização com aspas, expansão de variáveis, glob, pipelines, redirecionamento, encadeamento condicional e builtins.
+
+// Concha — a shell da Pinker.
+//
+// Escrita inteiramente em Pinker, sem uma linha de Rust e sem delegar a
+// nenhum outro shell: `sh -c` nunca é chamado. Cada comando externo é um
+// spawn direto por `executar_processo_estruturado`, com argv de verdade,
+// diretório de trabalho próprio e overlay de ambiente.
+//
+// O que a Concha NÃO consegue fazer está documentado, com prova, em
+// `docs/concha_limites.md`. Cada limite ali tem um arquivo `.pink` que o
+// compilador ou o runtime da Pinker recusa com mensagem própria.
+
+pacote concha;
+
+apelido ResProcesso = Resultado<SaidaProcesso, verso>;
+apelido ResNomes = Resultado<lista<verso>, verso>;
+apelido ResTexto = Resultado<verso, verso>;
+
+// ---------------------------------------------------------------------------
+// Estado
+//
+// A Concha não tem struct global: o estado vive num `mapa<verso,verso>`, que é
+// handle e portanto é observado por todas as funções que o recebem.
+// Chaves: PWD, ANTIGO_PWD, STATUS, SAIR, CODIGO, SAIDA, ERRO, INTERATIVO.
+// ---------------------------------------------------------------------------
+
+carinho ler_estado(est: mapa<verso,verso>, chave: verso) -> verso {
+    talvez mapa_verso_verso_tem(est, chave) {
+        mimo mapa_verso_verso_obter(est, chave);
+    }
+    mimo "";
+}
+
+carinho gravar_estado(est: mapa<verso,verso>, chave: verso, valor: verso) -> bombom {
+    mapa_verso_verso_definir(est, chave, valor);
+    mimo 0;
+}
+
+carinho ler_status(est: mapa<verso,verso>) -> bombom {
+    nova bruto: verso = ler_estado(est, "STATUS");
+    talvez vazio_verso(bruto) {
+        mimo 0;
+    }
+    mimo verso_para_bombom(bruto);
+}
+
+carinho gravar_status(est: mapa<verso,verso>, codigo: bombom) -> bombom {
+    gravar_estado(est, "STATUS", bombom_para_verso(codigo));
+    mimo codigo;
+}
+
+carinho limpar_saidas(est: mapa<verso,verso>) -> bombom {
+    gravar_estado(est, "SAIDA", "");
+    gravar_estado(est, "ERRO", "");
+    mimo 0;
+}
+
+// ---------------------------------------------------------------------------
+// Caracteres e ordenação
+//
+// A Pinker não tem comparação de ordem entre `verso` nem conversão de
+// caractere para código. A ordenação de nomes (que o glob exige, porque
+// `listar_diretorio` devolve na ordem do filesystem) é feita por uma tabela
+// explícita de caracteres. Ver limite L-11 em docs/concha_limites.md.
+// ---------------------------------------------------------------------------
+
+carinho tabela_ordem() -> verso {
+    mimo " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
+}
+
+carinho ordem_caractere(c: verso) -> bombom {
+    nova pos: bombom = indice_verso_em(tabela_ordem(), c);
+    talvez pos == 18446744073709551615 {
+        mimo 200;
+    }
+    mimo pos;
+}
+
+carinho antes_de(a: verso, b: verso) -> logica {
+    nova ta: bombom = tamanho_verso(a);
+    nova tb: bombom = tamanho_verso(b);
+    nova muda i: bombom = 0;
+    // Contorno do defeito D-01 (ver docs/concha_limites.md): a condição de
+    // `sempre que` com `&&` só é avaliada na entrada do laço.
+    sempre que i < ta {
+        talvez nao((i < tb)) {
+            quebrar;
+        }
+        nova oa: bombom = ordem_caractere(indice_verso(a, i));
+        nova ob: bombom = ordem_caractere(indice_verso(b, i));
+        talvez oa < ob {
+            mimo verdade;
+        }
+        talvez ob < oa {
+            mimo falso;
+        }
+        i = i + 1;
+    }
+    mimo ta < tb;
+}
+
+carinho ordenar_nomes(nomes: lista<verso>) -> bombom {
+    nova total: bombom = lista_tamanho(nomes);
+    nova muda i: bombom = 1;
+    sempre que i < total {
+        nova atual: verso = lista_obter(nomes, i);
+        nova muda j: bombom = i;
+        sempre que j > 0 {
+            talvez nao(antes_de(atual, lista_obter(nomes, j - 1))) {
+                quebrar;
+            }
+            lista_definir(nomes, j, lista_obter(nomes, j - 1));
+            j = j - 1;
+        }
+        lista_definir(nomes, j, atual);
+        i = i + 1;
+    }
+    mimo 0;
+}
+
+// Negação portátil entre os dois backends.
+//
+// `!b` roda no interpretador e o backend nativo recusa; `b == falso` monta no
+// nativo e o interpretador derruba (defeitos D-03 e L-18 em LIMITES.md). O
+// único jeito de negar um `logica` que funciona nos dois é não usar operador
+// nenhum: `talvez` puro dentro de um `carinho`.
+carinho nao(b: logica) -> logica {
+    talvez b {
+        mimo falso;
+    }
+    mimo verdade;
+}
+
+carinho e_branco(c: verso) -> logica {
+    mimo igual_verso(c, " ") || igual_verso(c, "\t");
+}
+
+carinho e_char_nome(c: verso) -> logica {
+    talvez igual_verso(c, "_") {
+        mimo verdade;
+    }
+    nova pos: bombom = indice_verso_em("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz", c);
+    mimo pos != 18446744073709551615;
+}
+
+// ---------------------------------------------------------------------------
+// Caminhos
+// ---------------------------------------------------------------------------
+
+carinho caminho_absoluto(pwd: verso, alvo: verso) -> verso {
+    talvez vazio_verso(alvo) {
+        mimo pwd;
+    }
+    talvez comeca_com(alvo, "/") {
+        mimo alvo;
+    }
+    mimo juntar_caminho(pwd, alvo);
+}
+
+carinho normalizar_caminho(bruto: verso) -> verso {
+    nova absoluto: logica = comeca_com(bruto, "/");
+    nova partes: bombom = dividir_verso_contar(bruto, "/");
+    nova muda pilha: lista<verso> = lista_criar();
+    nova muda i: bombom = 0;
+    sempre que i < partes {
+        nova parte: verso = dividir_verso_em(bruto, "/", i);
+        talvez vazio_verso(parte) || igual_verso(parte, ".") {
+            i = i + 1;
+            continuar;
+        }
+        talvez igual_verso(parte, "..") {
+            talvez lista_tamanho(pilha) > 0 {
+                lista_tirar_ultimo(pilha);
+            }
+            i = i + 1;
+            continuar;
+        }
+        lista_anexar(pilha, parte);
+        i = i + 1;
+    }
+    nova muda saida: verso = "";
+    nova total: bombom = lista_tamanho(pilha);
+    nova muda k: bombom = 0;
+    sempre que k < total {
+        saida = juntar_verso(saida, "/");
+        saida = juntar_verso(saida, lista_obter(pilha, k));
+        k = k + 1;
+    }
+    talvez absoluto {
+        talvez vazio_verso(saida) {
+            mimo "/";
+        }
+        mimo saida;
+    }
+    talvez vazio_verso(saida) {
+        mimo ".";
+    }
+    mimo fatiar_verso(saida, 1, tamanho_verso(saida));
+}
+
+carinho resolver(pwd: verso, alvo: verso) -> verso {
+    mimo normalizar_caminho(caminho_absoluto(pwd, alvo));
+}
+
+carinho pasta_de(caminho: verso) -> verso {
+    nova muda i: bombom = tamanho_verso(caminho);
+    sempre que i > 0 {
+        talvez igual_verso(indice_verso(caminho, i - 1), "/") {
+            talvez i == 1 {
+                mimo "/";
+            }
+            mimo fatiar_verso(caminho, 0, i - 1);
+        }
+        i = i - 1;
+    }
+    mimo "";
+}
+
+carinho nome_de(caminho: verso) -> verso {
+    nova muda i: bombom = tamanho_verso(caminho);
+    sempre que i > 0 {
+        talvez igual_verso(indice_verso(caminho, i - 1), "/") {
+            mimo fatiar_verso(caminho, i, tamanho_verso(caminho));
+        }
+        i = i - 1;
+    }
+    mimo caminho;
+}
+
+// ---------------------------------------------------------------------------
+// Variáveis e expansão
+// ---------------------------------------------------------------------------
+
+carinho valor_de(nome: verso, est: mapa<verso,verso>, vars: mapa<verso,verso>) -> verso {
+    talvez igual_verso(nome, "?") {
+        mimo ler_estado(est, "STATUS");
+    }
+    talvez igual_verso(nome, "PWD") {
+        mimo ler_estado(est, "PWD");
+    }
+    talvez mapa_verso_verso_tem(vars, nome) {
+        mimo mapa_verso_verso_obter(vars, nome);
+    }
+    mimo ambiente_ou(nome, "");
+}
+
+carinho expandir_til(bruto: verso, est: mapa<verso,verso>, vars: mapa<verso,verso>) -> verso {
+    talvez igual_verso(bruto, "~") {
+        mimo valor_de("HOME", est, vars);
+    }
+    talvez comeca_com(bruto, "~/") {
+        nova casa: verso = valor_de("HOME", est, vars);
+        mimo juntar_verso(casa, fatiar_verso(bruto, 1, tamanho_verso(bruto)));
+    }
+    mimo bruto;
+}
+
+// ---------------------------------------------------------------------------
+// Tokenizador
+//
+// Devolve duas listas paralelas: `tokens` com o texto e `tipos` com a natureza
+// de cada um — "P" palavra crua (candidata a glob), "Q" palavra que passou por
+// aspas (nunca sofre glob) e "O" operador.
+// ---------------------------------------------------------------------------
+
+carinho e_operador_ali(linha: verso, i: bombom) -> verso {
+    nova total: bombom = tamanho_verso(linha);
+    nova c: verso = indice_verso(linha, i);
+    nova muda proximo: verso = "";
+    talvez i + 1 < total {
+        proximo = indice_verso(linha, i + 1);
+    }
+    talvez igual_verso(c, "&") && igual_verso(proximo, "&") {
+        mimo "&&";
+    }
+    talvez igual_verso(c, "|") && igual_verso(proximo, "|") {
+        mimo "||";
+    }
+    talvez igual_verso(c, ">") && igual_verso(proximo, ">") {
+        mimo ">>";
+    }
+    talvez igual_verso(c, "2") && igual_verso(proximo, ">") {
+        mimo "2>";
+    }
+    talvez igual_verso(c, "|") {
+        mimo "|";
+    }
+    talvez igual_verso(c, "&") {
+        mimo "&";
+    }
+    talvez igual_verso(c, ";") {
+        mimo ";";
+    }
+    talvez igual_verso(c, "<") {
+        mimo "<";
+    }
+    talvez igual_verso(c, ">") {
+        mimo ">";
+    }
+    mimo "";
+}
+
+// Expande uma ocorrência de `$` começando em `i`.
+//
+// Anexa o texto expandido em `saida` e devolve o índice logo depois da
+// expansão. Cobre `$NOME`, `${NOME}`, `$?` e substituição de comando `$(...)`.
+carinho expandir_dolar(
+    linha: verso,
+    i: bombom,
+    est: mapa<verso,verso>,
+    vars: mapa<verso,verso>,
+    exportadas: mapa<verso,verso>,
+    saida: lista<verso>
+) -> bombom {
+    nova total: bombom = tamanho_verso(linha);
+    talvez i + 1 >= total {
+        lista_anexar(saida, "$");
+        mimo i + 1;
+    }
+    nova proximo: verso = indice_verso(linha, i + 1);
+
+    talvez igual_verso(proximo, "(") {
+        nova muda profundidade: bombom = 1;
+        nova muda j: bombom = i + 2;
+        nova muda interno: verso = "";
+        sempre que j < total {
+            nova d: verso = indice_verso(linha, j);
+            talvez igual_verso(d, "(") {
+                profundidade = profundidade + 1;
+            }
+            talvez igual_verso(d, ")") {
+                profundidade = profundidade - 1;
+                talvez profundidade == 0 {
+                    quebrar;
+                }
+            }
+            interno = juntar_verso(interno, d);
+            j = j + 1;
+        }
+        talvez profundidade != 0 {
+            gravar_estado(est, "ERRO", "concha: '$(' sem ')' correspondente\n");
+            lista_anexar(saida, "");
+            mimo total;
+        }
+        nova bruto: verso = capturar(interno, est, vars, exportadas);
+        nova muda limpo: verso = bruto;
+        sempre que termina_com(limpo, "\n") {
+            limpo = fatiar_verso(limpo, 0, tamanho_verso(limpo) - 1);
+        }
+        lista_anexar(saida, limpo);
+        mimo j + 1;
+    }
+
+    talvez igual_verso(proximo, "{") {
+        nova muda j: bombom = i + 2;
+        nova muda nome: verso = "";
+        nova muda fechou: logica = falso;
+        sempre que j < total {
+            nova d: verso = indice_verso(linha, j);
+            talvez igual_verso(d, "}") {
+                fechou = verdade;
+                quebrar;
+            }
+            nome = juntar_verso(nome, d);
+            j = j + 1;
+        }
+        talvez nao(fechou) {
+            gravar_estado(est, "ERRO", "concha: '${' sem '}' correspondente\n");
+            lista_anexar(saida, "");
+            mimo total;
+        }
+        lista_anexar(saida, valor_de(nome, est, vars));
+        mimo j + 1;
+    }
+
+    talvez igual_verso(proximo, "?") {
+        lista_anexar(saida, ler_estado(est, "STATUS"));
+        mimo i + 2;
+    }
+
+    talvez nao(e_char_nome(proximo)) {
+        lista_anexar(saida, "$");
+        mimo i + 1;
+    }
+
+    nova muda k: bombom = i + 1;
+    nova muda nome: verso = "";
+    sempre que k < total {
+        talvez nao(e_char_nome(indice_verso(linha, k))) {
+            quebrar;
+        }
+        nome = juntar_verso(nome, indice_verso(linha, k));
+        k = k + 1;
+    }
+    lista_anexar(saida, valor_de(nome, est, vars));
+    mimo k;
+}
+
+carinho tokenizar(
+    linha: verso,
+    est: mapa<verso,verso>,
+    vars: mapa<verso,verso>,
+    exportadas: mapa<verso,verso>,
+    tokens: lista<verso>,
+    tipos: lista<verso>
+) -> bombom {
+    nova total: bombom = tamanho_verso(linha);
+    nova muda pedaco: lista<verso> = lista_criar();
+    nova muda i: bombom = 0;
+    nova muda atual: verso = "";
+    nova muda aberto: logica = falso;
+    nova muda citado: logica = falso;
+
+    sempre que i < total {
+        nova c: verso = indice_verso(linha, i);
+
+        talvez e_branco(c) {
+            talvez aberto {
+                lista_anexar(tokens, atual);
+                talvez citado {
+                    lista_anexar(tipos, "Q");
+                } senao {
+                    lista_anexar(tipos, "P");
+                }
+                atual = "";
+                aberto = falso;
+                citado = falso;
+            }
+            i = i + 1;
+            continuar;
+        }
+
+        talvez igual_verso(c, "#") && nao(aberto) {
+            i = total;
+            continuar;
+        }
+
+        nova op: verso = e_operador_ali(linha, i);
+        talvez nao_vazio_verso(op) && (nao(igual_verso(op, "2>")) || nao(aberto)) {
+            talvez aberto {
+                lista_anexar(tokens, atual);
+                talvez citado {
+                    lista_anexar(tipos, "Q");
+                } senao {
+                    lista_anexar(tipos, "P");
+                }
+                atual = "";
+                aberto = falso;
+                citado = falso;
+            }
+            lista_anexar(tokens, op);
+            lista_anexar(tipos, "O");
+            i = i + tamanho_verso(op);
+            continuar;
+        }
+
+        talvez igual_verso(c, "'") {
+            aberto = verdade;
+            citado = verdade;
+            nova muda j: bombom = i + 1;
+            nova muda fechou: logica = falso;
+            sempre que j < total {
+                nova d: verso = indice_verso(linha, j);
+                talvez igual_verso(d, "'") {
+                    fechou = verdade;
+                    quebrar;
+                }
+                atual = juntar_verso(atual, d);
+                j = j + 1;
+            }
+            talvez nao(fechou) {
+                gravar_estado(est, "ERRO", "concha: aspas simples nao fechadas\n");
+                mimo 1;
+            }
+            i = j + 1;
+            continuar;
+        }
+
+        talvez igual_verso(c, "\"") {
+            aberto = verdade;
+            citado = verdade;
+            nova muda j: bombom = i + 1;
+            nova muda fechou: logica = falso;
+            sempre que j < total {
+                nova d: verso = indice_verso(linha, j);
+                talvez igual_verso(d, "\"") {
+                    fechou = verdade;
+                    quebrar;
+                }
+                talvez igual_verso(d, "\\") && j + 1 < total {
+                    nova e: verso = indice_verso(linha, j + 1);
+                    talvez igual_verso(e, "\"") || igual_verso(e, "\\") || igual_verso(e, "$") {
+                        atual = juntar_verso(atual, e);
+                        j = j + 2;
+                        continuar;
+                    }
+                }
+                talvez igual_verso(d, "$") {
+                    nova antes: bombom = lista_tamanho(pedaco);
+                    nova depois: bombom = expandir_dolar(linha, j, est, vars, exportadas, pedaco);
+                    talvez lista_tamanho(pedaco) > antes {
+                        atual = juntar_verso(atual, lista_obter(pedaco, antes));
+                    }
+                    j = depois;
+                    continuar;
+                }
+                atual = juntar_verso(atual, d);
+                j = j + 1;
+            }
+            talvez nao(fechou) {
+                gravar_estado(est, "ERRO", "concha: aspas duplas nao fechadas\n");
+                mimo 1;
+            }
+            i = j + 1;
+            continuar;
+        }
+
+        talvez igual_verso(c, "\\") && i + 1 < total {
+            atual = juntar_verso(atual, indice_verso(linha, i + 1));
+            aberto = verdade;
+            citado = verdade;
+            i = i + 2;
+            continuar;
+        }
+
+        talvez igual_verso(c, "$") {
+            nova antes: bombom = lista_tamanho(pedaco);
+            nova depois: bombom = expandir_dolar(linha, i, est, vars, exportadas, pedaco);
+            talvez lista_tamanho(pedaco) > antes {
+                atual = juntar_verso(atual, lista_obter(pedaco, antes));
+            }
+            aberto = verdade;
+            i = depois;
+            continuar;
+        }
+
+        atual = juntar_verso(atual, c);
+        aberto = verdade;
+        i = i + 1;
+    }
+
+    talvez aberto {
+        lista_anexar(tokens, atual);
+        talvez citado {
+            lista_anexar(tipos, "Q");
+        } senao {
+            lista_anexar(tipos, "P");
+        }
+    }
+    mimo 0;
+}
+
+// ---------------------------------------------------------------------------
+// Glob
+// ---------------------------------------------------------------------------
+
+carinho tem_glob(t: verso) -> logica {
+    mimo contem_verso(t, "*") || contem_verso(t, "?");
+}
+
+carinho casa_padrao(padrao: verso, nome: verso) -> logica {
+    nova tp: bombom = tamanho_verso(padrao);
+    nova tn: bombom = tamanho_verso(nome);
+    nova muda i: bombom = 0;
+    nova muda j: bombom = 0;
+    nova muda estrela: bombom = 18446744073709551615;
+    nova muda marca: bombom = 0;
+    sempre que j < tn {
+        talvez i < tp && (igual_verso(indice_verso(padrao, i), "?")
+            || igual_verso(indice_verso(padrao, i), indice_verso(nome, j))) {
+            i = i + 1;
+            j = j + 1;
+            continuar;
+        }
+        talvez i < tp && igual_verso(indice_verso(padrao, i), "*") {
+            estrela = i;
+            marca = j;
+            i = i + 1;
+            continuar;
+        }
+        talvez estrela != 18446744073709551615 {
+            i = estrela + 1;
+            marca = marca + 1;
+            j = marca;
+            continuar;
+        }
+        mimo falso;
+    }
+    sempre que i < tp {
+        talvez nao(igual_verso(indice_verso(padrao, i), "*")) {
+            quebrar;
+        }
+        i = i + 1;
+    }
+    mimo i == tp;
+}
+
+carinho expandir_glob(bruto: verso, est: mapa<verso,verso>, destino: lista<verso>) -> bombom {
+    nova pwd: verso = ler_estado(est, "PWD");
+    nova prefixo: verso = pasta_de(bruto);
+    nova padrao: verso = nome_de(bruto);
+    talvez tem_glob(prefixo) {
+        gravar_estado(est, "ERRO",
+            "concha: glob em componente de diretorio nao e suportado");
+        lista_anexar(destino, bruto);
+        mimo 1;
+    }
+    nova alvo: verso = resolver(pwd, prefixo);
+    nova r: ResNomes = listar_diretorio(alvo);
+    nova muda achados: lista<verso> = lista_criar();
+    encaixe r {
+        caso ResNomes.Ok(nomes) {
+            para cada n em nomes {
+                talvez comeca_com(n, ".") && nao(comeca_com(padrao, ".")) {
+                    continuar;
+                }
+                talvez casa_padrao(padrao, n) {
+                    lista_anexar(achados, n);
+                }
+            }
+        }
+        caso ResNomes.Erro(e) {
+            gravar_estado(est, "ERRO", juntar_verso("concha: ", e));
+        }
+    }
+    talvez lista_tamanho(achados) == 0 {
+        lista_anexar(destino, bruto);
+        mimo 0;
+    }
+    ordenar_nomes(achados);
+    para cada n em achados {
+        talvez vazio_verso(prefixo) {
+            lista_anexar(destino, n);
+        } senao {
+            lista_anexar(destino, juntar_caminho(prefixo, n));
+        }
+    }
+    mimo 0;
+}
+
+// ---------------------------------------------------------------------------
+// Builtins
+// ---------------------------------------------------------------------------
+
+carinho e_builtin(nome: verso) -> logica {
+    mimo igual_verso(nome, "cd") || igual_verso(nome, "pwd")
+        || igual_verso(nome, "echo") || igual_verso(nome, "falar")
+        || igual_verso(nome, "export") || igual_verso(nome, "unset")
+        || igual_verso(nome, "set") || igual_verso(nome, "sair")
+        || igual_verso(nome, "exit") || igual_verso(nome, "ajuda")
+        || igual_verso(nome, "help") || igual_verso(nome, "type")
+        || igual_verso(nome, "ler") || igual_verso(nome, "read")
+        || igual_verso(nome, "fonte") || igual_verso(nome, "source")
+        || igual_verso(nome, ":") || igual_verso(nome, "true")
+        || igual_verso(nome, "false") || igual_verso(nome, "versao");
+}
+
+carinho juntar_argumentos(argv: lista<verso>, desde: bombom, separador: verso) -> verso {
+    nova total: bombom = lista_tamanho(argv);
+    nova muda saida: verso = "";
+    nova muda i: bombom = desde;
+    sempre que i < total {
+        talvez i > desde {
+            saida = juntar_verso(saida, separador);
+        }
+        saida = juntar_verso(saida, lista_obter(argv, i));
+        i = i + 1;
+    }
+    mimo saida;
+}
+
+carinho builtin_cd(argv: lista<verso>, est: mapa<verso,verso>, vars: mapa<verso,verso>) -> bombom {
+    nova pwd: verso = ler_estado(est, "PWD");
+    nova muda alvo: verso = "";
+    talvez lista_tamanho(argv) > 1 {
+        alvo = lista_obter(argv, 1);
+    }
+    talvez vazio_verso(alvo) {
+        alvo = valor_de("HOME", est, vars);
+    }
+    talvez igual_verso(alvo, "-") {
+        alvo = ler_estado(est, "ANTIGO_PWD");
+        talvez vazio_verso(alvo) {
+            gravar_estado(est, "ERRO", "concha: cd: ANTIGO_PWD nao definido\n");
+            mimo 1;
+        }
+    }
+    nova destino: verso = resolver(pwd, expandir_til(alvo, est, vars));
+    talvez nao(caminho_existe(destino)) {
+        gravar_estado(est, "ERRO",
+            formatar_verso("concha: cd: {}: caminho inexistente\n", destino));
+        mimo 1;
+    }
+    talvez nao(e_diretorio(destino)) {
+        gravar_estado(est, "ERRO",
+            formatar_verso("concha: cd: {}: nao e diretorio\n", destino));
+        mimo 1;
+    }
+    gravar_estado(est, "ANTIGO_PWD", pwd);
+    gravar_estado(est, "PWD", destino);
+    mimo 0;
+}
+
+carinho builtin_export(argv: lista<verso>, vars: mapa<verso,verso>, exportadas: mapa<verso,verso>) -> bombom {
+    nova total: bombom = lista_tamanho(argv);
+    nova muda i: bombom = 1;
+    sempre que i < total {
+        nova item: verso = lista_obter(argv, i);
+        nova corte: bombom = indice_verso_em(item, "=");
+        talvez corte == 18446744073709551615 {
+            mapa_verso_verso_definir(exportadas, item, "1");
+        } senao {
+            nova nome: verso = fatiar_verso(item, 0, corte);
+            nova valor: verso = fatiar_verso(item, corte + 1, tamanho_verso(item));
+            mapa_verso_verso_definir(vars, nome, valor);
+            mapa_verso_verso_definir(exportadas, nome, "1");
+        }
+        i = i + 1;
+    }
+    mimo 0;
+}
+
+carinho builtin_set(est: mapa<verso,verso>, vars: mapa<verso,verso>) -> bombom {
+    nova muda nomes: lista<verso> = lista_criar();
+    para cada chave em vars {
+        lista_anexar(nomes, chave);
+    }
+    ordenar_nomes(nomes);
+    nova muda saida: verso = "";
+    para cada n em nomes {
+        saida = juntar_verso(saida,
+            formatar_verso("{}={}\n", n, mapa_verso_verso_obter(vars, n)));
+    }
+    gravar_estado(est, "SAIDA", saida);
+    mimo 0;
+}
+
+carinho texto_ajuda() -> verso {
+    mimo "concha — a shell escrita em Pinker\n\nbuiltins: cd pwd echo export unset set ler type fonte ajuda versao sair : true false\noperadores: | > >> < 2> && || ; #\nexpansao: $NOME ${nao} \"aspas\" 'aspas' \\escape ~ * ?\nlimites conhecidos: veja docs/concha_limites.md\n";
+}
+
+carinho rodar_builtin(
+    nome: verso,
+    argv: lista<verso>,
+    entrada: verso,
+    est: mapa<verso,verso>,
+    vars: mapa<verso,verso>,
+    exportadas: mapa<verso,verso>
+) -> bombom {
+    talvez igual_verso(nome, ":") || igual_verso(nome, "true") {
+        mimo 0;
+    }
+    talvez igual_verso(nome, "false") {
+        mimo 1;
+    }
+    talvez igual_verso(nome, "versao") {
+        gravar_estado(est, "SAIDA", "concha 0.1 — escrita em Pinker\n");
+        mimo 0;
+    }
+    talvez igual_verso(nome, "ajuda") || igual_verso(nome, "help") {
+        gravar_estado(est, "SAIDA", texto_ajuda());
+        mimo 0;
+    }
+    talvez igual_verso(nome, "pwd") {
+        gravar_estado(est, "SAIDA", juntar_verso(ler_estado(est, "PWD"), "\n"));
+        mimo 0;
+    }
+    talvez igual_verso(nome, "cd") {
+        mimo builtin_cd(argv, est, vars);
+    }
+    talvez igual_verso(nome, "echo") || igual_verso(nome, "falar") {
+        nova muda desde: bombom = 1;
+        nova muda quebra: verso = "\n";
+        talvez lista_tamanho(argv) > 1 && igual_verso(lista_obter(argv, 1), "-n") {
+            desde = 2;
+            quebra = "";
+        }
+        gravar_estado(est, "SAIDA",
+            juntar_verso(juntar_argumentos(argv, desde, " "), quebra));
+        mimo 0;
+    }
+    talvez igual_verso(nome, "export") {
+        mimo builtin_export(argv, vars, exportadas);
+    }
+    talvez igual_verso(nome, "unset") {
+        nova total: bombom = lista_tamanho(argv);
+        nova muda i: bombom = 1;
+        sempre que i < total {
+            nova alvo: verso = lista_obter(argv, i);
+            talvez mapa_verso_verso_tem(vars, alvo) {
+                mapa_verso_verso_remover(vars, alvo);
+            }
+            talvez mapa_verso_verso_tem(exportadas, alvo) {
+                mapa_verso_verso_remover(exportadas, alvo);
+            }
+            i = i + 1;
+        }
+        mimo 0;
+    }
+    talvez igual_verso(nome, "set") {
+        mimo builtin_set(est, vars);
+    }
+    talvez igual_verso(nome, "type") {
+        nova muda alvo: verso = "";
+        talvez lista_tamanho(argv) > 1 {
+            alvo = lista_obter(argv, 1);
+        }
+        talvez e_builtin(alvo) {
+            gravar_estado(est, "SAIDA", formatar_verso("{} e builtin da concha\n", alvo));
+            mimo 0;
+        }
+        gravar_estado(est, "SAIDA", formatar_verso("{} e comando externo\n", alvo));
+        mimo 0;
+    }
+    talvez igual_verso(nome, "ler") || igual_verso(nome, "read") {
+        nova muda destino: verso = "RESPOSTA";
+        talvez lista_tamanho(argv) > 1 {
+            destino = lista_obter(argv, 1);
+        }
+        talvez nao_vazio_verso(entrada) {
+            nova primeira: verso = dividir_verso_em(entrada, "\n", 0);
+            mapa_verso_verso_definir(vars, destino, primeira);
+            mimo 0;
+        }
+        mapa_verso_verso_definir(vars, destino, ouvir_verso_ou(""));
+        mimo 0;
+    }
+    talvez igual_verso(nome, "sair") || igual_verso(nome, "exit") {
+        nova muda codigo: bombom = ler_status(est);
+        talvez lista_tamanho(argv) > 1 {
+            codigo = verso_para_bombom(lista_obter(argv, 1));
+        }
+        gravar_estado(est, "SAIR", "1");
+        gravar_estado(est, "CODIGO", bombom_para_verso(codigo));
+        mimo codigo;
+    }
+    talvez igual_verso(nome, "fonte") || igual_verso(nome, "source") {
+        talvez lista_tamanho(argv) < 2 {
+            gravar_estado(est, "ERRO", "concha: fonte: falta o arquivo\n");
+            mimo 2;
+        }
+        nova alvo: verso = resolver(ler_estado(est, "PWD"), lista_obter(argv, 1));
+        mimo rodar_roteiro(alvo, est, vars, exportadas);
+    }
+    gravar_estado(est, "ERRO", formatar_verso("concha: builtin nao tratado: {}\n", nome));
+    mimo 127;
+}
+
+// ---------------------------------------------------------------------------
+// Execução de comando externo — spawn direto, sem passar por outro shell
+// ---------------------------------------------------------------------------
+
+carinho rodar_externo(
+    argv: lista<verso>,
+    entrada: verso,
+    est: mapa<verso,verso>,
+    vars: mapa<verso,verso>,
+    exportadas: mapa<verso,verso>
+) -> bombom {
+    nova programa: verso = lista_obter(argv, 0);
+    nova muda resto: lista<verso> = lista_criar();
+    nova total: bombom = lista_tamanho(argv);
+    nova muda i: bombom = 1;
+    sempre que i < total {
+        lista_anexar(resto, lista_obter(argv, i));
+        i = i + 1;
+    }
+    nova muda ambiente: mapa<verso,verso> = mapa_verso_verso_criar();
+    para cada chave em exportadas {
+        talvez mapa_verso_verso_tem(vars, chave) {
+            mapa_verso_verso_definir(ambiente, chave, mapa_verso_verso_obter(vars, chave));
+        }
+    }
+    nova pwd: verso = ler_estado(est, "PWD");
+    mapa_verso_verso_definir(ambiente, "PWD", pwd);
+    nova r: ResProcesso = executar_processo_estruturado(
+        programa, resto, entrada, pwd, ambiente, LimiteTempo.SemLimite
+    );
+    encaixe r {
+        caso ResProcesso.Ok(saida) {
+            gravar_estado(est, "SAIDA", processo_saida(saida));
+            gravar_estado(est, "ERRO", processo_erro(saida));
+            mimo processo_codigo(saida);
+        }
+        caso ResProcesso.Erro(e) {
+            gravar_estado(est, "SAIDA", "");
+            gravar_estado(est, "ERRO", formatar_verso("concha: {}\n", e));
+            mimo 127;
+        }
+    }
+    mimo 127;
+}
+
+// ---------------------------------------------------------------------------
+// Estágio: um comando com seus redirecionamentos
+// ---------------------------------------------------------------------------
+
+carinho rodar_estagio(
+    tokens: lista<verso>,
+    tipos: lista<verso>,
+    ini: bombom,
+    fim: bombom,
+    entrada: verso,
+    est: mapa<verso,verso>,
+    vars: mapa<verso,verso>,
+    exportadas: mapa<verso,verso>
+) -> bombom {
+    nova muda argv: lista<verso> = lista_criar();
+    nova muda arquivo_saida: verso = "";
+    nova muda arquivo_erro: verso = "";
+    nova muda arquivo_entrada: verso = "";
+    nova muda anexar: logica = falso;
+    nova muda entrada_final: verso = entrada;
+    nova muda i: bombom = ini;
+    nova muda atribuindo: logica = verdade;
+
+    sempre que i < fim {
+        nova tok: verso = lista_obter(tokens, i);
+        nova tipo: verso = lista_obter(tipos, i);
+        talvez igual_verso(tipo, "O") {
+            talvez i + 1 >= fim {
+                gravar_estado(est, "ERRO",
+                    formatar_verso("concha: redirecionamento '{}' sem alvo\n", tok));
+                mimo 2;
+            }
+            nova alvo: verso = lista_obter(tokens, i + 1);
+            talvez igual_verso(tok, ">") {
+                arquivo_saida = alvo;
+                anexar = falso;
+            }
+            talvez igual_verso(tok, ">>") {
+                arquivo_saida = alvo;
+                anexar = verdade;
+            }
+            talvez igual_verso(tok, "2>") {
+                arquivo_erro = alvo;
+            }
+            talvez igual_verso(tok, "<") {
+                arquivo_entrada = alvo;
+            }
+            i = i + 2;
+            continuar;
+        }
+        // atribuição no prefixo do comando: NOME=valor
+        talvez atribuindo && igual_verso(tipo, "P") && contem_verso(tok, "=")
+            && e_char_nome(indice_verso(tok, 0)) {
+            nova corte: bombom = indice_verso_em(tok, "=");
+            nova nome: verso = fatiar_verso(tok, 0, corte);
+            mapa_verso_verso_definir(vars, nome,
+                fatiar_verso(tok, corte + 1, tamanho_verso(tok)));
+            i = i + 1;
+            continuar;
+        }
+        atribuindo = falso;
+        nova expandido: verso = expandir_til(tok, est, vars);
+        talvez igual_verso(tipo, "P") && tem_glob(expandido) {
+            expandir_glob(expandido, est, argv);
+        } senao {
+            lista_anexar(argv, expandido);
+        }
+        i = i + 1;
+    }
+
+    talvez lista_tamanho(argv) == 0 {
+        limpar_saidas(est);
+        mimo 0;
+    }
+
+    talvez nao_vazio_verso(arquivo_entrada) {
+        nova alvo: verso = resolver(ler_estado(est, "PWD"), arquivo_entrada);
+        nova r: ResTexto = ler_arquivo_resultado(alvo);
+        encaixe r {
+            caso ResTexto.Ok(conteudo) { entrada_final = conteudo; }
+            caso ResTexto.Erro(e) {
+                gravar_estado(est, "SAIDA", "");
+                gravar_estado(est, "ERRO", formatar_verso("concha: {}\n", e));
+                mimo 1;
+            }
+        }
+    }
+
+    limpar_saidas(est);
+    nova comando: verso = lista_obter(argv, 0);
+    nova muda status: bombom = 0;
+    talvez e_builtin(comando) {
+        status = rodar_builtin(comando, argv, entrada_final, est, vars, exportadas);
+    } senao {
+        status = rodar_externo(argv, entrada_final, est, vars, exportadas);
+    }
+
+    talvez nao_vazio_verso(arquivo_saida) {
+        nova alvo: verso = resolver(ler_estado(est, "PWD"), arquivo_saida);
+        nova conteudo: verso = ler_estado(est, "SAIDA");
+        talvez anexar {
+            nova h: bombom = abrir_anexo(alvo);
+            anexar_verso(h, conteudo);
+            fechar(h);
+        } senao {
+            // `criar_arquivo` diverge entre os backends (defeito D-04): o
+            // interpretador trunca, o runtime nativo usa `create_new` e aborta
+            // se o arquivo existir. Remover antes iguala os dois.
+            talvez caminho_existe(alvo) {
+                remover_arquivo(alvo);
+            }
+            nova h: bombom = criar_arquivo(alvo);
+            escrever_verso(h, conteudo);
+            fechar(h);
+        }
+        gravar_estado(est, "SAIDA", "");
+    }
+    talvez nao_vazio_verso(arquivo_erro) {
+        nova alvo: verso = resolver(ler_estado(est, "PWD"), arquivo_erro);
+        talvez caminho_existe(alvo) {
+            remover_arquivo(alvo);
+        }
+        nova h: bombom = criar_arquivo(alvo);
+        escrever_verso(h, ler_estado(est, "ERRO"));
+        fechar(h);
+        gravar_estado(est, "ERRO", "");
+    }
+    mimo status;
+}
+
+// ---------------------------------------------------------------------------
+// Pipeline: estágios ligados por `|`
+//
+// A ligação é por texto completo: cada estágio só começa depois que o anterior
+// terminou. Ver limite L-03 (sem fluxo contínuo) em docs/concha_limites.md.
+// ---------------------------------------------------------------------------
+
+carinho escrever_saida(texto: verso) -> bombom {
+    talvez vazio_verso(texto) {
+        mimo 0;
+    }
+    talvez termina_com(texto, "\n") {
+        falar(fatiar_verso(texto, 0, tamanho_verso(texto) - 1));
+        mimo 0;
+    }
+    falar(texto);
+    mimo 0;
+}
+
+// Saída padrão do pipeline. Dentro de `$(...)` o texto é desviado para o
+// acumulador de captura em vez de ir para a tela.
+carinho emitir(est: mapa<verso,verso>, texto: verso) -> bombom {
+    talvez igual_verso(ler_estado(est, "CAPTURAR"), "1") {
+        gravar_estado(est, "CAPTURA", juntar_verso(ler_estado(est, "CAPTURA"), texto));
+        mimo 0;
+    }
+    mimo escrever_saida(texto);
+}
+
+// Diagnóstico. A Pinker não expõe stderr como fluxo separado (limite L-04):
+// tudo sai pela mesma saída padrão, e nunca entra na captura de `$(...)`.
+carinho emitir_erro(texto: verso) -> bombom {
+    mimo escrever_saida(texto);
+}
+
+carinho rodar_pipeline(
+    tokens: lista<verso>,
+    tipos: lista<verso>,
+    ini: bombom,
+    fim: bombom,
+    est: mapa<verso,verso>,
+    vars: mapa<verso,verso>,
+    exportadas: mapa<verso,verso>
+) -> bombom {
+    nova muda entrada: verso = "";
+    nova muda inicio_estagio: bombom = ini;
+    nova muda status: bombom = 0;
+    nova muda i: bombom = ini;
+    sempre que i <= fim {
+        nova muda corta: logica = i == fim;
+        talvez nao(corta) {
+            corta = igual_verso(lista_obter(tipos, i), "O")
+                && igual_verso(lista_obter(tokens, i), "|");
+        }
+        talvez corta {
+            status = rodar_estagio(tokens, tipos, inicio_estagio, i, entrada,
+                est, vars, exportadas);
+            emitir_erro(ler_estado(est, "ERRO"));
+            gravar_estado(est, "ERRO", "");
+            entrada = ler_estado(est, "SAIDA");
+            talvez igual_verso(ler_estado(est, "SAIR"), "1") {
+                mimo status;
+            }
+            inicio_estagio = i + 1;
+        }
+        i = i + 1;
+    }
+    emitir(est, entrada);
+    gravar_estado(est, "SAIDA", "");
+    mimo status;
+}
+
+// ---------------------------------------------------------------------------
+// Linha: pipelines ligados por `;`, `&&` e `||`
+// ---------------------------------------------------------------------------
+
+carinho e_separador(t: verso) -> logica {
+    mimo igual_verso(t, ";") || igual_verso(t, "&&") || igual_verso(t, "||")
+        || igual_verso(t, "&");
+}
+
+// Divide a linha em segmentos por `;`, `&&`, `||` e `&`, respeitando aspas.
+// A divisão acontece ANTES da tokenização para que a expansão de `$NOME` de
+// cada segmento veja o que os segmentos anteriores atribuíram.
+carinho dividir_em_segmentos(
+    linha: verso,
+    segmentos: lista<verso>,
+    separadores: lista<verso>
+) -> bombom {
+    nova total: bombom = tamanho_verso(linha);
+    nova muda atual: verso = "";
+    nova muda i: bombom = 0;
+    sempre que i < total {
+        nova c: verso = indice_verso(linha, i);
+        talvez igual_verso(c, "'") || igual_verso(c, "\"") {
+            nova muda j: bombom = i + 1;
+            atual = juntar_verso(atual, c);
+            sempre que j < total {
+                nova d: verso = indice_verso(linha, j);
+                atual = juntar_verso(atual, d);
+                talvez igual_verso(d, c) {
+                    quebrar;
+                }
+                j = j + 1;
+            }
+            i = j + 1;
+            continuar;
+        }
+        talvez igual_verso(c, "\\") && i + 1 < total {
+            atual = juntar_verso(atual, c);
+            atual = juntar_verso(atual, indice_verso(linha, i + 1));
+            i = i + 2;
+            continuar;
+        }
+        talvez igual_verso(c, "#") {
+            i = total;
+            continuar;
+        }
+        nova op: verso = e_operador_ali(linha, i);
+        talvez igual_verso(op, ";") || igual_verso(op, "&&") || igual_verso(op, "||")
+            || igual_verso(op, "&") {
+            lista_anexar(segmentos, atual);
+            lista_anexar(separadores, op);
+            atual = "";
+            i = i + tamanho_verso(op);
+            continuar;
+        }
+        atual = juntar_verso(atual, c);
+        i = i + 1;
+    }
+    lista_anexar(segmentos, atual);
+    lista_anexar(separadores, "");
+    mimo 0;
+}
+
+// ---------------------------------------------------------------------------
+// Blocos: `se`, `enquanto` e `para`
+//
+// A concha lê construtos por segmento: depois de dividir a linha por `;`, a
+// primeira palavra de cada segmento decide se ele abre, fecha ou continua um
+// bloco. `se ...; entao ...; senao ...; fim` é o mesmo desenho do `if/fi` do
+// bash, com vocabulário em português.
+// ---------------------------------------------------------------------------
+
+carinho primeira_palavra(seg: verso) -> verso {
+    nova limpo: verso = aparar_verso(seg);
+    nova corte: bombom = indice_verso_em(limpo, " ");
+    talvez corte == 18446744073709551615 {
+        mimo limpo;
+    }
+    mimo fatiar_verso(limpo, 0, corte);
+}
+
+carinho resto_da_linha(seg: verso) -> verso {
+    nova limpo: verso = aparar_verso(seg);
+    nova corte: bombom = indice_verso_em(limpo, " ");
+    talvez corte == 18446744073709551615 {
+        mimo "";
+    }
+    mimo aparar_verso(fatiar_verso(limpo, corte + 1, tamanho_verso(limpo)));
+}
+
+carinho abre_bloco(palavra: verso) -> logica {
+    mimo igual_verso(palavra, "se") || igual_verso(palavra, "enquanto")
+        || igual_verso(palavra, "para");
+}
+
+carinho saldo_blocos(linha: verso) -> bombom {
+    nova muda segmentos: lista<verso> = lista_criar();
+    nova muda separadores: lista<verso> = lista_criar();
+    dividir_em_segmentos(linha, segmentos, separadores);
+    nova muda abertos: bombom = 0;
+    nova muda fechados: bombom = 0;
+    para cada seg em segmentos {
+        nova palavra: verso = primeira_palavra(seg);
+        talvez abre_bloco(palavra) {
+            abertos = abertos + 1;
+        }
+        talvez igual_verso(palavra, "fim") {
+            fechados = fechados + 1;
+        }
+    }
+    talvez fechados >= abertos {
+        mimo 0;
+    }
+    mimo abertos - fechados;
+}
+
+// Índice do segmento cuja primeira palavra é `alvo`, no nível do bloco atual.
+// Devolve `fim` quando não existe.
+carinho achar_no_nivel(
+    segmentos: lista<verso>,
+    ini: bombom,
+    fim: bombom,
+    alvo: verso
+) -> bombom {
+    nova muda nivel: bombom = 0;
+    nova muda i: bombom = ini;
+    sempre que i < fim {
+        nova palavra: verso = primeira_palavra(lista_obter(segmentos, i));
+        talvez abre_bloco(palavra) {
+            nivel = nivel + 1;
+            i = i + 1;
+            continuar;
+        }
+        talvez igual_verso(palavra, "fim") {
+            talvez nivel == 0 {
+                talvez igual_verso(alvo, "fim") {
+                    mimo i;
+                }
+                mimo fim;
+            }
+            nivel = nivel - 1;
+            i = i + 1;
+            continuar;
+        }
+        talvez nivel == 0 && igual_verso(palavra, alvo) {
+            mimo i;
+        }
+        i = i + 1;
+    }
+    mimo fim;
+}
+
+carinho rodar_segmento(
+    segmento: verso,
+    est: mapa<verso,verso>,
+    vars: mapa<verso,verso>,
+    exportadas: mapa<verso,verso>
+) -> bombom {
+    nova muda tokens: lista<verso> = lista_criar();
+    nova muda tipos: lista<verso> = lista_criar();
+    talvez tokenizar(segmento, est, vars, exportadas, tokens, tipos) != 0 {
+        emitir_erro(ler_estado(est, "ERRO"));
+        gravar_estado(est, "ERRO", "");
+        mimo gravar_status(est, 2);
+    }
+    talvez lista_tamanho(tokens) == 0 {
+        mimo ler_status(est);
+    }
+    nova status: bombom = rodar_pipeline(tokens, tipos, 0, lista_tamanho(tokens),
+        est, vars, exportadas);
+    mimo gravar_status(est, status);
+}
+
+carinho palavras_expandidas(
+    texto: verso,
+    est: mapa<verso,verso>,
+    vars: mapa<verso,verso>,
+    exportadas: mapa<verso,verso>,
+    destino: lista<verso>
+) -> bombom {
+    nova muda tokens: lista<verso> = lista_criar();
+    nova muda tipos: lista<verso> = lista_criar();
+    talvez tokenizar(texto, est, vars, exportadas, tokens, tipos) != 0 {
+        mimo 1;
+    }
+    nova total: bombom = lista_tamanho(tokens);
+    nova muda i: bombom = 0;
+    sempre que i < total {
+        nova tok: verso = lista_obter(tokens, i);
+        nova tipo: verso = lista_obter(tipos, i);
+        talvez igual_verso(tipo, "P") && tem_glob(tok) {
+            expandir_glob(tok, est, destino);
+        } senao {
+            lista_anexar(destino, tok);
+        }
+        i = i + 1;
+    }
+    mimo 0;
+}
+
+carinho executar_bloco(
+    segmentos: lista<verso>,
+    separadores: lista<verso>,
+    ini: bombom,
+    fim: bombom,
+    est: mapa<verso,verso>,
+    vars: mapa<verso,verso>,
+    exportadas: mapa<verso,verso>
+) -> bombom {
+    nova muda executar: logica = verdade;
+    nova muda status: bombom = ler_status(est);
+    nova muda i: bombom = ini;
+
+    sempre que i < fim {
+        nova segmento: verso = aparar_verso(lista_obter(segmentos, i));
+        nova separador: verso = lista_obter(separadores, i);
+        nova palavra: verso = primeira_palavra(segmento);
+
+        // ---- se COND ; entao ... [; senao ...] ; fim ----
+        talvez igual_verso(palavra, "se") {
+            nova fecho: bombom = achar_no_nivel(segmentos, i + 1, fim, "fim");
+            nova entao: bombom = achar_no_nivel(segmentos, i + 1, fecho, "entao");
+            nova alternativa: bombom = achar_no_nivel(segmentos, i + 1, fecho, "senao");
+            talvez fecho >= fim || entao >= fecho {
+                emitir_erro("concha: 'se' sem 'entao'/'fim'\n");
+                mimo gravar_status(est, 2);
+            }
+            talvez executar {
+                nova condicao: verso = resto_da_linha(segmento);
+                nova cond_status: bombom = rodar_segmento(condicao, est, vars, exportadas);
+                nova muda corpo_ini: bombom = entao;
+                nova muda corpo_fim: bombom = fecho;
+                talvez alternativa < fecho {
+                    talvez cond_status == 0 {
+                        corpo_fim = alternativa;
+                    } senao {
+                        corpo_ini = alternativa;
+                    }
+                } senao {
+                    talvez cond_status != 0 {
+                        corpo_ini = fecho;
+                    }
+                }
+                talvez corpo_ini < corpo_fim {
+                    status = executar_bloco(segmentos, separadores, corpo_ini, corpo_fim,
+                        est, vars, exportadas);
+                }
+            }
+            talvez igual_verso(ler_estado(est, "SAIR"), "1") {
+                mimo status;
+            }
+            executar = verdade;
+            i = fecho + 1;
+            continuar;
+        }
+
+        // ---- enquanto COND ; faca ... ; fim ----
+        talvez igual_verso(palavra, "enquanto") {
+            nova fecho: bombom = achar_no_nivel(segmentos, i + 1, fim, "fim");
+            nova faca: bombom = achar_no_nivel(segmentos, i + 1, fecho, "faca");
+            talvez fecho >= fim || faca >= fecho {
+                emitir_erro("concha: 'enquanto' sem 'faca'/'fim'\n");
+                mimo gravar_status(est, 2);
+            }
+            talvez executar {
+                nova condicao: verso = resto_da_linha(segmento);
+                nova muda voltas: bombom = 0;
+                sempre que verdade {
+                    talvez rodar_segmento(condicao, est, vars, exportadas) != 0 {
+                        quebrar;
+                    }
+                    status = executar_bloco(segmentos, separadores, faca, fecho,
+                        est, vars, exportadas);
+                    talvez igual_verso(ler_estado(est, "SAIR"), "1") {
+                        mimo status;
+                    }
+                    voltas = voltas + 1;
+                    talvez voltas > 100000 {
+                        emitir_erro("concha: 'enquanto' passou de 100000 voltas; interrompido\n");
+                        quebrar;
+                    }
+                }
+            }
+            executar = verdade;
+            i = fecho + 1;
+            continuar;
+        }
+
+        // ---- para NOME em PALAVRAS ; faca ... ; fim ----
+        talvez igual_verso(palavra, "para") {
+            nova fecho: bombom = achar_no_nivel(segmentos, i + 1, fim, "fim");
+            nova faca: bombom = achar_no_nivel(segmentos, i + 1, fecho, "faca");
+            talvez fecho >= fim || faca >= fecho {
+                emitir_erro("concha: 'para' sem 'faca'/'fim'\n");
+                mimo gravar_status(est, 2);
+            }
+            talvez executar {
+                nova cabecalho: verso = resto_da_linha(segmento);
+                nova nome: verso = primeira_palavra(cabecalho);
+                nova apos: verso = resto_da_linha(cabecalho);
+                talvez nao(igual_verso(primeira_palavra(apos), "em")) {
+                    emitir_erro("concha: 'para NOME em VALORES; faca ...; fim'\n");
+                    mimo gravar_status(est, 2);
+                }
+                nova muda valores: lista<verso> = lista_criar();
+                palavras_expandidas(resto_da_linha(apos), est, vars, exportadas, valores);
+                para cada valor em valores {
+                    mapa_verso_verso_definir(vars, nome, valor);
+                    status = executar_bloco(segmentos, separadores, faca, fecho,
+                        est, vars, exportadas);
+                    talvez igual_verso(ler_estado(est, "SAIR"), "1") {
+                        mimo status;
+                    }
+                }
+            }
+            executar = verdade;
+            i = fecho + 1;
+            continuar;
+        }
+
+        // `entao`, `senao` e `faca` marcam o começo do corpo: o que vem depois
+        // da palavra é comando. A marcação não é consumida do texto — o mesmo
+        // bloco pode ser reexecutado (laço `para`/`enquanto`) quantas vezes for.
+        nova muda executavel: verso = segmento;
+        talvez igual_verso(palavra, "entao") || igual_verso(palavra, "senao")
+            || igual_verso(palavra, "faca") {
+            executavel = resto_da_linha(segmento);
+        }
+        talvez igual_verso(palavra, "fim") {
+            i = i + 1;
+            continuar;
+        }
+
+        talvez executar && nao_vazio_verso(executavel) {
+            status = rodar_segmento(executavel, est, vars, exportadas);
+        }
+        talvez igual_verso(ler_estado(est, "SAIR"), "1") {
+            mimo status;
+        }
+        talvez igual_verso(separador, "&") {
+            emitir_erro("concha: '&' pede processo em segundo plano; a Pinker nao expoe fork nem controle de jobs (limite L-05)\n");
+            mimo gravar_status(est, 2);
+        }
+        talvez igual_verso(separador, "&&") {
+            executar = status == 0;
+        }
+        talvez igual_verso(separador, "||") {
+            executar = status != 0;
+        }
+        talvez igual_verso(separador, ";") {
+            executar = verdade;
+        }
+        i = i + 1;
+    }
+    mimo status;
+}
+
+carinho rodar_linha(
+    linha: verso,
+    est: mapa<verso,verso>,
+    vars: mapa<verso,verso>,
+    exportadas: mapa<verso,verso>
+) -> bombom {
+    nova muda segmentos: lista<verso> = lista_criar();
+    nova muda separadores: lista<verso> = lista_criar();
+    dividir_em_segmentos(linha, segmentos, separadores);
+    mimo executar_bloco(segmentos, separadores, 0, lista_tamanho(segmentos),
+        est, vars, exportadas);
+}
+
+// Executa uma linha desviando a saída padrão para um acumulador — é isso que
+// `$(...)` devolve. Reentrante: guarda e restaura o modo anterior.
+carinho capturar(
+    comando: verso,
+    est: mapa<verso,verso>,
+    vars: mapa<verso,verso>,
+    exportadas: mapa<verso,verso>
+) -> verso {
+    nova modo_antes: verso = ler_estado(est, "CAPTURAR");
+    nova texto_antes: verso = ler_estado(est, "CAPTURA");
+    gravar_estado(est, "CAPTURAR", "1");
+    gravar_estado(est, "CAPTURA", "");
+    rodar_linha(comando, est, vars, exportadas);
+    nova capturado: verso = ler_estado(est, "CAPTURA");
+    gravar_estado(est, "CAPTURAR", modo_antes);
+    gravar_estado(est, "CAPTURA", texto_antes);
+    mimo capturado;
+}
+
+carinho rodar_roteiro(
+    caminho: verso,
+    est: mapa<verso,verso>,
+    vars: mapa<verso,verso>,
+    exportadas: mapa<verso,verso>
+) -> bombom {
+    nova r: ResTexto = ler_arquivo_resultado(caminho);
+    nova muda status: bombom = 0;
+    encaixe r {
+        caso ResTexto.Ok(conteudo) {
+            nova linhas: bombom = dividir_verso_contar(conteudo, "\n");
+            nova muda acumulado: verso = "";
+            nova muda i: bombom = 0;
+            sempre que i < linhas {
+                nova linha: verso = aparar_verso(dividir_verso_em(conteudo, "\n", i));
+                i = i + 1;
+                talvez vazio_verso(linha) || comeca_com(linha, "#") {
+                    continuar;
+                }
+                talvez vazio_verso(acumulado) {
+                    acumulado = linha;
+                } senao {
+                    acumulado = juntar_verso(acumulado, juntar_verso("; ", linha));
+                }
+                // um bloco aberto continua na próxima linha
+                talvez saldo_blocos(acumulado) > 0 {
+                    continuar;
+                }
+                status = rodar_linha(acumulado, est, vars, exportadas);
+                acumulado = "";
+                talvez igual_verso(ler_estado(est, "SAIR"), "1") {
+                    mimo status;
+                }
+            }
+            talvez nao_vazio_verso(acumulado) {
+                emitir_erro("concha: bloco aberto no fim do roteiro\n");
+                status = 2;
+            }
+        }
+        caso ResTexto.Erro(e) {
+            emitir_erro(formatar_verso("concha: {}\n", e));
+            mimo 1;
+        }
+    }
+    mimo status;
+}
+
+// ---------------------------------------------------------------------------
+// REPL
+// ---------------------------------------------------------------------------
+
+// Sentinela de fim de entrada.
+//
+// `ouvir_verso_ou` devolve o padrão tanto no EOF quanto em erro de leitura
+// (limite L-10), então a concha precisa de um texto que ninguém digitaria.
+// O NUL (`"\0..."`) seria a escolha natural, mas literal com NUL quebra o
+// backend nativo (defeito D-02), e a concha quer continuar compilável.
+carinho sentinela_fim() -> verso {
+    mimo "@@concha-fim-de-entrada@@";
+}
+
+carinho repl(
+    est: mapa<verso,verso>,
+    vars: mapa<verso,verso>,
+    exportadas: mapa<verso,verso>
+) -> bombom {
+    falar("concha — shell escrita em Pinker. 'ajuda' lista o que existe, 'sair' encerra.");
+    nova muda status: bombom = 0;
+    nova muda acumulado: verso = "";
+    sempre que verdade {
+        talvez vazio_verso(acumulado) {
+            falar(formatar_verso("[{}]$", ler_estado(est, "PWD")));
+        } senao {
+            falar("...$");
+        }
+        nova linha: verso = ouvir_verso_ou(sentinela_fim());
+        talvez igual_verso(linha, sentinela_fim()) {
+            falar("");
+            mimo status;
+        }
+        nova limpa: verso = aparar_verso(linha);
+        talvez vazio_verso(limpa) && vazio_verso(acumulado) {
+            continuar;
+        }
+        talvez vazio_verso(acumulado) {
+            acumulado = limpa;
+        } senao {
+            acumulado = juntar_verso(acumulado, juntar_verso("; ", limpa));
+        }
+        talvez saldo_blocos(acumulado) > 0 {
+            continuar;
+        }
+        status = rodar_linha(acumulado, est, vars, exportadas);
+        acumulado = "";
+        talvez igual_verso(ler_estado(est, "SAIR"), "1") {
+            mimo status;
+        }
+    }
+    mimo status;
+}
+
+carinho semear(est: mapa<verso,verso>, vars: mapa<verso,verso>, exportadas: mapa<verso,verso>) -> bombom {
+    gravar_estado(est, "PWD", diretorio_atual());
+    gravar_estado(est, "ANTIGO_PWD", "");
+    gravar_estado(est, "STATUS", "0");
+    gravar_estado(est, "SAIR", "0");
+    gravar_estado(est, "CODIGO", "0");
+    limpar_saidas(est);
+    mapa_verso_verso_definir(vars, "HOME", ambiente_ou("HOME", "/"));
+    mapa_verso_verso_definir(vars, "PATH", ambiente_ou("PATH", "/usr/local/bin:/usr/bin:/bin"));
+    mapa_verso_verso_definir(vars, "USUARIO", ambiente_ou("USER", "pinker"));
+    mapa_verso_verso_definir(vars, "CONCHA", "0.1");
+    mapa_verso_verso_definir(exportadas, "HOME", "1");
+    mapa_verso_verso_definir(exportadas, "PATH", "1");
+    mimo 0;
+}
+
+carinho principal() -> bombom {
+    nova muda est: mapa<verso,verso> = mapa_verso_verso_criar();
+    nova muda vars: mapa<verso,verso> = mapa_verso_verso_criar();
+    nova muda exportadas: mapa<verso,verso> = mapa_verso_verso_criar();
+    semear(est, vars, exportadas);
+
+    talvez tem_flag("--ajuda") {
+        escrever_saida(texto_ajuda());
+        mimo 0;
+    }
+
+    nova comando: verso = pedir_argumento("--comando", "");
+    talvez nao_vazio_verso(comando) {
+        nova status: bombom = rodar_linha(comando, est, vars, exportadas);
+        talvez igual_verso(ler_estado(est, "SAIR"), "1") {
+            mimo verso_para_bombom(ler_estado(est, "CODIGO"));
+        }
+        mimo status;
+    }
+
+    nova roteiro: verso = pedir_argumento("--roteiro", "");
+    talvez nao_vazio_verso(roteiro) {
+        nova status: bombom = rodar_roteiro(resolver(ler_estado(est, "PWD"), roteiro),
+            est, vars, exportadas);
+        talvez igual_verso(ler_estado(est, "SAIR"), "1") {
+            mimo verso_para_bombom(ler_estado(est, "CODIGO"));
+        }
+        mimo status;
+    }
+
+    nova status: bombom = repl(est, vars, exportadas);
+    talvez igual_verso(ler_estado(est, "SAIR"), "1") {
+        mimo verso_para_bombom(ler_estado(est, "CODIGO"));
+    }
+    mimo status;
+}
+
+// @pinker-nav:end apps.concha.shell

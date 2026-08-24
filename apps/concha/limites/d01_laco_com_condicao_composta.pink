@@ -1,0 +1,31 @@
+// D-01 — DEFEITO DE COMPILADOR, não limite de superfície.
+//
+// Um `sempre que` cuja condição usa `&&` ou `||` avalia a condição UMA vez, na
+// entrada do laço, e nunca mais. O laço abaixo deveria dar três voltas e
+// terminar; ele não termina nunca.
+//
+// Prova estrutural: `pink --cfg-ir` mostra a aresta de retorno do corpo
+// (`block loop_0`) saltando para `logic_join_N` — o ponto onde a avaliação da
+// condição TERMINA — em vez de saltar para `loop_cond_N`, onde ela COMEÇA.
+//
+// Origem: src/cfg_ir.rs, `InstructionIR::While`: a aresta de retorno e a pilha
+// de `continuar` recebem `cond_end_idx` (bloco final da condição) em vez de
+// `cond_idx` (bloco inicial). Para condição simples os dois coincidem; para
+// condição com curto-circuito, não.
+//
+// Reproduz igual no interpretador (`--run`) e no backend nativo
+// (`pink build --nativo`).
+pacote main;
+
+carinho positivo(x: bombom) -> logica {
+    mimo x < 1000;
+}
+
+carinho principal() -> bombom {
+    nova muda b: bombom = 0;
+    sempre que b < 3 && positivo(b) {
+        b = b + 1;
+    }
+    falar("terminou com", b);
+    mimo 0;
+}

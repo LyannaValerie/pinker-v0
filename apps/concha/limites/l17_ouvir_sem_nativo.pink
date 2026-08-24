@@ -1,0 +1,18 @@
+// L-17 — a família de leitura da entrada padrão (`ouvir`, `ouvir_verso`,
+// `ouvir_verso_ou`) não tem símbolo no runtime nativo. O programa roda em
+// `pink --run`, mas `pink build --nativo` recusa.
+//
+// Consequência direta: a concha compila para binário nativo x86-64 e executa
+// pipelines, redirecionamento, glob e controle de fluxo — mas só enquanto não
+// tiver REPL. Um shell nativo que não sabe ler o que você digita.
+//
+// Prova no fonte: `runtime_intrinsic_symbol` (src/backend_s.rs) é a tabela
+// fechada de intrínsecas com símbolo nativo; nenhuma entrada `ouvir*` existe
+// nela, então a chamada cai no erro de src/backend_s.rs:988.
+pacote main;
+
+carinho principal() -> bombom {
+    falar("digite algo:");
+    falar(ouvir_verso_ou("(sem entrada)"));
+    mimo 0;
+}

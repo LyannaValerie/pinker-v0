@@ -1,0 +1,19 @@
+// L-06 — um filho morto por sinal não vira status 128+N como no bash: vira
+// falha operacional. O shell perde a distinção entre "morreu por SIGKILL" e
+// "não deu para executar".
+pacote main;
+
+apelido Res = Resultado<SaidaProcesso, verso>;
+
+carinho principal() -> bombom {
+    nova muda argv: lista<verso> = lista_verso_criar();
+    lista_verso_anexar(argv, "-c");
+    lista_verso_anexar(argv, "kill -9 $$");
+    nova muda amb: mapa<verso,verso> = mapa_verso_verso_criar();
+    nova r: Res = executar_processo_estruturado("sh", argv, "", "", amb, LimiteTempo.SemLimite);
+    encaixe r {
+        caso Res.Ok(s) { falar("codigo:", processo_codigo(s)); }
+        caso Res.Erro(e) { falar("ERRO:", e); }
+    }
+    mimo 0;
+}
