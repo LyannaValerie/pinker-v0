@@ -294,7 +294,7 @@ impl<'a> Resolvedor<'a> {
                 // não podia ser dito: ela existe, existe em outro lugar, e esta
                 // unidade não a pediu. "não existe" e "existe alhures e não foi
                 // importado" são fatos diferentes.
-                let (especie, pronome, participio) = primeira.especie.frase();
+                let (especie, sujeito, participio, objeto) = primeira.especie.frase();
                 let onde = alheias
                     .iter()
                     .map(|declaracao| format!("'{}'", declaracao.unidade))
@@ -302,14 +302,15 @@ impl<'a> Resolvedor<'a> {
                     .join(", ");
                 return Err(PinkerError::Semantic {
                     msg: format!(
-                        "{} '{}' não {} neste ambiente — {} é {} em {}, e {} não a importou",
+                        "{} '{}' não {} neste ambiente — {} é {} em {}, e {} não {} importou",
                         especie,
                         name,
                         participio,
-                        pronome,
+                        sujeito,
                         participio,
                         onde,
                         descricao_unidade(&self.unit_key),
+                        objeto,
                     ),
                     span,
                 });
@@ -701,15 +702,15 @@ impl Especie {
         }
     }
 
-    /// (espécie, pronome, particípio) já concordados.
-    fn frase(self) -> (&'static str, &'static str, &'static str) {
+    /// (espécie, sujeito, particípio, objeto) já concordados.
+    fn frase(self) -> (&'static str, &'static str, &'static str, &'static str) {
         match self {
-            Especie::Funcao => ("função", "ela", "declarada"),
-            Especie::Constante => ("constante", "ela", "declarada"),
-            Especie::Struct => ("struct", "ela", "declarada"),
-            Especie::Alias => ("alias de tipo", "ele", "declarado"),
-            Especie::Leque => ("leque", "ele", "declarado"),
-            Especie::Trato => ("trato", "ele", "declarado"),
+            Especie::Funcao => ("função", "ela", "declarada", "a"),
+            Especie::Constante => ("constante", "ela", "declarada", "a"),
+            Especie::Struct => ("struct", "ela", "declarada", "a"),
+            Especie::Alias => ("alias de tipo", "ele", "declarado", "o"),
+            Especie::Leque => ("leque", "ele", "declarado", "o"),
+            Especie::Trato => ("trato", "ele", "declarado", "o"),
         }
     }
 }
