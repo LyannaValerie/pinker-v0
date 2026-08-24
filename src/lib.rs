@@ -35,6 +35,7 @@ pub mod lexer;
 pub mod limite_tempo;
 pub mod method_identity;
 pub mod module_graph;
+pub mod module_resolve;
 pub mod native_symbol;
 pub mod nav;
 pub mod nav_projection_lifecycle;

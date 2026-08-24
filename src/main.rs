@@ -20,6 +20,7 @@ use pinker_v0::ir;
 use pinker_v0::ir_validate;
 use pinker_v0::lexer::Lexer;
 use pinker_v0::module_graph::ModuleGraph;
+use pinker_v0::module_resolve;
 use pinker_v0::nav;
 use pinker_v0::nav_projection_lifecycle::{self, ProjectionError};
 use pinker_v0::nav_projection_report;
@@ -3368,7 +3369,7 @@ fn run_repl(_config: ReplConfig) {
 // @pinker-nav:start cli.analise.pipeline
 // @pinker-nav:domain analise
 // @pinker-nav:layer cli
-// @pinker-nav:summary run_analyze lê o arquivo de entrada e conduz o pipeline de análise: tokeniza, parseia, resolve imports (load_program_with_imports), roda a verificação semântica (semantic::check_program) e, conforme as flags do Config, cada etapa a jusante (IR, CFG IR, seleção de instruções, máquina abstrata, backend `.s` textual, execução via interpretador, backend pseudo-asm) só é computada se alguma flag de saída a exigir (`needs_ir`/`needs_cfg`/`needs_selected`/`needs_machine`); a falha ao ler o arquivo é tratada diretamente com `eprintln!` e `process::exit(1)`, enquanto erros Pinker das etapas de tokenização, parsing, importação, semântica e lowerings são tratados por `try_or_exit!`; esta função não monta nem linka um binário — a emissão `--asm-s` é apenas texto impresso, e `--run` executa via interpreter::run_program_with_args, não via processo nativo.
+// @pinker-nav:summary run_analyze lê o arquivo de entrada, registra-o como unidade-fonte primária no SourceMap para que todo span nasça vinculado, e conduz o pipeline de análise: tokeniza, parseia, compõe os módulos preservando a unidade (carregar_e_projetar, que devolve o programa projetado e o grafo resolvido), roda a verificação semântica ciente da composição (semantic::check_program_composto, que recebe os tratos visíveis por fonte) e, conforme as flags do Config, cada etapa a jusante (IR, CFG IR, seleção de instruções, máquina abstrata, backend `.s` textual, execução via interpretador, backend pseudo-asm) só é computada se alguma flag de saída a exigir (`needs_ir`/`needs_cfg`/`needs_selected`/`needs_machine`); a falha ao ler o arquivo é tratada diretamente com `eprintln!` e `process::exit(1)`, enquanto erros Pinker das etapas de tokenização, parsing, importação, semântica e lowerings são tratados por `try_or_exit!`; esta função não monta nem linka um binário — a emissão `--asm-s` é apenas texto impresso, e `--run` executa via interpreter::run_program_with_args, não via processo nativo.
 fn run_analyze(config: Config) {
     let source = match fs::read_to_string(&config.input) {
         Ok(source) => source,
@@ -3402,8 +3403,9 @@ fn run_analyze(config: Config) {
     let parsed_program = try_or_exit!(parser.parse(), &sources);
     // O empréstimo mutável do mapa de fontes termina antes da renderização de
     // erro, que precisa lê-lo.
-    let carregado = load_program_with_imports(&config.input, parsed_program, &mut sources);
-    let program = try_or_exit!(carregado, &sources);
+    let carregado = carregar_e_projetar(&config.input, parsed_program, &mut sources);
+    let (program, grafo) = try_or_exit!(carregado, &sources);
+    let tratos_visiveis = module_resolve::tratos_visiveis_por_fonte(&grafo);
 
     if config.print_ast && !config.check_only {
         println!("=== AST TEXTUAL ===");
@@ -3416,7 +3418,10 @@ fn run_analyze(config: Config) {
     }
 
     // --- Semântica ---
-    try_or_exit!(semantic::check_program(&program), &sources);
+    try_or_exit!(
+        semantic::check_program_composto(&program, tratos_visiveis),
+        &sources
+    );
 
     if config.check_only {
         return;
@@ -3603,9 +3608,13 @@ fn run_build(config: BuildConfig) {
     let parsed_program = try_or_exit!(parser.parse(), &sources);
     // O empréstimo mutável do mapa de fontes termina antes da renderização de
     // erro, que precisa lê-lo.
-    let carregado = load_program_with_imports(&config.input, parsed_program, &mut sources);
-    let program = try_or_exit!(carregado, &sources);
-    try_or_exit!(semantic::check_program(&program), &sources);
+    let carregado = carregar_e_projetar(&config.input, parsed_program, &mut sources);
+    let (program, grafo) = try_or_exit!(carregado, &sources);
+    let tratos_visiveis = module_resolve::tratos_visiveis_por_fonte(&grafo);
+    try_or_exit!(
+        semantic::check_program_composto(&program, tratos_visiveis),
+        &sources
+    );
 
     let program_ir = try_or_exit!(ir::lower_program(&program), &sources);
     try_or_exit!(ir_validate::validate_program(&program_ir), &sources);
@@ -3849,7 +3858,7 @@ impl Drop for DiretorioIntermediario {
 // @pinker-nav:start cli.modulos.importacao
 // @pinker-nav:domain modulos
 // @pinker-nav:layer cli
-// @pinker-nav:summary parse_program_from_source tokeniza e parseia uma string de fonte, entregando ao parser o contexto de import já resolvido. base_dir_de devolve o diretório de resolução dos `.pink`; contexto_de_import responde, ANTES do parse, as duas perguntas que o parser não pode responder sozinho — quais nomes de `trazer X.y;` são módulo Pinker real (via modulo_real_existe) e que identidades de topo os `trazer <modulo>;` deste arquivo trazem (via nomes_trazidos_por_modulo, leitura best-effort e sem diagnóstico próprio, porque o carregador refaz a mesma leitura pra valer logo em seguida). importable_item_name e importable_item_clone reconhecem e clonam os itens importáveis Function, Const, Struct, TypeAlias, Enum e Trait; qualified_type_item_clone requalifica com o prefixo `<módulo>.` somente Struct e TypeAlias, não Function, Const, Enum ou Trait. load_module_program lê o arquivo `<módulo>.pink` a partir de `base_dir`, detecta ciclo de módulos comparando com a pilha `loading` e recursa nos imports do módulo carregado — pulando ali a mesma família built-in que o programa raiz pula, para que a superfície aprovada valha também dentro de um módulo — antes de inserir o programa em `loaded`. load_program_with_imports é o ponto de entrada: para cada import do programa raiz, pula famílias built-in importáveis, detecta import duplicado pela chave `módulo::símbolo`, carrega o módulo via load_module_program e insere os itens importados (todo o módulo ou um símbolo específico) em `root_program.items`, reportando colisão de nome com itens locais ou com outro import; na forma seletiva, a função solicitada traz transitivamente somente as funções anônimas sintéticas alcançáveis de que depende. Import de família built-in não vira item: `modulo_real_existe` decide a precedência `REAL_MODULE_X > BUILTIN_FAMILY_X` — a forma seletiva cede a vez a um `<família>.pink` que exista de fato, e só na ausência dele o import sobrevive em `root_program.imports` para a autoridade semântica validá-lo.
+// @pinker-nav:summary parse_program_from_source tokeniza e parseia uma string de fonte já vinculada ao SourceId da unidade, entregando ao parser o contexto de import resolvido antes do parse. base_dir_de devolve o diretório de resolução dos `.pink`; contexto_de_import responde, ANTES do parse, as duas perguntas que o parser não pode responder sozinho — quais nomes de `trazer X.y;` são módulo Pinker real (via modulo_real_existe) e que identidades de topo os `trazer <modulo>;` deste arquivo trazem (via nomes_trazidos_por_modulo, leitura best-effort e sem diagnóstico próprio). load_module_program registra a fonte do módulo no SourceMap antes de parseá-lo, detecta ciclo comparando com a pilha `loading`, recursa nos imports do módulo — pulando ali a mesma família built-in que o programa raiz pula — e só então insere a unidade no ModuleGraph, de modo que a ordem de inserção já seja ordem de dependência. carregar_e_projetar é o ponto de entrada: monta o grafo sem descartar nada da unidade, valida cada import da raiz pela superfície que o importador passa a enxergar (colisão com item local, colisão entre imports, import duplicado, símbolo inexistente) SEM materializar item algum, roda a validação modular local de cada unidade com os imports de família que ela escreveu, resolve o grafo para identidades canônicas e só então o projeta num Program único. Import de família built-in continua sem virar item e sobrevive na projeção para a autoridade semântica validá-lo.
 fn parse_program_from_source(
     source: &str,
     base_dir: &Path,
@@ -3949,82 +3958,6 @@ fn importable_item_name(item: &ast::Item) -> Option<&str> {
         ast::Item::TypeAlias(alias) => Some(alias.name.as_str()),
         ast::Item::Enum(enum_decl) => Some(enum_decl.name.as_str()),
         ast::Item::Trait(trait_decl) => Some(trait_decl.name.as_str()),
-    }
-}
-
-fn importable_item_clone(item: &ast::Item) -> Option<ast::Item> {
-    match item {
-        ast::Item::Function(_)
-        | ast::Item::Const(_)
-        | ast::Item::Struct(_)
-        | ast::Item::TypeAlias(_)
-        | ast::Item::Enum(_)
-        | ast::Item::Trait(_) => Some(item.clone()),
-    }
-}
-
-fn anonymous_callable_dependencies(
-    owner: &ast::FunctionDecl,
-    module_items: &[ast::Item],
-) -> Result<Vec<ast::Item>, PinkerError> {
-    let anonymous_functions: HashMap<&str, &ast::FunctionDecl> = module_items
-        .iter()
-        .filter_map(|item| match item {
-            ast::Item::Function(function)
-                if function
-                    .name
-                    .starts_with(pinker_v0::anonymous_identity::ANONYMOUS_CALLABLE_PREFIX) =>
-            {
-                Some((function.name.as_str(), function))
-            }
-            _ => None,
-        })
-        .collect();
-    let mut required = HashSet::new();
-    let mut pending = vec![owner];
-
-    while let Some(function) = pending.pop() {
-        for candidate in ast::capture_candidates_in_function(function) {
-            if !candidate.starts_with(pinker_v0::anonymous_identity::ANONYMOUS_CALLABLE_PREFIX)
-                || !required.insert(candidate.clone())
-            {
-                continue;
-            }
-            let Some(dependency) = anonymous_functions.get(candidate.as_str()).copied() else {
-                return Err(PinkerError::Semantic {
-                    msg:
-                        "dependência anônima requerida pela função importada não foi materializada"
-                            .to_string(),
-                    span: function.span,
-                });
-            };
-            pending.push(dependency);
-        }
-    }
-
-    Ok(module_items
-        .iter()
-        .filter(|item| match item {
-            ast::Item::Function(function) => required.contains(&function.name),
-            _ => false,
-        })
-        .cloned()
-        .collect())
-}
-
-fn qualified_type_item_clone(module: &str, item: &ast::Item) -> Option<ast::Item> {
-    match item {
-        ast::Item::Struct(struct_decl) => {
-            let mut cloned = struct_decl.clone();
-            cloned.name = format!("{}.{}", module, struct_decl.name);
-            Some(ast::Item::Struct(cloned))
-        }
-        ast::Item::TypeAlias(alias) => {
-            let mut cloned = alias.clone();
-            cloned.name = format!("{}.{}", module, alias.name);
-            Some(ast::Item::TypeAlias(cloned))
-        }
-        _ => None,
     }
 }
 
@@ -4131,15 +4064,6 @@ fn modulo_real_existe(base_dir: &Path, module: &str) -> bool {
     base_dir.join(format!("{}.pink", module)).is_file()
 }
 
-fn load_program_with_imports(
-    source_file: &str,
-    root_program: ast::Program,
-    sources: &mut SourceMap,
-) -> Result<ast::Program, PinkerError> {
-    let (program, _graph) = carregar_e_projetar(source_file, root_program, sources)?;
-    Ok(program)
-}
-
 /// Carrega a composição preservando a unidade modular e devolve, junto do
 /// programa projetado, o grafo de onde ele saiu.
 ///
@@ -4148,13 +4072,16 @@ fn load_program_with_imports(
 /// destruída no ato do carregamento e não havia de onde derivar nada.
 fn carregar_e_projetar(
     source_file: &str,
-    mut root_program: ast::Program,
+    root_program: ast::Program,
     sources: &mut SourceMap,
 ) -> Result<(ast::Program, ModuleGraph), PinkerError> {
     let mut graph = ModuleGraph::new();
     graph.insert_root(SourceId::ROOT, source_file, root_program.clone());
 
     if root_program.imports.is_empty() {
+        // Sem import não há composição: a unidade É o programa, e nada nele
+        // muda de nome. Programa de arquivo único atravessa este caminho
+        // exatamente como sempre atravessou.
         return Ok((root_program, graph));
     }
 
@@ -4163,10 +4090,11 @@ fn carregar_e_projetar(
 
     let mut loading = Vec::new();
     let mut seen_imports = HashSet::new();
-    let mut imported_items = Vec::new();
+    // Superfície visível ao importador. É onde colisão de import é decidida —
+    // e agora é SÓ isso que ela decide: duas entidades homônimas em módulos
+    // distintos não colidem mais como símbolo, apenas disputam a grafia que o
+    // importador pediu para enxergar.
     let mut imported_names = HashMap::<String, Span>::new();
-    let mut imported_generated_owners = HashMap::<String, String>::new();
-    let mut imported_qualified_type_names = HashSet::<String>::new();
     let local_names: HashSet<String> = root_program
         .items
         .iter()
@@ -4174,7 +4102,6 @@ fn carregar_e_projetar(
         .map(ToOwned::to_owned)
         .collect();
 
-    let mut family_imports = Vec::new();
     for import in &root_program.imports {
         // Fases 186–188 — famílias built-in importáveis não correspondem a
         // arquivo .pink. As intrínsecas já estão disponíveis globalmente; basta
@@ -4213,7 +4140,6 @@ fn carregar_e_projetar(
                 }
                 imported_names.insert(symbol.clone(), import.span);
             }
-            family_imports.push(import.clone());
             continue;
         }
 
@@ -4250,129 +4176,86 @@ fn carregar_e_projetar(
             .module(import.module.as_str())
             .expect("módulo carregado");
 
-        if let Some(symbol) = &import.symbol {
-            if local_names.contains(symbol) {
-                return Err(PinkerError::Semantic {
-                    msg: format!(
-                        "colisão de nome no import: '{}' já existe no arquivo principal",
-                        symbol
-                    ),
-                    span: import.span,
-                });
-            }
-            if let Some(previous_span) = imported_names.get(symbol) {
-                return Err(PinkerError::Semantic {
-                    msg: format!(
-                        "colisão de nome no import: '{}' trazido por múltiplos módulos",
-                        symbol
-                    ),
-                    span: previous_span.merge(import.span),
-                });
-            }
-            let Some(item) = module_program
-                .items
-                .iter()
-                .find(|item| importable_item_name(item) == Some(symbol.as_str()))
-            else {
-                return Err(PinkerError::Semantic {
-                    msg: format!(
-                        "símbolo '{}' não encontrado no módulo '{}'",
-                        symbol, import.module
-                    ),
-                    span: import.span,
-                });
-            };
-            let dependencies = match item {
-                ast::Item::Function(function) => {
-                    anonymous_callable_dependencies(function, &module_program.items)?
-                }
-                _ => Vec::new(),
-            };
-            imported_items.push(item.clone());
-            imported_names.insert(symbol.clone(), import.span);
-            for dependency in dependencies {
-                let dependency_name = importable_item_name(&dependency)
-                    .expect("anonymous callable dependency is an importable function")
-                    .to_string();
-                if local_names.contains(&dependency_name) {
+        // A partir daqui a checagem é de SUPERFÍCIE, não de materialização.
+        // Nenhum item é clonado para dentro da raiz: o que se decide é qual
+        // grafia o importador passa a enxergar.
+        let declarar_superficie =
+            |nome: &str, span: Span, imported_names: &mut HashMap<String, Span>| {
+                if local_names.contains(nome) {
                     return Err(PinkerError::Semantic {
                         msg: format!(
                             "colisão de nome no import: '{}' já existe no arquivo principal",
-                            dependency_name
+                            nome
                         ),
-                        span: import.span,
+                        span,
                     });
                 }
-                if let Some(previous_module) = imported_generated_owners.get(&dependency_name) {
-                    if previous_module == &import.module {
-                        continue;
-                    }
-                    return Err(PinkerError::Semantic {
-                        msg: format!(
-                            "colisão de identidade anônima entre módulos '{}' e '{}'",
-                            previous_module, import.module
-                        ),
-                        span: import.span,
-                    });
-                }
-                imported_generated_owners.insert(dependency_name.clone(), import.module.clone());
-                imported_names.insert(dependency_name, import.span);
-                imported_items.push(dependency);
-            }
-            let qualified_name = format!("{}.{}", import.module, symbol);
-            if imported_qualified_type_names.insert(qualified_name) {
-                if let Some(qualified_item) =
-                    qualified_type_item_clone(import.module.as_str(), item)
-                {
-                    imported_items.push(qualified_item);
-                }
-            }
-        } else {
-            for item in &module_program.items {
-                let Some(importable_name) = importable_item_name(item) else {
-                    continue;
-                };
-                if local_names.contains(importable_name) {
-                    return Err(PinkerError::Semantic {
-                        msg: format!(
-                            "colisão de nome no import: '{}' já existe no arquivo principal",
-                            importable_name
-                        ),
-                        span: import.span,
-                    });
-                }
-                if let Some(previous_span) = imported_names.get(importable_name) {
+                if let Some(previous_span) = imported_names.get(nome) {
                     return Err(PinkerError::Semantic {
                         msg: format!(
                             "colisão de nome no import: '{}' trazido por múltiplos módulos",
-                            importable_name
+                            nome
                         ),
-                        span: previous_span.merge(import.span),
+                        span: previous_span.merge(span),
                     });
                 }
-                imported_names.insert(importable_name.to_string(), import.span);
-                if let Some(cloned) = importable_item_clone(item) {
-                    imported_items.push(cloned);
+                imported_names.insert(nome.to_string(), span);
+                Ok(())
+            };
+
+        match &import.symbol {
+            Some(symbol) => {
+                declarar_superficie(symbol, import.span, &mut imported_names)?;
+                let existe = module_program
+                    .items
+                    .iter()
+                    .any(|item| importable_item_name(item) == Some(symbol.as_str()));
+                if !existe {
+                    return Err(PinkerError::Semantic {
+                        msg: format!(
+                            "símbolo '{}' não encontrado no módulo '{}'",
+                            symbol, import.module
+                        ),
+                        span: import.span,
+                    });
                 }
-                let qualified_name = format!("{}.{}", import.module, importable_name);
-                if imported_qualified_type_names.insert(qualified_name) {
-                    if let Some(qualified_item) =
-                        qualified_type_item_clone(import.module.as_str(), item)
-                    {
-                        imported_items.push(qualified_item);
-                    }
+            }
+            None => {
+                let nomes: Vec<String> = module_program
+                    .items
+                    .iter()
+                    .filter_map(importable_item_name)
+                    .map(ToOwned::to_owned)
+                    .collect();
+                for nome in nomes {
+                    declarar_superficie(&nome, import.span, &mut imported_names)?;
                 }
             }
         }
     }
 
-    root_program.items.splice(0..0, imported_items);
-    // Imports de módulo já foram materializados como itens de topo e somem
-    // DA PROJEÇÃO. Eles continuam existindo na unidade raiz dentro do grafo,
-    // que é o que permite validar e resolver a raiz pelo ambiente que ela
-    // declarou. Imports de família sobrevivem também na projeção porque quem
-    // os valida é a autoridade semântica, não o carregador de arquivos.
-    root_program.imports = family_imports;
-    Ok((root_program, graph))
+    // MODULE_LOCAL_VALIDATION antes de qualquer projeção: as regras cujo
+    // gatilho é a própria unidade rodam enquanto a unidade ainda existe.
+    //
+    // A unidade é apresentada com os imports de família que ela escreveu — os
+    // mesmos que sobreviveriam numa raiz, pelo mesmo critério de precedência.
+    // Import que resolve para módulo real não é import de família e já foi
+    // validado pelo carregador e pelo ambiente.
+    for unit in graph.units() {
+        if unit.is_root() {
+            continue;
+        }
+        let mut unidade = unit.to_program();
+        unidade.imports.retain(|import| {
+            pinker_v0::familia_superficie::familia_conhecida(import.module.as_str())
+                && !(import.symbol.is_some() && modulo_real_existe(&base_dir, &import.module))
+        });
+        semantic::check_module_unit(&unidade)?;
+    }
+
+    let resolvido = module_resolve::resolver_grafo(&graph)?;
+    let program = module_resolve::projetar_programa(&resolvido);
+    Ok((program, resolvido))
 }
+
 // @pinker-nav:end cli.modulos.importacao

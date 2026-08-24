@@ -2,8 +2,8 @@ schema = 2
 id = "normalizacao-corrente-para-historico"
 
 [reconstruction]
-expected_overrides = 106
-expected_exclusions = 109
+expected_overrides = 109
+expected_exclusions = 116
 
 [[rules]]
 op = "exclude-key"
@@ -68,6 +68,11 @@ expected_matches = 1
 [[rules]]
 op = "exclude-key"
 key = "cli.nav.projecao"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "diagnostico.fonte.identidade"
 expected_matches = 1
 
 [[rules]]
@@ -287,6 +292,31 @@ expected_matches = 1
 
 [[rules]]
 op = "exclude-key"
+key = "modulos.ambiente.import-explicito"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "modulos.projecao.execucao"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "modulos.resolucao.nominal-canonica"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "modulos.unidade.preservacao"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "modulos.visibilidade.tratos"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
 key = "nativo.simbolo.conjunto-emitido"
 expected_matches = 1
 
@@ -388,6 +418,11 @@ expected_matches = 1
 [[rules]]
 op = "exclude-key"
 key = "semantic.identificadores.namespace-produtor-de-simbolo"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "semantic.modulos.validacao-local"
 expected_matches = 1
 
 [[rules]]
@@ -859,9 +894,9 @@ expect_layer = "cli"
 [[rules]]
 op = "override-region"
 key = "cli.analise.pipeline"
-from_hash = "fnv1a64:88f7b5a3e41c35e3"
+from_hash = "fnv1a64:79ab2567c8fdfc18"
 to_hash = "fnv1a64:8dfca2cbd60710cd"
-from_summary = "run_analyze lê o arquivo de entrada e conduz o pipeline de análise: tokeniza, parseia, resolve imports (load_program_with_imports), roda a verificação semântica (semantic::check_program) e, conforme as flags do Config, cada etapa a jusante (IR, CFG IR, seleção de instruções, máquina abstrata, backend `.s` textual, execução via interpretador, backend pseudo-asm) só é computada se alguma flag de saída a exigir (`needs_ir`/`needs_cfg`/`needs_selected`/`needs_machine`); a falha ao ler o arquivo é tratada diretamente com `eprintln!` e `process::exit(1)`, enquanto erros Pinker das etapas de tokenização, parsing, importação, semântica e lowerings são tratados por `try_or_exit!`; esta função não monta nem linka um binário — a emissão `--asm-s` é apenas texto impresso, e `--run` executa via interpreter::run_program_with_args, não via processo nativo."
+from_summary = "run_analyze lê o arquivo de entrada, registra-o como unidade-fonte primária no SourceMap para que todo span nasça vinculado, e conduz o pipeline de análise: tokeniza, parseia, compõe os módulos preservando a unidade (carregar_e_projetar, que devolve o programa projetado e o grafo resolvido), roda a verificação semântica ciente da composição (semantic::check_program_composto, que recebe os tratos visíveis por fonte) e, conforme as flags do Config, cada etapa a jusante (IR, CFG IR, seleção de instruções, máquina abstrata, backend `.s` textual, execução via interpretador, backend pseudo-asm) só é computada se alguma flag de saída a exigir (`needs_ir`/`needs_cfg`/`needs_selected`/`needs_machine`); a falha ao ler o arquivo é tratada diretamente com `eprintln!` e `process::exit(1)`, enquanto erros Pinker das etapas de tokenização, parsing, importação, semântica e lowerings são tratados por `try_or_exit!`; esta função não monta nem linka um binário — a emissão `--asm-s` é apenas texto impresso, e `--run` executa via interpreter::run_program_with_args, não via processo nativo."
 to_summary = "run_analyze lê o arquivo de entrada e conduz o pipeline de análise: tokeniza, parseia, resolve imports (load_program_with_imports), roda a verificação semântica (semantic::check_program) e, conforme as flags do Config, cada etapa a jusante (IR, CFG IR, seleção de instruções, máquina abstrata, backend `.s` textual, execução via interpretador, backend pseudo-asm) só é computada se alguma flag de saída a exigir (`needs_ir`/`needs_cfg`/`needs_selected`/`needs_machine`); a falha ao ler o arquivo é tratada diretamente com `eprintln!` e `process::exit(1)`, enquanto erros Pinker das etapas de tokenização, parsing, importação, semântica e lowerings são tratados por `try_or_exit!`; esta função não monta nem linka um binário — a emissão `--asm-s` é apenas texto impresso, e `--run` executa via interpreter::run_program_with_args, não via processo nativo."
 expect_file = "src/main.rs"
 expect_domain = "analise"
@@ -870,7 +905,7 @@ expect_layer = "cli"
 [[rules]]
 op = "override-region"
 key = "cli.build.nativo"
-from_hash = "fnv1a64:47904d178e7c76e1"
+from_hash = "fnv1a64:3ee5fe88cf104a5d"
 to_hash = "fnv1a64:091813dd853692c4"
 from_summary = "run_build repete o front-end (lex/parse/imports/semântica/IR/CFG/seleção) e grava o `.s` resultante em <out_dir>/<stem>.s via fs::write; com --nativo, emite via emit_external_toolchain_subset_nativo e, após gravar, chama link_nativo. locate_pinker_rt_lib localiza (não constrói) a staticlib libpinker_rt.a pré-buildada: usa a env PINKER_RT_LIB se apontar para um arquivo existente, senão procura ao lado do executável atual via std::env::current_exe; retorna Err com uma mensagem sugerindo `cargo build` se não encontrar. detect_cc_driver detecta um driver C disponível testando `cc --version`/`gcc --version`/`clang --version` via std::process::Command e retorna o primeiro que responder com status de sucesso. link_nativo invoca esse driver externo em dois passos: primeiro `-c` sobre o `.s` para um objeto cujo basename deriva do próprio `.s` mas que vive dentro de um DiretorioIntermediario possuído pela execução, depois a linkedição desse objeto com a staticlib localizada e -lpthread/-ldl/-lm para produzir o binário via -o. A montagem e a linkedição continuam sendo feitas pelo driver externo, não por este arquivo; o que este arquivo controla é o basename do objeto, porque entregar o `.s` direto ao driver deixaria o intermediário com nome temporário aleatório e o linker o registraria como símbolo `STT_FILE` do executável, quebrando o determinismo byte a byte entre dois builds da mesma fonte. O diretório do objeto não atravessa a linkedição, então o intermediário nunca ocupa `<out_dir>/<stem>.o`: arquivo preexistente do usuário com esse nome não é sobrescrito nem apagado, em nenhum desfecho. Antes de linkar, link_nativo chama verificar_artefato_sussurro, que relê o `.s` gravado e delega a inline_asm::verify_native_artifact — o invariante de artefato roda no caminho produtivo, não só em fixture de teste: monta o assembly emitido e a baseline derivada sem os envelopes noutro DiretorioIntermediario sob o out_dir, compara as superfícies dos dois objetos e aborta o build com E-BACKEND-ASM-ARTIFACT diante de qualquer delta de seção ou de símbolo definido; os dois diretórios intermediários são removidos em qualquer desfecho pelo próprio Drop e a verificação só imprime linha de confirmação quando existe ao menos um envelope. DiretorioIntermediario é esse espaço de scratch: `criar` monta `<out_dir>/.pinker-<propósito>-<pid>[-<n>]` com fs::create_dir, que falha com AlreadyExists em vez de adotar diretório preexistente — a posse fica provada, não presumida —, e Drop remove recursivamente só o que essa criação exclusiva produziu, de modo que nenhum desfecho (sucesso, recusa do assembler, recusa do linker, erro de I/O) apaga arquivo que a execução não criou."
 to_summary = "run_build repete o front-end (lex/parse/imports/semântica/IR/CFG/seleção) e grava o `.s` resultante em <out_dir>/<stem>.s via fs::write; com --nativo, emite via emit_external_toolchain_subset_nativo e, após gravar, chama link_nativo. locate_pinker_rt_lib localiza (não constrói) a staticlib libpinker_rt.a pré-buildada: usa a env PINKER_RT_LIB se apontar para um arquivo existente, senão procura ao lado do executável atual via std::env::current_exe; retorna Err com uma mensagem sugerindo `cargo build` se não encontrar. detect_cc_driver detecta um driver C disponível testando `cc --version`/`gcc --version`/`clang --version` via std::process::Command e retorna o primeiro que responder com status de sucesso. link_nativo invoca esse driver externo passando o `.s`, a staticlib localizada e -lpthread/-ldl/-lm para produzir o binário via -o; a montagem e a linkedição são feitas pelo driver externo, não por este arquivo. Antes de linkar, link_nativo chama verificar_artefato_sussurro, que relê o `.s` gravado e delega a inline_asm::verify_native_artifact — o invariante de artefato roda no caminho produtivo, não só em fixture de teste: monta o assembly emitido e a baseline derivada sem os envelopes num diretório intermediário `.pinker-sussurro-verificacao` sob o out_dir, compara as superfícies dos dois objetos e aborta o build com E-BACKEND-ASM-ARTIFACT diante de qualquer delta de seção ou de símbolo definido; o diretório intermediário é removido em qualquer desfecho e a verificação só imprime linha de confirmação quando existe ao menos um envelope."
@@ -914,7 +949,7 @@ expect_layer = "cli"
 [[rules]]
 op = "override-region"
 key = "cli.execucao.entrada"
-from_hash = "fnv1a64:e761fd0245a05ea3"
+from_hash = "fnv1a64:e3e0194623e33d82"
 to_hash = "fnv1a64:f33da0bc4b2931c0"
 from_summary = "main preserva exits de domínio ao despachar análise e os nove comandos, incluindo adaptadores estruturados read-only para doctor, nav impacto e verificar."
 to_summary = "try_or_exit! encerra falhas operacionais com EXIT_FAILURE; main imprime ajuda em stdout, versão determinística do pacote em stdout, erros de invocação em stderr com EXIT_USAGE e preserva os códigos de domínio ao despachar análise, build, editor, repl, doc, nav e agente."
@@ -925,9 +960,9 @@ expect_layer = "cli"
 [[rules]]
 op = "override-region"
 key = "cli.modulos.importacao"
-from_hash = "fnv1a64:ddd901026d379d8b"
+from_hash = "fnv1a64:01b9d9736c8be258"
 to_hash = "fnv1a64:ec330060a090d4c0"
-from_summary = "parse_program_from_source tokeniza e parseia uma string de fonte, entregando ao parser o contexto de import já resolvido. base_dir_de devolve o diretório de resolução dos `.pink`; contexto_de_import responde, ANTES do parse, as duas perguntas que o parser não pode responder sozinho — quais nomes de `trazer X.y;` são módulo Pinker real (via modulo_real_existe) e que identidades de topo os `trazer <modulo>;` deste arquivo trazem (via nomes_trazidos_por_modulo, leitura best-effort e sem diagnóstico próprio, porque o carregador refaz a mesma leitura pra valer logo em seguida). importable_item_name e importable_item_clone reconhecem e clonam os itens importáveis Function, Const, Struct, TypeAlias, Enum e Trait; qualified_type_item_clone requalifica com o prefixo `<módulo>.` somente Struct e TypeAlias, não Function, Const, Enum ou Trait. load_module_program lê o arquivo `<módulo>.pink` a partir de `base_dir`, detecta ciclo de módulos comparando com a pilha `loading` e recursa nos imports do módulo carregado — pulando ali a mesma família built-in que o programa raiz pula, para que a superfície aprovada valha também dentro de um módulo — antes de inserir o programa em `loaded`. load_program_with_imports é o ponto de entrada: para cada import do programa raiz, pula famílias built-in importáveis, detecta import duplicado pela chave `módulo::símbolo`, carrega o módulo via load_module_program e insere os itens importados (todo o módulo ou um símbolo específico) em `root_program.items`, reportando colisão de nome com itens locais ou com outro import; na forma seletiva, a função solicitada traz transitivamente somente as funções anônimas sintéticas alcançáveis de que depende. Import de família built-in não vira item: `modulo_real_existe` decide a precedência `REAL_MODULE_X > BUILTIN_FAMILY_X` — a forma seletiva cede a vez a um `<família>.pink` que exista de fato, e só na ausência dele o import sobrevive em `root_program.imports` para a autoridade semântica validá-lo."
+from_summary = "parse_program_from_source tokeniza e parseia uma string de fonte já vinculada ao SourceId da unidade, entregando ao parser o contexto de import resolvido antes do parse. base_dir_de devolve o diretório de resolução dos `.pink`; contexto_de_import responde, ANTES do parse, as duas perguntas que o parser não pode responder sozinho — quais nomes de `trazer X.y;` são módulo Pinker real (via modulo_real_existe) e que identidades de topo os `trazer <modulo>;` deste arquivo trazem (via nomes_trazidos_por_modulo, leitura best-effort e sem diagnóstico próprio). load_module_program registra a fonte do módulo no SourceMap antes de parseá-lo, detecta ciclo comparando com a pilha `loading`, recursa nos imports do módulo — pulando ali a mesma família built-in que o programa raiz pula — e só então insere a unidade no ModuleGraph, de modo que a ordem de inserção já seja ordem de dependência. carregar_e_projetar é o ponto de entrada: monta o grafo sem descartar nada da unidade, valida cada import da raiz pela superfície que o importador passa a enxergar (colisão com item local, colisão entre imports, import duplicado, símbolo inexistente) SEM materializar item algum, roda a validação modular local de cada unidade com os imports de família que ela escreveu, resolve o grafo para identidades canônicas e só então o projeta num Program único. Import de família built-in continua sem virar item e sobrevive na projeção para a autoridade semântica validá-lo."
 to_summary = "parse_program_from_source tokeniza e parseia uma string de fonte (sem resolver imports). importable_item_name e importable_item_clone reconhecem e clonam os itens importáveis Function, Const, Struct, TypeAlias, Enum e Trait; qualified_type_item_clone requalifica com o prefixo `<módulo>.` somente Struct e TypeAlias, não Function, Const, Enum ou Trait. load_module_program lê o arquivo `<módulo>.pink` a partir de `base_dir`, detecta ciclo de módulos comparando com a pilha `loading` e recursa nos imports do módulo carregado antes de inserir o programa em `loaded`. load_program_with_imports é o ponto de entrada: para cada import do programa raiz, pula famílias built-in importáveis, detecta import duplicado pela chave `módulo::símbolo`, carrega o módulo via load_module_program e insere os itens importados (todo o módulo ou um símbolo específico) em `root_program.items`, reportando colisão de nome com itens locais ou com outro import antes de limpar `root_program.imports`."
 expect_file = "src/main.rs"
 expect_domain = "modulos"
@@ -996,6 +1031,15 @@ to_summary = "Ciclo iniciar/executar/verificar/status/relatorio: snapshots Git, 
 expect_file = "src/agent.rs"
 expect_domain = "development"
 expect_layer = "agent"
+
+[[rules]]
+op = "override-region"
+key = "error.diagnostico.contexto-fonte"
+from_hash = "fnv1a64:401c6740c3e3c6f9"
+to_hash = "fnv1a64:139b652061d006d5"
+expect_file = "src/error.rs"
+expect_domain = "diagnostico"
+expect_layer = "error"
 
 [[rules]]
 op = "override-region"
@@ -1247,6 +1291,15 @@ expect_layer = "semantica"
 
 [[rules]]
 op = "override-region"
+key = "lexer.fluxo.tokenizacao"
+from_hash = "fnv1a64:5e24d65a16d234cd"
+to_hash = "fnv1a64:19ac3ed0e784945d"
+expect_file = "src/lexer.rs"
+expect_domain = "lexico"
+expect_layer = "lexer"
+
+[[rules]]
+op = "override-region"
 key = "lexer.identificadores.namespace-reservado"
 from_hash = "fnv1a64:b237098c9265994d"
 to_hash = "fnv1a64:63e8eb1e03e131f5"
@@ -1490,8 +1543,10 @@ expect_layer = "select"
 [[rules]]
 op = "override-region"
 key = "semantic.chamadas.despacho"
-from_hash = "fnv1a64:59ba6f02ca450e70"
+from_hash = "fnv1a64:9f019d98e3e7c6c2"
 to_hash = "fnv1a64:786f0d551629e7a5"
+from_summary = "Despacho de chamadas: resolução de método de impl (direta e qualificada por trato, com detecção de ambiguidade), restringida aos tratos que a unidade-fonte da chamada autorizou — uma chamada de método não nomeia o trato, então sem esse filtro um trato da raiz forneceria método default ao corpo de um módulo que nunca o importou, seleção monomórfica das intrínsecas genéricas de mapa, checagem de chamada nomeada (aridade e tipos de argumento) e o grande despachante `check_call_expr` — construção de variante de leque, desugaring de `encaixe`, intrínsecas genéricas de lista/mapa, texto/verso, CSV/JSON, tempo e processo, caindo para a chamada de função declarada."
+to_summary = "Despacho de chamadas: resolução de método de impl (direta e qualificada por trato, com detecção de ambiguidade), seleção monomórfica das intrínsecas genéricas de mapa, checagem de chamada nomeada (aridade e tipos de argumento) e o grande despachante `check_call_expr` — construção de variante de leque, desugaring de `encaixe`, intrínsecas genéricas de lista/mapa, texto/verso, CSV/JSON, tempo e processo, caindo para a chamada de função declarada."
 expect_file = "src/semantic.rs"
 expect_domain = "chamadas"
 expect_layer = "semantic"
@@ -1575,6 +1630,15 @@ to_summary = "Contratos de tratos e implementações: agrupa os métodos `__impl
 expect_file = "src/semantic.rs"
 expect_domain = "tratos"
 expect_layer = "semantic"
+
+[[rules]]
+op = "override-region"
+key = "token.representacao.spans"
+from_hash = "fnv1a64:f48e0bce553ea323"
+to_hash = "fnv1a64:d30c3fbb1bbd1314"
+expect_file = "src/token.rs"
+expect_domain = "representacao"
+expect_layer = "token"
 
 [[rules]]
 op = "override-region"

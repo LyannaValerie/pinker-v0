@@ -822,7 +822,7 @@ expect_layer = "parser"
 [[rules]]
 op = "override-hash"
 key = "parser.fluxo.nucleo"
-from = "fnv1a64:904e0a8186ab4ceb"
+from = "fnv1a64:6769f5e7747e531f"
 to = "fnv1a64:24f0a67ac2da71c6"
 expect_file = "src/parser.rs"
 expect_domain = "fluxo"
