@@ -870,16 +870,24 @@ fn revisao_n1_declaracao_de_grafia_builtin_em_modulo_nao_quebra_a_raiz() {
     assert_eq!(codigo(&saida), 2, "{}", stderr(&saida));
 }
 
-/// Revisão adversarial N1, sentido simétrico — a raiz declarando uma grafia
-/// builtin não pode fazer o MÓDULO perder a chamada builtin.
+/// Revisão adversarial N1, sentido simétrico — uma declaração na raiz não
+/// alcança o módulo.
+///
+/// A raiz declara uma grafia de intrínseca que o módulo NÃO usa. O módulo tem
+/// de seguir intacto: a não-interferência é sobre alcance, não sobre a mera
+/// presença de uma declaração no grafo.
+///
+/// O caso em que o módulo usa a MESMA grafia que a raiz reivindicou é decidido
+/// por `revisao_n1_duplo_estreitamento_e_deliberado_e_tem_diagnostico`, que
+/// registra por que ele passou a ser recusado.
 #[test]
 fn revisao_n1_declaracao_de_grafia_builtin_na_raiz_nao_quebra_o_modulo() {
     let c = caso(
         "raiz_n1b",
-        "pacote main;\ntrazer n1b_mod.ua;\n\ncarinho mapa_criar() -> bombom {\n    mimo 0;\n}\n\ncarinho principal() -> bombom {\n    mimo ua();\n}\n",
+        "pacote main;\ntrazer n1b_mod.ua;\n\ncarinho mapa_criar(v: bombom) -> bombom {\n    mimo 0;\n}\n\ncarinho principal() -> bombom {\n    mimo ua();\n}\n",
         &[(
             "n1b_mod",
-            "pacote n1b_mod;\n\ncarinho ua() -> bombom {\n    nova mm: mapa<verso, bombom> = mapa_criar();\n    mimo 7;\n}\n",
+            "pacote n1b_mod;\n\ncarinho ua() -> bombom {\n    nova l: lista<bombom> = lista_criar();\n    mimo 7;\n}\n",
         )],
     );
     let saida = executar(&c, "revisao-n1-modulo");
@@ -1186,12 +1194,12 @@ fn revisao_n1_linha_grafia_builtin_nao_vira_ponte_para_a_raiz() {
     );
     assert!(erro.contains("mapa_criar"), "{erro}");
 
-    // Controle: a chamada builtin de verdade continua atendida, mesmo com a
-    // raiz declarando a mesma grafia. Recusar aqui seria trocar um defeito por
-    // outro.
+    // Controle: sem reivindicação alguma da grafia, o módulo alcança o builtin
+    // normalmente. É o par que prova que a recusa acima vem da reivindicação, e
+    // não de o módulo ter perdido acesso a builtins.
     let controle = caso(
         "raiz_n1m",
-        "pacote main;\ntrazer n1m_mod.ub;\n\ncarinho mapa_criar(v: bombom) -> bombom {\n    mimo 77;\n}\n\ncarinho principal() -> bombom {\n    mimo ub();\n}\n",
+        "pacote main;\ntrazer n1m_mod.ub;\n\ncarinho principal() -> bombom {\n    mimo ub();\n}\n",
         &[(
             "n1m_mod",
             "pacote n1m_mod;\n\ncarinho ub() -> bombom {\n    nova mm: mapa<verso, bombom> = mapa_criar();\n    mimo 5;\n}\n",
@@ -1271,6 +1279,119 @@ fn revisao_n4_linha_import_de_familia_disputa_a_superficie_da_unidade() {
     assert!(
         erro.contains("'criar' trazido por múltiplos módulos"),
         "{erro}"
+    );
+}
+
+/// Revisão adversarial N1'' — a captura módulo -> raiz por grafia de intrínseca
+/// não sobrevive em NENHUM caminho de referência.
+///
+/// A PR #507 protege `Item::Function`, então a raiz pode declarar legalmente um
+/// `eterno`, `ninho`, `apelido` ou `leque` com grafia de intrínseca — e cada um
+/// desses era um caminho de captura distinto, porque a resolução curto-circuitava
+/// por grafia sem olhar quem a declarava. Interceptar caminho consumidor por
+/// caminho consumidor foi o erro: a pergunta certa é feita uma vez, no
+/// curto-circuito, e é "é builtin E ninguém a declarou".
+#[test]
+fn revisao_n1_duplo_grafia_intrinseca_declarada_nao_captura_em_caminho_algum() {
+    // (rótulo, declaração na raiz, corpo do módulo)
+    let casos: &[(&str, &str, &str)] = &[
+        (
+            "constante",
+            "eterno lista_criar: bombom = 77;",
+            "    mimo lista_criar;",
+        ),
+        (
+            "ninho",
+            "ninho abrir {\n    a: bombom;\n    b: bombom;\n    c: bombom;\n}",
+            "    mimo peso(abrir);",
+        ),
+        (
+            "apelido",
+            "apelido tamanho_verso = bombom;",
+            "    nova v: tamanho_verso = 9;\n    mimo v;",
+        ),
+        (
+            "leque",
+            "leque lista_obter {\n    A,\n    B,\n}",
+            "    nova c: lista_obter = lista_obter.A;\n    mimo 6;",
+        ),
+        (
+            "funcao como valor",
+            "carinho mapa_criar(v: bombom) -> bombom {\n    mimo 77;\n}",
+            "    nova f: carinho(bombom) -> bombom = mapa_criar;\n    mimo f(1);",
+        ),
+        (
+            "chamada direta",
+            "carinho mapa_criar(v: bombom) -> bombom {\n    mimo 77;\n}",
+            "    mimo mapa_criar(1);",
+        ),
+    ];
+
+    for (rotulo, declaracao_raiz, corpo_modulo) in casos {
+        let c = caso(
+            "raiz_n1d",
+            &format!(
+                "pacote main;\ntrazer n1d_mod.ua;\n\n{declaracao_raiz}\n\ncarinho principal() -> bombom {{\n    mimo ua();\n}}\n"
+            ),
+            &[(
+                "n1d_mod",
+                &format!("pacote n1d_mod;\n\ncarinho ua() -> bombom {{\n{corpo_modulo}\n}}\n"),
+            )],
+        );
+        let saida = checar(&c, "revisao-n1-duplo");
+        assert_eq!(
+            codigo(&saida),
+            1,
+            "captura por {rotulo}: {}",
+            stderr(&saida)
+        );
+    }
+}
+
+/// Revisão adversarial N1'' — o estreitamento deliberado que essa correção traz.
+///
+/// Quando NENHUMA unidade reivindica a grafia, ela continua sendo superfície
+/// global e o módulo alcança o builtin normalmente. Quando a raiz a reivindica,
+/// o módulo passa a ser recusado — inclusive quando ele queria o builtin.
+///
+/// Isso é escolha, não descuido. A alternativa era manter seis religações
+/// silenciosas para preservar um programa em que a raiz declara uma entidade de
+/// topo com a grafia exata de uma intrínseca pública — declaração que, para a
+/// própria raiz, já é código morto, porque o builtin vence o despacho. Trocar
+/// religação silenciosa por diagnóstico é a direção certa; o inverso não é.
+#[test]
+fn revisao_n1_duplo_estreitamento_e_deliberado_e_tem_diagnostico() {
+    // Sem reivindicação: o módulo alcança o builtin.
+    let livre = caso(
+        "raiz_n1e",
+        "pacote main;\ntrazer n1e_mod.ua;\n\ncarinho principal() -> bombom {\n    mimo ua();\n}\n",
+        &[(
+            "n1e_mod",
+            "pacote n1e_mod;\n\ncarinho ua() -> bombom {\n    nova mm: mapa<verso, bombom> = mapa_criar();\n    mimo 42;\n}\n",
+        )],
+    );
+    assert_eq!(
+        codigo(&executar(&livre, "revisao-n1-duplo-livre")),
+        42,
+        "o módulo perdeu o builtin sem que ninguém reivindicasse a grafia"
+    );
+
+    // Reivindicada pela raiz: recusa COM diagnóstico, nunca religação silenciosa.
+    let reivindicada = caso(
+        "raiz_n1f",
+        "pacote main;\ntrazer n1f_mod.ua;\n\ncarinho mapa_criar(v: bombom) -> bombom {\n    mimo 77;\n}\n\ncarinho principal() -> bombom {\n    mimo ua();\n}\n",
+        &[(
+            "n1f_mod",
+            "pacote n1f_mod;\n\ncarinho ua() -> bombom {\n    nova mm: mapa<verso, bombom> = mapa_criar();\n    mimo 42;\n}\n",
+        )],
+    );
+    let saida = checar(&reivindicada, "revisao-n1-duplo-reivindicada");
+    let erro = stderr(&saida);
+    assert_eq!(codigo(&saida), 1, "{erro}");
+    assert!(erro.contains("mapa_criar"), "{erro}");
+    assert!(
+        erro.contains("raiz") && erro.contains("n1f_mod"),
+        "o diagnóstico precisa dizer quem declarou e quem não importou: {erro}"
     );
 }
 // @pinker-nav:end evidencia.modulos.revisao-adversarial

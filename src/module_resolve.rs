@@ -449,7 +449,22 @@ impl<'a> Resolvedor<'a> {
                 });
             }
         }
-        if e_superficie_global(name) {
+        // A grafia é superfície global — MAS só enquanto nenhuma unidade a
+        // reivindicar.
+        //
+        // Curto-circuitar aqui por grafia, sem olhar quem a declara, deixava a
+        // referência crua sobreviver à canonicalização; como a raiz preserva
+        // grafia, ela aterrissava na entidade homônima da raiz. A #507 protege
+        // `Item::Function`, então a raiz pode declarar legalmente `eterno`,
+        // `ninho`, `apelido` ou `leque` com grafia de intrínseca, e cada um
+        // desses era um caminho de captura distinto.
+        //
+        // Perguntar "é builtin E ninguém a declarou" resolve a classe inteira
+        // de uma vez, em vez de interceptar cada caminho consumidor. Quando
+        // alguma unidade declara a grafia, a decisão volta para a autorização
+        // logo abaixo: a raiz sai por ali sem recusa, e um módulo que não a
+        // importou é recusado com diagnóstico, em vez de religado em silêncio.
+        if e_superficie_global(name) && !self.declaradas_no_grafo.contains_key(name) {
             return Ok(None);
         }
         // Não autorizado por esta unidade. Se a grafia existe em outra
