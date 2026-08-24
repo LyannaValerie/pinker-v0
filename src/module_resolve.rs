@@ -207,15 +207,21 @@ pub fn ambientes_do_grafo(
 fn declarar_superficie(
     nome: &str,
     span: Span,
+    unidade: &ModuleKey,
     declaracoes_proprias: &HashSet<String>,
     grafias_importadas: &mut HashMap<String, Span>,
 ) -> Result<(), PinkerError> {
     if declaracoes_proprias.contains(nome) {
+        // A raiz conserva a frase histórica. Um módulo não: dizer que a colisão
+        // é "no arquivo principal" quando ela é com a declaração do próprio
+        // módulo seria mandar o leitor procurar no arquivo errado — e a regra só
+        // passou a valer fora da raiz agora.
+        let onde = match unidade {
+            ModuleKey::Root => "no arquivo principal".to_string(),
+            ModuleKey::Module(chave) => format!("no módulo '{}'", chave),
+        };
         return Err(PinkerError::Semantic {
-            msg: format!(
-                "colisão de nome no import: '{}' já existe no arquivo principal",
-                nome
-            ),
+            msg: format!("colisão de nome no import: '{}' já existe {}", nome, onde),
             span,
         });
     }
@@ -283,6 +289,7 @@ fn ambiente_da_unidade(
                 declarar_superficie(
                     symbol,
                     import.span,
+                    &unit.key,
                     &declaracoes_proprias,
                     &mut grafias_importadas,
                 )?;
@@ -336,6 +343,7 @@ fn ambiente_da_unidade(
                     declarar_superficie(
                         symbol,
                         import.span,
+                        &unit.key,
                         &declaracoes_proprias,
                         &mut grafias_importadas,
                     )?;
@@ -355,6 +363,7 @@ fn ambiente_da_unidade(
                         declarar_superficie(
                             name,
                             import.span,
+                            &unit.key,
                             &declaracoes_proprias,
                             &mut grafias_importadas,
                         )?;
@@ -1115,6 +1124,8 @@ pub fn projetar_programa(graph: &ModuleGraph) -> Result<Program, PinkerError> {
     // autoridade de contratos de trato usa para recusar a relação duplicada.
     // nome canônico -> (unidade que o emitiu, impressão estrutural)
     let mut gerados_emitidos: HashMap<String, (String, String)> = HashMap::new();
+    let mut reservadas_emitidas: HashSet<String> = HashSet::new();
+    let apelidos = apelidos_do_grafo(graph);
 
     // Módulos primeiro, em ordem de dependência, e a raiz por último — a mesma
     // ordem relativa que a materialização anterior produzia ao inserir os itens
@@ -1133,8 +1144,22 @@ pub fn projetar_programa(graph: &ModuleGraph) -> Result<Program, PinkerError> {
             if !e_metodo_de_impl && !alcancaveis.contains(nome) {
                 continue;
             }
+            // Identidade reservada do runtime é materializada pelo parser em
+            // CADA unidade que a mencione — inclusive implicitamente, por uma
+            // chamada a builtin falível cuja carga é o leque. Ela vem de uma
+            // autoridade única, então nome igual prova entidade igual sem
+            // conferência estrutural: entra uma vez e pronto. Sem isto, duas
+            // unidades que toquem `TipoEntrada` produzem duas declarações do
+            // mesmo leque e a projeção é recusada — a mesma fonte aceita como
+            // raiz volta a ser recusada como módulo, invertida.
+            if crate::runtime_identity::runtime_reserved_identity(nome).is_some() {
+                if reservadas_emitidas.insert(nome.to_string()) {
+                    items.push(item.clone());
+                }
+                continue;
+            }
             if e_identidade_endereçada_por_conteudo(nome) {
-                let impressao = impressao_estrutural(item);
+                let impressao = impressao_estrutural(item, &apelidos);
                 match gerados_emitidos.get(nome) {
                     Some((primeira, anterior)) => {
                         if anterior != &impressao {
@@ -1160,8 +1185,14 @@ pub fn projetar_programa(graph: &ModuleGraph) -> Result<Program, PinkerError> {
 
     for item in &root.items {
         if let Some(nome) = importable_item_name(item) {
+            if crate::runtime_identity::runtime_reserved_identity(nome).is_some() {
+                if reservadas_emitidas.insert(nome.to_string()) {
+                    items.push(item.clone());
+                }
+                continue;
+            }
             if e_identidade_endereçada_por_conteudo(nome) {
-                let impressao = impressao_estrutural(item);
+                let impressao = impressao_estrutural(item, &apelidos);
                 match gerados_emitidos.get(nome) {
                     Some((primeira, anterior)) => {
                         if anterior != &impressao {
@@ -1207,11 +1238,63 @@ pub fn projetar_programa(graph: &ModuleGraph) -> Result<Program, PinkerError> {
     })
 }
 
+/// Apelidos de tipo declarados no grafo, já canônicos, para a impressão
+/// estrutural.
+///
+/// Apelido é transparente: `apelido Cor = bombom` não cria entidade, dá nome a
+/// uma. Duas unidades com um apelido privado homônimo denotam a MESMA
+/// especialização, e compará-las pela grafia canonizada (`fa.Cor` vs `fb.Cor`)
+/// as declararia diferentes — recusando programa correto.
+fn apelidos_do_grafo(graph: &ModuleGraph) -> HashMap<String, Vec<String>> {
+    let mut mapa = HashMap::new();
+    for unit in graph.units() {
+        for item in &unit.items {
+            if let Item::TypeAlias(alias) = item {
+                mapa.insert(alias.name.clone(), referencias_de_tipo(&alias.target));
+            }
+        }
+    }
+    mapa
+}
+
+/// Expande um nome de tipo através da cadeia de apelidos.
+///
+/// Tipo nominal — `ninho`, `leque`, `trato` — NÃO é expandido: ele é identidade
+/// própria, e dois homônimos em unidades distintas são entidades distintas.
+fn expandir_apelidos(nome: &str, apelidos: &HashMap<String, Vec<String>>) -> Vec<String> {
+    fn passo(
+        nome: &str,
+        apelidos: &HashMap<String, Vec<String>>,
+        profundidade: usize,
+        saida: &mut Vec<String>,
+    ) {
+        // Cadeia de apelido é finita numa fonte válida; o limite protege a
+        // impressão contra ciclo que outra camada ainda vá recusar.
+        if profundidade > 16 {
+            saida.push(nome.to_string());
+            return;
+        }
+        match apelidos.get(nome) {
+            Some(alvos) if alvos.is_empty() => saida.push("<builtin>".to_string()),
+            Some(alvos) => {
+                for alvo in alvos {
+                    passo(alvo, apelidos, profundidade + 1, saida);
+                }
+            }
+            None => saida.push(nome.to_string()),
+        }
+    }
+    let mut saida = Vec::new();
+    passo(nome, apelidos, 0, &mut saida);
+    saida
+}
+
 /// Impressão estrutural de um item, para conferir a premissa da deduplicação.
 ///
 /// Ignora span de propósito: duas unidades materializam a MESMA entidade em
-/// posições diferentes, e posição não é identidade.
-fn impressao_estrutural(item: &Item) -> String {
+/// posições diferentes, e posição não é identidade. Apelidos são expandidos
+/// pela mesma razão: eles não são entidade.
+fn impressao_estrutural(item: &Item, apelidos: &HashMap<String, Vec<String>>) -> String {
     match item {
         Item::Enum(enum_decl) => {
             let variantes: Vec<String> = enum_decl
@@ -1225,6 +1308,7 @@ fn impressao_estrutural(item: &Item) -> String {
                             .payloads
                             .iter()
                             .flat_map(referencias_de_tipo)
+                            .flat_map(|nome| expandir_apelidos(&nome, apelidos))
                             .collect::<Vec<_>>()
                             .join(",")
                     )
@@ -1238,6 +1322,7 @@ fn impressao_estrutural(item: &Item) -> String {
                 .params
                 .iter()
                 .flat_map(|param| referencias_de_tipo(&param.ty))
+                .flat_map(|nome| expandir_apelidos(&nome, apelidos))
                 .collect::<Vec<_>>()
                 .join(","),
             function
@@ -1245,9 +1330,19 @@ fn impressao_estrutural(item: &Item) -> String {
                 .as_ref()
                 .map(referencias_de_tipo)
                 .unwrap_or_default()
+                .into_iter()
+                .flat_map(|nome| expandir_apelidos(&nome, apelidos))
+                .collect::<Vec<_>>()
                 .join(",")
         ),
-        outro => format!("outro[{}]", referencias_do_item(outro).join(",")),
+        outro => format!(
+            "outro[{}]",
+            referencias_do_item(outro)
+                .into_iter()
+                .flat_map(|nome| expandir_apelidos(&nome, apelidos))
+                .collect::<Vec<_>>()
+                .join(",")
+        ),
     }
 }
 
@@ -1293,7 +1388,15 @@ fn fecho_alcancavel(graph: &ModuleGraph) -> HashSet<String> {
         }
         for item in &unit.items {
             if let Some(nome) = importable_item_name(item) {
-                por_nome.insert(nome, (item, unit.id));
+                // PRIMEIRA ocorrência vence, como na projeção.
+                //
+                // Duas unidades podem materializar o mesmo nome endereçado por
+                // conteúdo. Se este índice guardasse a última e a projeção
+                // guardasse a primeira, o fecho seria calculado sobre uma cópia
+                // e a outra seria emitida: a sobrevivente referenciaria um
+                // apelido que ninguém materializou. Quem decide tem de ser um
+                // só.
+                por_nome.entry(nome).or_insert((item, unit.id));
             }
         }
     }

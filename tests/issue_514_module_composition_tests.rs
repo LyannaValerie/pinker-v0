@@ -1625,4 +1625,138 @@ fn revisao_n5_dois_colisao_de_identidade_gerada_nao_e_silenciosa() {
         "o diagnóstico precisa nomear as duas unidades: {erro}"
     );
 }
+
+/// Revisão adversarial N6-1 — identidade reservada do runtime entra uma vez.
+///
+/// Manter a identidade FORA da canonicalização resolveu só metade: o parser
+/// materializa um `Item::Enum` novo em CADA unidade que a mencione, e a
+/// projeção não tinha caminho de deduplicação para ela. Duas unidades que
+/// tocassem `LimiteTempo` produziam duas declarações do mesmo leque, e a
+/// composição era recusada — a MESMA fonte aceita como raiz volta a ser
+/// recusada como módulo, que é a divergência que esta Issue existe para fechar.
+#[test]
+fn revisao_n6_um_identidade_reservada_do_runtime_entra_uma_vez_na_projecao() {
+    const USA: &str = concat!(
+        "carinho usa() -> bombom {\n",
+        "    nova t: LimiteTempo = LimiteTempo.SemLimite;\n",
+        "    mimo 7;\n",
+        "}\n"
+    );
+
+    // Raiz e módulo mencionam a MESMA identidade reservada.
+    let raiz_e_modulo = caso(
+        "raiz_n6a",
+        "pacote main;\ntrazer n6a_mod.usa;\n\ncarinho raiz_usa() -> bombom {\n    nova t: LimiteTempo = LimiteTempo.SemLimite;\n    mimo 5;\n}\n\ncarinho principal() -> bombom {\n    mimo usa() + raiz_usa();\n}\n",
+        &[("n6a_mod", &format!("pacote n6a_mod;\n\n{USA}"))],
+    );
+    let saida = executar(&raiz_e_modulo, "revisao-n6-um-raiz-e-modulo");
+    assert_eq!(codigo(&saida), 12, "{}", stderr(&saida));
+
+    // Dois módulos, sem a raiz mencionar nada.
+    let dois_modulos = caso(
+        "raiz_n6b",
+        "pacote main;\ntrazer n6b_a.usa_a;\ntrazer n6b_b.usa_b;\n\ncarinho principal() -> bombom {\n    mimo usa_a() + usa_b();\n}\n",
+        &[
+            (
+                "n6b_a",
+                "pacote n6b_a;\n\ncarinho usa_a() -> bombom {\n    nova t: LimiteTempo = LimiteTempo.SemLimite;\n    mimo 3;\n}\n",
+            ),
+            (
+                "n6b_b",
+                "pacote n6b_b;\n\ncarinho usa_b() -> bombom {\n    nova t: LimiteTempo = LimiteTempo.SemLimite;\n    mimo 4;\n}\n",
+            ),
+        ],
+    );
+    let saida = executar(&dois_modulos, "revisao-n6-um-dois-modulos");
+    assert_eq!(codigo(&saida), 7, "{}", stderr(&saida));
+}
+
+/// Revisão adversarial N6-2 — a impressão estrutural distingue entidade de
+/// grafia, e o fecho concorda com a projeção sobre qual cópia sobrevive.
+///
+/// Dois defeitos numa fixture só. O primeiro: apelido é transparente, então
+/// duas unidades com um `apelido Cor = bombom` privado denotam a MESMA
+/// especialização, e compará-las pela grafia canonizada (`fa.Cor` vs `fb.Cor`)
+/// as declarava diferentes. O segundo, e o mais grave: o índice do fecho era
+/// sobrescrito pela última cópia enquanto a projeção emitia a primeira, então a
+/// sobrevivente referenciava um apelido que ninguém materializou.
+#[test]
+fn revisao_n6_dois_apelido_privado_homonimo_nao_e_colisao() {
+    let c = caso(
+        "raiz_n6c",
+        "pacote main;\ntrazer n6c_a.ga;\ntrazer n6c_b.gb;\n\ncarinho principal() -> bombom {\n    mimo ga() + gb();\n}\n",
+        &[
+            (
+                "n6c_a",
+                "pacote n6c_a;\n\napelido Cor = bombom;\napelido RC = Resultado<Cor, bombom>;\n\ncarinho ga() -> bombom {\n    nova r: RC = RC.Ok(11);\n    mimo 11;\n}\n",
+            ),
+            (
+                "n6c_b",
+                "pacote n6c_b;\n\napelido Cor = bombom;\napelido RC = Resultado<Cor, bombom>;\n\ncarinho gb() -> bombom {\n    nova r: RC = RC.Ok(22);\n    mimo 22;\n}\n",
+            ),
+        ],
+    );
+    let saida = executar(&c, "revisao-n6-dois-falso");
+    assert_eq!(
+        codigo(&saida),
+        33,
+        "programa correto foi recusado como colisão: {}",
+        stderr(&saida)
+    );
+
+    // Contraste: leques nominais homônimos SÃO entidades diferentes, e a
+    // colisão continua sendo recusada. Sem este par, a correção acima poderia
+    // ter simplesmente desligado a recusa.
+    let verdadeira = caso(
+        "raiz_n6d",
+        "pacote main;\ntrazer n6d_a.fa;\ntrazer n6d_b.fb;\n\ncarinho principal() -> bombom {\n    mimo fa() + fb();\n}\n",
+        &[
+            (
+                "n6d_a",
+                "pacote n6d_a;\n\nleque Cor {\n    Vermelho,\n    Verde,\n}\n\napelido RC = Resultado<Cor, bombom>;\n\ncarinho fa() -> bombom {\n    nova r: RC = RC.Ok(Cor.Verde);\n    mimo 2;\n}\n",
+            ),
+            (
+                "n6d_b",
+                "pacote n6d_b;\n\nleque Cor {\n    Azul,\n    Amarelo,\n    Preto,\n}\n\napelido RC = Resultado<Cor, bombom>;\n\ncarinho fb() -> bombom {\n    nova r: RC = RC.Ok(Cor.Preto);\n    mimo 30;\n}\n",
+            ),
+        ],
+    );
+    let saida = checar(&verdadeira, "revisao-n6-dois-verdadeira");
+    let erro = stderr(&saida);
+    assert_eq!(
+        codigo(&saida),
+        1,
+        "colisão real deixou de ser recusada: {erro}"
+    );
+    assert!(erro.contains("identidade gerada"), "{erro}");
+}
+
+/// Revisão adversarial N6-4 — a colisão de superfície de um módulo não fala do
+/// arquivo principal.
+///
+/// A frase histórica foi conservada de propósito quando a regra valia só para a
+/// raiz. Ao estendê-la a toda unidade, ela passou a mandar o leitor procurar no
+/// arquivo errado.
+#[test]
+fn revisao_n6_quatro_colisao_de_superficie_nomeia_a_unidade_certa() {
+    let c = caso(
+        "raiz_n6e",
+        "pacote main;\ntrazer n6e_a.usa;\n\ncarinho principal() -> bombom {\n    mimo usa();\n}\n",
+        &[
+            ("n6e_n", "pacote n6e_n;\n\ncarinho x() -> bombom {\n    mimo 1;\n}\n"),
+            (
+                "n6e_a",
+                "pacote n6e_a;\ntrazer n6e_n.x;\n\ncarinho x() -> bombom {\n    mimo 2;\n}\n\ncarinho usa() -> bombom {\n    mimo x();\n}\n",
+            ),
+        ],
+    );
+    let saida = checar(&c, "revisao-n6-quatro");
+    let erro = stderr(&saida);
+    assert_eq!(codigo(&saida), 1, "{erro}");
+    assert!(erro.contains("já existe no módulo 'n6e_a'"), "{erro}");
+    assert!(
+        !erro.contains("no arquivo principal"),
+        "a colisão é do módulo, não do arquivo principal: {erro}"
+    );
+}
 // @pinker-nav:end evidencia.modulos.revisao-adversarial
