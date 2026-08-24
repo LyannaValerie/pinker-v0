@@ -128,13 +128,26 @@ fn set_item_name(item: &mut Item, name: String) {
     }
 }
 
-/// Um nome que o compilador possui não é entidade de unidade.
+/// O nome NÃO é entidade de uma unidade-fonte.
 ///
-/// `__anon_carinho_*` já carrega `SourceOrigin` na própria identidade, e os
-/// demais namespaces reservados são materializações internas. Requalificá-los
-/// substituiria a autoridade que já os distingue por outra, mais fraca.
-fn e_nome_do_compilador(name: &str) -> bool {
-    name.starts_with("__")
+/// Duas categorias, cada uma com sua autoridade única:
+///
+/// - **identidade gerada** (`__anon_carinho_*`, `__gen_*`, `__impl_*`, ...):
+///   já carrega a proveniência na própria identidade. Requalificá-la
+///   substituiria a autoridade que a distingue por outra, mais fraca. A
+///   pergunta é de `native_symbol::is_compiler_generated`, NÃO de
+///   `starts_with("__")` — o superprefixo não pertence à Pinker, e `__usuario`
+///   é identificador de usuário legal;
+/// - **identidade reservada do runtime** (`TipoEntrada`, `LimiteTempo`,
+///   `TipoJson`, ...): o parser as materializa como `Item::Enum` comum em
+///   qualquer unidade que as mencione. São superfície do runtime, não
+///   declaração de quem as mencionou; canonizá-las faria a cópia de um módulo
+///   virar `M.LimiteTempo` enquanto a superfície continua devolvendo
+///   `LimiteTempo`, e a mesma fonte aceita como raiz seria recusada como
+///   módulo.
+fn nao_e_entidade_de_unidade(name: &str) -> bool {
+    crate::native_symbol::is_compiler_generated(name)
+        || crate::runtime_identity::runtime_reserved_identity(name).is_some()
 }
 
 /// A identidade gerada é endereçada pelo próprio conteúdo?
@@ -230,7 +243,7 @@ fn ambiente_da_unidade(
         let Some(name) = importable_item_name(item) else {
             continue;
         };
-        if e_nome_do_compilador(name) {
+        if nao_e_entidade_de_unidade(name) {
             continue;
         }
         env.declare(name, unit.canonical(name));
@@ -335,7 +348,7 @@ fn ambiente_da_unidade(
                     let Some(name) = importable_item_name(item) else {
                         continue;
                     };
-                    if e_nome_do_compilador(name) {
+                    if nao_e_entidade_de_unidade(name) {
                         continue;
                     }
                     if !unit.is_root() {
@@ -412,7 +425,7 @@ impl<'a> Resolvedor<'a> {
 
     /// Resolve uma grafia de topo pelo ambiente da unidade.
     fn resolver_nome(&self, name: &str, span: Span) -> Result<Option<String>, PinkerError> {
-        if e_nome_do_compilador(name) {
+        if nao_e_entidade_de_unidade(name) {
             return Ok(None);
         }
         // `TODA_IDENTIDADE_EXISTENTE > FAMÍLIA` e `REAL_MODULE_X >
@@ -939,7 +952,7 @@ fn declaracoes_do_grafo(graph: &ModuleGraph) -> HashMap<String, Vec<Declaracao>>
             let Some(name) = importable_item_name(item) else {
                 continue;
             };
-            if e_nome_do_compilador(name) {
+            if nao_e_entidade_de_unidade(name) {
                 continue;
             }
             let unidade = unit.key.to_string();
@@ -970,7 +983,7 @@ fn canonizar_declaracoes(unit: &mut ModuleUnit) {
         let Some(name) = importable_item_name(item) else {
             continue;
         };
-        if e_nome_do_compilador(name) {
+        if nao_e_entidade_de_unidade(name) {
             continue;
         }
         // Método de `impl` transporta as grafias no próprio nome provisional.
@@ -1009,7 +1022,7 @@ fn recompor_nomes_de_impl(unit: &mut ModuleUnit, env: &ModuleEnvironment) {
 }
 
 fn canonizar_grafia(name: &str, env: &ModuleEnvironment) -> String {
-    if e_nome_do_compilador(name) {
+    if nao_e_entidade_de_unidade(name) {
         return name.to_string();
     }
     // Mesma precedência de `resolver_nome`: ambiente antes de superfície
@@ -1034,7 +1047,7 @@ pub fn resolver_grafo(graph: &ModuleGraph) -> Result<ModuleGraph, PinkerError> {
         .items
         .iter()
         .filter_map(importable_item_name)
-        .filter(|name| !e_nome_do_compilador(name))
+        .filter(|name| !nao_e_entidade_de_unidade(name))
         .map(ToOwned::to_owned)
         .collect();
     let mut resolvido = graph.clone();
@@ -1088,7 +1101,7 @@ pub fn resolver_grafo(graph: &ModuleGraph) -> Result<ModuleGraph, PinkerError> {
 /// As relações de `impl` de toda unidade carregada entram sempre. Um `impl` não
 /// tem forma de import: ele é relação, não nome. Deixá-lo de fora era o que
 /// fazia uma fonte recusada como raiz passar a ser aceita ao virar módulo.
-pub fn projetar_programa(graph: &ModuleGraph) -> Program {
+pub fn projetar_programa(graph: &ModuleGraph) -> Result<Program, PinkerError> {
     let root = graph.root();
     let alcancaveis = fecho_alcancavel(graph);
 
@@ -1100,7 +1113,8 @@ pub fn projetar_programa(graph: &ModuleGraph) -> Program {
     // duas cópias duplicaria símbolo de runtime sem criar entidade nova. Isto
     // não engole `impl` repetido: `impls` não é deduplicado, e é ele que a
     // autoridade de contratos de trato usa para recusar a relação duplicada.
-    let mut gerados_emitidos: HashSet<String> = HashSet::new();
+    // nome canônico -> (unidade que o emitiu, impressão estrutural)
+    let mut gerados_emitidos: HashMap<String, (String, String)> = HashMap::new();
 
     // Módulos primeiro, em ordem de dependência, e a raiz por último — a mesma
     // ordem relativa que a materialização anterior produzia ao inserir os itens
@@ -1119,10 +1133,25 @@ pub fn projetar_programa(graph: &ModuleGraph) -> Program {
             if !e_metodo_de_impl && !alcancaveis.contains(nome) {
                 continue;
             }
-            if e_identidade_endereçada_por_conteudo(nome)
-                && !gerados_emitidos.insert(nome.to_string())
-            {
-                continue;
+            if e_identidade_endereçada_por_conteudo(nome) {
+                let impressao = impressao_estrutural(item);
+                match gerados_emitidos.get(nome) {
+                    Some((primeira, anterior)) => {
+                        if anterior != &impressao {
+                            return Err(colisao_de_identidade_gerada(
+                                nome,
+                                primeira,
+                                &unit.key.to_string(),
+                                item.span(),
+                            ));
+                        }
+                        continue;
+                    }
+                    None => {
+                        gerados_emitidos
+                            .insert(nome.to_string(), (unit.key.to_string(), impressao));
+                    }
+                }
             }
             items.push(item.clone());
         }
@@ -1131,17 +1160,31 @@ pub fn projetar_programa(graph: &ModuleGraph) -> Program {
 
     for item in &root.items {
         if let Some(nome) = importable_item_name(item) {
-            if e_identidade_endereçada_por_conteudo(nome)
-                && !gerados_emitidos.insert(nome.to_string())
-            {
-                continue;
+            if e_identidade_endereçada_por_conteudo(nome) {
+                let impressao = impressao_estrutural(item);
+                match gerados_emitidos.get(nome) {
+                    Some((primeira, anterior)) => {
+                        if anterior != &impressao {
+                            return Err(colisao_de_identidade_gerada(
+                                nome,
+                                primeira,
+                                "raiz",
+                                item.span(),
+                            ));
+                        }
+                        continue;
+                    }
+                    None => {
+                        gerados_emitidos.insert(nome.to_string(), ("raiz".to_string(), impressao));
+                    }
+                }
             }
         }
         items.push(item.clone());
     }
     impls.extend(root.impls.iter().cloned());
 
-    Program {
+    Ok(Program {
         package: root.package.clone(),
         freestanding: root.freestanding,
         // Imports de módulo já foram consumidos pela resolução; sobreviveram
@@ -1161,6 +1204,77 @@ pub fn projetar_programa(graph: &ModuleGraph) -> Program {
             .collect(),
         impls,
         items,
+    })
+}
+
+/// Impressão estrutural de um item, para conferir a premissa da deduplicação.
+///
+/// Ignora span de propósito: duas unidades materializam a MESMA entidade em
+/// posições diferentes, e posição não é identidade.
+fn impressao_estrutural(item: &Item) -> String {
+    match item {
+        Item::Enum(enum_decl) => {
+            let variantes: Vec<String> = enum_decl
+                .variants
+                .iter()
+                .map(|variante| {
+                    format!(
+                        "{}({})",
+                        variante.name,
+                        variante
+                            .payloads
+                            .iter()
+                            .flat_map(referencias_de_tipo)
+                            .collect::<Vec<_>>()
+                            .join(",")
+                    )
+                })
+                .collect();
+            format!("leque[{}]", variantes.join(";"))
+        }
+        Item::Function(function) => format!(
+            "carinho[{}->{}]",
+            function
+                .params
+                .iter()
+                .flat_map(|param| referencias_de_tipo(&param.ty))
+                .collect::<Vec<_>>()
+                .join(","),
+            function
+                .ret_type
+                .as_ref()
+                .map(referencias_de_tipo)
+                .unwrap_or_default()
+                .join(",")
+        ),
+        outro => format!("outro[{}]", referencias_do_item(outro).join(",")),
+    }
+}
+
+/// Duas unidades produziram o MESMO nome endereçado por conteúdo para
+/// entidades estruturalmente distintas.
+///
+/// A premissa da deduplicação é "nome igual prova entidade igual". Quando ela
+/// falha, descartar uma das cópias em silêncio faria a outra unidade ser
+/// verificada contra a entidade errada. O nome de uma especialização de origem
+/// builtin é cunhado no parse, a partir da GRAFIA do argumento de tipo, e a
+/// canonicalização acontece depois — então duas unidades com um `Cor` local
+/// cada produzem o mesmo nome para leques diferentes.
+fn colisao_de_identidade_gerada(
+    nome: &str,
+    primeira: &str,
+    segunda: &str,
+    span: Span,
+) -> PinkerError {
+    PinkerError::Semantic {
+        msg: format!(
+            "identidade gerada '{}' foi produzida por '{}' e por '{}' para entidades diferentes; \
+             a especialização de origem builtin é cunhada pela grafia do argumento de tipo, \
+             antes da canonicalização, então unidades distintas com um tipo local homônimo \
+             colidem",
+            nome, primeira, segunda
+        ),
+        span,
     }
 }
 
@@ -1205,7 +1319,7 @@ fn fecho_alcancavel(graph: &ModuleGraph) -> HashSet<String> {
                 None => {
                     for item in &origem.items {
                         if let Some(nome) = importable_item_name(item) {
-                            if !e_nome_do_compilador(nome) {
+                            if !nao_e_entidade_de_unidade(nome) {
                                 semear(nome.to_string(), &mut alcancaveis, &mut pendentes);
                             }
                         }

@@ -4282,7 +4282,7 @@ fn carregar_e_projetar(
     }
 
     let resolvido = module_resolve::resolver_grafo(&graph)?;
-    let program = module_resolve::projetar_programa(&resolvido);
+    let program = module_resolve::projetar_programa(&resolvido)?;
     Ok((program, resolvido))
 }
 

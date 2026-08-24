@@ -247,7 +247,9 @@ impl SemanticChecker {
     /// Nome possuído pelo compilador e nome já qualificado não contam: os dois
     /// são identidade resolvida, não grafia.
     fn grafia_crua_de_modulo(&self, span: Span, name: &str) -> bool {
-        !name.starts_with("__")
+        // Autoridade única de identidade gerada. `starts_with("__")` recusaria
+        // `__usuario`, que é identificador de usuário legal.
+        !crate::native_symbol::is_compiler_generated(name)
             && !name.contains('.')
             && self.fontes_de_modulo.contains(&span.source)
     }

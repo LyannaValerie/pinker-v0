@@ -1480,4 +1480,149 @@ fn revisao_n1_triplo_reivindicacao_de_irmao_nao_tira_o_builtin_de_ninguem() {
         stderr(&saida)
     );
 }
+
+/// Revisão adversarial N5-1 — `__` não é propriedade da Pinker.
+///
+/// A pergunta "este nome é identidade gerada?" tem autoridade única em
+/// `native_symbol::is_compiler_generated`, cuja documentação diz, com todas as
+/// letras, que ela NÃO é `starts_with("__")`: o superprefixo é compartilhado
+/// pelas famílias e não pertence à linguagem, então `__usuario` é identificador
+/// de usuário legal.
+///
+/// Ter respondido por prefixo criava uma segunda autoridade, mais fraca, e com
+/// ela um sétimo caminho de captura: o nome ficava fora do ambiente, fora da
+/// canonicalização e fora da recusa, e alcançava a raiz por grafia crua.
+#[test]
+fn revisao_n5_um_nome_de_usuario_com_prefixo_duplo_e_entidade_de_unidade() {
+    // Não captura a raiz.
+    let captura = caso(
+        "raiz_n5u",
+        "pacote main;\ntrazer n5u_mod.f;\n\ncarinho __segredo() -> bombom {\n    mimo 42;\n}\n\ncarinho principal() -> bombom {\n    mimo f();\n}\n",
+        &[(
+            "n5u_mod",
+            "pacote n5u_mod;\n\ncarinho f() -> bombom {\n    mimo __segredo();\n}\n",
+        )],
+    );
+    let saida = checar(&captura, "revisao-n5-um-captura");
+    let erro = stderr(&saida);
+    assert_eq!(
+        codigo(&saida),
+        1,
+        "grafia crua com `__` alcançou a raiz: {erro}"
+    );
+    assert!(erro.contains("__segredo"), "{erro}");
+
+    // E recebe identidade de unidade como qualquer outra entidade de usuário:
+    // dois módulos independentes com o mesmo `__h` compõem, sem colidir.
+    let homonimos = caso(
+        "raiz_n5v",
+        "pacote main;\ntrazer n5v_a.fa;\ntrazer n5v_b.fb;\n\ncarinho principal() -> bombom {\n    mimo fa() + fb();\n}\n",
+        &[
+            (
+                "n5v_a",
+                "pacote n5v_a;\n\ncarinho __h() -> bombom {\n    mimo 1;\n}\n\ncarinho fa() -> bombom {\n    mimo __h();\n}\n",
+            ),
+            (
+                "n5v_b",
+                "pacote n5v_b;\n\ncarinho __h() -> bombom {\n    mimo 20;\n}\n\ncarinho fb() -> bombom {\n    mimo __h();\n}\n",
+            ),
+        ],
+    );
+    let saida = executar(&homonimos, "revisao-n5-um-homonimos");
+    assert_eq!(codigo(&saida), 21, "{}", stderr(&saida));
+
+    let ir = pink("revisao-n5-um-ir", &["--ir"], &homonimos.raiz);
+    let texto = stdout(&ir);
+    assert!(texto.contains("func n5v_a.__h"), "IR:\n{texto}");
+    assert!(texto.contains("func n5v_b.__h"), "IR:\n{texto}");
+}
+
+/// Revisão adversarial N5-3 — identidade reservada do runtime não é declaração
+/// de quem a menciona.
+///
+/// O parser materializa `TipoEntrada`, `LimiteTempo` e `TipoJson` como
+/// `Item::Enum` comum em qualquer unidade que as mencione. Sem prefixo `__`,
+/// elas eram tratadas como entidade da unidade: a cópia de um módulo virava
+/// `M.LimiteTempo` enquanto a superfície do runtime continuava devolvendo
+/// `LimiteTempo`, e a MESMA fonte aceita como raiz passava a ser recusada como
+/// módulo — a divergência que a #514 existe para fechar, invertida.
+#[test]
+fn revisao_n5_tres_identidade_reservada_do_runtime_vale_igual_em_raiz_e_modulo() {
+    const CORPO: &str = concat!(
+        "carinho usa() -> bombom {\n",
+        "    nova t: LimiteTempo = LimiteTempo.SemLimite;\n",
+        "    encaixe t {\n",
+        "        caso LimiteTempo.SemLimite { mimo 7; }\n",
+        "        caso LimiteTempo.Ate(ms) { mimo 1; }\n",
+        "    }\n",
+        "    mimo 0;\n",
+        "}\n"
+    );
+
+    let como_raiz = caso(
+        "raiz_n5t",
+        &format!(
+            "pacote main;\n\n{CORPO}\ncarinho principal() -> bombom {{\n    mimo usa();\n}}\n"
+        ),
+        &[],
+    );
+    let saida_raiz = executar(&como_raiz, "revisao-n5-tres-raiz");
+    assert_eq!(codigo(&saida_raiz), 7, "{}", stderr(&saida_raiz));
+
+    let como_modulo = caso(
+        "raiz_n5w",
+        "pacote main;\ntrazer n5w_mod.usa;\n\ncarinho principal() -> bombom {\n    mimo usa();\n}\n",
+        &[("n5w_mod", &format!("pacote n5w_mod;\n\n{CORPO}"))],
+    );
+    let saida_modulo = executar(&como_modulo, "revisao-n5-tres-modulo");
+    assert_eq!(
+        codigo(&saida_modulo),
+        7,
+        "a mesma fonte foi recusada por virar módulo: {}",
+        stderr(&saida_modulo)
+    );
+}
+
+/// Revisão adversarial N5-2 — colisão de identidade gerada é ruidosa.
+///
+/// A deduplicação da projeção repousa em "nome igual prova entidade igual". A
+/// premissa vale para closure e para genérico declarado pelo usuário, que
+/// codificam a origem. Ela FALHA para especialização de origem builtin: o nome
+/// é cunhado no parse a partir da GRAFIA do argumento de tipo, e a
+/// canonicalização acontece depois — então duas unidades com um `Cor` local
+/// cada produzem o mesmo nome para leques diferentes.
+///
+/// Este programa também é recusado no `main` baseline, por outro motivo
+/// (`identificador 'RC' não declarado`); não é código que funcionava. O que
+/// esta correção garante é que a colisão deixe de descartar uma das cópias em
+/// silêncio, o que faria a outra unidade ser verificada contra a entidade
+/// errada.
+#[test]
+fn revisao_n5_dois_colisao_de_identidade_gerada_nao_e_silenciosa() {
+    let c = caso(
+        "raiz_n5g",
+        "pacote main;\ntrazer n5g_a.fa;\ntrazer n5g_b.fb;\n\ncarinho principal() -> bombom {\n    mimo fa() + fb();\n}\n",
+        &[
+            (
+                "n5g_a",
+                "pacote n5g_a;\n\nleque Cor {\n    Vermelho,\n    Verde,\n}\n\napelido RC = Resultado<Cor, verso>;\n\ncarinho fa() -> bombom {\n    nova r: RC = RC.Ok(Cor.Verde);\n    mimo 2;\n}\n",
+            ),
+            (
+                "n5g_b",
+                "pacote n5g_b;\n\nleque Cor {\n    Azul,\n    Amarelo,\n    Preto,\n}\n\napelido RC = Resultado<Cor, verso>;\n\ncarinho fb() -> bombom {\n    nova r: RC = RC.Ok(Cor.Preto);\n    mimo 30;\n}\n",
+            ),
+        ],
+    );
+    let saida = checar(&c, "revisao-n5-dois");
+    let erro = stderr(&saida);
+    assert_eq!(codigo(&saida), 1, "{erro}");
+    assert!(
+        erro.contains("identidade gerada") && erro.contains("entidades diferentes"),
+        "a colisão precisa se explicar, não descartar em silêncio: {erro}"
+    );
+    assert!(
+        erro.contains("n5g_a") && erro.contains("n5g_b"),
+        "o diagnóstico precisa nomear as duas unidades: {erro}"
+    );
+}
 // @pinker-nav:end evidencia.modulos.revisao-adversarial
