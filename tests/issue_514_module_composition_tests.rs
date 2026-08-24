@@ -1158,4 +1158,119 @@ fn revisao_n7_auto_import_nao_rotula_a_raiz_como_fonte_estrangeira() {
         "a raiz foi rotulada como estrangeira: {erro}"
     );
 }
+
+/// Revisão adversarial N1' — a grafia builtin registrada não vira ponte.
+///
+/// Reconhecer `mapa_criar` como superfície global fez a resolução deixá-la
+/// passar crua, e a raiz preserva a grafia: a chamada do módulo aterrissava na
+/// função homônima da raiz quando a aridade não servia ao builtin. Depois da
+/// resolução canônica, toda referência legítima de um módulo a entidade de
+/// usuário está qualificada — grafia crua vinda de módulo é builtin ou é
+/// tentativa de alcançar a raiz.
+#[test]
+fn revisao_n1_linha_grafia_builtin_nao_vira_ponte_para_a_raiz() {
+    let c = caso(
+        "raiz_n1l",
+        "pacote main;\ntrazer n1l_mod.ua;\n\ncarinho mapa_criar(v: bombom) -> bombom {\n    mimo 77;\n}\n\ncarinho principal() -> bombom {\n    mimo ua();\n}\n",
+        &[(
+            "n1l_mod",
+            "pacote n1l_mod;\n\ncarinho ua() -> bombom {\n    mimo mapa_criar(1);\n}\n",
+        )],
+    );
+    let saida = checar(&c, "revisao-n1-linha");
+    let erro = stderr(&saida);
+    assert_eq!(
+        codigo(&saida),
+        1,
+        "o módulo alcançou a função da raiz: {erro}"
+    );
+    assert!(erro.contains("mapa_criar"), "{erro}");
+
+    // Controle: a chamada builtin de verdade continua atendida, mesmo com a
+    // raiz declarando a mesma grafia. Recusar aqui seria trocar um defeito por
+    // outro.
+    let controle = caso(
+        "raiz_n1m",
+        "pacote main;\ntrazer n1m_mod.ub;\n\ncarinho mapa_criar(v: bombom) -> bombom {\n    mimo 77;\n}\n\ncarinho principal() -> bombom {\n    mimo ub();\n}\n",
+        &[(
+            "n1m_mod",
+            "pacote n1m_mod;\n\ncarinho ub() -> bombom {\n    nova mm: mapa<verso, bombom> = mapa_criar();\n    mimo 5;\n}\n",
+        )],
+    );
+    let saida = executar(&controle, "revisao-n1-linha-controle");
+    assert_eq!(codigo(&saida), 5, "{}", stderr(&saida));
+}
+
+/// Revisão adversarial N3' — módulo real com nome de família built-in.
+///
+/// A autorização da forma qualificada vinha depois da superfície global, então
+/// `<familia>.<membro>` escapava sempre que existisse um módulo real com o nome
+/// da família e uma entidade com a grafia de um membro aprovado. É exatamente a
+/// combinação que `REAL_MODULE_X > BUILTIN_FAMILY_X` torna alcançável.
+#[test]
+fn revisao_n3_linha_modulo_com_nome_de_familia_nao_dispensa_autorizacao() {
+    let modulos: &[(&str, &str)] = &[
+        (
+            "arquivo",
+            "pacote arquivo;\n\nninho abrir {\n    a: bombom;\n    b: bombom;\n    c: bombom;\n    d: bombom;\n}\n\ncarinho outracoisa() -> bombom {\n    mimo 1;\n}\n",
+        ),
+        (
+            "n3l_mod",
+            "pacote n3l_mod;\ntrazer arquivo.abrir;\n\ncarinho um() -> bombom {\n    mimo peso(abrir);\n}\n",
+        ),
+    ];
+
+    let sem_autorizacao = caso(
+        "raiz_n3l",
+        "pacote main;\ntrazer arquivo.outracoisa;\ntrazer n3l_mod.um;\n\ncarinho principal() -> bombom {\n    mimo peso(arquivo.abrir) + outracoisa();\n}\n",
+        modulos,
+    );
+    let saida = checar(&sem_autorizacao, "revisao-n3-linha");
+    let erro = stderr(&saida);
+    assert_eq!(
+        codigo(&saida),
+        1,
+        "a forma qualificada dispensou autorização: {erro}"
+    );
+    assert!(erro.contains("arquivo.abrir"), "{erro}");
+
+    let com_autorizacao = caso(
+        "raiz_n3m",
+        "pacote main;\ntrazer arquivo.abrir;\ntrazer arquivo.outracoisa;\ntrazer n3l_mod.um;\n\ncarinho principal() -> bombom {\n    mimo peso(arquivo.abrir) + outracoisa();\n}\n",
+        modulos,
+    );
+    let saida = executar(&com_autorizacao, "revisao-n3-linha-controle");
+    assert_eq!(codigo(&saida), 33, "{}", stderr(&saida));
+}
+
+/// Revisão adversarial N4' — import de família também declara superfície.
+///
+/// O ramo de família saía da função antes da regra de superfície, então dentro
+/// de um módulo `trazer arquivo.criar;` e `trazer n.criar;` conviviam e o
+/// último vencia em silêncio — a mesma assimetria que a raiz nunca teve.
+#[test]
+fn revisao_n4_linha_import_de_familia_disputa_a_superficie_da_unidade() {
+    let c = caso(
+        "raiz_n4l",
+        "pacote main;\ntrazer n4l_a.ua;\n\ncarinho principal() -> bombom {\n    mimo ua();\n}\n",
+        &[
+            ("n4l_n", "pacote n4l_n;\n\ncarinho criar(v: bombom) -> bombom {\n    mimo 77;\n}\n"),
+            (
+                "n4l_a",
+                "pacote n4l_a;\ntrazer arquivo.criar;\ntrazer n4l_n.criar;\n\ncarinho ua() -> bombom {\n    mimo criar(1);\n}\n",
+            ),
+        ],
+    );
+    let saida = checar(&c, "revisao-n4-linha");
+    let erro = stderr(&saida);
+    assert_eq!(
+        codigo(&saida),
+        1,
+        "a família e o módulo conviveram na mesma grafia: {erro}"
+    );
+    assert!(
+        erro.contains("'criar' trazido por múltiplos módulos"),
+        "{erro}"
+    );
+}
 // @pinker-nav:end evidencia.modulos.revisao-adversarial

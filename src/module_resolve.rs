@@ -260,6 +260,20 @@ fn ambiente_da_unidade(
             import.symbol.is_some(),
             existe_modulo,
         ) {
+            // Import de família não vira ligação de módulo, mas a forma
+            // seletiva declara uma grafia na superfície da unidade — e essa
+            // grafia disputa espaço com as demais exatamente como qualquer
+            // outra. A raiz sempre aplicou esta regra; deixá-la de fora aqui
+            // reabriria, na família, a assimetria que o resto desta função
+            // acabou de fechar.
+            if let (Some(symbol), false) = (&import.symbol, unit.is_root()) {
+                declarar_superficie(
+                    symbol,
+                    import.span,
+                    &declaracoes_proprias,
+                    &mut grafias_importadas,
+                )?;
+            }
             continue;
         }
         let Some(origem) = graph.module(import.module.as_str()) else {
@@ -402,10 +416,13 @@ impl<'a> Resolvedor<'a> {
             }
             return Ok(Some(canonical.to_string()));
         }
-        if e_superficie_global(name) {
-            return Ok(None);
-        }
         // Forma qualificada `<módulo>.<entidade>`, escrita direto no texto.
+        //
+        // Esta pergunta vem ANTES da superfície global porque
+        // `REAL_MODULE_X > BUILTIN_FAMILY_X`: um módulo real chamado `arquivo`
+        // vence a família homônima, e perguntar à família primeiro deixaria
+        // `arquivo.<membro>` de um módulo real passar sem autorização sempre
+        // que a grafia coincidisse com a de um membro aprovado.
         // Ela já É um nome canônico, então nenhuma reescrita se aplica — mas
         // por isso mesmo ela contorna a grafia, e sem esta pergunta alcançaria
         // qualquer unidade carregada. Autorização continua sendo do ambiente.
@@ -431,6 +448,9 @@ impl<'a> Resolvedor<'a> {
                     span,
                 });
             }
+        }
+        if e_superficie_global(name) {
+            return Ok(None);
         }
         // Não autorizado por esta unidade. Se a grafia existe em outra
         // unidade, deixá-la passar seria exatamente a captura ambiental que
@@ -1481,3 +1501,22 @@ pub fn tratos_visiveis_por_fonte(graph: &ModuleGraph) -> HashMap<SourceId, HashS
     por_fonte
 }
 // @pinker-nav:end modulos.visibilidade.tratos
+
+// @pinker-nav:start modulos.visibilidade.fontes
+// @pinker-nav:domain modulos
+// @pinker-nav:layer compilador
+// @pinker-nav:summary fontes_de_modulo devolve os SourceId das unidades que são módulo. Depois da resolução nominal canônica toda referência legítima de um módulo a entidade de usuário está qualificada, então grafia crua vinda de um módulo é builtin ou tentativa de alcançar a raiz; o índice permite à autoridade semântica recusar a segunda sem impedir a primeira. Vazio quando não há composição.
+/// `SourceId` das unidades que são módulo.
+pub fn fontes_de_modulo(graph: &ModuleGraph) -> HashSet<SourceId> {
+    if !graph.has_modules() {
+        return HashSet::new();
+    }
+    graph
+        .units()
+        .iter()
+        .filter(|unit| !unit.is_root())
+        .map(|unit| unit.source_id)
+        .filter(|id| *id != SourceId::ROOT)
+        .collect()
+}
+// @pinker-nav:end modulos.visibilidade.fontes

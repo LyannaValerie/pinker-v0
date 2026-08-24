@@ -208,6 +208,17 @@ pub struct SemanticChecker {
     /// canônica; é aqui que ele passa a respeitar o ambiente de quem escreveu a
     /// chamada.
     traits_visiveis_por_fonte: HashMap<SourceId, HashSet<String>>,
+    /// Unidades-fonte que são módulo, por `SourceId`.
+    ///
+    /// Depois da resolução nominal canônica, TODA referência legítima de um
+    /// módulo a uma entidade de usuário está qualificada — inclusive às
+    /// próprias, que se chamam `M.x`. Uma grafia crua vinda de um módulo é,
+    /// portanto, ou builtin (despachado antes daqui) ou tentativa de alcançar a
+    /// raiz. É a última fronteira da não-interferência, e existe porque a
+    /// resolução deixa passar a grafia builtin de propósito: sem ela, um módulo
+    /// que chamasse `mapa_criar(1)` — aridade que o builtin não atende — cairia
+    /// na função de mesmo nome declarada na raiz.
+    fontes_de_modulo: HashSet<SourceId>,
 }
 
 impl Default for SemanticChecker {
@@ -222,11 +233,23 @@ impl SemanticChecker {
     /// Recebe, por unidade-fonte, os tratos que aquela unidade autorizou.
     pub fn com_visibilidade_de_tratos(
         traits_visiveis_por_fonte: HashMap<SourceId, HashSet<String>>,
+        fontes_de_modulo: HashSet<SourceId>,
     ) -> Self {
         Self {
             traits_visiveis_por_fonte,
+            fontes_de_modulo,
             ..Self::new()
         }
+    }
+
+    /// A grafia crua vem de um módulo?
+    ///
+    /// Nome possuído pelo compilador e nome já qualificado não contam: os dois
+    /// são identidade resolvida, não grafia.
+    fn grafia_crua_de_modulo(&self, span: Span, name: &str) -> bool {
+        !name.starts_with("__")
+            && !name.contains('.')
+            && self.fontes_de_modulo.contains(&span.source)
     }
 
     /// Um trato é visível no ponto em que a chamada foi escrita?
@@ -262,6 +285,7 @@ impl SemanticChecker {
             loop_depth: 0,
             checked_closures: HashSet::new(),
             traits_visiveis_por_fonte: HashMap::new(),
+            fontes_de_modulo: HashSet::new(),
             closure_captures: HashMap::new(),
         }
     }
@@ -4369,6 +4393,19 @@ impl SemanticChecker {
         name: &str,
         args: &[&Expr],
     ) -> Result<Type, PinkerError> {
+        // MODULE_IMPORTER_NON_INTERFERENCE, última fronteira: a busca por
+        // função de usuário acontece depois do despacho de intrínsecas, então
+        // chegar aqui com grafia crua vinda de um módulo significa que o
+        // builtin não atendeu e a única candidata restante é da raiz.
+        if self.grafia_crua_de_modulo(callee_span, name) && self.funcs.contains_key(name) {
+            return Err(PinkerError::Semantic {
+                msg: format!(
+                    "função '{}' não declarada neste ambiente: ela é declarada na raiz, e o módulo não a importou",
+                    name
+                ),
+                span: callee_span,
+            });
+        }
         let Some(function) = self.funcs.get(name).cloned() else {
             return Err(PinkerError::Semantic {
                 msg: format!("função '{}' não declarada", name),
@@ -9137,8 +9174,10 @@ pub fn check_program(program: &Program) -> Result<(), PinkerError> {
 pub fn check_program_composto(
     program: &Program,
     traits_visiveis_por_fonte: HashMap<SourceId, HashSet<String>>,
+    fontes_de_modulo: HashSet<SourceId>,
 ) -> Result<(), PinkerError> {
-    SemanticChecker::com_visibilidade_de_tratos(traits_visiveis_por_fonte).check_program(program)
+    SemanticChecker::com_visibilidade_de_tratos(traits_visiveis_por_fonte, fontes_de_modulo)
+        .check_program(program)
 }
 
 // @pinker-nav:start semantic.modulos.validacao-local

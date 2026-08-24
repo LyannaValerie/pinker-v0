@@ -3406,6 +3406,7 @@ fn run_analyze(config: Config) {
     let carregado = carregar_e_projetar(&config.input, parsed_program, &mut sources);
     let (program, grafo) = try_or_exit!(carregado, &sources);
     let tratos_visiveis = module_resolve::tratos_visiveis_por_fonte(&grafo);
+    let fontes_de_modulo = module_resolve::fontes_de_modulo(&grafo);
 
     if config.print_ast && !config.check_only {
         println!("=== AST TEXTUAL ===");
@@ -3419,7 +3420,11 @@ fn run_analyze(config: Config) {
 
     // --- Semântica ---
     try_or_exit!(
-        semantic::check_program_composto(&program, tratos_visiveis.clone()),
+        semantic::check_program_composto(
+            &program,
+            tratos_visiveis.clone(),
+            fontes_de_modulo.clone()
+        ),
         &sources
     );
 
@@ -3614,8 +3619,13 @@ fn run_build(config: BuildConfig) {
     let carregado = carregar_e_projetar(&config.input, parsed_program, &mut sources);
     let (program, grafo) = try_or_exit!(carregado, &sources);
     let tratos_visiveis = module_resolve::tratos_visiveis_por_fonte(&grafo);
+    let fontes_de_modulo = module_resolve::fontes_de_modulo(&grafo);
     try_or_exit!(
-        semantic::check_program_composto(&program, tratos_visiveis.clone()),
+        semantic::check_program_composto(
+            &program,
+            tratos_visiveis.clone(),
+            fontes_de_modulo.clone()
+        ),
         &sources
     );
 
