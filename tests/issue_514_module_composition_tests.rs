@@ -1394,4 +1394,90 @@ fn revisao_n1_duplo_estreitamento_e_deliberado_e_tem_diagnostico() {
         "o diagnóstico precisa dizer quem declarou e quem não importou: {erro}"
     );
 }
+
+/// Revisão adversarial N1''' — a reivindicação que importa é a da RAIZ.
+///
+/// Perguntar "alguma unidade declarou esta grafia?" inverteria a
+/// não-interferência: um irmão — ou um módulo a três saltos, que este aqui
+/// nunca consultou — tiraria dele o builtin, e o diagnóstico ainda apontaria o
+/// remédio errado ("importe de lá"), quando o que ele queria era a intrínseca.
+///
+/// Só a raiz preserva grafia. A entidade de um módulo se chama `M.x` e não pode
+/// ser satisfeita por grafia crua, então a declaração de um irmão não captura
+/// ninguém e não deve custar nada a ninguém.
+#[test]
+fn revisao_n1_triplo_reivindicacao_de_irmao_nao_tira_o_builtin_de_ninguem() {
+    const USUARIO: &str = "pacote n1t_user;\n\ncarinho uu() -> bombom {\n    nova mm: mapa<verso, bombom> = mapa_criar();\n    mapa_definir(mm, \"k\", 42);\n    mimo mapa_obter(mm, \"k\");\n}\n";
+
+    // Irmão reivindica a grafia, em cada espécie que a #507 permite declarar.
+    for (rotulo, declaracao) in [
+        ("constante", "eterno mapa_criar: bombom = 1;"),
+        (
+            "função",
+            "carinho mapa_criar(v: bombom) -> bombom {\n    mimo 1;\n}",
+        ),
+    ] {
+        let c = caso(
+            "raiz_n1t",
+            "pacote main;\ntrazer n1t_user.uu;\ntrazer n1t_claim.uc;\n\ncarinho principal() -> bombom {\n    mimo uu() + uc();\n}\n",
+            &[
+                ("n1t_user", USUARIO),
+                (
+                    "n1t_claim",
+                    &format!("pacote n1t_claim;\n\n{declaracao}\n\ncarinho uc() -> bombom {{\n    mimo 0;\n}}\n"),
+                ),
+            ],
+        );
+        let saida = executar(&c, "revisao-n1-triplo-irmao");
+        assert_eq!(
+            codigo(&saida),
+            42,
+            "irmão que declara {rotulo} tirou o builtin de outro módulo: {}",
+            stderr(&saida)
+        );
+    }
+
+    // A três saltos, por um módulo que o usuário do builtin nem consulta para
+    // isso: root -> a -> b, e b importa c apenas para outra coisa.
+    let transitivo = caso(
+        "raiz_n1u",
+        "pacote main;\ntrazer n1u_a.ua;\n\ncarinho principal() -> bombom {\n    mimo ua();\n}\n",
+        &[
+            (
+                "n1u_c",
+                "pacote n1u_c;\n\neterno mapa_criar: bombom = 1;\n\ncarinho uc() -> bombom {\n    mimo 0;\n}\n",
+            ),
+            (
+                "n1u_b",
+                "pacote n1u_b;\ntrazer n1u_c.uc;\n\ncarinho ub() -> bombom {\n    nova mm: mapa<verso, bombom> = mapa_criar();\n    mapa_definir(mm, \"k\", 42);\n    mimo mapa_obter(mm, \"k\") + uc();\n}\n",
+            ),
+            (
+                "n1u_a",
+                "pacote n1u_a;\ntrazer n1u_b.ub;\n\ncarinho ua() -> bombom {\n    mimo ub();\n}\n",
+            ),
+        ],
+    );
+    let saida = executar(&transitivo, "revisao-n1-triplo-transitivo");
+    assert_eq!(
+        codigo(&saida),
+        42,
+        "reivindicação a três saltos tirou o builtin: {}",
+        stderr(&saida)
+    );
+
+    // E o canto documentado continua sendo o canto documentado: quando é a RAIZ
+    // que reivindica, o módulo é recusado.
+    let raiz_reivindica = caso(
+        "raiz_n1v",
+        "pacote main;\ntrazer n1t_user.uu;\n\ncarinho mapa_criar(v: bombom) -> bombom {\n    mimo 1;\n}\n\ncarinho principal() -> bombom {\n    mimo uu();\n}\n",
+        &[("n1t_user", USUARIO)],
+    );
+    let saida = checar(&raiz_reivindica, "revisao-n1-triplo-raiz");
+    assert_eq!(
+        codigo(&saida),
+        1,
+        "a reivindicação da raiz deixou de ser decidida: {}",
+        stderr(&saida)
+    );
+}
 // @pinker-nav:end evidencia.modulos.revisao-adversarial

@@ -369,6 +369,14 @@ struct Resolvedor<'a> {
     /// Grafias de topo declaradas em QUALQUER unidade. Serve só para
     /// distinguir "não existe" de "existe alhures e não foi pedido".
     declaradas_no_grafo: &'a HashMap<String, Vec<Declaracao>>,
+    /// Grafias de topo declaradas pela RAIZ.
+    ///
+    /// Só elas podem capturar. Depois da canonicalização, a entidade de um
+    /// módulo se chama `M.x`; nenhuma grafia crua pode ser satisfeita por ela.
+    /// A raiz é a única unidade que preserva grafia, e portanto a única cuja
+    /// declaração transforma uma grafia builtin em entidade alcançável por
+    /// engano.
+    declaradas_na_raiz: &'a HashSet<String>,
     /// Escopos de valor: parâmetros, locais e bindings de padrão.
     bound: Vec<HashSet<String>>,
     /// Escopos de tipo: parâmetros de tipo de função, struct e leque.
@@ -381,12 +389,14 @@ impl<'a> Resolvedor<'a> {
         env: &'a ModuleEnvironment,
         modulos_carregados: &'a HashSet<String>,
         declaradas_no_grafo: &'a HashMap<String, Vec<Declaracao>>,
+        declaradas_na_raiz: &'a HashSet<String>,
     ) -> Self {
         Self {
             unit_key,
             env,
             modulos_carregados,
             declaradas_no_grafo,
+            declaradas_na_raiz,
             bound: Vec::new(),
             type_bound: Vec::new(),
         }
@@ -459,12 +469,16 @@ impl<'a> Resolvedor<'a> {
         // `ninho`, `apelido` ou `leque` com grafia de intrínseca, e cada um
         // desses era um caminho de captura distinto.
         //
-        // Perguntar "é builtin E ninguém a declarou" resolve a classe inteira
-        // de uma vez, em vez de interceptar cada caminho consumidor. Quando
-        // alguma unidade declara a grafia, a decisão volta para a autorização
-        // logo abaixo: a raiz sai por ali sem recusa, e um módulo que não a
-        // importou é recusado com diagnóstico, em vez de religado em silêncio.
-        if e_superficie_global(name) && !self.declaradas_no_grafo.contains_key(name) {
+        // Perguntar "é builtin E a raiz não a declarou" resolve a classe
+        // inteira de uma vez, em vez de interceptar cada caminho consumidor.
+        //
+        // A pergunta é sobre a RAIZ, não sobre o grafo. Só a raiz preserva
+        // grafia; a entidade de um módulo se chama `M.x` e não pode ser
+        // satisfeita por grafia crua, então a declaração de um irmão não
+        // captura ninguém. Perguntar pelo grafo inteiro inverteria a
+        // não-interferência: um módulo que este aqui nunca consultou passaria a
+        // lhe tirar o builtin, e o diagnóstico ainda apontaria o remédio errado.
+        if e_superficie_global(name) && !self.declaradas_na_raiz.contains(name) {
             return Ok(None);
         }
         // Não autorizado por esta unidade. Se a grafia existe em outra
@@ -1015,6 +1029,14 @@ pub fn resolver_grafo(graph: &ModuleGraph) -> Result<ModuleGraph, PinkerError> {
         .iter()
         .filter_map(|unit| unit.key.module_key().map(ToOwned::to_owned))
         .collect();
+    let declaradas_na_raiz: HashSet<String> = graph
+        .root()
+        .items
+        .iter()
+        .filter_map(importable_item_name)
+        .filter(|name| !e_nome_do_compilador(name))
+        .map(ToOwned::to_owned)
+        .collect();
     let mut resolvido = graph.clone();
 
     for id in graph.dependency_order() {
@@ -1025,7 +1047,13 @@ pub fn resolver_grafo(graph: &ModuleGraph) -> Result<ModuleGraph, PinkerError> {
         // originais, contra o ambiente; só depois as declarações passam a se
         // chamar pelo nome canônico.
         let unit = resolvido.unit_mut(id);
-        let mut resolvedor = Resolvedor::new(key.clone(), env, &modulos_carregados, &declaradas);
+        let mut resolvedor = Resolvedor::new(
+            key.clone(),
+            env,
+            &modulos_carregados,
+            &declaradas,
+            &declaradas_na_raiz,
+        );
         for item in &mut unit.items {
             resolvedor.resolver_item(item)?;
         }
