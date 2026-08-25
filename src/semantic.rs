@@ -17,6 +17,7 @@ use crate::error::PinkerError;
 use crate::ir::TypeIR;
 use crate::layout;
 use crate::method_identity::{self, MethodIdentity};
+use crate::source_map::SourceId;
 use crate::token::{Position, Span};
 use crate::union_canon;
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -199,11 +200,73 @@ pub struct SemanticChecker {
     // ponto de criação (onde seu `Ident` sintético aparece como valor).
     checked_closures: HashSet<String>,
     closure_captures: HashMap<String, Vec<(String, Type)>>,
+    /// Tratos que cada unidade-fonte pode enxergar, por `SourceId`.
+    ///
+    /// Vazio quando não houve composição modular — e vazio significa "não há a
+    /// quem restringir", não "ninguém enxerga nada". Uma chamada de método não
+    /// nomeia o trato, então o despacho não é alcançado pela resolução nominal
+    /// canônica; é aqui que ele passa a respeitar o ambiente de quem escreveu a
+    /// chamada.
+    traits_visiveis_por_fonte: HashMap<SourceId, HashSet<String>>,
+    /// Unidades-fonte que são módulo, por `SourceId`.
+    ///
+    /// Depois da resolução nominal canônica, TODA referência legítima de um
+    /// módulo a uma entidade de usuário está qualificada — inclusive às
+    /// próprias, que se chamam `M.x`. Uma grafia crua vinda de um módulo é,
+    /// portanto, ou builtin (despachado antes daqui) ou tentativa de alcançar a
+    /// raiz. É a última fronteira da não-interferência, e existe porque a
+    /// resolução deixa passar a grafia builtin de propósito: sem ela, um módulo
+    /// que chamasse `mapa_criar(1)` — aridade que o builtin não atende — cairia
+    /// na função de mesmo nome declarada na raiz.
+    fontes_de_modulo: HashSet<SourceId>,
 }
 
 impl Default for SemanticChecker {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl SemanticChecker {
+    /// Verificador ciente da composição modular.
+    ///
+    /// Recebe, por unidade-fonte, os tratos que aquela unidade autorizou.
+    pub fn com_visibilidade_de_tratos(
+        traits_visiveis_por_fonte: HashMap<SourceId, HashSet<String>>,
+        fontes_de_modulo: HashSet<SourceId>,
+    ) -> Self {
+        Self {
+            traits_visiveis_por_fonte,
+            fontes_de_modulo,
+            ..Self::new()
+        }
+    }
+
+    /// A grafia crua vem de um módulo?
+    ///
+    /// Nome possuído pelo compilador e nome já qualificado não contam: os dois
+    /// são identidade resolvida, não grafia.
+    fn grafia_crua_de_modulo(&self, span: Span, name: &str) -> bool {
+        // Autoridade única de identidade gerada. `starts_with("__")` recusaria
+        // `__usuario`, que é identificador de usuário legal.
+        !crate::native_symbol::is_compiler_generated(name)
+            && !name.contains('.')
+            && self.fontes_de_modulo.contains(&span.source)
+    }
+
+    /// Um trato é visível no ponto em que a chamada foi escrita?
+    ///
+    /// Sem índice não há composição modular e nada é filtrado. Span sintético
+    /// não reivindica fonte e também não é filtrado: restringir por ausência
+    /// de alegação recusaria o que o compilador ele mesmo materializou.
+    fn trato_visivel_em(&self, span: Span, trait_name: &str) -> bool {
+        if self.traits_visiveis_por_fonte.is_empty() {
+            return true;
+        }
+        match self.traits_visiveis_por_fonte.get(&span.source) {
+            Some(visiveis) => visiveis.contains(trait_name),
+            None => true,
+        }
     }
 }
 
@@ -223,6 +286,8 @@ impl SemanticChecker {
             current_func_ret: None,
             loop_depth: 0,
             checked_closures: HashSet::new(),
+            traits_visiveis_por_fonte: HashMap::new(),
+            fontes_de_modulo: HashSet::new(),
             closure_captures: HashMap::new(),
         }
     }
@@ -4141,7 +4206,7 @@ impl SemanticChecker {
     // @pinker-nav:start semantic.chamadas.despacho
     // @pinker-nav:domain chamadas
     // @pinker-nav:layer semantic
-    // @pinker-nav:summary Despacho de chamadas: resolução de método de impl (direta e qualificada por trato, com detecção de ambiguidade), seleção monomórfica das intrínsecas genéricas de mapa, checagem de chamada nomeada (aridade e tipos de argumento) e o grande despachante `check_call_expr` — construção de variante de leque, desugaring de `encaixe`, intrínsecas genéricas de lista/mapa, texto/verso, CSV/JSON, tempo e processo, caindo para a chamada de função declarada.
+    // @pinker-nav:summary Despacho de chamadas: resolução de método de impl (direta e qualificada por trato, com detecção de ambiguidade), restringida aos tratos que a unidade-fonte da chamada autorizou — uma chamada de método não nomeia o trato, então sem esse filtro um trato da raiz forneceria método default ao corpo de um módulo que nunca o importou, seleção monomórfica das intrínsecas genéricas de mapa, checagem de chamada nomeada (aridade e tipos de argumento) e o grande despachante `check_call_expr` — construção de variante de leque, desugaring de `encaixe`, intrínsecas genéricas de lista/mapa, texto/verso, CSV/JSON, tempo e processo, caindo para a chamada de função declarada.
     fn check_trait_object_method_call(
         &mut self,
         expr_span: Span,
@@ -4235,6 +4300,23 @@ impl SemanticChecker {
             .get(&(resolved_key, method_name.to_string()))
             .cloned()
             .unwrap_or_default();
+        // MODULE_IMPORTER_NON_INTERFERENCE para despacho de método: só entram
+        // os candidatos cujo trato a unidade que escreveu a chamada autorizou.
+        // Um trato declarado na raiz deixa de fornecer método default ao corpo
+        // de um módulo que nunca o importou.
+        let candidates: Vec<String> = candidates
+            .into_iter()
+            .filter(|function_name| {
+                match self
+                    .impl_methods
+                    .iter()
+                    .find(|meta| &meta.function_name == function_name)
+                {
+                    Some(meta) => self.trato_visivel_em(span, &meta.identity.trait_name),
+                    None => true,
+                }
+            })
+            .collect();
 
         match candidates.as_slice() {
             [function_name] => Ok(function_name.clone()),
@@ -4313,6 +4395,19 @@ impl SemanticChecker {
         name: &str,
         args: &[&Expr],
     ) -> Result<Type, PinkerError> {
+        // MODULE_IMPORTER_NON_INTERFERENCE, última fronteira: a busca por
+        // função de usuário acontece depois do despacho de intrínsecas, então
+        // chegar aqui com grafia crua vinda de um módulo significa que o
+        // builtin não atendeu e a única candidata restante é da raiz.
+        if self.grafia_crua_de_modulo(callee_span, name) && self.funcs.contains_key(name) {
+            return Err(PinkerError::Semantic {
+                msg: format!(
+                    "função '{}' não declarada neste ambiente: ela é declarada na raiz, e o módulo não a importou",
+                    name
+                ),
+                span: callee_span,
+            });
+        }
         let Some(function) = self.funcs.get(name).cloned() else {
             return Err(PinkerError::Semantic {
                 msg: format!("função '{}' não declarada", name),
@@ -9075,3 +9170,49 @@ fn is_inline_asm_operand_type(ty: &Type) -> bool {
 pub fn check_program(program: &Program) -> Result<(), PinkerError> {
     SemanticChecker::new().check_program(program)
 }
+
+/// Verifica um programa composto, respeitando o ambiente de cada unidade-fonte
+/// no despacho de método.
+pub fn check_program_composto(
+    program: &Program,
+    traits_visiveis_por_fonte: HashMap<SourceId, HashSet<String>>,
+    fontes_de_modulo: HashSet<SourceId>,
+) -> Result<(), PinkerError> {
+    SemanticChecker::com_visibilidade_de_tratos(traits_visiveis_por_fonte, fontes_de_modulo)
+        .check_program(program)
+}
+
+// @pinker-nav:start semantic.modulos.validacao-local
+// @pinker-nav:domain modulos
+// @pinker-nav:layer semantica
+// @pinker-nav:summary check_module_unit valida uma unidade-fonte COMO MÓDULO, sem exigir `principal`: aplica à unidade as regras de declaração que dependem de dados do próprio Program — a política de redeclaração de intrínsecas públicas da PR #507, a validação de import de família built-in e a colisão entre import de família e item homônimo. Sao exatamente as obrigacoes cujo gatilho desaparecia quando `imports` e `items` do modulo eram descartados antes de qualquer validacao, fazendo com que a mesma fonte recusada como raiz passasse a ser aceita ao virar modulo.
+/// Valida uma unidade-fonte **como módulo**.
+///
+/// `MODULE_VALIDATION_INPUT_PRESERVATION`: para toda regra V aplicável a um
+/// módulo M, se V depende de informação I presente na unidade-fonte M, então V
+/// roda antes de qualquer transformação que descarte I.
+///
+/// Aqui ficam as regras cujo GATILHO é a própria unidade e que, portanto,
+/// desapareciam junto com ela: se `imports` do módulo somem, a regra de import
+/// de família nunca nasce; se um item do módulo não é materializado, a política
+/// de propriedade de grafia nunca é consultada sobre ele. Não é uma obrigação
+/// criada e depois perdida — é uma obrigação que deixava de ser criada.
+///
+/// Esta entrada NÃO exige `principal`. Um módulo não é um programa raiz e
+/// exigir dele o ponto de entrada era a razão pela qual não existia modo
+/// algum de validar uma unidade como módulo.
+pub fn check_module_unit(program: &Program) -> Result<(), PinkerError> {
+    // Política de intrínsecas públicas da PR #507. Mover o mesmo código para
+    // dentro de um módulo deixava de disparar a regra.
+    validate_intrinsic_declaration_conflicts(program)?;
+
+    for import in &program.imports {
+        // Import de família inválido dentro de módulo deixava de ser validado.
+        validate_builtin_family_import(import)?;
+        // Colisão entre import de família e item homônimo do módulo, idem.
+        validate_family_import_collision(import, &program.items)?;
+    }
+
+    Ok(())
+}
+// @pinker-nav:end semantic.modulos.validacao-local

@@ -27,9 +27,10 @@
 // @pinker-nav:start union.unioes.canonicalizacao
 // @pinker-nav:domain unioes
 // @pinker-nav:layer union
-// @pinker-nav:summary Contrato normativo único de canonicalização: `canonical_type_key` deriva a identidade semântica completa de um tipo já resolvido (injetiva por prefixo de comprimento, independente de apelido, span e ordem de mapa), `nominal_identity_of` expõe a identidade nominal de `ninho`/`leque`, `CanonicalUnionMemberKey`/`member_key` reaproveitam a mesma chave para membros de união, `union_key` deriva a chave canônica da união internada e `canonicalize_resolved_members` achata uniões aninhadas, remove duplicatas canônicas e fixa a ordem dos membros. A semântica e o lowering consomem estas funções; nenhuma camada reconstrói chave ou ordem por conta própria.
+// @pinker-nav:summary Contrato normativo único de canonicalização: `canonical_type_key` deriva a identidade de um tipo já resolvido; `canonical_type_graph_key` expande aliases em um DAG internado, canonicaliza uniões e serializa todos os bytes sem digest probabilístico nem expansão exponencial; `nominal_identity_of` expõe identidade nominal; `CanonicalUnionMemberKey`/`member_key`, `union_key` e `canonicalize_resolved_members` compartilham a mesma linhagem, achatando, deduplicando e ordenando membros. Semântica, projeção e lowering consomem estas funções; nenhuma camada reconstrói chave ou ordem por conta própria.
 use crate::ast::Type;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::rc::Rc;
 
 /// Categoria nominal de um tipo declarado pelo usuário.
 ///
@@ -73,6 +74,264 @@ pub fn nominal_identity_of(ty: &Type) -> Option<(NominalTypeKind, String)> {
 /// exata, e não por categoria operacional.
 pub fn canonical_type_key(ty: &Type) -> String {
     member_key_text(ty)
+}
+
+/// Chave exata da identidade semântica de um tipo com apelidos transparentes.
+///
+/// A chave é uma serialização injetiva de um DAG internado, não um digest. Isso
+/// preserva custo proporcional ao grafo de apelidos mesmo para diamantes como
+/// `An = mapa<An-1, An-1>`, sem promover uma colisão probabilística a igualdade
+/// estrutural. Uniões são achatadas, deduplicadas e ordenadas aqui, pela mesma
+/// autoridade que [`canonicalize_resolved_members`].
+pub fn canonical_type_graph_key(ty: &Type, aliases: &HashMap<String, Type>) -> String {
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+    enum Node {
+        Atom(&'static str),
+        Nominal(String),
+        Opaque(String),
+        List(Rc<Node>),
+        Map(Rc<Node>, Rc<Node>),
+        FixedArray(Rc<Node>, u64),
+        Pointer(bool, Rc<Node>),
+        Function(Vec<Rc<Node>>, Rc<Node>),
+        Applied(Rc<Node>, Vec<Rc<Node>>),
+        Union(Vec<Rc<Node>>),
+        Cycle,
+    }
+
+    struct Builder<'a> {
+        aliases: &'a HashMap<String, Type>,
+        visiting: Vec<String>,
+        aliases_done: HashMap<String, Rc<Node>>,
+        interned: BTreeMap<Node, Rc<Node>>,
+    }
+
+    impl Builder<'_> {
+        fn intern(&mut self, node: Node) -> Rc<Node> {
+            if let Some(existing) = self.interned.get(&node) {
+                return Rc::clone(existing);
+            }
+            let canonical = Rc::new(node.clone());
+            self.interned.insert(node, Rc::clone(&canonical));
+            canonical
+        }
+
+        fn atom(&mut self, name: &'static str) -> Rc<Node> {
+            self.intern(Node::Atom(name))
+        }
+
+        fn nominal(&mut self, name: &str) -> Rc<Node> {
+            let Some(target) = self.aliases.get(name).cloned() else {
+                return self.intern(Node::Nominal(name.to_string()));
+            };
+            if let Some(done) = self.aliases_done.get(name) {
+                return Rc::clone(done);
+            }
+            if self.visiting.iter().any(|visiting| visiting == name) {
+                return self.intern(Node::Cycle);
+            }
+            self.visiting.push(name.to_string());
+            let resolved = self.build(&target);
+            self.visiting.pop();
+            self.aliases_done
+                .insert(name.to_string(), Rc::clone(&resolved));
+            resolved
+        }
+
+        fn build(&mut self, ty: &Type) -> Rc<Node> {
+            match ty {
+                Type::Bombom(_) => self.atom("bombom"),
+                Type::U8(_) => self.atom("u8"),
+                Type::U16(_) => self.atom("u16"),
+                Type::U32(_) => self.atom("u32"),
+                Type::U64(_) => self.atom("u64"),
+                Type::I8(_) => self.atom("i8"),
+                Type::I16(_) => self.atom("i16"),
+                Type::I32(_) => self.atom("i32"),
+                Type::I64(_) => self.atom("i64"),
+                Type::Logica(_) => self.atom("logica"),
+                Type::Verso(_) => self.atom("verso"),
+                Type::Nulo(_) => self.atom("nulo"),
+                Type::ListBombom(_) => {
+                    let element = self.atom("bombom");
+                    self.intern(Node::List(element))
+                }
+                Type::ListVerso(_) => {
+                    let element = self.atom("verso");
+                    self.intern(Node::List(element))
+                }
+                Type::MapVersoBombom(_) => {
+                    let key = self.atom("verso");
+                    let value = self.atom("bombom");
+                    self.intern(Node::Map(key, value))
+                }
+                Type::MapVersoVerso(_) => {
+                    let key = self.atom("verso");
+                    let value = self.atom("verso");
+                    self.intern(Node::Map(key, value))
+                }
+                Type::MapBombomBombom(_) => {
+                    let key = self.atom("bombom");
+                    let value = self.atom("bombom");
+                    self.intern(Node::Map(key, value))
+                }
+                Type::MapBombomVerso(_) => {
+                    let key = self.atom("bombom");
+                    let value = self.atom("verso");
+                    self.intern(Node::Map(key, value))
+                }
+                Type::OpaqueHandle { name, .. } => self.intern(Node::Opaque(name.clone())),
+                Type::ListEnum { element, .. } => {
+                    let element = self.nominal(element);
+                    self.intern(Node::List(element))
+                }
+                Type::Alias { name, .. } | Type::Struct { name, .. } | Type::Enum { name, .. } => {
+                    self.nominal(name)
+                }
+                Type::Applied { name, args, .. } => {
+                    let base = self.nominal(name);
+                    let args = args.iter().map(|arg| self.build(arg)).collect();
+                    self.intern(Node::Applied(base, args))
+                }
+                Type::Map { key, value, .. } => {
+                    let key = self.build(key);
+                    let value = self.build(value);
+                    self.intern(Node::Map(key, value))
+                }
+                Type::FixedArray { element, size, .. } => {
+                    let element = self.build(element);
+                    self.intern(Node::FixedArray(element, *size))
+                }
+                Type::Pointer {
+                    base, is_volatile, ..
+                } => {
+                    let base = self.build(base);
+                    self.intern(Node::Pointer(*is_volatile, base))
+                }
+                Type::Function { params, ret, .. } => {
+                    let params = params.iter().map(|param| self.build(param)).collect();
+                    let ret = self.build(ret);
+                    self.intern(Node::Function(params, ret))
+                }
+                Type::Union { members, .. } => {
+                    let mut canonical = BTreeSet::<Rc<Node>>::new();
+                    for member in members {
+                        let member = self.build(member);
+                        match member.as_ref() {
+                            Node::Union(nested) => canonical.extend(nested.iter().cloned()),
+                            _ => {
+                                canonical.insert(member);
+                            }
+                        }
+                    }
+                    self.intern(Node::Union(canonical.into_iter().collect()))
+                }
+            }
+        }
+    }
+
+    fn encode_text(out: &mut Vec<u8>, text: &str) {
+        out.extend_from_slice(&(text.len() as u64).to_be_bytes());
+        out.extend_from_slice(text.as_bytes());
+    }
+
+    fn emit(node: &Rc<Node>, ids: &mut HashMap<*const Node, u64>, defs: &mut Vec<Vec<u8>>) -> u64 {
+        let pointer = Rc::as_ptr(node);
+        if let Some(id) = ids.get(&pointer) {
+            return *id;
+        }
+
+        let mut definition = Vec::new();
+        match node.as_ref() {
+            Node::Atom(name) => {
+                definition.push(0x01);
+                encode_text(&mut definition, name);
+            }
+            Node::Nominal(name) => {
+                definition.push(0x02);
+                encode_text(&mut definition, name);
+            }
+            Node::Opaque(name) => {
+                definition.push(0x03);
+                encode_text(&mut definition, name);
+            }
+            Node::List(element) => {
+                definition.push(0x10);
+                definition.extend_from_slice(&emit(element, ids, defs).to_be_bytes());
+            }
+            Node::Map(key, value) => {
+                definition.push(0x11);
+                definition.extend_from_slice(&emit(key, ids, defs).to_be_bytes());
+                definition.extend_from_slice(&emit(value, ids, defs).to_be_bytes());
+            }
+            Node::FixedArray(element, size) => {
+                definition.push(0x12);
+                definition.extend_from_slice(&emit(element, ids, defs).to_be_bytes());
+                definition.extend_from_slice(&size.to_be_bytes());
+            }
+            Node::Pointer(is_volatile, base) => {
+                definition.push(0x13);
+                definition.push(u8::from(*is_volatile));
+                definition.extend_from_slice(&emit(base, ids, defs).to_be_bytes());
+            }
+            Node::Function(params, ret) => {
+                definition.push(0x14);
+                definition.extend_from_slice(&(params.len() as u64).to_be_bytes());
+                for param in params {
+                    definition.extend_from_slice(&emit(param, ids, defs).to_be_bytes());
+                }
+                definition.extend_from_slice(&emit(ret, ids, defs).to_be_bytes());
+            }
+            Node::Applied(base, args) => {
+                definition.push(0x15);
+                definition.extend_from_slice(&emit(base, ids, defs).to_be_bytes());
+                definition.extend_from_slice(&(args.len() as u64).to_be_bytes());
+                for arg in args {
+                    definition.extend_from_slice(&emit(arg, ids, defs).to_be_bytes());
+                }
+            }
+            Node::Union(members) => {
+                definition.push(0x16);
+                definition.extend_from_slice(&(members.len() as u64).to_be_bytes());
+                for member in members {
+                    definition.extend_from_slice(&emit(member, ids, defs).to_be_bytes());
+                }
+            }
+            Node::Cycle => definition.push(0x7f),
+        }
+
+        let id = defs.len() as u64;
+        defs.push(definition);
+        ids.insert(pointer, id);
+        id
+    }
+
+    let mut builder = Builder {
+        aliases,
+        visiting: Vec::new(),
+        aliases_done: HashMap::new(),
+        interned: BTreeMap::new(),
+    };
+    let root = builder.build(ty);
+    let mut ids = HashMap::new();
+    let mut defs = Vec::new();
+    let root_id = emit(&root, &mut ids, &mut defs);
+
+    let mut bytes = b"pinker-type-dag-v1".to_vec();
+    bytes.extend_from_slice(&(defs.len() as u64).to_be_bytes());
+    for definition in defs {
+        bytes.extend_from_slice(&(definition.len() as u64).to_be_bytes());
+        bytes.extend_from_slice(&definition);
+    }
+    bytes.extend_from_slice(&root_id.to_be_bytes());
+
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut rendered = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        rendered.push(char::from(HEX[usize::from(byte >> 4)]));
+        rendered.push(char::from(HEX[usize::from(byte & 0x0f)]));
+    }
+    rendered
 }
 
 /// Identidade canônica de um membro de união.

@@ -25,6 +25,7 @@ const POSICAO: pinker_v0::token::Position = pinker_v0::token::Position { line: 1
 const SPAN: pinker_v0::token::Span = pinker_v0::token::Span {
     start: POSICAO,
     end: POSICAO,
+    source: pinker_v0::source_map::SourceId::UNKNOWN,
 };
 
 fn lower(source: &str) -> (ir::ProgramIR, abstract_machine::MachineProgram) {

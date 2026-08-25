@@ -1,3 +1,5 @@
+use crate::source_map::SourceId;
+
 // @pinker-nav:start token.lexico.vocabulario
 // @pinker-nav:domain lexico
 // @pinker-nav:layer token
@@ -123,21 +125,66 @@ impl std::fmt::Display for Position {
     }
 }
 
+/// Localização de diagnóstico.
+///
+/// `SOURCE_LOCATION = SOURCE_ID + SPAN`: além do par de posições, um span
+/// carrega a identidade da unidade-fonte de onde as posições vieram. Sem essa
+/// metade, um span produzido a partir de um módulo pode ser renderizado contra
+/// o texto da raiz — a linha existe nos dois arquivos e nada denuncia a troca.
+///
+/// `SourceId::UNKNOWN` é o valor de span sintético: ausência de alegação de
+/// fonte, nunca alegação de raiz. `Span::new`/`Span::single` continuam com a
+/// mesma aridade e produzem `UNKNOWN`; a forma vinculada é `Span::em`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Span {
     pub start: Position,
     pub end: Position,
+    pub source: SourceId,
 }
 
 impl Span {
     pub fn new(start: Position, end: Position) -> Self {
-        Self { start, end }
+        Self {
+            start,
+            end,
+            source: SourceId::UNKNOWN,
+        }
     }
 
+    /// Span vinculado à unidade-fonte que o produziu.
+    pub fn em(source: SourceId, start: Position, end: Position) -> Self {
+        Self { start, end, source }
+    }
+
+    /// Mesma extensão, agora atribuída a uma fonte.
+    pub fn com_fonte(self, source: SourceId) -> Self {
+        Self { source, ..self }
+    }
+
+    /// Atribui a fonte apenas quando o span ainda não reivindica nenhuma.
+    /// Um span já vinculado nunca é reatribuído: é isso que impede que um
+    /// carimbo de fronteira reescreva a origem real de uma posição.
+    pub fn com_fonte_padrao(self, source: SourceId) -> Self {
+        if self.source.is_unknown() {
+            self.com_fonte(source)
+        } else {
+            self
+        }
+    }
+
+    /// Une duas extensões. A fonte resultante é a do span da esquerda; se ela
+    /// for desconhecida, herda a da direita. Unir posições de fontes distintas
+    /// não é uma operação com significado, e o lado esquerdo é quem já era o
+    /// dono do diagnóstico.
     pub fn merge(self, other: Span) -> Span {
         Span {
             start: self.start,
             end: other.end,
+            source: if self.source.is_unknown() {
+                other.source
+            } else {
+                self.source
+            },
         }
     }
 
@@ -145,6 +192,16 @@ impl Span {
         Self {
             start: pos,
             end: pos,
+            source: SourceId::UNKNOWN,
+        }
+    }
+
+    /// Span de uma posição só, vinculado à unidade-fonte.
+    pub fn unica_em(source: SourceId, pos: Position) -> Self {
+        Self {
+            start: pos,
+            end: pos,
+            source,
         }
     }
 }

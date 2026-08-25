@@ -1,4 +1,5 @@
 use crate::error::PinkerError;
+use crate::source_map::SourceId;
 use crate::token::{Position, Span, Token, TokenKind};
 
 // @pinker-nav:start lexer.identificadores.namespace-reservado
@@ -35,14 +36,47 @@ pub struct Lexer<'a> {
     chars: std::iter::Peekable<std::str::CharIndices<'a>>,
     line: usize,
     col: usize,
+    /// Unidade-fonte que este léxico está lendo.
+    ///
+    /// É o único ponto do compilador que precisa saber a resposta: todo span
+    /// de token nasce aqui, e tudo o que o parser e as fases seguintes
+    /// produzem deriva de spans de token. Vincular a fonte na origem evita
+    /// carimbá-la depois, quando já não se distingue quem produziu a posição.
+    source: SourceId,
 }
 
 impl<'a> Lexer<'a> {
     pub fn new(input: &'a str) -> Self {
+        Self::com_fonte(input, SourceId::UNKNOWN)
+    }
+
+    pub fn com_fonte(input: &'a str, source: SourceId) -> Self {
         Self {
             chars: input.char_indices().peekable(),
             line: 1,
             col: 1,
+            source,
+        }
+    }
+
+    pub fn fonte(&self) -> SourceId {
+        self.source
+    }
+
+    /// Tokeniza vinculando cada span à unidade-fonte deste léxico.
+    ///
+    /// O erro léxico atravessa o mesmo carimbo: um diagnóstico do léxico de um
+    /// módulo é tão originado no módulo quanto qualquer token dele.
+    pub fn tokenize(&mut self) -> Result<Vec<Token>, PinkerError> {
+        let source = self.source;
+        match self.tokenize_sem_fonte() {
+            Ok(mut tokens) => {
+                for token in &mut tokens {
+                    token.span = token.span.com_fonte_padrao(source);
+                }
+                Ok(tokens)
+            }
+            Err(err) => Err(err.com_fonte_padrao(source)),
         }
     }
 
@@ -134,7 +168,7 @@ impl<'a> Lexer<'a> {
     // @pinker-nav:domain lexico
     // @pinker-nav:layer lexer
     // @pinker-nav:summary Laço principal de tokenização: consome a fonte após espaços/comentários e despacha pelo primeiro caractere para produzir operadores e delimitadores (incluindo os de múltiplos caracteres como `->`, `==`, `<<`), literais inteiros, strings simples e multi-linha `"""` com escapes, identificadores diferenciados de palavras-chave pelo vocabulário canônico, `$"..."` interpolado e `?`; emite EOF ao fim e reporta caractere inesperado e literais não terminados.
-    pub fn tokenize(&mut self) -> Result<Vec<Token>, PinkerError> {
+    fn tokenize_sem_fonte(&mut self) -> Result<Vec<Token>, PinkerError> {
         let mut tokens = Vec::new();
 
         loop {

@@ -249,6 +249,31 @@ fn family_identity(identity: IdentidadeCanonica) -> IntrinsicIdentity {
     }
 }
 
+/// Grafias que a autoridade semântica resolve como chamada builtin ANTES de
+/// procurar função de usuário, e que esta autoridade de intrínsecas públicas
+/// não possui.
+///
+/// A política da PR #507 cobre a superfície pública; ela não cobre toda grafia
+/// builtin. `mapa_criar` é a criação genérica de mapa: o checador a despacha
+/// pelo nome, mas ela não é redeclarável-rejeitável como intrínseca pública.
+///
+/// Quem consome esta lista é a resolução modular, que precisa distinguir
+/// "grafia builtin" de "entidade declarada por alguma unidade". Sem isso, um
+/// módulo que declare `mapa_criar` faria a raiz perder a chamada builtin.
+/// O teste de deriva em `tests/issue_514_module_composition_tests.rs` recusa
+/// qualquer grafia builtin de `src/semantic.rs` que esta autoridade não
+/// reconheça.
+const GRAFIAS_BUILTIN_NAO_PUBLICAS: &[&str] = &["mapa_criar"];
+
+/// A grafia é resolvida como chamada builtin pela autoridade semântica?
+///
+/// `GRAFIA_BUILTIN != ENTIDADE_DE_UNIDADE`: builtin não pertence a
+/// unidade-fonte alguma e por isso nunca é capturado nem capturável.
+pub fn e_grafia_builtin_chamavel(spelling: &str) -> bool {
+    public_intrinsic_spelling(spelling).is_some()
+        || GRAFIAS_BUILTIN_NAO_PUBLICAS.contains(&spelling)
+}
+
 /// Resolve uma grafia pública vigente para a sua identidade intrínseca.
 pub fn public_intrinsic_spelling(spelling: &str) -> Option<PublicIntrinsicSpelling> {
     canonical_public_intrinsic_spelling(spelling).or_else(|| {

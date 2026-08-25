@@ -517,7 +517,9 @@ impl Parser {
             self.tokens[self.current] = Token::new(
                 TokenKind::Greater,
                 ">".to_string(),
-                Span::new(middle, span.end),
+                // Os dois `>` sintetizados herdam a fonte do `>>` original:
+                // dividir um token não muda de que arquivo ele veio.
+                Span::em(span.source, middle, span.end),
             );
             // O `previous()` dos chamadores precisa enxergar um `>` fechado: o
             // token anterior passa a ser o primeiro `>` sintetizado.
@@ -526,7 +528,7 @@ impl Parser {
                 Token::new(
                     TokenKind::Greater,
                     ">".to_string(),
-                    Span::new(span.start, middle),
+                    Span::em(span.source, span.start, middle),
                 ),
             );
             self.advance();

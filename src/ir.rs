@@ -19,6 +19,7 @@ use crate::ast::{
 use crate::error::PinkerError;
 use crate::layout;
 use crate::method_identity::{self, MethodIdentity};
+use crate::source_map::SourceId;
 use crate::token::{Position, Span};
 use crate::union_canon;
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -1703,6 +1704,15 @@ struct LoweringContext {
     // Visão derivada da decisão semântica: a mesma identidade estruturada usa
     // aqui o `ResolvedTypeId` já internado, nunca o spelling do `__impl_*`.
     impl_methods: BTreeMap<MethodIdentity<ResolvedTypeId>, String>,
+    /// Tratos que cada unidade-fonte pode enxergar, por `SourceId`.
+    ///
+    /// Vazio quando não houve composição modular, e nesse caso nada é
+    /// filtrado. O despacho não qualificado é por `(tipo do receiver, método)`,
+    /// e essa visão é global sobre a agregação: sem restringi-la ao ambiente de
+    /// quem escreveu a chamada, o lowering aceitaria um método que a autoridade
+    /// semântica já tinha recusado — e, com duas candidatas, falharia depois de
+    /// `--check` ter dito que o programa era válido.
+    traits_visiveis_por_fonte: HashMap<SourceId, HashSet<String>>,
     // Defaults redundantes produzidos provisoriamente para spellings
     // alias-equivalentes não são funções aceitas e não chegam à IR emitida.
     ignored_impl_functions: HashSet<String>,
@@ -2085,7 +2095,16 @@ impl TypedValueIR {
 // @pinker-nav:layer ir
 // @pinker-nav:summary Ponto de entrada do lowering AST → IR: constrói o `LoweringContext` global, percorre os itens do programa, despacha constantes (`lower_const`) e funções (`FunctionLowerer`) e monta o `ProgramIR` (nome do módulo, modo freestanding). Aliases/structs/leques/tratos são ignorados aqui (já viraram fatos do contexto); não reexecuta análise semântica.
 pub fn lower_program(program: &Program) -> Result<ProgramIR, PinkerError> {
-    let context = LoweringContext::from_program(program)?;
+    lower_program_composto(program, HashMap::new())
+}
+
+/// Abaixa um programa composto, respeitando o ambiente de cada unidade-fonte no
+/// despacho não qualificado de método.
+pub fn lower_program_composto(
+    program: &Program,
+    traits_visiveis_por_fonte: HashMap<SourceId, HashSet<String>>,
+) -> Result<ProgramIR, PinkerError> {
+    let context = LoweringContext::from_program_composto(program, traits_visiveis_por_fonte)?;
     let mut consts = Vec::new();
     let mut functions = Vec::new();
 
@@ -2213,7 +2232,10 @@ impl LoweringContext {
     // @pinker-nav:domain lowering
     // @pinker-nav:layer ir
     // @pinker-nav:summary Primeira metade de `from_program`: coleta os fatos globais que todos os corpos consomem — nome do módulo, aliases de tipo (com leques registrados como alias para `bombom`), structs e seus campos/offsets de layout, variantes de leque com índices e cargas, e as assinaturas das funções e tipos das constantes declaradas no programa. Prepara o contexto; não reexecuta a checagem semântica.
-    fn from_program(program: &Program) -> Result<Self, PinkerError> {
+    fn from_program_composto(
+        program: &Program,
+        traits_visiveis_por_fonte: HashMap<SourceId, HashSet<String>>,
+    ) -> Result<Self, PinkerError> {
         let module_name = program
             .package
             .as_ref()
@@ -3122,6 +3144,7 @@ impl LoweringContext {
             enum_decl_names,
             traits,
             impl_methods: BTreeMap::new(),
+            traits_visiveis_por_fonte,
             ignored_impl_functions: HashSet::new(),
             function_ret_trait_names,
             callable_metadata,
@@ -3142,6 +3165,20 @@ impl LoweringContext {
     // @pinker-nav:domain tratos
     // @pinker-nav:layer lowering
     // @pinker-nav:summary Visão derivada de métodos aceita pela semântica: percorre funções provisórias, resolve integralmente o tipo-alvo declarado transportado em `ImplFunctionFacts` para `ResolvedTypeId` e indexa `MethodIdentity(trato, identidade resolvida, método)` até o símbolo transportado; chamadas e vtables consultam somente essa visão, sem decodificar spelling para decidir identidade.
+    /// Um trato é visível no ponto em que a chamada foi escrita?
+    ///
+    /// Índice vazio significa "não há composição a restringir". Span sintético
+    /// não reivindica fonte e também não é filtrado.
+    fn trato_visivel_em(&self, span: Span, trait_name: &str) -> bool {
+        if self.traits_visiveis_por_fonte.is_empty() {
+            return true;
+        }
+        match self.traits_visiveis_por_fonte.get(&span.source) {
+            Some(visiveis) => visiveis.contains(trait_name),
+            None => true,
+        }
+    }
+
     fn register_impl_methods(&mut self, program: &Program) -> Result<(), PinkerError> {
         let mut candidates: BTreeMap<MethodIdentity<ResolvedTypeId>, Vec<&FunctionDecl>> =
             BTreeMap::new();
@@ -4220,7 +4257,12 @@ impl<'a> FunctionLowerer<'a> {
             .impl_methods
             .iter()
             .filter(|(identity, _function_name)| {
-                identity.target == receiver_identity && identity.method_name == method_name
+                identity.target == receiver_identity
+                    && identity.method_name == method_name
+                    // Mesmo ambiente que a autoridade semântica aplicou. Sem
+                    // esta metade, `--check` e o lowering discordariam sobre o
+                    // mesmo programa.
+                    && self.context.trato_visivel_em(span, &identity.trait_name)
             })
             .map(|(_identity, function_name)| function_name.clone())
             .collect();

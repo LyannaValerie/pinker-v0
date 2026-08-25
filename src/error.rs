@@ -87,16 +87,103 @@ impl PinkerError {
     /// de origem e acrescenta um indicador de coluna (`^`) abaixo.
     /// Para erros de runtime, delega ao renderer de runtime existente.
     pub fn render_for_cli_with_source(&self, source: &str) -> String {
+        self.render_for_cli_with_sources(&crate::source_map::single("", source))
+    }
+
+    /// Renderiza o erro resolvendo o trecho pela fonte que o span reivindica.
+    ///
+    /// `SOURCE_LOCATION_INTEGRITY`: o texto vem de `span.source`, nunca do
+    /// texto primário por conveniência. Um span originado em A é interpretado
+    /// contra A ou contra nada; jamais contra B. Span sintético não reivindica
+    /// fonte alguma e continua caindo no texto primário, que é o comportamento
+    /// histórico de programa de arquivo único.
+    ///
+    /// Quando a fonte não é a primária, o rótulo dela entra no diagnóstico: um
+    /// trecho correto que não diga de que arquivo veio ainda deixa o leitor
+    /// procurando a linha no arquivo errado.
+    pub fn render_for_cli_with_sources(&self, sources: &crate::source_map::SourceMap) -> String {
         match self {
             PinkerError::Runtime { msg, span } => render_runtime_for_cli(msg, *span),
             _ => {
                 let base = self.to_string();
-                let span = self.span();
-                match span.and_then(|s| extract_source_snippet(source, s)) {
-                    Some(snippet) => format!("{}\n{}", base, snippet),
-                    None => base,
+                let Some(span) = self.span() else {
+                    return base;
+                };
+                let origem = sources
+                    .label_for(span.source)
+                    .map(|label| format!("  em: {}", label));
+                let snippet = sources
+                    .text_for(span.source)
+                    .and_then(|text| extract_source_snippet(text, span));
+                match (origem, snippet) {
+                    (Some(origem), Some(snippet)) => format!("{}\n{}\n{}", base, origem, snippet),
+                    (Some(origem), None) => format!("{}\n{}", base, origem),
+                    (None, Some(snippet)) => format!("{}\n{}", base, snippet),
+                    (None, None) => base,
                 }
             }
+        }
+    }
+
+    /// Vincula o diagnóstico a uma unidade-fonte quando ele ainda não
+    /// reivindica nenhuma. Erro já vinculado nunca é reatribuído.
+    pub fn com_fonte_padrao(self, source: crate::source_map::SourceId) -> Self {
+        match self {
+            PinkerError::Lexer { msg, span } => PinkerError::Lexer {
+                msg,
+                span: span.com_fonte_padrao(source),
+            },
+            PinkerError::Parse { msg, span } => PinkerError::Parse {
+                msg,
+                span: span.com_fonte_padrao(source),
+            },
+            PinkerError::Expected {
+                expected,
+                found,
+                span,
+            } => PinkerError::Expected {
+                expected,
+                found,
+                span: span.com_fonte_padrao(source),
+            },
+            PinkerError::Semantic { msg, span } => PinkerError::Semantic {
+                msg,
+                span: span.com_fonte_padrao(source),
+            },
+            PinkerError::Ir { msg, span } => PinkerError::Ir {
+                msg,
+                span: span.com_fonte_padrao(source),
+            },
+            PinkerError::IrValidation { msg, span } => PinkerError::IrValidation {
+                msg,
+                span: span.com_fonte_padrao(source),
+            },
+            PinkerError::CfgIrValidation { msg, span } => PinkerError::CfgIrValidation {
+                msg,
+                span: span.com_fonte_padrao(source),
+            },
+            PinkerError::BackendTextValidation { msg, span } => {
+                PinkerError::BackendTextValidation {
+                    msg,
+                    span: span.com_fonte_padrao(source),
+                }
+            }
+            PinkerError::InstrSelectValidation { msg, span } => {
+                PinkerError::InstrSelectValidation {
+                    msg,
+                    span: span.com_fonte_padrao(source),
+                }
+            }
+            PinkerError::AbstractMachineValidation { msg, span } => {
+                PinkerError::AbstractMachineValidation {
+                    msg,
+                    span: span.com_fonte_padrao(source),
+                }
+            }
+            PinkerError::Runtime { msg, span } => PinkerError::Runtime {
+                msg,
+                span: span.map(|span| span.com_fonte_padrao(source)),
+            },
         }
     }
 }
