@@ -1759,4 +1759,99 @@ fn revisao_n6_quatro_colisao_de_superficie_nomeia_a_unidade_certa() {
         "a colisão é do módulo, não do arquivo principal: {erro}"
     );
 }
+
+/// Revisão adversarial P7-1 — a impressão estrutural não depende de quem
+/// pergunta.
+///
+/// A expansão de apelidos tinha teto de profundidade e, passado o teto, caía no
+/// nome canônico — que é diferente em cada unidade. Duas unidades
+/// BYTE-IDÊNTICAS passavam a divergir a partir de uma cadeia de 17 apelidos, e
+/// a mensagem de colisão afirmava "entidades diferentes" sobre texto igual. O
+/// teto sumiu: a expansão termina porque o conjunto de apelidos é finito, e
+/// ciclo rende um marcador fixo, igual para todas as unidades.
+#[test]
+fn revisao_p7_um_cadeia_longa_de_apelidos_nao_fabrica_colisao() {
+    fn unidade(pacote: &str, elos: usize) -> String {
+        let mut fonte = format!("pacote {pacote};\n\napelido A1 = bombom;\n");
+        for elo in 2..=elos {
+            fonte.push_str(&format!("apelido A{elo} = A{};\n", elo - 1));
+        }
+        fonte.push_str(&format!("apelido Cor = A{elos};\n"));
+        fonte.push_str("apelido X = Resultado<Cor, verso>;\n\n");
+        fonte.push_str(&format!(
+            "carinho f_{pacote}() -> bombom {{\n    nova r: X = X.Ok(1);\n    mimo 1;\n}}\n"
+        ));
+        fonte
+    }
+
+    // O teto antigo era 16. 17 e 40 precisam se comportar como 3.
+    for elos in [3usize, 16, 17, 40] {
+        let a = unidade("p7a_ma", elos);
+        let b = unidade("p7a_mb", elos);
+        let c = caso(
+            "raiz_p7a",
+            "pacote main;\ntrazer p7a_ma.f_p7a_ma;\ntrazer p7a_mb.f_p7a_mb;\n\ncarinho principal() -> bombom {\n    mimo f_p7a_ma() + f_p7a_mb();\n}\n",
+            &[("p7a_ma", a.as_str()), ("p7a_mb", b.as_str())],
+        );
+        let saida = executar(&c, "revisao-p7-um");
+        assert_eq!(
+            codigo(&saida),
+            2,
+            "cadeia de {elos} apelidos fabricou desacordo entre unidades idênticas: {}",
+            stderr(&saida)
+        );
+    }
+}
+
+/// Revisão adversarial P7-2 — a impressão distingue builtins entre si.
+///
+/// A versão anterior colhia apenas nomes NOMINAIS, e todo builtin contribuía
+/// zero referências: `bombom` e `verso` imprimiam igual. Duas unidades com
+/// apelidos para builtins DIFERENTES passavam pela deduplicação, uma cópia era
+/// descartada em silêncio e a outra unidade era verificada contra a entidade
+/// errada — exatamente o que a recusa de colisão existe para impedir.
+#[test]
+fn revisao_p7_dois_apelidos_para_builtins_distintos_colidem() {
+    let distintos = caso(
+        "raiz_p7b",
+        "pacote main;\ntrazer p7b_ma.f_ma;\ntrazer p7b_mb.f_mb;\n\ncarinho principal() -> bombom {\n    mimo f_ma() + f_mb();\n}\n",
+        &[
+            (
+                "p7b_ma",
+                "pacote p7b_ma;\n\napelido Cor = bombom;\napelido X = Resultado<Cor, verso>;\n\ncarinho f_ma() -> bombom {\n    nova r: X = X.Ok(5);\n    mimo 1;\n}\n",
+            ),
+            (
+                "p7b_mb",
+                "pacote p7b_mb;\n\napelido Cor = verso;\napelido X = Resultado<Cor, verso>;\n\ncarinho f_mb() -> bombom {\n    nova r: X = X.Ok(\"oi\");\n    mimo 2;\n}\n",
+            ),
+        ],
+    );
+    let saida = checar(&distintos, "revisao-p7-dois-distintos");
+    let erro = stderr(&saida);
+    assert_eq!(codigo(&saida), 1, "{erro}");
+    assert!(
+        erro.contains("identidade gerada") && erro.contains("entidades diferentes"),
+        "a colisão real precisa ser recusada pela guarda, não a jusante: {erro}"
+    );
+
+    // Contraste: apelidos para o MESMO builtin continuam sendo a mesma
+    // entidade e continuam compondo. Sem este par, a correção acima poderia
+    // ter simplesmente voltado a comparar grafia.
+    let iguais = caso(
+        "raiz_p7c",
+        "pacote main;\ntrazer p7c_ma.f_ma;\ntrazer p7c_mb.f_mb;\n\ncarinho principal() -> bombom {\n    mimo f_ma() + f_mb();\n}\n",
+        &[
+            (
+                "p7c_ma",
+                "pacote p7c_ma;\n\napelido Cor = bombom;\napelido X = Resultado<Cor, verso>;\n\ncarinho f_ma() -> bombom {\n    nova r: X = X.Ok(5);\n    mimo 1;\n}\n",
+            ),
+            (
+                "p7c_mb",
+                "pacote p7c_mb;\n\napelido Cor = bombom;\napelido X = Resultado<Cor, verso>;\n\ncarinho f_mb() -> bombom {\n    nova r: X = X.Ok(7);\n    mimo 22;\n}\n",
+            ),
+        ],
+    );
+    let saida = executar(&iguais, "revisao-p7-dois-iguais");
+    assert_eq!(codigo(&saida), 23, "{}", stderr(&saida));
+}
 // @pinker-nav:end evidencia.modulos.revisao-adversarial

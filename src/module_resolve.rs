@@ -1245,56 +1245,141 @@ pub fn projetar_programa(graph: &ModuleGraph) -> Result<Program, PinkerError> {
 /// uma. Duas unidades com um apelido privado homônimo denotam a MESMA
 /// especialização, e compará-las pela grafia canonizada (`fa.Cor` vs `fb.Cor`)
 /// as declararia diferentes — recusando programa correto.
-fn apelidos_do_grafo(graph: &ModuleGraph) -> HashMap<String, Vec<String>> {
+///
+/// Guarda o `Type` alvo, não a lista de nomes que ele referencia: a lista
+/// descarta a estrutura e, com ela, a diferença entre `bombom` e `verso`.
+fn apelidos_do_grafo(graph: &ModuleGraph) -> HashMap<String, Type> {
     let mut mapa = HashMap::new();
     for unit in graph.units() {
         for item in &unit.items {
             if let Item::TypeAlias(alias) = item {
-                mapa.insert(alias.name.clone(), referencias_de_tipo(&alias.target));
+                mapa.insert(alias.name.clone(), alias.target.clone());
             }
         }
     }
     mapa
 }
 
-/// Expande um nome de tipo através da cadeia de apelidos.
+/// Impressão fiel de um tipo, com apelidos expandidos.
+///
+/// Duas exigências que a versão anterior não cumpria:
+///
+/// - **fidelidade**: a impressão distingue `bombom` de `verso` de
+///   `lista<bombom>`. Antes ela só coletava nomes NOMINAIS, então todo builtin
+///   virava a mesma coisa — e dois apelidos para builtins diferentes
+///   imprimiam igual, desligando a recusa de colisão que existe justamente
+///   para não verificar uma unidade contra a entidade da outra;
+/// - **independência de unidade**: quando a expansão não termina, o que se
+///   emite não pode depender de QUEM perguntou. A versão anterior tinha um teto
+///   de profundidade que caía no nome canônico (`ma.Cor` vs `mb.Cor`),
+///   fabricando desacordo entre unidades byte-idênticas. Ciclo agora é
+///   detectado por conjunto de visitados e rende um marcador fixo, e o teto
+///   arbitrário deixa de existir: a expansão termina porque o conjunto de
+///   apelidos é finito.
 ///
 /// Tipo nominal — `ninho`, `leque`, `trato` — NÃO é expandido: ele é identidade
 /// própria, e dois homônimos em unidades distintas são entidades distintas.
-fn expandir_apelidos(nome: &str, apelidos: &HashMap<String, Vec<String>>) -> Vec<String> {
-    fn passo(
+fn impressao_de_tipo(ty: &Type, apelidos: &HashMap<String, Type>) -> String {
+    fn nominal(
         nome: &str,
-        apelidos: &HashMap<String, Vec<String>>,
-        profundidade: usize,
-        saida: &mut Vec<String>,
-    ) {
-        // Cadeia de apelido é finita numa fonte válida; o limite protege a
-        // impressão contra ciclo que outra camada ainda vá recusar.
-        if profundidade > 16 {
-            saida.push(nome.to_string());
-            return;
-        }
+        apelidos: &HashMap<String, Type>,
+        visitados: &mut Vec<String>,
+    ) -> String {
         match apelidos.get(nome) {
-            Some(alvos) if alvos.is_empty() => saida.push("<builtin>".to_string()),
-            Some(alvos) => {
-                for alvo in alvos {
-                    passo(alvo, apelidos, profundidade + 1, saida);
+            Some(alvo) => {
+                if visitados.iter().any(|visitado| visitado == nome) {
+                    // Marcador fixo: não depende da unidade que perguntou.
+                    return "<ciclo>".to_string();
                 }
+                visitados.push(nome.to_string());
+                let rendido = render(alvo, apelidos, visitados);
+                visitados.pop();
+                rendido
             }
-            None => saida.push(nome.to_string()),
+            None => nome.to_string(),
         }
     }
-    let mut saida = Vec::new();
-    passo(nome, apelidos, 0, &mut saida);
-    saida
+
+    fn render(ty: &Type, apelidos: &HashMap<String, Type>, visitados: &mut Vec<String>) -> String {
+        match ty {
+            Type::Bombom(_) => "bombom".to_string(),
+            Type::U8(_) => "u8".to_string(),
+            Type::U16(_) => "u16".to_string(),
+            Type::U32(_) => "u32".to_string(),
+            Type::U64(_) => "u64".to_string(),
+            Type::I8(_) => "i8".to_string(),
+            Type::I16(_) => "i16".to_string(),
+            Type::I32(_) => "i32".to_string(),
+            Type::I64(_) => "i64".to_string(),
+            Type::Logica(_) => "logica".to_string(),
+            Type::Verso(_) => "verso".to_string(),
+            Type::ListBombom(_) => "lista<bombom>".to_string(),
+            Type::ListVerso(_) => "lista<verso>".to_string(),
+            Type::MapVersoBombom(_) => "mapa<verso,bombom>".to_string(),
+            Type::MapVersoVerso(_) => "mapa<verso,verso>".to_string(),
+            Type::MapBombomBombom(_) => "mapa<bombom,bombom>".to_string(),
+            Type::MapBombomVerso(_) => "mapa<bombom,verso>".to_string(),
+            Type::Nulo(_) => "nulo".to_string(),
+            Type::OpaqueHandle { name, .. } => format!("handle<{}>", name),
+            Type::ListEnum { element, .. } => {
+                format!("lista<{}>", nominal(element, apelidos, visitados))
+            }
+            Type::Alias { name, .. } | Type::Struct { name, .. } | Type::Enum { name, .. } => {
+                nominal(name, apelidos, visitados)
+            }
+            Type::Applied { name, args, .. } => format!(
+                "{}<{}>",
+                nominal(name, apelidos, visitados),
+                args.iter()
+                    .map(|arg| render(arg, apelidos, visitados))
+                    .collect::<Vec<_>>()
+                    .join(",")
+            ),
+            Type::Map { key, value, .. } => format!(
+                "mapa<{},{}>",
+                render(key, apelidos, visitados),
+                render(value, apelidos, visitados)
+            ),
+            Type::FixedArray { element, size, .. } => {
+                format!("arranjo<{},{}>", render(element, apelidos, visitados), size)
+            }
+            Type::Pointer {
+                base, is_volatile, ..
+            } => format!(
+                "seta<{}{}>",
+                if *is_volatile { "volatil " } else { "" },
+                render(base, apelidos, visitados)
+            ),
+            Type::Function { params, ret, .. } => format!(
+                "carinho({})->{}",
+                params
+                    .iter()
+                    .map(|param| render(param, apelidos, visitados))
+                    .collect::<Vec<_>>()
+                    .join(","),
+                render(ret, apelidos, visitados)
+            ),
+            Type::Union { members, .. } => format!(
+                "uniao<{}>",
+                members
+                    .iter()
+                    .map(|membro| render(membro, apelidos, visitados))
+                    .collect::<Vec<_>>()
+                    .join(",")
+            ),
+        }
+    }
+
+    let mut visitados = Vec::new();
+    render(ty, apelidos, &mut visitados)
 }
 
 /// Impressão estrutural de um item, para conferir a premissa da deduplicação.
 ///
 /// Ignora span de propósito: duas unidades materializam a MESMA entidade em
 /// posições diferentes, e posição não é identidade. Apelidos são expandidos
-/// pela mesma razão: eles não são entidade.
-fn impressao_estrutural(item: &Item, apelidos: &HashMap<String, Vec<String>>) -> String {
+/// pela mesma razão: eles também não são entidade.
+fn impressao_estrutural(item: &Item, apelidos: &HashMap<String, Type>) -> String {
     match item {
         Item::Enum(enum_decl) => {
             let variantes: Vec<String> = enum_decl
@@ -1307,8 +1392,7 @@ fn impressao_estrutural(item: &Item, apelidos: &HashMap<String, Vec<String>>) ->
                         variante
                             .payloads
                             .iter()
-                            .flat_map(referencias_de_tipo)
-                            .flat_map(|nome| expandir_apelidos(&nome, apelidos))
+                            .map(|carga| impressao_de_tipo(carga, apelidos))
                             .collect::<Vec<_>>()
                             .join(",")
                     )
@@ -1321,27 +1405,38 @@ fn impressao_estrutural(item: &Item, apelidos: &HashMap<String, Vec<String>>) ->
             function
                 .params
                 .iter()
-                .flat_map(|param| referencias_de_tipo(&param.ty))
-                .flat_map(|nome| expandir_apelidos(&nome, apelidos))
+                .map(|param| impressao_de_tipo(&param.ty, apelidos))
                 .collect::<Vec<_>>()
                 .join(","),
             function
                 .ret_type
                 .as_ref()
-                .map(referencias_de_tipo)
-                .unwrap_or_default()
-                .into_iter()
-                .flat_map(|nome| expandir_apelidos(&nome, apelidos))
-                .collect::<Vec<_>>()
-                .join(",")
+                .map(|ret| impressao_de_tipo(ret, apelidos))
+                .unwrap_or_else(|| "nulo".to_string())
         ),
-        outro => format!(
-            "outro[{}]",
-            referencias_do_item(outro)
-                .into_iter()
-                .flat_map(|nome| expandir_apelidos(&nome, apelidos))
+        Item::Struct(struct_decl) => format!(
+            "ninho[{}]",
+            struct_decl
+                .fields
+                .iter()
+                .map(|campo| format!("{}:{}", campo.name, impressao_de_tipo(&campo.ty, apelidos)))
                 .collect::<Vec<_>>()
-                .join(",")
+                .join(";")
+        ),
+        Item::TypeAlias(alias) => {
+            format!("apelido[{}]", impressao_de_tipo(&alias.target, apelidos))
+        }
+        Item::Const(constant) => {
+            format!("eterno[{}]", impressao_de_tipo(&constant.ty, apelidos))
+        }
+        Item::Trait(trait_decl) => format!(
+            "trato[{}]",
+            trait_decl
+                .methods
+                .iter()
+                .map(|metodo| metodo.name.clone())
+                .collect::<Vec<_>>()
+                .join(";")
         ),
     }
 }
