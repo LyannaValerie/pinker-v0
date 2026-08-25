@@ -1,0 +1,67 @@
+{
+  "challenges": [],
+  "contraindications": [
+    "Não generalizar para testes que não ligam pinker_rt.",
+    "Uma construção limpa e confirmada já discrimina contra esta hipótese de artefato obsoleto."
+  ],
+  "cues": [
+    "cargo-test",
+    "libpinker_rt.a",
+    "runtime",
+    "sensibilidade",
+    "falso-verde"
+  ],
+  "discriminating_probe": {
+    "action": "Construir explicitamente o pacote pinker_rt antes de repetir o mesmo teste nativo.",
+    "observable": "O arquivo libpinker_rt.a é reconstruído e o teste passa a refletir a mutação aplicada ao runtime."
+  },
+  "environment": {
+    "repository": "LyannaValerie/pinker-v0"
+  },
+  "evidence": [
+    {
+      "class": "OBSERVED",
+      "description": "A memória operacional registra o artefato antigo e a reconstrução explícita como resolução observada.",
+      "source": "file:/pinker/msg/campanhas/maturacao-adulta/d13-resource-theory-adult.md"
+    }
+  ],
+  "guidance": {
+    "class": "ASSERTED",
+    "text": "Trate um resultado de sensibilidade como inconclusivo até confirmar que o artefato de runtime mutado foi reconstruído."
+  },
+  "id": "B-7K4M2Q9R6T3V",
+  "observed_at": null,
+  "observed_result": {
+    "class": "OBSERVED",
+    "text": "A construção explícita de pinker_rt substituiu o artefato antigo consumido pelo teste."
+  },
+  "problem": {
+    "class": "OBSERVED",
+    "text": "cargo test não recompilou pinker_rt após uma alteração apenas no runtime, e o teste nativo continuou usando libpinker_rt.a antigo."
+  },
+  "references": [
+    "trama:backend-s.pipeline.nativo-runtime",
+    "file:/pinker/msg/campanhas/maturacao-adulta/d13-resource-theory-adult.md",
+    "git:833c35fac288abed100cc1bd69064ba418defa4b"
+  ],
+  "revision": {
+    "hash": "485225623e415ac2fe6b6adfe3aac5c75166360158263ac517d751d4333f51e5",
+    "number": 1,
+    "parent_hash": null,
+    "reason": "conversão experimental estreita com proveniência preservada",
+    "updated_at": "2026-08-24T23:20:00Z",
+    "updated_by": "amara"
+  },
+  "schema_version": 1,
+  "scope": {
+    "components": [
+      "runtime",
+      "backend-s"
+    ],
+    "conditions": [
+      "teste nativo liga libpinker_rt.a produzido separadamente"
+    ]
+  },
+  "status": "candidate",
+  "title": "Teste nativo pode consumir arquivo estático de runtime obsoleto"
+}

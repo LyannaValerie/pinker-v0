@@ -1,0 +1,65 @@
+{
+  "challenges": [],
+  "contraindications": [
+    "Não prova que todo erro no test target named é causado por escopo de pacote.",
+    "Não se aplica quando o alvo realmente não existe no workspace atual."
+  ],
+  "cues": [
+    "cargo",
+    "no-test-target-named",
+    "package-scope",
+    "workspace"
+  ],
+  "discriminating_probe": {
+    "action": "Resolver o pacote proprietário de cada alvo e executar uma invocação separada de cargo test para cada pacote e alvo.",
+    "observable": "O alvo é encontrado quando --test permanece no escopo do pacote que realmente o declara."
+  },
+  "environment": {
+    "repository": "LyannaValerie/pinker-v0",
+    "runner": "cargo test --locked"
+  },
+  "evidence": [
+    {
+      "class": "OBSERVED",
+      "description": "A memória operacional registra a falha de seleção e a separação das invocações por pacote.",
+      "source": "file:/pinker/msg/campanhas/maturacao-adulta/issue-492-named-argument-parity.md"
+    }
+  ],
+  "guidance": {
+    "class": "ASSERTED",
+    "text": "Antes de concluir que um alvo não existe, verifique se -p escopou --test ao pacote correto."
+  },
+  "id": "B-3N8C5W2H9J6X",
+  "observed_at": null,
+  "observed_result": {
+    "class": "OBSERVED",
+    "text": "Duas invocações separadas encontraram os alvos nos respectivos pacotes."
+  },
+  "problem": {
+    "class": "OBSERVED",
+    "text": "cargo test com -p e --test respondeu no test target named embora o alvo existisse em outro pacote do workspace."
+  },
+  "references": [
+    "file:/pinker/msg/campanhas/maturacao-adulta/issue-492-named-argument-parity.md",
+    "git:833c35fac288abed100cc1bd69064ba418defa4b"
+  ],
+  "revision": {
+    "hash": "d1da92df0c510af0c0c61bb67fb633ff078318b1af66d5c0eed211201893f408",
+    "number": 1,
+    "parent_hash": null,
+    "reason": "conversão experimental estreita com proveniência preservada",
+    "updated_at": "2026-08-24T23:20:00Z",
+    "updated_by": "amara"
+  },
+  "schema_version": 1,
+  "scope": {
+    "components": [
+      "test-harness"
+    ],
+    "conditions": [
+      "workspace Cargo com alvos de teste distribuídos entre pacotes"
+    ]
+  },
+  "status": "candidate",
+  "title": "Seleção de pacote pode ocultar um alvo de teste Cargo existente"
+}
