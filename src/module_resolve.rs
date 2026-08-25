@@ -1324,11 +1324,15 @@ fn digest_de_tipo(ty: &Type, apelidos: &HashMap<String, Type>) -> u64 {
         visitados.push(nome.to_string());
         let digest = render(alvo, apelidos, visitados, memo);
         visitados.pop();
-        // Memoiza só o que NÃO passou por ciclo: um digest que atravessou
-        // `CICLO` depende de ONDE a expansão começou — `A = mapa<B,B>` com
-        // `B = A` difere entrando por A ou por B — e guardá-lo faria a
-        // comparação depender da ordem de consulta. Grafo acíclico não tem esse
-        // problema, e é ele que custa caro.
+        // Não memoiza o digest que É o marcador de ciclo. Um digest com
+        // `CICLO` aninhado dentro ainda entra no memo, e ele de fato depende de
+        // ONDE a expansão começou — `A = mapa<B,B>` com `B = A` difere entrando
+        // por A ou por B. Isso não é observável hoje por duas razões
+        // independentes: o memo nasce e morre dentro de UMA chamada de
+        // `digest_de_tipo`, então nunca atravessa dois tipos irmãos, e apelido
+        // recursivo é recusado antes da projeção. Registrado aqui em vez de
+        // afirmado como invariante — a diferença entre o que o código garante e
+        // o que seria bom garantir não deve morar num comentário otimista.
         if digest != CICLO {
             memo.insert(nome.to_string(), digest);
         }
@@ -1354,16 +1358,36 @@ fn digest_de_tipo(ty: &Type, apelidos: &HashMap<String, Type>) -> u64 {
             Type::I64(_) => etiqueta(b"i64"),
             Type::Logica(_) => etiqueta(b"logica"),
             Type::Verso(_) => etiqueta(b"verso"),
-            Type::ListBombom(_) => etiqueta(b"lista<bombom>"),
-            Type::ListVerso(_) => etiqueta(b"lista<verso>"),
-            Type::MapVersoBombom(_) => etiqueta(b"mapa<verso,bombom>"),
-            Type::MapVersoVerso(_) => etiqueta(b"mapa<verso,verso>"),
-            Type::MapBombomBombom(_) => etiqueta(b"mapa<bombom,bombom>"),
-            Type::MapBombomVerso(_) => etiqueta(b"mapa<bombom,verso>"),
+            // As formas de lista e de mapa têm DUAS representações no AST: a
+            // nominal legada (`ListBombom`) e a genérica (`ListEnum`,`Map`).
+            // Elas denotam o mesmo tipo, e a versão em texto as unificava por
+            // acidente — as duas rendiam "lista<bombom>". Uma tag por variante
+            // desfaria isso e recusaria duas unidades que denotam a MESMA
+            // lista, só porque uma soletrou o elemento direto e a outra por
+            // apelido. A unificação passa a ser deliberada: uma tag por FORMA,
+            // com o digest do conteúdo dentro.
+            Type::ListBombom(_) => com_u64(etiqueta(b"lista"), etiqueta(b"bombom")),
+            Type::ListVerso(_) => com_u64(etiqueta(b"lista"), etiqueta(b"verso")),
+            Type::MapVersoBombom(_) => com_u64(
+                com_u64(etiqueta(b"mapa"), etiqueta(b"verso")),
+                etiqueta(b"bombom"),
+            ),
+            Type::MapVersoVerso(_) => com_u64(
+                com_u64(etiqueta(b"mapa"), etiqueta(b"verso")),
+                etiqueta(b"verso"),
+            ),
+            Type::MapBombomBombom(_) => com_u64(
+                com_u64(etiqueta(b"mapa"), etiqueta(b"bombom")),
+                etiqueta(b"bombom"),
+            ),
+            Type::MapBombomVerso(_) => com_u64(
+                com_u64(etiqueta(b"mapa"), etiqueta(b"bombom")),
+                etiqueta(b"verso"),
+            ),
             Type::Nulo(_) => etiqueta(b"nulo"),
             Type::OpaqueHandle { name, .. } => misturar(etiqueta(b"handle"), name.as_bytes()),
             Type::ListEnum { element, .. } => com_u64(
-                etiqueta(b"lista-leque"),
+                etiqueta(b"lista"),
                 nominal(element, apelidos, visitados, memo),
             ),
             Type::Alias { name, .. } | Type::Struct { name, .. } | Type::Enum { name, .. } => {

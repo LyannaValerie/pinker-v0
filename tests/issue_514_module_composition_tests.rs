@@ -1908,4 +1908,76 @@ fn revisao_p8_um_grafo_de_apelidos_em_diamante_nao_explode() {
         "a recusa devia vir da autoridade semântica: {erro}"
     );
 }
+
+/// Revisão adversarial P9-1 — a forma da coleção é uma só, soletrada de dois
+/// jeitos.
+///
+/// `lista<bombom>` tem DUAS representações no AST: a nominal legada
+/// (`ListBombom`, quando o elemento é soletrado direto) e a genérica
+/// (`ListEnum`, quando vem por apelido). Elas denotam o mesmo tipo. A versão em
+/// texto do fingerprint as unificava por acidente — as duas rendiam a mesma
+/// string — e a troca por digest com uma tag por variante desfez isso, passando
+/// a recusar duas unidades que denotam a MESMA lista só porque uma soletrou o
+/// elemento direto e a outra por apelido.
+///
+/// A unificação agora é deliberada: uma tag por FORMA, com o digest do conteúdo
+/// dentro.
+#[test]
+fn revisao_p9_um_lista_soletrada_de_dois_jeitos_e_a_mesma_entidade() {
+    fn unidade(pacote: &str, declaracoes: &str, retorno: u32) -> String {
+        format!(
+            "pacote {pacote};\n\n{declaracoes}\napelido RC = Resultado<C, verso>;\n\ncarinho f_{pacote}() -> bombom {{\n    nova r: RC = RC.Erro(\"e\");\n    mimo {retorno};\n}}\n"
+        )
+    }
+
+    // (rótulo, declarações de p9a, declarações de p9b, compõe?)
+    let casos: &[(&str, &str, &str, bool)] = &[
+        (
+            "lista<bombom> direto vs por apelido",
+            "apelido C = lista<bombom>;",
+            "apelido B = bombom;\napelido C = lista<B>;",
+            true,
+        ),
+        (
+            "lista<verso> direto vs por apelido",
+            "apelido C = lista<verso>;",
+            "apelido V = verso;\napelido C = lista<V>;",
+            true,
+        ),
+        // A unificação não pode custar fidelidade: elementos diferentes
+        // continuam sendo entidades diferentes.
+        (
+            "lista<bombom> vs lista<verso>",
+            "apelido C = lista<bombom>;",
+            "apelido C = lista<verso>;",
+            false,
+        ),
+    ];
+
+    for (rotulo, a, b, compoe) in casos {
+        let c = caso(
+            "raiz_p9a",
+            "pacote main;\ntrazer p9a.f_p9a;\ntrazer p9b.f_p9b;\n\ncarinho principal() -> bombom {\n    mimo f_p9a() + f_p9b();\n}\n",
+            &[
+                ("p9a", unidade("p9a", a, 16).as_str()),
+                ("p9b", unidade("p9b", b, 16).as_str()),
+            ],
+        );
+        let saida = checar(&c, "revisao-p9-um");
+        let erro = stderr(&saida);
+        if *compoe {
+            assert_eq!(
+                codigo(&saida),
+                0,
+                "{rotulo}: composição correta foi recusada: {erro}"
+            );
+        } else {
+            assert_eq!(codigo(&saida), 1, "{rotulo}: {erro}");
+            assert!(
+                erro.contains("identidade gerada"),
+                "{rotulo}: a recusa devia vir da guarda de colisão: {erro}"
+            );
+        }
+    }
+}
 // @pinker-nav:end evidencia.modulos.revisao-adversarial
