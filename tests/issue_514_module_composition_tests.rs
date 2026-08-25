@@ -1854,4 +1854,58 @@ fn revisao_p7_dois_apelidos_para_builtins_distintos_colidem() {
     let saida = executar(&iguais, "revisao-p7-dois-iguais");
     assert_eq!(codigo(&saida), 23, "{}", stderr(&saida));
 }
+
+/// Revisão adversarial P8-1 — a conferência de colisão custa linear, não
+/// exponencial.
+///
+/// `An = mapa<An-1, An-1>` é um grafo em diamante. Uma representação EXPANDIDA
+/// do tipo tem 2^n folhas, e memoizar a expansão não resolve: a própria string
+/// memoizada já é exponencial. Trinta e cinco linhas de módulo chegavam a
+/// minutos e gigabytes — n=24 levava 47 s e 650 MB, n=26 passava de 200 s e
+/// 2,5 GB — enquanto o MESMO texto como raiz saía em 0,00 s, porque a raiz não
+/// atravessa a projeção. Era a inversão raiz/módulo mais uma vez, agora medida
+/// em tempo e memória em vez de aceitação.
+///
+/// A conferência passa a comparar um DIGEST de tamanho fixo, memoizado por
+/// apelido: o digest de `An` sai do de `An-1` em tempo constante.
+///
+/// O teste roda sob o prazo do harness, então uma regressão de custo falha por
+/// tempo esgotado em vez de pendurar a suíte.
+#[test]
+fn revisao_p8_um_grafo_de_apelidos_em_diamante_nao_explode() {
+    const ELOS: usize = 40;
+
+    let mut modulo = String::from("pacote p8a_mod;\n\napelido A0 = bombom;\n");
+    for elo in 1..=ELOS {
+        modulo.push_str(&format!(
+            "apelido A{elo} = mapa<A{}, A{}>;\n",
+            elo - 1,
+            elo - 1
+        ));
+    }
+    modulo.push_str(&format!("apelido Cor = A{ELOS};\n"));
+    modulo.push_str("apelido X = Resultado<Cor, verso>;\n\n");
+    modulo.push_str("carinho usa() -> bombom {\n    nova r: X = X.Erro(\"e\");\n    mimo 4;\n}\n");
+
+    let c = caso(
+        "raiz_p8a",
+        "pacote main;\ntrazer p8a_mod.usa;\n\ncarinho principal() -> bombom {\n    mimo usa();\n}\n",
+        &[("p8a_mod", modulo.as_str())],
+    );
+    // `mapa` aninhado não é chave válida, então o programa É recusado — e é
+    // isso que se afirma. O ponto do teste não é a aceitação: é que a recusa
+    // chegue, pela autoridade semântica, em vez de a conferência de colisão
+    // ficar expandindo 2^40 folhas antes de qualquer diagnóstico.
+    let saida = checar(&c, "revisao-p8-um");
+    let erro = stderr(&saida);
+    assert_eq!(
+        codigo(&saida),
+        1,
+        "grafo de {ELOS} apelidos em diamante não terminou dentro do prazo: {erro}"
+    );
+    assert!(
+        erro.contains("tipo de chave de mapa incompatível"),
+        "a recusa devia vir da autoridade semântica: {erro}"
+    );
+}
 // @pinker-nav:end evidencia.modulos.revisao-adversarial
