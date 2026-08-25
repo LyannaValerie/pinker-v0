@@ -1260,187 +1260,14 @@ fn apelidos_do_grafo(graph: &ModuleGraph) -> HashMap<String, Type> {
     mapa
 }
 
-/// Digest estrutural de um tipo, com apelidos expandidos.
+/// Chave estrutural exata de um tipo, com apelidos expandidos.
 ///
-/// Três exigências, e a terceira só apareceu depois que as duas primeiras
-/// foram atendidas:
-///
-/// - **fidelidade**: distingue `bombom` de `verso` de `lista<bombom>`. Uma
-///   coleta de nomes NOMINAIS não distingue — todo builtin contribui zero — e
-///   dois apelidos para builtins diferentes passavam pela deduplicação, uma
-///   cópia era descartada em silêncio e a outra unidade era verificada contra a
-///   entidade errada;
-/// - **independência de unidade**: o que se emite não pode depender de QUEM
-///   perguntou. Um teto de profundidade que caísse no nome canônico
-///   (`ma.Cor` vs `mb.Cor`) fabricaria desacordo entre unidades byte-idênticas;
-/// - **custo limitado**: `An = mapa<An-1, An-1>` é um grafo em diamante. Uma
-///   representação EXPANDIDA tem 2^n folhas, e memoizar a expansão não ajuda:
-///   a string memoizada já é exponencial. Trinta e cinco linhas de módulo
-///   chegavam a minutos e gigabytes, enquanto o MESMO texto como raiz saía em
-///   0,00 s, porque a raiz não atravessa a projeção — a inversão raiz/módulo
-///   outra vez, no custo.
-///
-/// Por isso o resultado é um DIGEST de tamanho fixo, não um texto: ele só é
-/// comparado por igualdade, e o digest de `An` sai do digest de `An-1` em tempo
-/// constante. Com memoização por apelido, o custo total é linear no grafo.
-///
-/// Tipo nominal — `ninho`, `leque`, `trato` — NÃO é expandido: ele é identidade
-/// própria, e dois homônimos em unidades distintas são entidades distintas.
-fn digest_de_tipo(ty: &Type, apelidos: &HashMap<String, Type>) -> u64 {
-    const BASE: u64 = 0xcbf2_9ce4_8422_2325;
-    const PRIMO: u64 = 0x0000_0100_0000_01b3;
-    /// Valor fixo para ciclo: igual em toda unidade que o alcance.
-    const CICLO: u64 = 0xC1C1_0C1C_10C1_C10C;
-
-    fn misturar(acumulador: u64, bytes: &[u8]) -> u64 {
-        let mut atual = acumulador;
-        for byte in bytes {
-            atual ^= u64::from(*byte);
-            atual = atual.wrapping_mul(PRIMO);
-        }
-        atual
-    }
-
-    fn com_u64(acumulador: u64, valor: u64) -> u64 {
-        misturar(acumulador, &valor.to_be_bytes())
-    }
-
-    fn nominal(
-        nome: &str,
-        apelidos: &HashMap<String, Type>,
-        visitados: &mut Vec<String>,
-        memo: &mut HashMap<String, u64>,
-    ) -> u64 {
-        let Some(alvo) = apelidos.get(nome) else {
-            // Nome nominal não é expandido: é identidade própria.
-            return misturar(misturar(BASE, b"nominal"), nome.as_bytes());
-        };
-        if let Some(pronto) = memo.get(nome) {
-            return *pronto;
-        }
-        if visitados.iter().any(|visitado| visitado == nome) {
-            return CICLO;
-        }
-        visitados.push(nome.to_string());
-        let digest = render(alvo, apelidos, visitados, memo);
-        visitados.pop();
-        // Não memoiza o digest que É o marcador de ciclo. Um digest com
-        // `CICLO` aninhado dentro ainda entra no memo, e ele de fato depende de
-        // ONDE a expansão começou — `A = mapa<B,B>` com `B = A` difere entrando
-        // por A ou por B. Isso não é observável hoje por duas razões
-        // independentes: o memo nasce e morre dentro de UMA chamada de
-        // `digest_de_tipo`, então nunca atravessa dois tipos irmãos, e apelido
-        // recursivo é recusado antes da projeção. Registrado aqui em vez de
-        // afirmado como invariante — a diferença entre o que o código garante e
-        // o que seria bom garantir não deve morar num comentário otimista.
-        if digest != CICLO {
-            memo.insert(nome.to_string(), digest);
-        }
-        digest
-    }
-
-    fn render(
-        ty: &Type,
-        apelidos: &HashMap<String, Type>,
-        visitados: &mut Vec<String>,
-        memo: &mut HashMap<String, u64>,
-    ) -> u64 {
-        let etiqueta = |rotulo: &[u8]| misturar(BASE, rotulo);
-        match ty {
-            Type::Bombom(_) => etiqueta(b"bombom"),
-            Type::U8(_) => etiqueta(b"u8"),
-            Type::U16(_) => etiqueta(b"u16"),
-            Type::U32(_) => etiqueta(b"u32"),
-            Type::U64(_) => etiqueta(b"u64"),
-            Type::I8(_) => etiqueta(b"i8"),
-            Type::I16(_) => etiqueta(b"i16"),
-            Type::I32(_) => etiqueta(b"i32"),
-            Type::I64(_) => etiqueta(b"i64"),
-            Type::Logica(_) => etiqueta(b"logica"),
-            Type::Verso(_) => etiqueta(b"verso"),
-            // As formas de lista e de mapa têm DUAS representações no AST: a
-            // nominal legada (`ListBombom`) e a genérica (`ListEnum`,`Map`).
-            // Elas denotam o mesmo tipo, e a versão em texto as unificava por
-            // acidente — as duas rendiam "lista<bombom>". Uma tag por variante
-            // desfaria isso e recusaria duas unidades que denotam a MESMA
-            // lista, só porque uma soletrou o elemento direto e a outra por
-            // apelido. A unificação passa a ser deliberada: uma tag por FORMA,
-            // com o digest do conteúdo dentro.
-            Type::ListBombom(_) => com_u64(etiqueta(b"lista"), etiqueta(b"bombom")),
-            Type::ListVerso(_) => com_u64(etiqueta(b"lista"), etiqueta(b"verso")),
-            Type::MapVersoBombom(_) => com_u64(
-                com_u64(etiqueta(b"mapa"), etiqueta(b"verso")),
-                etiqueta(b"bombom"),
-            ),
-            Type::MapVersoVerso(_) => com_u64(
-                com_u64(etiqueta(b"mapa"), etiqueta(b"verso")),
-                etiqueta(b"verso"),
-            ),
-            Type::MapBombomBombom(_) => com_u64(
-                com_u64(etiqueta(b"mapa"), etiqueta(b"bombom")),
-                etiqueta(b"bombom"),
-            ),
-            Type::MapBombomVerso(_) => com_u64(
-                com_u64(etiqueta(b"mapa"), etiqueta(b"bombom")),
-                etiqueta(b"verso"),
-            ),
-            Type::Nulo(_) => etiqueta(b"nulo"),
-            Type::OpaqueHandle { name, .. } => misturar(etiqueta(b"handle"), name.as_bytes()),
-            Type::ListEnum { element, .. } => com_u64(
-                etiqueta(b"lista"),
-                nominal(element, apelidos, visitados, memo),
-            ),
-            Type::Alias { name, .. } | Type::Struct { name, .. } | Type::Enum { name, .. } => {
-                nominal(name, apelidos, visitados, memo)
-            }
-            Type::Applied { name, args, .. } => {
-                let mut digest = com_u64(
-                    etiqueta(b"aplicado"),
-                    nominal(name, apelidos, visitados, memo),
-                );
-                digest = com_u64(digest, args.len() as u64);
-                for arg in args {
-                    digest = com_u64(digest, render(arg, apelidos, visitados, memo));
-                }
-                digest
-            }
-            Type::Map { key, value, .. } => {
-                let digest = com_u64(etiqueta(b"mapa"), render(key, apelidos, visitados, memo));
-                com_u64(digest, render(value, apelidos, visitados, memo))
-            }
-            Type::FixedArray { element, size, .. } => {
-                let digest = com_u64(
-                    etiqueta(b"arranjo"),
-                    render(element, apelidos, visitados, memo),
-                );
-                com_u64(digest, *size)
-            }
-            Type::Pointer {
-                base, is_volatile, ..
-            } => {
-                let digest = com_u64(etiqueta(b"seta"), u64::from(*is_volatile));
-                com_u64(digest, render(base, apelidos, visitados, memo))
-            }
-            Type::Function { params, ret, .. } => {
-                let mut digest = com_u64(etiqueta(b"carinho"), params.len() as u64);
-                for param in params {
-                    digest = com_u64(digest, render(param, apelidos, visitados, memo));
-                }
-                com_u64(digest, render(ret, apelidos, visitados, memo))
-            }
-            Type::Union { members, .. } => {
-                let mut digest = com_u64(etiqueta(b"uniao"), members.len() as u64);
-                for membro in members {
-                    digest = com_u64(digest, render(membro, apelidos, visitados, memo));
-                }
-                digest
-            }
-        }
-    }
-
-    let mut visitados = Vec::new();
-    let mut memo = HashMap::new();
-    render(ty, apelidos, &mut visitados, &mut memo)
+/// A autoridade vive em `union_canon`: ela interna um DAG, aplica a mesma
+/// canonicalização normativa de uniões e serializa todos os bytes. Assim o
+/// custo não explode em grafos de apelidos e nenhuma colisão probabilística é
+/// promovida a igualdade de entidade.
+fn chave_exata_de_tipo(ty: &Type, apelidos: &HashMap<String, Type>) -> String {
+    crate::union_canon::canonical_type_graph_key(ty, apelidos)
 }
 
 /// Impressão estrutural de um item, para conferir a premissa da deduplicação.
@@ -1461,7 +1288,7 @@ fn impressao_estrutural(item: &Item, apelidos: &HashMap<String, Type>) -> String
                         variante
                             .payloads
                             .iter()
-                            .map(|carga| format!("{:016x}", digest_de_tipo(carga, apelidos)))
+                            .map(|carga| chave_exata_de_tipo(carga, apelidos))
                             .collect::<Vec<_>>()
                             .join(",")
                     )
@@ -1474,13 +1301,13 @@ fn impressao_estrutural(item: &Item, apelidos: &HashMap<String, Type>) -> String
             function
                 .params
                 .iter()
-                .map(|param| format!("{:016x}", digest_de_tipo(&param.ty, apelidos)))
+                .map(|param| chave_exata_de_tipo(&param.ty, apelidos))
                 .collect::<Vec<_>>()
                 .join(","),
             function
                 .ret_type
                 .as_ref()
-                .map(|ret| format!("{:016x}", digest_de_tipo(ret, apelidos)))
+                .map(|ret| chave_exata_de_tipo(ret, apelidos))
                 .unwrap_or_else(|| "nulo".to_string())
         ),
         Item::Struct(struct_decl) => format!(
@@ -1488,19 +1315,21 @@ fn impressao_estrutural(item: &Item, apelidos: &HashMap<String, Type>) -> String
             struct_decl
                 .fields
                 .iter()
-                .map(|campo| format!(
-                    "{}:{:016x}",
-                    campo.name,
-                    digest_de_tipo(&campo.ty, apelidos)
-                ))
+                .map(|campo| {
+                    format!(
+                        "{}:{}",
+                        campo.name,
+                        chave_exata_de_tipo(&campo.ty, apelidos)
+                    )
+                })
                 .collect::<Vec<_>>()
                 .join(";")
         ),
         Item::TypeAlias(alias) => {
-            format!("apelido[{:016x}]", digest_de_tipo(&alias.target, apelidos))
+            format!("apelido[{}]", chave_exata_de_tipo(&alias.target, apelidos))
         }
         Item::Const(constant) => {
-            format!("eterno[{:016x}]", digest_de_tipo(&constant.ty, apelidos))
+            format!("eterno[{}]", chave_exata_de_tipo(&constant.ty, apelidos))
         }
         Item::Trait(trait_decl) => format!(
             "trato[{}]",

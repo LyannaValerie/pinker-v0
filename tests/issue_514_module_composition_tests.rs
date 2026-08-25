@@ -1,6 +1,9 @@
 mod common;
 
 use common::{ControlledCommand as Command, NativeArtifactDir};
+use pinker_v0::ast::Type;
+use pinker_v0::falha_operacional::span_sintetico;
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -1979,5 +1982,78 @@ fn revisao_p9_um_lista_soletrada_de_dois_jeitos_e_a_mesma_entidade() {
             );
         }
     }
+}
+
+/// Revisão adversarial P10-1/P10-2 — a guarda de identidade gerada consome uma
+/// chave exata da mesma autoridade normativa de uniões.
+///
+/// Ordem, aninhamento e duplicatas não participam da identidade de uma união.
+/// Diferença real de membro continua participando. União não é carga admissível
+/// de `Resultado` hoje, então o contraexemplo por composição é recusado antes
+/// da projeção; o oracle correto prova a autoridade diretamente e prova que a
+/// projeção a consome, sem inventar alcançabilidade.
+#[test]
+fn revisao_p10_uniao_canonica_tem_identidade_exata_na_guarda() {
+    let span = span_sintetico();
+    let bombom = || Type::Bombom(span);
+    let verso = || Type::Verso(span);
+    let logica = || Type::Logica(span);
+
+    let direta = Type::Union {
+        members: vec![bombom(), verso()],
+        span,
+    };
+    let invertida = Type::Union {
+        members: vec![verso(), bombom()],
+        span,
+    };
+    let aninhada_com_duplicata = Type::Union {
+        members: vec![
+            bombom(),
+            Type::Union {
+                members: vec![verso(), bombom()],
+                span,
+            },
+        ],
+        span,
+    };
+    let diferente = Type::Union {
+        members: vec![bombom(), logica()],
+        span,
+    };
+
+    let aliases = HashMap::new();
+    let chave = |ty| pinker_v0::union_canon::canonical_type_graph_key(ty, &aliases);
+    assert_eq!(chave(&direta), chave(&invertida));
+    assert_eq!(chave(&direta), chave(&aninhada_com_duplicata));
+    assert_ne!(chave(&direta), chave(&diferente));
+
+    let mut aliases = HashMap::new();
+    aliases.insert("Parte".to_string(), invertida);
+    let via_alias = Type::Union {
+        members: vec![
+            Type::Alias {
+                name: "Parte".to_string(),
+                span,
+            },
+            bombom(),
+        ],
+        span,
+    };
+    assert_eq!(
+        pinker_v0::union_canon::canonical_type_graph_key(&direta, &HashMap::new()),
+        pinker_v0::union_canon::canonical_type_graph_key(&via_alias, &aliases),
+        "apelido, aninhamento e duplicata devem desaparecer juntos"
+    );
+
+    let comparador = include_str!("../src/module_resolve.rs");
+    assert!(
+        !comparador.contains("digest_de_tipo"),
+        "a igualdade estrutural não pode voltar a uma autoridade probabilística"
+    );
+    assert!(
+        comparador.contains("canonical_type_graph_key"),
+        "a projeção deve consumir a chave exata da autoridade canônica"
+    );
 }
 // @pinker-nav:end evidencia.modulos.revisao-adversarial
