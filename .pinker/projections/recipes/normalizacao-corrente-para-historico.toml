@@ -2,7 +2,7 @@ schema = 2
 id = "normalizacao-corrente-para-historico"
 
 [reconstruction]
-expected_overrides = 109
+expected_overrides = 110
 expected_exclusions = 119
 
 [[rules]]
@@ -1676,3 +1676,14 @@ to_summary = "Reconstrói o catálogo de código do JSONL versionado e serve as 
 expect_file = "src/nav.rs"
 expect_domain = "navegacao"
 expect_layer = "trama"
+
+[[rules]]
+op = "override-region"
+key = "union.unioes.canonicalizacao"
+from_hash = "fnv1a64:f2e45da4be880a02"
+to_hash = "fnv1a64:3b904e88c0ce666a"
+from_summary = "Contrato normativo único de canonicalização: `canonical_type_key` deriva a identidade de um tipo já resolvido; `canonical_type_graph_key` expande aliases em um DAG internado, canonicaliza uniões e serializa todos os bytes sem digest probabilístico nem expansão exponencial; `nominal_identity_of` expõe identidade nominal; `CanonicalUnionMemberKey`/`member_key`, `union_key` e `canonicalize_resolved_members` compartilham a mesma linhagem, achatando, deduplicando e ordenando membros. Semântica, projeção e lowering consomem estas funções; nenhuma camada reconstrói chave ou ordem por conta própria."
+to_summary = "Contrato normativo único de canonicalização: `canonical_type_key` deriva a identidade semântica completa de um tipo já resolvido (injetiva por prefixo de comprimento, independente de apelido, span e ordem de mapa), `nominal_identity_of` expõe a identidade nominal de `ninho`/`leque`, `CanonicalUnionMemberKey`/`member_key` reaproveitam a mesma chave para membros de união, `union_key` deriva a chave canônica da união internada e `canonicalize_resolved_members` achata uniões aninhadas, remove duplicatas canônicas e fixa a ordem dos membros. A semântica e o lowering consomem estas funções; nenhuma camada reconstrói chave ou ordem por conta própria."
+expect_file = "src/union_canon.rs"
+expect_domain = "unioes"
+expect_layer = "union"
