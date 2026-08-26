@@ -30,6 +30,9 @@ use pinker_v0::{
 use std::collections::{BTreeMap, BTreeSet};
 
 /// Os três pares aprovados pela Founder, na forma `(alias, grafia adulta)`.
+/// Construtor de fonte Pinker parametrizada por grafia.
+type FonteDeCaso = fn(&str) -> String;
+
 const PARES: [(&str, &str); 3] = [
     ("tem_argumento_nomeado", "tem_chave"),
     ("argumento_nomeado_ou", "pedir_argumento"),
@@ -179,10 +182,7 @@ fn nenhuma_identidade_nao_relacionada_muda() {
             "Historical(\"criar_arquivo\")",
             vec!["criar", "criar_arquivo"],
         ),
-        (
-            "Historical(\"e_vazio\")",
-            vec!["arquivo_vazio", "e_vazio"],
-        ),
+        ("Historical(\"e_vazio\")", vec!["arquivo_vazio", "e_vazio"]),
         (
             "Historical(\"escrever\")",
             vec!["escrever", "escrever_bombom"],
@@ -254,6 +254,15 @@ fn nenhuma_quarta_equivalencia_e_criada() {
 // Política de conflito de declaração
 // ---------------------------------------------------------------------------
 
+/// Afirma o contrato de política para as seis grafias.
+///
+/// `declaration_conflict_policy` hoje ignora o argumento e devolve sempre
+/// `DeclarationIsRejected`, então este teste sozinho não distingue uma grafia
+/// intrínseca de qualquer outra coisa. O que ele prova é o passo anterior: as
+/// seis continuam sendo **encontradas** pela autoridade, que é a condição para
+/// a política ser consultada. A prova de que a recusa realmente alcança as seis
+/// é `redeclarar_qualquer_uma_das_seis_grafias_continua_recusado`, que atravessa
+/// `semantic::check_program` de ponta a ponta.
 #[test]
 fn politica_de_conflito_vale_para_as_seis_grafias() {
     for (alias, adulta) in PARES {
@@ -349,46 +358,55 @@ fn fonte_buscar(spelling: &str) -> String {
 
 #[test]
 fn alias_e_grafia_adulta_observam_o_mesmo_argv() {
-    let casos: [(fn(&str) -> String, &str, &str); 3] = [
+    // `le_ambiente` marca o caso cuja resposta na ausência da chave de CLI
+    // depende do ambiente do host — ver a nota sobre o oráculo, abaixo.
+    let casos: [(FonteDeCaso, &str, &str, bool); 3] = [
+        (fonte_tem, "tem_argumento_nomeado", "tem_chave", false),
         (
-            fonte_tem as fn(&str) -> String,
-            "tem_argumento_nomeado",
-            "tem_chave",
-        ),
-        (
-            fonte_pedir as fn(&str) -> String,
+            fonte_pedir,
             "argumento_nomeado_ou",
             "pedir_argumento",
+            false,
         ),
         (
-            fonte_buscar as fn(&str) -> String,
+            fonte_buscar,
             "argumento_nomeado_ou_ambiente_ou",
             "buscar_contexto",
+            true,
         ),
     ];
 
     // Oráculo positivo: `--chave` com valor precisa ser observada nas duas
     // formas de escrita; chave ausente cai no ramo negativo. Um alias que
     // parasse de chegar ao acessor certo mudaria o status, não só a igualdade.
-    let matriz: [(&[&str], i32); 4] = [
-        (&["--chave", "achado"], 7),
-        (&["--chave=achado"], 7),
-        (&["--outra", "achado"], 3),
-        (&[], 3),
+    //
+    // `cli_decide` marca as linhas em que o valor vem da CLI e portanto vence
+    // qualquer ambiente. Nas outras duas, `buscar_contexto` consulta
+    // `PINKER_525_ENV` no ambiente real do host: exportá-la mudaria a resposta.
+    // Para esse caso só afirmamos a igualdade alias/adulta, que vale sob
+    // qualquer ambiente. A precedência CLI > ambiente > padrão já é provada com
+    // ambiente controlado em `issue492_argumento_nomeado_paridade_tests`.
+    let matriz: [(&[&str], i32, bool); 4] = [
+        (&["--chave", "achado"], 7, true),
+        (&["--chave=achado"], 7, true),
+        (&["--outra", "achado"], 3, false),
+        (&[], 3, false),
     ];
 
-    for (fonte, alias, adulta) in casos {
-        for (argv, esperado) in matriz {
+    for (fonte, alias, adulta, le_ambiente) in casos {
+        for (argv, esperado, cli_decide) in matriz {
             let com_alias = executar(&fonte(alias), argv);
             let com_adulta = executar(&fonte(adulta), argv);
             assert_eq!(
                 com_alias, com_adulta,
                 "{alias} e {adulta} divergiram para argv {argv:?}"
             );
-            assert_eq!(
-                com_adulta, esperado,
-                "{adulta} respondeu {com_adulta} para argv {argv:?}"
-            );
+            if cli_decide || !le_ambiente {
+                assert_eq!(
+                    com_adulta, esperado,
+                    "{adulta} respondeu {com_adulta} para argv {argv:?}"
+                );
+            }
         }
     }
 }

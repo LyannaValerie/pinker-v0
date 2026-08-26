@@ -212,9 +212,15 @@ pub const HISTORICAL_PUBLIC_SPELLINGS: &[&str] = &[
 /// ```
 ///
 /// O alias continua público e reconhecido; o que ele deixa de ter é identidade
-/// separada. Consumidores de fase (`semantic`, `interpreter`, `backend_s`)
-/// consultam esta autoridade em vez de reinventar equivalência nominal, e a
-/// gramática de argv continua sendo dita por `runtime/pinker_argv_contract`.
+/// separada.
+///
+/// Escopo, para não prometer o que o diff não fez: esta tabela é a autoridade da
+/// **identidade**. `semantic`, `interpreter` e `backend_s` continuam agrupando os
+/// pares por grafia para efeito de despacho e de símbolo de runtime, como já
+/// faziam — a #525 não os reescreveu. Quem precisar de identidade deve consultar
+/// aqui em vez de reinventar equivalência nominal; consolidar aquele despacho na
+/// autoridade central pertence à migração da #505. A gramática de argv continua
+/// sendo dita por `runtime/pinker_argv_contract`.
 ///
 /// Cada entrada é `(alias, grafia adulta)`. A grafia adulta nunca é ela mesma
 /// um alias, e ambas as grafias precisam existir em
@@ -517,8 +523,14 @@ mod tests {
         assert_eq!(
             collapsed,
             vec![
-                ("buscar_contexto", vec!["argumento_nomeado_ou_ambiente_ou", "buscar_contexto"]),
-                ("pedir_argumento", vec!["argumento_nomeado_ou", "pedir_argumento"]),
+                (
+                    "buscar_contexto",
+                    vec!["argumento_nomeado_ou_ambiente_ou", "buscar_contexto"]
+                ),
+                (
+                    "pedir_argumento",
+                    vec!["argumento_nomeado_ou", "pedir_argumento"]
+                ),
                 ("tem_chave", vec!["tem_argumento_nomeado", "tem_chave"]),
             ]
         );
