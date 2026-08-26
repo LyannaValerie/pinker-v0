@@ -3,13 +3,17 @@ Template de PR da Trama Pinker (especificação §13).
 
 Durante o regime temporário de maturação adulta + modularização, a documentação
 canônica permanece congelada. O corpo narrativo da PR deve ser curto: o quê,
-onde, como e por quê. Dificuldades reutilizáveis e ferramentas auxiliares ficam
-em /pinker/msg, conforme AGENTS.md.
+onde, como e por quê. Conhecimento operacional reutilizável vai para o Book, sob a
+autoridade própria dele, conforme AGENTS.md.
 
 O bloco ```pinker-change``` no final é voltado à AUTOMAÇÃO e deve permanecer
 separado da narrativa. Para PRs posteriores ao marco #330, importe o bloco com:
 
     ./ci_env.sh cargo run --bin pink -- doc importar-pr <n> --corpo <arquivo>
+
+Em Task da Forja, esse comando roda Cargo: conclua antes o "Bootstrap de Task" do
+AGENTS.md, em particular exportar CARGO_TARGET_DIR. Sem isso o build cai em
+<worktree>/target, fora do escopo que o finalizador sabe liberar.
 
 O CI valida em modo somente leitura (`--check`); ele não sincroniza nem cria
 commits.
@@ -31,17 +35,28 @@ commits.
 - [ ] `make ci`
 - [ ] `git diff --check`
 
-## Memória operacional
+## Conhecimento operacional
 
 <!--
-Durante as campanhas temporárias, registre dificuldades materiais e lifecycle de
-ferramentas auxiliares em:
-/pinker/msg/campanhas/<campanha>/<task-id>.md
+Opcional. Não é diário, e nenhuma PR é obrigada a produzir retenção.
 
-Aqui basta indicar o caminho, quando existir. Não copie o diário para a PR.
+Book                = destino de nova retenção operacional reutilizável,
+                      somente sob a autoridade própria aplicável do Book
+/pinker/msg         = LEGACY, somente leitura; fonte de migração, não destino de
+                      dual-write. Se alguma autoridade viva ainda exigir escrita
+                      para uma operação específica, ela prevalece para aquela
+                      operação e o conflito deve ser registrado, não silenciado
+                      (ver AGENTS.md)
+checkpoint/artifacts = seguem responsáveis por estado e evidência conforme o
+                      contrato vigente
+
+Se houve retenção aplicável, aponte a referência do que foi retido — o id do caso,
+ou o receipt da Task Book quando houver uma. Caso contrário, `nenhuma`. Não copie o
+conteúdo retido para a PR; as regras completas estão na seção "Conhecimento
+operacional" do AGENTS.md e na governança do Book.
 -->
 
-- Registro: `nenhum`
+- Retenção: `nenhuma`
 
 ## Bloco estruturado
 
