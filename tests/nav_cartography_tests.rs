@@ -117,6 +117,7 @@ fn retain_membership_base(catalog: &mut CodeCatalog) {
         !matches!(
             region.key.as_str(),
             "automation.comparacao.classificacao"
+                | "evidencia.backend-s.selecao-de-rota-nativa"
                 | "automation.contrato.autorizacao"
                 | "automation.contrato.resultados"
                 | "automation.filesystem.aplicacao"
@@ -535,7 +536,7 @@ fn catalogo_real_cartografa_o_guardiao_pinker_da_onda_9() {
     // congelados, porque `project_pre_automation_core` e
     // `project_pre_projection_snapshot_contract` removem as regiões novas antes
     // de qualquer reconstrução.
-    assert_eq!(index.regions.len(), 620);
+    assert_eq!(index.regions.len(), 621);
 
     // Exatamente uma região Pinker, a do Guardião, com metadados congelados.
     let guardiao: Vec<_> = index
@@ -559,7 +560,7 @@ fn catalogo_real_cartografa_o_guardiao_pinker_da_onda_9() {
             .filter(|r| r.layer.as_deref() == Some(layer))
             .count()
     };
-    assert_eq!(by_layer("evidencia"), 300);
+    assert_eq!(by_layer("evidencia"), 301);
     assert_eq!(by_layer("runtime"), 22);
     assert_eq!(by_layer("apps"), 1);
 }
@@ -5180,7 +5181,7 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
         ("evidencia.runtime.validacao-acesso-publico", "memoria", 9),
         ("evidencia.runtime.cota-identidades-publicas", "memoria", 6),
         ("evidencia.runtime.inicializacao-abi", "inicializacao", 3),
-        ("evidencia.runtime.sigpipe-disposicao", "processos", 3),
+        ("evidencia.runtime.sigpipe-disposicao", "processos", 6),
         ("evidencia.runtime.texto-verso", "texto", 3),
         ("evidencia.runtime.listas-dinamicas", "listas", 5),
         ("evidencia.runtime.mapas-dinamicos", "mapas", 4),
@@ -5201,13 +5202,13 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
     let expected_ownership: Vec<usize> = expected_regions.iter().map(|entry| entry.2).collect();
     assert_eq!(
         expected_ownership,
-        vec![30usize, 9, 6, 3, 3, 3, 5, 4, 3, 3, 1, 14],
-        "o ownership aprovado da Onda 8J é [30,9,6,3,3,3,5,4,3,3,1,14], com os três testes da família JSON da Parte E1"
+        vec![30usize, 9, 6, 3, 6, 3, 5, 4, 3, 3, 1, 14],
+        "o ownership aprovado da Onda 8J é [30,9,6,3,6,3,5,4,3,3,1,14], com os três testes da família JSON da Parte E1 e os três das fronteiras puras de tempo e encerramento da #522"
     );
     assert_eq!(
         expected_ownership.iter().sum::<usize>(),
-        84,
-        "a soma do ownership 8J deve ser 81"
+        87,
+        "a soma do ownership 8J deve ser 87"
     );
 
     // 1. CATÁLOGO.
@@ -5432,8 +5433,8 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
         .collect();
     assert_eq!(
         test_lines.len(),
-        84,
-        "{central} deve manter exatamente 84 testes, com os três da família JSON da Parte E1"
+        87,
+        "{central} deve manter exatamente 87 testes, com os três da família JSON da Parte E1 e os três das fronteiras puras de tempo e encerramento da #522"
     );
     assert!(
         test_lines
@@ -5487,8 +5488,8 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
     );
     assert_eq!(
         observed_ownership.iter().sum::<usize>(),
-        84,
-        "ownership_sum deve ser 84"
+        87,
+        "ownership_sum deve ser 87"
     );
 
     // Os helpers aprovados sustentam as regressões de verso, subprocesso,
@@ -5642,14 +5643,14 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
         .collect();
     assert_eq!(
         definicoes.len(),
-        353,
-        "a produção do runtime deve manter 353 definições textuais, com as da família JSON da Parte E1 e as duas da Parte E2"
+        363,
+        "a produção do runtime deve manter 363 definições textuais, com as da família JSON da Parte E1, as duas da Parte E2 e as dez das cinco rotas nativas reparadas pela #522"
     );
     let wrappers_gerados = 8usize;
     assert_eq!(
         definicoes.len() + wrappers_gerados,
-        361,
-        "353 definições textuais + 8 wrappers gerados = 361 símbolos produtivos"
+        371,
+        "363 definições textuais + 8 wrappers gerados = 371 símbolos produtivos"
     );
     let mut definicoes_sem_dono: Vec<usize> = Vec::new();
     let mut definicoes_com_dono_duplo: Vec<usize> = Vec::new();
@@ -5690,13 +5691,13 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
             .match_indices("extern \"C\" fn pinker_ponteiro_derivar_tipado")
             .count();
     assert_eq!(
-        abi_nomeadas, 133,
-        "a produção do runtime deve manter 131 funções extern \"C\" nomeadas, com as 14 da família JSON da Parte E1"
+        abi_nomeadas, 139,
+        "a produção do runtime deve manter 139 funções extern \"C\" nomeadas, com as 14 da família JSON da Parte E1 e as seis das cinco rotas nativas reparadas pela #522"
     );
     assert_eq!(
         abi_nomeadas + wrappers_gerados,
-        141,
-        "133 funções ABI diretas + 8 wrappers gerados = 141 símbolos de ABI"
+        147,
+        "139 funções ABI diretas + 8 wrappers gerados = 147 símbolos de ABI"
     );
     assert_eq!(
         producao.matches("formatar_wrappers!(").count(),
