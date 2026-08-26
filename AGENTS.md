@@ -2,9 +2,156 @@
 
 Guia operacional curto para agentes neste repositório. Não substitui `README.md`, `MANUAL.md` ou docs canônicos de `docs/`. Esta é a **fonte operacional canônica** para agentes; não crie um segundo contrato (`CLAUDE.md` só deve existir se uma integração o exigir fisicamente).
 
+## Bootstrap de Task (antes de qualquer Cargo)
+
+Em Task da Forja, execute este bootstrap **antes do primeiro `cargo`, `make` ou
+`pink` da árvore**. Nenhum comando normativo deste arquivo deve rodar Cargo antes
+dele.
+
+**Fase 0 — sem build.** Recupere identidade e ambiente; ainda não compile.
+
+1. Recupere a Task e o active context. O `TASK_ID` vem do observador canônico, não
+   do prompt nem de um nome inventado:
+
+   ```bash
+   sudo -n forja-lifecycle show
+   ```
+
+2. Se precisar de diagnóstico de ambiente antes de ter árvore construída, use o
+   `pink` instalado — e **somente** para identidade e compatibilidade:
+
+   ```bash
+   command -v pink
+   pink --version-json
+   pink doctor
+   ```
+
+   O binário instalado é autoridade para "quem sou eu?" e "reconheço este
+   repositório?". Ele **não** é autoridade sobre catálogo, receita, projeção ou
+   subcomando que tenha mudado no `HEAD` corrente.
+
+3. Recupere os caminhos físicos da autoridade atual — **não os monte por
+   concatenação a partir do `TASK_ID`**. O layout físico pode mudar; a identidade
+   da Task, não.
+
+   ```bash
+   sudo -n forja-task-storage show          # namespaces root-gated provisionados
+   fl --report --json                       # slots efêmeros registrados da Task
+   git rev-parse --show-toplevel            # raiz real da worktree
+   ```
+
+   O caminho listado por `fl --report` sob `kind: cache` é, por definição, o slot
+   de build que o finalizador sabe liberar. Use aquele valor; não o reconstrua.
+
+   ```bash
+   TASK_ID=$(sudo -n forja-lifecycle show | python3 -c 'import json,sys;print(json.load(sys.stdin)["context"]["task"])')
+   TASKDIR=$(git rev-parse --show-toplevel)
+   CARGO_TARGET_DIR=$(fl --report --json | python3 -c 'import json,sys;print(next(r["path"] for r in json.load(sys.stdin)["storage"]["resources"] if r["kind"]=="cache"))')
+   export TASK_ID TASKDIR CARGO_TARGET_DIR
+   mkdir -p "$CARGO_TARGET_DIR"
+   ```
+
+   `/pinker/worktrees/tasks/<task-id>` e `/pinker/caches/target/tasks/<task-id>`
+   são o layout canônico *ilustrativo*; trate-os como verdade apenas quando o
+   observador atual os confirmar.
+
+4. Exporte `TMPDIR` somente para um namespace real e autorizado. Se o slot `tmp`
+   da Task não existir ou não for gravável pelo perfil corrente, **não** aponte
+   `TMPDIR` para ele: use o scratch autorizado do agente ou deixe o padrão, e
+   registre a lacuna.
+
+5. Confirme a cobertura antes de compilar. O `fl` precisa enxergar o seu diretório
+   de build:
+
+   ```bash
+   fl --report --json
+   ```
+
+   Se `fl --report` não listar o seu `CARGO_TARGET_DIR`, ele não será liberado no
+   fechamento. Isso é lacuna de cobertura a resolver **antes** de construir.
+
+**Fase 1 — com build.** Só agora construa e use o `pink` da árvore para tudo que
+dependa do estado corrente do repositório: `doc`, `nav`, `impacto`, `verificar`,
+sincronização e manutenção de projeção.
+
+### Por que o build precisa sair de `<worktree>/target`
+
+Por padrão o Cargo grava em `<worktree>/target`, e `ci_env.sh` não define
+`CARGO_TARGET_DIR`. Esse caminho não pertence a nenhum escopo efêmero registrado:
+o finalizador `fl` classifica a worktree inteira como `preserved` e nunca a libera.
+Medido em `issue-514` e `issue-520`: ambas encerraram com o finalizador reportando
+`CLEAN_NOOP` e `reclaimed_bytes: 0` enquanto 7,3 GB e 7,0 GB de build ficavam para
+trás. Com o alvo no slot registrado, o mesmo finalizador recuperou 8,06 GB.
+
+### Como ler `CLEAN_NOOP` no fechamento
+
+`CLEAN_NOOP` é resultado terminal legítimo do finalizador: significa que nada
+registrado restava para liberar — inclusive quando os recursos já foram finalizados
+ou reclamados numa passagem anterior autorizada. Não trate ausência de bytes como
+prova de vazamento, e não fabrique trabalho para transformá-lo em `CLEAN`.
+
+A suspeita só se justifica quando todas as condições valem ao mesmo tempo:
+
+```text
+primeira finalização após um build conhecido desta Task
++ nenhuma limpeza/finalização autorizada anterior
++ slot de cache registrado e esperado
++ bytes_before = 0
+=> SUSPECT_UNCOVERED_BUILD, investigar antes de encerrar
+```
+
+E preserve explicitamente o caso oposto:
+
+```text
+já finalizado/reclamado legitimamente antes
++ CLEAN_NOOP
+=> resultado limpo e válido
+```
+
+### Ponte da staticlib — condicional aos fixtures que usam paths históricos
+
+Alguns fixtures nativos resolvem paths a partir da raiz do repositório e por isso
+**não** enxergam `CARGO_TARGET_DIR`. Os casos comprovados hoje são:
+
+| fixture | path histórico exigido |
+|---|---|
+| `tests/part_d_native_process_tests.rs:114` | `<repo>/target/debug/libpinker_rt.a` |
+| sandbox de execução nativa | `<repo>/target/pinker-exec/` |
+
+Isso é uma propriedade desses fixtures, **não** de todo gate nativo. Se a sua Task
+não executa esse recorte, não crie ponte alguma.
+
+Quando um desses gates for aplicável, ligue o artefato real ao caminho esperado
+depois do primeiro build:
+
+```bash
+mkdir -p "$TASKDIR/target/debug"
+ln -sfn "$CARGO_TARGET_DIR/debug/libpinker_rt.a" "$TASKDIR/target/debug/libpinker_rt.a"
+```
+
+Sem a ponte, os 8 testes de `part_d_native_process_tests` falham com
+`staticlib nativa ausente` — falha de fixture, não regressão de código. Confira o
+local do panic antes de investigar semântica. Com a ponte, `<worktree>/target`
+guarda só o symlink e o sandbox: dezenas de kilobytes, não gigabytes.
+
+### Caminho físico e `SUN_LEN`
+
+Fixtures nativos bindam socket unix sob `<repo>/target/pinker-exec/`, e o limite de
+`SUN_LEN` é 108 bytes. Uma worktree de caminho longo estoura esse limite dentro do
+fixture, antes de qualquer código Pinker executar.
+
+Encurte o **caminho físico** da worktree por mecanismo autorizado da Forja,
+preservando o `TASK_ID`. Se não houver mecanismo autorizado disponível, classifique
+como blocker de ambiente e reporte. Nunca altere ou encurte a identidade da Task
+para caber num socket: identidade não é parâmetro de conveniência.
+
 ## Entrada pela Trama Pinker
 
 A documentação é dual: portais Markdown para humanos, catálogos consultáveis para agentes. Para não varrer `docs/` ou `src/` indiscriminadamente:
+
+Os passos abaixo usam o `pink` da árvore e portanto pressupõem o *Bootstrap de
+Task* já concluído. Antes dele, use no máximo o `pink` instalado para identidade
+e `doctor`.
 
 1. Leia `README.md` e `docs/atlas.md` (o Atlas aponta para territórios).
 2. Descubra destinos: `./ci_env.sh cargo run --bin pink -- doc rota "<intenção>"`.
@@ -81,67 +228,6 @@ make audit-example EX=examples/principal_valida.pink
 make smoke
 ```
 
-### Diretório de build por Task (obrigatório em Task da Forja)
-
-Por padrão o Cargo grava em `<worktree>/target`. Esse caminho **não pertence a
-nenhum escopo efêmero registrado**: o finalizador `fl` classifica a worktree
-inteira como `preserved` e nunca a libera. O resultado observado é um `fl` que
-reporta `CLEAN_NOOP` com `reclaimed_bytes: 0` enquanto dezenas de gigabytes de
-build ficam para trás.
-
-Antes do primeiro `cargo`/`make` da Task, exporte o alvo para o slot que o `fl`
-inventaria:
-
-```bash
-export TASK_ID=<task-id>                       # o mesmo id do active context
-export TASKDIR=/pinker/worktrees/tasks/$TASK_ID
-export CARGO_TARGET_DIR=/pinker/caches/target/tasks/$TASK_ID
-export TMPDIR=/pinker/work/tasks/$TASK_ID/tmp  # quando o namespace existir
-mkdir -p "$CARGO_TARGET_DIR"
-cd "$TASKDIR"
-```
-
-Confirme que o slot entrou no escopo antes de compilar — o `fl` deve listar o
-`kind: cache` apontando para o seu `CARGO_TARGET_DIR`:
-
-```bash
-fl --report --json
-```
-
-#### Ponte obrigatória para os gates nativos
-
-Os gates nativos **não respeitam `CARGO_TARGET_DIR`**: `part_d_native_process_tests`
-procura a staticlib literalmente em `<repo>/target/debug/libpinker_rt.a`
-(`tests/part_d_native_process_tests.rs:114`), e o sandbox de execução é criado em
-`<repo>/target/pinker-exec/`. Com o alvo fora da árvore, os 8 testes de
-`part_d_native_process_tests` falham com `staticlib nativa ausente` — falha de
-fixture, **não** regressão de código.
-
-Ligue o artefato real ao caminho que o harness espera, depois do primeiro build:
-
-```bash
-mkdir -p "$TASKDIR/target/debug"
-ln -sfn "$CARGO_TARGET_DIR/debug/libpinker_rt.a" "$TASKDIR/target/debug/libpinker_rt.a"
-```
-
-`<worktree>/target` continua existindo, mas passa a conter só o symlink e o sandbox
-`pinker-exec` — dezenas de megabytes em vez de gigabytes. O `debug/` pesado, o
-`doc/` do rustdoc e as dependências ficam no slot que o `fl` limpa.
-
-Cuidado adicional com o comprimento do caminho: o fixture de processos binda socket
-unix sob `<repo>/target/pinker-exec/`, e o limite de `SUN_LEN` é 108 bytes. Uma
-worktree de caminho longo estoura esse limite dentro do fixture, antes de qualquer
-código Pinker rodar. Mantenha o id da Task curto.
-
-Se `fl --report` não listar o seu diretório de build, ele não será limpo no
-fechamento. Isso é uma lacuna de cobertura a resolver **antes** de construir, não
-depois.
-
-No fechamento, `CLEAN_NOOP` com `reclaimed_bytes: 0` só é um sucesso legítimo se a
-Task realmente não compilou nada. **Se a Task compilou e o slot de cache reporta
-`bytes_before: 0`, o build vazou para fora do escopo**: localize-o e registre a
-lacuna antes de encerrar.
-
 ## Comandos sem `make`
 
 ```bash
@@ -161,8 +247,8 @@ lacuna antes de encerrar.
 - Não depender de nightly nem de `-Z unstable-options`.
 - Caminho oficial precisa passar por `./ci_env.sh`, que saneia `RUSTFLAGS` e `CARGO_ENCODED_RUSTFLAGS` e expõe preflight mínimo de diagnóstico.
 - `ci_env.sh` **não** define `CARGO_TARGET_DIR`: quem opera uma Task da Forja é
-  responsável por exportá-lo para `/pinker/caches/target/tasks/<task-id>` antes do
-  primeiro build, conforme *Diretório de build por Task*.
+  responsável por resolvê-lo pelo observador e exportá-lo antes do primeiro build,
+  conforme *Bootstrap de Task*.
 - Em Task, invoque o `pink` da árvore (`./ci_env.sh cargo run --bin pink -- ...`),
   não o release da Forja em `/opt/pinker/bin/pink`.
 - Specs delegados do Pink Agent não autorizam executáveis por si: shell exige
@@ -258,38 +344,38 @@ Não transformar corpo de PR, commit ou checkpoint em nova documentação parale
 
 ### Memória operacional de dificuldades e ferramentas
 
-O registro operacional mais valioso para agentes durante essas campanhas vive fora da documentação congelada, em:
+O registro operacional mais valioso para agentes durante essas campanhas vive fora
+da documentação congelada. O destino atual é o **Book**, o overlay histórico e
+epistêmico com Task, autoridade e ciclo de vida próprios.
 
 ```text
-/pinker/msg/campanhas/<campanha>/<task-id>.md
+Book                = inteligência operacional histórica; destino de nova retenção
+/pinker/msg         = fonte LEGACY de migração, somente leitura
+checkpoint          = estado operacional mínimo para retomada
+artifacts/tasks/... = evidência detalhada e resultados de validação
 ```
 
-Para a primeira campanha use:
+Não escreva memória nova em `/pinker/msg`. Quando o arquivo existir, trate-o como
+entrada histórica a migrar oportunamente, preservando a proveniência; não faça
+dual-write nem backfill em massa. Se uma autoridade viva e explícita ainda exigir
+escrita em `/pinker/msg` para uma operação específica, essa autoridade estreita
+prevalece para aquela operação e o conflito deve ser registrado, não silenciado.
 
-```text
-/pinker/msg/campanhas/maturacao-adulta/<task-id>.md
-```
+Retenha no Book apenas conhecimento delimitado e reutilizável, com resumo factual e
+evidência durável — promova a evidência para fora de scratch antes da finalização
+destrutiva. A autoridade para escrever vem da governança do próprio Book
+(`/book/AGENTS.md` quando presente), não deste arquivo e não da capacidade de
+acessar o repositório. Publicação remota no Book exige autoridade separada.
 
-O arquivo deve ser curto e conter apenas o que possuir valor de reutilização:
+Vale reter: sintoma, causa confirmada (ou hipótese marcada como tal), remédio
+validado, contraindicações, e ferramenta auxiliar com lifecycle
+`USE | UPGRADE | CREATE` e destino `RETAINED | DISCARDED | PROMOTED`. Não registrar
+narrativa de rotina, cadeia de pensamento, log bruto volumoso nem repetição de
+testes comuns.
 
-```markdown
-# Dificuldades
-- sintoma / bloqueio
-- causa confirmada ou hipótese explicitamente marcada
-- resolução, workaround ou decisão de parar
-- lição reutilizável, quando houver
-
-# Ferramentas auxiliares
-- ferramenta usada, criada ou atualizada
-- lifecycle: USE | UPGRADE | CREATE
-- caminho
-- finalidade
-- destino: RETAINED | DISCARDED | PROMOTED
-```
-
-Se não houve dificuldade material ou ferramenta auxiliar, registrar `nenhuma` na seção correspondente. Não registrar narrativa de rotina, cadeia de pensamento, log bruto volumoso ou repetição de testes comuns.
-
-Checkpoints e `/pinker/artifacts/tasks/<task-id>/` continuam responsáveis por estado de retomada, evidência detalhada e resultados de validação. `/pinker/msg` registra memória operacional humana/agente, não substitui checkpoint nem artifact.
+Se a retenção não estiver autorizada ou disponível, preserve o candidato pendente e
+reporte a dívida de conhecimento. Isso **não** bloqueia a finalização da Task, salvo
+se o contrato da própria Task fizer do Book um gate explícito.
 
 ## O que sempre checar em mudança funcional
 
@@ -315,11 +401,11 @@ Mesmo durante o freeze, estes arquivos podem ser lidos para contexto, mas não d
 ## Fluxo curto recomendado
 
 1. Ler `README.md`, `docs/atlas.md`, `docs/handoff_codex.md`, `docs/doc_rules.md` apenas na medida necessária para contexto.
-2. Exportar `TASK_ID`, `TASKDIR` e `CARGO_TARGET_DIR` (ver *Diretório de build por Task*) e rodar `make ci`.
+2. Concluir o *Bootstrap de Task* — recuperar Task/active context, resolver os paths reais, configurar build/cache/`TMPDIR`, confirmar cobertura no `fl --report` — e só então rodar `make ci`.
 3. Localizar a camada afetada em `docs/code_map.md`.
 4. Escolher um exemplo/teste próximo em `docs/examples_index.md`.
 5. Fazer o menor diff auditável que cumpra o contrato adulto da Task.
-6. Revalidar. Durante o freeze, não atualizar docs canônicos; registrar somente o resumo mínimo da PR e a memória operacional em `/pinker/msg`.
+6. Revalidar. Durante o freeze, não atualizar docs canônicos; registrar somente o resumo mínimo da PR e, quando houver conhecimento reutilizável, a retenção no Book sob a autoridade dele.
 
 ## Checklist de fechamento
 
@@ -327,10 +413,10 @@ Mesmo durante o freeze, estes arquivos podem ser lidos para contexto, mas não d
 - testes/exemplos ajustados, se aplicável
 - documentação canônica preservada durante o freeze ou atualizada apenas sob exceção humana explícita
 - registro mínimo da PR: o quê, onde, como e por quê
-- dificuldades e ferramentas auxiliares registradas em `/pinker/msg`, quando aplicável
+- dificuldades e ferramentas auxiliares avaliadas para retenção no Book, quando houver valor reutilizável e autoridade para escrever; candidato pendente registrado caso contrário
 - `make ci` executado
 - diff auditável
 - continuidade preservada
 - build da Task gravado em `/pinker/caches/target/tasks/<task-id>`, e não em `<worktree>/target`
-- ponte `<worktree>/target/debug/libpinker_rt.a` criada, sem a qual os gates nativos falham por fixture
-- `fl --report` conferido antes de `fl`: se a Task compilou, o slot `kind: cache` precisa acusar bytes; `CLEAN_NOOP` com `reclaimed_bytes: 0` após um build é vazamento, não limpeza
+- **quando a Task executa os fixtures que dependem de paths históricos** (`part_d_native_process_tests`, sandbox nativo): ponte da staticlib criada
+- `fl --report` conferido antes de `fl`; `CLEAN_NOOP` interpretado conforme *Como ler `CLEAN_NOOP` no fechamento*, não como prova automática de vazamento
