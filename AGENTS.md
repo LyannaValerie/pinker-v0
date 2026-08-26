@@ -160,10 +160,12 @@ Exceção conhecida: `tests/native_quarantine_recovery_tests.rs` **não** compar
 a raiz. Ele monta uma raiz única por caso sob `target/pinker-quarantine-recovery/`,
 com pid e sequência atômica, justamente para não tocar o repositório real.
 
-Ao investigar falha intermitente nos alvos que *de fato* compartilham a raiz,
-considere interferência no sandbox antes de concluir regressão: os testes usam
-guarda serial dentro de cada binário, mas `cargo test` roda binários de integração
-em paralelo e a raiz é comum entre eles.
+Ao investigar falha intermitente nesses alvos, considere interferência no sandbox
+antes de concluir regressão. O isolamento entre execuções é por **nome único**
+(`exec-{pid}-{seq}`, em `tests/common/native_process_sandbox.rs`), não por
+serialização — não procure um lock que não existe. A superfície de corrida é o
+diretório-pai `target/pinker-exec/`, na criação, validação e limpeza, e `cargo test`
+roda os binários de integração em paralelo sobre ele.
 
 **2. A ponte da staticlib é exigida por um único alvo.**
 
@@ -280,8 +282,8 @@ dele vira argumento de runtime de `--run`. Logo:
 ```
 
 O segundo `--` só existe no modo compilador/execução (`pink [OPÇÕES] ARQUIVO -- ARGS`).
-Subcomando (`nav`, `doc`, `doctor`, `verificar`, `estado`, `agente`) nunca leva o `--`
-extra.
+Nenhum subcomando leva o `--` extra. Descubra a lista corrente com `pink --help`
+em vez de confiar numa transcrição.
 
 Marco documental e política forward-only: `.pinker/doc.toml`. Manifestos versionados: `.pinker/changes/`.
 
@@ -418,7 +420,7 @@ Fim. Responder de forma breve e factual. Validação executada e o bloco estrutu
 
 Não transformar corpo de PR, commit ou checkpoint em nova documentação paralela da Pinker.
 
-### Memória operacional de dificuldades e ferramentas
+### Conhecimento operacional de dificuldades e ferramentas
 
 O registro operacional mais valioso para agentes durante essas campanhas vive fora
 da documentação congelada. O destino atual é o **Book**, o overlay histórico e
@@ -431,7 +433,7 @@ checkpoint          = estado operacional mínimo para retomada
 artifacts/tasks/... = evidência detalhada e resultados de validação
 ```
 
-Não escreva memória nova em `/pinker/msg`. Quando o arquivo existir, trate-o como
+Não escreva conhecimento novo em `/pinker/msg`. Quando o arquivo existir, trate-o como
 entrada histórica a migrar oportunamente, preservando a proveniência; não faça
 dual-write nem backfill em massa. Se uma autoridade viva e explícita ainda exigir
 escrita em `/pinker/msg` para uma operação específica, essa autoridade estreita
