@@ -197,6 +197,55 @@ pub const HISTORICAL_PUBLIC_SPELLINGS: &[&str] = &[
     "verso_para_bombom",
 ];
 
+/// Grafias históricas que são **alias público** de uma grafia adulta, não
+/// identidade semântica própria.
+///
+/// Autoridade única da relação `alias -> identidade canônica`. A Founder
+/// aprovou em #525 as três unificações levantadas pela revisão taxonômica de
+/// #505: cada par abaixo já compartilhava semântica, assinatura, modelo de
+/// falha e símbolo de runtime, e só permanecia como duas identidades porque
+/// `IntrinsicIdentity::Historical` carrega a grafia.
+///
+/// ```text
+/// LEGACY_PUBLIC_SPELLING != DISTINCT_CANONICAL_IDENTITY
+/// MULTIPLE_PUBLIC_SPELLINGS -> ONE_CANONICAL_INTRINSIC_IDENTITY
+/// ```
+///
+/// O alias continua público e reconhecido; o que ele deixa de ter é identidade
+/// separada. Consumidores de fase (`semantic`, `interpreter`, `backend_s`)
+/// consultam esta autoridade em vez de reinventar equivalência nominal, e a
+/// gramática de argv continua sendo dita por `runtime/pinker_argv_contract`.
+///
+/// Cada entrada é `(alias, grafia adulta)`. A grafia adulta nunca é ela mesma
+/// um alias, e ambas as grafias precisam existir em
+/// [`HISTORICAL_PUBLIC_SPELLINGS`] — as duas condições são verificadas por
+/// teste, para que uma quarta equivalência não entre por descuido.
+pub const HISTORICAL_CANONICAL_ALIASES: &[(&str, &str)] = &[
+    ("argumento_nomeado_ou", "pedir_argumento"),
+    ("argumento_nomeado_ou_ambiente_ou", "buscar_contexto"),
+    ("tem_argumento_nomeado", "tem_chave"),
+];
+
+/// Grafia adulta representada por uma grafia histórica, quando ela é alias.
+///
+/// `None` significa que a grafia responde por si mesma — não que ela seja
+/// desconhecida.
+pub fn canonical_alias_target(spelling: &str) -> Option<&'static str> {
+    HISTORICAL_CANONICAL_ALIASES
+        .iter()
+        .find(|(alias, _)| *alias == spelling)
+        .map(|(_, canonical)| *canonical)
+}
+
+/// Único construtor de identidade histórica: colapsa alias na grafia adulta.
+///
+/// Toda entrada da superfície histórica passa por aqui, inclusive a que chega
+/// por alias de família, para que a relação `grafia -> identidade` tenha uma
+/// autoridade só.
+fn historical_identity(spelling: &'static str) -> IntrinsicIdentity {
+    IntrinsicIdentity::Historical(canonical_alias_target(spelling).unwrap_or(spelling))
+}
+
 /// Resolve uma grafia canônica global, sem aliases ativados por import de família.
 pub fn canonical_public_intrinsic_spelling(spelling: &str) -> Option<PublicIntrinsicSpelling> {
     if let Some(surface) = SUPERFICIES_FALIVEIS
@@ -237,14 +286,14 @@ pub fn canonical_public_intrinsic_spelling(spelling: &str) -> Option<PublicIntri
         .find(|candidate| *candidate == spelling)
         .map(|spelling| PublicIntrinsicSpelling {
             spelling,
-            identity: IntrinsicIdentity::Historical(spelling),
+            identity: historical_identity(spelling),
             origin: PublicIntrinsicOrigin::Historical,
         })
 }
 
 fn family_identity(identity: IdentidadeCanonica) -> IntrinsicIdentity {
     match identity {
-        IdentidadeCanonica::Historica(spelling) => IntrinsicIdentity::Historical(spelling),
+        IdentidadeCanonica::Historica(spelling) => historical_identity(spelling),
         IdentidadeCanonica::Falivel(operation) => IntrinsicIdentity::Fallible(operation),
     }
 }
@@ -324,7 +373,7 @@ fn authority_entries() -> Vec<PublicIntrinsicSpelling> {
     entries.extend(HISTORICAL_PUBLIC_SPELLINGS.iter().copied().map(|spelling| {
         PublicIntrinsicSpelling {
             spelling,
-            identity: IntrinsicIdentity::Historical(spelling),
+            identity: historical_identity(spelling),
             origin: PublicIntrinsicOrigin::Historical,
         }
     }));
@@ -409,6 +458,74 @@ mod tests {
                     | PublicIntrinsicOrigin::FamilyAlias { .. }
             )
         }));
+    }
+
+    #[test]
+    fn alias_registry_is_structurally_sound() {
+        let mut seen = BTreeMap::new();
+        for (alias, canonical) in HISTORICAL_CANONICAL_ALIASES {
+            assert!(
+                HISTORICAL_PUBLIC_SPELLINGS.contains(alias),
+                "alias fora da superfície histórica pública: {alias}"
+            );
+            assert!(
+                HISTORICAL_PUBLIC_SPELLINGS.contains(canonical),
+                "grafia adulta fora da superfície histórica pública: {canonical}"
+            );
+            assert_ne!(alias, canonical, "alias não pode apontar para si mesmo");
+            assert!(
+                canonical_alias_target(canonical).is_none(),
+                "grafia adulta {canonical} é ela mesma um alias; a relação precisa ter um nível só"
+            );
+            assert!(
+                seen.insert(*alias, *canonical).is_none(),
+                "alias declarado duas vezes: {alias}"
+            );
+        }
+    }
+
+    #[test]
+    fn founder_unifications_are_the_only_historical_collapses() {
+        // #525 unifica exatamente três pares. Uma quarta equivalência entrando
+        // por descuido quebra aqui antes de chegar a qualquer consumidor.
+        assert_eq!(HISTORICAL_CANONICAL_ALIASES.len(), 3);
+        assert_eq!(
+            HISTORICAL_CANONICAL_ALIASES,
+            &[
+                ("argumento_nomeado_ou", "pedir_argumento"),
+                ("argumento_nomeado_ou_ambiente_ou", "buscar_contexto"),
+                ("tem_argumento_nomeado", "tem_chave"),
+            ]
+        );
+
+        let mut historical_identities = BTreeMap::new();
+        for spelling in HISTORICAL_PUBLIC_SPELLINGS.iter().copied() {
+            let identity = historical_identity(spelling);
+            let IntrinsicIdentity::Historical(canonical) = identity else {
+                panic!("grafia histórica {spelling} produziu identidade não histórica");
+            };
+            historical_identities
+                .entry(canonical)
+                .or_insert_with(Vec::new)
+                .push(spelling);
+        }
+        let collapsed: Vec<_> = historical_identities
+            .iter()
+            .filter(|(_, spellings)| spellings.len() > 1)
+            .map(|(canonical, spellings)| (*canonical, spellings.clone()))
+            .collect();
+        assert_eq!(
+            collapsed,
+            vec![
+                ("buscar_contexto", vec!["argumento_nomeado_ou_ambiente_ou", "buscar_contexto"]),
+                ("pedir_argumento", vec!["argumento_nomeado_ou", "pedir_argumento"]),
+                ("tem_chave", vec!["tem_argumento_nomeado", "tem_chave"]),
+            ]
+        );
+        assert_eq!(
+            historical_identities.len(),
+            HISTORICAL_PUBLIC_SPELLINGS.len() - HISTORICAL_CANONICAL_ALIASES.len()
+        );
     }
 
     #[test]
