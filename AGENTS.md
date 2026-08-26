@@ -14,7 +14,7 @@ dele.
    do prompt nem de um nome inventado:
 
    ```bash
-   sudo -n forja-lifecycle show
+   sudo -n /opt/pinker/bin/forja-lifecycle show
    ```
 
 2. Se precisar de diagnóstico de ambiente antes de ter árvore construída, use o
@@ -35,7 +35,7 @@ dele.
    da Task, não.
 
    ```bash
-   sudo -n forja-task-storage show          # namespaces root-gated provisionados
+   sudo -n /opt/pinker/bin/forja-task-storage show   # namespaces root-gated
    fl --report --json                       # slots efêmeros registrados da Task
    git rev-parse --show-toplevel            # raiz real da worktree
    ```
@@ -44,7 +44,7 @@ dele.
    de build que o finalizador sabe liberar. Use aquele valor; não o reconstrua.
 
    ```bash
-   TASK_ID=$(sudo -n forja-lifecycle show | python3 -c 'import json,sys;print(json.load(sys.stdin)["context"]["task"])')
+   TASK_ID=$(sudo -n /opt/pinker/bin/forja-lifecycle show | python3 -c 'import json,sys;print(json.load(sys.stdin)["context"]["task"])')
    TASKDIR=$(git rev-parse --show-toplevel)
    CARGO_TARGET_DIR=$(fl --report --json | python3 -c 'import json,sys;print(next(r["path"] for r in json.load(sys.stdin)["storage"]["resources"] if r["kind"]=="cache"))')
    export TASK_ID TASKDIR CARGO_TARGET_DIR
@@ -54,6 +54,18 @@ dele.
    `/pinker/worktrees/tasks/<task-id>` e `/pinker/caches/target/tasks/<task-id>`
    são o layout canônico *ilustrativo*; trate-os como verdade apenas quando o
    observador atual os confirmar.
+
+   Dois detalhes que quebram o bloco acima se ignorados:
+
+   - **Use caminho absoluto no `sudo`.** O `secure_path` do sudoers não inclui
+     `/opt/pinker/bin`, e a regra é concedida por caminho absoluto. `sudo -n
+     forja-lifecycle show` falha com `command not found`, e dentro de uma
+     substituição de comando esse erro é engolido: `TASK_ID` sai vazio e o
+     `export` seguinte não reclama. Confira que `TASK_ID` não está vazio.
+   - **`fl --report` pode sair com código diferente de zero** (por exemplo 10,
+     quando há blocker) mesmo produzindo JSON válido. Sob `set -euo pipefail`
+     isso aborta o script. Capture o valor antes de habilitar `pipefail`, ou
+     trate o código de saída explicitamente.
 
 4. Exporte `TMPDIR` somente para um namespace real e autorizado. Se o slot `tmp`
    da Task não existir ou não for gravável pelo perfil corrente, **não** aponte
@@ -133,20 +145,25 @@ Consequências práticas:
 - Trocar `<repo>/target` por symlink para fora da árvore é **rejeitado**: a raiz é
   canonicalizada e precisa continuar contida em `repo_root`.
 
-Herdam esse comportamento, via helper compartilhado:
+O sandbox é criado dentro de `ControlledCommand::output()`
+(`tests/common/native_process.rs`), então **todo** alvo que use `ControlledCommand`
+herda a raiz compartilhada — hoje 40 arquivos de teste, não um punhado:
 
-```text
-tests/native_cleanup_tests.rs
-tests/native_process_control_tests.rs
-tests/native_quarantine_recovery_tests.rs
-tests/part_d_native_process_tests.rs
-scripts/pinker-cleanup.sh
-scripts/pinker-flake-runner.sh
+```bash
+git grep -l "ControlledCommand" -- 'tests/*.rs' | wc -l
 ```
 
-Esses alvos compartilham a mesma raiz de sandbox. Ao investigar falha intermitente
-neles sob execução paralela, considere interferência no sandbox compartilhado antes
-de concluir regressão.
+Descubra a lista pelo comando acima; não confie numa enumeração transcrita aqui,
+que envelhece a cada Task.
+
+Exceção conhecida: `tests/native_quarantine_recovery_tests.rs` **não** compartilha
+a raiz. Ele monta uma raiz única por caso sob `target/pinker-quarantine-recovery/`,
+com pid e sequência atômica, justamente para não tocar o repositório real.
+
+Ao investigar falha intermitente nos alvos que *de fato* compartilham a raiz,
+considere interferência no sandbox antes de concluir regressão: os testes usam
+guarda serial dentro de cada binário, mas `cargo test` roda binários de integração
+em paralelo e a raiz é comum entre eles.
 
 **2. A ponte da staticlib é exigida por um único alvo.**
 
@@ -155,7 +172,15 @@ de concluir regressão.
 | `tests/part_d_native_process_tests.rs:114` | `<repo>/target/debug/libpinker_rt.a` | **sim** |
 | demais alvos da lista acima | `<repo>/target/pinker-exec/` | não |
 
-Só `part_d_native_process_tests` procura a staticlib pela raiz do repositório. Se a
+Dois lugares resolvem a staticlib a partir do diretório corrente em vez de
+`CARGO_TARGET_DIR`, mas só um deles falha:
+
+- `tests/part_d_native_process_tests.rs:114-115` usa `assert!` duro e quebra com
+  `staticlib nativa ausente`;
+- `tests/common/native_process.rs:1314-1316` devolve `Option` e degrada para
+  `None`, sendo usado apenas para hash de proveniência.
+
+Portanto a ponte é exigida por `part_d_native_process_tests` e por mais nada. Se a
 sua Task não executa esse alvo, **não crie ponte alguma**.
 
 Quando ele for aplicável, ligue o artefato real ao caminho esperado depois do
@@ -170,70 +195,28 @@ Sem a ponte, os 8 testes de `part_d_native_process_tests` falham com
 `staticlib nativa ausente` — falha de fixture, não regressão de código. Confira o
 local do panic antes de investigar semântica.
 
-Em ambos os casos `<worktree>/target` guarda apenas o symlink e o sandbox: dezenas
-de kilobytes, não gigabytes. O peso do build continua no slot registrado.
+Em ambos os casos o peso do build continua no slot registrado e `<worktree>/target`
+fica na casa das dezenas de kilobytes. Ele **não** guarda só o symlink: os fixtures
+criam suas próprias raízes ali (`pinker-exec/`, `pinker-cleanup-fake/`,
+`pinker-host-fixtures/`, `pinker-quarantine-recovery/` e outras, conforme os alvos
+que a Task executar). Todas são contenção, não resíduo. Meça com `du -sh target/`
+em vez de assumir a lista.
 
-### Como ler `CLEAN_NOOP` no fechamento
+### Se um caminho físico longo bloquear a Task
 
-`CLEAN_NOOP` é resultado terminal legítimo do finalizador: significa que nada
-registrado restava para liberar — inclusive quando os recursos já foram finalizados
-ou reclamados numa passagem anterior autorizada. Não trate ausência de bytes como
-prova de vazamento, e não fabrique trabalho para transformá-lo em `CLEAN`.
-
-A suspeita só se justifica quando todas as condições valem ao mesmo tempo:
-
-```text
-primeira finalização após um build conhecido desta Task
-+ nenhuma limpeza/finalização autorizada anterior
-+ slot de cache registrado e esperado
-+ bytes_before = 0
-=> SUSPECT_UNCOVERED_BUILD, investigar antes de encerrar
-```
-
-E preserve explicitamente o caso oposto:
-
-```text
-já finalizado/reclamado legitimamente antes
-+ CLEAN_NOOP
-=> resultado limpo e válido
-```
-
-### Ponte da staticlib — condicional aos fixtures que usam paths históricos
-
-Alguns fixtures nativos resolvem paths a partir da raiz do repositório e por isso
-**não** enxergam `CARGO_TARGET_DIR`. Os casos comprovados hoje são:
-
-| fixture | path histórico exigido |
-|---|---|
-| `tests/part_d_native_process_tests.rs:114` | `<repo>/target/debug/libpinker_rt.a` |
-| sandbox de execução nativa | `<repo>/target/pinker-exec/` |
-
-Isso é uma propriedade desses fixtures, **não** de todo gate nativo. Se a sua Task
-não executa esse recorte, não crie ponte alguma.
-
-Quando um desses gates for aplicável, ligue o artefato real ao caminho esperado
-depois do primeiro build:
-
-```bash
-mkdir -p "$TASKDIR/target/debug"
-ln -sfn "$CARGO_TARGET_DIR/debug/libpinker_rt.a" "$TASKDIR/target/debug/libpinker_rt.a"
-```
-
-Sem a ponte, os 8 testes de `part_d_native_process_tests` falham com
-`staticlib nativa ausente` — falha de fixture, não regressão de código. Confira o
-local do panic antes de investigar semântica. Com a ponte, `<worktree>/target`
-guarda só o symlink e o sandbox: dezenas de kilobytes, não gigabytes.
-
-### Caminho físico e `SUN_LEN`
-
-Fixtures nativos bindam socket unix sob `<repo>/target/pinker-exec/`, e o limite de
-`SUN_LEN` é 108 bytes. Uma worktree de caminho longo estoura esse limite dentro do
-fixture, antes de qualquer código Pinker executar.
-
-Encurte o **caminho físico** da worktree por mecanismo autorizado da Forja,
-preservando o `TASK_ID`. Se não houver mecanismo autorizado disponível, classifique
+Se um fixture falhar por limite de caminho — `AF_UNIX path too long`, `SUN_LEN`,
+`path must be shorter than SUN_LEN` —, encurte o **caminho físico** por mecanismo
+autorizado da Forja, preservando o `TASK_ID`. Sem mecanismo autorizado, classifique
 como blocker de ambiente e reporte. Nunca altere ou encurte a identidade da Task
-para caber num socket: identidade não é parâmetro de conveniência.
+para caber num socket: identidade não é parâmetro de conveniência, e o `TASK_ID` é
+a chave pela qual o active context, o `fl` e os artefatos se encontram.
+
+Nota de escopo, para não mandar ninguém caçar fantasma: os binds de socket unix
+hoje presentes em `tests/native_process_control_tests.rs` usam caminhos
+**relativos** sob `target/` (não sob `pinker-exec/`), e um caminho relativo entra
+em `sun_path` como foi escrito — o comprimento da worktree não é contabilizado.
+Verifique onde o panic realmente ocorreu antes de atribuir a falha ao comprimento
+do caminho.
 
 ## Entrada pela Trama Pinker
 
@@ -303,6 +286,9 @@ extra.
 Marco documental e política forward-only: `.pinker/doc.toml`. Manifestos versionados: `.pinker/changes/`.
 
 ## Comandos padrão
+
+Em Task da Forja, todos os comandos desta seção e da seguinte pressupõem o
+*Bootstrap de Task* concluído — em particular `CARGO_TARGET_DIR` já exportado.
 
 ```bash
 make preflight
