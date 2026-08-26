@@ -108,6 +108,96 @@ já finalizado/reclamado legitimamente antes
 => resultado limpo e válido
 ```
 
+### Raiz de execução nativa e ponte da staticlib
+
+Duas coisas diferentes ancoram em `<repo>/target`, e só uma delas é uma ponte a
+criar. Não as confunda.
+
+**1. A raiz de execução nativa é contenção deliberada, não path histórico.**
+
+`tests/common/native_process_sandbox.rs` resolve a raiz assim:
+
+```rust
+let repo_root = discover_repo_root()?.canonicalize()?;
+let target = repo_root.join("target");       // ignora CARGO_TARGET_DIR por desenho
+let root   = target.join("pinker-exec");
+if !canonical_root.starts_with(&repo_root) { /* PermissionDenied */ }
+```
+
+O sandbox é ancorado à raiz canônica do repositório **de propósito** — é a
+autoridade de contenção descrita em `development.native-execution-host-containment`.
+Consequências práticas:
+
+- `<worktree>/target/pinker-exec/` será criado mesmo com `CARGO_TARGET_DIR`
+  apontado para fora. Isso é contenção, não resíduo, e não deve ser "consertado".
+- Trocar `<repo>/target` por symlink para fora da árvore é **rejeitado**: a raiz é
+  canonicalizada e precisa continuar contida em `repo_root`.
+
+Herdam esse comportamento, via helper compartilhado:
+
+```text
+tests/native_cleanup_tests.rs
+tests/native_process_control_tests.rs
+tests/native_quarantine_recovery_tests.rs
+tests/part_d_native_process_tests.rs
+scripts/pinker-cleanup.sh
+scripts/pinker-flake-runner.sh
+```
+
+Esses alvos compartilham a mesma raiz de sandbox. Ao investigar falha intermitente
+neles sob execução paralela, considere interferência no sandbox compartilhado antes
+de concluir regressão.
+
+**2. A ponte da staticlib é exigida por um único alvo.**
+
+| alvo | path exigido | precisa de ponte |
+|---|---|---|
+| `tests/part_d_native_process_tests.rs:114` | `<repo>/target/debug/libpinker_rt.a` | **sim** |
+| demais alvos da lista acima | `<repo>/target/pinker-exec/` | não |
+
+Só `part_d_native_process_tests` procura a staticlib pela raiz do repositório. Se a
+sua Task não executa esse alvo, **não crie ponte alguma**.
+
+Quando ele for aplicável, ligue o artefato real ao caminho esperado depois do
+primeiro build:
+
+```bash
+mkdir -p "$TASKDIR/target/debug"
+ln -sfn "$CARGO_TARGET_DIR/debug/libpinker_rt.a" "$TASKDIR/target/debug/libpinker_rt.a"
+```
+
+Sem a ponte, os 8 testes de `part_d_native_process_tests` falham com
+`staticlib nativa ausente` — falha de fixture, não regressão de código. Confira o
+local do panic antes de investigar semântica.
+
+Em ambos os casos `<worktree>/target` guarda apenas o symlink e o sandbox: dezenas
+de kilobytes, não gigabytes. O peso do build continua no slot registrado.
+
+### Como ler `CLEAN_NOOP` no fechamento
+
+`CLEAN_NOOP` é resultado terminal legítimo do finalizador: significa que nada
+registrado restava para liberar — inclusive quando os recursos já foram finalizados
+ou reclamados numa passagem anterior autorizada. Não trate ausência de bytes como
+prova de vazamento, e não fabrique trabalho para transformá-lo em `CLEAN`.
+
+A suspeita só se justifica quando todas as condições valem ao mesmo tempo:
+
+```text
+primeira finalização após um build conhecido desta Task
++ nenhuma limpeza/finalização autorizada anterior
++ slot de cache registrado e esperado
++ bytes_before = 0
+=> SUSPECT_UNCOVERED_BUILD, investigar antes de encerrar
+```
+
+E preserve explicitamente o caso oposto:
+
+```text
+já finalizado/reclamado legitimamente antes
++ CLEAN_NOOP
+=> resultado limpo e válido
+```
+
 ### Ponte da staticlib — condicional aos fixtures que usam paths históricos
 
 Alguns fixtures nativos resolvem paths a partir da raiz do repositório e por isso
@@ -418,5 +508,5 @@ Mesmo durante o freeze, estes arquivos podem ser lidos para contexto, mas não d
 - diff auditável
 - continuidade preservada
 - build da Task gravado em `/pinker/caches/target/tasks/<task-id>`, e não em `<worktree>/target`
-- **quando a Task executa os fixtures que dependem de paths históricos** (`part_d_native_process_tests`, sandbox nativo): ponte da staticlib criada
+- **somente quando a Task executa `part_d_native_process_tests`**: ponte da staticlib criada; os demais alvos de sandbox nativo não precisam dela
 - `fl --report` conferido antes de `fl`; `CLEAN_NOOP` interpretado conforme *Como ler `CLEAN_NOOP` no fechamento*, não como prova automática de vazamento
