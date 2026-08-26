@@ -7,15 +7,61 @@ Guia operacional curto para agentes neste repositório. Não substitui `README.m
 A documentação é dual: portais Markdown para humanos, catálogos consultáveis para agentes. Para não varrer `docs/` ou `src/` indiscriminadamente:
 
 1. Leia `README.md` e `docs/atlas.md` (o Atlas aponta para territórios).
-2. Descubra destinos: `pink doc rota "<intenção>"`.
-3. Extraia só a seção necessária: `pink doc mostrar <id>` (ex.: `rosa.identity`).
-4. Antes de abrir arquivos grandes de código: `pink nav buscar "<conceito>"` e `pink nav mostrar <chave>`.
+2. Descubra destinos: `./ci_env.sh cargo run --bin pink -- doc rota "<intenção>"`.
+3. Extraia só a seção necessária: `./ci_env.sh cargo run --bin pink -- doc mostrar <id>` (ex.: `rosa.identity`).
+4. Antes de abrir arquivos grandes de código: `./ci_env.sh cargo run --bin pink -- nav buscar "<conceito>"` e `... -- nav mostrar <chave>`.
 5. Leia o `README.md` local do território antes de alterá-lo.
 6. Ao alterar código, mantenha as âncoras `@pinker-nav:start/end`.
 7. Ao alterar documentação, mantenha IDs, frontmatter e âncoras `@pinker-doc`.
-8. Para PRs posteriores ao marco (#330), mantenha o bloco ` ```pinker-change ` e rode `pink doc importar-pr <n> --corpo <arquivo>`; o importador serializa campos textuais livres como escalares YAML canônicos.
-9. Regenere catálogos com `pink doc sincronizar` e `pink nav sincronizar`; valide com `make ci` (inclui `docs-check` e `nav-check`).
+8. Para PRs posteriores ao marco (#330), mantenha o bloco ` ```pinker-change ` e rode `./ci_env.sh cargo run --bin pink -- doc importar-pr <n> --corpo <arquivo>`; o importador serializa campos textuais livres como escalares YAML canônicos.
+9. Regenere catálogos com `./ci_env.sh cargo run --bin pink -- doc sincronizar` e `... -- nav sincronizar`; valide com `make ci` (inclui `docs-check` e `nav-check`).
 10. Não invente estado, testes, histórico ou memória; não faça backfill retroativo (PRs ≤ #330 são rejeitados).
+
+### Use o `pink` da árvore, não o `pink` da Forja
+
+O `pink` instalado na Forja (`/opt/pinker/bin/pink`) é um **release congelado**: ele
+carrega o commit de quando foi publicado, não o estado presente do repositório.
+Confirme com `pink --version-json` — o campo `binary_commit` é o commit do release,
+e `pink doctor` reporta `compatibility: COMPATIBLE_ANCESTOR` justamente quando ele
+está atrás do `HEAD`.
+
+Em Task neste repositório, **ignore o `pink` da Forja** e use sempre o binário
+construído da própria árvore:
+
+```bash
+./ci_env.sh cargo run --bin pink -- <subcomando> [args...]
+```
+
+Isso vale inclusive para subcomandos que hoje parecem equivalentes: a equivalência
+é uma coincidência do commit corrente, não um contrato. Um catálogo, uma receita de
+projeção ou uma regra de `doc` que mudou na sua Task só é enxergada pelo binário da
+árvore.
+
+O `pink` da Forja permanece útil para uma coisa só: diagnóstico de ambiente fora de
+Task (`pink doctor`, `pink --version-json`), quando você ainda não tem árvore
+construída.
+
+### A regra do `--`
+
+`cargo run` repassa verbatim tudo que vem depois do **primeiro** `--`. O `pink`, por
+sua vez, também trata o primeiro `--` do próprio `argv` como separador — tudo depois
+dele vira argumento de runtime de `--run`. Logo:
+
+```bash
+# CERTO — subcomando
+./ci_env.sh cargo run --bin pink -- nav buscar "receita"
+
+# ERRADO — o pink recebe `--` como primeiro argumento, não vê o subcomando
+# e termina com "Uso inválido: nenhum argumento informado." (exit 2)
+./ci_env.sh cargo run --bin pink -- -- nav buscar "receita"
+
+# CERTO — dois `--`: o segundo é o separador de argv do programa Pinker
+./ci_env.sh cargo run --bin pink -- --run apps/guardiao_pinker/principal.pink -- --repo .
+```
+
+O segundo `--` só existe no modo compilador/execução (`pink [OPÇÕES] ARQUIVO -- ARGS`).
+Subcomando (`nav`, `doc`, `doctor`, `verificar`, `estado`, `agente`) nunca leva o `--`
+extra.
 
 Marco documental e política forward-only: `.pinker/doc.toml`. Manifestos versionados: `.pinker/changes/`.
 
@@ -35,7 +81,68 @@ make audit-example EX=examples/principal_valida.pink
 make smoke
 ```
 
-Sem `make`:
+### Diretório de build por Task (obrigatório em Task da Forja)
+
+Por padrão o Cargo grava em `<worktree>/target`. Esse caminho **não pertence a
+nenhum escopo efêmero registrado**: o finalizador `fl` classifica a worktree
+inteira como `preserved` e nunca a libera. O resultado observado é um `fl` que
+reporta `CLEAN_NOOP` com `reclaimed_bytes: 0` enquanto dezenas de gigabytes de
+build ficam para trás.
+
+Antes do primeiro `cargo`/`make` da Task, exporte o alvo para o slot que o `fl`
+inventaria:
+
+```bash
+export TASK_ID=<task-id>                       # o mesmo id do active context
+export TASKDIR=/pinker/worktrees/tasks/$TASK_ID
+export CARGO_TARGET_DIR=/pinker/caches/target/tasks/$TASK_ID
+export TMPDIR=/pinker/work/tasks/$TASK_ID/tmp  # quando o namespace existir
+mkdir -p "$CARGO_TARGET_DIR"
+cd "$TASKDIR"
+```
+
+Confirme que o slot entrou no escopo antes de compilar — o `fl` deve listar o
+`kind: cache` apontando para o seu `CARGO_TARGET_DIR`:
+
+```bash
+fl --report --json
+```
+
+#### Ponte obrigatória para os gates nativos
+
+Os gates nativos **não respeitam `CARGO_TARGET_DIR`**: `part_d_native_process_tests`
+procura a staticlib literalmente em `<repo>/target/debug/libpinker_rt.a`
+(`tests/part_d_native_process_tests.rs:114`), e o sandbox de execução é criado em
+`<repo>/target/pinker-exec/`. Com o alvo fora da árvore, os 8 testes de
+`part_d_native_process_tests` falham com `staticlib nativa ausente` — falha de
+fixture, **não** regressão de código.
+
+Ligue o artefato real ao caminho que o harness espera, depois do primeiro build:
+
+```bash
+mkdir -p "$TASKDIR/target/debug"
+ln -sfn "$CARGO_TARGET_DIR/debug/libpinker_rt.a" "$TASKDIR/target/debug/libpinker_rt.a"
+```
+
+`<worktree>/target` continua existindo, mas passa a conter só o symlink e o sandbox
+`pinker-exec` — dezenas de megabytes em vez de gigabytes. O `debug/` pesado, o
+`doc/` do rustdoc e as dependências ficam no slot que o `fl` limpa.
+
+Cuidado adicional com o comprimento do caminho: o fixture de processos binda socket
+unix sob `<repo>/target/pinker-exec/`, e o limite de `SUN_LEN` é 108 bytes. Uma
+worktree de caminho longo estoura esse limite dentro do fixture, antes de qualquer
+código Pinker rodar. Mantenha o id da Task curto.
+
+Se `fl --report` não listar o seu diretório de build, ele não será limpo no
+fechamento. Isso é uma lacuna de cobertura a resolver **antes** de construir, não
+depois.
+
+No fechamento, `CLEAN_NOOP` com `reclaimed_bytes: 0` só é um sucesso legítimo se a
+Task realmente não compilou nada. **Se a Task compilou e o slot de cache reporta
+`bytes_before: 0`, o build vazou para fora do escopo**: localize-o e registre a
+lacuna antes de encerrar.
+
+## Comandos sem `make`
 
 ```bash
 ./ci_env.sh --preflight
@@ -53,6 +160,11 @@ Sem `make`:
 - Suíte oficial é **stable-only** no toolchain fixado pelo repositório.
 - Não depender de nightly nem de `-Z unstable-options`.
 - Caminho oficial precisa passar por `./ci_env.sh`, que saneia `RUSTFLAGS` e `CARGO_ENCODED_RUSTFLAGS` e expõe preflight mínimo de diagnóstico.
+- `ci_env.sh` **não** define `CARGO_TARGET_DIR`: quem opera uma Task da Forja é
+  responsável por exportá-lo para `/pinker/caches/target/tasks/<task-id>` antes do
+  primeiro build, conforme *Diretório de build por Task*.
+- Em Task, invoque o `pink` da árvore (`./ci_env.sh cargo run --bin pink -- ...`),
+  não o release da Forja em `/opt/pinker/bin/pink`.
 - Specs delegados do Pink Agent não autorizam executáveis por si: shell exige
   `PINKER_AGENT_ALLOW_SHELL`, programas externos exigem
   `PINKER_AGENT_EXECUTABLE_ALLOWLIST`, e I/O do runner permanece confinado sem
@@ -203,7 +315,7 @@ Mesmo durante o freeze, estes arquivos podem ser lidos para contexto, mas não d
 ## Fluxo curto recomendado
 
 1. Ler `README.md`, `docs/atlas.md`, `docs/handoff_codex.md`, `docs/doc_rules.md` apenas na medida necessária para contexto.
-2. Rodar `make ci`.
+2. Exportar `TASK_ID`, `TASKDIR` e `CARGO_TARGET_DIR` (ver *Diretório de build por Task*) e rodar `make ci`.
 3. Localizar a camada afetada em `docs/code_map.md`.
 4. Escolher um exemplo/teste próximo em `docs/examples_index.md`.
 5. Fazer o menor diff auditável que cumpra o contrato adulto da Task.
@@ -219,3 +331,6 @@ Mesmo durante o freeze, estes arquivos podem ser lidos para contexto, mas não d
 - `make ci` executado
 - diff auditável
 - continuidade preservada
+- build da Task gravado em `/pinker/caches/target/tasks/<task-id>`, e não em `<worktree>/target`
+- ponte `<worktree>/target/debug/libpinker_rt.a` criada, sem a qual os gates nativos falham por fixture
+- `fl --report` conferido antes de `fl`: se a Task compilou, o slot `kind: cache` precisa acusar bytes; `CLEAN_NOOP` com `reclaimed_bytes: 0` após um build é vazamento, não limpeza
