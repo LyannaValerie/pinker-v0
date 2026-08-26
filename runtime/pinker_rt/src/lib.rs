@@ -2623,7 +2623,6 @@ pub extern "C" fn pinker_dormir(milisegundos: u64) {
     std::thread::sleep(duracao_dormir(milisegundos));
 }
 
-
 fn civil_de_dias(dias: i64) -> (i64, u64, u64) {
     // Algoritmo civil idêntico ao do interpretador (Howard Hinnant).
     let z = dias
@@ -2904,7 +2903,6 @@ fn normalizar_codigo_saida(codigo: u64) -> i32 {
 pub extern "C" fn pinker_sair(codigo: u64) -> ! {
     std::process::exit(normalizar_codigo_saida(codigo));
 }
-
 
 /// Discriminantes da identidade runtime-reservada LimiteTempo. A ordem é ABI:
 /// o compilador materializa SemLimite como 0 e Ate(bombom) como 1.

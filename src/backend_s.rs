@@ -4894,7 +4894,11 @@ mod tests_selecao_de_rota_nativa {
             ("afirmar", 1, "pinker_afirmar_1"),
             ("afirmar", 2, "pinker_afirmar_2"),
             ("dormir", 1, "pinker_dormir"),
-            ("emitir_linha_csv_bombom", 2, "pinker_emitir_linha_csv_bombom"),
+            (
+                "emitir_linha_csv_bombom",
+                2,
+                "pinker_emitir_linha_csv_bombom",
+            ),
             ("ler_linha_csv_bombom", 2, "pinker_ler_linha_csv_bombom"),
             ("sair", 1, "pinker_sair"),
         ];
@@ -5006,7 +5010,8 @@ mod tests_selecao_de_rota_nativa {
         // Mutação reversível, local ao teste: um despacho que passa a
         // reconhecer `ouvir` por aridade. O predicado estrutural deve ficar
         // vermelho, provando que ele realmente cobre essa autoridade.
-        let mutado_elegivel = |callee: &str| callee == "ouvir" || is_arity_runtime_intrinsic(callee);
+        let mutado_elegivel =
+            |callee: &str| callee == "ouvir" || is_arity_runtime_intrinsic(callee);
         let mutado_por_aridade = |callee: &str, argc: usize| {
             if callee == "ouvir" && argc == 0 {
                 return Some("pinker_ouvir".to_string());
@@ -5047,11 +5052,25 @@ mod tests_selecao_de_rota_nativa {
     fn conjunto_por_aridade_e_exatamente_o_recorte_autorizado() {
         // Fecha o conjunto nominal do despacho por aridade. Ampliá-lo sem
         // atualizar esta tabela deixa o teste vermelho.
-        let nominais_esperados = ["afirmar", "executar_processo", "capturar_stdout", "capturar_stderr", "executar_com_entrada"];
+        let nominais_esperados = [
+            "afirmar",
+            "executar_processo",
+            "capturar_stdout",
+            "capturar_stderr",
+            "executar_com_entrada",
+        ];
         for callee in nominais_esperados {
-            assert!(is_arity_runtime_intrinsic(callee), "{callee} deveria ser elegível");
+            assert!(
+                is_arity_runtime_intrinsic(callee),
+                "{callee} deveria ser elegível"
+            );
         }
-        for callee in ["dormir", "sair", "emitir_linha_csv_bombom", "ler_linha_csv_bombom"] {
+        for callee in [
+            "dormir",
+            "sair",
+            "emitir_linha_csv_bombom",
+            "ler_linha_csv_bombom",
+        ] {
             assert!(
                 !is_arity_runtime_intrinsic(callee),
                 "{callee} resolve por nome, não por aridade"
