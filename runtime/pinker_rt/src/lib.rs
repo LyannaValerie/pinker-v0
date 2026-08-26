@@ -1313,6 +1313,9 @@ pub extern "C" fn pinker_afirmar_1(condicao: u64) {
 /// `mensagem` deve apontar para um verso length-prefixed válido.
 #[no_mangle]
 pub unsafe extern "C" fn pinker_afirmar_2(condicao: u64, mensagem: *const u8) {
+    // O retorno antecipado existe para não desreferenciar `mensagem` no caminho
+    // de sucesso; `afirmar_ou_falhar` reconfere a condição por ser a autoridade
+    // única da mensagem de falha, e aqui só recebe o caso falso.
     if condicao != 0 {
         return;
     }
@@ -1484,10 +1487,12 @@ pub unsafe extern "C" fn pinker_emitir_linha_csv_bombom(
     lista: *mut u8,
     separador: *const u8,
 ) -> *mut u8 {
+    // A ordem segue o interpretador: o separador é validado antes da consulta ao
+    // handle, para que separador inválido produza sempre o mesmo núcleo de falha.
+    let separador = validar_separador_csv_runtime("emitir_linha_csv_bombom", verso_str(separador));
     if lista.is_null() {
         erro_fatal("handle de lista inválido em 'emitir_linha_csv_bombom'");
     }
-    let separador = validar_separador_csv_runtime("emitir_linha_csv_bombom", verso_str(separador));
     let len = lista_len(lista);
     let dados = lista_dados(lista);
     let mut campos = Vec::with_capacity(len as usize);

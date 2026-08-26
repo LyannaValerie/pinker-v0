@@ -260,6 +260,50 @@ carinho principal() -> bombom {
         separador_vazio.paridade("csv-emitir-separador-vazio").falha,
         Some("intrínseca 'emitir_linha_csv_bombom' não aceita separador vazio".to_string())
     );
+
+    // Separador de mais de um caractere e separadores fora do recorte mínimo de
+    // CSV. Cada caso confere o núcleo de falha nos dois motores.
+    for (nome, literal, nucleo) in [
+        (
+            "multi",
+            r#"", ""#,
+            "intrínseca 'emitir_linha_csv_bombom' exige separador de 1 caractere",
+        ),
+        (
+            "aspas",
+            r#""\"""#,
+            "intrínseca 'emitir_linha_csv_bombom' rejeita separador fora do recorte mínimo de CSV",
+        ),
+        (
+            "newline",
+            r#""\n""#,
+            "intrínseca 'emitir_linha_csv_bombom' rejeita separador fora do recorte mínimo de CSV",
+        ),
+    ] {
+        let fonte = format!(
+            r#"
+pacote main;
+carinho principal() -> bombom {{
+    nova itens: lista<bombom> = lista_bombom_criar();
+    lista_bombom_anexar(itens, 1);
+    falar(emitir_linha_csv_bombom(itens, {literal}));
+    mimo 0;
+}}
+"#
+        );
+        let sujeito = Sujeito::novo(
+            &format!("issue522_csv_emitir_sep_{nome}"),
+            &fonte,
+            &runtime_lib,
+        );
+        assert_eq!(
+            sujeito
+                .paridade(&format!("csv-emitir-separador-{nome}"))
+                .falha,
+            Some(nucleo.to_string()),
+            "separador {nome}"
+        );
+    }
 }
 
 #[test]
@@ -338,7 +382,15 @@ fn sair_preserva_status_clamp_e_inalcancabilidade() {
     let Some(runtime_lib) = runtime_lib() else {
         return;
     };
-    for (nome, codigo, esperado) in [("sete", "7", 7), ("maximo", "18446744073709551615", 255)] {
+    // `acima_de_u32` é o caso que discrimina o clamp: sem `min(codigo, i32::MAX)`
+    // o valor truncaria para 7 e o processo sairia com 7; com o clamp sai com
+    // i32::MAX, que o status de processo trunca para 255. O caso `maximo` sozinho
+    // não separa as duas implementações, porque ambas terminariam em 255.
+    for (nome, codigo, esperado) in [
+        ("sete", "7", 7),
+        ("maximo", "18446744073709551615", 255),
+        ("acima_de_u32", "4294967303", 255),
+    ] {
         let fonte = format!(
             r#"
 pacote main;

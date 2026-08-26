@@ -116,8 +116,9 @@ fn retain_membership_base(catalog: &mut CodeCatalog) {
     catalog.regions.retain(|region| {
         !matches!(
             region.key.as_str(),
-            "automation.comparacao.classificacao"
-                | "evidencia.backend-s.selecao-de-rota-nativa"
+            // #522: autoridade de seleção de rota nativa, posterior a todas as ondas.
+            "evidencia.backend-s.selecao-de-rota-nativa"
+                | "automation.comparacao.classificacao"
                 | "automation.contrato.autorizacao"
                 | "automation.contrato.resultados"
                 | "automation.filesystem.aplicacao"
