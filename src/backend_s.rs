@@ -848,7 +848,7 @@ fn extract_external_callconv_program(
                     // @pinker-nav:start backend-s.lowering.chamadas-sysv
                     // @pinker-nav:domain lowering
                     // @pinker-nav:layer backend-s
-                    // @pinker-nav:summary Lowering de chamadas no corpo do bloco (ABI SysV): `Call` com destino trata `__ternario` puro por `cmoveq`; `formatar_verso` materializa um pack contíguo de handles `verso` na pilha e chama a autoridade única `pinker_formatar_verso_pack(modelo,count,entries)`; demais chamadas resolvem intrínsecas legadas por aridade/nome ou função Pinker, usando registradores e pilha SysV com alinhamento e cleanup.
+                    // @pinker-nav:summary Lowering de chamadas no corpo do bloco (ABI SysV): `Call` com destino trata `__ternario` puro por `cmoveq`; `formatar_verso` materializa um pack contíguo de handles `verso` na pilha e chama a autoridade única `pinker_formatar_verso_pack(modelo,count,entries)`; passagem dos 6 primeiros argumentos em `ARG_REGS`, empilhamento do 7º+ do último ao primeiro com padding de alinhamento e cleanup após o `call`. `Call` e `CallVoid` delegam a escolha do destino a `resolver_rota_de_chamada` e diferem apenas em `CallVoid` não guardar `%rax`. `CallVoid` passou a consultar também o despacho por aridade, que antes só o `Call` consultava: é por aí que `afirmar` alcança `pinker_afirmar_1`/`pinker_afirmar_2`, e para as demais intrínsecas de aridade variável o ramo é inalcançável porque a seleção só emite `CallVoid` para retorno `Nulo`. Aridade fora do recorte e callee desconhecido continuam recusados por esta camada.
                     SelectedInstr::Call {
                         dest,
                         callee,
@@ -971,24 +971,21 @@ fn extract_external_callconv_program(
                         }
                         // Intrínsecas de aridade variável usam wrappers por
                         // aridade no runtime (Fases 219/B8 e 221/B10).
-                        let call_target = if is_arity_runtime_intrinsic(callee) {
-                            let Some(symbol) =
-                                runtime_intrinsic_symbol_por_aridade(callee, args.len())
-                            else {
+                        let call_target = match resolver_rota_de_chamada(callee, args.len(), || {
+                            selected.functions.iter().any(|f| &f.name == callee)
+                        }) {
+                            RotaDeChamada::Runtime(simbolo) => simbolo,
+                            RotaDeChamada::FuncaoPinker(simbolo) => simbolo,
+                            RotaDeChamada::AridadeForaDoRecorte => {
                                 return Err(err(
                                     "subset externo montável (Fase 221) recusa aridade fora do recorte da intrínseca de runtime",
                                 ));
-                            };
-                            symbol
-                        } else if let Some(runtime_symbol) = runtime_intrinsic_symbol(callee) {
-                            runtime_symbol.to_string()
-                        } else {
-                            if !selected.functions.iter().any(|f| &f.name == callee) {
+                            }
+                            RotaDeChamada::CalleeDesconhecido => {
                                 return Err(err(
                                     "subset externo montável (Fase 84) encontrou call para função inexistente",
                                 ));
                             }
-                            callee.clone()
                         };
                         for arg in args.iter() {
                             register_rodata_strings_for_operand(
@@ -1256,17 +1253,21 @@ fn extract_external_callconv_program(
                     // Call sem destino (intrínsecas de efeito, Fase 216/B5):
                     // mesma ABI do call comum, sem o movq de retorno.
                     SelectedInstr::CallVoid { callee, args } => {
-                        let call_target = if let Some(runtime_symbol) =
-                            runtime_intrinsic_symbol(callee)
-                        {
-                            runtime_symbol.to_string()
-                        } else {
-                            if !selected.functions.iter().any(|f| &f.name == callee) {
+                        let call_target = match resolver_rota_de_chamada(callee, args.len(), || {
+                            selected.functions.iter().any(|f| &f.name == callee)
+                        }) {
+                            RotaDeChamada::Runtime(simbolo) => simbolo,
+                            RotaDeChamada::FuncaoPinker(simbolo) => simbolo,
+                            RotaDeChamada::AridadeForaDoRecorte => {
+                                return Err(err(
+                                    "subset externo montável (Fase 221) recusa aridade fora do recorte da intrínseca de runtime",
+                                ));
+                            }
+                            RotaDeChamada::CalleeDesconhecido => {
                                 return Err(err(
                                     "subset externo montável (Fase 84) encontrou call para função inexistente",
                                 ));
                             }
-                            callee.clone()
                         };
                         for arg in args.iter() {
                             register_rodata_strings_for_operand(
@@ -3722,7 +3723,7 @@ fn is_external_call_ret_type(ty: &TypeIR) -> bool {
 // @pinker-nav:start backend-s.runtime.intrinsecas-por-aridade
 // @pinker-nav:domain runtime
 // @pinker-nav:layer backend-s
-// @pinker-nav:summary Resolução legada das intrínsecas de processo cuja ABI ainda varia por aridade (`executar_processo`, capturas e entrada), recusando aridades fora do recorte. `formatar_verso` não participa: D7 usa `pinker_formatar_verso_pack` para qualquer count representável.
+// @pinker-nav:summary Autoridade de seleção de rota do subset externo montável. `runtime_intrinsic_symbol_por_aridade` resolve as intrínsecas cujo símbolo varia por número de argumentos: as superfícies de `falha_operacional` casam pela aridade exata, e o recorte nominal cobre `afirmar` (1|2, mensagem opcional), `executar_processo`, `capturar_stdout` e `capturar_stderr` (1|2) e `executar_com_entrada` (2|3). `is_arity_runtime_intrinsic` decide a elegibilidade pelo mesmo conjunto. `resolver_rota_de_chamada` compõe a precedência final — aridade, depois nome, depois função Pinker declarada — devolvendo `RotaDeChamada` e distinguindo aridade fora do recorte de callee desconhecido. `formatar_verso` não participa: D7 usa `pinker_formatar_verso_pack` para qualquer count representável.
 /// Intrínsecas de aridade variável (Fases 219/B8 e 221/B10): o símbolo do
 /// runtime é escolhido pela quantidade de argumentos no call site.
 fn runtime_intrinsic_symbol_por_aridade(callee: &str, argc: usize) -> Option<String> {
@@ -3730,6 +3731,7 @@ fn runtime_intrinsic_symbol_por_aridade(callee: &str, argc: usize) -> Option<Str
         return (argc == superficie.aridade()).then(|| superficie.simbolo_runtime.to_string());
     }
     match (callee, argc) {
+        ("afirmar", 1 | 2) => Some(format!("pinker_afirmar_{}", argc)),
         ("executar_processo", 1 | 2) => Some(format!("pinker_processo_executar_{}", argc)),
         ("capturar_stdout", 1 | 2) => Some(format!("pinker_processo_capturar_stdout_{}", argc)),
         ("capturar_stderr", 1 | 2) => Some(format!("pinker_processo_capturar_stderr_{}", argc)),
@@ -3742,9 +3744,58 @@ fn is_arity_runtime_intrinsic(callee: &str) -> bool {
     crate::falha_operacional::superficie(callee).is_some()
         || matches!(
             callee,
-            "executar_processo" | "capturar_stdout" | "capturar_stderr" | "executar_com_entrada"
+            "afirmar"
+                | "executar_processo"
+                | "capturar_stdout"
+                | "capturar_stderr"
+                | "executar_com_entrada"
         )
 }
+
+/// Rota de destino de um call site do subset externo montável.
+///
+/// Autoridade única de seleção: intrínseca de runtime por aridade, intrínseca
+/// por nome, função Pinker declarada ou callee desconhecido. `Call` e
+/// `CallVoid` consomem esta mesma decisão.
+#[derive(Debug, PartialEq, Eq)]
+enum RotaDeChamada {
+    /// Símbolo `pinker_*` do runtime nativo.
+    Runtime(String),
+    /// Função Pinker comum, chamada pelo próprio símbolo.
+    FuncaoPinker(String),
+    /// Intrínseca de runtime reconhecida, porém com aridade fora do recorte.
+    AridadeForaDoRecorte,
+    /// Callee que não é intrínseca nem função Pinker declarada.
+    CalleeDesconhecido,
+}
+
+/// Resolve a rota de um call site preservando a precedência do subset:
+/// aridade, depois nome, depois função Pinker declarada.
+///
+/// `funcao_pinker_declarada` é avaliada apenas quando as duas autoridades de
+/// intrínseca não reconhecem o callee, preservando a avaliação preguiçosa dos
+/// sítios produtivos.
+fn resolver_rota_de_chamada(
+    callee: &str,
+    argc: usize,
+    funcao_pinker_declarada: impl FnOnce() -> bool,
+) -> RotaDeChamada {
+    if is_arity_runtime_intrinsic(callee) {
+        return match runtime_intrinsic_symbol_por_aridade(callee, argc) {
+            Some(simbolo) => RotaDeChamada::Runtime(simbolo),
+            None => RotaDeChamada::AridadeForaDoRecorte,
+        };
+    }
+    if let Some(simbolo) = runtime_intrinsic_symbol(callee) {
+        return RotaDeChamada::Runtime(simbolo.to_string());
+    }
+    if funcao_pinker_declarada() {
+        RotaDeChamada::FuncaoPinker(callee.to_string())
+    } else {
+        RotaDeChamada::CalleeDesconhecido
+    }
+}
+
 // @pinker-nav:end backend-s.runtime.intrinsecas-por-aridade
 
 // @pinker-nav:start backend-s.runtime.simbolos-intrinsecas
@@ -3803,6 +3854,8 @@ fn runtime_intrinsic_symbol(callee: &str) -> Option<&'static str> {
             Some("pinker_lista_tirar_ultimo")
         }
         "lista_bombom_inserir" | "lista_verso_inserir" => Some("pinker_lista_inserir"),
+        "emitir_linha_csv_bombom" => Some("pinker_emitir_linha_csv_bombom"),
+        "ler_linha_csv_bombom" => Some("pinker_ler_linha_csv_bombom"),
         // Mapas (Fase 217/B6): chave `verso` compara por conteúdo, chave
         // `bombom` por valor; os 4 tipos compartilham as demais operações.
         "mapa_verso_bombom_criar" | "mapa_verso_verso_criar" => {
@@ -3885,6 +3938,7 @@ fn runtime_intrinsic_symbol(callee: &str) -> Option<&'static str> {
         "diretorio_atual" => Some("pinker_caminho_diretorio_atual"),
         "tempo_unix" => Some("pinker_tempo_unix"),
         "formatar_tempo_unix" => Some("pinker_formatar_tempo_unix"),
+        "dormir" => Some("pinker_dormir"),
         "aleatorio_criar" => Some("pinker_aleatorio_criar"),
         "aleatorio_proximo" => Some("pinker_aleatorio_proximo"),
         "aleatorio_entre" => Some("pinker_aleatorio_entre"),
@@ -3901,6 +3955,7 @@ fn runtime_intrinsic_symbol(callee: &str) -> Option<&'static str> {
             Some("pinker_ambiente_buscar_contexto")
         }
         "pipeline_minimo" => Some("pinker_processo_pipeline"),
+        "sair" => Some("pinker_sair"),
         // Leques com carga (Fase 218/B7): anexar e carga não distinguem
         // bombom/verso no runtime — toda carga é uma palavra de 8 bytes.
         "__pinker_internal_leque_criar_0" => Some("pinker_leque_criar_0"),
@@ -4815,3 +4870,215 @@ mod tests_proveniencia_de_ponteiro {
     }
 }
 // @pinker-nav:end evidencia.backend-s.proveniencia-de-ponteiro
+
+// @pinker-nav:start evidencia.backend-s.selecao-de-rota-nativa
+// @pinker-nav:domain lowering
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Unidade da autoridade de seleção de rota do subset externo montável (Issue #522): `resolver_rota_de_chamada` decide entre intrínseca de runtime por aridade, intrínseca por nome, função Pinker declarada e callee desconhecido, e é a mesma decisão consumida por `Call` e `CallVoid`. Cobre as cinco rotas reparadas, a precedência entre autoridades, a recusa de aridade fora do recorte, a não captura de função Pinker ordinária, a rejeição de callee desconhecido e a ausência estrutural das três exclusões `ouvir*` em todas as autoridades de despacho nativo, com probes de sensibilidade reversíveis que ficam vermelhos se o conjunto reconhecido for ampliado.
+#[cfg(test)]
+mod tests_selecao_de_rota_nativa {
+    use super::*;
+
+    fn rota(callee: &str, argc: usize, declarada: bool) -> RotaDeChamada {
+        resolver_rota_de_chamada(callee, argc, || declarada)
+    }
+
+    /// As três identidades que permanecem intencionalmente fora do subset nativo.
+    const EXCLUSOES_STDIN: [&str; 3] = ["ouvir", "ouvir_verso", "ouvir_verso_ou"];
+
+    // --- F3: as cinco rotas reparadas resolvem pela autoridade esperada ---
+
+    #[test]
+    fn as_cinco_rotas_reparadas_resolvem_para_o_simbolo_de_runtime_esperado() {
+        let esperado: [(&str, usize, &str); 6] = [
+            ("afirmar", 1, "pinker_afirmar_1"),
+            ("afirmar", 2, "pinker_afirmar_2"),
+            ("dormir", 1, "pinker_dormir"),
+            (
+                "emitir_linha_csv_bombom",
+                2,
+                "pinker_emitir_linha_csv_bombom",
+            ),
+            ("ler_linha_csv_bombom", 2, "pinker_ler_linha_csv_bombom"),
+            ("sair", 1, "pinker_sair"),
+        ];
+        for (callee, argc, simbolo) in esperado {
+            assert_eq!(
+                rota(callee, argc, false),
+                RotaDeChamada::Runtime(simbolo.to_string()),
+                "rota de {callee}/{argc}"
+            );
+        }
+    }
+
+    #[test]
+    fn afirmar_despacha_por_aridade_e_recusa_fora_do_recorte() {
+        assert_eq!(
+            rota("afirmar", 1, false),
+            RotaDeChamada::Runtime("pinker_afirmar_1".to_string())
+        );
+        assert_eq!(
+            rota("afirmar", 2, false),
+            RotaDeChamada::Runtime("pinker_afirmar_2".to_string())
+        );
+        for argc in [0, 3, 4] {
+            assert_eq!(
+                rota("afirmar", argc, false),
+                RotaDeChamada::AridadeForaDoRecorte,
+                "afirmar/{argc} deve ser recusada"
+            );
+        }
+    }
+
+    #[test]
+    fn funcao_pinker_ordinaria_nao_e_capturada_pelas_rotas_nativas() {
+        for callee in ["afirmar_usuario", "dormir_bem", "sair_do_laco", "csv_meu"] {
+            assert_eq!(
+                rota(callee, 1, true),
+                RotaDeChamada::FuncaoPinker(callee.to_string()),
+                "{callee} deve permanecer função Pinker"
+            );
+        }
+    }
+
+    #[test]
+    fn callee_desconhecido_continua_rejeitado() {
+        for callee in ["inexistente_522", "afirmar_usuario", "ouvir"] {
+            assert_eq!(
+                rota(callee, 1, false),
+                RotaDeChamada::CalleeDesconhecido,
+                "{callee} sem declaração deve ser recusado"
+            );
+        }
+    }
+
+    #[test]
+    fn precedencia_de_autoridade_e_estavel_entre_call_e_callvoid() {
+        // A precedência é: aridade, depois nome, depois função Pinker declarada.
+        // Uma intrínseca reconhecida não deixa de sê-lo porque existe função
+        // homônima declarada; a invalidez dessa declaração é decidida antes,
+        // na semântica (#502), e não é relaxada aqui.
+        assert_eq!(
+            rota("afirmar", 1, true),
+            RotaDeChamada::Runtime("pinker_afirmar_1".to_string())
+        );
+        // Símbolo por nome não é sensível à aridade do call site.
+        for argc in [0, 1, 2, 3] {
+            assert_eq!(
+                rota("sair", argc, false),
+                RotaDeChamada::Runtime("pinker_sair".to_string()),
+                "sair/{argc}"
+            );
+        }
+    }
+
+    // --- F4: ausência estrutural das exclusões de stdin em TODAS as autoridades ---
+
+    /// Predicado estrutural: nenhuma das três exclusões participa de qualquer
+    /// rota nativa alcançável pelo backend, sob o despacho fornecido.
+    fn exclusoes_ausentes_de_todas_as_autoridades(
+        elegivel_por_aridade: impl Fn(&str) -> bool,
+        simbolo_por_aridade: impl Fn(&str, usize) -> Option<String>,
+        simbolo_por_nome: impl Fn(&str) -> Option<&'static str>,
+    ) -> bool {
+        EXCLUSOES_STDIN.iter().all(|callee| {
+            !elegivel_por_aridade(callee)
+                && (0..=3).all(|argc| simbolo_por_aridade(callee, argc).is_none())
+                && simbolo_por_nome(callee).is_none()
+        })
+    }
+
+    #[test]
+    fn exclusoes_de_stdin_ausentes_de_todas_as_autoridades_de_despacho() {
+        assert!(
+            exclusoes_ausentes_de_todas_as_autoridades(
+                is_arity_runtime_intrinsic,
+                runtime_intrinsic_symbol_por_aridade,
+                runtime_intrinsic_symbol,
+            ),
+            "ouvir/ouvir_verso/ouvir_verso_ou não podem participar de nenhuma rota nativa"
+        );
+        // E a decisão composta também as recusa.
+        for callee in EXCLUSOES_STDIN {
+            assert_eq!(rota(callee, 0, false), RotaDeChamada::CalleeDesconhecido);
+            assert_eq!(rota(callee, 1, false), RotaDeChamada::CalleeDesconhecido);
+        }
+    }
+
+    #[test]
+    fn probe_de_sensibilidade_detecta_ouvir_introduzida_no_despacho_por_aridade() {
+        // Mutação reversível, local ao teste: um despacho que passa a
+        // reconhecer `ouvir` por aridade. O predicado estrutural deve ficar
+        // vermelho, provando que ele realmente cobre essa autoridade.
+        let mutado_elegivel =
+            |callee: &str| callee == "ouvir" || is_arity_runtime_intrinsic(callee);
+        let mutado_por_aridade = |callee: &str, argc: usize| {
+            if callee == "ouvir" && argc == 0 {
+                return Some("pinker_ouvir".to_string());
+            }
+            runtime_intrinsic_symbol_por_aridade(callee, argc)
+        };
+        assert!(
+            !exclusoes_ausentes_de_todas_as_autoridades(
+                mutado_elegivel,
+                mutado_por_aridade,
+                runtime_intrinsic_symbol,
+            ),
+            "o predicado precisa ficar vermelho quando ouvir entra pelo despacho por aridade"
+        );
+    }
+
+    #[test]
+    fn probe_de_sensibilidade_detecta_ouvir_introduzida_no_despacho_por_nome() {
+        let mutado_por_nome = |callee: &str| -> Option<&'static str> {
+            if callee == "ouvir_verso" {
+                return Some("pinker_ouvir_verso");
+            }
+            runtime_intrinsic_symbol(callee)
+        };
+        assert!(
+            !exclusoes_ausentes_de_todas_as_autoridades(
+                is_arity_runtime_intrinsic,
+                runtime_intrinsic_symbol_por_aridade,
+                mutado_por_nome,
+            ),
+            "o predicado precisa ficar vermelho quando ouvir entra pelo despacho por nome"
+        );
+    }
+
+    // --- F3: o conjunto reconhecido não é ampliado por acidente ---
+
+    #[test]
+    fn conjunto_por_aridade_e_exatamente_o_recorte_autorizado() {
+        // Fecha o conjunto nominal do despacho por aridade. Ampliá-lo sem
+        // atualizar esta tabela deixa o teste vermelho.
+        let nominais_esperados = [
+            "afirmar",
+            "executar_processo",
+            "capturar_stdout",
+            "capturar_stderr",
+            "executar_com_entrada",
+        ];
+        for callee in nominais_esperados {
+            assert!(
+                is_arity_runtime_intrinsic(callee),
+                "{callee} deveria ser elegível"
+            );
+        }
+        for callee in [
+            "dormir",
+            "sair",
+            "emitir_linha_csv_bombom",
+            "ler_linha_csv_bombom",
+        ] {
+            assert!(
+                !is_arity_runtime_intrinsic(callee),
+                "{callee} resolve por nome, não por aridade"
+            );
+        }
+        for callee in EXCLUSOES_STDIN {
+            assert!(!is_arity_runtime_intrinsic(callee), "{callee} é exclusão");
+        }
+    }
+}
+// @pinker-nav:end evidencia.backend-s.selecao-de-rota-nativa

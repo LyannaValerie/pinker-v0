@@ -2,8 +2,8 @@ schema = 2
 id = "normalizacao-corrente-para-historico"
 
 [reconstruction]
-expected_overrides = 110
-expected_exclusions = 119
+expected_overrides = 113
+expected_exclusions = 120
 
 [[rules]]
 op = "exclude-key"
@@ -83,6 +83,11 @@ expected_matches = 1
 [[rules]]
 op = "exclude-key"
 key = "evidencia.arquivos.d13-politica-de-handle"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.backend-s.selecao-de-rota-nativa"
 expected_matches = 1
 
 [[rules]]
@@ -724,9 +729,9 @@ expect_layer = "backend-s"
 [[rules]]
 op = "override-region"
 key = "backend-s.lowering.chamadas-sysv"
-from_hash = "fnv1a64:02720fd7a19167d7"
+from_hash = "fnv1a64:53fa5354c31fe7d3"
 to_hash = "fnv1a64:9bcbd95ce8c3a26f"
-from_summary = "Lowering de chamadas no corpo do bloco (ABI SysV): `Call` com destino trata `__ternario` puro por `cmoveq`; `formatar_verso` materializa um pack contíguo de handles `verso` na pilha e chama a autoridade única `pinker_formatar_verso_pack(modelo,count,entries)`; demais chamadas resolvem intrínsecas legadas por aridade/nome ou função Pinker, usando registradores e pilha SysV com alinhamento e cleanup."
+from_summary = "Lowering de chamadas no corpo do bloco (ABI SysV): `Call` com destino trata `__ternario` puro por `cmoveq`; `formatar_verso` materializa um pack contíguo de handles `verso` na pilha e chama a autoridade única `pinker_formatar_verso_pack(modelo,count,entries)`; passagem dos 6 primeiros argumentos em `ARG_REGS`, empilhamento do 7º+ do último ao primeiro com padding de alinhamento e cleanup após o `call`. `Call` e `CallVoid` delegam a escolha do destino a `resolver_rota_de_chamada` e diferem apenas em `CallVoid` não guardar `%rax`. `CallVoid` passou a consultar também o despacho por aridade, que antes só o `Call` consultava: é por aí que `afirmar` alcança `pinker_afirmar_1`/`pinker_afirmar_2`, e para as demais intrínsecas de aridade variável o ramo é inalcançável porque a seleção só emite `CallVoid` para retorno `Nulo`. Aridade fora do recorte e callee desconhecido continuam recusados por esta camada."
 to_summary = "Lowering de chamadas no corpo do bloco (ABI SysV): `Call` com destino trata `__ternario` de braços trivialmente puros como seleção por `cmpq`+`cmoveq`; ternários com efeitos já chegam como ramos CFG lazy. Demais chamadas resolvem intrínsecas por aridade (`runtime_intrinsic_symbol_por_aridade`) e por nome (`runtime_intrinsic_symbol`) ou chamam função Pinker por símbolo direto, passam os 6 primeiros argumentos em `ARG_REGS`, empilham o 7º+ do último ao primeiro com padding de alinhamento e limpam a pilha após o `call`, guardando `%rax` no slot de destino. Símbolo desconhecido é recusado."
 expect_file = "src/backend_s.rs"
 expect_domain = "lowering"
@@ -818,9 +823,9 @@ expect_layer = "backend-s"
 [[rules]]
 op = "override-region"
 key = "backend-s.runtime.intrinsecas-por-aridade"
-from_hash = "fnv1a64:9196b3b513f0b041"
+from_hash = "fnv1a64:c046dfae5d15571e"
 to_hash = "fnv1a64:0d01ccd51cab2d1f"
-from_summary = "Resolução legada das intrínsecas de processo cuja ABI ainda varia por aridade (`executar_processo`, capturas e entrada), recusando aridades fora do recorte. `formatar_verso` não participa: D7 usa `pinker_formatar_verso_pack` para qualquer count representável."
+from_summary = "Autoridade de seleção de rota do subset externo montável. `runtime_intrinsic_symbol_por_aridade` resolve as intrínsecas cujo símbolo varia por número de argumentos: as superfícies de `falha_operacional` casam pela aridade exata, e o recorte nominal cobre `afirmar` (1|2, mensagem opcional), `executar_processo`, `capturar_stdout` e `capturar_stderr` (1|2) e `executar_com_entrada` (2|3). `is_arity_runtime_intrinsic` decide a elegibilidade pelo mesmo conjunto. `resolver_rota_de_chamada` compõe a precedência final — aridade, depois nome, depois função Pinker declarada — devolvendo `RotaDeChamada` e distinguindo aridade fora do recorte de callee desconhecido. `formatar_verso` não participa: D7 usa `pinker_formatar_verso_pack` para qualquer count representável."
 to_summary = "Resolução de intrínsecas de aridade variável por número de argumentos: `runtime_intrinsic_symbol_por_aridade` (escolhe o wrapper `pinker_formatar_verso_N`, `pinker_processo_executar_N`, etc., recusando aridade fora do recorte) e `is_arity_runtime_intrinsic` (nomes que usam essa resolução). Símbolos resolvidos no link com `libpinker_rt.a`."
 expect_file = "src/backend_s.rs"
 expect_domain = "runtime"
@@ -829,7 +834,7 @@ expect_layer = "backend-s"
 [[rules]]
 op = "override-region"
 key = "backend-s.runtime.simbolos-intrinsecas"
-from_hash = "fnv1a64:821229b582628e6c"
+from_hash = "fnv1a64:8887be6b355099e8"
 to_hash = "fnv1a64:e57b8a35f588a616"
 expect_file = "src/backend_s.rs"
 expect_domain = "runtime"
@@ -1166,6 +1171,17 @@ from_hash = "fnv1a64:960718fef752bbc0"
 to_hash = "fnv1a64:7755e0a2fbbe2743"
 expect_file = "tests/parser_tests.rs"
 expect_domain = "parser"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.runtime.sigpipe-disposicao"
+from_hash = "fnv1a64:d34c98b5a6a44fec"
+to_hash = "fnv1a64:db5600813a70ff78"
+from_summary = "Evidência dos efeitos de processo do runtime: o contrato de SIGPIPE, partindo de SIG_DFL num processo filho dedicado, e as fronteiras puras reparadas pela Issue #522 — `normalizar_codigo_saida`, que reproduz o clamp `min(codigo, i32::MAX)` do interpretador antes de `process::exit`, e `duracao_dormir`, que fixa a unidade de `dormir` em milissegundos com prova determinística que fica vermelha sob a mutação `from_millis` para `from_secs`."
+to_summary = "Evidência do contrato de SIGPIPE do runtime: partindo de SIG_DFL num processo filho dedicado, pinker_rt_iniciar deixa o pai com SIG_IGN; um filho criado pelo construtor comum comando_saneado observa SIG_DFL antes da inicialização da linguagem, medido por construtor de .init_array do próprio binário de teste; e restaurar_disposicao_padrao devolve erro em vez de silenciar falha, sem tocar a disposição do processo."
+expect_file = "runtime/pinker_rt/src/lib.rs"
+expect_domain = "processos"
 expect_layer = "evidencia"
 
 [[rules]]
@@ -1517,13 +1533,35 @@ expect_layer = "runtime"
 
 [[rules]]
 op = "override-region"
+key = "runtime.listas.dinamicas"
+from_hash = "fnv1a64:0e3ad146ec7e5a40"
+to_hash = "fnv1a64:bb27eb3d6575d31f"
+from_summary = "Lista dinâmica com header fixo `[len][cap][dados]` e elementos de 8 bytes (crescimento por dobra de capacidade); contém também erro_fatal, o helper que aborta o processo (eprintln + process::exit) e é compartilhado por todos os domínios seguintes do arquivo; leitura, escrita e inserção fora dos limites abortam via erro_fatal. A região abriga ainda duas famílias que dependem desses primitivos: `pinker_afirmar_1`/`pinker_afirmar_2`, que validam uma condição e abortam com o núcleo 'afirmação falhou' quando falsa, e o recorte mínimo de CSV de bombons (`pinker_emitir_linha_csv_bombom` e `pinker_ler_linha_csv_bombom`), cujo separador é validado como um único caractere fora de aspas, nova linha e retorno de carro."
+to_summary = "Lista dinâmica com header fixo `[len][cap][dados]` e elementos de 8 bytes (crescimento por dobra de capacidade); contém também erro_fatal, o helper que aborta o processo (eprintln + process::exit) e é compartilhado por todos os domínios seguintes do arquivo; leitura, escrita e inserção fora dos limites abortam via erro_fatal."
+expect_file = "runtime/pinker_rt/src/lib.rs"
+expect_domain = "listas"
+expect_layer = "runtime"
+
+[[rules]]
+op = "override-region"
 key = "runtime.processos.execucao"
-from_hash = "fnv1a64:375b5a115c02a803"
+from_hash = "fnv1a64:bc9b87447ccceab1"
 to_hash = "fnv1a64:cbb57e8321a877a2"
-from_summary = "Execução de subprocessos sem shell implícito: as superfícies históricas mantêm resolução pela PATH fixa; a nova superfície estruturada recusa Ate(0) antes de configurar ou criar o filho, aplica PATH saneada e depois overlay antes da resolução no spawn para os demais limites, faz um único spawn e move stdin/stdout/stderr em poll não-bloqueante com quantum justo, deadline absoluto, kill+reap e UTF-8 estrito; todos os filhos recebem SIGPIPE default por pre_exec, enquanto os observáveis históricos permanecem inalterados."
+from_summary = "Execução de subprocessos sem shell implícito: as superfícies históricas mantêm resolução pela PATH fixa; a nova superfície estruturada recusa Ate(0) antes de configurar ou criar o filho, aplica PATH saneada e depois overlay antes da resolução no spawn para os demais limites, faz um único spawn e move stdin/stdout/stderr em poll não-bloqueante com quantum justo, deadline absoluto, kill+reap e UTF-8 estrito; todos os filhos recebem SIGPIPE default por pre_exec, enquanto os observáveis históricos permanecem inalterados. A região também abriga `pinker_sair`, que encerra o próprio processo com o código normalizado por `min(codigo, i32::MAX)`, sem criar filho."
 to_summary = "Execução de subprocessos sem shell implícito: basenames são resolvidos somente na PATH fixa /usr/local/bin:/usr/bin:/bin, caminhos com slash são usados literalmente, e todas as famílias recebem a PATH saneada; a disposição de SIGPIPE do pai não é reafirmada aqui (pertence a pinker_rt_iniciar) e comando_saneado instala um pre_exec que devolve SIGPIPE a SIG_DFL no filho imediatamente antes do exec, sem depender da escolha interna da std entre fork/exec e posix_spawn, propagando falha de preparação ao pai como erro de criação do processo; executar_com_entrada escreve stdin numa thread concorrente à espera, fecha o pipe e agrega erros sem deixar writer órfão."
 expect_file = "runtime/pinker_rt/src/lib.rs"
 expect_domain = "processos"
+expect_layer = "runtime"
+
+[[rules]]
+op = "override-region"
+key = "runtime.tempo.relogio"
+from_hash = "fnv1a64:a70d924aa41389da"
+to_hash = "fnv1a64:4db86482a70587c6"
+from_summary = "Tempo Unix (segundos desde a época, abortando via erro_fatal se o relógio do sistema estiver anterior à época) e formatação para ISO-8601 UTC usando o mesmo algoritmo civil (civil_de_dias, Howard Hinnant) do interpretador; não há suporte a fuso horário além de UTC. A região abriga também a espera de `dormir`: `duracao_dormir` é a fronteira pura que fixa a unidade em milissegundos e `pinker_dormir` a consome, com prova determinística da unidade nos testes locais da região."
+to_summary = "Tempo Unix (segundos desde a época, abortando via erro_fatal se o relógio do sistema estiver anterior à época) e formatação para ISO-8601 UTC usando o mesmo algoritmo civil (civil_de_dias, Howard Hinnant) do interpretador; não há suporte a fuso horário além de UTC."
+expect_file = "runtime/pinker_rt/src/lib.rs"
+expect_domain = "tempo"
 expect_layer = "runtime"
 
 [[rules]]
