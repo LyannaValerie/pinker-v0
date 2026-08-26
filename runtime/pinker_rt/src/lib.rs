@@ -1286,12 +1286,37 @@ pub extern "C" fn pinker_falar_fim() {
 // @pinker-nav:start runtime.listas.dinamicas
 // @pinker-nav:domain listas
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Lista dinâmica com header fixo `[len][cap][dados]` e elementos de 8 bytes (crescimento por dobra de capacidade); contém também erro_fatal, o helper que aborta o processo (eprintln + process::exit) e é compartilhado por todos os domínios seguintes do arquivo; leitura, escrita e inserção fora dos limites abortam via erro_fatal.
+// @pinker-nav:summary Lista dinâmica com header fixo `[len][cap][dados]` e elementos de 8 bytes (crescimento por dobra de capacidade); contém também erro_fatal, o helper que aborta o processo (eprintln + process::exit) e é compartilhado por todos os domínios seguintes do arquivo; leitura, escrita e inserção fora dos limites abortam via erro_fatal. A região abriga ainda duas famílias que dependem desses primitivos: `pinker_afirmar_1`/`pinker_afirmar_2`, que validam uma condição e abortam com o núcleo 'afirmação falhou' quando falsa, e o recorte mínimo de CSV de bombons (`pinker_emitir_linha_csv_bombom` e `pinker_ler_linha_csv_bombom`), cujo separador é validado como um único caractere fora de aspas, nova linha e retorno de carro.
 const LISTA_CAP_INICIAL: u64 = 8;
 
 fn erro_fatal(msg: &str) -> ! {
     eprintln!("Erro de Execução (pinker_rt): {}", msg);
     std::process::exit(1)
+}
+
+fn afirmar_ou_falhar(condicao: u64, mensagem: Option<&str>) {
+    if condicao != 0 {
+        return;
+    }
+    match mensagem {
+        Some(mensagem) => erro_fatal(&format!("afirmação falhou: {mensagem}")),
+        None => erro_fatal("afirmação falhou"),
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn pinker_afirmar_1(condicao: u64) {
+    afirmar_ou_falhar(condicao, None);
+}
+
+/// # Safety
+/// `mensagem` deve apontar para um verso length-prefixed válido.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_afirmar_2(condicao: u64, mensagem: *const u8) {
+    if condicao != 0 {
+        return;
+    }
+    afirmar_ou_falhar(condicao, Some(verso_str(mensagem)));
 }
 
 #[no_mangle]
@@ -1430,6 +1455,79 @@ pub unsafe extern "C" fn pinker_lista_inserir(l: *mut u8, indice: u64, valor: u6
         i -= 1;
     }
     dados.add(indice as usize).write(valor);
+}
+
+fn validar_separador_csv_runtime<'a>(intrinseca: &str, separador: &'a str) -> &'a str {
+    if separador.is_empty() {
+        erro_fatal(&format!(
+            "intrínseca '{intrinseca}' não aceita separador vazio"
+        ));
+    }
+    if separador.chars().count() != 1 {
+        erro_fatal(&format!(
+            "intrínseca '{intrinseca}' exige separador de 1 caractere"
+        ));
+    }
+    if matches!(separador, "\"" | "\n" | "\r") {
+        erro_fatal(&format!(
+            "intrínseca '{intrinseca}' rejeita separador fora do recorte mínimo de CSV"
+        ));
+    }
+    separador
+}
+
+/// # Safety
+/// `lista` deve ser uma lista dinâmica válida e `separador` deve apontar para
+/// um verso length-prefixed válido. Ambos são apenas emprestados.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_emitir_linha_csv_bombom(
+    lista: *mut u8,
+    separador: *const u8,
+) -> *mut u8 {
+    if lista.is_null() {
+        erro_fatal("handle de lista inválido em 'emitir_linha_csv_bombom'");
+    }
+    let separador = validar_separador_csv_runtime("emitir_linha_csv_bombom", verso_str(separador));
+    let len = lista_len(lista);
+    let dados = lista_dados(lista);
+    let mut campos = Vec::with_capacity(len as usize);
+    for indice in 0..len {
+        campos.push(dados.add(indice as usize).read().to_string());
+    }
+    verso_alocar(&campos.join(separador))
+}
+
+/// # Safety
+/// `linha` e `separador` devem apontar para versos length-prefixed válidos.
+/// Os dois argumentos são emprestados; a lista devolvida possui armazenamento
+/// novo no runtime.
+#[no_mangle]
+pub unsafe extern "C" fn pinker_ler_linha_csv_bombom(
+    linha: *const u8,
+    separador: *const u8,
+) -> *mut u8 {
+    let linha = verso_str(linha);
+    let separador = validar_separador_csv_runtime("ler_linha_csv_bombom", verso_str(separador));
+    if linha.contains('\n') || linha.contains('\r') {
+        erro_fatal("linha inválida em 'ler_linha_csv_bombom': multiline fora do recorte");
+    }
+    if linha.contains('"') {
+        erro_fatal("linha inválida em 'ler_linha_csv_bombom': quoting fora do recorte");
+    }
+
+    let lista = pinker_lista_criar();
+    if lista.is_null() {
+        erro_fatal("sem memória ao criar lista em 'ler_linha_csv_bombom'");
+    }
+    for campo in linha.split(separador) {
+        let valor = campo.parse::<u64>().unwrap_or_else(|_| {
+            erro_fatal(
+                "campo inválido em 'ler_linha_csv_bombom': esperado bombom simples sem quoting",
+            )
+        });
+        pinker_lista_anexar(lista, valor);
+    }
+    lista
 }
 // @pinker-nav:end runtime.listas.dinamicas
 
@@ -2507,7 +2605,7 @@ pub extern "C" fn pinker_caminho_diretorio_atual() -> *mut u8 {
 // @pinker-nav:start runtime.tempo.relogio
 // @pinker-nav:domain tempo
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Tempo Unix (segundos desde a época, abortando via erro_fatal se o relógio do sistema estiver anterior à época) e formatação para ISO-8601 UTC usando o mesmo algoritmo civil (civil_de_dias, Howard Hinnant) do interpretador; não há suporte a fuso horário além de UTC.
+// @pinker-nav:summary Tempo Unix (segundos desde a época, abortando via erro_fatal se o relógio do sistema estiver anterior à época) e formatação para ISO-8601 UTC usando o mesmo algoritmo civil (civil_de_dias, Howard Hinnant) do interpretador; não há suporte a fuso horário além de UTC. A região abriga também a espera de `dormir`: `duracao_dormir` é a fronteira pura que fixa a unidade em milissegundos e `pinker_dormir` a consome, com prova determinística da unidade nos testes locais da região.
 #[no_mangle]
 pub extern "C" fn pinker_tempo_unix() -> u64 {
     std::time::SystemTime::now()
@@ -2515,6 +2613,16 @@ pub extern "C" fn pinker_tempo_unix() -> u64 {
         .unwrap_or_else(|_| erro_fatal("relógio do sistema anterior à época Unix"))
         .as_secs()
 }
+
+fn duracao_dormir(milisegundos: u64) -> std::time::Duration {
+    std::time::Duration::from_millis(milisegundos)
+}
+
+#[no_mangle]
+pub extern "C" fn pinker_dormir(milisegundos: u64) {
+    std::thread::sleep(duracao_dormir(milisegundos));
+}
+
 
 fn civil_de_dias(dias: i64) -> (i64, u64, u64) {
     // Algoritmo civil idêntico ao do interpretador (Howard Hinnant).
@@ -2785,8 +2893,18 @@ pub unsafe extern "C" fn pinker_ambiente_buscar_contexto(
 // @pinker-nav:start runtime.processos.execucao
 // @pinker-nav:domain processos
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Execução de subprocessos sem shell implícito: as superfícies históricas mantêm resolução pela PATH fixa; a nova superfície estruturada recusa Ate(0) antes de configurar ou criar o filho, aplica PATH saneada e depois overlay antes da resolução no spawn para os demais limites, faz um único spawn e move stdin/stdout/stderr em poll não-bloqueante com quantum justo, deadline absoluto, kill+reap e UTF-8 estrito; todos os filhos recebem SIGPIPE default por pre_exec, enquanto os observáveis históricos permanecem inalterados.
+// @pinker-nav:summary Execução de subprocessos sem shell implícito: as superfícies históricas mantêm resolução pela PATH fixa; a nova superfície estruturada recusa Ate(0) antes de configurar ou criar o filho, aplica PATH saneada e depois overlay antes da resolução no spawn para os demais limites, faz um único spawn e move stdin/stdout/stderr em poll não-bloqueante com quantum justo, deadline absoluto, kill+reap e UTF-8 estrito; todos os filhos recebem SIGPIPE default por pre_exec, enquanto os observáveis históricos permanecem inalterados. A região também abriga `pinker_sair`, que encerra o próprio processo com o código normalizado por `min(codigo, i32::MAX)`, sem criar filho.
 const PATH_PROCESSOS: &str = "/usr/local/bin:/usr/bin:/bin";
+
+fn normalizar_codigo_saida(codigo: u64) -> i32 {
+    codigo.min(i32::MAX as u64) as i32
+}
+
+#[no_mangle]
+pub extern "C" fn pinker_sair(codigo: u64) -> ! {
+    std::process::exit(normalizar_codigo_saida(codigo));
+}
+
 
 /// Discriminantes da identidade runtime-reservada LimiteTempo. A ordem é ABI:
 /// o compilador materializa SemLimite como 0 e Ate(bombom) como 1.
@@ -5910,7 +6028,7 @@ mod tests {
     // @pinker-nav:start evidencia.runtime.sigpipe-disposicao
     // @pinker-nav:domain processos
     // @pinker-nav:layer evidencia
-    // @pinker-nav:summary Evidência do contrato de SIGPIPE do runtime: partindo de SIG_DFL num processo filho dedicado, pinker_rt_iniciar deixa o pai com SIG_IGN; um filho criado pelo construtor comum comando_saneado observa SIG_DFL antes da inicialização da linguagem, medido por construtor de .init_array do próprio binário de teste; e restaurar_disposicao_padrao devolve erro em vez de silenciar falha, sem tocar a disposição do processo.
+    // @pinker-nav:summary Evidência dos efeitos de processo do runtime: o contrato de SIGPIPE, partindo de SIG_DFL num processo filho dedicado, e as fronteiras puras reparadas pela Issue #522 — `normalizar_codigo_saida`, que reproduz o clamp `min(codigo, i32::MAX)` do interpretador antes de `process::exit`, e `duracao_dormir`, que fixa a unidade de `dormir` em milissegundos com prova determinística que fica vermelha sob a mutação `from_millis` para `from_secs`.
     /// Sentinela distinta de qualquer disposição real; sinaliza que o
     /// construtor de `.init_array` não rodou.
     #[cfg(unix)]
@@ -6067,6 +6185,49 @@ mod tests {
             observada, SINAL_HANDLER_IGNORAR,
             "a falha não pode alterar a disposição de SIGPIPE do processo"
         );
+    }
+
+    #[test]
+    fn dormir_preserva_milisegundos_sem_overflow() {
+        for valor in [0, 1, 10, u64::MAX] {
+            assert_eq!(duracao_dormir(valor).as_millis(), u128::from(valor));
+        }
+    }
+
+    /// Prova determinística da unidade temporal de `dormir` (Issue #522).
+    ///
+    /// `pinker_dormir` consome exatamente esta conversão, então a fronteira pura é
+    /// o oráculo da unidade sem depender de relógio de parede. Os valores são
+    /// escolhidos para que milissegundo e segundo sejam inequivocamente distintos:
+    /// trocar `from_millis` por `from_secs` torna cada asserção abaixo falsa.
+    #[test]
+    fn dormir_usa_milissegundos_e_nao_segundos() {
+        use std::time::Duration;
+
+        // Igualdade exata contra a unidade correta.
+        assert_eq!(duracao_dormir(1), Duration::from_millis(1));
+        assert_eq!(duracao_dormir(1_500), Duration::from_millis(1_500));
+
+        // Desigualdade exata contra a unidade errada.
+        assert_ne!(duracao_dormir(1), Duration::from_secs(1));
+        assert_ne!(duracao_dormir(1_500), Duration::from_secs(1_500));
+
+        // Ordem: mil milissegundos são um segundo; um milissegundo é menos.
+        assert!(duracao_dormir(1) < Duration::from_secs(1));
+        assert_eq!(duracao_dormir(1_000), Duration::from_secs(1));
+
+        // Subsegundo: sob `from_secs` a parte fracionária seria zero.
+        assert_eq!(duracao_dormir(1).subsec_millis(), 1);
+        assert_eq!(duracao_dormir(250).subsec_millis(), 250);
+        assert_eq!(duracao_dormir(999).as_secs(), 0);
+    }
+
+    #[test]
+    fn sair_preserva_o_clamp_do_interpretador() {
+        assert_eq!(normalizar_codigo_saida(0), 0);
+        assert_eq!(normalizar_codigo_saida(7), 7);
+        assert_eq!(normalizar_codigo_saida(i32::MAX as u64), i32::MAX);
+        assert_eq!(normalizar_codigo_saida(u64::MAX), i32::MAX);
     }
     // @pinker-nav:end evidencia.runtime.sigpipe-disposicao
 
