@@ -60,14 +60,23 @@ fn rejection_at_declaration(code: &str, name: &str) -> String {
                 "diagnóstico precisa apontar a declaração"
             );
             assert!(msg.contains(name), "{msg}");
-            // Depois da #505 há duas causas de recusa com mensagens próprias:
-            // grafia canônica reservada, e membro que ESTE arquivo traz. As
-            // duas continuam recusando pela superfície intrínseca, e nenhuma
-            // pode vazar nome de runtime.
-            assert!(
-                msg.contains("superfície intrínseca Pinker") || msg.contains("colide com o membro"),
-                "{msg}"
-            );
+            // Depois da #505 há duas causas de recusa, e elas NÃO são
+            // intercambiáveis: um `||` aqui aceitaria a mensagem errada para o
+            // caso errado. A causa é escolhida pelo próprio arquivo — se ele
+            // traz o membro homônimo, a recusa é a do import; senão, é a da
+            // grafia canônica reservada.
+            let traz_o_membro = code.contains(&format!("trazer ambiente.{name};"))
+                || code.contains(&format!("trazer arquivo.{name};"))
+                || code.contains(&format!("trazer texto.{name};"));
+            if traz_o_membro {
+                assert!(msg.contains("colide com o membro"), "{msg}");
+            } else {
+                assert!(
+                    msg.contains("é a grafia canônica da superfície intrínseca Pinker"),
+                    "{msg}"
+                );
+                assert!(msg.contains("não pode ser redeclarada"), "{msg}");
+            }
             assert!(!msg.contains("pinker_"), "{msg}");
             assert!(!msg.contains("runtime"), "{msg}");
             msg
@@ -94,9 +103,10 @@ fn direct_rejection_at_declaration(code: &str, name: &str) -> String {
             assert_eq!(span, declaration_span);
             assert!(msg.contains(name), "{msg}");
             assert!(
-                msg.contains("superfície intrínseca Pinker") || msg.contains("colide com o membro"),
+                msg.contains("é a grafia canônica da superfície intrínseca Pinker"),
                 "{msg}"
             );
+            assert!(msg.contains("não pode ser redeclarada"), "{msg}");
             msg
         }
         error => panic!("classe diagnóstica inesperada: {error}"),

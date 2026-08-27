@@ -142,6 +142,11 @@ fn as_seis_grafias_continuam_publicas_e_com_a_propria_grafia_preservada() {
 #[test]
 fn nenhuma_grafia_publica_desaparece() {
     let spellings = all_canonical_intrinsic_spellings();
+    // O total absoluto do namespace de identidade depois da #505: 130
+    // históricas + 9 falíveis + 11 acessores JSON + 1 SHA-256 + 3 acessores de
+    // processo, sem interseção. Sem ele, «nenhuma grafia desaparece» não
+    // detecta um desaparecimento arbitrário — só a perda de unicidade.
+    assert_eq!(spellings.len(), 154);
     let unicas: BTreeSet<_> = spellings.iter().map(|entry| entry.spelling).collect();
     assert_eq!(
         unicas.len(),

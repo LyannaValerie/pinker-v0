@@ -516,15 +516,41 @@ fn forma_qualificada_resolve_a_mesma_identidade_que_a_seletiva() {
     }
 }
 
+/// Nenhum módulo prefixa a si mesmo.
+///
+/// O modo de falha que a revisão adversarial da #505 existe para pegar é o
+/// módulo que troca `foo_bar_baz` global por `foo.foo_bar_baz` — mesma feiura,
+/// um andar a mais. Aqui isso é mecânico: a grafia do membro não pode conter o
+/// nome do próprio módulo.
+///
+/// O inverso não é proibido e não deveria ser: `arquivo.ler_caminho_ou` cita
+/// `caminho` porque a operação fala de caminho, e `caminho.tamanho_arquivo`
+/// cita `arquivo` porque o sujeito é um arquivo. O que a regra recusa é a
+/// redundância com o próprio módulo, que o import já diz.
+#[test]
+fn nenhum_modulo_apenas_prefixa_os_nomes_antigos() {
+    let mut ofensores = Vec::new();
+    for membro in all_public_intrinsic_members() {
+        if membro.member.contains(membro.module) {
+            ofensores.push(format!("{}.{}", membro.module, membro.member));
+        }
+    }
+    assert!(
+        ofensores.is_empty(),
+        "membro que repete o nome do próprio módulo: {ofensores:?}"
+    );
+}
+
 /// `sair` pertence ao módulo `processo`. Transferência taxonômica da #505.
+///
+/// `sistema` era um cluster candidato da revisão taxonômica, nunca um módulo
+/// em código — no baseline `sair` era global, e não membro de `sistema`.
+/// Afirmar a ausência de `sistema` em `FAMILIAS` seria vácuo; o que tem
+/// conteúdo é `sair` resolver por `processo` e por mais ninguém.
 #[test]
 fn sair_pertence_ao_modulo_processo() {
     let membro = public_intrinsic_member("processo", "sair").expect("processo.sair");
     assert_eq!(membro.identity, IntrinsicIdentity::Historical("sair"));
-    assert!(
-        !FAMILIAS.contains(&"sistema"),
-        "o módulo `sistema` não sobreviveu à transferência"
-    );
     for modulo in FAMILIAS {
         if *modulo == "processo" {
             continue;
@@ -554,8 +580,31 @@ fn os_acessores_de_processo_sao_membros_do_modulo_processo() {
 // Remoção da superfície global
 // ----------------------------------------------------------------------------
 
-/// Fonte mínima que chama `grafia` a seco, sem nenhum `trazer`.
+/// Fonte que chama `grafia` a seco, sem nenhum `trazer`.
+///
+/// A fonte NÃO é mínima de propósito. Uma fonte sem nenhuma ligação não
+/// consegue observar a classe de escape em que uma ligação de OUTRO escopo
+/// reabre a superfície global — foi exatamente assim que uma revisão
+/// adversarial encontrou o parser cedendo a um censo léxico do arquivo
+/// inteiro. Aqui o arquivo liga o mesmo nome como parâmetro e como local numa
+/// função vizinha, e a chamada em `principal` continua tendo de ser recusada:
+/// nenhuma dessas ligações está visível ali.
 fn fonte_bare(grafia: &str) -> String {
+    format!(
+        "pacote main;\n\
+         carinho vizinha({grafia}: verso) -> verso {{\n\
+         \x20   nova {grafia}_local: verso = {grafia};\n\
+         \x20   mimo {grafia}_local;\n\
+         }}\n\
+         carinho principal() -> bombom {{ mimo {grafia}(); }}\n"
+    )
+}
+
+/// A mesma chamada, num arquivo sem ligação nenhuma.
+///
+/// Mantida ao lado da anterior para separar as duas causas de recusa: se só
+/// esta ficasse verde, a recusa dependeria da ausência de ligações no arquivo.
+fn fonte_bare_sem_ligacoes(grafia: &str) -> String {
     format!("pacote main;\ncarinho principal() -> bombom {{ mimo {grafia}(); }}\n")
 }
 
@@ -573,20 +622,114 @@ fn nenhuma_grafia_publica_e_chamavel_sem_import() {
     assert!(candidatas.len() >= 154);
     let mut sobreviventes: Vec<String> = Vec::new();
     for grafia in &candidatas {
-        match parse(&fonte_bare(grafia)) {
-            Ok(_) => sobreviventes.push(grafia.clone()),
-            Err(erro) => {
-                let msg = format!("{erro:?}");
-                assert!(
-                    msg.contains("não está no escopo"),
-                    "grafia '{grafia}' recusada por outro motivo: {msg}"
-                );
+        for fonte in [fonte_bare(grafia), fonte_bare_sem_ligacoes(grafia)] {
+            match parse(&fonte) {
+                Ok(_) => sobreviventes.push(grafia.clone()),
+                Err(erro) => {
+                    let msg = format!("{erro:?}");
+                    assert!(
+                        msg.contains("não está no escopo"),
+                        "grafia '{grafia}' recusada por outro motivo: {msg}"
+                    );
+                }
             }
         }
     }
     assert!(
         sobreviventes.is_empty(),
         "intrínseca global sobrevivente: {sobreviventes:?}"
+    );
+}
+
+/// Ligação de outro escopo não reabre a superfície global.
+///
+/// Controle positivo do gate acima, com o oráculo do lado do comportamento e
+/// não do parser: se a recusa cedesse a uma ligação não visível, este programa
+/// compilaria e leria o argv de verdade.
+#[test]
+fn ligacao_em_outro_escopo_nao_reabre_a_superficie_global() {
+    let fonte = "pacote main;\n\
+                 carinho rotular(prefixo: verso) -> verso {\n\
+                 \x20   nova argumento: verso = prefixo;\n\
+                 \x20   mimo argumento;\n\
+                 }\n\
+                 carinho principal() -> bombom {\n\
+                 \x20   falar(rotular(\"x\"));\n\
+                 \x20   falar(argumento(0));\n\
+                 \x20   mimo 0;\n\
+                 }\n";
+    let erro = parse(fonte).expect_err("ligação de outra função não pode reabrir o global");
+    assert!(
+        format!("{erro:?}").contains("não está no escopo"),
+        "{erro:?}"
+    );
+}
+
+/// A ligação PENDENTE do próprio statement continua cedendo.
+///
+/// `nova f: carinho(...) = carinho(...) { f(...) }` cita o nome no mesmo
+/// statement que o liga. Recusar aqui tiraria da semântica um programa que
+/// sempre foi dela — e é a única janela em que a recusa cede fora de
+/// `escopos_locais`.
+#[test]
+fn ligacao_pendente_do_proprio_statement_cede() {
+    let fonte = "pacote main;\n\
+                 carinho principal() -> bombom {\n\
+                 \x20   nova tamanho: carinho(verso) -> bombom = carinho(s: verso) -> bombom {\n\
+                 \x20       mimo tamanho(s);\n\
+                 \x20   };\n\
+                 \x20   mimo 0;\n\
+                 }\n";
+    parse(fonte).expect("o parser não pode recusar a auto-referência pendente");
+}
+
+/// A única grafia builtin chamável sem import é `mapa_criar`, e ela é nomeada.
+///
+/// A revisão adversarial da #505 encontrou que `mapa_criar` — o construtor
+/// genérico de mapa — continua chamável a seco, enquanto `lista.criar` virou
+/// membro. A assimetria é real e PREEXISTE a esta Issue: `mapa_criar` está em
+/// `GRAFIAS_BUILTIN_NAO_PUBLICAS` desde a #507, a revisão taxonômica a
+/// classificou como `INTERNAL_ONLY_NOT_PUBLIC_INTRINSIC`, e por isso ela nunca
+/// entrou nas 151 identidades públicas.
+///
+/// O que esta Issue pode fazer sem invadir a taxonomia aceita é impedir que a
+/// exceção CRESÇA em silêncio. Toda grafia que `semantic` despacha como
+/// builtin é ou pública — e então recusada a seco — ou exatamente
+/// `mapa_criar`. Uma segunda exceção quebra aqui.
+#[test]
+fn a_excecao_builtin_nao_publica_e_exatamente_uma_e_tem_nome() {
+    const NAO_CHAMAVEIS: &[&str] = &["si", "trato"];
+    let fonte = std::fs::read_to_string(
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/semantic.rs"),
+    )
+    .expect("ler src/semantic.rs");
+
+    let mut excecoes: BTreeSet<String> = BTreeSet::new();
+    for pedaco in fonte.split("name == \"").skip(1) {
+        let Some(fim) = pedaco.find('"') else {
+            continue;
+        };
+        let grafia = &pedaco[..fim];
+        if grafia.starts_with("__") || NAO_CHAMAVEIS.contains(&grafia) {
+            continue;
+        }
+        if !grafia
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+        {
+            continue;
+        }
+        if canonical_public_intrinsic_spelling(grafia).is_some() {
+            continue;
+        }
+        if parse(&fonte_bare_sem_ligacoes(grafia)).is_ok() {
+            excecoes.insert(grafia.to_string());
+        }
+    }
+    assert_eq!(
+        excecoes,
+        BTreeSet::from(["mapa_criar".to_string()]),
+        "a exceção builtin não pública mudou de tamanho ou de nome"
     );
 }
 

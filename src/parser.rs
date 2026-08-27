@@ -79,8 +79,16 @@ pub struct Parser {
     /// aqui. Eles têm escopo, e escopo é decidido no ponto de uso por
     /// `escopos_locais`.
     nomes_de_topo: HashSet<String>,
-    /// #505: censo léxico de nomes que algum escopo do arquivo liga.
-    nomes_ligados: HashSet<String>,
+    /// #505: nome cujo INICIALIZADOR está sendo parseado agora.
+    ///
+    /// `nova f = carinho() { f(...) }` usa o nome no mesmo statement que o
+    /// liga, e nesse ponto ele ainda não entrou em `escopos_locais`. Ceder a
+    /// esta pilha é o mínimo para não recusar no parser um programa que sempre
+    /// pertenceu à semântica — e é MÍNIMO de propósito: um censo do arquivo
+    /// inteiro cederia também a ligação de outra função, reabrindo a
+    /// superfície global para quem só tem um parâmetro homônimo em algum
+    /// canto.
+    declarando: Vec<String>,
     /// Parte G: pilha de escopos léxicos reais das ligações locais.
     ///
     /// Empilha e desempilha junto de `value_type_scopes`, e recebe todo nome
@@ -274,7 +282,7 @@ impl Parser {
             familias_importadas: HashSet::new(),
             membros_familia_importados: HashMap::new(),
             nomes_de_topo: HashSet::new(),
-            nomes_ligados: HashSet::new(),
+            declarando: Vec::new(),
             escopos_locais: Vec::new(),
             contexto_de_import,
             collection_types: HashMap::new(),
@@ -561,7 +569,6 @@ impl Parser {
         // escopo não entram aqui: elas são decididas no ponto de uso, pela
         // pilha `escopos_locais`.
         self.coletar_nomes_de_topo();
-        self.coletar_nomes_ligados();
 
         let package = if self.match_token(TokenKind::KwPacote) {
             let start_span = self.previous().span;
@@ -2638,7 +2645,12 @@ impl Parser {
             });
         }
         self.consume(TokenKind::Eq, "=")?;
-        let init = self.parse_expr()?;
+        // #505: o corpo da closure pode citar o próprio nome que este `nova`
+        // liga, e nesse ponto ele ainda não está em `escopos_locais`.
+        self.declarando.push(local_name.clone());
+        let init = self.parse_expr();
+        self.declarando.pop();
+        let init = init?;
         self.consume(TokenKind::Semi, ";")?;
         let end_span = merge_span(start_span, self.previous().span);
 
@@ -3662,41 +3674,6 @@ impl Parser {
         self.nomes_de_topo = nomes;
     }
 
-    /// #505: nomes que ALGUM escopo deste arquivo liga, em qualquer ponto.
-    ///
-    /// `escopos_locais` responde «está visível AQUI?», que é a pergunta certa
-    /// para decidir precedência de resolução. Para a RECUSA a pergunta é outra
-    /// e mais frouxa: «este arquivo reivindica este nome em algum lugar?». Um
-    /// `nova tamanho: ... = carinho(...) { mimo tamanho(s); }` liga o nome no
-    /// mesmo statement em que o usa, e recusá-lo no parser tiraria da
-    /// semântica um programa que sempre foi dela — trocando um diagnóstico
-    /// preciso por um erro de escopo enganoso.
-    ///
-    /// Sobre-aproximar aqui é seguro por construção: só reduz recusa, nunca
-    /// devolve a superfície global a quem não liga o nome.
-    fn coletar_nomes_ligados(&mut self) {
-        let mut ligados: HashSet<String> = HashSet::new();
-        for (indice, token) in self.tokens.iter().enumerate() {
-            if token.kind != TokenKind::Ident {
-                continue;
-            }
-            let liga_por_declaracao = matches!(
-                self.tokens
-                    .get(indice.wrapping_sub(1))
-                    .map(|anterior| anterior.kind),
-                Some(TokenKind::KwNova) | Some(TokenKind::KwMuda) | Some(TokenKind::KwPara)
-            );
-            let liga_por_anotacao = self
-                .tokens
-                .get(indice + 1)
-                .is_some_and(|seguinte| seguinte.kind == TokenKind::Colon);
-            if liga_por_declaracao || liga_por_anotacao {
-                ligados.insert(token.lexeme.clone());
-            }
-        }
-        self.nomes_ligados = ligados;
-    }
-
     /// Parte G: abre um escopo léxico para ligações locais.
     ///
     /// Anda junto de `value_type_scopes`: todo lugar que empilha um escopo de
@@ -3838,10 +3815,12 @@ impl Parser {
     /// justificava.
     fn recusar_intrinseca_sem_import(&self, name: &str, span: Span) -> Result<(), PinkerError> {
         // Identidade já existente vence, exatamente como vence a família: quem
-        // declarou o nome no próprio arquivo está chamando o que declarou. Aqui
-        // a pergunta é mais frouxa que a da resolução — ver
-        // `coletar_nomes_ligados`.
-        if self.identidade_lexical_existente(name) || self.nomes_ligados.contains(name) {
+        // declarou o nome está chamando o que declarou. `escopos_locais` responde
+        // pela visibilidade real no ponto; `declarando` cobre só a janela em que
+        // o nome já foi lido mas ainda não foi ligado.
+        if self.identidade_lexical_existente(name)
+            || self.declarando.iter().any(|pendente| pendente == name)
+        {
             return Ok(());
         }
         let canonica = crate::intrinsic_authority::canonical_public_intrinsic_spelling(name);
@@ -5165,7 +5144,10 @@ impl Parser {
                 }
             }
             self.consume(TokenKind::Eq, "=")?;
-            let init = self.parse_expr()?;
+            self.declarando.push(name.clone());
+            let init = self.parse_expr();
+            self.declarando.pop();
+            let init = init?;
             self.consume(TokenKind::Semi, ";")?;
             if let Some(value_ty) = ty.clone().or_else(|| self.infer_local_expr_type(&init)) {
                 self.register_value_type(&name, value_ty);

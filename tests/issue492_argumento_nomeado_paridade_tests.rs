@@ -52,34 +52,6 @@ carinho principal() -> bombom {
 }
 "#;
 
-/// Aliases históricos das três superfícies que os possuem.
-const FONTE_ALIAS_PEDIR: &str = r#"
-pacote main; trazer ambiente.pedir_argumento;
-
-carinho principal() -> bombom {
-    falar(pedir_argumento("--chave", "PADRAO"));
-    mimo 0;
-}
-"#;
-
-const FONTE_ALIAS_BUSCAR: &str = r#"
-pacote main; trazer ambiente.buscar_contexto;
-
-carinho principal() -> bombom {
-    falar(buscar_contexto("--chave", "PINKER_492_ENV", "PADRAO"));
-    mimo 0;
-}
-"#;
-
-const FONTE_ALIAS_TEM_CHAVE: &str = r#"
-pacote main; trazer ambiente.tem_chave;
-
-carinho principal() -> bombom {
-    falar(tem_chave("--chave"));
-    mimo 0;
-}
-"#;
-
 /// Chave de argumento vazia: negativo que já estava em paridade e continua.
 const FONTE_CHAVE_VAZIA: &str = r#"
 pacote main; trazer ambiente.pedir_argumento;
@@ -592,58 +564,27 @@ fn chave_com_igual_separa_as_duas_perguntas_de_presenca() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn aliases_historicos_tem_o_mesmo_contrato_nas_duas_pontas() {
-    let Some((_driver, Some(runtime_lib))) =
-        common::require_native_evidence(concat!(module_path!(), ":", line!()), true)
-    else {
-        return;
-    };
-
-    let pedir = Sujeito::novo("alias_pedir", FONTE_ALIAS_PEDIR, &runtime_lib);
-    assert_eq!(
-        pedir.paridade("alias_pedir_ausente", &[], Ambiente::Ausente),
-        sucesso("PADRAO")
-    );
-    assert_eq!(
-        pedir.paridade("alias_pedir_valor", &["--chave", "v"], Ambiente::Ausente),
-        sucesso("v")
-    );
-    assert_eq!(
-        pedir.paridade("alias_pedir_igual", &["--chave=v"], Ambiente::Ausente),
-        sucesso("v")
-    );
-    assert_eq!(
-        pedir.paridade("alias_pedir_vazio", &["--chave="], Ambiente::Ausente),
-        sucesso("")
-    );
-
-    let buscar = Sujeito::novo("alias_buscar", FONTE_ALIAS_BUSCAR, &runtime_lib);
-    assert_eq!(
-        buscar.paridade("alias_buscar_padrao", &[], Ambiente::Ausente),
-        sucesso("PADRAO")
-    );
-    assert_eq!(
-        buscar.paridade("alias_buscar_env", &[], Ambiente::Presente("doambiente")),
-        sucesso("doambiente")
-    );
-    assert_eq!(
-        buscar.paridade(
-            "alias_buscar_cli",
-            &["--chave", "v"],
-            Ambiente::Presente("doambiente")
+fn grafias_alias_deixaram_de_ser_chamaveis() {
+    for (alias, argumentos) in [
+        ("argumento_nomeado_ou", "\"--chave\", \"PADRAO\""),
+        (
+            "argumento_nomeado_ou_ambiente_ou",
+            "\"--chave\", \"ENV\", \"PADRAO\"",
         ),
-        sucesso("v")
-    );
-
-    let tem = Sujeito::novo("alias_tem", FONTE_ALIAS_TEM_CHAVE, &runtime_lib);
-    assert_eq!(
-        tem.paridade("alias_tem_sem_valor", &["--chave"], Ambiente::Ausente),
-        sucesso("falso")
-    );
-    assert_eq!(
-        tem.paridade("alias_tem_valor", &["--chave=v"], Ambiente::Ausente),
-        sucesso("verdade")
-    );
+        ("tem_argumento_nomeado", "\"--chave\""),
+    ] {
+        let fonte = format!(
+            "pacote main;\ncarinho principal() -> bombom {{ falar({alias}({argumentos})); mimo 0; }}\n"
+        );
+        let erro = common::parse(&fonte).expect_err("grafia alias não pode mais ser chamável");
+        let msg = format!("{erro:?}");
+        assert!(msg.contains("não está no escopo"), "{alias}: {msg}");
+        // E não por ter sumido: a autoridade continua sabendo quem ela é.
+        assert!(
+            pinker_v0::intrinsic_authority::canonical_public_intrinsic_spelling(alias).is_some(),
+            "{alias} saiu da autoridade em vez de sair da superfície"
+        );
+    }
 }
 
 /// A diferença que restava na família FECHOU, e o gate passou a medir isso.
@@ -668,14 +609,14 @@ fn alias_em_falha_deixou_de_divergir_na_grafia_nomeada_pelo_diagnostico() {
         return;
     };
 
-    let pedir = Sujeito::novo("alias_falha_pedir", FONTE_ALIAS_PEDIR, &runtime_lib);
+    let pedir = Sujeito::novo("alias_falha_pedir", FONTE_PEDIR, &runtime_lib);
     let (interpretado, nativo) =
         pedir.observar("alias_falha_pedir", &["--chave"], Ambiente::Ausente);
     assert_eq!(interpretado, sem_valor("pedir_argumento"));
     assert_eq!(nativo, sem_valor("pedir_argumento"));
     assert_eq!(interpretado, nativo);
 
-    let buscar = Sujeito::novo("alias_falha_buscar", FONTE_ALIAS_BUSCAR, &runtime_lib);
+    let buscar = Sujeito::novo("alias_falha_buscar", FONTE_BUSCAR, &runtime_lib);
     let (interpretado, nativo) = buscar.observar(
         "alias_falha_buscar",
         &["--chave"],

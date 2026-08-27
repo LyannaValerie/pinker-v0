@@ -44,6 +44,11 @@ pub fn run_repl_with_io<R: BufRead, W: Write, E: Write>(
         "Use `falar(...)` para inspecionar saída, `mimo ...;` para retorno explícito e `:quit` para sair."
     )
     .map_err(|e| e.to_string())?;
+    writeln!(
+        out,
+        "Intrínseca exige o import na MESMA linha: `trazer texto.tamanho; falar(tamanho(\"abc\"));`."
+    )
+    .map_err(|e| e.to_string())?;
 
     loop {
         write!(out, "{PROMPT}").map_err(|e| e.to_string())?;
@@ -149,15 +154,51 @@ fn evaluate_snippet(snippet: &str) -> Result<RuntimeValue, String> {
     Ok(result.unwrap_or(RuntimeValue::Int(0)))
 }
 
+/// Envolve o trecho do usuário num programa completo.
+///
+/// #505: com a superfície intrínseca global removida, chamar qualquer
+/// intrínseca no REPL exige `trazer`, e `trazer` é item de topo — não cabe
+/// dentro do corpo de `principal`. Sem separar as duas partes, o REPL ficaria
+/// reduzido a `falar` e aritmética, e o diagnóstico ainda mandaria o usuário
+/// escrever um `trazer` que a própria forma não aceitaria.
+///
+/// Os `trazer` iniciais do trecho sobem para o topo; o resto continua indo
+/// para o corpo, exatamente como antes.
 fn wrap_snippet(snippet: &str) -> String {
-    let mut source = String::from("pacote main;\ncarinho principal() -> bombom {\n    ");
-    source.push_str(snippet);
+    let (imports, corpo) = separar_imports(snippet);
+    let mut source = String::from("pacote main;\n");
+    for import in &imports {
+        source.push_str(import);
+        source.push('\n');
+    }
+    source.push_str("carinho principal() -> bombom {\n    ");
+    source.push_str(&corpo);
     source.push('\n');
-    if !snippet_has_explicit_return(snippet) {
+    if !snippet_has_explicit_return(&corpo) {
         source.push_str("    mimo 0;\n");
     }
     source.push_str("}\n");
     source
+}
+
+/// Separa os `trazer` iniciais do restante do trecho.
+///
+/// O REPL não guarda estado entre linhas (Fase 167), então o import precisa
+/// vir na MESMA linha da chamada: `trazer texto.tamanho; falar(tamanho("a"));`.
+/// Por isso a separação é por statement e não por linha. Só os do INÍCIO
+/// sobem: um `trazer` no meio do trecho continua sendo erro de sintaxe, que é
+/// a verdade sobre onde a declaração pode aparecer.
+fn separar_imports(snippet: &str) -> (Vec<String>, String) {
+    let mut imports = Vec::new();
+    let mut resto = snippet.trim_start();
+    while let Some(depois) = resto.strip_prefix("trazer ") {
+        let Some(fim) = depois.find(';') else {
+            break;
+        };
+        imports.push(format!("trazer {};", depois[..fim].trim()));
+        resto = depois[fim + 1..].trim_start();
+    }
+    (imports, resto.to_string())
 }
 
 fn snippet_has_explicit_return(snippet: &str) -> bool {
@@ -168,6 +209,44 @@ fn snippet_has_explicit_return(snippet: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{is_exit_command, wrap_snippet};
+
+    /// #505: o REPL precisa aceitar o import, ou nenhuma intrínseca é
+    /// alcançável nele. O teste mede o programa montado, não a string do
+    /// wrapper: `trazer` tem de sair do corpo e subir para o topo.
+    #[test]
+    fn repl_iça_o_import_para_o_topo_do_programa() {
+        let fonte = wrap_snippet("trazer texto.tamanho; falar(tamanho(\"abc\"));");
+        let topo = fonte
+            .find("trazer texto.tamanho;")
+            .expect("import precisa existir");
+        let corpo = fonte
+            .find("carinho principal()")
+            .expect("corpo precisa existir");
+        assert!(topo < corpo, "o import ficou dentro do corpo:\n{fonte}");
+        assert!(
+            !fonte.contains("    trazer"),
+            "import indentado no corpo:\n{fonte}"
+        );
+        crate::semantic::check_program(
+            &crate::parser::Parser::new(
+                crate::lexer::Lexer::new(&fonte).tokenize().expect("lexer"),
+            )
+            .parse()
+            .expect("parser"),
+        )
+        .expect("o programa montado precisa passar na semântica");
+    }
+
+    /// `trazer` no MEIO do trecho continua sendo erro: a separação é do
+    /// cabeçalho, não uma licença para mover declaração de qualquer lugar.
+    #[test]
+    fn repl_nao_ica_import_do_meio_do_trecho() {
+        let fonte = wrap_snippet("falar(1); trazer texto.tamanho;");
+        assert!(
+            fonte.contains("    falar(1); trazer texto.tamanho;"),
+            "{fonte}"
+        );
+    }
 
     #[test]
     fn repl_reconhece_comando_de_saida_minimo() {
