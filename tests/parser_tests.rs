@@ -456,9 +456,9 @@ fn parser_aceita_continuar_dentro_de_sempre_que() {
 #[test]
 fn parser_aceita_para_cada_em_lista_bombom() {
     let source = r#"
-        pacote main;
+        pacote main; trazer lista.bombom_criar;
         carinho principal() -> bombom {
-            nova itens: lista<bombom> = lista_bombom_criar();
+            nova itens: lista<bombom> = bombom_criar();
             para cada item em itens {
                 falar(item);
             }
@@ -481,8 +481,9 @@ fn parser_aceita_para_cada_em_lista_bombom() {
 fn parser_aceita_para_cada_em_mapa_verso_bombom_sem_chave_por_indice_publica() {
     let source = r#"
         pacote main;
+        trazer mapa;
         carinho principal() -> bombom {
-            nova m: mapa<verso,bombom> = mapa_verso_bombom_criar();
+            nova m: mapa<verso,bombom> = mapa.verso_bombom_criar();
             para cada chave em m {
                 falar(chave);
             }
@@ -1135,9 +1136,9 @@ fn parser_aceita_tipo_seta_fragil_em_alias_e_assinaturas() {
 #[test]
 fn parser_aceita_tipo_lista_bombom_em_assinatura_e_local() {
     let source = r#"
-        pacote main;
+        pacote main; trazer lista.bombom_criar;
         carinho coleta() -> lista<bombom> {
-            nova l: lista<bombom> = lista_bombom_criar();
+            nova l: lista<bombom> = bombom_criar();
             mimo l;
         }
         carinho principal() -> bombom { mimo 0; }
@@ -1154,9 +1155,9 @@ fn parser_aceita_tipo_lista_bombom_em_assinatura_e_local() {
 #[test]
 fn parser_aceita_tipo_mapa_verso_bombom_em_assinatura_e_local() {
     let source = r#"
-        pacote main;
+        pacote main; trazer mapa.verso_bombom_criar;
         carinho indice() -> mapa<verso,bombom> {
-            nova m: mapa<verso,bombom> = mapa_verso_bombom_criar();
+            nova m: mapa<verso,bombom> = verso_bombom_criar();
             mimo m;
         }
         carinho principal() -> bombom { mimo 0; }

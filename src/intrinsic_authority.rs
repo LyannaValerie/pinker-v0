@@ -20,12 +20,16 @@ pub enum IntrinsicIdentity {
     Fallible(OperacaoFalivel),
     Json(&'static str),
     Sha256(&'static str),
+    ProcessAccessor(&'static str),
 }
 
 impl IntrinsicIdentity {
     pub fn canonical_public_spelling(self) -> &'static str {
         match self {
-            Self::Historical(spelling) | Self::Json(spelling) | Self::Sha256(spelling) => spelling,
+            Self::Historical(spelling)
+            | Self::Json(spelling)
+            | Self::Sha256(spelling)
+            | Self::ProcessAccessor(spelling) => spelling,
             Self::Fallible(operation) => {
                 SUPERFICIES_FALIVEIS
                     .iter()
@@ -44,6 +48,7 @@ pub enum PublicIntrinsicOrigin {
     Fallible,
     Json,
     Sha256,
+    ProcessAccessor,
     FamilyAlias { family: &'static str },
 }
 
@@ -286,6 +291,17 @@ pub fn canonical_public_intrinsic_spelling(spelling: &str) -> Option<PublicIntri
             origin: PublicIntrinsicOrigin::Sha256,
         });
     }
+    if let Some(spelling) = crate::saida_processo::ACESSORES
+        .iter()
+        .copied()
+        .find(|candidate| *candidate == spelling)
+    {
+        return Some(PublicIntrinsicSpelling {
+            spelling,
+            identity: IntrinsicIdentity::ProcessAccessor(spelling),
+            origin: PublicIntrinsicOrigin::ProcessAccessor,
+        });
+    }
     HISTORICAL_PUBLIC_SPELLINGS
         .iter()
         .copied()
@@ -297,9 +313,22 @@ pub fn canonical_public_intrinsic_spelling(spelling: &str) -> Option<PublicIntri
         })
 }
 
+/// Identidade real de um membro de módulo.
+///
+/// O registro de módulos endereça a identidade pela grafia canônica; quem
+/// traduz grafia em identidade é esta autoridade, e só ela. Antes da #505 a
+/// tradução era feita aqui por `historical_identity`, o que só dava a resposta
+/// certa enquanto os módulos exportassem apenas superfície histórica e
+/// falível. Com JSON, SHA-256 e acessores de processo dentro de módulos, uma
+/// grafia como `json_tipo` produziria `Historical("json_tipo")` de um lado e
+/// `Json("json_tipo")` do outro — duas identidades para a mesma grafia.
 fn family_identity(identity: IdentidadeCanonica) -> IntrinsicIdentity {
     match identity {
-        IdentidadeCanonica::Historica(spelling) => historical_identity(spelling),
+        IdentidadeCanonica::PorGrafia(spelling) => {
+            canonical_public_intrinsic_spelling(spelling)
+                .expect("grafia canônica de membro registrada na autoridade de intrínsecas")
+                .identity
+        }
         IdentidadeCanonica::Falivel(operation) => IntrinsicIdentity::Fallible(operation),
     }
 }
@@ -325,24 +354,55 @@ const GRAFIAS_BUILTIN_NAO_PUBLICAS: &[&str] = &["mapa_criar"];
 /// `GRAFIA_BUILTIN != ENTIDADE_DE_UNIDADE`: builtin não pertence a
 /// unidade-fonte alguma e por isso nunca é capturado nem capturável.
 pub fn e_grafia_builtin_chamavel(spelling: &str) -> bool {
-    public_intrinsic_spelling(spelling).is_some()
+    canonical_public_intrinsic_spelling(spelling).is_some()
         || GRAFIAS_BUILTIN_NAO_PUBLICAS.contains(&spelling)
 }
 
-/// Resolve uma grafia pública vigente para a sua identidade intrínseca.
-pub fn public_intrinsic_spelling(spelling: &str) -> Option<PublicIntrinsicSpelling> {
-    canonical_public_intrinsic_spelling(spelling).or_else(|| {
-        EXPORTACOES
-            .iter()
-            .find(|export| export.membro() == spelling)
-            .map(|export| PublicIntrinsicSpelling {
-                spelling: export.membro(),
-                identity: family_identity(export.identidade),
-                origin: PublicIntrinsicOrigin::FamilyAlias {
-                    family: export.familia,
-                },
-            })
-    })
+/// Membro público de um módulo importável.
+///
+/// Depois da #505 este é o **único** namespace público de intrínsecas. Ele é
+/// endereçado por par, e não por grafia solta: dois módulos podem exportar
+/// membros homônimos — `acaso.criar` e `arquivo.criar` são duas identidades
+/// diferentes —, e achatá-los numa tabela por grafia era exatamente o modelo
+/// global que esta Issue removeu.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PublicIntrinsicMember {
+    pub module: &'static str,
+    pub member: &'static str,
+    pub identity: IntrinsicIdentity,
+}
+
+/// `(módulo, membro)` -> identidade, ou ausência.
+pub fn public_intrinsic_member(module: &str, member: &str) -> Option<PublicIntrinsicMember> {
+    EXPORTACOES
+        .iter()
+        .find(|export| export.familia == module && export.membro() == member)
+        .map(|export| PublicIntrinsicMember {
+            module: export.familia,
+            member: export.membro(),
+            identity: family_identity(export.identidade),
+        })
+}
+
+/// Toda a superfície pública, em ordem de declaração do registro de módulos.
+pub fn all_public_intrinsic_members() -> Vec<PublicIntrinsicMember> {
+    EXPORTACOES
+        .iter()
+        .map(|export| PublicIntrinsicMember {
+            module: export.familia,
+            member: export.membro(),
+            identity: family_identity(export.identidade),
+        })
+        .collect()
+}
+
+/// A grafia é membro público de **algum** módulo?
+///
+/// Responde sobre o namespace público sem escolher módulo por ela: serve a
+/// quem precisa saber que a grafia pertence à superfície de intrínsecas, nunca
+/// a quem precisa resolver uma chamada. Resolver exige o par.
+pub fn e_membro_publico_de_algum_modulo(spelling: &str) -> bool {
+    EXPORTACOES.iter().any(|export| export.membro() == spelling)
 }
 
 /// Resolve um membro público no contexto da família que o ativa.
@@ -362,9 +422,13 @@ pub fn family_public_intrinsic_spelling(
         })
 }
 
-/// Forma direta de Q1+Q2: grafia pública para identidade, ou ausência.
+/// Forma direta de Q1+Q2: grafia canônica para identidade, ou ausência.
+///
+/// A grafia canônica endereça a identidade; ela deixou de ser chamável sem
+/// import quando a #505 removeu a superfície global. Quem resolve uma chamada
+/// usa [`public_intrinsic_member`].
 pub fn intrinsic_from_public_spelling(spelling: &str) -> Option<IntrinsicIdentity> {
-    public_intrinsic_spelling(spelling).map(|entry| entry.identity)
+    canonical_public_intrinsic_spelling(spelling).map(|entry| entry.identity)
 }
 
 /// Q3: somente grafias intrínsecas possuem a política de conflito congelada.
@@ -374,7 +438,12 @@ pub fn declaration_conflict_policy(
     DeclarationConflictPolicy::DeclarationIsRejected
 }
 
-fn authority_entries() -> Vec<PublicIntrinsicSpelling> {
+/// As grafias que endereçam identidade diretamente.
+///
+/// Membro de módulo não entra aqui: ele é endereçado por par em
+/// [`all_public_intrinsic_members`], e misturar os dois namespaces numa lista
+/// só é o que fazia `acaso.criar` e `arquivo.criar` colidirem.
+fn canonical_authority_entries() -> Vec<PublicIntrinsicSpelling> {
     let mut entries = Vec::new();
     entries.extend(HISTORICAL_PUBLIC_SPELLINGS.iter().copied().map(|spelling| {
         PublicIntrinsicSpelling {
@@ -409,20 +478,23 @@ fn authority_entries() -> Vec<PublicIntrinsicSpelling> {
             origin: PublicIntrinsicOrigin::Sha256,
         }
     }));
-    entries.extend(EXPORTACOES.iter().map(|export| PublicIntrinsicSpelling {
-        spelling: export.membro(),
-        identity: family_identity(export.identidade),
-        origin: PublicIntrinsicOrigin::FamilyAlias {
-            family: export.familia,
-        },
-    }));
+    entries.extend(
+        crate::saida_processo::ACESSORES
+            .iter()
+            .copied()
+            .map(|spelling| PublicIntrinsicSpelling {
+                spelling,
+                identity: IntrinsicIdentity::ProcessAccessor(spelling),
+                origin: PublicIntrinsicOrigin::ProcessAccessor,
+            }),
+    );
     entries
 }
 
-/// Todas as grafias públicas, únicas e em ordem lexicográfica.
-pub fn all_public_intrinsic_spellings() -> Vec<PublicIntrinsicSpelling> {
+/// Todas as grafias canônicas, únicas e em ordem lexicográfica.
+pub fn all_canonical_intrinsic_spellings() -> Vec<PublicIntrinsicSpelling> {
     let mut unique = BTreeMap::new();
-    for entry in authority_entries() {
+    for entry in canonical_authority_entries() {
         if let Some(previous) = unique.insert(entry.spelling, entry) {
             debug_assert_eq!(previous.identity, entry.identity);
         }
@@ -437,7 +509,7 @@ mod tests {
     #[test]
     fn public_spelling_never_resolves_to_two_identities() {
         let mut seen = BTreeMap::new();
-        for entry in authority_entries() {
+        for entry in canonical_authority_entries() {
             if let Some(previous) = seen.insert(entry.spelling, entry.identity) {
                 assert_eq!(
                     previous, entry.identity,
@@ -451,8 +523,12 @@ mod tests {
     #[test]
     fn authority_is_complete_nonempty_and_classified() {
         assert_eq!(HISTORICAL_PUBLIC_SPELLINGS.len(), 130);
-        let spellings = all_public_intrinsic_spellings();
-        assert_eq!(spellings.len(), 163);
+        let spellings = all_canonical_intrinsic_spellings();
+        // 130 históricas + 9 falíveis + 11 acessores JSON + 1 SHA-256 +
+        // 3 acessores de processo, sem interseção entre as cinco listas.
+        // Membro de módulo não entra: ele é endereçado por par, não por
+        // grafia.
+        assert_eq!(spellings.len(), 154);
         assert!(spellings.iter().all(|entry| !entry.spelling.is_empty()));
         assert!(spellings.iter().all(|entry| {
             matches!(
@@ -461,6 +537,7 @@ mod tests {
                     | PublicIntrinsicOrigin::Fallible
                     | PublicIntrinsicOrigin::Json
                     | PublicIntrinsicOrigin::Sha256
+                    | PublicIntrinsicOrigin::ProcessAccessor
                     | PublicIntrinsicOrigin::FamilyAlias { .. }
             )
         }));
@@ -542,12 +619,21 @@ mod tests {
 
     #[test]
     fn deliberate_aliases_are_n_to_one() {
+        // O membro é endereçado pelo par, e resolve para a mesma identidade
+        // que a grafia canônica endereça.
         assert_eq!(
-            intrinsic_from_public_spelling("ler_bombom"),
+            public_intrinsic_member("arquivo", "ler_bombom").map(|entry| entry.identity),
             intrinsic_from_public_spelling("ler_arquivo")
         );
+        // O nome público da superfície falível vem da autoridade que o
+        // declara, e não é reescrito aqui: `falha_operacional` é o único lugar
+        // do `src/` onde essa grafia pode aparecer.
+        let hash_arquivo =
+            crate::falha_operacional::superficie_por_operacao(OperacaoFalivel::HashArquivo)
+                .expect("superfície falível registrada")
+                .intrinseca;
         assert_eq!(
-            intrinsic_from_public_spelling("sha256"),
+            public_intrinsic_member("integridade", hash_arquivo).map(|entry| entry.identity),
             Some(IntrinsicIdentity::Fallible(OperacaoFalivel::HashArquivo))
         );
     }
@@ -564,6 +650,7 @@ mod tests {
             )
             .chain(crate::valor_json::ACESSORES)
             .chain(crate::sha256::ACESSORES)
+            .chain(crate::saida_processo::ACESSORES)
         {
             assert!(
                 intrinsic_from_public_spelling(spelling).is_some(),

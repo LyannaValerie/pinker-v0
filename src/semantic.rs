@@ -42,24 +42,50 @@ pub fn validar_namespace_pinker_owned(name: &str, span: Span) -> Result<(), Pink
 }
 // @pinker-nav:end semantic.identificadores.namespace-produtor-de-simbolo
 
+/// #505 — o que a colisão de declaração ainda protege, e o que ela soltou.
+///
+/// Enquanto existia superfície global, TODA grafia intrínseca ocupava o
+/// namespace callable de todo arquivo, e a política da PR #507 recusava a
+/// declaração homônima em qualquer lugar. A #505 separou dois namespaces, e a
+/// resposta passou a ser diferente em cada um.
+///
+/// **Grafia de membro** (`criar`, `tamanho`, `existe`, `obter`) só ocupa o
+/// namespace do arquivo que a traz. Num arquivo sem `trazer`, `carinho
+/// tamanho(...)` é declaração legítima do usuário — a proibição global perdeu
+/// a razão junto com a superfície global, e não pode sobreviver por acidente.
+/// No arquivo que traz o membro, a colisão é real e continua recusada.
+///
+/// **Grafia canônica** (`tamanho_verso`, `ler_arquivo`, `mapa_verso_verso_criar`)
+/// continua reservada, e não por inércia histórica: ela deixou de ser
+/// chamável, mas continua sendo a CHAVE DE DESPACHO que `semantic`, `ir`,
+/// `interpreter` e `backend_s` usam depois da canonicalização. Aceitar a
+/// declaração sem reservar a grafia trocaria uma recusa explícita por
+/// sombreamento silencioso: as camadas a jusante despachariam a intrínseca
+/// para uma chamada que o usuário escreveu esperando a própria função.
+///
+/// ```text
+/// MEMBER_SPELLING   -> LIVRE, SALVO IMPORT NESTA UNIDADE
+/// CANONICAL_SPELLING -> RESERVADA ENQUANTO FOR CHAVE DE DESPACHO
+/// ```
 fn active_intrinsic_declaration_conflict(
     program: &Program,
     name: &str,
 ) -> Option<crate::intrinsic_authority::PublicIntrinsicSpelling> {
-    crate::intrinsic_authority::canonical_public_intrinsic_spelling(name).or_else(|| {
-        program.imports.iter().find_map(|import| {
-            if !crate::familia_superficie::familia_conhecida(&import.module) {
-                return None;
+    if let Some(canonica) = crate::intrinsic_authority::canonical_public_intrinsic_spelling(name) {
+        return Some(canonica);
+    }
+    program.imports.iter().find_map(|import| {
+        let module = import.module.as_str();
+        if !crate::familia_superficie::familia_conhecida(module) {
+            return None;
+        }
+        match import.symbol.as_deref() {
+            // Forma seletiva: liga a grafia do membro neste arquivo.
+            Some(symbol) if symbol == name => {
+                crate::intrinsic_authority::family_public_intrinsic_spelling(module, name)
             }
-            if import
-                .symbol
-                .as_deref()
-                .is_some_and(|symbol| symbol != name)
-            {
-                return None;
-            }
-            crate::intrinsic_authority::family_public_intrinsic_spelling(&import.module, name)
-        })
+            _ => None,
+        }
     })
 }
 
@@ -74,11 +100,23 @@ fn validate_intrinsic_declaration_conflicts(program: &Program) -> Result<(), Pin
         if crate::intrinsic_authority::declaration_conflict_policy(spelling)
             == crate::intrinsic_authority::DeclarationConflictPolicy::DeclarationIsRejected
         {
-            return Err(PinkerError::Semantic {
-                msg: format!(
-                    "declaração callable '{}' pertence à superfície intrínseca Pinker e não pode ser redeclarada pelo usuário",
+            // Duas recusas com causas diferentes precisam de mensagens
+            // diferentes: uma diz que a grafia é da linguagem, a outra diz que
+            // foi o import deste arquivo que criou a disputa.
+            let msg = match spelling.origin {
+                crate::intrinsic_authority::PublicIntrinsicOrigin::FamilyAlias { family } => {
+                    format!(
+                        "declaração callable '{}' colide com o membro '{}.{}' que este arquivo traz; remova o import ou renomeie a declaração",
+                        function.name, family, function.name
+                    )
+                }
+                _ => format!(
+                    "declaração callable '{}' é a grafia canônica da superfície intrínseca Pinker e não pode ser redeclarada pelo usuário; a superfície pública desse nome é um membro de módulo",
                     function.name
                 ),
+            };
+            return Err(PinkerError::Semantic {
+                msg,
                 span: function.span,
             });
         }
@@ -89,7 +127,7 @@ fn validate_intrinsic_declaration_conflicts(program: &Program) -> Result<(), Pin
 // @pinker-nav:start semantic.importacoes.familias
 // @pinker-nav:domain importacoes
 // @pinker-nav:layer semantic
-// @pinker-nav:summary Validação semântica de `trazer` sobre famílias built-in, e dono único da política de colisão de import de família. A lista de famílias e a superfície que cada uma exporta não moram aqui: são consultadas em `familia_superficie`, a autoridade única que o parser também consulta ao canonicalizar. Esta camada decide o que é decisão de import — família desconhecida, membro inexistente na forma seletiva e colisão do membro seletivo com item de topo (`validate_family_import_collision`, atravessada tanto pela CLI quanto pelo caminho de biblioteca). A mensagem de membro inexistente vem da própria autoridade para que a lista de membros exista num lugar só. Identidade homônima trazida por `trazer <modulo>;` não é recusada aqui nem em lugar nenhum: ela vence a família em silêncio, no parser, porque a autoridade de import a entrega como identidade de topo antes da canonicalização.
+// @pinker-nav:summary Validação semântica de `trazer` sobre os módulos built-in, e dono único da política de colisão de import. A lista de módulos e a superfície que cada um exporta não moram aqui: são consultadas em `familia_superficie`, a autoridade única que o parser também consulta ao canonicalizar. Esta camada decide o que é decisão de import — módulo desconhecido, membro inexistente na forma seletiva e colisão do membro seletivo com item de topo (`validate_family_import_collision`, atravessada tanto pela CLI quanto pelo caminho de biblioteca). A mensagem de membro inexistente vem da própria autoridade. Depois da #505 a colisão de DECLARAÇÃO tem duas causas distintas e mensagens próprias: grafia canônica, reservada porque continua sendo a chave de despacho a jusante, e membro que esta unidade traz. Identidade homônima trazida por `trazer <modulo>;` não é recusada aqui nem em lugar nenhum: ela vence o módulo em silêncio, no parser.
 /// Parte G: o membro trazido seletivamente colide com um item de topo?
 ///
 /// A regra existia só em `main.rs`, o que deixava o caminho de biblioteca

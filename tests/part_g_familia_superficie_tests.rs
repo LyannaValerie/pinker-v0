@@ -56,11 +56,11 @@ const MATRIZ_CANONICALIZACAO: &[Chamada] = &[
     c("arquivo", "anexar_verso", "h, \"s\""),
     c("arquivo", "copiar", "\"a\", \"b\""),
     c("arquivo", "renomear", "\"a\", \"b\""),
-    c("arquivo", "sha256", "\"x\""),
-    c("caminho", "caminho_existe", "\"x\""),
+    c("integridade", "sha256_arquivo", "\"x\""),
+    c("caminho", "existe", "\"x\""),
     c("caminho", "e_arquivo", "\"x\""),
     c("caminho", "e_diretorio", "\"x\""),
-    c("caminho", "juntar_caminho", "\"a\", \"b\""),
+    c("caminho", "juntar", "\"a\", \"b\""),
     c("caminho", "tamanho_arquivo", "\"x\""),
     c("caminho", "arquivo_vazio", "\"x\""),
     c("caminho", "criar_diretorio", "\"d\""),
@@ -75,8 +75,6 @@ const MATRIZ_CANONICALIZACAO: &[Chamada] = &[
 /// Grafia sob a qual um programa da matriz é emitido.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Grafia {
-    /// Nome global histórico, sem nenhum `trazer`.
-    Legado,
     /// `trazer familia;` + `familia.membro(...)`.
     Qualificada,
     /// `trazer familia.membro;` + `membro(...)`.
@@ -84,11 +82,14 @@ enum Grafia {
 }
 
 impl Grafia {
-    const TODAS: [Grafia; 3] = [Grafia::Legado, Grafia::Qualificada, Grafia::Seletiva];
+    /// A #505 removeu a terceira: o nome global histórico deixou de ser
+    /// chamável. Ele não sumiu deste arquivo — virou oráculo negativo em
+    /// `a_grafia_legada_da_matriz_deixou_de_ser_chamavel`, que percorre a
+    /// mesma matriz exigindo recusa.
+    const TODAS: [Grafia; 2] = [Grafia::Qualificada, Grafia::Seletiva];
 
     fn nome(self) -> &'static str {
         match self {
-            Grafia::Legado => "legado",
             Grafia::Qualificada => "qualificado",
             Grafia::Seletiva => "seletivo",
         }
@@ -97,19 +98,26 @@ impl Grafia {
 
 /// Emite uma chamada na grafia pedida. A identidade canônica vem da autoridade.
 fn chamada_na_grafia(grafia: Grafia, familia: &str, membro: &str, args: &str) -> String {
-    let canonica =
-        familia_superficie::resolver(familia, membro).expect("membro aprovado no registro");
+    assert!(
+        familia_superficie::resolver(familia, membro).is_some(),
+        "membro aprovado no registro: {familia}.{membro}"
+    );
     match grafia {
-        Grafia::Legado => format!("{canonica}({args})"),
         Grafia::Qualificada => format!("{familia}.{membro}({args})"),
         Grafia::Seletiva => format!("{membro}({args})"),
     }
 }
 
+/// A chamada na grafia global histórica, que a #505 tornou irrecebível.
+fn chamada_legada(familia: &str, membro: &str, args: &str) -> String {
+    let canonica =
+        familia_superficie::resolver(familia, membro).expect("membro aprovado no registro");
+    format!("{canonica}({args})")
+}
+
 /// Cabeçalho de imports exigido por cada grafia.
 fn cabecalho(grafia: Grafia, usados: &[(&str, &str)]) -> String {
     match grafia {
-        Grafia::Legado => String::new(),
         Grafia::Qualificada => {
             let familias: BTreeSet<&str> = usados.iter().map(|(familia, _)| *familia).collect();
             let mut texto = String::new();
@@ -133,37 +141,44 @@ fn cabecalho(grafia: Grafia, usados: &[(&str, &str)]) -> String {
 // 1. O registro é a autoridade, e não uma segunda semântica
 // ---------------------------------------------------------------------------
 
+/// As 29 decisões da #491 continuam vivas depois que a #505 generalizou o
+/// mecanismo para a superfície inteira.
+///
+/// O que mudou de propósito, e está registrado em `MATRIZ_APROVADA`: a
+/// taxonomia da #505 levou `sha256_arquivo` para `integridade`, e duas grafias
+/// que apenas prefixavam o próprio módulo — `caminho.caminho_existe` e
+/// `caminho.juntar_caminho` — perderam o prefixo. Nenhuma identidade mudou.
 #[test]
-fn registro_declara_as_29_superficies_aprovadas() {
+fn as_familias_da_491_continuam_com_a_superficie_aprovada() {
     assert_eq!(
-        EXPORTACOES.len(),
-        29,
-        "a superfície aprovada tem 29 identidades; encontrado {}",
-        EXPORTACOES.len()
+        familia_superficie::membros_da_familia("arquivo").len(),
+        15,
+        "arquivo perdeu `sha256`, que a taxonomia da #505 levou para `integridade`"
     );
-    assert_eq!(familia_superficie::membros_da_familia("arquivo").len(), 16);
     assert_eq!(familia_superficie::membros_da_familia("caminho").len(), 13);
+    assert_eq!(
+        familia_superficie::resolver("integridade", "sha256_arquivo"),
+        Some("sha256_arquivo")
+    );
+    assert_eq!(familia_superficie::resolver("arquivo", "sha256"), None);
 
-    // Nenhuma família pública nova foi aberta: só `arquivo` e `caminho`
-    // exportam membros nesta fase.
+    // Toda família exportadora é importável. O inverso passou a valer também:
+    // depois da #505 não existe módulo declarado sem membro.
     let com_membros: BTreeSet<&str> = EXPORTACOES
         .iter()
         .map(|exportacao| exportacao.familia)
         .collect();
-    assert_eq!(
-        com_membros,
-        ["arquivo", "caminho"].into_iter().collect::<BTreeSet<_>>(),
-        "nenhuma família além de `arquivo` e `caminho` exporta membros nesta fase"
-    );
-
-    // Toda família exportadora é importável, e o inverso não é exigido: uma
-    // família importável sem membros continua legítima.
-    for familia in com_membros {
+    for familia in &com_membros {
         assert!(
             familia_superficie::familia_conhecida(familia),
             "família exportadora '{familia}' precisa ser importável"
         );
     }
+    let importaveis: BTreeSet<&str> = familia_superficie::FAMILIAS.iter().copied().collect();
+    assert_eq!(
+        com_membros, importaveis,
+        "depois da #505 módulo importável e módulo com membros são o mesmo conjunto"
+    );
 }
 
 /// A matriz aprovada pela Founder, escrita por extenso como oráculo
@@ -195,11 +210,11 @@ const MATRIZ_APROVADA: &[(&str, &str, &str)] = &[
     ("arquivo", "anexar_verso", "anexar_verso"),
     ("arquivo", "copiar", "copiar_arquivo"),
     ("arquivo", "renomear", "renomear_arquivo"),
-    ("arquivo", "sha256", "sha256_arquivo"),
-    ("caminho", "caminho_existe", "caminho_existe"),
+    ("integridade", "sha256_arquivo", "sha256_arquivo"),
+    ("caminho", "existe", "caminho_existe"),
     ("caminho", "e_arquivo", "e_arquivo"),
     ("caminho", "e_diretorio", "e_diretorio"),
-    ("caminho", "juntar_caminho", "juntar_caminho"),
+    ("caminho", "juntar", "juntar_caminho"),
     ("caminho", "tamanho_arquivo", "tamanho_arquivo"),
     ("caminho", "arquivo_vazio", "e_vazio"),
     ("caminho", "criar_diretorio", "criar_diretorio"),
@@ -221,8 +236,12 @@ fn o_registro_espelha_a_matriz_aprovada_pela_founder() {
             "{familia}.{membro} deveria resolver para '{canonica}'"
         );
     }
-    // E nada além disso: o registro não pode ganhar superfície por fora da
-    // decisão humana.
+    // A #505 generalizou o mecanismo, então o registro deixou de ser
+    // exatamente esta matriz e passou a contê-la. O que continua exato é o
+    // recorte que a #491 decidiu: `arquivo` e `caminho` não podem ganhar nem
+    // perder membro por fora da decisão humana. «Nada além disso» na
+    // superfície inteira é responsabilidade da tabela dourada da #505, em
+    // `issue_505_module_migration_tests`.
     let aprovadas: BTreeSet<(&str, &str)> = MATRIZ_APROVADA
         .iter()
         .map(|(familia, membro, _)| (*familia, *membro))
@@ -231,9 +250,23 @@ fn o_registro_espelha_a_matriz_aprovada_pela_founder() {
         .iter()
         .map(|exportacao| (exportacao.familia, exportacao.membro()))
         .collect();
+    assert!(
+        aprovadas.is_subset(&registradas),
+        "o registro perdeu superfície aprovada pela Founder"
+    );
+    let recorte_491: BTreeSet<(&str, &str)> = registradas
+        .iter()
+        .copied()
+        .filter(|(familia, _)| *familia == "arquivo" || *familia == "caminho")
+        .collect();
+    let esperado_491: BTreeSet<(&str, &str)> = aprovadas
+        .iter()
+        .copied()
+        .filter(|(familia, _)| *familia == "arquivo" || *familia == "caminho")
+        .collect();
     assert_eq!(
-        registradas, aprovadas,
-        "o registro divergiu da superfície aprovada pela Founder"
+        recorte_491, esperado_491,
+        "`arquivo`/`caminho` divergiram da superfície aprovada pela Founder"
     );
 }
 
@@ -244,7 +277,7 @@ fn o_registro_espelha_a_matriz_aprovada_pela_founder() {
 fn as_sete_decisoes_explicitas_da_founder_estao_aplicadas() {
     for (canonica, familia, membro) in [
         ("e_vazio", "caminho", "arquivo_vazio"),
-        ("sha256_arquivo", "arquivo", "sha256"),
+        ("sha256_arquivo", "integridade", "sha256_arquivo"),
         ("arquivo_ou", "arquivo", "ler_caminho_ou"),
         ("criar_arquivo", "arquivo", "criar"),
         ("copiar_arquivo", "arquivo", "copiar"),
@@ -288,24 +321,31 @@ fn nenhuma_familia_exporta_dois_membros_com_o_mesmo_nome() {
 /// nome público que sai do registro é o mesmo que a autoridade declara.
 #[test]
 fn superficie_falivel_e_endereçada_pela_operacao() {
+    // As cinco da #491, mais as quatro que a #505 trouxe para a superfície
+    // modular ao migrar `json`, `processo` e `texto`. Nenhuma delas é
+    // endereçada por literal: todas entram pela `OperacaoFalivel`.
     let esperadas = [
         OperacaoFalivel::LerArquivoPorCaminho,
         OperacaoFalivel::HashArquivo,
         OperacaoFalivel::EnumerarDiretorio,
         OperacaoFalivel::ClassificarEntrada,
         OperacaoFalivel::MedirEntrada,
+        OperacaoFalivel::InterpretarJson,
+        OperacaoFalivel::ExecutarProcesso,
+        OperacaoFalivel::ExecutarProcessoEstruturado,
+        OperacaoFalivel::ConverterVersoParaBombom,
     ];
     let observadas: Vec<OperacaoFalivel> = EXPORTACOES
         .iter()
         .filter_map(|exportacao| match exportacao.identidade {
             IdentidadeCanonica::Falivel(operacao) => Some(operacao),
-            IdentidadeCanonica::Historica(_) => None,
+            IdentidadeCanonica::PorGrafia(_) => None,
         })
         .collect();
     assert_eq!(
         observadas.len(),
         esperadas.len(),
-        "cinco das 29 superfícies aprovadas são falíveis"
+        "nove identidades falíveis na superfície pública depois da #505"
     );
     for operacao in esperadas {
         assert!(
@@ -404,23 +444,61 @@ fn fonte_de_uma_chamada(grafia: Grafia, chamada: &Chamada) -> String {
     )
 }
 
-/// A matriz precisa exercitar exatamente o registro — nem mais, nem menos.
-/// Sem isto, um membro aprovado poderia entrar no registro e sair sem teste.
+/// A matriz precisa exercitar exatamente a superfície que a #491 aprovou —
+/// nem mais, nem menos. Sem isto, um membro aprovado poderia entrar no
+/// registro e sair sem teste.
+///
+/// Depois que a #505 generalizou o mecanismo, o registro deixou de ser esta
+/// matriz e passou a contê-la; quem responde por «nem mais, nem menos» na
+/// superfície inteira é a tabela dourada de `issue_505_module_migration_tests`.
+/// O que continua exato aqui é o recorte da #491.
 #[test]
 fn matriz_exercita_as_29_superficies_aprovadas() {
     let da_matriz: BTreeSet<(&str, &str)> = MATRIZ_CANONICALIZACAO
         .iter()
         .map(|chamada| (chamada.familia, chamada.membro))
         .collect();
+    let aprovadas: BTreeSet<(&str, &str)> = MATRIZ_APROVADA
+        .iter()
+        .map(|(familia, membro, _)| (*familia, *membro))
+        .collect();
+    assert_eq!(
+        da_matriz, aprovadas,
+        "a matriz de testes divergiu da superfície aprovada pela Founder"
+    );
     let do_registro: BTreeSet<(&str, &str)> = EXPORTACOES
         .iter()
         .map(|exportacao| (exportacao.familia, exportacao.membro()))
         .collect();
-    assert_eq!(
-        da_matriz, do_registro,
-        "a matriz de testes divergiu do registro de superfície"
+    assert!(
+        da_matriz.is_subset(&do_registro),
+        "a matriz exercita par que o registro não declara"
     );
     assert_eq!(da_matriz.len(), 29);
+}
+
+/// A terceira grafia da matriz — o nome global histórico — deixou de existir.
+///
+/// A #491 media três grafias equivalentes; a #505 removeu uma delas. Ela não
+/// saiu deste arquivo: virou oráculo negativo, percorrendo a MESMA matriz e
+/// exigindo recusa por escopo em cada linha. Sem isto, apagar a grafia legada
+/// da matriz passaria por migração e ninguém veria a superfície global voltar.
+#[test]
+fn a_grafia_legada_da_matriz_deixou_de_ser_chamavel() {
+    for chamada in MATRIZ_CANONICALIZACAO {
+        let fonte = format!(
+            "pacote main;\ncarinho principal() -> bombom {{\n    {};\n    mimo 0;\n}}\n",
+            chamada_legada(chamada.familia, chamada.membro, chamada.args)
+        );
+        let erro = parse(&fonte).expect_err("a grafia global não pode mais compilar");
+        let msg = format!("{erro:?}");
+        assert!(
+            msg.contains("não está no escopo"),
+            "{}.{} recusada por outro motivo: {msg}",
+            chamada.familia,
+            chamada.membro
+        );
+    }
 }
 
 #[test]
@@ -544,6 +622,16 @@ fn nenhuma_camada_a_jusante_decide_pela_grafia_de_membro() {
             continue;
         }
         let texto = fs::read_to_string(&caminho).expect("fonte a jusante legível");
+        // `DESPACHO_DE_EXECUCAO != HARNESS_DE_TESTE`. O que este censo procura
+        // é a camada de execução decidindo pela grafia de membro; o módulo de
+        // testes do próprio arquivo não decide execução nenhuma, e depois da
+        // #505 há membro cuja grafia é palavra comum — `tamanho`, `criar`,
+        // `obter` —, que aparece ali por coincidência. Cortar no marcador
+        // mantém a produção inteira sob o censo e tira o falso positivo.
+        let texto = match texto.find("#[cfg(test)]") {
+            Some(corte) => texto[..corte].to_string(),
+            None => texto,
+        };
         for membro in &proprias {
             // As formas em que um literal DECIDE: braço de `match`, comparação
             // e alternativa de padrão. A mesma palavra numa mensagem de
@@ -654,9 +742,20 @@ fn membro_inexistente_em_import_seletivo_lista_os_membros() {
     assert!(!erro.contains("não é suportada"), "{erro}");
 }
 
+/// Membro inexistente é recusado citando os membros REAIS do módulo.
+///
+/// A #505 fechou o caso «família sem membros»: depois dela todo módulo
+/// importável exporta pelo menos um membro, e a metade do diagnóstico que
+/// falava de família vazia deixou de ser alcançável por fonte. O que continua
+/// alcançável — e é o que importa ao usuário — é o membro que não existe, com
+/// a lista de quem existe. As duas grafias históricas usadas aqui são as
+/// mesmas de antes: elas agora são a grafia CANÔNICA, não o membro.
 #[test]
-fn familia_sem_membros_recusa_seletivo_dizendo_que_nao_exporta() {
-    for (familia, membro) in [("texto", "juntar_verso"), ("tempo", "tempo_unix")] {
+fn membro_inexistente_e_recusado_citando_os_membros_reais() {
+    for (familia, membro, esperado) in [
+        ("texto", "juntar_verso", "'juntar'"),
+        ("tempo", "tempo_unix", "'unix'"),
+    ] {
         let erro = erro_de(&format!(
             "pacote main;
              trazer {familia}.{membro};
@@ -664,9 +763,13 @@ fn familia_sem_membros_recusa_seletivo_dizendo_que_nao_exporta() {
         ));
         assert!(
             erro.contains(&format!(
-                "a família '{familia}' não exporta membros nesta fase"
+                "membro '{membro}' não existe na família '{familia}'"
             )),
             "{erro}"
+        );
+        assert!(
+            erro.contains(esperado),
+            "o diagnóstico precisa listar os membros reais: {erro}"
         );
     }
 }
@@ -1069,8 +1172,13 @@ fn f5_colisao_de_import_seletivo_vale_no_caminho_de_biblioteca() {
         erro.contains("declaração callable 'criar'"),
         "a declaração callable precisa ser a dona da falha: {erro}"
     );
-    assert!(erro.contains("superfície intrínseca Pinker"), "{erro}");
-    assert!(erro.contains("não pode ser redeclarada"), "{erro}");
+    // Depois da #505 a causa é nomeada: não é «a grafia é da linguagem», é
+    // «este arquivo traz `arquivo.criar`». O diagnóstico ficou mais preciso
+    // sem deixar de ser a mesma recusa.
+    assert!(
+        erro.contains("colide com o membro 'arquivo.criar'"),
+        "{erro}"
+    );
     assert!(
         !erro.contains("colisão de nome no import"),
         "a expectativa histórica foi substituída por #504: {erro}"
@@ -1851,7 +1959,7 @@ fn montar_fixture(raiz: &Path, nome: &str) -> PathBuf {
     fs::create_dir_all(base.join("lista")).expect("criar fixture");
     fs::write(base.join("alvo.txt"), "conteudo do arquivo\n").expect("alvo");
     fs::write(base.join("numero.txt"), "4242\n").expect("numero");
-    fs::write(base.join("vazio.txt"), "").expect("vazio");
+    fs::write(base.join("sem_conteudo.txt"), "").expect("vazio");
     fs::write(base.join("ok.txt"), "abcd").expect("ok");
     // Bytes que NÃO são UTF-8 válido: um hash de arquivo que recuse metade dos
     // arquivos não é hash de arquivo, e é isso que este byte prova.
@@ -1870,18 +1978,19 @@ fn montar_fixture(raiz: &Path, nome: &str) -> PathBuf {
 fn fonte_matriz(grafia: Grafia) -> String {
     let a = |membro: &str, args: String| chamada_na_grafia(grafia, "arquivo", membro, &args);
     let p = |membro: &str, args: String| chamada_na_grafia(grafia, "caminho", membro, &args);
+    let i = |membro: &str, args: String| chamada_na_grafia(grafia, "integridade", membro, &args);
     let usados: Vec<(&str, &str)> = MATRIZ_CANONICALIZACAO
         .iter()
         .map(|chamada| (chamada.familia, chamada.membro))
         .collect();
 
-    let alvo = p("juntar_caminho", "base, \"alvo.txt\"".to_string());
-    let vazio = p("juntar_caminho", "base, \"vazio.txt\"".to_string());
-    let ausente = p("juntar_caminho", "base, \"ausente.txt\"".to_string());
-    let numero = p("juntar_caminho", "base, \"numero.txt\"".to_string());
-    let link = p("juntar_caminho", "base, \"link_arq\"".to_string());
-    let binario = p("juntar_caminho", "base, \"binario.bin\"".to_string());
-    let pasta = p("juntar_caminho", "base, \"lista\"".to_string());
+    let alvo = p("juntar", "base, \"alvo.txt\"".to_string());
+    let vazio = p("juntar", "base, \"sem_conteudo.txt\"".to_string());
+    let ausente = p("juntar", "base, \"ausente.txt\"".to_string());
+    let numero = p("juntar", "base, \"numero.txt\"".to_string());
+    let link = p("juntar", "base, \"link_arq\"".to_string());
+    let binario = p("juntar", "base, \"binario.bin\"".to_string());
+    let pasta = p("juntar", "base, \"lista\"".to_string());
 
     let bloco_falivel = format!(
         r#"    tentar {tamanho_entrada_link} {{
@@ -1916,7 +2025,7 @@ fn fonte_matriz(grafia: Grafia) -> String {
         falha ResVV.Erro(e) {{ falar("ERRO_SHA_BINARIO"); }}
     }}
     tentar {listar_pasta} {{
-        sucesso ResLV.Ok(nomes) {{ falar(lista_tamanho(nomes)); }}
+        sucesso ResLV.Ok(nomes) {{ falar(lista.tamanho(nomes)); }}
         falha ResLV.Erro(e) {{ falar("ERRO_LISTAR"); }}
     }}
 "#,
@@ -1924,13 +2033,15 @@ fn fonte_matriz(grafia: Grafia) -> String {
         tipo_entrada_link = p("tipo_de_entrada", "link".to_string()),
         ler_resultado_alvo = a("ler_caminho_resultado", "alvo".to_string()),
         ler_resultado_ausente = a("ler_caminho_resultado", ausente.clone()),
-        sha_alvo = a("sha256", "alvo".to_string()),
-        sha_binario = a("sha256", binario.clone()),
+        sha_alvo = i("sha256_arquivo", "alvo".to_string()),
+        sha_binario = i("sha256_arquivo", binario.clone()),
         listar_pasta = p("listar_diretorio", pasta.clone()),
     );
 
     format!(
         r#"pacote main;
+trazer ambiente.argumento_ou;
+trazer lista;
 {cabecalho}apelido ResVV = Resultado<verso, verso>;
 apelido ResBV = Resultado<bombom, verso>;
 apelido ResLV = Resultado<lista<verso>, verso>;
@@ -2012,7 +2123,7 @@ carinho principal() -> bombom {{
         cabecalho = cabecalho(grafia, &usados),
         alvo = alvo,
         ler_caminho_verso_alvo = a("ler_caminho_verso", "alvo".to_string()),
-        existe_alvo = p("caminho_existe", "alvo".to_string()),
+        existe_alvo = p("existe", "alvo".to_string()),
         e_arquivo_alvo = p("e_arquivo", "alvo".to_string()),
         e_diretorio_base = p("e_diretorio", "base".to_string()),
         tamanho_alvo = p("tamanho_arquivo", "alvo".to_string()),
@@ -2026,9 +2137,9 @@ carinho principal() -> bombom {{
         abrir_alvo = a("abrir", "alvo".to_string()),
         ler_verso_hv = a("ler_verso", "hv".to_string()),
         fechar_hv = a("fechar", "hv".to_string()),
-        trab = p("juntar_caminho", "base, \"trabalho\"".to_string()),
+        trab = p("juntar", "base, \"trabalho\"".to_string()),
         criar_dir_trab = p("criar_diretorio", "trab".to_string()),
-        w = p("juntar_caminho", "trab, \"w.txt\"".to_string()),
+        w = p("juntar", "trab, \"w.txt\"".to_string()),
         criar_w = a("criar", "w".to_string()),
         escrever_verso_hw = a("escrever_verso", "hw, \"rosa\"".to_string()),
         fechar_hw = a("fechar", "hw".to_string()),
@@ -2037,27 +2148,27 @@ carinho principal() -> bombom {{
         anexar_ha = a("anexar_verso", "ha, \" pinker\"".to_string()),
         fechar_ha = a("fechar", "ha".to_string()),
         ler_w2 = a("ler_caminho_verso", "w".to_string()),
-        num = p("juntar_caminho", "trab, \"num.txt\"".to_string()),
+        num = p("juntar", "trab, \"num.txt\"".to_string()),
         criar_num = a("criar", "num".to_string()),
         escrever_bombom_hnum = a("escrever_bombom", "hnum, 4242".to_string()),
         fechar_hnum = a("fechar", "hnum".to_string()),
         abrir_num = a("abrir", "num".to_string()),
         ler_bombom_hr = a("ler_bombom", "hr".to_string()),
         fechar_hr = a("fechar", "hr".to_string()),
-        t = p("juntar_caminho", "trab, \"t.txt\"".to_string()),
+        t = p("juntar", "trab, \"t.txt\"".to_string()),
         criar_t = a("criar", "t".to_string()),
         escrever_verso_ht = a("escrever_verso", "ht, \"conteudo\"".to_string()),
         truncar_ht = a("truncar", "ht".to_string()),
         fechar_ht = a("fechar", "ht".to_string()),
         tamanho_t = p("tamanho_arquivo", "t".to_string()),
-        c1 = p("juntar_caminho", "trab, \"c1.txt\"".to_string()),
+        c1 = p("juntar", "trab, \"c1.txt\"".to_string()),
         copiar_w_c1 = a("copiar", "w, c1".to_string()),
         ler_c1 = a("ler_caminho_verso", "c1".to_string()),
-        c2 = p("juntar_caminho", "trab, \"c2.txt\"".to_string()),
+        c2 = p("juntar", "trab, \"c2.txt\"".to_string()),
         renomear_c1_c2 = a("renomear", "c1, c2".to_string()),
-        existe_c1 = p("caminho_existe", "c1".to_string()),
+        existe_c1 = p("existe", "c1".to_string()),
         ler_c2 = a("ler_caminho_verso", "c2".to_string()),
-        existe_cwd = p("caminho_existe", p("diretorio_atual", String::new())),
+        existe_cwd = p("existe", p("diretorio_atual", String::new())),
         link = link,
         tamanho_link = p("tamanho_arquivo", "link".to_string()),
         vazio_do_link = p("arquivo_vazio", "link".to_string()),
@@ -2068,7 +2179,7 @@ carinho principal() -> bombom {{
         remover_num = p("remover_arquivo", "num".to_string()),
         remover_t = p("remover_arquivo", "t".to_string()),
         remover_trab = p("remover_diretorio", "trab".to_string()),
-        existe_trab = p("caminho_existe", "trab".to_string()),
+        existe_trab = p("existe", "trab".to_string()),
     )
 }
 
@@ -2299,7 +2410,7 @@ fn fonte_assembly(grafia: Grafia) -> String {
         ("arquivo", "fechar"),
         ("caminho", "arquivo_vazio"),
         ("caminho", "tamanho_arquivo"),
-        ("caminho", "caminho_existe"),
+        ("caminho", "existe"),
     ];
     format!(
         "pacote main;\n{}carinho principal() -> bombom {{\n    \
@@ -2314,9 +2425,9 @@ fn fonte_assembly(grafia: Grafia) -> String {
         a("abrir", "\"numero.txt\""),
         a("ler_bombom", "h"),
         a("fechar", "h"),
-        p("arquivo_vazio", "\"vazio.txt\""),
+        p("arquivo_vazio", "\"sem_conteudo.txt\""),
         p("tamanho_arquivo", "\"numero.txt\""),
-        p("caminho_existe", "\"numero.txt\""),
+        p("existe", "\"numero.txt\""),
     )
 }
 
@@ -2590,6 +2701,7 @@ eterno arquivo: bombom = 5;
             &format!(
                 "pacote main;
 {imports}
+trazer caminho.diretorio_atual;
 carinho principal() -> bombom {{
     nova d: verso = diretorio_atual();
     mimo arquivo;
@@ -2697,11 +2809,12 @@ carinho fabricar(alvo: verso) -> bombom {
         "usa_biblioteca.pink",
         &format!(
             "pacote main;
+trazer arquivo;
 trazer biblioteca.fabricar;
 
 carinho principal() -> bombom {{
     nova h: bombom = fabricar(\"{}\");
-    fechar(h);
+    arquivo.fechar(h);
     mimo 0;
 }}
 ",

@@ -1,11 +1,14 @@
 pacote fase158_csv_minimo_valido;
 
-carinho principal() -> bombom {
-    nova itens: lista<bombom> = ler_linha_csv_bombom("7,11,13", ",");
-    nova linha: verso = emitir_linha_csv_bombom(itens, ",");
+trazer csv.emitir_linha_bombom, ler_linha_bombom;
+trazer lista.bombom_obter, bombom_tamanho;
 
-    falar(lista_bombom_tamanho(itens));
-    falar(lista_bombom_obter(itens, 1));
+carinho principal() -> bombom {
+    nova itens: lista<bombom> = ler_linha_bombom("7,11,13", ",");
+    nova linha: verso = emitir_linha_bombom(itens, ",");
+
+    falar(bombom_tamanho(itens));
+    falar(bombom_obter(itens, 1));
     falar(linha);
     mimo 0;
 }

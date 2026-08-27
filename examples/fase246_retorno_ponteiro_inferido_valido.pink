@@ -1,5 +1,7 @@
 pacote main;
 
+trazer memoria.alocar, liberar;
+
 apelido PonteiroByte = seta<u8>;
 
 carinho criar_byte() -> PonteiroByte {

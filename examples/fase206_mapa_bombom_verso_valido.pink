@@ -1,19 +1,21 @@
 pacote main;
 
+trazer mapa.bombom_verso_criar, bombom_verso_definir, bombom_verso_obter, bombom_verso_remover, bombom_verso_tamanho;
+
 carinho principal() -> bombom {
-    nova nomes: mapa<bombom,verso> = mapa_bombom_verso_criar();
-    mapa_bombom_verso_definir(nomes, 1, "Ana");
-    mapa_bombom_verso_definir(nomes, 2, "Bruno");
-    mapa_bombom_verso_definir(nomes, 3, "Carla");
+    nova nomes: mapa<bombom,verso> = bombom_verso_criar();
+    bombom_verso_definir(nomes, 1, "Ana");
+    bombom_verso_definir(nomes, 2, "Bruno");
+    bombom_verso_definir(nomes, 3, "Carla");
 
-    falar(mapa_bombom_verso_obter(nomes, 1));
-    falar(mapa_bombom_verso_obter(nomes, 2));
-    falar(mapa_bombom_verso_obter(nomes, 3));
+    falar(bombom_verso_obter(nomes, 1));
+    falar(bombom_verso_obter(nomes, 2));
+    falar(bombom_verso_obter(nomes, 3));
 
-    falar(mapa_bombom_verso_tamanho(nomes));
+    falar(bombom_verso_tamanho(nomes));
 
-    mapa_bombom_verso_remover(nomes, 3);
-    falar(mapa_bombom_verso_tamanho(nomes));
+    bombom_verso_remover(nomes, 3);
+    falar(bombom_verso_tamanho(nomes));
 
     para cada chave em nomes {
         falar(chave);

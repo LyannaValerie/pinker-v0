@@ -1,5 +1,7 @@
 pacote main;
 
+trazer caminho.diretorio_atual;
+
 carinho principal() -> bombom {
     falar(diretorio_atual());
     mimo 0;

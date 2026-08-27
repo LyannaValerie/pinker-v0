@@ -1,7 +1,10 @@
 pacote main;
 
+trazer ambiente.argumento_ou;
+trazer texto.tamanho;
+
 carinho principal() -> bombom {
     nova nome: verso = argumento_ou(0, "visitante");
     falar("oi", nome);
-    mimo tamanho_verso(nome);
+    mimo tamanho(nome);
 }

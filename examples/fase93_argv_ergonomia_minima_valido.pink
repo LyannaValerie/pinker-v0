@@ -1,5 +1,8 @@
 pacote main;
 
+trazer ambiente.argumento, quantos_argumentos, tem_argumento;
+trazer processo.sair;
+
 carinho principal() -> bombom {
     nova total: bombom = quantos_argumentos();
     falar("total", total);

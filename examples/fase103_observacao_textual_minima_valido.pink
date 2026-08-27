@@ -1,16 +1,21 @@
 pacote main;
 
+trazer ambiente.argumento_ou;
+trazer arquivo.criar, escrever_verso, fechar, ler_verso;
+trazer caminho.juntar;
+trazer texto.comeca_com, contem;
+
 carinho principal() -> bombom {
     nova base: verso = argumento_ou(0, "/tmp");
     nova nome: verso = argumento_ou(1, "pinker_fase103_entrada.txt");
-    nova alvo: verso = juntar_caminho(base, nome);
+    nova alvo: verso = juntar(base, nome);
 
-    nova h: bombom = criar_arquivo(alvo);
+    nova h: bombom = criar(alvo);
     escrever_verso(h, "prefixo: pinker v0");
-    nova texto: verso = ler_verso_arquivo(h);
+    nova texto: verso = ler_verso(h);
     fechar(h);
 
-    nova tem: logica = contem_verso(texto, "pinker");
+    nova tem: logica = contem(texto, "pinker");
     nova prefixo_ok: logica = comeca_com(texto, "prefixo:");
     falar(tem, prefixo_ok);
 

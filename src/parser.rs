@@ -79,6 +79,16 @@ pub struct Parser {
     /// aqui. Eles têm escopo, e escopo é decidido no ponto de uso por
     /// `escopos_locais`.
     nomes_de_topo: HashSet<String>,
+    /// #505: nome cujo INICIALIZADOR está sendo parseado agora.
+    ///
+    /// `nova f = carinho() { f(...) }` usa o nome no mesmo statement que o
+    /// liga, e nesse ponto ele ainda não entrou em `escopos_locais`. Ceder a
+    /// esta pilha é o mínimo para não recusar no parser um programa que sempre
+    /// pertenceu à semântica — e é MÍNIMO de propósito: um censo do arquivo
+    /// inteiro cederia também a ligação de outra função, reabrindo a
+    /// superfície global para quem só tem um parâmetro homônimo em algum
+    /// canto.
+    declarando: Vec<String>,
     /// Parte G: pilha de escopos léxicos reais das ligações locais.
     ///
     /// Empilha e desempilha junto de `value_type_scopes`, e recebe todo nome
@@ -229,6 +239,21 @@ fn merge_span(a: Span, b: Span) -> Span {
 ///
 /// Nenhuma delas é política: são fatos. A política de módulo continua inteira
 /// em `main.rs`, e a de família em `familia_superficie` e `semantic`.
+/// #533: uma declaração `trazer` já lida do fluxo de tokens.
+///
+/// Guarda ÍNDICES, não lexemas: quem lê decide o que extrair, e o leitor não
+/// precisa de empréstimo vivo sobre `self.tokens` enquanto o parser segue
+/// mutando. `membros` vazio significa import inteiro (`trazer M;`); caso
+/// contrário são os membros na ORDEM TEXTUAL, que é a ordem em que a forma
+/// separada equivalente teria sido escrita.
+#[derive(Debug, Clone)]
+pub struct DeclaracaoTrazer {
+    pub inicio: usize,
+    pub fim: usize,
+    pub modulo: usize,
+    pub membros: Vec<usize>,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct ContextoDeImport {
     /// Nomes de `trazer X.y;` que resolvem para um módulo Pinker real ao lado
@@ -272,6 +297,7 @@ impl Parser {
             familias_importadas: HashSet::new(),
             membros_familia_importados: HashMap::new(),
             nomes_de_topo: HashSet::new(),
+            declarando: Vec::new(),
             escopos_locais: Vec::new(),
             contexto_de_import,
             collection_types: HashMap::new(),
@@ -550,7 +576,7 @@ impl Parser {
     // @pinker-nav:start parser.programa.estrutura
     // @pinker-nav:domain programa
     // @pinker-nav:layer parser
-    // @pinker-nav:summary Ponto de entrada do parser: constrói o `Program` reconhecendo `pacote`, `trazer` (imports) e a marca freestanding, e despacha os itens de topo via `parse_item`. Dois prepasses estreitos de autoridade precedem qualquer resolução, ambos sobre tokens e sem resolver tipos: um detecta templates genéricos de usuário antes de registrar o `Resultado<T,E>` builtin, tornando USER_WINS independente da ordem textual; outro colhe as identidades de topo do arquivo (`coletar_nomes_de_topo`), que é o que dá à superfície por família a mesma independência de ordem. A redeclaração continua formando com a produção runtime a conjunção inválida da Parte B1.
+    // @pinker-nav:summary Ponto de entrada do parser: constrói o `Program` reconhecendo `pacote`, `trazer` (imports) e a marca freestanding, e despacha os itens de topo via `parse_item`. Desde a #533 a declaração `trazer` aceita vários membros de UM módulo (`trazer M.a, b, c;`) e desaçucara ali mesmo para as unidades `Import` de sempre, na ordem textual, sem que nada a jusante conheça multi-import; a leitura da declaração é `ler_declaracao_trazer`, a mesma que os prepasses de import usam, e o caminho de cursor só produz o diagnóstico das formas recusadas (`M.a, b,;`, `M.a, N.b;`, `M, a;`). Dois prepasses estreitos de autoridade precedem qualquer resolução, ambos sobre tokens e sem resolver tipos: um detecta templates genéricos de usuário antes de registrar o `Resultado<T,E>` builtin, tornando USER_WINS independente da ordem textual; outro colhe as identidades de topo do arquivo (`coletar_nomes_de_topo`), que é o que dá à superfície por família a mesma independência de ordem. A redeclaração continua formando com a produção runtime a conjunção inválida da Parte B1.
     pub fn parse(&mut self) -> Result<Program, PinkerError> {
         // Parte G: o censo de identidades de topo precede toda resolução. A
         // família é fallback, e fallback precisa saber o que já está
@@ -582,31 +608,48 @@ impl Parser {
         }
 
         let mut imports = Vec::new();
-        while self.match_token(TokenKind::KwTrazer) {
-            let start_span = self.previous().span;
-            let module = self
-                .consume(TokenKind::Ident, "nome do módulo em trazer")?
-                .lexeme
-                .clone();
-            let symbol = if self.match_token(TokenKind::Dot) {
-                Some(
-                    self.consume(
-                        TokenKind::Ident,
-                        "símbolo após '.' em trazer módulo.símbolo",
-                    )?
-                    .lexeme
-                    .clone(),
-                )
-            } else {
-                None
+        while self.check(TokenKind::KwTrazer) {
+            // #533: a lista de membros é lida por `ler_declaracao_trazer`, a
+            // MESMA autoridade sintática que os prepasses de import consultam.
+            // O caminho de cursor abaixo existe só para produzir o diagnóstico
+            // exato quando o leitor recusa a forma; ele nunca aceita nada que o
+            // leitor tenha recusado, e é isso que impede duas gramáticas.
+            let Some(declaracao) = Self::ler_declaracao_trazer(&self.tokens, self.current) else {
+                self.diagnosticar_declaracao_trazer()?;
+                unreachable!("diagnosticar_declaracao_trazer sempre falha quando o leitor recusa");
             };
-            self.consume(TokenKind::Semi, ";")?;
-            self.registrar_import_de_familia(&module, symbol.as_deref());
-            imports.push(ImportDecl {
-                module,
-                symbol,
-                span: merge_span(start_span, self.previous().span),
-            });
+            let start_span = self.tokens[declaracao.inicio].span;
+            let end_span = self.tokens[declaracao.fim].span;
+            let module = self.tokens[declaracao.modulo].lexeme.clone();
+            let membros: Vec<String> = declaracao
+                .membros
+                .iter()
+                .map(|indice| self.tokens[*indice].lexeme.clone())
+                .collect();
+            self.current = declaracao.fim + 1;
+
+            // #533: `trazer M.a, b, c;` DESAÇUCARA aqui, na fronteira
+            // sintática, para as mesmas unidades `Import` que a forma separada
+            // sempre produziu — na ordem textual. Nada a jusante conhece
+            // "multi-import": `DOWNSTREAM_MULTI_IMPORT_CONCEPT = 0`.
+            let span = merge_span(start_span, end_span);
+            if membros.is_empty() {
+                self.registrar_import_de_familia(&module, None);
+                imports.push(ImportDecl {
+                    module,
+                    symbol: None,
+                    span,
+                });
+            } else {
+                for membro in membros {
+                    self.registrar_import_de_familia(&module, Some(membro.as_str()));
+                    imports.push(ImportDecl {
+                        module: module.clone(),
+                        symbol: Some(membro),
+                        span,
+                    });
+                }
+            }
         }
 
         // Fase 241: predeclara o leque padrão `Resultado<T, E> { Ok(T), Erro(E) }`
@@ -2634,7 +2677,12 @@ impl Parser {
             });
         }
         self.consume(TokenKind::Eq, "=")?;
-        let init = self.parse_expr()?;
+        // #505: o corpo da closure pode citar o próprio nome que este `nova`
+        // liga, e nesse ponto ele ainda não está em `escopos_locais`.
+        self.declarando.push(local_name.clone());
+        let init = self.parse_expr();
+        self.declarando.pop();
+        let init = init?;
         self.consume(TokenKind::Semi, ";")?;
         let end_span = merge_span(start_span, self.previous().span);
 
@@ -3427,7 +3475,114 @@ impl Parser {
     // @pinker-nav:start parser.importacoes.superficie-familia
     // @pinker-nav:domain importacoes
     // @pinker-nav:layer parser
-    // @pinker-nav:summary Resolução da superfície por família dentro do parser, e as duas autoridades de precedência que a governam: `nomes_de_topo`, censo de tokens em profundidade zero com as identidades que a Pinker resolve independentemente da ordem textual, e `escopos_locais`, pilha de escopos léxicos reais alimentada em cada ponto onde o parser liga um nome. A família é FALLBACK e o último a responder: cede a identidade de topo em todo o arquivo, cede a ligação local apenas onde ela está visível, e sem o import não opina nem recusa — devolve `None` e o `FieldAccess` histórico é construído como antes desta Parte existir. Antes das duas, a família cede ao `ContextoDeImport` que a autoridade de import entrega pronto: `modulos_reais` decide a classificação `MODULE vs FAMILY` da forma seletiva, e `nomes_importados` traz as identidades de topo de `trazer <modulo>;`, que não passam pelo fluxo de tokens deste arquivo e por isso entram no censo por veredito, não por leitura. A ligação `(família, membro) -> identidade` não mora aqui; vem inteira de `familia_superficie`.
+    // @pinker-nav:summary Resolução da superfície modular dentro do parser, e as autoridades de precedência que a governam: `nomes_de_topo`, censo de tokens em profundidade zero com as identidades que a Pinker resolve independentemente da ordem textual, e `escopos_locais`, pilha de escopos léxicos reais. O módulo é FALLBACK e o último a responder: cede a identidade de topo em todo o arquivo e cede a ligação local onde ela está visível. Depois da #505 o que ele NÃO faz mais é ceder ao global: `recusar_intrinseca_sem_import` recusa, no próprio CANONICALIZATION_BOUNDARY, qualquer grafia pública chamada sem import — canônica ou de membro —, e é isso que torna `GLOBAL_PUBLIC_INTRINSIC = 0` uma propriedade do parser em vez de uma lista. A recusa cede a `identidade_lexical_existente`, então declaração do próprio arquivo continua vencendo. A ligação `(módulo, membro) -> identidade` não mora aqui; vem inteira de `familia_superficie`. A #533 acrescentou `ler_declaracao_trazer` como autoridade sintática ÚNICA da declaração: os três varredores de token desta região (`familias_seletivas_candidatas`, `modulos_trazidos_inteiros`, `coletar_nomes_de_topo`) e o laço de import do parser leem por ela, de modo que `ALL_IMPORT_PREPASSES_SEE_THE_SAME_MEMBERS` seja construção e não coincidência — o censo de identidades de topo passou a registrar TODOS os membros da lista, não só o primeiro.
+
+    /// #533: autoridade sintática ÚNICA da declaração `trazer`.
+    ///
+    /// Antes desta Issue havia três varreduras de token independentes
+    /// (`familias_seletivas_candidatas`, `modulos_trazidos_inteiros`,
+    /// `coletar_nomes_de_topo`) mais o laço do parser, cada uma reconhecendo a
+    /// forma `trazer Ident . Ident ;` por conta própria. Quatro cópias de uma
+    /// gramática são quatro chances de divergir, e a lista de membros é
+    /// exatamente o eixo em que elas divergiriam: um prepass que enxerga só o
+    /// primeiro membro deixa `b` e `c` de `trazer M.a, b, c;` fora do censo de
+    /// identidades de topo, e o import passa a sombrear a si mesmo.
+    ///
+    /// Por isso a leitura passou a ser uma só. O que continua NÃO morando aqui
+    /// é política de resolução: esta função não sabe o que é família, o que é
+    /// módulo real, nem o que um membro significa. Ela responde uma pergunta
+    /// puramente sintática — «que módulo e que membros esta declaração
+    /// escreveu?» — e devolve `None` para toda forma que a gramática não
+    /// autoriza, incluindo `trazer M.a, b,;`, `trazer M.a, N.b;` e
+    /// `trazer M, a;`.
+    pub fn ler_declaracao_trazer(tokens: &[Token], indice: usize) -> Option<DeclaracaoTrazer> {
+        if tokens.get(indice)?.kind != TokenKind::KwTrazer {
+            return None;
+        }
+        let modulo = indice + 1;
+        if tokens.get(modulo)?.kind != TokenKind::Ident {
+            return None;
+        }
+        let mut cursor = modulo + 1;
+        let mut membros = Vec::new();
+        if tokens.get(cursor)?.kind == TokenKind::Dot {
+            loop {
+                cursor += 1;
+                if tokens.get(cursor)?.kind != TokenKind::Ident {
+                    // Cobre `trazer M.;` e a vírgula final `trazer M.a, b,;`:
+                    // item vazio não é membro, e a gramática não o autoriza.
+                    return None;
+                }
+                membros.push(cursor);
+                cursor += 1;
+                if tokens.get(cursor)?.kind != TokenKind::Comma {
+                    break;
+                }
+            }
+        }
+        if tokens.get(cursor)?.kind != TokenKind::Semi {
+            // `trazer M, a;` para aqui com a vírgula, e `trazer M.a, N.b;` com
+            // o ponto do segundo módulo. Nenhuma das duas vira gramática nova.
+            return None;
+        }
+        Some(DeclaracaoTrazer {
+            inicio: indice,
+            fim: cursor,
+            modulo,
+            membros,
+        })
+    }
+
+    /// #533: produz o diagnóstico da declaração `trazer` que o leitor recusou.
+    ///
+    /// Reconsome a mesma declaração pelo cursor, com as mensagens de sempre.
+    /// Só é chamada quando `ler_declaracao_trazer` já devolveu `None`, então
+    /// ela SEMPRE termina em erro — nunca é um segundo caminho de aceitação.
+    fn diagnosticar_declaracao_trazer(&mut self) -> Result<(), PinkerError> {
+        self.consume(TokenKind::KwTrazer, "trazer")?;
+        self.consume(TokenKind::Ident, "nome do módulo em trazer")?;
+        if self.match_token(TokenKind::Dot) {
+            loop {
+                self.consume(
+                    TokenKind::Ident,
+                    "símbolo após '.' em trazer módulo.símbolo",
+                )?;
+                if !self.match_token(TokenKind::Comma) {
+                    break;
+                }
+                if self.check(TokenKind::Semi) {
+                    return Err(PinkerError::Expected {
+                        expected:
+                            "membro após ',' em trazer módulo.a, b (vírgula final não é permitida)"
+                                .to_string(),
+                        found: ";".to_string(),
+                        span: self.peek_span(),
+                    });
+                }
+            }
+            if self.check(TokenKind::Dot) {
+                return Err(PinkerError::Expected {
+                    expected: "';' — a lista de `trazer` seleciona membros de UM módulo (use `trazer M.a, b;`, não `trazer M.a, N.b;`)"
+                        .to_string(),
+                    found: ".".to_string(),
+                    span: self.peek_span(),
+                });
+            }
+        } else if self.check(TokenKind::Comma) {
+            return Err(PinkerError::Expected {
+                expected: "';' após `trazer <módulo>` — a lista de membros exige `.` antes do primeiro (use `trazer M.a, b;`)"
+                    .to_string(),
+                found: ",".to_string(),
+                span: self.peek_span(),
+            });
+        }
+        self.consume(TokenKind::Semi, ";")?;
+        Err(PinkerError::Expected {
+            expected: "declaração `trazer` bem formada".to_string(),
+            found: self.previous().lexeme.clone(),
+            span: self.previous().span,
+        })
+    }
 
     /// Parte G: nomes de módulo em `trazer <nome>.<simbolo>;` cuja classificação
     /// o parser **não pode** fazer sozinho.
@@ -3442,28 +3597,24 @@ impl Parser {
     /// o disco é preservar o comportamento histórico, não uma omissão.
     pub fn familias_seletivas_candidatas(tokens: &[Token]) -> Vec<String> {
         let mut candidatos: Vec<String> = Vec::new();
-        for (indice, token) in tokens.iter().enumerate() {
-            if token.kind != TokenKind::KwTrazer {
-                continue;
-            }
-            let (Some(modulo), Some(ponto), Some(simbolo)) = (
-                tokens.get(indice + 1),
-                tokens.get(indice + 2),
-                tokens.get(indice + 3),
-            ) else {
+        for indice in 0..tokens.len() {
+            // #533: a leitura da declaração é a compartilhada. A pergunta desta
+            // função é sobre o MÓDULO, então a lista de membros não muda a
+            // resposta — mas ler pelo leitor é o que garante que ela enxergue
+            // exatamente as mesmas declarações que o parser aceita, em vez de
+            // casar um prefixo de tokens por conta própria.
+            let Some(declaracao) = Self::ler_declaracao_trazer(tokens, indice) else {
                 continue;
             };
-            if modulo.kind != TokenKind::Ident
-                || ponto.kind != TokenKind::Dot
-                || simbolo.kind != TokenKind::Ident
-            {
+            if declaracao.membros.is_empty() {
                 continue;
             }
-            if !crate::familia_superficie::familia_conhecida(modulo.lexeme.as_str()) {
+            let modulo = &tokens[declaracao.modulo].lexeme;
+            if !crate::familia_superficie::familia_conhecida(modulo.as_str()) {
                 continue;
             }
-            if !candidatos.contains(&modulo.lexeme) {
-                candidatos.push(modulo.lexeme.clone());
+            if !candidatos.contains(modulo) {
+                candidatos.push(modulo.clone());
             }
         }
         candidatos
@@ -3496,22 +3647,24 @@ impl Parser {
     /// parser precisa conhecer para não capturá-los.
     pub fn modulos_trazidos_inteiros(tokens: &[Token]) -> Vec<String> {
         let mut modulos: Vec<String> = Vec::new();
-        for (indice, token) in tokens.iter().enumerate() {
-            if token.kind != TokenKind::KwTrazer {
-                continue;
-            }
-            let (Some(modulo), Some(seguinte)) = (tokens.get(indice + 1), tokens.get(indice + 2))
-            else {
+        for indice in 0..tokens.len() {
+            // #533: import inteiro é exatamente a declaração SEM membros. A
+            // lista `trazer M.a, b;` continua fora daqui pela mesma razão de
+            // sempre — ela não traz os itens de topo do módulo —, agora dita
+            // pelo leitor único em vez de por um `seguinte.kind == Semi` que
+            // acertava a exclusão por acidente do formato antigo.
+            let Some(declaracao) = Self::ler_declaracao_trazer(tokens, indice) else {
                 continue;
             };
-            if modulo.kind != TokenKind::Ident || seguinte.kind != TokenKind::Semi {
+            if !declaracao.membros.is_empty() {
                 continue;
             }
-            if crate::familia_superficie::familia_conhecida(modulo.lexeme.as_str()) {
+            let modulo = &tokens[declaracao.modulo].lexeme;
+            if crate::familia_superficie::familia_conhecida(modulo.as_str()) {
                 continue;
             }
-            if !modulos.contains(&modulo.lexeme) {
-                modulos.push(modulo.lexeme.clone());
+            if !modulos.contains(modulo) {
+                modulos.push(modulo.clone());
             }
         }
         modulos
@@ -3637,21 +3790,24 @@ impl Parser {
             // concorrente: é o próprio nome que o import acaba de criar, e
             // contá-lo faria o import seletivo sombrear a si mesmo.
             if token.kind == TokenKind::KwTrazer {
-                let (Some(modulo), Some(ponto), Some(simbolo)) = (
-                    self.tokens.get(indice + 1),
-                    self.tokens.get(indice + 2),
-                    self.tokens.get(indice + 3),
-                ) else {
+                // #533: TODOS os membros da declaração entram no censo, não só
+                // o primeiro. Este era o ponto em que a lista podia divergir do
+                // parser: `trazer M.a, b, c;` ligava `a` no topo e deixava `b`
+                // e `c` invisíveis para a precedência, tornando a forma
+                // agrupada semanticamente diferente da separada.
+                let Some(declaracao) = Self::ler_declaracao_trazer(&self.tokens, indice) else {
                     continue;
                 };
-                if modulo.kind != TokenKind::Ident
-                    || ponto.kind != TokenKind::Dot
-                    || simbolo.kind != TokenKind::Ident
-                {
-                    continue;
-                }
-                if !self.seletivo_de_familia(modulo.lexeme.as_str(), simbolo.lexeme.as_str()) {
-                    nomes.insert(simbolo.lexeme.clone());
+                let modulo = self.tokens[declaracao.modulo].lexeme.clone();
+                let membros: Vec<String> = declaracao
+                    .membros
+                    .iter()
+                    .map(|posicao| self.tokens[*posicao].lexeme.clone())
+                    .collect();
+                for membro in membros {
+                    if !self.seletivo_de_familia(modulo.as_str(), membro.as_str()) {
+                        nomes.insert(membro);
+                    }
                 }
             }
         }
@@ -3775,6 +3931,71 @@ impl Parser {
                 span: base.span,
             }),
         }
+    }
+
+    /// #505 — a superfície intrínseca global deixou de existir.
+    ///
+    /// ```text
+    /// PUBLIC_INTRINSIC -> IMPORTABLE_MODULE_SURFACE
+    /// GLOBAL_PUBLIC_INTRINSIC = 0
+    /// ```
+    ///
+    /// Toda intrínseca pública é membro de exatamente um módulo importável, e
+    /// só é chamável por uma das duas formas que o import habilita: bare, via
+    /// `trazer modulo.membro;`, ou qualificada, via `trazer modulo;`. Ambas
+    /// passam pelo CANONICALIZATION_BOUNDARY acima e chegam aqui já
+    /// canonicalizadas — por isso o chamador só consulta esta recusa quando a
+    /// grafia veio do texto do usuário, e não da canonicalização.
+    ///
+    /// O que se recusa é a chamada, não a declaração: depois desta Issue o
+    /// usuário pode declarar `carinho ler_arquivo(...)` num arquivo que não
+    /// importa `arquivo.ler_bombom`, e a recusa cede antes disso por
+    /// `identidade_lexical_existente`. A pressão global que a #507 exercia
+    /// sobre o namespace inteiro morre junto com a superfície que a
+    /// justificava.
+    fn recusar_intrinseca_sem_import(&self, name: &str, span: Span) -> Result<(), PinkerError> {
+        // Identidade já existente vence, exatamente como vence a família: quem
+        // declarou o nome está chamando o que declarou. `escopos_locais` responde
+        // pela visibilidade real no ponto; `declarando` cobre só a janela em que
+        // o nome já foi lido mas ainda não foi ligado.
+        if self.identidade_lexical_existente(name)
+            || self.declarando.iter().any(|pendente| pendente == name)
+        {
+            return Ok(());
+        }
+        let canonica = crate::intrinsic_authority::canonical_public_intrinsic_spelling(name);
+        let modulos = crate::familia_superficie::modulos_que_exportam(name);
+        if canonica.is_none() && modulos.is_empty() {
+            return Ok(());
+        }
+        // A grafia pode ser as duas coisas ao mesmo tempo: `lista_tamanho` é a
+        // grafia canônica do tamanho de lista E o membro `json.lista_tamanho`.
+        // A dica precisa oferecer os dois caminhos, ou manda o leitor para o
+        // módulo errado.
+        let mut caminhos: Vec<String> = modulos
+            .iter()
+            .map(|modulo| format!("'trazer {modulo}.{name};'"))
+            .collect();
+        if canonica.is_some() {
+            if let Some((modulo, membro)) = crate::familia_superficie::par_da_grafia_canonica(name)
+                .filter(|(_, membro)| *membro != name)
+            {
+                caminhos.push(format!(
+                    "'{name}' é a grafia canônica de '{modulo}.{membro}': escreva 'trazer {modulo}.{membro};' e chame '{membro}(...)', ou 'trazer {modulo};' e chame '{modulo}.{membro}(...)'"
+                ));
+            }
+        }
+        let como_importar = if caminhos.is_empty() {
+            format!("'{name}' não pertence a nenhum módulo importável")
+        } else {
+            caminhos.join("; ou ")
+        };
+        Err(PinkerError::Parse {
+            msg: format!(
+                "intrínseca '{name}' não está no escopo: a superfície intrínseca global não existe mais; {como_importar}"
+            ),
+            span,
+        })
     }
 
     /// Parte G — CANONICALIZATION_BOUNDARY, forma seletiva.
@@ -5063,7 +5284,10 @@ impl Parser {
                 }
             }
             self.consume(TokenKind::Eq, "=")?;
-            let init = self.parse_expr()?;
+            self.declarando.push(name.clone());
+            let init = self.parse_expr();
+            self.declarando.pop();
+            let init = init?;
             self.consume(TokenKind::Semi, ";")?;
             if let Some(value_ty) = ty.clone().or_else(|| self.infer_local_expr_type(&init)) {
                 self.register_value_type(&name, value_ty);
@@ -6925,6 +7149,12 @@ impl Parser {
     // @pinker-nav:layer parser
     // @pinker-nav:summary Cadeia postfix de expressão: chamadas, acesso a campo, índice, chamada genérica explícita e sufixo de cast (`virar`), aplicados sobre a expressão base para produzir o `ast::Expr` final.
     fn parse_postfix_suffix(&mut self, mut expr: Expr) -> Result<Expr, PinkerError> {
+        // #505: a grafia corrente veio da canonicalização de um membro de
+        // módulo, e não do texto do usuário? É a única coisa que distingue
+        // `arquivo.ler_bombom(...)` de alguém escrevendo `ler_arquivo(...)` a
+        // seco — depois do CANONICALIZATION_BOUNDARY as duas são o mesmo
+        // `Ident`.
+        let mut canonicalizado = false;
         loop {
             if let Some(generic_call) = self.try_parse_explicit_generic_call(&expr)? {
                 expr = generic_call;
@@ -6947,10 +7177,20 @@ impl Parser {
                 // de `Resultado<T,E>` já enxergue a identidade canônica.
                 if let ExprKind::Ident(name) = &expr.kind {
                     if let Some(canonica) = self.resolver_membro_seletivo(name) {
+                        canonicalizado = true;
                         expr = Expr {
                             kind: ExprKind::Ident(canonica.to_string()),
                             span: expr.span,
                         };
+                    }
+                }
+                // #505 — remoção da superfície global. Vem depois das duas
+                // formas de import e antes de qualquer outra reescrita, de
+                // modo que só chegue aqui grafia que o usuário escreveu sem
+                // trazer nada.
+                if !canonicalizado {
+                    if let ExprKind::Ident(name) = &expr.kind {
+                        self.recusar_intrinseca_sem_import(name, expr.span)?;
                     }
                 }
                 if let ExprKind::Ident(name) = &expr.kind {
@@ -7068,12 +7308,14 @@ impl Parser {
                 // como `FieldAccess`. Nada a jusante — nem o resto deste laço —
                 // vê família ou membro.
                 if let Some(canonica) = self.resolver_membro_de_familia(&base_expr, &field)? {
+                    canonicalizado = true;
                     expr = Expr {
                         kind: ExprKind::Ident(canonica.to_string()),
                         span: merge_span(base_expr.span, field_token.span),
                     };
                     continue;
                 }
+                canonicalizado = false;
                 expr = Expr {
                     span: merge_span(base_expr.span, field_token.span),
                     kind: ExprKind::FieldAccess {

@@ -1,13 +1,15 @@
 pacote main;
 
+trazer texto.dividir_em, juntar, juntar_com;
+
 // Fase 139: manipulacao textual util — `join` (camada 1 conservadora).
 //
-// juntar_verso_com(a, sep, b) -> verso
+// juntar_com(a, sep, b) -> verso
 //   Junta dois pedacos de texto com um separador entre eles.
 //   Todos os argumentos sao verso; o separador pode ser vazio.
 //   Para juntar mais de dois pedacos, encadear chamadas.
 //
-// Diferente de juntar_verso(a, b) que ja existia (concatenacao pura),
+// Diferente de juntar(a, b) que ja existia (concatenacao pura),
 // juntar_verso_com insere um separador explicito entre os pedacos.
 //
 // O que esta fase NAO abre:
@@ -17,21 +19,21 @@ carinho principal() -> bombom {
     // Caso basico: junta dois campos com separador
     nova nome: verso = "Ana";
     nova cidade: verso = "Recife";
-    nova par: verso = juntar_verso_com(nome, " - ", cidade);
+    nova par: verso = juntar_com(nome, " - ", cidade);
     falar(par);
 
     // Encadeamento: remonta tres pedacos obtidos por split
     nova linha: verso = "nome:idade:cidade";
-    nova campo0: verso = dividir_verso_em(linha, ":", 0);
-    nova campo1: verso = dividir_verso_em(linha, ":", 1);
-    nova campo2: verso = dividir_verso_em(linha, ":", 2);
+    nova campo0: verso = dividir_em(linha, ":", 0);
+    nova campo1: verso = dividir_em(linha, ":", 1);
+    nova campo2: verso = dividir_em(linha, ":", 2);
 
-    nova parcial: verso = juntar_verso_com(campo0, ", ", campo1);
-    nova completo: verso = juntar_verso_com(parcial, ", ", campo2);
+    nova parcial: verso = juntar_com(campo0, ", ", campo1);
+    nova completo: verso = juntar_com(parcial, ", ", campo2);
     falar(completo);
 
-    // Separador vazio: equivale a juntar_verso (concatenacao pura)
-    nova junto: verso = juntar_verso_com("abc", "", "def");
+    // Separador vazio: equivale a juntar (concatenacao pura)
+    nova junto: verso = juntar_com("abc", "", "def");
     falar(junto);
 
     mimo 0;

@@ -1,6 +1,5 @@
 pacote main;
-trazer fase60_modulo_util.soma_base;
-trazer fase60_modulo_util.BASE;
+trazer fase60_modulo_util.soma_base, BASE;
 
 carinho principal() -> bombom {
     mimo soma_base(BASE, 2);

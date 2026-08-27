@@ -1,5 +1,7 @@
 pacote main;
 
+trazer memoria.alocar, liberar;
+
 carinho preencher(base: seta<bombom>) -> bombom {
     *base = 41;
     nova segundo: seta<bombom> = base + 8;

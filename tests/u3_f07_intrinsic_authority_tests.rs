@@ -60,8 +60,23 @@ fn rejection_at_declaration(code: &str, name: &str) -> String {
                 "diagnóstico precisa apontar a declaração"
             );
             assert!(msg.contains(name), "{msg}");
-            assert!(msg.contains("superfície intrínseca Pinker"), "{msg}");
-            assert!(msg.contains("não pode ser redeclarada"), "{msg}");
+            // Depois da #505 há duas causas de recusa, e elas NÃO são
+            // intercambiáveis: um `||` aqui aceitaria a mensagem errada para o
+            // caso errado. A causa é escolhida pelo próprio arquivo — se ele
+            // traz o membro homônimo, a recusa é a do import; senão, é a da
+            // grafia canônica reservada.
+            let traz_o_membro = code.contains(&format!("trazer ambiente.{name};"))
+                || code.contains(&format!("trazer arquivo.{name};"))
+                || code.contains(&format!("trazer texto.{name};"));
+            if traz_o_membro {
+                assert!(msg.contains("colide com o membro"), "{msg}");
+            } else {
+                assert!(
+                    msg.contains("é a grafia canônica da superfície intrínseca Pinker"),
+                    "{msg}"
+                );
+                assert!(msg.contains("não pode ser redeclarada"), "{msg}");
+            }
             assert!(!msg.contains("pinker_"), "{msg}");
             assert!(!msg.contains("runtime"), "{msg}");
             msg
@@ -87,7 +102,10 @@ fn direct_rejection_at_declaration(code: &str, name: &str) -> String {
         PinkerError::Semantic { msg, span } => {
             assert_eq!(span, declaration_span);
             assert!(msg.contains(name), "{msg}");
-            assert!(msg.contains("superfície intrínseca Pinker"), "{msg}");
+            assert!(
+                msg.contains("é a grafia canônica da superfície intrínseca Pinker"),
+                "{msg}"
+            );
             assert!(msg.contains("não pode ser redeclarada"), "{msg}");
             msg
         }
@@ -138,7 +156,7 @@ carinho principal() -> bombom { mimo minha_funcao_normal(41); }
 "#;
     verdict_via_direct_entrypoint(ordinary).expect("callable ordinária deve permanecer válida");
 
-    let builtin = "pacote main; carinho principal() -> bombom { mimo tamanho_verso(\"rosa\"); }";
+    let builtin = "pacote main; trazer texto.tamanho; carinho principal() -> bombom { mimo tamanho(\"rosa\"); }";
     verdict_via_direct_entrypoint(builtin).expect("builtin válido deve permanecer válido");
 }
 
@@ -148,7 +166,7 @@ fn t_a6_free_and_direct_entrypoints_have_equivalent_f07_verdicts() {
         declaration("tamanho_verso", "verso", "mimo 777;", false),
         declaration("ler_arquivo_resultado", "verso", "mimo 777;", true),
         "pacote main; carinho comum(valor: bombom) -> bombom { mimo valor; } carinho principal() -> bombom { mimo comum(7); }".to_string(),
-        "pacote main; carinho principal() -> bombom { mimo tamanho_verso(\"rosa\"); }".to_string(),
+        "pacote main; trazer texto.tamanho; carinho principal() -> bombom { mimo tamanho(\"rosa\"); }".to_string(),
     ];
     for source in cases {
         assert_eq!(
@@ -305,7 +323,8 @@ fn t14_t20_imported_callable_and_import_order_receive_the_same_policy() {
 fn t15_valid_builtin_call_keeps_its_meaning() {
     let source = r#"
 pacote main;
-carinho principal() -> bombom { mimo tamanho_verso("oi"); }
+trazer texto.tamanho;
+carinho principal() -> bombom { mimo tamanho("oi"); }
 "#;
     assert_eq!(run_code(source), Ok(Some(RuntimeValue::Int(2))));
 }
@@ -321,7 +340,7 @@ fn t16_valid_builtin_interpreter_and_native_remain_in_parity() {
     let source = dir.path().join("builtin_valido.pink");
     fs::write(
         &source,
-        "pacote main; carinho principal() -> bombom { mimo tamanho_verso(\"oi\"); }",
+        "pacote main; trazer texto.tamanho; carinho principal() -> bombom { mimo tamanho(\"oi\"); }",
     )
     .expect("fonte");
     let interpreted = Command::new(env!("CARGO_BIN_EXE_pink"))

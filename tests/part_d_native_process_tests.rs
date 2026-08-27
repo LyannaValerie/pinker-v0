@@ -44,7 +44,7 @@ fn fonte(
         .iter()
         .map(|argumento| {
             format!(
-                "    lista_verso_anexar(argumentos, {});",
+                "    lista.verso_anexar(argumentos, {});",
                 literal(argumento)
             )
         })
@@ -54,7 +54,7 @@ fn fonte(
         .iter()
         .map(|(chave, valor)| {
             format!(
-                "    mapa_verso_verso_definir(ambiente, {}, {});",
+                "    mapa.verso_verso_definir(ambiente, {}, {});",
                 literal(chave),
                 literal(valor)
             )
@@ -62,15 +62,15 @@ fn fonte(
         .collect::<Vec<_>>()
         .join("\n");
     format!(
-        r#"pacote main;
+        r#"pacote main; trazer lista; trazer mapa; trazer processo; trazer texto;
 apelido Res = Resultado<SaidaProcesso, verso>;
 
 carinho principal() -> bombom {{
-    nova muda argumentos: lista<verso> = lista_verso_criar();
+    nova muda argumentos: lista<verso> = lista.verso_criar();
 {anexos}
-    nova muda ambiente: mapa<verso,verso> = mapa_verso_verso_criar();
+    nova muda ambiente: mapa<verso,verso> = mapa.verso_verso_criar();
 {overlays}
-    nova resultado: Res = executar_processo_estruturado(
+    nova resultado: Res = processo.executar_estruturado(
         {programa}, argumentos, {entrada}, {diretorio}, ambiente, {limite}
     );
     encaixe resultado {{
@@ -258,7 +258,7 @@ fn paridade_nativa_argv_stdin_canais_status_e_sem_limite() {
         "",
         &BTreeMap::new(),
         "LimiteTempo.SemLimite",
-        "falar(processo_saida(saida));",
+        "falar(processo.saida(saida));",
     );
     let (i, n, _, _) = paridade(&dir, "argv", &codigo, &[], None, Duration::from_secs(5));
     let texto = exigir_sucesso_paritario("argv", &i, &n);
@@ -277,7 +277,7 @@ fn paridade_nativa_argv_stdin_canais_status_e_sem_limite() {
         "",
         &BTreeMap::new(),
         "LimiteTempo.SemLimite",
-        "falar(processo_saida(saida));",
+        "falar(processo.saida(saida));",
     );
     let (i, n, _, _) = paridade(&dir, "stdin", &codigo, &[], None, Duration::from_secs(5));
     let texto = exigir_sucesso_paritario("stdin", &i, &n);
@@ -294,7 +294,7 @@ fn paridade_nativa_argv_stdin_canais_status_e_sem_limite() {
         "",
         &BTreeMap::new(),
         "LimiteTempo.SemLimite",
-        "falar(processo_saida(saida));",
+        "falar(processo.saida(saida));",
     );
     let (i, n, _, _) = paridade(
         &dir,
@@ -331,7 +331,7 @@ fn paridade_nativa_argv_stdin_canais_status_e_sem_limite() {
             "",
             &BTreeMap::new(),
             "LimiteTempo.SemLimite",
-            "falar(processo_codigo(saida)); falar(processo_saida(saida)); falar(processo_erro(saida));",
+            "falar(processo.codigo(saida)); falar(processo.saida(saida)); falar(processo.erro(saida));",
         );
         let (i, n, _, _) = paridade(&dir, nome, &codigo, &[], None, Duration::from_secs(5));
         assert_eq!(exigir_sucesso_paritario(nome, &i, &n), esperado);
@@ -348,7 +348,7 @@ fn paridade_nativa_argv_stdin_canais_status_e_sem_limite() {
         "",
         &BTreeMap::new(),
         "LimiteTempo.SemLimite",
-        "falar(processo_codigo(saida)); falar(processo_saida(saida));",
+        "falar(processo.codigo(saida)); falar(processo.saida(saida));",
     );
     let (i, n, _, _) = paridade(
         &dir,
@@ -370,7 +370,7 @@ fn paridade_nativa_argv_stdin_canais_status_e_sem_limite() {
         "",
         &BTreeMap::new(),
         "LimiteTempo.SemLimite",
-        "falar(tamanho_verso(processo_saida(saida))); falar(tamanho_verso(processo_erro(saida)));",
+        "falar(texto.tamanho(processo.saida(saida))); falar(texto.tamanho(processo.erro(saida)));",
     );
     let (i, n, _, _) = paridade(&dir, "grande", &codigo, &[], None, Duration::from_secs(8));
     assert_eq!(
@@ -389,7 +389,7 @@ fn paridade_nativa_argv_stdin_canais_status_e_sem_limite() {
             "",
             &BTreeMap::new(),
             "LimiteTempo.SemLimite",
-            "falar(tamanho_verso(processo_saida(saida))); falar(tamanho_verso(processo_erro(saida)));",
+            "falar(texto.tamanho(processo.saida(saida))); falar(texto.tamanho(processo.erro(saida)));",
         );
         let (i, n, _, _) = paridade(&dir, nome, &codigo, &[], None, Duration::from_secs(8));
         assert_eq!(
@@ -412,7 +412,7 @@ fn paridade_nativa_argv_stdin_canais_status_e_sem_limite() {
             "",
             &BTreeMap::new(),
             "LimiteTempo.SemLimite",
-            "falar(processo_codigo(saida));",
+            "falar(processo.codigo(saida));",
         );
         let (i, n, tempo_i, tempo_n) = paridade(
             &dir,
@@ -447,7 +447,7 @@ fn paridade_nativa_cwd_ambiente_e_path() {
         cwd_filho.to_str().unwrap(),
         &BTreeMap::new(),
         "LimiteTempo.SemLimite",
-        "falar(processo_saida(saida));",
+        "falar(processo.saida(saida));",
     );
     let (i, n, _, _) = paridade(&dir, "cwd", &codigo, &[], None, Duration::from_secs(5));
     let texto = exigir_sucesso_paritario("cwd", &i, &n);
@@ -496,7 +496,7 @@ fn paridade_nativa_cwd_ambiente_e_path() {
         "",
         &overlay,
         "LimiteTempo.SemLimite",
-        "falar(processo_saida(saida));",
+        "falar(processo.saida(saida));",
     );
     let ambiente = [
         ("PINKER_STEP4_INHERITED", "herdada"),
@@ -546,7 +546,7 @@ fn paridade_nativa_cwd_ambiente_e_path() {
     fs::write(&falso, "#!/bin/sh\nprintf 'FAKE_TRUE\\n'\nexit 73\n").unwrap();
     fs::set_permissions(&falso, fs::Permissions::from_mode(0o755)).unwrap();
     let ambient_path = format!("{}:/usr/local/bin:/usr/bin:/bin", dir.path().display());
-    let corpo = "falar(processo_codigo(saida)); falar(processo_saida(saida));";
+    let corpo = "falar(processo.codigo(saida)); falar(processo.saida(saida));";
     let codigo = fonte(
         "true",
         &[],
@@ -817,7 +817,7 @@ fn hr6_ate_zero_nao_executa_fixture_em_nenhum_backend() {
             "",
             &BTreeMap::new(),
             "LimiteTempo.SemLimite",
-            "falar(processo_codigo(saida));",
+            "falar(processo.codigo(saida));",
         );
         let programa_controle = compilar(&dir, &format!("hr6-controle-{ponta}"), &codigo_controle);
         let (output_controle, _) = executar(
@@ -859,7 +859,7 @@ fn nativo_faz_um_spawn_accessors_nao_reexecutam_e_timeout_reapeia() {
             "",
             &BTreeMap::new(),
             "LimiteTempo.SemLimite",
-            "falar(processo_codigo(saida)); falar(processo_saida(saida)); falar(processo_erro(saida)); falar(processo_codigo(saida)); falar(processo_saida(saida)); falar(processo_erro(saida));",
+            "falar(processo.codigo(saida)); falar(processo.saida(saida)); falar(processo.erro(saida)); falar(processo.codigo(saida)); falar(processo.saida(saida)); falar(processo.erro(saida));",
         );
         let programa = compilar(&dir, &format!("single-{ponta}"), &codigo);
         let (output, _) = executar(
@@ -986,23 +986,23 @@ fn resultado_estruturado_compoe_com_tentar_e_propagar_sem_caso_especial() {
     let fixture = env!("CARGO_BIN_EXE_pinker_part_d_filho");
     let ausente = dir.path().join("executavel-ausente");
     let codigo = format!(
-        r#"pacote main;
+        r#"pacote main; trazer lista; trazer mapa; trazer processo;
 apelido Res = Resultado<SaidaProcesso, verso>;
 
 carinho sucesso() -> Res {{
-    nova muda argumentos: lista<verso> = lista_verso_criar();
-    lista_verso_anexar(argumentos, "small");
-    nova ambiente: mapa<verso,verso> = mapa_verso_verso_criar();
-    propagar? executar_processo_estruturado(
+    nova muda argumentos: lista<verso> = lista.verso_criar();
+    lista.verso_anexar(argumentos, "small");
+    nova ambiente: mapa<verso,verso> = mapa.verso_verso_criar();
+    propagar? processo.executar_estruturado(
         {fixture}, argumentos, "", "", ambiente, LimiteTempo.SemLimite
     ) como Res.Ok(saida);
     mimo Res.Ok(saida);
 }}
 
 carinho falha() -> Res {{
-    nova argumentos: lista<verso> = lista_verso_criar();
-    nova ambiente: mapa<verso,verso> = mapa_verso_verso_criar();
-    propagar? executar_processo_estruturado(
+    nova argumentos: lista<verso> = lista.verso_criar();
+    nova ambiente: mapa<verso,verso> = mapa.verso_verso_criar();
+    propagar? processo.executar_estruturado(
         {ausente}, argumentos, "", "", ambiente, LimiteTempo.SemLimite
     ) como Res.Ok(saida);
     mimo Res.Ok(saida);
@@ -1012,9 +1012,9 @@ carinho principal() -> bombom {{
     tentar sucesso() {{
         sucesso Res.Ok(saida) {{
             falar("TENTAR_OK");
-            falar(processo_codigo(saida));
-            falar(processo_saida(saida));
-            falar(processo_erro(saida));
+            falar(processo.codigo(saida));
+            falar(processo.saida(saida));
+            falar(processo.erro(saida));
         }}
         falha Res.Erro(causa) {{ falar("SUCESSO_INESPERADAMENTE_FALHOU"); }}
     }}
@@ -1076,7 +1076,7 @@ fn workflow_real_git_observa_status_stdout_stderr_com_argv_estrutural() {
         "",
         &BTreeMap::new(),
         "LimiteTempo.Ate(5000)",
-        "falar(processo_codigo(saida)); falar(processo_saida(saida)); falar(processo_erro(saida));",
+        "falar(processo.codigo(saida)); falar(processo.saida(saida)); falar(processo.erro(saida));",
     );
     let (interpretado, nativo, _, _) = paridade(
         &dir,
@@ -1104,7 +1104,7 @@ fn workflow_real_git_observa_status_stdout_stderr_com_argv_estrutural() {
         "",
         &BTreeMap::new(),
         "LimiteTempo.Ate(5000)",
-        "falar(processo_codigo(saida)); falar(processo_saida(saida)); falar(processo_erro(saida));",
+        "falar(processo.codigo(saida)); falar(processo.saida(saida)); falar(processo.erro(saida));",
     );
     let (interpretado, nativo, _, _) = paridade(
         &dir,
@@ -1145,16 +1145,16 @@ fn superficies_historicas_preservam_observaveis_em_interpretador_e_nativo() {
     );
     let resultado = script("resultado.sh", "exit 5");
     let codigo = format!(
-        r#"pacote main;
+        r#"pacote main; trazer processo.capturar_stderr; trazer processo.capturar_stdout; trazer processo.executar; trazer processo.executar_com_entrada; trazer processo.executar_resultado; trazer processo.pipeline_minimo;
 apelido Res = Resultado<bombom, verso>;
 
 carinho principal() -> bombom {{
-    falar(executar_processo({status}));
+    falar(executar({status}));
     falar(capturar_stdout({stdout}));
     falar(capturar_stderr({stderr}));
     falar(executar_com_entrada({stdin}, "dado\n"));
     falar(pipeline_minimo({produtor}, {consumidor}));
-    tentar executar_processo_resultado({resultado}) {{
+    tentar executar_resultado({resultado}) {{
         sucesso Res.Ok(codigo) {{ falar(codigo); }}
         falha Res.Erro(causa) {{ falar("ERRO_INESPERADO"); }}
     }}

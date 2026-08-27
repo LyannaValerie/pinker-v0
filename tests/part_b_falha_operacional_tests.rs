@@ -48,7 +48,7 @@ carinho principal() -> bombom {
 /// Ponto 4/16: sucesso das três superfícies migradas.
 /// argv: 0 = arquivo existente, 1 = executável verdadeiro.
 const FONTE_SUCESSO: &str = r#"
-pacote main;
+pacote main; trazer ambiente.argumento_ou; trazer arquivo.ler_caminho_resultado; trazer processo.executar_resultado; trazer texto.verso_para_bombom_resultado;
 
 apelido ResVV = Resultado<verso, verso>;
 apelido ResBV = Resultado<bombom, verso>;
@@ -57,12 +57,12 @@ carinho principal() -> bombom {
     nova alvo: verso = argumento_ou(0, "ausente");
     nova exe: verso = argumento_ou(1, "ausente");
 
-    tentar ler_arquivo_resultado(alvo) {
+    tentar ler_caminho_resultado(alvo) {
         sucesso ResVV.Ok(conteudo) { falar(conteudo); }
         falha ResVV.Erro(causa) { falar(causa); }
     }
 
-    tentar executar_processo_resultado(exe) {
+    tentar executar_resultado(exe) {
         sucesso ResBV.Ok(codigo) { falar(codigo); }
         falha ResBV.Erro(causa) { falar(causa); }
     }
@@ -81,7 +81,7 @@ carinho principal() -> bombom {
 /// chega intacto e o programa continua até o fim com exit 0.
 /// argv: 0 = caminho ausente, 1 = executável ausente (com '/').
 const FONTE_FALHA_TRES_DOMINIOS: &str = r#"
-pacote main;
+pacote main; trazer ambiente.argumento_ou; trazer arquivo.ler_caminho_resultado; trazer processo.executar_resultado; trazer texto.verso_para_bombom_resultado;
 
 apelido ResVV = Resultado<verso, verso>;
 apelido ResBV = Resultado<bombom, verso>;
@@ -90,12 +90,12 @@ carinho principal() -> bombom {
     nova alvo: verso = argumento_ou(0, "ausente");
     nova exe: verso = argumento_ou(1, "ausente");
 
-    tentar ler_arquivo_resultado(alvo) {
+    tentar ler_caminho_resultado(alvo) {
         sucesso ResVV.Ok(conteudo) { falar(conteudo); }
         falha ResVV.Erro(causa) { falar(causa); }
     }
 
-    tentar executar_processo_resultado(exe) {
+    tentar executar_resultado(exe) {
         sucesso ResBV.Ok(codigo) { falar(codigo); }
         falha ResBV.Erro(causa) { falar(causa); }
     }
@@ -114,18 +114,18 @@ carinho principal() -> bombom {
 /// tratada por `encaixe` no consumidor. Nenhuma das duas superfícies aparece na
 /// função que propaga: a propagação não sabe quem produziu o valor.
 const FONTE_PROPAGACAO_INTERMEDIARIA: &str = r#"
-pacote main;
+pacote main; trazer ambiente.argumento_ou; trazer arquivo.ler_caminho_resultado; trazer texto.juntar;
 
 apelido ResVV = Resultado<verso, verso>;
 
 carinho ler_e_marcar(caminho: verso) -> ResVV {
-    propagar? ler_arquivo_resultado(caminho) como ResVV.Ok(conteudo);
-    mimo ResVV.Ok(juntar_verso("lido:", conteudo));
+    propagar? ler_caminho_resultado(caminho) como ResVV.Ok(conteudo);
+    mimo ResVV.Ok(juntar("lido:", conteudo));
 }
 
 carinho intermediaria(caminho: verso) -> ResVV {
     propagar? ler_e_marcar(caminho) como ResVV.Ok(marcado);
-    mimo ResVV.Ok(juntar_verso("via:", marcado));
+    mimo ResVV.Ok(juntar("via:", marcado));
 }
 
 carinho principal() -> bombom {
@@ -144,7 +144,7 @@ carinho principal() -> bombom {
 /// vazasse um descritor, o ciclo final falharia.
 /// argv: 0 = caminho ausente, 1 = arquivo de trabalho.
 const FONTE_FALHA_NAO_VAZA_RECURSO: &str = r#"
-pacote main;
+pacote main; trazer ambiente.argumento_ou; trazer arquivo.criar; trazer arquivo.escrever_verso; trazer arquivo.fechar; trazer arquivo.ler_caminho_resultado; trazer arquivo.ler_verso;
 
 apelido ResVV = Resultado<verso, verso>;
 
@@ -155,7 +155,7 @@ carinho principal() -> bombom {
     nova muda i: bombom = 0;
     nova muda falhas: bombom = 0;
     sempre que i < 300 {
-        tentar ler_arquivo_resultado(ausente) {
+        tentar ler_caminho_resultado(ausente) {
             sucesso ResVV.Ok(c) { falar("inesperado"); }
             falha ResVV.Erro(e) { falhas = falhas + 1; }
         }
@@ -163,9 +163,9 @@ carinho principal() -> bombom {
     }
     falar(falhas);
 
-    nova h: bombom = criar_arquivo(trabalho);
+    nova h: bombom = criar(trabalho);
     escrever_verso(h, "vivo");
-    falar(ler_verso_arquivo(h));
+    falar(ler_verso(h));
     fechar(h);
     falar("fechou");
     mimo 0;
@@ -175,12 +175,12 @@ carinho principal() -> bombom {
 /// Ponto 15: a superfície histórica continua com o contrato antigo — inclusive
 /// o aborto. Compatibilidade não é só assinatura preservada.
 const FONTE_HISTORICO_AINDA_ABORTA: &str = r#"
-pacote main;
+pacote main; trazer ambiente.argumento_ou; trazer arquivo.ler_caminho_verso;
 
 carinho principal() -> bombom {
     nova alvo: verso = argumento_ou(0, "ausente");
     falar("antes");
-    nova conteudo: verso = ler_arquivo_verso(alvo);
+    nova conteudo: verso = ler_caminho_verso(alvo);
     falar(conteudo);
     falar("nao alcancavel");
     mimo 0;
@@ -189,11 +189,11 @@ carinho principal() -> bombom {
 
 /// Ponto 15: `arquivo_ou` continua devolvendo o padrão, sem virar `Resultado`.
 const FONTE_HISTORICO_ARQUIVO_OU: &str = r#"
-pacote main;
+pacote main; trazer ambiente.argumento_ou; trazer arquivo.ler_caminho_ou;
 
 carinho principal() -> bombom {
     nova alvo: verso = argumento_ou(0, "ausente");
-    falar(arquivo_ou(alvo, "padrao-historico"));
+    falar(ler_caminho_ou(alvo, "padrao-historico"));
     falar("fim");
     mimo 0;
 }
@@ -202,11 +202,11 @@ carinho principal() -> bombom {
 /// Ponto 14: invariante interna continua fatal. Um handle já liberado não vira
 /// `Erro(...)` só porque a Parte B existe.
 const FONTE_INVARIANTE_CONTINUA_FATAL: &str = r#"
-pacote main;
+pacote main; trazer ambiente.argumento_ou; trazer arquivo.criar; trazer arquivo.escrever_verso; trazer arquivo.fechar;
 
 carinho principal() -> bombom {
     nova alvo: verso = argumento_ou(0, "invariante.txt");
-    nova h: bombom = criar_arquivo(alvo);
+    nova h: bombom = criar(alvo);
     escrever_verso(h, "x");
     fechar(h);
     falar("fechou");
@@ -548,12 +548,12 @@ fn tags_do_resultado_predeclarado_sao_as_esperadas() {
 fn erro_estatico_continua_estatico() {
     let dir = NativeArtifactDir::create().expect("diretório Parte B");
     let fonte = r#"
-pacote main;
+pacote main; trazer arquivo.ler_caminho_resultado;
 
 apelido ResVV = Resultado<verso, verso>;
 
 carinho principal() -> bombom {
-    tentar ler_arquivo_resultado(42) {
+    tentar ler_caminho_resultado(42) {
         sucesso ResVV.Ok(c) { falar(c); }
         falha ResVV.Erro(e) { falar(e); }
     }
@@ -580,12 +580,12 @@ carinho principal() -> bombom {
 
     // Aridade inválida também permanece estática.
     let fonte_aridade = r#"
-pacote main;
+pacote main; trazer arquivo.ler_caminho_resultado;
 
 apelido ResVV = Resultado<verso, verso>;
 
 carinho principal() -> bombom {
-    tentar ler_arquivo_resultado("a", "b") {
+    tentar ler_caminho_resultado("a", "b") {
         sucesso ResVV.Ok(c) { falar(c); }
         falha ResVV.Erro(e) { falar(e); }
     }

@@ -1,12 +1,15 @@
 pacote main;
 
+trazer assertiva.afirmar;
+trazer texto.contem, igual, vazio;
+
 eterno SAUDACAO: verso = "olá mundo";
 eterno VAZIO: verso = "";
 
 carinho principal() -> bombom {
-    afirmar(igual_verso(SAUDACAO, "olá mundo"), "constante verso falhou");
-    afirmar(vazio_verso(VAZIO), "constante vazia falhou");
-    afirmar(contem_verso(SAUDACAO, "mundo"), "contem falhou");
+    afirmar(igual(SAUDACAO, "olá mundo"), "constante verso falhou");
+    afirmar(vazio(VAZIO), "constante vazia falhou");
+    afirmar(contem(SAUDACAO, "mundo"), "contem falhou");
 
     falar(SAUDACAO);
     mimo 0;

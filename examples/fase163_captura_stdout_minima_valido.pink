@@ -1,12 +1,16 @@
 pacote main;
 
+trazer ambiente.argumento;
+trazer processo.capturar_stdout;
+trazer texto.contem, tamanho;
+
 carinho principal() -> bombom {
     nova comando: verso = argumento(0);
     nova texto: verso = capturar_stdout(comando);
-    nova tem_status: logica = contem_verso(texto, "status=ok");
-    nova tem_valor: logica = contem_verso(texto, "valor=7");
+    nova tem_status: logica = contem(texto, "status=ok");
+    nova tem_valor: logica = contem(texto, "valor=7");
     falar(texto);
-    talvez tem_status && tem_valor && tamanho_verso(texto) == 18 {
+    talvez tem_status && tem_valor && tamanho(texto) == 18 {
         mimo 0;
     }
     mimo 1;

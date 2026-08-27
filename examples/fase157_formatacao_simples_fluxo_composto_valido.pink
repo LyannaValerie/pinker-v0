@@ -1,16 +1,19 @@
 pacote fase157_formatacao_simples_fluxo_composto_valido;
 
+trazer lista.bombom_anexar, bombom_criar, bombom_obter, bombom_tamanho;
+trazer texto.formatar;
+
 carinho montar_item(chave: verso, valor: bombom) -> verso {
-    mimo formatar_verso("{}={}", chave, valor);
+    mimo formatar("{}={}", chave, valor);
 }
 
 carinho principal() -> bombom {
-    nova itens: lista<bombom> = lista_bombom_criar();
-    lista_bombom_anexar(itens, 7);
-    lista_bombom_anexar(itens, 9);
+    nova itens: lista<bombom> = bombom_criar();
+    bombom_anexar(itens, 7);
+    bombom_anexar(itens, 9);
 
-    falar(formatar_verso("relatorio {}", "rodada"));
-    falar(montar_item("total", lista_bombom_tamanho(itens)));
-    falar(montar_item("primeiro", lista_bombom_obter(itens, 0)));
+    falar(formatar("relatorio {}", "rodada"));
+    falar(montar_item("total", bombom_tamanho(itens)));
+    falar(montar_item("primeiro", bombom_obter(itens, 0)));
     mimo 0;
 }

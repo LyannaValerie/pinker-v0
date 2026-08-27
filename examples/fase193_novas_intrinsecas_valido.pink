@@ -1,35 +1,41 @@
 pacote main;
 
+trazer acaso.criar, entre;
+trazer assertiva.afirmar;
+trazer lista.bombom_anexar, bombom_criar, bombom_inserir, bombom_obter;
+trazer mapa.verso_bombom_criar, verso_bombom_definir, verso_bombom_remover, verso_bombom_tem;
+trazer texto.bombom_para_verso, igual, verso_para_bombom;
+
 carinho principal() -> bombom {
     // verso_para_bombom e bombom_para_verso
     nova texto: verso = "42";
     nova numero: bombom = verso_para_bombom(texto);
     nova de_volta: verso = bombom_para_verso(numero);
     afirmar(numero == 42, "conversão verso->bombom falhou");
-    afirmar(igual_verso(de_volta, "42"), "conversão bombom->verso falhou");
+    afirmar(igual(de_volta, "42"), "conversão bombom->verso falhou");
 
     // aleatorio_entre
-    nova gen: bombom = aleatorio_criar(12345);
-    nova valor: bombom = aleatorio_entre(gen, 1, 100);
+    nova gen: bombom = criar(12345);
+    nova valor: bombom = entre(gen, 1, 100);
     afirmar(valor >= 1, "aleatorio_entre abaixo do min");
     afirmar(valor <= 100, "aleatorio_entre acima do max");
 
     // lista_bombom_inserir
-    nova lista: lista<bombom> = lista_bombom_criar();
-    lista_bombom_anexar(lista, 10);
-    lista_bombom_anexar(lista, 30);
-    lista_bombom_inserir(lista, 1, 20);
-    afirmar(lista_bombom_obter(lista, 0) == 10, "lista[0] deveria ser 10");
-    afirmar(lista_bombom_obter(lista, 1) == 20, "lista[1] deveria ser 20");
-    afirmar(lista_bombom_obter(lista, 2) == 30, "lista[2] deveria ser 30");
+    nova lista: lista<bombom> = bombom_criar();
+    bombom_anexar(lista, 10);
+    bombom_anexar(lista, 30);
+    bombom_inserir(lista, 1, 20);
+    afirmar(bombom_obter(lista, 0) == 10, "lista[0] deveria ser 10");
+    afirmar(bombom_obter(lista, 1) == 20, "lista[1] deveria ser 20");
+    afirmar(bombom_obter(lista, 2) == 30, "lista[2] deveria ser 30");
 
     // mapa_verso_bombom_remover
-    nova mapa: mapa<verso,bombom> = mapa_verso_bombom_criar();
-    mapa_verso_bombom_definir(mapa, "a", 1);
-    mapa_verso_bombom_definir(mapa, "b", 2);
-    mapa_verso_bombom_remover(mapa, "a");
-    afirmar(!mapa_verso_bombom_tem(mapa, "a"), "chave 'a' deveria ter sido removida");
-    afirmar(mapa_verso_bombom_tem(mapa, "b"), "chave 'b' deveria existir");
+    nova mapa: mapa<verso,bombom> = verso_bombom_criar();
+    verso_bombom_definir(mapa, "a", 1);
+    verso_bombom_definir(mapa, "b", 2);
+    verso_bombom_remover(mapa, "a");
+    afirmar(!verso_bombom_tem(mapa, "a"), "chave 'a' deveria ter sido removida");
+    afirmar(verso_bombom_tem(mapa, "b"), "chave 'b' deveria existir");
 
     falar("todas as afirmações passaram");
     mimo 0;

@@ -1,5 +1,7 @@
 pacote main;
 
+trazer assertiva.afirmar;
+
 carinho principal() -> bombom {
     nova x: i32 = -42;
     nova y: i8 = -128;

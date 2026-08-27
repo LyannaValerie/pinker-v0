@@ -1,5 +1,7 @@
 pacote main;
 
+trazer memoria.alocar;
+
 // Contabilidade de uniões: os dois domínios de storage são independentes.
 //
 // A cota vitalícia de identidades públicas pertence a `alocar`. Construir e

@@ -1,10 +1,12 @@
 pacote main;
 
+trazer lista.bombom_anexar, bombom_criar;
+
 carinho carregar_pontos() -> lista<bombom> {
-    nova dados: lista<bombom> = lista_bombom_criar();
-    lista_bombom_anexar(dados, 10);
-    lista_bombom_anexar(dados, 20);
-    lista_bombom_anexar(dados, 30);
+    nova dados: lista<bombom> = bombom_criar();
+    bombom_anexar(dados, 10);
+    bombom_anexar(dados, 20);
+    bombom_anexar(dados, 30);
     mimo dados;
 }
 

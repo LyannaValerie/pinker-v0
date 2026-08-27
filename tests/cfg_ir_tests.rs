@@ -450,7 +450,7 @@ fn cfg_ir_logicos_viram_branch_de_curto_circuito() {
 #[test]
 fn cfg_ir_logico_com_chamada_pode_ser_usado_como_valor() {
     let code = r#"
-        pacote main;
+        pacote main; trazer texto.contem;
 
         carinho aceita(ok: logica) -> logica {
             mimo ok;
@@ -458,7 +458,7 @@ fn cfg_ir_logico_com_chamada_pode_ser_usado_como_valor() {
 
         carinho principal() -> bombom {
             nova fase: bombom = 239;
-            nova ok: logica = aceita(fase > 0 && contem_verso("Fase 239", "239"));
+            nova ok: logica = aceita(fase > 0 && contem("Fase 239", "239"));
             talvez ok { mimo 0; } senao { mimo 1; }
         }
     "#;

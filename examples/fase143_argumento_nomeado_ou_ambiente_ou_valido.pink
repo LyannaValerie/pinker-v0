@@ -1,8 +1,11 @@
 pacote main;
 
+trazer ambiente.buscar_contexto, quantos_argumentos, tem_flag;
+trazer texto.igual;
+
 carinho principal() -> bombom {
     nova saida: verso = buscar_contexto("--saida", "PINKER_FASE143_SAIDA", "padrao.txt");
-    nova usou_padrao: logica = igual_verso(saida, "padrao.txt");
+    nova usou_padrao: logica = igual(saida, "padrao.txt");
     nova quiet: logica = tem_flag("--quiet");
     nova total: bombom = quantos_argumentos();
     falar(saida);

@@ -1,5 +1,7 @@
 pacote main;
 
+trazer memoria.alocar, liberar;
+
 apelido U8Direto = u8;
 apelido U8Alias = U8Direto;
 apelido U16Direto = u16;

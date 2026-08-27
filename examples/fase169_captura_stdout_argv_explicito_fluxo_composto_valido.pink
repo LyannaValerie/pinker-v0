@@ -1,10 +1,14 @@
 pacote main;
 
+trazer ambiente.argumento;
+trazer processo.capturar_stdout;
+trazer texto.contem, formatar, igual, tamanho;
+
 carinho resumir(texto: verso) -> verso {
-    nova tem_status: logica = contem_verso(texto, "status=ok");
-    nova tem_alvo: logica = contem_verso(texto, "alvo=rosa");
+    nova tem_status: logica = contem(texto, "status=ok");
+    nova tem_alvo: logica = contem(texto, "alvo=rosa");
     talvez tem_status && tem_alvo {
-        mimo formatar_verso("captura={} bytes", tamanho_verso(texto));
+        mimo formatar("captura={} bytes", tamanho(texto));
     }
     mimo "captura=invalida";
 }
@@ -14,7 +18,7 @@ carinho principal() -> bombom {
     nova texto: verso = capturar_stdout(comando, "--alvo=rosa");
     nova resumo: verso = resumir(texto);
     falar(resumo);
-    talvez igual_verso(resumo, "captura=20 bytes") {
+    talvez igual(resumo, "captura=20 bytes") {
         mimo 0;
     }
     mimo 1;

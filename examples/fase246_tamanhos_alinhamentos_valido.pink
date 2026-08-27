@@ -1,5 +1,7 @@
 pacote main;
 
+trazer memoria.alocar, liberar;
+
 carinho exercitar_tamanhos() {
     nova a1: seta<u8> = alocar(1);
     nova a2: seta<u8> = alocar(2);

@@ -1,11 +1,14 @@
 pacote main;
 
+trazer texto;
+trazer texto.juntar;
+
 carinho principal() -> bombom {
     nova saudacao: verso = "oi ";
     nova nome: verso = "Pinker";
-    nova frase: verso = juntar_verso(saudacao, nome);
+    nova frase: verso = juntar(saudacao, nome);
     falar(frase);
-    nova tamanho: bombom = tamanho_verso(frase);
+    nova tamanho: bombom = texto.tamanho(frase);
     falar(tamanho);
     mimo 0;
 }

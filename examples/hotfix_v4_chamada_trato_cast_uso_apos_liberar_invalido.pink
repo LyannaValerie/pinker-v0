@@ -1,5 +1,7 @@
 pacote main;
 
+trazer memoria.alocar, liberar;
+
 trato Fonte {
     carinho regiao(valor: si) -> seta<u8>;
 }

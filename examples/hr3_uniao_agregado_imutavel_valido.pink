@@ -1,5 +1,7 @@
 pacote main;
 
+trazer memoria.alocar;
+
 // HR3: o payload agregado é copiado integralmente para o descritor no momento
 // da injeção. Mudar a origem depois não muda o que o `encaixe` observa, e o
 // binding extraído tem storage próprio.

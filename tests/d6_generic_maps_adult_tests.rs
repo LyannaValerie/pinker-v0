@@ -179,7 +179,7 @@ fn tuple_match_candidates(source: &str) -> Vec<TupleMatchCandidate> {
 }
 
 const BOMBOM_LEQUE: &str = r#"
-pacote main;
+pacote main; trazer mapa.definir; trazer mapa.obter; trazer mapa.remover; trazer mapa.tamanho; trazer mapa.tem; trazer texto;
 
 leque Escolha {
     Vazio,
@@ -189,18 +189,18 @@ leque Escolha {
 
 carinho principal() -> bombom {
     nova m: mapa<bombom, Escolha> = mapa_criar();
-    talvez mapa_tamanho(m) != 0 { mimo 1; }
+    talvez tamanho(m) != 0 { mimo 1; }
 
-    mapa_definir(m, 3, Escolha.Vazio);
-    mapa_definir(m, 1, Escolha.Numero(41));
-    mapa_definir(m, 2, Escolha.Texto("carga"));
-    mapa_definir(m, 1, Escolha.Numero(42));
-    talvez mapa_tamanho(m) != 3 { mimo 2; }
-    talvez !mapa_tem(m, 2) { mimo 3; }
+    definir(m, 3, Escolha.Vazio);
+    definir(m, 1, Escolha.Numero(41));
+    definir(m, 2, Escolha.Texto("carga"));
+    definir(m, 1, Escolha.Numero(42));
+    talvez tamanho(m) != 3 { mimo 2; }
+    talvez !tem(m, 2) { mimo 3; }
 
-    mapa_remover(m, 3);
-    talvez mapa_tem(m, 3) { mimo 4; }
-    talvez mapa_tamanho(m) != 2 { mimo 5; }
+    remover(m, 3);
+    talvez tem(m, 3) { mimo 4; }
+    talvez tamanho(m) != 2 { mimo 5; }
 
     nova muda ordem: bombom = 0;
     para cada chave em m {
@@ -208,77 +208,77 @@ carinho principal() -> bombom {
     }
     talvez ordem != 12 { mimo 6; }
 
-    nova numero: Escolha = mapa_obter(m, 1);
+    nova numero: Escolha = obter(m, 1);
     encaixe numero {
         caso Escolha.Numero(n) { talvez n != 42 { mimo 7; } }
         caso Escolha.Texto(t) { mimo 8; }
         caso Escolha.Vazio { mimo 9; }
     }
-    nova texto: Escolha = mapa_obter(m, 2);
-    encaixe texto {
+    nova escolhido: Escolha = obter(m, 2);
+    encaixe escolhido {
         caso Escolha.Numero(n) { mimo 10; }
-        caso Escolha.Texto(t) { talvez tamanho_verso(t) != 5 { mimo 11; } }
+        caso Escolha.Texto(t) { talvez texto.tamanho(t) != 5 { mimo 11; } }
         caso Escolha.Vazio { mimo 12; }
     }
 
     nova muda i: bombom = 4;
     sempre que i < 13 {
-        mapa_definir(m, i, Escolha.Numero(i * 10));
+        definir(m, i, Escolha.Numero(i * 10));
         i = i + 1;
     }
-    talvez mapa_tamanho(m) != 11 { mimo 13; }
-    mapa_remover(m, 7);
-    talvez mapa_tamanho(m) != 10 { mimo 14; }
+    talvez tamanho(m) != 11 { mimo 13; }
+    remover(m, 7);
+    talvez tamanho(m) != 10 { mimo 14; }
     mimo 0;
 }
 "#;
 
 const VERSO_LEQUE: &str = r#"
-pacote main;
+pacote main; trazer mapa.definir; trazer mapa.obter; trazer mapa.tem; trazer texto.formatar; trazer texto.tamanho;
 
 leque Escolha { Vazio, Numero(bombom), Texto(verso) }
 
 carinho principal() -> bombom {
     nova m: mapa<verso, Escolha> = mapa_criar();
-    nova chave: verso = formatar_verso("{}{}", "cha", "ve");
-    mapa_definir(m, chave, Escolha.Numero(77));
-    mapa_definir(m, "outra", Escolha.Texto("payload"));
-    talvez !mapa_tem(m, "chave") { mimo 1; }
-    nova valor: Escolha = mapa_obter(m, "chave");
+    nova chave: verso = formatar("{}{}", "cha", "ve");
+    definir(m, chave, Escolha.Numero(77));
+    definir(m, "outra", Escolha.Texto("payload"));
+    talvez !tem(m, "chave") { mimo 1; }
+    nova valor: Escolha = obter(m, "chave");
     encaixe valor {
         caso Escolha.Numero(n) { talvez n != 77 { mimo 2; } }
         caso Escolha.Texto(t) { mimo 3; }
         caso Escolha.Vazio { mimo 4; }
     }
     nova muda ordem: bombom = 0;
-    para cada k em m { ordem = ordem + tamanho_verso(k); }
+    para cada k em m { ordem = ordem + tamanho(k); }
     talvez ordem != 10 { mimo 5; }
     mimo 0;
 }
 "#;
 
 const PARITY_SOURCE: &str = r#"
-pacote main;
+pacote main; trazer mapa.definir; trazer mapa.obter; trazer mapa.remover; trazer mapa.tamanho; trazer texto.formatar;
 
 leque Escolha { Vazio, Numero(bombom), Texto(verso) }
 
 carinho principal() -> bombom {
     nova a: mapa<bombom, Escolha> = mapa_criar();
-    mapa_definir(a, 1, Escolha.Vazio);
-    mapa_definir(a, 2, Escolha.Numero(41));
-    mapa_definir(a, 3, Escolha.Texto("carga"));
-    mapa_definir(a, 2, Escolha.Numero(42));
-    encaixe mapa_obter(a, 1) { caso Escolha.Vazio { falar(10); } caso Escolha.Numero(n) { falar(n); } caso Escolha.Texto(t) { falar(t); } }
-    encaixe mapa_obter(a, 2) { caso Escolha.Numero(n) { falar(n); } caso Escolha.Vazio { falar(11); } caso Escolha.Texto(t) { falar(t); } }
-    encaixe mapa_obter(a, 3) { caso Escolha.Texto(t) { falar(t); } caso Escolha.Vazio { falar(12); } caso Escolha.Numero(n) { falar(n); } }
-    mapa_remover(a, 1);
-    falar(mapa_tamanho(a));
+    definir(a, 1, Escolha.Vazio);
+    definir(a, 2, Escolha.Numero(41));
+    definir(a, 3, Escolha.Texto("carga"));
+    definir(a, 2, Escolha.Numero(42));
+    encaixe obter(a, 1) { caso Escolha.Vazio { falar(10); } caso Escolha.Numero(n) { falar(n); } caso Escolha.Texto(t) { falar(t); } }
+    encaixe obter(a, 2) { caso Escolha.Numero(n) { falar(n); } caso Escolha.Vazio { falar(11); } caso Escolha.Texto(t) { falar(t); } }
+    encaixe obter(a, 3) { caso Escolha.Texto(t) { falar(t); } caso Escolha.Vazio { falar(12); } caso Escolha.Numero(n) { falar(n); } }
+    remover(a, 1);
+    falar(tamanho(a));
 
     nova b: mapa<verso, Escolha> = mapa_criar();
-    nova chave: verso = formatar_verso("{}{}", "cha", "ve");
-    mapa_definir(b, chave, Escolha.Numero(77));
-    mapa_definir(b, "outra", Escolha.Texto("payload"));
-    encaixe mapa_obter(b, "chave") { caso Escolha.Numero(n) { falar(n); } caso Escolha.Vazio { falar(13); } caso Escolha.Texto(t) { falar(t); } }
+    nova chave: verso = formatar("{}{}", "cha", "ve");
+    definir(b, chave, Escolha.Numero(77));
+    definir(b, "outra", Escolha.Texto("payload"));
+    encaixe obter(b, "chave") { caso Escolha.Numero(n) { falar(n); } caso Escolha.Vazio { falar(13); } caso Escolha.Texto(t) { falar(t); } }
     para cada k em b { falar(k); }
     mimo 0;
 }
@@ -297,22 +297,22 @@ fn segunda_instanciacao_verso_leque_usa_igualdade_por_conteudo() {
 #[test]
 fn quatro_familias_historicas_permanecem_compativeis() {
     let code = r#"
-pacote main;
+pacote main; trazer mapa.bombom_bombom_criar; trazer mapa.bombom_bombom_definir; trazer mapa.bombom_bombom_obter; trazer mapa.bombom_verso_criar; trazer mapa.bombom_verso_definir; trazer mapa.bombom_verso_obter; trazer mapa.verso_bombom_criar; trazer mapa.verso_bombom_definir; trazer mapa.verso_bombom_obter; trazer mapa.verso_verso_criar; trazer mapa.verso_verso_definir; trazer mapa.verso_verso_obter; trazer texto.tamanho;
 carinho principal() -> bombom {
-    nova a: mapa<verso,bombom> = mapa_verso_bombom_criar();
-    nova b: mapa<verso,verso> = mapa_verso_verso_criar();
-    nova c: mapa<bombom,bombom> = mapa_bombom_bombom_criar();
-    nova d: mapa<bombom,verso> = mapa_bombom_verso_criar();
-    mapa_verso_bombom_definir(a, "a", 1);
-    mapa_verso_verso_definir(b, "b", "dois");
-    mapa_bombom_bombom_definir(c, 3, 3);
-    mapa_bombom_bombom_definir(c, 1, 1);
-    mapa_bombom_bombom_definir(c, 2, 2);
-    mapa_bombom_verso_definir(d, 4, "quatro");
-    talvez mapa_verso_bombom_obter(a, "a") != 1 { mimo 1; }
-    talvez tamanho_verso(mapa_verso_verso_obter(b, "b")) != 4 { mimo 2; }
-    talvez mapa_bombom_bombom_obter(c, 3) != 3 { mimo 3; }
-    talvez tamanho_verso(mapa_bombom_verso_obter(d, 4)) != 6 { mimo 4; }
+    nova a: mapa<verso,bombom> = verso_bombom_criar();
+    nova b: mapa<verso,verso> = verso_verso_criar();
+    nova c: mapa<bombom,bombom> = bombom_bombom_criar();
+    nova d: mapa<bombom,verso> = bombom_verso_criar();
+    verso_bombom_definir(a, "a", 1);
+    verso_verso_definir(b, "b", "dois");
+    bombom_bombom_definir(c, 3, 3);
+    bombom_bombom_definir(c, 1, 1);
+    bombom_bombom_definir(c, 2, 2);
+    bombom_verso_definir(d, 4, "quatro");
+    talvez verso_bombom_obter(a, "a") != 1 { mimo 1; }
+    talvez tamanho(verso_verso_obter(b, "b")) != 4 { mimo 2; }
+    talvez bombom_bombom_obter(c, 3) != 3 { mimo 3; }
+    talvez tamanho(bombom_verso_obter(d, 4)) != 6 { mimo 4; }
     nova muda ordem: bombom = 0;
     para cada chave em c { ordem = ordem * 10 + chave; }
     talvez ordem != 312 { mimo 5; }
@@ -325,11 +325,11 @@ carinho principal() -> bombom {
 #[test]
 fn lookup_ausente_falha_com_diagnostico_de_runtime() {
     let code = r#"
-pacote main;
+pacote main; trazer mapa.obter;
 leque Escolha { Vazio }
 carinho principal() -> bombom {
     nova m: mapa<bombom, Escolha> = mapa_criar();
-    nova x: Escolha = mapa_obter(m, 99);
+    nova x: Escolha = obter(m, 99);
     mimo 0;
 }
 "#;

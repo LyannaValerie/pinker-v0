@@ -1,19 +1,21 @@
 pacote main;
 
+trazer mapa.bombom_bombom_criar, bombom_bombom_definir, bombom_bombom_obter, bombom_bombom_remover, bombom_bombom_tamanho;
+
 carinho principal() -> bombom {
-    nova contagem: mapa<bombom,bombom> = mapa_bombom_bombom_criar();
-    mapa_bombom_bombom_definir(contagem, 1, 100);
-    mapa_bombom_bombom_definir(contagem, 2, 200);
-    mapa_bombom_bombom_definir(contagem, 3, 300);
+    nova contagem: mapa<bombom,bombom> = bombom_bombom_criar();
+    bombom_bombom_definir(contagem, 1, 100);
+    bombom_bombom_definir(contagem, 2, 200);
+    bombom_bombom_definir(contagem, 3, 300);
 
-    falar(mapa_bombom_bombom_obter(contagem, 1));
-    falar(mapa_bombom_bombom_obter(contagem, 2));
-    falar(mapa_bombom_bombom_obter(contagem, 3));
+    falar(bombom_bombom_obter(contagem, 1));
+    falar(bombom_bombom_obter(contagem, 2));
+    falar(bombom_bombom_obter(contagem, 3));
 
-    falar(mapa_bombom_bombom_tamanho(contagem));
+    falar(bombom_bombom_tamanho(contagem));
 
-    mapa_bombom_bombom_remover(contagem, 3);
-    falar(mapa_bombom_bombom_tamanho(contagem));
+    bombom_bombom_remover(contagem, 3);
+    falar(bombom_bombom_tamanho(contagem));
 
     para cada chave em contagem {
         falar(chave);

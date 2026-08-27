@@ -1,5 +1,7 @@
 pacote main;
 
+trazer memoria.alocar, liberar;
+
 carinho identidade_um(byte: seta<u8>) -> seta<u8> {
     mimo byte;
 }

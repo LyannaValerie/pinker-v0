@@ -1,27 +1,29 @@
 pacote main;
 
+trazer lista.verso_anexar, verso_criar, verso_definir, verso_inserir, verso_obter, verso_tamanho, verso_tirar_ultimo;
+
 carinho principal() -> bombom {
-    nova nomes: lista<verso> = lista_verso_criar();
-    lista_verso_anexar(nomes, "Ana");
-    lista_verso_anexar(nomes, "Bruno");
-    lista_verso_anexar(nomes, "Carla");
+    nova nomes: lista<verso> = verso_criar();
+    verso_anexar(nomes, "Ana");
+    verso_anexar(nomes, "Bruno");
+    verso_anexar(nomes, "Carla");
 
-    falar(lista_verso_tamanho(nomes));
+    falar(verso_tamanho(nomes));
 
-    falar(lista_verso_obter(nomes, 0));
-    falar(lista_verso_obter(nomes, 1));
-    falar(lista_verso_obter(nomes, 2));
+    falar(verso_obter(nomes, 0));
+    falar(verso_obter(nomes, 1));
+    falar(verso_obter(nomes, 2));
 
-    lista_verso_definir(nomes, 1, "Beatriz");
-    falar(lista_verso_obter(nomes, 1));
+    verso_definir(nomes, 1, "Beatriz");
+    falar(verso_obter(nomes, 1));
 
-    nova ultimo: verso = lista_verso_tirar_ultimo(nomes);
+    nova ultimo: verso = verso_tirar_ultimo(nomes);
     falar(ultimo);
-    falar(lista_verso_tamanho(nomes));
+    falar(verso_tamanho(nomes));
 
-    lista_verso_inserir(nomes, 0, "Zara");
-    falar(lista_verso_obter(nomes, 0));
-    falar(lista_verso_tamanho(nomes));
+    verso_inserir(nomes, 0, "Zara");
+    falar(verso_obter(nomes, 0));
+    falar(verso_tamanho(nomes));
 
     mimo 0;
 }

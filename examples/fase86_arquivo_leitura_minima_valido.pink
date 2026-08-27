@@ -1,8 +1,10 @@
 pacote fase86_arquivo_leitura_minima_valido;
 
+trazer arquivo.abrir, fechar, ler_bombom;
+
 carinho principal() -> bombom {
     nova handle: bombom = abrir("examples/fase86_input_numero.txt");
-    nova valor: bombom = ler_arquivo(handle);
+    nova valor: bombom = ler_bombom(handle);
     fechar(handle);
     falar(valor + 1);
     mimo 0;

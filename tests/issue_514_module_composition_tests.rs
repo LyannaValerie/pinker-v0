@@ -615,8 +615,13 @@ fn i7_import_de_familia_invalido_e_validado_dentro_do_modulo() {
 /// é contornável movendo o mesmo código para dentro de um módulo.
 #[test]
 fn i7_politica_de_grafia_da_pr_507_vale_dentro_do_modulo() {
+    // Depois da #505 o import INTEIRO deixou de disputar o nome do membro: ele
+    // habilita `arquivo.criar(...)`, forma qualificada que não ocupa `criar`
+    // no arquivo. Quem ocupa é o import SELETIVO, e é sobre ele que a política
+    // da PR #507 continua valendo — na raiz e dentro do módulo igualmente,
+    // que é exatamente o que a C3-09 exige.
     const CORPO: &str = concat!(
-        "trazer arquivo;\n\n",
+        "trazer arquivo.criar;\n\n",
         "carinho criar(x: bombom) -> bombom {\n    mimo x;\n}\n"
     );
 
@@ -890,7 +895,7 @@ fn revisao_n1_declaracao_de_grafia_builtin_na_raiz_nao_quebra_o_modulo() {
         "pacote main;\ntrazer n1b_mod.ua;\n\ncarinho mapa_criar(v: bombom) -> bombom {\n    mimo 0;\n}\n\ncarinho principal() -> bombom {\n    mimo ua();\n}\n",
         &[(
             "n1b_mod",
-            "pacote n1b_mod;\n\ncarinho ua() -> bombom {\n    nova l: lista<bombom> = lista_criar();\n    mimo 7;\n}\n",
+            "pacote n1b_mod;\ntrazer lista.criar;\n\ncarinho ua() -> bombom {\n    nova l: lista<bombom> = criar();\n    mimo 7;\n}\n",
         )],
     );
     let saida = executar(&c, "revisao-n1-modulo");
@@ -1410,7 +1415,7 @@ fn revisao_n1_duplo_estreitamento_e_deliberado_e_tem_diagnostico() {
 /// ninguém e não deve custar nada a ninguém.
 #[test]
 fn revisao_n1_triplo_reivindicacao_de_irmao_nao_tira_o_builtin_de_ninguem() {
-    const USUARIO: &str = "pacote n1t_user;\n\ncarinho uu() -> bombom {\n    nova mm: mapa<verso, bombom> = mapa_criar();\n    mapa_definir(mm, \"k\", 42);\n    mimo mapa_obter(mm, \"k\");\n}\n";
+    const USUARIO: &str = "pacote n1t_user;\ntrazer mapa.definir;\ntrazer mapa.obter;\n\ncarinho uu() -> bombom {\n    nova mm: mapa<verso, bombom> = mapa_criar();\n    definir(mm, \"k\", 42);\n    mimo obter(mm, \"k\");\n}\n";
 
     // Irmão reivindica a grafia, em cada espécie que a #507 permite declarar.
     for (rotulo, declaracao) in [
@@ -1452,7 +1457,7 @@ fn revisao_n1_triplo_reivindicacao_de_irmao_nao_tira_o_builtin_de_ninguem() {
             ),
             (
                 "n1u_b",
-                "pacote n1u_b;\ntrazer n1u_c.uc;\n\ncarinho ub() -> bombom {\n    nova mm: mapa<verso, bombom> = mapa_criar();\n    mapa_definir(mm, \"k\", 42);\n    mimo mapa_obter(mm, \"k\") + uc();\n}\n",
+                "pacote n1u_b;\ntrazer n1u_c.uc;\ntrazer mapa.definir;\ntrazer mapa.obter;\n\ncarinho ub() -> bombom {\n    nova mm: mapa<verso, bombom> = mapa_criar();\n    definir(mm, \"k\", 42);\n    mimo obter(mm, \"k\") + uc();\n}\n",
             ),
             (
                 "n1u_a",

@@ -409,7 +409,7 @@ fn combina(palavras: &[(ValueIR, u64)]) -> ValueIR {
 /// Fonte do programa sintético: idêntica ao exemplo versionado, mas com um
 /// local mutável que recebe o valor combinado das cinco palavras do payload.
 const FONTE_SINTETICA: &str = r#"
-pacote main;
+pacote main; trazer memoria.alocar;
 
 ninho Ninhado {
     cabeca: bombom;

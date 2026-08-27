@@ -1,11 +1,13 @@
 pacote main;
 
+trazer lista.bombom_anexar, bombom_criar, bombom_obter, bombom_tamanho, bombom_tirar_ultimo;
+
 carinho principal() -> bombom {
-    nova lista: lista<bombom> = lista_bombom_criar();
-    lista_bombom_anexar(lista, 7);
-    lista_bombom_anexar(lista, 11);
-    nova removido: bombom = lista_bombom_tirar_ultimo(lista);
+    nova lista: lista<bombom> = bombom_criar();
+    bombom_anexar(lista, 7);
+    bombom_anexar(lista, 11);
+    nova removido: bombom = bombom_tirar_ultimo(lista);
     falar(removido);
-    falar(lista_bombom_tamanho(lista));
-    mimo lista_bombom_obter(lista, 0);
+    falar(bombom_tamanho(lista));
+    mimo bombom_obter(lista, 0);
 }

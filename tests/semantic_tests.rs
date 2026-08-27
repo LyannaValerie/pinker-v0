@@ -186,7 +186,7 @@ fn chamada_de_funcao_inexistente() {
 #[test]
 fn ouvir_intrinseca_valida_sem_declaracao() {
     let code = "
-        pacote main;
+        pacote main; trazer entrada.ouvir;
         carinho principal() -> bombom { mimo ouvir(); }";
     assert!(parse_and_check(code).is_ok());
 }
@@ -194,7 +194,7 @@ fn ouvir_intrinseca_valida_sem_declaracao() {
 #[test]
 fn ouvir_intrinseca_rejeita_aridade_diferente_de_zero() {
     let code = "
-        pacote main;
+        pacote main; trazer entrada.ouvir;
         carinho principal() -> bombom { mimo ouvir(1); }";
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("chamada de 'ouvir' com aridade inválida"));
@@ -203,24 +203,24 @@ fn ouvir_intrinseca_rejeita_aridade_diferente_de_zero() {
 #[test]
 fn ouvir_verso_intrinseca_valida_sem_declaracao() {
     let code = r#"
-        pacote main;
-        carinho principal() -> bombom { mimo tamanho_verso(ouvir_verso()); }"#;
+        pacote main; trazer entrada.ouvir_verso; trazer texto.tamanho;
+        carinho principal() -> bombom { mimo tamanho(ouvir_verso()); }"#;
     assert!(parse_and_check(code).is_ok());
 }
 
 #[test]
 fn ouvir_verso_ou_intrinseca_valida_sem_declaracao() {
     let code = r#"
-        pacote main;
-        carinho principal() -> bombom { mimo tamanho_verso(ouvir_verso_ou("padrao")); }"#;
+        pacote main; trazer entrada.ouvir_verso_ou; trazer texto.tamanho;
+        carinho principal() -> bombom { mimo tamanho(ouvir_verso_ou("padrao")); }"#;
     assert!(parse_and_check(code).is_ok());
 }
 
 #[test]
 fn ouvir_verso_intrinseca_rejeita_aridade_diferente_de_zero() {
     let code = r#"
-        pacote main;
-        carinho principal() -> bombom { mimo tamanho_verso(ouvir_verso("x")); }"#;
+        pacote main; trazer entrada.ouvir_verso; trazer texto.tamanho;
+        carinho principal() -> bombom { mimo tamanho(ouvir_verso("x")); }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("chamada de 'ouvir_verso' com aridade inválida"));
 }
@@ -228,8 +228,8 @@ fn ouvir_verso_intrinseca_rejeita_aridade_diferente_de_zero() {
 #[test]
 fn ouvir_verso_ou_intrinseca_rejeita_argumento_nao_verso() {
     let code = r#"
-        pacote main;
-        carinho principal() -> bombom { mimo tamanho_verso(ouvir_verso_ou(7)); }"#;
+        pacote main; trazer entrada.ouvir_verso_ou; trazer texto.tamanho;
+        carinho principal() -> bombom { mimo tamanho(ouvir_verso_ou(7)); }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 1 da chamada 'ouvir_verso_ou'"));
 }
@@ -237,8 +237,8 @@ fn ouvir_verso_ou_intrinseca_rejeita_argumento_nao_verso() {
 #[test]
 fn ouvir_verso_ou_intrinseca_rejeita_aridade_invalida() {
     let code = r#"
-        pacote main;
-        carinho principal() -> bombom { mimo tamanho_verso(ouvir_verso_ou("a", "b")); }"#;
+        pacote main; trazer entrada.ouvir_verso_ou; trazer texto.tamanho;
+        carinho principal() -> bombom { mimo tamanho(ouvir_verso_ou("a", "b")); }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("chamada de 'ouvir_verso_ou' com aridade inválida"));
 }
@@ -246,16 +246,16 @@ fn ouvir_verso_ou_intrinseca_rejeita_aridade_invalida() {
 #[test]
 fn argumento_intrinseca_valida_sem_declaracao() {
     let code = "
-        pacote main;
-        carinho principal() -> bombom { mimo tamanho_verso(argumento(0)); }";
+        pacote main; trazer ambiente.argumento; trazer texto.tamanho;
+        carinho principal() -> bombom { mimo tamanho(argumento(0)); }";
     assert!(parse_and_check(code).is_ok());
 }
 
 #[test]
 fn argumento_intrinseca_rejeita_indice_nao_bombom() {
     let code = "
-        pacote main;
-        carinho principal() -> bombom { mimo tamanho_verso(argumento(falso)); }";
+        pacote main; trazer ambiente.argumento; trazer texto.tamanho;
+        carinho principal() -> bombom { mimo tamanho(argumento(falso)); }";
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 1 da chamada 'argumento'"));
 }
@@ -263,16 +263,16 @@ fn argumento_intrinseca_rejeita_indice_nao_bombom() {
 #[test]
 fn argumento_ou_intrinseca_valida_sem_declaracao() {
     let code = r#"
-        pacote main;
-        carinho principal() -> bombom { mimo tamanho_verso(argumento_ou(0, "anonimo")); }"#;
+        pacote main; trazer ambiente.argumento_ou; trazer texto.tamanho;
+        carinho principal() -> bombom { mimo tamanho(argumento_ou(0, "anonimo")); }"#;
     assert!(parse_and_check(code).is_ok());
 }
 
 #[test]
 fn argumento_ou_intrinseca_rejeita_padrao_nao_verso() {
     let code = "
-        pacote main;
-        carinho principal() -> bombom { mimo tamanho_verso(argumento_ou(0, 1)); }";
+        pacote main; trazer ambiente.argumento_ou; trazer texto.tamanho;
+        carinho principal() -> bombom { mimo tamanho(argumento_ou(0, 1)); }";
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 2 da chamada 'argumento_ou'"));
 }
@@ -280,7 +280,7 @@ fn argumento_ou_intrinseca_rejeita_padrao_nao_verso() {
 #[test]
 fn tem_chave_intrinseca_valida_sem_declaracao() {
     let code = r#"
-        pacote main;
+        pacote main; trazer ambiente.tem_chave;
         carinho principal() -> bombom {
             talvez tem_chave("--saida") { mimo 1; } senao { mimo 0; }
         }"#;
@@ -290,7 +290,7 @@ fn tem_chave_intrinseca_valida_sem_declaracao() {
 #[test]
 fn tem_chave_intrinseca_rejeita_argumento_nao_verso() {
     let code = r#"
-        pacote main;
+        pacote main; trazer ambiente.tem_chave;
         carinho principal() -> bombom {
             talvez tem_chave(1) { mimo 1; } senao { mimo 0; }
         }"#;
@@ -301,9 +301,9 @@ fn tem_chave_intrinseca_rejeita_argumento_nao_verso() {
 #[test]
 fn pedir_argumento_intrinseca_valida_sem_declaracao() {
     let code = r#"
-        pacote main;
+        pacote main; trazer ambiente.pedir_argumento; trazer texto.tamanho;
         carinho principal() -> bombom {
-            mimo tamanho_verso(pedir_argumento("--saida", "padrao"));
+            mimo tamanho(pedir_argumento("--saida", "padrao"));
         }"#;
     assert!(parse_and_check(code).is_ok());
 }
@@ -311,9 +311,9 @@ fn pedir_argumento_intrinseca_valida_sem_declaracao() {
 #[test]
 fn pedir_argumento_intrinseca_rejeita_padrao_nao_verso() {
     let code = r#"
-        pacote main;
+        pacote main; trazer ambiente.pedir_argumento; trazer texto.tamanho;
         carinho principal() -> bombom {
-            mimo tamanho_verso(pedir_argumento("--saida", 1));
+            mimo tamanho(pedir_argumento("--saida", 1));
         }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 2 da chamada 'pedir_argumento'"));
@@ -322,16 +322,16 @@ fn pedir_argumento_intrinseca_rejeita_padrao_nao_verso() {
 #[test]
 fn ambiente_ou_intrinseca_valida_sem_declaracao() {
     let source = r#"
-        pacote main;
-        carinho principal() -> bombom { mimo tamanho_verso(ambiente_ou("HOME", "anonimo")); }"#;
+        pacote main; trazer ambiente.variavel_ou; trazer texto.tamanho;
+        carinho principal() -> bombom { mimo tamanho(variavel_ou("HOME", "anonimo")); }"#;
     assert!(parse_and_check(source).is_ok());
 }
 
 #[test]
 fn ambiente_ou_intrinseca_rejeita_chave_nao_verso() {
     let source = r#"
-        pacote main;
-        carinho principal() -> bombom { mimo tamanho_verso(ambiente_ou(0, "anonimo")); }"#;
+        pacote main; trazer ambiente.variavel_ou; trazer texto.tamanho;
+        carinho principal() -> bombom { mimo tamanho(variavel_ou(0, "anonimo")); }"#;
     let err = parse_and_check(source).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 1 da chamada 'ambiente_ou'"));
 }
@@ -339,9 +339,9 @@ fn ambiente_ou_intrinseca_rejeita_chave_nao_verso() {
 #[test]
 fn buscar_contexto_intrinseca_valida_sem_declaracao() {
     let source = r#"
-        pacote main;
+        pacote main; trazer ambiente.buscar_contexto; trazer texto.tamanho;
         carinho principal() -> bombom {
-            mimo tamanho_verso(buscar_contexto("--saida", "PINKER_OUT", "padrao"));
+            mimo tamanho(buscar_contexto("--saida", "PINKER_OUT", "padrao"));
         }"#;
     assert!(parse_and_check(source).is_ok());
 }
@@ -349,9 +349,9 @@ fn buscar_contexto_intrinseca_valida_sem_declaracao() {
 #[test]
 fn buscar_contexto_intrinseca_rejeita_segundo_argumento_nao_verso() {
     let source = r#"
-        pacote main;
+        pacote main; trazer ambiente.buscar_contexto; trazer texto.tamanho;
         carinho principal() -> bombom {
-            mimo tamanho_verso(buscar_contexto("--saida", 1, "padrao"));
+            mimo tamanho(buscar_contexto("--saida", 1, "padrao"));
         }"#;
     let err = parse_and_check(source).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 2 da chamada 'buscar_contexto'"));
@@ -360,9 +360,9 @@ fn buscar_contexto_intrinseca_rejeita_segundo_argumento_nao_verso() {
 #[test]
 fn buscar_contexto_intrinseca_rejeita_terceiro_argumento_nao_verso() {
     let source = r#"
-        pacote main;
+        pacote main; trazer ambiente.buscar_contexto; trazer texto.tamanho;
         carinho principal() -> bombom {
-            mimo tamanho_verso(buscar_contexto("--saida", "PINKER_OUT", 1));
+            mimo tamanho(buscar_contexto("--saida", "PINKER_OUT", 1));
         }"#;
     let err = parse_and_check(source).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 3 da chamada 'buscar_contexto'"));
@@ -376,9 +376,9 @@ fn buscar_contexto_intrinseca_rejeita_terceiro_argumento_nao_verso() {
 #[test]
 fn caminho_existe_intrinseca_valida_sem_declaracao() {
     let source = r#"
-        pacote main;
+        pacote main; trazer caminho.existe;
         carinho principal() -> bombom {
-            talvez caminho_existe("README.md") { mimo 1; } senao { mimo 0; }
+            talvez existe("README.md") { mimo 1; } senao { mimo 0; }
         }"#;
     assert!(parse_and_check(source).is_ok());
 }
@@ -386,8 +386,8 @@ fn caminho_existe_intrinseca_valida_sem_declaracao() {
 #[test]
 fn caminho_existe_intrinseca_rejeita_argumento_nao_verso() {
     let source = r#"
-        pacote main;
-        carinho principal() -> bombom { talvez caminho_existe(1) { mimo 1; } senao { mimo 0; } }"#;
+        pacote main; trazer caminho.existe;
+        carinho principal() -> bombom { talvez existe(1) { mimo 1; } senao { mimo 0; } }"#;
     let err = parse_and_check(source).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 1 da chamada 'caminho_existe'"));
 }
@@ -395,7 +395,7 @@ fn caminho_existe_intrinseca_rejeita_argumento_nao_verso() {
 #[test]
 fn e_arquivo_intrinseca_valida_sem_declaracao() {
     let source = r#"
-        pacote main;
+        pacote main; trazer caminho.e_arquivo;
         carinho principal() -> bombom {
             talvez e_arquivo("README.md") { mimo 1; } senao { mimo 0; }
         }"#;
@@ -405,7 +405,7 @@ fn e_arquivo_intrinseca_valida_sem_declaracao() {
 #[test]
 fn e_arquivo_intrinseca_rejeita_argumento_nao_verso() {
     let source = r#"
-        pacote main;
+        pacote main; trazer caminho.e_arquivo;
         carinho principal() -> bombom { talvez e_arquivo(1) { mimo 1; } senao { mimo 0; } }"#;
     let err = parse_and_check(source).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 1 da chamada 'e_arquivo'"));
@@ -414,7 +414,7 @@ fn e_arquivo_intrinseca_rejeita_argumento_nao_verso() {
 #[test]
 fn e_diretorio_intrinseca_valida_sem_declaracao() {
     let source = r#"
-        pacote main;
+        pacote main; trazer caminho.e_diretorio;
         carinho principal() -> bombom {
             talvez e_diretorio(".") { mimo 1; } senao { mimo 0; }
         }"#;
@@ -424,7 +424,7 @@ fn e_diretorio_intrinseca_valida_sem_declaracao() {
 #[test]
 fn e_diretorio_intrinseca_rejeita_argumento_nao_verso() {
     let source = r#"
-        pacote main;
+        pacote main; trazer caminho.e_diretorio;
         carinho principal() -> bombom { talvez e_diretorio(1) { mimo 1; } senao { mimo 0; } }"#;
     let err = parse_and_check(source).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 1 da chamada 'e_diretorio'"));
@@ -433,10 +433,10 @@ fn e_diretorio_intrinseca_rejeita_argumento_nao_verso() {
 #[test]
 fn juntar_caminho_intrinseca_valida_sem_declaracao() {
     let source = r#"
-        pacote main;
+        pacote main; trazer caminho.juntar; trazer texto.tamanho;
         carinho principal() -> bombom {
-            nova p: verso = juntar_caminho(".", "README.md");
-            mimo tamanho_verso(p);
+            nova p: verso = juntar(".", "README.md");
+            mimo tamanho(p);
         }"#;
     assert!(parse_and_check(source).is_ok());
 }
@@ -444,8 +444,8 @@ fn juntar_caminho_intrinseca_valida_sem_declaracao() {
 #[test]
 fn juntar_caminho_intrinseca_rejeita_segundo_argumento_nao_verso() {
     let source = r#"
-        pacote main;
-        carinho principal() -> bombom { mimo tamanho_verso(juntar_caminho(".", 1)); }"#;
+        pacote main; trazer caminho.juntar; trazer texto.tamanho;
+        carinho principal() -> bombom { mimo tamanho(juntar(".", 1)); }"#;
     let err = parse_and_check(source).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 2 da chamada 'juntar_caminho'"));
 }
@@ -453,7 +453,7 @@ fn juntar_caminho_intrinseca_rejeita_segundo_argumento_nao_verso() {
 #[test]
 fn tamanho_arquivo_intrinseca_valida_sem_declaracao() {
     let source = r#"
-        pacote main;
+        pacote main; trazer caminho.tamanho_arquivo;
         carinho principal() -> bombom { mimo tamanho_arquivo("README.md"); }"#;
     assert!(parse_and_check(source).is_ok());
 }
@@ -461,7 +461,7 @@ fn tamanho_arquivo_intrinseca_valida_sem_declaracao() {
 #[test]
 fn tamanho_arquivo_intrinseca_rejeita_argumento_nao_verso() {
     let source = r#"
-        pacote main;
+        pacote main; trazer caminho.tamanho_arquivo;
         carinho principal() -> bombom { mimo tamanho_arquivo(1); }"#;
     let err = parse_and_check(source).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 1 da chamada 'tamanho_arquivo'"));
@@ -470,9 +470,9 @@ fn tamanho_arquivo_intrinseca_rejeita_argumento_nao_verso() {
 #[test]
 fn e_vazio_intrinseca_valida_sem_declaracao() {
     let source = r#"
-        pacote main;
+        pacote main; trazer caminho.arquivo_vazio;
         carinho principal() -> bombom {
-            talvez e_vazio("README.md") { mimo 1; } senao { mimo 0; }
+            talvez arquivo_vazio("README.md") { mimo 1; } senao { mimo 0; }
         }"#;
     assert!(parse_and_check(source).is_ok());
 }
@@ -480,8 +480,8 @@ fn e_vazio_intrinseca_valida_sem_declaracao() {
 #[test]
 fn e_vazio_intrinseca_rejeita_argumento_nao_verso() {
     let source = r#"
-        pacote main;
-        carinho principal() -> bombom { talvez e_vazio(1) { mimo 1; } senao { mimo 0; } }"#;
+        pacote main; trazer caminho.arquivo_vazio;
+        carinho principal() -> bombom { talvez arquivo_vazio(1) { mimo 1; } senao { mimo 0; } }"#;
     let err = parse_and_check(source).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 1 da chamada 'e_vazio'"));
 }
@@ -489,7 +489,7 @@ fn e_vazio_intrinseca_rejeita_argumento_nao_verso() {
 #[test]
 fn criar_diretorio_intrinseca_valida_sem_declaracao() {
     let source = r#"
-        pacote main;
+        pacote main; trazer caminho.criar_diretorio;
         carinho principal() -> bombom {
             criar_diretorio("saida");
             mimo 0;
@@ -500,7 +500,7 @@ fn criar_diretorio_intrinseca_valida_sem_declaracao() {
 #[test]
 fn criar_diretorio_intrinseca_rejeita_argumento_nao_verso() {
     let source = r#"
-        pacote main;
+        pacote main; trazer caminho.criar_diretorio;
         carinho principal() -> bombom {
             criar_diretorio(1);
             mimo 0;
@@ -512,7 +512,7 @@ fn criar_diretorio_intrinseca_rejeita_argumento_nao_verso() {
 #[test]
 fn remover_arquivo_intrinseca_valida_sem_declaracao() {
     let source = r#"
-        pacote main;
+        pacote main; trazer caminho.remover_arquivo;
         carinho principal() -> bombom {
             remover_arquivo("temp.txt");
             mimo 0;
@@ -523,7 +523,7 @@ fn remover_arquivo_intrinseca_valida_sem_declaracao() {
 #[test]
 fn remover_arquivo_intrinseca_rejeita_argumento_nao_verso() {
     let source = r#"
-        pacote main;
+        pacote main; trazer caminho.remover_arquivo;
         carinho principal() -> bombom {
             remover_arquivo(1);
             mimo 0;
@@ -535,7 +535,7 @@ fn remover_arquivo_intrinseca_rejeita_argumento_nao_verso() {
 #[test]
 fn remover_diretorio_intrinseca_valida_sem_declaracao() {
     let source = r#"
-        pacote main;
+        pacote main; trazer caminho.remover_diretorio;
         carinho principal() -> bombom {
             remover_diretorio("saida");
             mimo 0;
@@ -546,7 +546,7 @@ fn remover_diretorio_intrinseca_valida_sem_declaracao() {
 #[test]
 fn remover_diretorio_intrinseca_rejeita_argumento_nao_verso() {
     let source = r#"
-        pacote main;
+        pacote main; trazer caminho.remover_diretorio;
         carinho principal() -> bombom {
             remover_diretorio(1);
             mimo 0;
@@ -558,16 +558,16 @@ fn remover_diretorio_intrinseca_rejeita_argumento_nao_verso() {
 #[test]
 fn diretorio_atual_intrinseca_valida_sem_declaracao() {
     let source = r#"
-        pacote main;
-        carinho principal() -> bombom { mimo tamanho_verso(diretorio_atual()); }"#;
+        pacote main; trazer caminho.diretorio_atual; trazer texto.tamanho;
+        carinho principal() -> bombom { mimo tamanho(diretorio_atual()); }"#;
     assert!(parse_and_check(source).is_ok());
 }
 
 #[test]
 fn diretorio_atual_intrinseca_rejeita_aridade_diferente_de_zero() {
     let source = r#"
-        pacote main;
-        carinho principal() -> bombom { mimo tamanho_verso(diretorio_atual("x")); }"#;
+        pacote main; trazer caminho.diretorio_atual; trazer texto.tamanho;
+        carinho principal() -> bombom { mimo tamanho(diretorio_atual("x")); }"#;
     let err = parse_and_check(source).unwrap_err().to_string();
     assert!(err.contains("chamada de 'diretorio_atual' com aridade inválida"));
 }
@@ -580,7 +580,7 @@ fn diretorio_atual_intrinseca_rejeita_aridade_diferente_de_zero() {
 #[test]
 fn quantos_argumentos_intrinseca_valida_sem_declaracao() {
     let code = "
-        pacote main;
+        pacote main; trazer ambiente.quantos_argumentos;
         carinho principal() -> bombom { mimo quantos_argumentos(); }";
     assert!(parse_and_check(code).is_ok());
 }
@@ -588,7 +588,7 @@ fn quantos_argumentos_intrinseca_valida_sem_declaracao() {
 #[test]
 fn quantos_argumentos_intrinseca_rejeita_aridade_diferente_de_zero() {
     let code = "
-        pacote main;
+        pacote main; trazer ambiente.quantos_argumentos;
         carinho principal() -> bombom { mimo quantos_argumentos(1); }";
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("chamada de 'quantos_argumentos' com aridade inválida"));
@@ -597,7 +597,7 @@ fn quantos_argumentos_intrinseca_rejeita_aridade_diferente_de_zero() {
 #[test]
 fn tem_argumento_intrinseca_valida_sem_declaracao() {
     let code = "
-        pacote main;
+        pacote main; trazer ambiente.tem_argumento;
         carinho principal() -> bombom {
             talvez tem_argumento(0) { mimo 1; } senao { mimo 0; }
         }";
@@ -607,7 +607,7 @@ fn tem_argumento_intrinseca_valida_sem_declaracao() {
 #[test]
 fn tem_argumento_intrinseca_rejeita_indice_nao_bombom() {
     let code = "
-        pacote main;
+        pacote main; trazer ambiente.tem_argumento;
         carinho principal() -> bombom { talvez tem_argumento(falso) { mimo 1; } senao { mimo 0; } }";
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 1 da chamada 'tem_argumento'"));
@@ -616,7 +616,7 @@ fn tem_argumento_intrinseca_rejeita_indice_nao_bombom() {
 #[test]
 fn tem_chave_intrinseca_rejeita_aridade_diferente_de_um() {
     let code = r#"
-        pacote main;
+        pacote main; trazer ambiente.tem_chave;
         carinho principal() -> bombom { talvez tem_chave("--saida", "--modo") { mimo 1; } senao { mimo 0; } }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("chamada de 'tem_chave' com aridade inválida"));
@@ -625,8 +625,8 @@ fn tem_chave_intrinseca_rejeita_aridade_diferente_de_um() {
 #[test]
 fn pedir_argumento_intrinseca_rejeita_aridade_invalida() {
     let code = r#"
-        pacote main;
-        carinho principal() -> bombom { mimo tamanho_verso(pedir_argumento("--saida")); }"#;
+        pacote main; trazer ambiente.pedir_argumento; trazer texto.tamanho;
+        carinho principal() -> bombom { mimo tamanho(pedir_argumento("--saida")); }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("chamada de 'pedir_argumento' com aridade inválida"));
 }
@@ -634,7 +634,7 @@ fn pedir_argumento_intrinseca_rejeita_aridade_invalida() {
 #[test]
 fn tem_flag_intrinseca_valida_sem_declaracao() {
     let code = r#"
-        pacote main;
+        pacote main; trazer ambiente.tem_flag;
         carinho principal() -> bombom { talvez tem_flag("--quiet") { mimo 1; } senao { mimo 0; } }"#;
     assert!(parse_and_check(code).is_ok());
 }
@@ -642,7 +642,7 @@ fn tem_flag_intrinseca_valida_sem_declaracao() {
 #[test]
 fn tem_flag_intrinseca_rejeita_argumento_nao_verso() {
     let code = r#"
-        pacote main;
+        pacote main; trazer ambiente.tem_flag;
         carinho principal() -> bombom { talvez tem_flag(1) { mimo 1; } senao { mimo 0; } }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 1 da chamada 'tem_flag'"));
@@ -651,7 +651,7 @@ fn tem_flag_intrinseca_rejeita_argumento_nao_verso() {
 #[test]
 fn tem_flag_intrinseca_rejeita_aridade_diferente_de_um() {
     let code = r#"
-        pacote main;
+        pacote main; trazer ambiente.tem_flag;
         carinho principal() -> bombom { talvez tem_flag("--quiet", "--verbose") { mimo 1; } senao { mimo 0; } }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("chamada de 'tem_flag' com aridade inválida"));
@@ -660,9 +660,9 @@ fn tem_flag_intrinseca_rejeita_aridade_diferente_de_um() {
 #[test]
 fn buscar_contexto_intrinseca_rejeita_aridade_invalida() {
     let code = r#"
-        pacote main;
+        pacote main; trazer ambiente.buscar_contexto; trazer texto.tamanho;
         carinho principal() -> bombom {
-            mimo tamanho_verso(buscar_contexto("--saida", "PINKER_OUT"));
+            mimo tamanho(buscar_contexto("--saida", "PINKER_OUT"));
         }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("chamada de 'buscar_contexto' com aridade inválida"));
@@ -671,9 +671,9 @@ fn buscar_contexto_intrinseca_rejeita_aridade_invalida() {
 #[test]
 fn legado_tem_argumento_nomeado_intrinseca_permanece_valido() {
     let code = r#"
-        pacote main;
+        pacote main; trazer ambiente.tem_chave;
         carinho principal() -> bombom {
-            talvez tem_argumento_nomeado("--saida") { mimo 1; } senao { mimo 0; }
+            talvez tem_chave("--saida") { mimo 1; } senao { mimo 0; }
         }"#;
     assert!(parse_and_check(code).is_ok());
 }
@@ -686,7 +686,7 @@ fn legado_tem_argumento_nomeado_intrinseca_permanece_valido() {
 #[test]
 fn sair_intrinseca_valida_sem_declaracao() {
     let code = "
-        pacote main;
+        pacote main; trazer processo.sair;
         carinho principal() -> bombom { sair(1); mimo 0; }";
     assert!(parse_and_check(code).is_ok());
 }
@@ -694,7 +694,7 @@ fn sair_intrinseca_valida_sem_declaracao() {
 #[test]
 fn sair_intrinseca_rejeita_argumento_nao_bombom() {
     let code = "
-        pacote main;
+        pacote main; trazer processo.sair;
         carinho principal() -> bombom { sair(verdade); mimo 0; }";
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 1 da chamada 'sair'"));
@@ -703,10 +703,10 @@ fn sair_intrinseca_rejeita_argumento_nao_bombom() {
 #[test]
 fn abrir_ler_fechar_intrinsecas_validas_sem_declaracao() {
     let code = r#"
-        pacote main;
+        pacote main; trazer arquivo.abrir; trazer arquivo.fechar; trazer arquivo.ler_bombom;
         carinho principal() -> bombom {
             nova h: bombom = abrir("arquivo.txt");
-            nova v: bombom = ler_arquivo(h);
+            nova v: bombom = ler_bombom(h);
             fechar(h);
             mimo v;
         }"#;
@@ -716,12 +716,12 @@ fn abrir_ler_fechar_intrinsecas_validas_sem_declaracao() {
 #[test]
 fn ler_verso_arquivo_intrinseca_valida_sem_declaracao() {
     let code = r#"
-        pacote main;
+        pacote main; trazer arquivo.abrir; trazer arquivo.fechar; trazer arquivo.ler_verso; trazer texto.tamanho;
         carinho principal() -> bombom {
             nova h: bombom = abrir("arquivo.txt");
-            nova t: verso = ler_verso_arquivo(h);
+            nova t: verso = ler_verso(h);
             fechar(h);
-            mimo tamanho_verso(t);
+            mimo tamanho(t);
         }"#;
     assert!(parse_and_check(code).is_ok());
 }
@@ -729,8 +729,8 @@ fn ler_verso_arquivo_intrinseca_valida_sem_declaracao() {
 #[test]
 fn ler_verso_arquivo_intrinseca_rejeita_argumento_nao_bombom() {
     let code = r#"
-        pacote main;
-        carinho principal() -> bombom { mimo tamanho_verso(ler_verso_arquivo("arquivo.txt")); }"#;
+        pacote main; trazer arquivo.ler_verso; trazer texto.tamanho;
+        carinho principal() -> bombom { mimo tamanho(ler_verso("arquivo.txt")); }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 1 da chamada 'ler_verso_arquivo'"));
 }
@@ -738,9 +738,9 @@ fn ler_verso_arquivo_intrinseca_rejeita_argumento_nao_bombom() {
 #[test]
 fn ler_arquivo_verso_intrinseca_valida_sem_declaracao() {
     let code = r#"
-        pacote main;
+        pacote main; trazer arquivo.ler_caminho_verso;
         carinho principal() -> bombom {
-            nova t: verso = ler_arquivo_verso("arquivo.txt");
+            nova t: verso = ler_caminho_verso("arquivo.txt");
             falar(t);
             mimo 0;
         }"#;
@@ -750,8 +750,8 @@ fn ler_arquivo_verso_intrinseca_valida_sem_declaracao() {
 #[test]
 fn ler_arquivo_verso_intrinseca_rejeita_aridade_invalida() {
     let code = r#"
-        pacote main;
-        carinho principal() -> bombom { mimo tamanho_verso(ler_arquivo_verso("a", "b")); }"#;
+        pacote main; trazer arquivo.ler_caminho_verso; trazer texto.tamanho;
+        carinho principal() -> bombom { mimo tamanho(ler_caminho_verso("a", "b")); }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("chamada de 'ler_arquivo_verso' com aridade inválida"));
 }
@@ -759,8 +759,8 @@ fn ler_arquivo_verso_intrinseca_rejeita_aridade_invalida() {
 #[test]
 fn ler_arquivo_verso_intrinseca_rejeita_argumento_nao_verso() {
     let code = r#"
-        pacote main;
-        carinho principal() -> bombom { mimo tamanho_verso(ler_arquivo_verso(1)); }"#;
+        pacote main; trazer arquivo.ler_caminho_verso; trazer texto.tamanho;
+        carinho principal() -> bombom { mimo tamanho(ler_caminho_verso(1)); }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 1 da chamada 'ler_arquivo_verso'"));
 }
@@ -768,9 +768,9 @@ fn ler_arquivo_verso_intrinseca_rejeita_argumento_nao_verso() {
 #[test]
 fn arquivo_ou_intrinseca_valida_sem_declaracao() {
     let code = r#"
-        pacote main;
+        pacote main; trazer arquivo.ler_caminho_ou;
         carinho principal() -> bombom {
-            nova t: verso = arquivo_ou("arquivo.txt", "padrao");
+            nova t: verso = ler_caminho_ou("arquivo.txt", "padrao");
             falar(t);
             mimo 0;
         }"#;
@@ -780,8 +780,8 @@ fn arquivo_ou_intrinseca_valida_sem_declaracao() {
 #[test]
 fn arquivo_ou_intrinseca_rejeita_aridade_invalida() {
     let code = r#"
-        pacote main;
-        carinho principal() -> bombom { mimo tamanho_verso(arquivo_ou("a")); }"#;
+        pacote main; trazer arquivo.ler_caminho_ou; trazer texto.tamanho;
+        carinho principal() -> bombom { mimo tamanho(ler_caminho_ou("a")); }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("chamada de 'arquivo_ou' com aridade inválida"));
 }
@@ -789,8 +789,8 @@ fn arquivo_ou_intrinseca_rejeita_aridade_invalida() {
 #[test]
 fn arquivo_ou_intrinseca_rejeita_tipos_invalidos() {
     let code = r#"
-        pacote main;
-        carinho principal() -> bombom { mimo tamanho_verso(arquivo_ou(1, "ok")); }"#;
+        pacote main; trazer arquivo.ler_caminho_ou; trazer texto.tamanho;
+        carinho principal() -> bombom { mimo tamanho(ler_caminho_ou(1, "ok")); }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 1 da chamada 'arquivo_ou'"));
 }
@@ -798,8 +798,8 @@ fn arquivo_ou_intrinseca_rejeita_tipos_invalidos() {
 #[test]
 fn arquivo_ou_intrinseca_rejeita_padrao_nao_verso() {
     let code = r#"
-        pacote main;
-        carinho principal() -> bombom { mimo tamanho_verso(arquivo_ou("a.txt", 7)); }"#;
+        pacote main; trazer arquivo.ler_caminho_ou; trazer texto.tamanho;
+        carinho principal() -> bombom { mimo tamanho(ler_caminho_ou("a.txt", 7)); }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 2 da chamada 'arquivo_ou'"));
 }
@@ -807,7 +807,7 @@ fn arquivo_ou_intrinseca_rejeita_padrao_nao_verso() {
 #[test]
 fn abrir_intrinseca_rejeita_argumento_nao_verso() {
     let code = "
-        pacote main;
+        pacote main; trazer arquivo.abrir;
         carinho principal() -> bombom { mimo abrir(1); }";
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 1 da chamada 'abrir'"));
@@ -816,10 +816,10 @@ fn abrir_intrinseca_rejeita_argumento_nao_verso() {
 #[test]
 fn escrever_intrinseca_valida_sem_declaracao() {
     let code = r#"
-        pacote main;
+        pacote main; trazer arquivo.abrir; trazer arquivo.escrever_bombom; trazer arquivo.fechar;
         carinho principal() -> bombom {
             nova h: bombom = abrir("arquivo.txt");
-            escrever(h, 42);
+            escrever_bombom(h, 42);
             fechar(h);
             mimo 0;
         }"#;
@@ -829,10 +829,10 @@ fn escrever_intrinseca_valida_sem_declaracao() {
 #[test]
 fn escrever_intrinseca_rejeita_segundo_argumento_nao_bombom() {
     let code = r#"
-        pacote main;
+        pacote main; trazer arquivo.abrir; trazer arquivo.escrever_bombom; trazer arquivo.fechar;
         carinho principal() -> bombom {
             nova h: bombom = abrir("arquivo.txt");
-            escrever(h, "texto");
+            escrever_bombom(h, "texto");
             fechar(h);
             mimo 0;
         }"#;
@@ -843,9 +843,9 @@ fn escrever_intrinseca_rejeita_segundo_argumento_nao_bombom() {
 #[test]
 fn criar_arquivo_intrinseca_valida_sem_declaracao() {
     let code = r#"
-        pacote main;
+        pacote main; trazer arquivo.criar; trazer arquivo.fechar;
         carinho principal() -> bombom {
-            nova h: bombom = criar_arquivo("arquivo.txt");
+            nova h: bombom = criar("arquivo.txt");
             fechar(h);
             mimo 0;
         }"#;
@@ -855,8 +855,8 @@ fn criar_arquivo_intrinseca_valida_sem_declaracao() {
 #[test]
 fn criar_arquivo_intrinseca_rejeita_argumento_nao_verso() {
     let code = r#"
-        pacote main;
-        carinho principal() -> bombom { mimo criar_arquivo(1); }"#;
+        pacote main; trazer arquivo.criar;
+        carinho principal() -> bombom { mimo criar(1); }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 1 da chamada 'criar_arquivo'"));
 }
@@ -864,7 +864,7 @@ fn criar_arquivo_intrinseca_rejeita_argumento_nao_verso() {
 #[test]
 fn abrir_anexo_intrinseca_valida_sem_declaracao() {
     let code = r#"
-        pacote main;
+        pacote main; trazer arquivo.abrir_anexo; trazer arquivo.fechar;
         carinho principal() -> bombom {
             nova h: bombom = abrir_anexo("arquivo.txt");
             fechar(h);
@@ -876,7 +876,7 @@ fn abrir_anexo_intrinseca_valida_sem_declaracao() {
 #[test]
 fn abrir_anexo_intrinseca_rejeita_aridade_invalida() {
     let code = r#"
-        pacote main;
+        pacote main; trazer arquivo.abrir_anexo;
         carinho principal() -> bombom { mimo abrir_anexo("a.txt", "b.txt"); }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("chamada de 'abrir_anexo' com aridade inválida"));
@@ -885,7 +885,7 @@ fn abrir_anexo_intrinseca_rejeita_aridade_invalida() {
 #[test]
 fn anexar_verso_intrinseca_valida_sem_declaracao() {
     let code = r#"
-        pacote main;
+        pacote main; trazer arquivo.abrir_anexo; trazer arquivo.anexar_verso; trazer arquivo.fechar;
         carinho principal() -> bombom {
             nova h: bombom = abrir_anexo("arquivo.txt");
             anexar_verso(h, "texto");
@@ -898,7 +898,7 @@ fn anexar_verso_intrinseca_valida_sem_declaracao() {
 #[test]
 fn anexar_verso_intrinseca_rejeita_aridade_invalida() {
     let code = r#"
-        pacote main;
+        pacote main; trazer arquivo.abrir_anexo; trazer arquivo.anexar_verso; trazer arquivo.fechar;
         carinho principal() -> bombom {
             nova h: bombom = abrir_anexo("arquivo.txt");
             anexar_verso(h);
@@ -912,7 +912,7 @@ fn anexar_verso_intrinseca_rejeita_aridade_invalida() {
 #[test]
 fn anexar_verso_intrinseca_rejeita_handle_nao_bombom() {
     let code = r#"
-        pacote main;
+        pacote main; trazer arquivo.anexar_verso;
         carinho principal() -> bombom {
             anexar_verso("arquivo.txt", "texto");
             mimo 0;
@@ -924,7 +924,7 @@ fn anexar_verso_intrinseca_rejeita_handle_nao_bombom() {
 #[test]
 fn anexar_verso_intrinseca_rejeita_texto_nao_verso() {
     let code = r#"
-        pacote main;
+        pacote main; trazer arquivo.abrir_anexo; trazer arquivo.anexar_verso; trazer arquivo.fechar;
         carinho principal() -> bombom {
             nova h: bombom = abrir_anexo("arquivo.txt");
             anexar_verso(h, 7);
@@ -938,7 +938,7 @@ fn anexar_verso_intrinseca_rejeita_texto_nao_verso() {
 #[test]
 fn escrever_verso_intrinseca_valida_sem_declaracao() {
     let code = r#"
-        pacote main;
+        pacote main; trazer arquivo.abrir; trazer arquivo.escrever_verso; trazer arquivo.fechar;
         carinho principal() -> bombom {
             nova h: bombom = abrir("arquivo.txt");
             escrever_verso(h, "texto");
@@ -951,7 +951,7 @@ fn escrever_verso_intrinseca_valida_sem_declaracao() {
 #[test]
 fn escrever_verso_intrinseca_rejeita_segundo_argumento_nao_verso() {
     let code = r#"
-        pacote main;
+        pacote main; trazer arquivo.abrir; trazer arquivo.escrever_verso; trazer arquivo.fechar;
         carinho principal() -> bombom {
             nova h: bombom = abrir("arquivo.txt");
             escrever_verso(h, 7);
@@ -965,10 +965,10 @@ fn escrever_verso_intrinseca_rejeita_segundo_argumento_nao_verso() {
 #[test]
 fn truncar_arquivo_intrinseca_valida_sem_declaracao() {
     let code = r#"
-        pacote main;
+        pacote main; trazer arquivo.abrir; trazer arquivo.fechar; trazer arquivo.truncar;
         carinho principal() -> bombom {
             nova h: bombom = abrir("arquivo.txt");
-            truncar_arquivo(h);
+            truncar(h);
             fechar(h);
             mimo 0;
         }"#;
@@ -978,9 +978,9 @@ fn truncar_arquivo_intrinseca_valida_sem_declaracao() {
 #[test]
 fn truncar_arquivo_intrinseca_rejeita_argumento_nao_bombom() {
     let code = r#"
-        pacote main;
+        pacote main; trazer arquivo.truncar;
         carinho principal() -> bombom {
-            truncar_arquivo("arquivo.txt");
+            truncar("arquivo.txt");
             mimo 0;
         }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
@@ -995,12 +995,12 @@ fn truncar_arquivo_intrinseca_rejeita_argumento_nao_bombom() {
 #[test]
 fn juntar_e_tamanho_verso_intrinsecas_validas_sem_declaracao() {
     let code = r#"
-        pacote main;
+        pacote main; trazer texto.juntar; trazer texto.tamanho;
         carinho principal() -> bombom {
             nova a: verso = "oi";
             nova b: verso = "!";
-            nova c: verso = juntar_verso(a, b);
-            nova n: bombom = tamanho_verso(c);
+            nova c: verso = juntar(a, b);
+            nova n: bombom = tamanho(c);
             mimo n;
         }"#;
     assert!(parse_and_check(code).is_ok());
@@ -1009,8 +1009,8 @@ fn juntar_e_tamanho_verso_intrinsecas_validas_sem_declaracao() {
 #[test]
 fn juntar_verso_rejeita_argumento_nao_verso() {
     let code = r#"
-        pacote main;
-        carinho principal() -> bombom { mimo tamanho_verso(juntar_verso("oi", 1)); }"#;
+        pacote main; trazer texto.juntar; trazer texto.tamanho;
+        carinho principal() -> bombom { mimo tamanho(juntar("oi", 1)); }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 2 da chamada 'juntar_verso'"));
 }
@@ -1018,11 +1018,11 @@ fn juntar_verso_rejeita_argumento_nao_verso() {
 #[test]
 fn indice_verso_intrinseca_valida_sem_declaracao() {
     let code = r#"
-        pacote main;
+        pacote main; trazer texto.indice; trazer texto.tamanho;
         carinho principal() -> bombom {
             nova texto: verso = "paz";
-            nova letra: verso = indice_verso(texto, 1);
-            mimo tamanho_verso(letra);
+            nova letra: verso = indice(texto, 1);
+            mimo tamanho(letra);
         }"#;
     assert!(parse_and_check(code).is_ok());
 }
@@ -1030,8 +1030,8 @@ fn indice_verso_intrinseca_valida_sem_declaracao() {
 #[test]
 fn indice_verso_rejeita_indice_nao_bombom() {
     let code = r#"
-        pacote main;
-        carinho principal() -> bombom { mimo tamanho_verso(indice_verso("oi", falso)); }"#;
+        pacote main; trazer texto.indice; trazer texto.tamanho;
+        carinho principal() -> bombom { mimo tamanho(indice("oi", falso)); }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 2 da chamada 'indice_verso'"));
 }
@@ -1039,9 +1039,9 @@ fn indice_verso_rejeita_indice_nao_bombom() {
 #[test]
 fn contem_verso_intrinseca_valida_sem_declaracao() {
     let code = r#"
-        pacote main;
+        pacote main; trazer texto.contem;
         carinho principal() -> bombom {
-            nova ok: logica = contem_verso("pinker", "ink");
+            nova ok: logica = contem("pinker", "ink");
             talvez ok {
                 mimo 1;
             } senao {
@@ -1054,9 +1054,9 @@ fn contem_verso_intrinseca_valida_sem_declaracao() {
 #[test]
 fn contem_verso_intrinseca_rejeita_segundo_argumento_nao_verso() {
     let code = r#"
-        pacote main;
+        pacote main; trazer texto.contem;
         carinho principal() -> bombom {
-            nova ok: logica = contem_verso("pinker", 1);
+            nova ok: logica = contem("pinker", 1);
             talvez ok { mimo 1; } senao { mimo 0; }
         }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
@@ -1066,7 +1066,7 @@ fn contem_verso_intrinseca_rejeita_segundo_argumento_nao_verso() {
 #[test]
 fn comeca_com_intrinseca_valida_sem_declaracao() {
     let code = r#"
-        pacote main;
+        pacote main; trazer texto.comeca_com;
         carinho principal() -> bombom {
             nova ok: logica = comeca_com("pinker", "pin");
             talvez ok {
@@ -1081,7 +1081,7 @@ fn comeca_com_intrinseca_valida_sem_declaracao() {
 #[test]
 fn comeca_com_intrinseca_rejeita_primeiro_argumento_nao_verso() {
     let code = r#"
-        pacote main;
+        pacote main; trazer texto.comeca_com;
         carinho principal() -> bombom {
             nova ok: logica = comeca_com(1, "pin");
             talvez ok { mimo 1; } senao { mimo 0; }
@@ -1093,7 +1093,7 @@ fn comeca_com_intrinseca_rejeita_primeiro_argumento_nao_verso() {
 #[test]
 fn termina_com_intrinseca_valida_sem_declaracao() {
     let code = r#"
-        pacote main;
+        pacote main; trazer texto.termina_com;
         carinho principal() -> bombom {
             nova ok: logica = termina_com("pinker", "ker");
             talvez ok { mimo 1; } senao { mimo 0; }
@@ -1104,7 +1104,7 @@ fn termina_com_intrinseca_valida_sem_declaracao() {
 #[test]
 fn termina_com_intrinseca_rejeita_segundo_argumento_nao_verso() {
     let code = r#"
-        pacote main;
+        pacote main; trazer texto.termina_com;
         carinho principal() -> bombom {
             nova ok: logica = termina_com("pinker", 1);
             talvez ok { mimo 1; } senao { mimo 0; }
@@ -1116,9 +1116,9 @@ fn termina_com_intrinseca_rejeita_segundo_argumento_nao_verso() {
 #[test]
 fn igual_verso_intrinseca_valida_sem_declaracao() {
     let code = r#"
-        pacote main;
+        pacote main; trazer texto.igual;
         carinho principal() -> bombom {
-            nova ok: logica = igual_verso("pinker", "pinker");
+            nova ok: logica = igual("pinker", "pinker");
             talvez ok { mimo 1; } senao { mimo 0; }
         }"#;
     assert!(parse_and_check(code).is_ok());
@@ -1127,9 +1127,9 @@ fn igual_verso_intrinseca_valida_sem_declaracao() {
 #[test]
 fn igual_verso_intrinseca_rejeita_primeiro_argumento_nao_verso() {
     let code = r#"
-        pacote main;
+        pacote main; trazer texto.igual;
         carinho principal() -> bombom {
-            nova ok: logica = igual_verso(1, "pinker");
+            nova ok: logica = igual(1, "pinker");
             talvez ok { mimo 1; } senao { mimo 0; }
         }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
@@ -1139,9 +1139,9 @@ fn igual_verso_intrinseca_rejeita_primeiro_argumento_nao_verso() {
 #[test]
 fn vazio_verso_intrinseca_valida_sem_declaracao() {
     let code = r#"
-        pacote main;
+        pacote main; trazer texto.vazio;
         carinho principal() -> bombom {
-            nova ok: logica = vazio_verso("");
+            nova ok: logica = vazio("");
             talvez ok { mimo 1; } senao { mimo 0; }
         }"#;
     assert!(parse_and_check(code).is_ok());
@@ -1150,10 +1150,10 @@ fn vazio_verso_intrinseca_valida_sem_declaracao() {
 #[test]
 fn aparar_verso_intrinseca_rejeita_argumento_nao_verso() {
     let code = r#"
-        pacote main;
+        pacote main; trazer texto.aparar; trazer texto.tamanho;
         carinho principal() -> bombom {
-            nova v: verso = aparar_verso(1);
-            mimo tamanho_verso(v);
+            nova v: verso = aparar(1);
+            mimo tamanho(v);
         }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 1 da chamada 'aparar_verso'"));
@@ -1162,10 +1162,10 @@ fn aparar_verso_intrinseca_rejeita_argumento_nao_verso() {
 #[test]
 fn minusculo_verso_intrinseca_valida_sem_declaracao() {
     let code = r#"
-        pacote main;
+        pacote main; trazer texto.igual; trazer texto.minusculo;
         carinho principal() -> bombom {
-            nova v: verso = minusculo_verso("PiNkEr");
-            talvez igual_verso(v, "pinker") { mimo 1; } senao { mimo 0; }
+            nova v: verso = minusculo("PiNkEr");
+            talvez igual(v, "pinker") { mimo 1; } senao { mimo 0; }
         }"#;
     assert!(parse_and_check(code).is_ok());
 }
@@ -1173,10 +1173,10 @@ fn minusculo_verso_intrinseca_valida_sem_declaracao() {
 #[test]
 fn maiusculo_verso_intrinseca_rejeita_argumento_nao_verso() {
     let code = r#"
-        pacote main;
+        pacote main; trazer texto.maiusculo; trazer texto.tamanho;
         carinho principal() -> bombom {
-            nova v: verso = maiusculo_verso(7);
-            mimo tamanho_verso(v);
+            nova v: verso = maiusculo(7);
+            mimo tamanho(v);
         }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 1 da chamada 'maiusculo_verso'"));
@@ -1185,9 +1185,9 @@ fn maiusculo_verso_intrinseca_rejeita_argumento_nao_verso() {
 #[test]
 fn indice_verso_em_intrinseca_valida_sem_declaracao() {
     let code = r#"
-        pacote main;
+        pacote main; trazer texto.indice_em;
         carinho principal() -> bombom {
-            nova idx: bombom = indice_verso_em("pinker", "ink");
+            nova idx: bombom = indice_em("pinker", "ink");
             talvez idx == 1 { mimo 1; } senao { mimo 0; }
         }"#;
     assert!(parse_and_check(code).is_ok());
@@ -1196,9 +1196,9 @@ fn indice_verso_em_intrinseca_valida_sem_declaracao() {
 #[test]
 fn buscar_verso_intrinseca_valida_sem_declaracao() {
     let code = r#"
-        pacote main;
+        pacote main; trazer texto.buscar;
         carinho principal() -> bombom {
-            nova idx: bombom = buscar_verso("pinker", "ink");
+            nova idx: bombom = buscar("pinker", "ink");
             talvez idx == 1 { mimo 1; } senao { mimo 0; }
         }"#;
     assert!(parse_and_check(code).is_ok());
@@ -1207,9 +1207,9 @@ fn buscar_verso_intrinseca_valida_sem_declaracao() {
 #[test]
 fn buscar_verso_intrinseca_rejeita_segundo_argumento_nao_verso() {
     let code = r#"
-        pacote main;
+        pacote main; trazer texto.buscar;
         carinho principal() -> bombom {
-            nova idx: bombom = buscar_verso("pinker", 1);
+            nova idx: bombom = buscar("pinker", 1);
             mimo idx;
         }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
@@ -1219,10 +1219,10 @@ fn buscar_verso_intrinseca_rejeita_segundo_argumento_nao_verso() {
 #[test]
 fn formatar_verso_intrinseca_valida_sem_declaracao() {
     let code = r#"
-        pacote main;
+        pacote main; trazer texto.formatar; trazer texto.tamanho;
         carinho principal() -> bombom {
-            nova linha: verso = formatar_verso("{}={}", "idade", 7);
-            mimo tamanho_verso(linha);
+            nova linha: verso = formatar("{}={}", "idade", 7);
+            mimo tamanho(linha);
         }"#;
     assert!(parse_and_check(code).is_ok());
 }
@@ -1230,10 +1230,10 @@ fn formatar_verso_intrinseca_valida_sem_declaracao() {
 #[test]
 fn formatar_verso_intrinseca_rejeita_modelo_nao_verso() {
     let code = r#"
-        pacote main;
+        pacote main; trazer texto.formatar; trazer texto.tamanho;
         carinho principal() -> bombom {
-            nova linha: verso = formatar_verso(7, "idade");
-            mimo tamanho_verso(linha);
+            nova linha: verso = formatar(7, "idade");
+            mimo tamanho(linha);
         }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 1 da chamada 'formatar_verso'"));
@@ -1242,10 +1242,10 @@ fn formatar_verso_intrinseca_rejeita_modelo_nao_verso() {
 #[test]
 fn formatar_verso_intrinseca_rejeita_argumento_nao_bombom_ou_verso() {
     let code = r#"
-        pacote main;
+        pacote main; trazer texto.formatar; trazer texto.tamanho;
         carinho principal() -> bombom {
-            nova linha: verso = formatar_verso("{}", falso);
-            mimo tamanho_verso(linha);
+            nova linha: verso = formatar("{}", falso);
+            mimo tamanho(linha);
         }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 2 da chamada 'formatar_verso'"));
@@ -1254,10 +1254,10 @@ fn formatar_verso_intrinseca_rejeita_argumento_nao_bombom_ou_verso() {
 #[test]
 fn formatar_verso_intrinseca_aceita_aridade_variavel() {
     let code = r#"
-        pacote main;
+        pacote main; trazer texto.formatar; trazer texto.tamanho;
         carinho principal() -> bombom {
-            nova linha: verso = formatar_verso("{} {} {}", 1, 2, 3);
-            mimo tamanho_verso(linha);
+            nova linha: verso = formatar("{} {} {}", 1, 2, 3);
+            mimo tamanho(linha);
         }"#;
     parse_and_check(code).expect("formatar_verso deve aceitar aridade variável");
 }
@@ -1265,10 +1265,10 @@ fn formatar_verso_intrinseca_aceita_aridade_variavel() {
 #[test]
 fn ler_linha_csv_bombom_intrinseca_valida_sem_declaracao() {
     let code = r#"
-        pacote main;
+        pacote main; trazer csv.ler_linha_bombom; trazer lista.bombom_obter;
         carinho principal() -> bombom {
-            nova itens: lista<bombom> = ler_linha_csv_bombom("7,11,13", ",");
-            mimo lista_bombom_obter(itens, 1);
+            nova itens: lista<bombom> = ler_linha_bombom("7,11,13", ",");
+            mimo bombom_obter(itens, 1);
         }"#;
     assert!(parse_and_check(code).is_ok());
 }
@@ -1276,10 +1276,10 @@ fn ler_linha_csv_bombom_intrinseca_valida_sem_declaracao() {
 #[test]
 fn ler_linha_csv_bombom_intrinseca_rejeita_linha_nao_verso() {
     let code = r#"
-        pacote main;
+        pacote main; trazer csv.ler_linha_bombom; trazer lista.bombom_tamanho;
         carinho principal() -> bombom {
-            nova itens: lista<bombom> = ler_linha_csv_bombom(7, ",");
-            mimo lista_bombom_tamanho(itens);
+            nova itens: lista<bombom> = ler_linha_bombom(7, ",");
+            mimo bombom_tamanho(itens);
         }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 1 da chamada 'ler_linha_csv_bombom'"));
@@ -1288,10 +1288,10 @@ fn ler_linha_csv_bombom_intrinseca_rejeita_linha_nao_verso() {
 #[test]
 fn emitir_linha_csv_bombom_intrinseca_rejeita_lista_fora_do_recorte() {
     let code = r#"
-        pacote main;
+        pacote main; trazer csv.emitir_linha_bombom; trazer texto.tamanho;
         carinho principal() -> bombom {
-            nova linha: verso = emitir_linha_csv_bombom("7,11,13", ",");
-            mimo tamanho_verso(linha);
+            nova linha: verso = emitir_linha_bombom("7,11,13", ",");
+            mimo tamanho(linha);
         }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 1 da chamada 'emitir_linha_csv_bombom'"));
@@ -1300,11 +1300,11 @@ fn emitir_linha_csv_bombom_intrinseca_rejeita_lista_fora_do_recorte() {
 #[test]
 fn emitir_linha_csv_bombom_intrinseca_rejeita_aridade_invalida() {
     let code = r#"
-        pacote main;
+        pacote main; trazer csv.emitir_linha_bombom; trazer lista.bombom_criar; trazer texto.tamanho;
         carinho principal() -> bombom {
-            nova itens: lista<bombom> = lista_bombom_criar();
-            nova linha: verso = emitir_linha_csv_bombom(itens, ",", ";");
-            mimo tamanho_verso(linha);
+            nova itens: lista<bombom> = bombom_criar();
+            nova linha: verso = emitir_linha_bombom(itens, ",", ";");
+            mimo tamanho(linha);
         }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("chamada de 'emitir_linha_csv_bombom' com aridade inválida"));
@@ -1313,13 +1313,13 @@ fn emitir_linha_csv_bombom_intrinseca_rejeita_aridade_invalida() {
 #[test]
 fn ler_json_plano_bombom_intrinseca_valida_sem_declaracao() {
     let code = r#"
-        pacote main;
+        pacote main; trazer json.emitir_plano_bombom; trazer json.ler_plano_bombom; trazer mapa.verso_bombom_criar; trazer mapa.verso_bombom_definir; trazer mapa.verso_bombom_obter;
         carinho principal() -> bombom {
-            nova base: mapa<verso,bombom> = mapa_verso_bombom_criar();
-            mapa_verso_bombom_definir(base, "idade", 7);
-            nova json: verso = emitir_json_plano_bombom(base);
-            nova dados: mapa<verso,bombom> = ler_json_plano_bombom(json);
-            mimo mapa_verso_bombom_obter(dados, "idade");
+            nova base: mapa<verso,bombom> = verso_bombom_criar();
+            verso_bombom_definir(base, "idade", 7);
+            nova json: verso = emitir_plano_bombom(base);
+            nova dados: mapa<verso,bombom> = ler_plano_bombom(json);
+            mimo verso_bombom_obter(dados, "idade");
         }"#;
     assert!(parse_and_check(code).is_ok());
 }
@@ -1327,10 +1327,10 @@ fn ler_json_plano_bombom_intrinseca_valida_sem_declaracao() {
 #[test]
 fn ler_json_plano_bombom_intrinseca_rejeita_argumento_nao_verso() {
     let code = r#"
-        pacote main;
+        pacote main; trazer json.ler_plano_bombom; trazer mapa.verso_bombom_tamanho;
         carinho principal() -> bombom {
-            nova dados: mapa<verso,bombom> = ler_json_plano_bombom(7);
-            mimo mapa_verso_bombom_tamanho(dados);
+            nova dados: mapa<verso,bombom> = ler_plano_bombom(7);
+            mimo verso_bombom_tamanho(dados);
         }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 1 da chamada 'ler_json_plano_bombom'"));
@@ -1339,10 +1339,10 @@ fn ler_json_plano_bombom_intrinseca_rejeita_argumento_nao_verso() {
 #[test]
 fn emitir_json_plano_bombom_intrinseca_rejeita_argumento_fora_do_recorte() {
     let code = r#"
-        pacote main;
+        pacote main; trazer json.emitir_plano_bombom; trazer texto.tamanho;
         carinho principal() -> bombom {
-            nova linha: verso = emitir_json_plano_bombom("nao_e_mapa");
-            mimo tamanho_verso(linha);
+            nova linha: verso = emitir_plano_bombom("nao_e_mapa");
+            mimo tamanho(linha);
         }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 1 da chamada 'emitir_json_plano_bombom'"));
@@ -1351,11 +1351,11 @@ fn emitir_json_plano_bombom_intrinseca_rejeita_argumento_fora_do_recorte() {
 #[test]
 fn emitir_json_plano_bombom_intrinseca_rejeita_aridade_invalida() {
     let code = r#"
-        pacote main;
+        pacote main; trazer json.emitir_plano_bombom; trazer mapa.verso_bombom_criar; trazer texto.tamanho;
         carinho principal() -> bombom {
-            nova m: mapa<verso,bombom> = mapa_verso_bombom_criar();
-            nova linha: verso = emitir_json_plano_bombom(m, "extra");
-            mimo tamanho_verso(linha);
+            nova m: mapa<verso,bombom> = verso_bombom_criar();
+            nova linha: verso = emitir_plano_bombom(m, "extra");
+            mimo tamanho(linha);
         }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("chamada de 'emitir_json_plano_bombom' com aridade inválida"));
@@ -1364,9 +1364,9 @@ fn emitir_json_plano_bombom_intrinseca_rejeita_aridade_invalida() {
 #[test]
 fn tempo_unix_intrinseca_valida_sem_declaracao() {
     let code = r#"
-        pacote main;
+        pacote main; trazer tempo.unix;
         carinho principal() -> bombom {
-            nova ts: bombom = tempo_unix();
+            nova ts: bombom = unix();
             mimo ts;
         }"#;
     assert!(parse_and_check(code).is_ok());
@@ -1375,9 +1375,9 @@ fn tempo_unix_intrinseca_valida_sem_declaracao() {
 #[test]
 fn tempo_unix_intrinseca_rejeita_aridade_invalida() {
     let code = r#"
-        pacote main;
+        pacote main; trazer tempo.unix;
         carinho principal() -> bombom {
-            nova ts: bombom = tempo_unix(1);
+            nova ts: bombom = unix(1);
             mimo ts;
         }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
@@ -1387,10 +1387,10 @@ fn tempo_unix_intrinseca_rejeita_aridade_invalida() {
 #[test]
 fn formatar_tempo_unix_intrinseca_valida_sem_declaracao() {
     let code = r#"
-        pacote main;
+        pacote main; trazer tempo.formatar_unix; trazer texto.tamanho;
         carinho principal() -> bombom {
-            nova texto: verso = formatar_tempo_unix(0);
-            mimo tamanho_verso(texto);
+            nova texto: verso = formatar_unix(0);
+            mimo tamanho(texto);
         }"#;
     assert!(parse_and_check(code).is_ok());
 }
@@ -1398,10 +1398,10 @@ fn formatar_tempo_unix_intrinseca_valida_sem_declaracao() {
 #[test]
 fn formatar_tempo_unix_intrinseca_rejeita_argumento_nao_bombom() {
     let code = r#"
-        pacote main;
+        pacote main; trazer tempo.formatar_unix; trazer texto.tamanho;
         carinho principal() -> bombom {
-            nova texto: verso = formatar_tempo_unix("agora");
-            mimo tamanho_verso(texto);
+            nova texto: verso = formatar_unix("agora");
+            mimo tamanho(texto);
         }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 1 da chamada 'formatar_tempo_unix'"));
@@ -1415,9 +1415,9 @@ fn formatar_tempo_unix_intrinseca_rejeita_argumento_nao_bombom() {
 #[test]
 fn executar_processo_intrinseca_valida_sem_declaracao() {
     let code = r#"
-        pacote main;
+        pacote main; trazer processo.executar;
         carinho principal() -> bombom {
-            nova codigo: bombom = executar_processo("pinker_fase162_exit0");
+            nova codigo: bombom = executar("pinker_fase162_exit0");
             mimo codigo;
         }"#;
     assert!(parse_and_check(code).is_ok());
@@ -1426,9 +1426,9 @@ fn executar_processo_intrinseca_valida_sem_declaracao() {
 #[test]
 fn executar_processo_intrinseca_valida_com_argv_explicito_minimo() {
     let code = r#"
-        pacote main;
+        pacote main; trazer processo.executar;
         carinho principal() -> bombom {
-            nova codigo: bombom = executar_processo("pinker_fase168_argv_um", "--modo=ok");
+            nova codigo: bombom = executar("pinker_fase168_argv_um", "--modo=ok");
             mimo codigo;
         }"#;
     assert!(parse_and_check(code).is_ok());
@@ -1437,9 +1437,9 @@ fn executar_processo_intrinseca_valida_com_argv_explicito_minimo() {
 #[test]
 fn executar_processo_intrinseca_rejeita_aridade_invalida() {
     let code = r#"
-        pacote main;
+        pacote main; trazer processo.executar;
         carinho principal() -> bombom {
-            nova codigo: bombom = executar_processo("a", "b", "c");
+            nova codigo: bombom = executar("a", "b", "c");
             mimo codigo;
         }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
@@ -1449,9 +1449,9 @@ fn executar_processo_intrinseca_rejeita_aridade_invalida() {
 #[test]
 fn executar_processo_intrinseca_rejeita_argumento_nao_verso() {
     let code = r#"
-        pacote main;
+        pacote main; trazer processo.executar;
         carinho principal() -> bombom {
-            nova codigo: bombom = executar_processo(7);
+            nova codigo: bombom = executar(7);
             mimo codigo;
         }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
@@ -1461,9 +1461,9 @@ fn executar_processo_intrinseca_rejeita_argumento_nao_verso() {
 #[test]
 fn executar_processo_intrinseca_rejeita_segundo_argumento_nao_verso() {
     let code = r#"
-        pacote main;
+        pacote main; trazer processo.executar;
         carinho principal() -> bombom {
-            nova codigo: bombom = executar_processo("pinker_fase168_argv_um", 7);
+            nova codigo: bombom = executar("pinker_fase168_argv_um", 7);
             mimo codigo;
         }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
@@ -1473,7 +1473,7 @@ fn executar_processo_intrinseca_rejeita_segundo_argumento_nao_verso() {
 #[test]
 fn executar_com_entrada_intrinseca_valida_sem_declaracao() {
     let code = r#"
-        pacote main;
+        pacote main; trazer processo.executar_com_entrada;
         carinho principal() -> bombom {
             nova codigo: bombom = executar_com_entrada("pinker_fase165_stdin_ok", "rosa\n");
             mimo codigo;
@@ -1484,7 +1484,7 @@ fn executar_com_entrada_intrinseca_valida_sem_declaracao() {
 #[test]
 fn executar_com_entrada_intrinseca_valida_com_argv_explicito_minimo() {
     let code = r#"
-        pacote main;
+        pacote main; trazer processo.executar_com_entrada;
         carinho principal() -> bombom {
             nova codigo: bombom = executar_com_entrada("pinker_fase165_stdin_ok", "argv=ok\n", "--modo=ok");
             mimo codigo;
@@ -1495,7 +1495,7 @@ fn executar_com_entrada_intrinseca_valida_com_argv_explicito_minimo() {
 #[test]
 fn executar_com_entrada_intrinseca_rejeita_aridade_invalida() {
     let code = r#"
-        pacote main;
+        pacote main; trazer processo.executar_com_entrada;
         carinho principal() -> bombom {
             nova codigo: bombom = executar_com_entrada("a", "b", "c", "d");
             mimo codigo;
@@ -1507,7 +1507,7 @@ fn executar_com_entrada_intrinseca_rejeita_aridade_invalida() {
 #[test]
 fn executar_com_entrada_intrinseca_rejeita_comando_nao_verso() {
     let code = r#"
-        pacote main;
+        pacote main; trazer processo.executar_com_entrada;
         carinho principal() -> bombom {
             nova codigo: bombom = executar_com_entrada(7, "rosa\n");
             mimo codigo;
@@ -1519,7 +1519,7 @@ fn executar_com_entrada_intrinseca_rejeita_comando_nao_verso() {
 #[test]
 fn executar_com_entrada_intrinseca_rejeita_entrada_nao_verso() {
     let code = r#"
-        pacote main;
+        pacote main; trazer processo.executar_com_entrada;
         carinho principal() -> bombom {
             nova codigo: bombom = executar_com_entrada("pinker_fase165_stdin_ok", 7);
             mimo codigo;
@@ -1531,7 +1531,7 @@ fn executar_com_entrada_intrinseca_rejeita_entrada_nao_verso() {
 #[test]
 fn executar_com_entrada_intrinseca_rejeita_terceiro_argumento_nao_verso() {
     let code = r#"
-        pacote main;
+        pacote main; trazer processo.executar_com_entrada;
         carinho principal() -> bombom {
             nova codigo: bombom = executar_com_entrada("pinker_fase165_stdin_ok", "argv=ok\n", 7);
             mimo codigo;
@@ -1543,7 +1543,7 @@ fn executar_com_entrada_intrinseca_rejeita_terceiro_argumento_nao_verso() {
 #[test]
 fn pipeline_minimo_intrinseca_valida_sem_declaracao() {
     let code = r#"
-        pacote main;
+        pacote main; trazer processo.pipeline_minimo;
         carinho principal() -> bombom {
             nova codigo: bombom = pipeline_minimo("pinker_fase163_stdout_ok", "pinker_fase165_stdin_ok");
             mimo codigo;
@@ -1554,7 +1554,7 @@ fn pipeline_minimo_intrinseca_valida_sem_declaracao() {
 #[test]
 fn pipeline_minimo_intrinseca_rejeita_aridade_invalida() {
     let code = r#"
-        pacote main;
+        pacote main; trazer processo.pipeline_minimo;
         carinho principal() -> bombom {
             nova codigo: bombom = pipeline_minimo("a");
             mimo codigo;
@@ -1566,7 +1566,7 @@ fn pipeline_minimo_intrinseca_rejeita_aridade_invalida() {
 #[test]
 fn pipeline_minimo_intrinseca_rejeita_produtor_nao_verso() {
     let code = r#"
-        pacote main;
+        pacote main; trazer processo.pipeline_minimo;
         carinho principal() -> bombom {
             nova codigo: bombom = pipeline_minimo(7, "pinker_fase165_stdin_ok");
             mimo codigo;
@@ -1578,7 +1578,7 @@ fn pipeline_minimo_intrinseca_rejeita_produtor_nao_verso() {
 #[test]
 fn pipeline_minimo_intrinseca_rejeita_consumidor_nao_verso() {
     let code = r#"
-        pacote main;
+        pacote main; trazer processo.pipeline_minimo;
         carinho principal() -> bombom {
             nova codigo: bombom = pipeline_minimo("pinker_fase163_stdout_ok", 7);
             mimo codigo;
@@ -1590,10 +1590,10 @@ fn pipeline_minimo_intrinseca_rejeita_consumidor_nao_verso() {
 #[test]
 fn capturar_stdout_intrinseca_valida_sem_declaracao() {
     let code = r#"
-        pacote main;
+        pacote main; trazer processo.capturar_stdout; trazer texto.tamanho;
         carinho principal() -> bombom {
             nova texto: verso = capturar_stdout("pinker_fase163_stdout_ok");
-            mimo tamanho_verso(texto);
+            mimo tamanho(texto);
         }"#;
     assert!(parse_and_check(code).is_ok());
 }
@@ -1601,10 +1601,10 @@ fn capturar_stdout_intrinseca_valida_sem_declaracao() {
 #[test]
 fn capturar_stdout_intrinseca_valida_com_argv_explicito_minimo() {
     let code = r#"
-        pacote main;
+        pacote main; trazer processo.capturar_stdout; trazer texto.tamanho;
         carinho principal() -> bombom {
             nova texto: verso = capturar_stdout("pinker_fase163_stdout_ok", "--alvo=rosa");
-            mimo tamanho_verso(texto);
+            mimo tamanho(texto);
         }"#;
     assert!(parse_and_check(code).is_ok());
 }
@@ -1612,10 +1612,10 @@ fn capturar_stdout_intrinseca_valida_com_argv_explicito_minimo() {
 #[test]
 fn capturar_stdout_intrinseca_rejeita_aridade_invalida() {
     let code = r#"
-        pacote main;
+        pacote main; trazer processo.capturar_stdout; trazer texto.tamanho;
         carinho principal() -> bombom {
             nova texto: verso = capturar_stdout("a", "b", "c");
-            mimo tamanho_verso(texto);
+            mimo tamanho(texto);
         }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("chamada de 'capturar_stdout' com aridade inválida"));
@@ -1624,10 +1624,10 @@ fn capturar_stdout_intrinseca_rejeita_aridade_invalida() {
 #[test]
 fn capturar_stdout_intrinseca_rejeita_argumento_nao_verso() {
     let code = r#"
-        pacote main;
+        pacote main; trazer processo.capturar_stdout; trazer texto.tamanho;
         carinho principal() -> bombom {
             nova texto: verso = capturar_stdout(7);
-            mimo tamanho_verso(texto);
+            mimo tamanho(texto);
         }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 1 da chamada 'capturar_stdout'"));
@@ -1636,10 +1636,10 @@ fn capturar_stdout_intrinseca_rejeita_argumento_nao_verso() {
 #[test]
 fn capturar_stdout_intrinseca_rejeita_segundo_argumento_nao_verso() {
     let code = r#"
-        pacote main;
+        pacote main; trazer processo.capturar_stdout; trazer texto.tamanho;
         carinho principal() -> bombom {
             nova texto: verso = capturar_stdout("pinker_fase163_stdout_ok", 7);
-            mimo tamanho_verso(texto);
+            mimo tamanho(texto);
         }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 2 da chamada 'capturar_stdout'"));
@@ -1648,10 +1648,10 @@ fn capturar_stdout_intrinseca_rejeita_segundo_argumento_nao_verso() {
 #[test]
 fn capturar_stderr_intrinseca_valida_sem_declaracao() {
     let code = r#"
-        pacote main;
+        pacote main; trazer processo.capturar_stderr; trazer texto.tamanho;
         carinho principal() -> bombom {
             nova texto: verso = capturar_stderr("pinker_fase164_stderr_ok");
-            mimo tamanho_verso(texto);
+            mimo tamanho(texto);
         }"#;
     assert!(parse_and_check(code).is_ok());
 }
@@ -1659,10 +1659,10 @@ fn capturar_stderr_intrinseca_valida_sem_declaracao() {
 #[test]
 fn capturar_stderr_intrinseca_valida_com_argv_explicito_minimo() {
     let code = r#"
-        pacote main;
+        pacote main; trazer processo.capturar_stderr; trazer texto.tamanho;
         carinho principal() -> bombom {
             nova texto: verso = capturar_stderr("pinker_fase164_stderr_ok", "--alvo=rosa");
-            mimo tamanho_verso(texto);
+            mimo tamanho(texto);
         }"#;
     assert!(parse_and_check(code).is_ok());
 }
@@ -1670,10 +1670,10 @@ fn capturar_stderr_intrinseca_valida_com_argv_explicito_minimo() {
 #[test]
 fn capturar_stderr_intrinseca_rejeita_aridade_invalida() {
     let code = r#"
-        pacote main;
+        pacote main; trazer processo.capturar_stderr; trazer texto.tamanho;
         carinho principal() -> bombom {
             nova texto: verso = capturar_stderr("a", "b", "c");
-            mimo tamanho_verso(texto);
+            mimo tamanho(texto);
         }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("chamada de 'capturar_stderr' com aridade inválida"));
@@ -1682,10 +1682,10 @@ fn capturar_stderr_intrinseca_rejeita_aridade_invalida() {
 #[test]
 fn capturar_stderr_intrinseca_rejeita_argumento_nao_verso() {
     let code = r#"
-        pacote main;
+        pacote main; trazer processo.capturar_stderr; trazer texto.tamanho;
         carinho principal() -> bombom {
             nova texto: verso = capturar_stderr(7);
-            mimo tamanho_verso(texto);
+            mimo tamanho(texto);
         }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 1 da chamada 'capturar_stderr'"));
@@ -1694,10 +1694,10 @@ fn capturar_stderr_intrinseca_rejeita_argumento_nao_verso() {
 #[test]
 fn capturar_stderr_intrinseca_rejeita_segundo_argumento_nao_verso() {
     let code = r#"
-        pacote main;
+        pacote main; trazer processo.capturar_stderr; trazer texto.tamanho;
         carinho principal() -> bombom {
             nova texto: verso = capturar_stderr("pinker_fase164_stderr_ok", 7);
-            mimo tamanho_verso(texto);
+            mimo tamanho(texto);
         }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 2 da chamada 'capturar_stderr'"));
@@ -1706,9 +1706,9 @@ fn capturar_stderr_intrinseca_rejeita_segundo_argumento_nao_verso() {
 #[test]
 fn nao_vazio_verso_intrinseca_rejeita_argumento_nao_verso() {
     let code = r#"
-        pacote main;
+        pacote main; trazer texto.nao_vazio;
         carinho principal() -> bombom {
-            nova ok: logica = nao_vazio_verso(7);
+            nova ok: logica = nao_vazio(7);
             talvez ok { mimo 1; } senao { mimo 0; }
         }"#;
     let err = parse_and_check(code).unwrap_err().to_string();
@@ -2743,12 +2743,12 @@ fn escrita_por_indice_com_valor_nao_bombom_falha() {
 #[test]
 fn lista_bombom_criar_anexar_obter_valida() {
     let code = r#"
-        pacote main;
+        pacote main; trazer lista.bombom_anexar; trazer lista.bombom_criar; trazer lista.bombom_obter;
         carinho principal() -> bombom {
-            nova l: lista<bombom> = lista_bombom_criar();
-            lista_bombom_anexar(l, 10);
-            lista_bombom_anexar(l, 20);
-            mimo lista_bombom_obter(l, 1);
+            nova l: lista<bombom> = bombom_criar();
+            bombom_anexar(l, 10);
+            bombom_anexar(l, 20);
+            mimo bombom_obter(l, 1);
         }
     "#;
     assert!(parse_and_check(code).is_ok());
@@ -2757,9 +2757,9 @@ fn lista_bombom_criar_anexar_obter_valida() {
 #[test]
 fn lista_bombom_rejeita_tipo_fora_do_recorte() {
     let code = r#"
-        pacote main;
+        pacote main; trazer lista.bombom_criar;
         carinho principal() -> bombom {
-            nova l: lista<verso> = lista_bombom_criar();
+            nova l: lista<verso> = bombom_criar();
             mimo 0;
         }
     "#;
@@ -2770,10 +2770,10 @@ fn lista_bombom_rejeita_tipo_fora_do_recorte() {
 #[test]
 fn lista_bombom_anexar_rejeita_valor_nao_bombom() {
     let code = r#"
-        pacote main;
+        pacote main; trazer lista.bombom_anexar; trazer lista.bombom_criar;
         carinho principal() -> bombom {
-            nova l: lista<bombom> = lista_bombom_criar();
-            lista_bombom_anexar(l, "oi");
+            nova l: lista<bombom> = bombom_criar();
+            bombom_anexar(l, "oi");
             mimo 0;
         }
     "#;
@@ -2784,12 +2784,12 @@ fn lista_bombom_anexar_rejeita_valor_nao_bombom() {
 #[test]
 fn lista_bombom_definir_valida() {
     let code = r#"
-        pacote main;
+        pacote main; trazer lista.bombom_anexar; trazer lista.bombom_criar; trazer lista.bombom_definir; trazer lista.bombom_obter;
         carinho principal() -> bombom {
-            nova l: lista<bombom> = lista_bombom_criar();
-            lista_bombom_anexar(l, 10);
-            lista_bombom_definir(l, 0, 22);
-            mimo lista_bombom_obter(l, 0);
+            nova l: lista<bombom> = bombom_criar();
+            bombom_anexar(l, 10);
+            bombom_definir(l, 0, 22);
+            mimo bombom_obter(l, 0);
         }
     "#;
     assert!(parse_and_check(code).is_ok());
@@ -2798,11 +2798,11 @@ fn lista_bombom_definir_valida() {
 #[test]
 fn lista_bombom_definir_rejeita_valor_nao_bombom() {
     let code = r#"
-        pacote main;
+        pacote main; trazer lista.bombom_anexar; trazer lista.bombom_criar; trazer lista.bombom_definir;
         carinho principal() -> bombom {
-            nova l: lista<bombom> = lista_bombom_criar();
-            lista_bombom_anexar(l, 10);
-            lista_bombom_definir(l, 0, "oi");
+            nova l: lista<bombom> = bombom_criar();
+            bombom_anexar(l, 10);
+            bombom_definir(l, 0, "oi");
             mimo 0;
         }
     "#;
@@ -2817,12 +2817,12 @@ fn lista_bombom_definir_rejeita_valor_nao_bombom() {
 #[test]
 fn lista_bombom_tirar_ultimo_valida() {
     let code = r#"
-        pacote main;
+        pacote main; trazer lista.bombom_anexar; trazer lista.bombom_criar; trazer lista.bombom_tirar_ultimo;
         carinho principal() -> bombom {
-            nova l: lista<bombom> = lista_bombom_criar();
-            lista_bombom_anexar(l, 10);
-            lista_bombom_anexar(l, 20);
-            mimo lista_bombom_tirar_ultimo(l);
+            nova l: lista<bombom> = bombom_criar();
+            bombom_anexar(l, 10);
+            bombom_anexar(l, 20);
+            mimo bombom_tirar_ultimo(l);
         }
     "#;
     assert!(parse_and_check(code).is_ok());
@@ -2831,9 +2831,9 @@ fn lista_bombom_tirar_ultimo_valida() {
 #[test]
 fn lista_bombom_tirar_ultimo_rejeita_argumento_fora_do_recorte() {
     let code = r#"
-        pacote main;
+        pacote main; trazer lista.bombom_tirar_ultimo;
         carinho principal() -> bombom {
-            mimo lista_bombom_tirar_ultimo("oi");
+            mimo bombom_tirar_ultimo("oi");
         }
     "#;
     let err = parse_and_check(code).unwrap_err().to_string();
@@ -2852,12 +2852,12 @@ fn lista_bombom_tirar_ultimo_rejeita_argumento_fora_do_recorte() {
 #[test]
 fn mapa_verso_bombom_criar_definir_obter_tem_valida() {
     let code = r#"
-        pacote main;
+        pacote main; trazer mapa.verso_bombom_criar; trazer mapa.verso_bombom_definir; trazer mapa.verso_bombom_obter; trazer mapa.verso_bombom_tem;
         carinho principal() -> bombom {
-            nova m: mapa<verso,bombom> = mapa_verso_bombom_criar();
-            mapa_verso_bombom_definir(m, "idade", 7);
-            talvez mapa_verso_bombom_tem(m, "idade") {
-                mimo mapa_verso_bombom_obter(m, "idade");
+            nova m: mapa<verso,bombom> = verso_bombom_criar();
+            verso_bombom_definir(m, "idade", 7);
+            talvez verso_bombom_tem(m, "idade") {
+                mimo verso_bombom_obter(m, "idade");
             }
             mimo 0;
         }
@@ -2868,9 +2868,9 @@ fn mapa_verso_bombom_criar_definir_obter_tem_valida() {
 #[test]
 fn mapa_verso_bombom_rejeita_tipo_fora_do_recorte() {
     let code = r#"
-        pacote main;
+        pacote main; trazer mapa.verso_bombom_criar;
         carinho principal() -> bombom {
-            nova m: mapa<bombom,bombom> = mapa_verso_bombom_criar();
+            nova m: mapa<bombom,bombom> = verso_bombom_criar();
             mimo 0;
         }
     "#;
@@ -2881,10 +2881,10 @@ fn mapa_verso_bombom_rejeita_tipo_fora_do_recorte() {
 #[test]
 fn mapa_verso_bombom_definir_rejeita_valor_nao_bombom() {
     let code = r#"
-        pacote main;
+        pacote main; trazer mapa.verso_bombom_criar; trazer mapa.verso_bombom_definir;
         carinho principal() -> bombom {
-            nova m: mapa<verso,bombom> = mapa_verso_bombom_criar();
-            mapa_verso_bombom_definir(m, "idade", "sete");
+            nova m: mapa<verso,bombom> = verso_bombom_criar();
+            verso_bombom_definir(m, "idade", "sete");
             mimo 0;
         }
     "#;
@@ -2899,10 +2899,10 @@ fn mapa_verso_bombom_definir_rejeita_valor_nao_bombom() {
 #[test]
 fn mapa_verso_bombom_chave_indice_nao_e_superficie_publica_na_fase155() {
     let code = r#"
-        pacote main;
+        pacote main; trazer mapa.verso_bombom_criar; trazer mapa.verso_bombom_definir;
         carinho principal() -> bombom {
-            nova m: mapa<verso,bombom> = mapa_verso_bombom_criar();
-            mapa_verso_bombom_definir(m, "idade", 7);
+            nova m: mapa<verso,bombom> = verso_bombom_criar();
+            verso_bombom_definir(m, "idade", 7);
             nova chave: verso = mapa_verso_bombom_chave_indice(m, 0);
             falar(chave);
             mimo 0;
@@ -2924,10 +2924,10 @@ fn mapa_verso_bombom_chave_indice_nao_e_superficie_publica_na_fase155() {
 #[test]
 fn aleatorio_basico_com_semente_explicita_valida_sem_declaracao() {
     let code = r#"
-        pacote main;
+        pacote main; trazer acaso.criar; trazer acaso.proximo;
         carinho principal() -> bombom {
-            nova gerador: bombom = aleatorio_criar(42);
-            nova valor: bombom = aleatorio_proximo(gerador);
+            nova gerador: bombom = criar(42);
+            nova valor: bombom = proximo(gerador);
             mimo valor;
         }
     "#;
@@ -2937,9 +2937,9 @@ fn aleatorio_basico_com_semente_explicita_valida_sem_declaracao() {
 #[test]
 fn aleatorio_criar_rejeita_semente_nao_bombom() {
     let code = r#"
-        pacote main;
+        pacote main; trazer acaso.criar;
         carinho principal() -> bombom {
-            nova gerador: bombom = aleatorio_criar("oi");
+            nova gerador: bombom = criar("oi");
             mimo gerador;
         }
     "#;
@@ -2954,10 +2954,10 @@ fn aleatorio_criar_rejeita_semente_nao_bombom() {
 #[test]
 fn aleatorio_proximo_rejeita_aridade_invalida() {
     let code = r#"
-        pacote main;
+        pacote main; trazer acaso.criar; trazer acaso.proximo;
         carinho principal() -> bombom {
-            nova gerador: bombom = aleatorio_criar(7);
-            mimo aleatorio_proximo(gerador, 1);
+            nova gerador: bombom = criar(7);
+            mimo proximo(gerador, 1);
         }
     "#;
     let err = parse_and_check(code).unwrap_err().to_string();
@@ -2997,7 +2997,7 @@ fn trazer_tempo_familia_aceita() {
         pacote main;
         trazer tempo;
         carinho principal() -> bombom {
-            nova agora: bombom = tempo_unix();
+            nova agora: bombom = tempo.unix();
             mimo agora;
         }
     "#;
@@ -3010,12 +3010,12 @@ fn trazer_ambiente_familia_aceita() {
         pacote main;
         trazer ambiente;
         carinho principal() -> bombom {
-            nova saida: verso = buscar_contexto("--saida", "PINKER_SAIDA", "padrao.txt");
-            nova origem: verso = ambiente_ou("HOME", "/tmp");
-            talvez tem_flag("--quiet") {
+            nova saida: verso = ambiente.buscar_contexto("--saida", "PINKER_SAIDA", "padrao.txt");
+            nova origem: verso = ambiente.variavel_ou("HOME", "/tmp");
+            talvez ambiente.tem_flag("--quiet") {
                 falar(saida, origem);
             }
-            mimo quantos_argumentos();
+            mimo ambiente.quantos_argumentos();
         }
     "#;
     assert!(parse_and_check(code).is_ok());
@@ -3027,8 +3027,8 @@ fn trazer_acaso_familia_aceita() {
         pacote main;
         trazer acaso;
         carinho principal() -> bombom {
-            nova gerador: bombom = aleatorio_criar(42);
-            nova valor: bombom = aleatorio_proximo(gerador);
+            nova gerador: bombom = acaso.criar(42);
+            nova valor: bombom = acaso.proximo(gerador);
             mimo valor;
         }
     "#;
@@ -3038,10 +3038,10 @@ fn trazer_acaso_familia_aceita() {
 #[test]
 fn legado_global_tempo_sem_trazer_continua_valido() {
     let code = r#"
-        pacote main;
+        pacote main; trazer tempo.formatar_unix; trazer tempo.unix;
         carinho principal() -> bombom {
-            nova agora: bombom = tempo_unix();
-            nova texto: verso = formatar_tempo_unix(agora);
+            nova agora: bombom = unix();
+            nova texto: verso = formatar_unix(agora);
             falar(texto);
             mimo agora;
         }
@@ -3052,7 +3052,7 @@ fn legado_global_tempo_sem_trazer_continua_valido() {
 #[test]
 fn legado_global_ambiente_sem_trazer_continua_valido() {
     let code = r#"
-        pacote main;
+        pacote main; trazer ambiente.buscar_contexto; trazer ambiente.quantos_argumentos; trazer caminho.diretorio_atual;
         carinho principal() -> bombom {
             nova saida: verso = buscar_contexto("--saida", "PINKER_SAIDA", "padrao.txt");
             nova cwd: verso = diretorio_atual();
@@ -3066,10 +3066,10 @@ fn legado_global_ambiente_sem_trazer_continua_valido() {
 #[test]
 fn legado_global_acaso_sem_trazer_continua_valido() {
     let code = r#"
-        pacote main;
+        pacote main; trazer acaso.criar; trazer acaso.proximo;
         carinho principal() -> bombom {
-            nova gerador: bombom = aleatorio_criar(7);
-            nova valor: bombom = aleatorio_proximo(gerador);
+            nova gerador: bombom = criar(7);
+            nova valor: bombom = proximo(gerador);
             mimo valor;
         }
     "#;
@@ -3097,8 +3097,8 @@ fn trazer_texto_familia_aceita() {
         pacote main;
         trazer texto;
         carinho principal() -> bombom {
-            nova saudacao: verso = juntar_verso("rosa", " pinker");
-            nova limpa: verso = aparar_verso("  texto  ");
+            nova saudacao: verso = texto.juntar("rosa", " pinker");
+            nova limpa: verso = texto.aparar("  texto  ");
             falar(saudacao);
             falar(limpa);
             mimo 0;
@@ -3110,10 +3110,10 @@ fn trazer_texto_familia_aceita() {
 #[test]
 fn legado_global_texto_sem_trazer_continua_valido() {
     let code = r#"
-        pacote main;
+        pacote main; trazer texto.juntar; trazer texto.tamanho;
         carinho principal() -> bombom {
-            nova saudacao: verso = juntar_verso("rosa", " pinker");
-            nova n: bombom = tamanho_verso(saudacao);
+            nova saudacao: verso = juntar("rosa", " pinker");
+            nova n: bombom = tamanho(saudacao);
             falar(saudacao);
             mimo n;
         }
@@ -3121,11 +3121,12 @@ fn legado_global_texto_sem_trazer_continua_valido() {
     assert!(parse_and_check(code).is_ok());
 }
 
-/// A recusa deixou de ser categórica: o que se recusa é um membro que a
-/// família não exporta. `texto` continua importável inteira e continua sem
-/// membro nenhum a selecionar nesta fase.
+/// A recusa deixou de ser categórica: o que se recusa é um membro que o módulo
+/// não exporta. Depois da #505 `texto` exporta membros, e a grafia usada aqui
+/// — `juntar_verso` — é a CANÔNICA, não a do membro: continua sendo recusa,
+/// agora com a lista real de membros no diagnóstico.
 #[test]
-fn trazer_seletivo_de_familia_sem_membros_falha() {
+fn trazer_seletivo_de_grafia_canonica_em_vez_de_membro_falha() {
     let code = r#"
         pacote main;
         trazer texto.juntar_verso;
@@ -3137,7 +3138,11 @@ fn trazer_seletivo_de_familia_sem_membros_falha() {
         "{}",
         err
     );
-    assert!(err.contains("não exporta membros nesta fase"), "{}", err);
+    assert!(
+        err.contains("'juntar'"),
+        "o diagnóstico precisa listar os membros reais: {}",
+        err
+    );
 }
 
 #[test]
@@ -3161,9 +3166,9 @@ fn trazer_arquivo_familia_aceita() {
         pacote main;
         trazer arquivo;
         carinho principal() -> bombom {
-            nova cabo: bombom = criar_arquivo("target/teste_trazer_arquivo.txt");
-            escrever_verso(cabo, "rosa");
-            fechar(cabo);
+            nova cabo: bombom = arquivo.criar("target/teste_trazer_arquivo.txt");
+            arquivo.escrever_verso(cabo, "rosa");
+            arquivo.fechar(cabo);
             mimo 0;
         }
     "#;
@@ -3176,8 +3181,8 @@ fn trazer_caminho_familia_aceita() {
         pacote main;
         trazer caminho;
         carinho principal() -> bombom {
-            nova destino: verso = juntar_caminho("docs", "atlas.md");
-            talvez caminho_existe(destino) {
+            nova destino: verso = caminho.juntar("docs", "atlas.md");
+            talvez caminho.existe(destino) {
                 falar(destino);
             }
             mimo 0;
@@ -3190,10 +3195,11 @@ fn trazer_caminho_familia_aceita() {
 fn trazer_processo_familia_aceita() {
     let code = r#"
         pacote main;
+        trazer ambiente;
         trazer processo;
         carinho principal() -> bombom {
-            nova comando: verso = argumento(0);
-            nova codigo: bombom = executar_processo(comando);
+            nova comando: verso = ambiente.argumento(0);
+            nova codigo: bombom = processo.executar(comando);
             mimo codigo;
         }
     "#;
@@ -3203,10 +3209,10 @@ fn trazer_processo_familia_aceita() {
 #[test]
 fn legado_global_arquivo_sem_trazer_continua_valido() {
     let code = r#"
-        pacote main;
+        pacote main; trazer arquivo.ler_caminho_verso; trazer texto.tamanho;
         carinho principal() -> bombom {
-            nova conteudo: verso = ler_arquivo_verso("Cargo.toml");
-            nova n: bombom = tamanho_verso(conteudo);
+            nova conteudo: verso = ler_caminho_verso("Cargo.toml");
+            nova n: bombom = tamanho(conteudo);
             mimo n;
         }
     "#;
@@ -3216,10 +3222,10 @@ fn legado_global_arquivo_sem_trazer_continua_valido() {
 #[test]
 fn legado_global_caminho_sem_trazer_continua_valido() {
     let code = r#"
-        pacote main;
+        pacote main; trazer caminho.existe; trazer caminho.juntar;
         carinho principal() -> bombom {
-            nova destino: verso = juntar_caminho("docs", "atlas.md");
-            talvez caminho_existe(destino) {
+            nova destino: verso = juntar("docs", "atlas.md");
+            talvez existe(destino) {
                 falar(destino);
             }
             mimo 0;
@@ -3231,10 +3237,10 @@ fn legado_global_caminho_sem_trazer_continua_valido() {
 #[test]
 fn legado_global_processo_sem_trazer_continua_valido() {
     let code = r#"
-        pacote main;
+        pacote main; trazer ambiente.argumento; trazer processo.executar;
         carinho principal() -> bombom {
             nova comando: verso = argumento(0);
-            nova codigo: bombom = executar_processo(comando);
+            nova codigo: bombom = executar(comando);
             mimo codigo;
         }
     "#;
@@ -3264,8 +3270,7 @@ fn trazer_seletivo_de_nome_global_em_vez_de_membro_falha() {
 #[test]
 fn trazer_seletivo_de_membro_aprovado_e_aceito() {
     let code = r#"
-        pacote main;
-        trazer arquivo.criar;
+        pacote main; trazer arquivo.criar; trazer arquivo.fechar;
         carinho principal() -> bombom {
             nova h: bombom = criar("alvo.txt");
             fechar(h);
@@ -3892,14 +3897,14 @@ fn leque_carga_de_tipo_desconhecido_rejeitada() {
 #[test]
 fn lista_generica_de_leque_aceita() {
     let code = r#"
-        pacote main;
+        pacote main; trazer lista.anexar; trazer lista.criar; trazer lista.obter; trazer lista.tamanho;
         leque Cor { Vermelho, Verde }
         carinho principal() -> bombom {
-            nova cores: lista<Cor> = lista_criar();
-            lista_anexar(cores, Cor.Vermelho);
-            nova primeira: Cor = lista_obter(cores, 0);
+            nova cores: lista<Cor> = criar();
+            anexar(cores, Cor.Vermelho);
+            nova primeira: Cor = obter(cores, 0);
             talvez primeira == Cor.Vermelho {
-                mimo lista_tamanho(cores);
+                mimo tamanho(cores);
             }
             mimo 0;
         }
@@ -3952,9 +3957,9 @@ fn fase236_funcao_generica_usuario_rejeita_tipo_incompativel() {
 #[test]
 fn fase235_mapa_generico_rejeita_primeiro_argumento_nao_mapa() {
     let code = r#"
-        pacote demo;
+        pacote demo; trazer mapa.obter;
         carinho principal() -> bombom {
-            mimo mapa_obter(1, "idade");
+            mimo obter(1, "idade");
         }
     "#;
     let err = parse_and_check(code).unwrap_err().to_string();
@@ -3991,15 +3996,15 @@ fn fase234_impl_homonimos_exigem_qualificacao_quando_ambiguo() {
 #[test]
 fn lista_generica_como_parametro_e_retorno_aceita() {
     let code = r#"
-        pacote main;
+        pacote main; trazer lista.anexar; trazer lista.criar; trazer lista.tamanho;
         leque Cor { Vermelho, Verde }
         carinho fabrica() -> lista<Cor> {
-            nova cores: lista<Cor> = lista_criar();
-            lista_anexar(cores, Cor.Verde);
+            nova cores: lista<Cor> = criar();
+            anexar(cores, Cor.Verde);
             mimo cores;
         }
         carinho conta(cores: lista<Cor>) -> bombom {
-            mimo lista_tamanho(cores);
+            mimo tamanho(cores);
         }
         carinho principal() -> bombom {
             mimo conta(fabrica());
@@ -4011,11 +4016,11 @@ fn lista_generica_como_parametro_e_retorno_aceita() {
 #[test]
 fn lista_generica_para_cada_aceito() {
     let code = r#"
-        pacote main;
+        pacote main; trazer lista.anexar; trazer lista.criar;
         leque Cor { Vermelho, Verde }
         carinho principal() -> bombom {
-            nova cores: lista<Cor> = lista_criar();
-            lista_anexar(cores, Cor.Verde);
+            nova cores: lista<Cor> = criar();
+            anexar(cores, Cor.Verde);
             para cada cor em cores {
                 talvez cor == Cor.Verde {
                     falar("verde");
@@ -4030,12 +4035,12 @@ fn lista_generica_para_cada_aceito() {
 #[test]
 fn lista_generica_elemento_de_outro_leque_rejeitado() {
     let code = r#"
-        pacote main;
+        pacote main; trazer lista.anexar; trazer lista.criar;
         leque Cor { Vermelho, Verde }
         leque Fruta { Banana, Maca }
         carinho principal() -> bombom {
-            nova cores: lista<Cor> = lista_criar();
-            lista_anexar(cores, Fruta.Banana);
+            nova cores: lista<Cor> = criar();
+            anexar(cores, Fruta.Banana);
             mimo 0;
         }
     "#;
@@ -4046,9 +4051,9 @@ fn lista_generica_elemento_de_outro_leque_rejeitado() {
 #[test]
 fn lista_generica_de_nao_leque_rejeitada() {
     let code = r#"
-        pacote main;
+        pacote main; trazer lista.criar;
         carinho principal() -> bombom {
-            nova coisas: lista<Fantasma> = lista_criar();
+            nova coisas: lista<Fantasma> = criar();
             mimo 0;
         }
     "#;
@@ -4059,9 +4064,9 @@ fn lista_generica_de_nao_leque_rejeitada() {
 #[test]
 fn lista_criar_sem_anotacao_rejeitado() {
     let code = r#"
-        pacote main;
+        pacote main; trazer lista.criar;
         carinho principal() -> bombom {
-            nova coisas = lista_criar();
+            nova coisas = criar();
             mimo 0;
         }
     "#;
@@ -4072,9 +4077,9 @@ fn lista_criar_sem_anotacao_rejeitado() {
 #[test]
 fn lista_criar_fora_de_nova_rejeitado() {
     let code = r#"
-        pacote main;
+        pacote main; trazer lista.criar; trazer lista.tamanho;
         carinho principal() -> bombom {
-            mimo lista_tamanho(lista_criar());
+            mimo tamanho(criar());
         }
     "#;
     assert!(parse_and_check(code).is_err());
@@ -4083,15 +4088,15 @@ fn lista_criar_fora_de_nova_rejeitado() {
 #[test]
 fn intrinsecas_genericas_sobre_listas_legadas_aceitas() {
     let code = r#"
-        pacote main;
+        pacote main; trazer lista.anexar; trazer lista.criar; trazer lista.obter; trazer lista.tamanho;
         carinho principal() -> bombom {
-            nova numeros: lista<bombom> = lista_criar();
-            lista_anexar(numeros, 7);
-            nova palavras: lista<verso> = lista_criar();
-            lista_anexar(palavras, "rosa");
-            nova p: verso = lista_obter(palavras, 0);
+            nova numeros: lista<bombom> = criar();
+            anexar(numeros, 7);
+            nova palavras: lista<verso> = criar();
+            anexar(palavras, "rosa");
+            nova p: verso = obter(palavras, 0);
             falar(p);
-            mimo lista_obter(numeros, 0) + lista_tamanho(palavras);
+            mimo obter(numeros, 0) + tamanho(palavras);
         }
     "#;
     assert!(parse_and_check(code).is_ok());
@@ -4100,11 +4105,11 @@ fn intrinsecas_genericas_sobre_listas_legadas_aceitas() {
 #[test]
 fn lista_legada_monomorphizada_continua_valida() {
     let code = r#"
-        pacote main;
+        pacote main; trazer lista.bombom_anexar; trazer lista.bombom_criar; trazer lista.bombom_obter;
         carinho principal() -> bombom {
-            nova numeros: lista<bombom> = lista_bombom_criar();
-            lista_bombom_anexar(numeros, 7);
-            mimo lista_bombom_obter(numeros, 0);
+            nova numeros: lista<bombom> = bombom_criar();
+            bombom_anexar(numeros, 7);
+            mimo bombom_obter(numeros, 0);
         }
     "#;
     assert!(parse_and_check(code).is_ok());
@@ -4113,11 +4118,11 @@ fn lista_legada_monomorphizada_continua_valida() {
 #[test]
 fn lista_generica_nao_aceita_intrinseca_monomorphizada_de_bombom() {
     let code = r#"
-        pacote main;
+        pacote main; trazer lista.bombom_anexar; trazer lista.criar;
         leque Cor { Vermelho, Verde }
         carinho principal() -> bombom {
-            nova cores: lista<Cor> = lista_criar();
-            lista_bombom_anexar(cores, 1);
+            nova cores: lista<Cor> = criar();
+            bombom_anexar(cores, 1);
             mimo 0;
         }
     "#;
@@ -4699,10 +4704,11 @@ fn fase243_exemplo_canonico_prova_escape_do_escopo_criador() {
 fn fase243_closure_captura_multipla_de_tipos_distintos_aceita() {
     let code = r#"
         pacote main;
+        trazer texto;
         carinho fabricar(base: bombom, ligado: logica, rotulo: verso) -> carinho() -> bombom {
             mimo carinho() -> bombom {
                 talvez ligado {
-                    mimo base + tamanho_verso(rotulo);
+                    mimo base + texto.tamanho(rotulo);
                 } senao {
                     mimo base;
                 }
@@ -5306,13 +5312,13 @@ fn fase244_semantica_rejeita_materializacao_sem_impl_correspondente() {
 fn fase244_semantica_rejeita_familias_fora_de_escalar_e_ninho() {
     let cases = [
         r#"
-        pacote main;
+        pacote main; trazer lista.criar;
         trato Medivel { carinho medir(valor: si) -> bombom; }
         impl Medivel para lista<bombom> {
             carinho medir(valor: lista<bombom>) -> bombom { mimo 1; }
         }
         carinho principal() -> bombom {
-            nova origem: lista<bombom> = lista_criar();
+            nova origem: lista<bombom> = criar();
             nova objeto: trato<Medivel> = origem virar trato<Medivel>;
             mimo 0;
         }

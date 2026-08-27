@@ -1,5 +1,7 @@
 pacote main;
 
+trazer lista.anexar, criar;
+
 // D1 negativo — o binding extraído conserva o tipo exato da carga.
 //
 // `lista<verso>` extraída não aceita elemento `bombom`: a extração não pode
@@ -9,10 +11,10 @@ leque Pacote {
 }
 
 carinho principal() -> bombom {
-    nova textos: lista<verso> = lista_criar();
+    nova textos: lista<verso> = criar();
     nova p: Pacote = Pacote.Textos(textos);
     encaixe p {
-        caso Pacote.Textos(t) { lista_anexar(t, 42); }
+        caso Pacote.Textos(t) { anexar(t, 42); }
     }
     mimo 0;
 }

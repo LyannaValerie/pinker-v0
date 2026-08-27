@@ -1,5 +1,7 @@
 pacote main;
 
+trazer memoria.alocar, liberar;
+
 carinho fabricar() -> seta<u8> {
     mimo alocar(8);
 }

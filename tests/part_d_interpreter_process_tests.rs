@@ -41,7 +41,7 @@ fn fonte(
         .iter()
         .map(|argumento| {
             format!(
-                "    lista_verso_anexar(argumentos, {});",
+                "    lista.verso_anexar(argumentos, {});",
                 literal(argumento)
             )
         })
@@ -51,7 +51,7 @@ fn fonte(
         .iter()
         .map(|(chave, valor)| {
             format!(
-                "    mapa_verso_verso_definir(ambiente, {}, {});",
+                "    mapa.verso_verso_definir(ambiente, {}, {});",
                 literal(chave),
                 literal(valor)
             )
@@ -59,15 +59,15 @@ fn fonte(
         .collect::<Vec<_>>()
         .join("\n");
     format!(
-        r#"pacote main;
+        r#"pacote main; trazer lista; trazer mapa; trazer processo; trazer texto;
 apelido Res = Resultado<SaidaProcesso, verso>;
 
 carinho principal() -> bombom {{
-    nova muda argumentos: lista<verso> = lista_verso_criar();
+    nova muda argumentos: lista<verso> = lista.verso_criar();
 {anexos}
-    nova muda ambiente: mapa<verso,verso> = mapa_verso_verso_criar();
+    nova muda ambiente: mapa<verso,verso> = mapa.verso_verso_criar();
 {overlays}
-    nova resultado: Res = executar_processo_estruturado(
+    nova resultado: Res = processo.executar_estruturado(
         {programa}, argumentos, {entrada}, {diretorio}, ambiente, {limite}
     );
     encaixe resultado {{
@@ -194,7 +194,7 @@ fn argv_preserva_fronteiras_e_nao_introduz_shell() {
         "",
         &BTreeMap::new(),
         "LimiteTempo.SemLimite",
-        "falar(processo_saida(saida));",
+        "falar(processo.saida(saida));",
     );
     let (output, _) = rodar(&fonte, &[("HOME", "/valor-que-nao-pode-expandir")]);
     let texto = sucesso(&output);
@@ -224,7 +224,7 @@ fn stdin_e_enviado_integralmente_e_writer_fecha_inclusive_vazio() {
             "",
             &BTreeMap::new(),
             "LimiteTempo.Ate(3000)",
-            "falar(processo_saida(saida));",
+            "falar(processo.saida(saida));",
         );
         let (output, elapsed) = rodar(&fonte, &[]);
         let texto = sucesso(&output);
@@ -252,9 +252,9 @@ fn stdout_stderr_mesma_execucao_canais_distintos_e_grandes_sem_deadlock() {
         "",
         &BTreeMap::new(),
         "LimiteTempo.SemLimite",
-        r#"falar(processo_codigo(saida));
-            falar(processo_saida(saida));
-            falar(processo_erro(saida));"#,
+        r#"falar(processo.codigo(saida));
+            falar(processo.saida(saida));
+            falar(processo.erro(saida));"#,
     );
     let (output, _) = rodar(&pequeno, &[]);
     let texto = sucesso(&output);
@@ -267,8 +267,8 @@ fn stdout_stderr_mesma_execucao_canais_distintos_e_grandes_sem_deadlock() {
         "",
         &BTreeMap::new(),
         "LimiteTempo.Ate(5000)",
-        r#"falar(tamanho_verso(processo_saida(saida)));
-            falar(tamanho_verso(processo_erro(saida)));"#,
+        r#"falar(texto.tamanho(processo.saida(saida)));
+            falar(texto.tamanho(processo.erro(saida)));"#,
     );
     let (output, elapsed) = rodar(&grande, &[]);
     let texto = sucesso(&output);
@@ -293,12 +293,12 @@ fn snapshot_accessors_nao_reexecutam_e_exit_nao_zero_continua_ok() {
         "",
         &BTreeMap::new(),
         "LimiteTempo.SemLimite",
-        r#"falar(processo_codigo(saida));
-            falar(processo_saida(saida));
-            falar(processo_erro(saida));
-            falar(processo_codigo(saida));
-            falar(processo_saida(saida));
-            falar(processo_erro(saida));"#,
+        r#"falar(processo.codigo(saida));
+            falar(processo.saida(saida));
+            falar(processo.erro(saida));
+            falar(processo.codigo(saida));
+            falar(processo.saida(saida));
+            falar(processo.erro(saida));"#,
     );
     let (output, _) = rodar(&fonte, &[]);
     let texto = sucesso(&output);
@@ -340,7 +340,7 @@ fn cwd_ambiente_e_path_afetam_so_o_filho_e_erros_sao_recuperaveis() {
         cwd_filho.to_str().expect("cwd UTF-8"),
         &BTreeMap::new(),
         "LimiteTempo.SemLimite",
-        "falar(processo_saida(saida));",
+        "falar(processo.saida(saida));",
     );
     let (output, _) = rodar(&cwd, &[]);
     assert!(
@@ -365,7 +365,7 @@ fn cwd_ambiente_e_path_afetam_so_o_filho_e_erros_sao_recuperaveis() {
         "",
         &overlay,
         "LimiteTempo.SemLimite",
-        "falar(processo_saida(saida));",
+        "falar(processo.saida(saida));",
     );
     let (output, _) = rodar(
         &env_fonte,
@@ -395,7 +395,7 @@ fn cwd_ambiente_e_path_afetam_so_o_filho_e_erros_sao_recuperaveis() {
         "",
         &path_overlay,
         "LimiteTempo.SemLimite",
-        "falar(processo_saida(saida));",
+        "falar(processo.saida(saida));",
     );
     let (output, _) = rodar(&via_path, &[]);
     assert_eq!(sucesso(&output), "OK\nstdout-small\n");
@@ -464,7 +464,7 @@ fn path_ambiente_nao_decide_executavel_mas_overlay_explicito_decide() {
     fs::set_permissions(&falso_true, fs::Permissions::from_mode(0o755))
         .expect("fixture executável");
     let path_ambiente = format!("{}:/usr/local/bin:/usr/bin:/bin", dir.path().display());
-    let corpo = "falar(processo_codigo(saida)); falar(processo_saida(saida));";
+    let corpo = "falar(processo.codigo(saida)); falar(processo.saida(saida));";
 
     let default_saneada = fonte(
         "true",
@@ -582,8 +582,8 @@ fn hr5_timeout_governa_io_continuo_e_sem_limite_nao_trunca() {
         "",
         &BTreeMap::new(),
         "LimiteTempo.SemLimite",
-        r#"falar(tamanho_verso(processo_saida(saida)));
-            falar(tamanho_verso(processo_erro(saida)));"#,
+        r#"falar(texto.tamanho(processo.saida(saida)));
+            falar(texto.tamanho(processo.erro(saida)));"#,
     );
     let (output, _) = rodar_com_watchdog(&sem_limite, &[], Duration::from_secs(5));
     assert_eq!(
@@ -640,7 +640,7 @@ fn timeout_nao_espera_eof_de_descendente_mas_sem_limite_espera() {
         "",
         &BTreeMap::new(),
         "LimiteTempo.SemLimite",
-        "falar(processo_codigo(saida));",
+        "falar(processo.codigo(saida));",
     );
     let (output, elapsed) = rodar(&sem_limite, &[]);
     assert_eq!(sucesso(&output), "OK\n0\n");

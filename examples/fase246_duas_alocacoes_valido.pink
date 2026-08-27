@@ -1,5 +1,7 @@
 pacote main;
 
+trazer memoria.alocar, liberar;
+
 carinho principal() -> bombom {
     nova a: seta<u8> = alocar(1);
     nova b: seta<u8> = alocar(1);

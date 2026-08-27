@@ -1,6 +1,8 @@
 pacote fase149_lista_minima_bombom_homogenea_invalido;
 
+trazer lista.bombom_criar;
+
 carinho principal() -> bombom {
-    nova lista_texto: lista<verso> = lista_bombom_criar();
+    nova lista_texto: lista<verso> = bombom_criar();
     mimo 0;
 }

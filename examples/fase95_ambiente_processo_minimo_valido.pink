@@ -1,7 +1,10 @@
 pacote main;
 
+trazer ambiente.variavel_ou;
+trazer texto.tamanho;
+
 carinho principal() -> bombom {
-    nova nome: verso = ambiente_ou("PINKER_TEST_ENV_PHASE95", "visitante");
+    nova nome: verso = variavel_ou("PINKER_TEST_ENV_PHASE95", "visitante");
     falar(nome);
-    mimo tamanho_verso(nome);
+    mimo tamanho(nome);
 }

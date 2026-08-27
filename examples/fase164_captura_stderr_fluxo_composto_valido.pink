@@ -1,10 +1,14 @@
 pacote main;
 
+trazer ambiente.argumento;
+trazer processo.capturar_stderr;
+trazer texto.contem, formatar, igual, tamanho;
+
 carinho resumir(stderr_texto: verso) -> verso {
-    nova tem_erro: logica = contem_verso(stderr_texto, "erro=sim");
-    nova tem_codigo: logica = contem_verso(stderr_texto, "codigo=9");
+    nova tem_erro: logica = contem(stderr_texto, "erro=sim");
+    nova tem_codigo: logica = contem(stderr_texto, "codigo=9");
     talvez tem_erro && tem_codigo {
-        mimo formatar_verso("stderr={} bytes", tamanho_verso(stderr_texto));
+        mimo formatar("stderr={} bytes", tamanho(stderr_texto));
     }
     mimo "stderr=invalido";
 }
@@ -14,7 +18,7 @@ carinho principal() -> bombom {
     nova stderr_texto: verso = capturar_stderr(comando);
     nova resumo: verso = resumir(stderr_texto);
     falar(resumo);
-    talvez igual_verso(resumo, "stderr=18 bytes") {
+    talvez igual(resumo, "stderr=18 bytes") {
         mimo 0;
     }
     mimo 1;

@@ -1,13 +1,15 @@
 pacote main;
 
+trazer texto.aparar, bombom_para_verso, buscar, comeca_com, contem, dividir_contar, dividir_em, formatar, indice, indice_em, juntar, juntar_com, maiusculo, minusculo, nao_vazio, substituir, termina_com, vazio, verso_para_bombom;
+
 carinho principal() -> bombom {
     nova fonte: verso = "  Rosa Pinker canta 42 versos  ";
-    nova limpo: verso = aparar_verso(fonte);
+    nova limpo: verso = aparar(fonte);
     falar(limpo);
-    falar(minusculo_verso(limpo));
-    falar(maiusculo_verso("pinker"));
+    falar(minusculo(limpo));
+    falar(maiusculo("pinker"));
 
-    talvez contem_verso(limpo, "canta") {
+    talvez contem(limpo, "canta") {
         falar("contem canta");
     }
     talvez comeca_com(limpo, "Rosa") {
@@ -17,24 +19,24 @@ carinho principal() -> bombom {
         falar("termina com versos");
     }
 
-    falar("indice de canta:", indice_verso_em(limpo, "canta"));
-    falar("buscar Pinker:", buscar_verso(limpo, "Pinker"));
-    falar("primeira letra:", indice_verso(limpo, 0));
+    falar("indice de canta:", indice_em(limpo, "canta"));
+    falar("buscar Pinker:", buscar(limpo, "Pinker"));
+    falar("primeira letra:", indice(limpo, 0));
 
-    falar("pedacos:", dividir_verso_contar(limpo, " "));
-    falar("quarto pedaco:", dividir_verso_em(limpo, " ", 3));
+    falar("pedacos:", dividir_contar(limpo, " "));
+    falar("quarto pedaco:", dividir_em(limpo, " ", 3));
 
-    falar(substituir_verso(limpo, "canta", "escreve"));
-    falar(juntar_verso_com("rosa", " & ", "pinker"));
+    falar(substituir(limpo, "canta", "escreve"));
+    falar(juntar_com("rosa", " & ", "pinker"));
 
-    nova numero: bombom = verso_para_bombom(dividir_verso_em(limpo, " ", 3));
+    nova numero: bombom = verso_para_bombom(dividir_em(limpo, " ", 3));
     falar("numero + 1:", numero + 1);
-    falar(juntar_verso("como verso: ", bombom_para_verso(numero)));
+    falar(juntar("como verso: ", bombom_para_verso(numero)));
 
-    talvez nao_vazio_verso(limpo) {
-        falar(formatar_verso("modelo: {} tem {} pedacos", limpo, dividir_verso_contar(limpo, " ")));
+    talvez nao_vazio(limpo) {
+        falar(formatar("modelo: {} tem {} pedacos", limpo, dividir_contar(limpo, " ")));
     }
-    talvez vazio_verso("") {
+    talvez vazio("") {
         falar("vazio confere");
     }
     mimo numero - 42;

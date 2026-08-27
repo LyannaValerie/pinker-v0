@@ -15,6 +15,10 @@
 // linha não é impressa.
 pacote main;
 
+trazer ambiente.argumento;
+trazer processo.executar_com_entrada;
+trazer texto.formatar, juntar, verso_para_bombom;
+
 carinho construir_entrada(tamanho: bombom) -> verso {
     talvez tamanho == 0 {
         mimo "";
@@ -22,7 +26,7 @@ carinho construir_entrada(tamanho: bombom) -> verso {
     nova muda texto: verso = "x";
     nova muda atual: bombom = 1;
     sempre que atual < tamanho {
-        texto = juntar_verso(texto, texto);
+        texto = juntar(texto, texto);
         atual = atual * 2;
     }
     mimo texto;
@@ -51,7 +55,7 @@ carinho principal() -> bombom {
     nova linhas: bombom = escrever_antes(antes);
     nova entrada: verso = construir_entrada(tamanho);
     nova codigo: bombom = executar_com_entrada(filho, entrada, modo);
-    falar(formatar_verso("codigo={}", codigo));
+    falar(formatar("codigo={}", codigo));
     talvez linhas > 0 {
         mimo 0;
     }

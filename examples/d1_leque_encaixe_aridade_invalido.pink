@@ -1,5 +1,7 @@
 pacote main;
 
+trazer lista.criar;
+
 // D1 negativo — extração com quantidade errada de bindings.
 leque Evento {
     Dados(bombom, lista<bombom>, verso),
@@ -7,7 +9,7 @@ leque Evento {
 }
 
 carinho principal() -> bombom {
-    nova valores: lista<bombom> = lista_criar();
+    nova valores: lista<bombom> = criar();
     nova ev: Evento = Evento.Dados(1, valores, "ok");
     encaixe ev {
         caso Evento.Dados(n, l) { falar(n); }

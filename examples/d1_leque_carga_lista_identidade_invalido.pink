@@ -1,5 +1,7 @@
 pacote main;
 
+trazer lista.criar;
+
 // D1 negativo — `lista<Cor>` não aceita `lista<Token>`.
 //
 // As duas chegam ao runtime como handles de uma palavra e **não** são tipos
@@ -19,7 +21,7 @@ leque A {
 }
 
 carinho principal() -> bombom {
-    nova tokens: lista<Token> = lista_criar();
+    nova tokens: lista<Token> = criar();
     nova valor: A = A.X(tokens);
     mimo 0;
 }

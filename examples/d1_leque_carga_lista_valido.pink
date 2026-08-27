@@ -1,5 +1,7 @@
 pacote main;
 
+trazer lista.anexar, criar, obter, tamanho;
+
 // D1 — listas como cargas tipadas de variantes de `leque`.
 //
 // Uma lista continua sendo um handle opaco de uma palavra. Guardar uma lista
@@ -47,49 +49,49 @@ carinho devolve(valores: lista<bombom>) -> lista<bombom> {
 
 carinho principal() -> bombom {
     // 1. `lista<bombom>` vazia.
-    nova vazia: lista<bombom> = lista_criar();
+    nova vazia: lista<bombom> = criar();
     nova p_vazia: Pacote = Pacote.Numeros(vazia);
     encaixe p_vazia {
-        caso Pacote.Numeros(v) { falar(lista_tamanho(v)); }
-        caso Pacote.Textos(t) { falar(lista_tamanho(t)); }
-        caso Pacote.Cores(c) { falar(lista_tamanho(c)); }
-        caso Pacote.Rotulos(r) { falar(lista_tamanho(r)); }
+        caso Pacote.Numeros(v) { falar(tamanho(v)); }
+        caso Pacote.Textos(t) { falar(tamanho(t)); }
+        caso Pacote.Cores(c) { falar(tamanho(c)); }
+        caso Pacote.Rotulos(r) { falar(tamanho(r)); }
         caso Pacote.Vazio { falar(0); }
     }
 
     // 2 e 15. Um elemento, anexado **antes** da construção.
-    nova um: lista<bombom> = lista_criar();
-    lista_anexar(um, 42);
+    nova um: lista<bombom> = criar();
+    anexar(um, 42);
     nova p_um: Pacote = Pacote.Numeros(um);
 
     // 16. Mutação **depois** da construção é observada pela extração: a
     // variante guarda o handle, não uma cópia.
-    lista_anexar(um, 43);
+    anexar(um, 43);
 
     encaixe p_um {
         caso Pacote.Numeros(v) {
-            falar(lista_tamanho(v));
-            falar(lista_obter(v, 0));
+            falar(tamanho(v));
+            falar(obter(v, 0));
             // 17. Mutação pelo binding extraído é observada pelo alias
             // original do mesmo handle.
-            lista_anexar(v, 44);
+            anexar(v, 44);
             // 14. Passagem e retorno da lista extraída.
             falar(soma(v));
             nova ecoada: lista<bombom> = devolve(v);
-            falar(lista_tamanho(ecoada));
+            falar(tamanho(ecoada));
         }
-        caso Pacote.Textos(t) { falar(lista_tamanho(t)); }
-        caso Pacote.Cores(c) { falar(lista_tamanho(c)); }
-        caso Pacote.Rotulos(r) { falar(lista_tamanho(r)); }
+        caso Pacote.Textos(t) { falar(tamanho(t)); }
+        caso Pacote.Cores(c) { falar(tamanho(c)); }
+        caso Pacote.Rotulos(r) { falar(tamanho(r)); }
         caso Pacote.Vazio { falar(0); }
     }
-    falar(lista_tamanho(um));
+    falar(tamanho(um));
 
     // 3 e 18. Vários elementos e iteração da lista extraída.
-    nova varios: lista<bombom> = lista_criar();
-    lista_anexar(varios, 1);
-    lista_anexar(varios, 2);
-    lista_anexar(varios, 3);
+    nova varios: lista<bombom> = criar();
+    anexar(varios, 1);
+    anexar(varios, 2);
+    anexar(varios, 3);
     nova p_varios: Pacote = Pacote.Numeros(varios);
     encaixe p_varios {
         caso Pacote.Numeros(v) {
@@ -99,36 +101,36 @@ carinho principal() -> bombom {
             }
             falar(acumulado);
         }
-        caso Pacote.Textos(t) { falar(lista_tamanho(t)); }
-        caso Pacote.Cores(c) { falar(lista_tamanho(c)); }
-        caso Pacote.Rotulos(r) { falar(lista_tamanho(r)); }
+        caso Pacote.Textos(t) { falar(tamanho(t)); }
+        caso Pacote.Cores(c) { falar(tamanho(c)); }
+        caso Pacote.Rotulos(r) { falar(tamanho(r)); }
         caso Pacote.Vazio { falar(0); }
     }
 
     // 4. `lista<verso>` — que **não** é um `verso`.
-    nova textos: lista<verso> = lista_criar();
-    lista_anexar(textos, "rosa");
-    lista_anexar(textos, "azul");
+    nova textos: lista<verso> = criar();
+    anexar(textos, "rosa");
+    anexar(textos, "azul");
     nova p_textos: Pacote = Pacote.Textos(textos);
     encaixe p_textos {
-        caso Pacote.Numeros(v) { falar(lista_tamanho(v)); }
+        caso Pacote.Numeros(v) { falar(tamanho(v)); }
         caso Pacote.Textos(t) {
-            falar(lista_tamanho(t));
-            falar(lista_obter(t, 1));
+            falar(tamanho(t));
+            falar(obter(t, 1));
         }
-        caso Pacote.Cores(c) { falar(lista_tamanho(c)); }
-        caso Pacote.Rotulos(r) { falar(lista_tamanho(r)); }
+        caso Pacote.Cores(c) { falar(tamanho(c)); }
+        caso Pacote.Rotulos(r) { falar(tamanho(r)); }
         caso Pacote.Vazio { falar(0); }
     }
 
     // 5. `lista<LequeSemCarga>` seguida de novo `encaixe` em cada elemento.
-    nova cores: lista<Cor> = lista_criar();
-    lista_anexar(cores, Cor.Rosa);
-    lista_anexar(cores, Cor.Azul);
+    nova cores: lista<Cor> = criar();
+    anexar(cores, Cor.Rosa);
+    anexar(cores, Cor.Azul);
     nova p_cores: Pacote = Pacote.Cores(cores);
     encaixe p_cores {
-        caso Pacote.Numeros(v) { falar(lista_tamanho(v)); }
-        caso Pacote.Textos(t) { falar(lista_tamanho(t)); }
+        caso Pacote.Numeros(v) { falar(tamanho(v)); }
+        caso Pacote.Textos(t) { falar(tamanho(t)); }
         caso Pacote.Cores(c) {
             para cada cor em c {
                 encaixe cor {
@@ -137,19 +139,19 @@ carinho principal() -> bombom {
                 }
             }
         }
-        caso Pacote.Rotulos(r) { falar(lista_tamanho(r)); }
+        caso Pacote.Rotulos(r) { falar(tamanho(r)); }
         caso Pacote.Vazio { falar(0); }
     }
 
     // 6. `lista<LequeComCarga>` seguida de novo `encaixe`.
-    nova rotulos: lista<Rotulo> = lista_criar();
-    lista_anexar(rotulos, Rotulo.Nomeado("alfa"));
-    lista_anexar(rotulos, Rotulo.Anonimo);
+    nova rotulos: lista<Rotulo> = criar();
+    anexar(rotulos, Rotulo.Nomeado("alfa"));
+    anexar(rotulos, Rotulo.Anonimo);
     nova p_rotulos: Pacote = Pacote.Rotulos(rotulos);
     encaixe p_rotulos {
-        caso Pacote.Numeros(v) { falar(lista_tamanho(v)); }
-        caso Pacote.Textos(t) { falar(lista_tamanho(t)); }
-        caso Pacote.Cores(c) { falar(lista_tamanho(c)); }
+        caso Pacote.Numeros(v) { falar(tamanho(v)); }
+        caso Pacote.Textos(t) { falar(tamanho(t)); }
+        caso Pacote.Cores(c) { falar(tamanho(c)); }
         caso Pacote.Rotulos(r) {
             para cada rotulo em r {
                 encaixe rotulo {
@@ -167,20 +169,20 @@ carinho principal() -> bombom {
     encaixe ev {
         caso Evento.Dados(n, l, s) {
             falar(n);
-            falar(lista_tamanho(l));
+            falar(tamanho(l));
             falar(s);
         }
         caso Evento.Paleta(p, q) {
-            falar(lista_tamanho(p));
+            falar(tamanho(p));
             falar(q);
         }
         caso Evento.Encerrar { falar(0); }
     }
     nova paleta: Evento = Evento.Paleta(cores, 9);
     encaixe paleta {
-        caso Evento.Dados(n, l, s) { falar(n); falar(lista_tamanho(l)); falar(s); }
+        caso Evento.Dados(n, l, s) { falar(n); falar(tamanho(l)); falar(s); }
         caso Evento.Paleta(p, q) {
-            falar(lista_tamanho(p));
+            falar(tamanho(p));
             falar(q);
         }
         caso Evento.Encerrar { falar(0); }
@@ -188,25 +190,25 @@ carinho principal() -> bombom {
 
     // 20. Várias instâncias da mesma variante não interferem entre si: cada
     // valor guarda o seu próprio handle.
-    nova primeira: lista<bombom> = lista_criar();
-    lista_anexar(primeira, 10);
-    nova segunda: lista<bombom> = lista_criar();
-    lista_anexar(segunda, 20);
-    lista_anexar(segunda, 21);
+    nova primeira: lista<bombom> = criar();
+    anexar(primeira, 10);
+    nova segunda: lista<bombom> = criar();
+    anexar(segunda, 20);
+    anexar(segunda, 21);
     nova pa: Pacote = Pacote.Numeros(primeira);
     nova pb: Pacote = Pacote.Numeros(segunda);
     encaixe pa {
-        caso Pacote.Numeros(v) { falar(lista_obter(v, 0)); }
-        caso Pacote.Textos(t) { falar(lista_tamanho(t)); }
-        caso Pacote.Cores(c) { falar(lista_tamanho(c)); }
-        caso Pacote.Rotulos(r) { falar(lista_tamanho(r)); }
+        caso Pacote.Numeros(v) { falar(obter(v, 0)); }
+        caso Pacote.Textos(t) { falar(tamanho(t)); }
+        caso Pacote.Cores(c) { falar(tamanho(c)); }
+        caso Pacote.Rotulos(r) { falar(tamanho(r)); }
         caso Pacote.Vazio { falar(0); }
     }
     encaixe pb {
-        caso Pacote.Numeros(v) { falar(lista_tamanho(v)); }
-        caso Pacote.Textos(t) { falar(lista_tamanho(t)); }
-        caso Pacote.Cores(c) { falar(lista_tamanho(c)); }
-        caso Pacote.Rotulos(r) { falar(lista_tamanho(r)); }
+        caso Pacote.Numeros(v) { falar(tamanho(v)); }
+        caso Pacote.Textos(t) { falar(tamanho(t)); }
+        caso Pacote.Cores(c) { falar(tamanho(c)); }
+        caso Pacote.Rotulos(r) { falar(tamanho(r)); }
         caso Pacote.Vazio { falar(0); }
     }
 

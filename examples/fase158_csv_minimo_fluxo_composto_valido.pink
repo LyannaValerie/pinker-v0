@@ -1,7 +1,10 @@
 pacote fase158_csv_minimo_fluxo_composto_valido;
 
+trazer csv.emitir_linha_bombom, ler_linha_bombom;
+trazer lista.bombom_anexar;
+
 carinho somar_linha_csv(linha: verso, sep: verso) -> bombom {
-    nova itens: lista<bombom> = ler_linha_csv_bombom(linha, sep);
+    nova itens: lista<bombom> = ler_linha_bombom(linha, sep);
     nova muda total: bombom = 0;
 
     para cada item em itens {
@@ -12,11 +15,11 @@ carinho somar_linha_csv(linha: verso, sep: verso) -> bombom {
 }
 
 carinho principal() -> bombom {
-    nova itens: lista<bombom> = ler_linha_csv_bombom("10;20;30", ";");
+    nova itens: lista<bombom> = ler_linha_bombom("10;20;30", ";");
     nova total: bombom = somar_linha_csv("10;20;30", ";");
-    lista_bombom_anexar(itens, total);
+    bombom_anexar(itens, total);
 
-    falar(emitir_linha_csv_bombom(ler_linha_csv_bombom("10;20;30", ";"), ";"));
-    falar(emitir_linha_csv_bombom(itens, ";"));
+    falar(emitir_linha_bombom(ler_linha_bombom("10;20;30", ";"), ";"));
+    falar(emitir_linha_bombom(itens, ";"));
     mimo 0;
 }

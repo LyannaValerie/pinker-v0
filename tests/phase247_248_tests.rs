@@ -2378,7 +2378,7 @@ fn hr4_ponteiros_de_apontados_distintos_nao_colidem() {
     // `seta<u8>` e `seta<u64>` compartilham `TypeIR::Pointer` e precisam de
     // identidades distintas, com o apontado registrado na tabela.
     let source = r#"
-        pacote main;
+        pacote main; trazer memoria.alocar; trazer memoria.liberar;
         carinho le_estreito(p: seta<u8>) -> bombom { mimo 0; }
         carinho le_largo(p: seta<u64>) -> bombom { mimo 0; }
         carinho principal() -> bombom {

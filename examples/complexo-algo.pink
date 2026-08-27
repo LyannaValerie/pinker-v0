@@ -9,6 +9,12 @@
 // ═══════════════════════════════════════════════════════════════════
 pacote canivete;
 
+trazer caminho;
+trazer ambiente.argumento, quantos_argumentos, tem_argumento, variavel_ou;
+trazer arquivo.abrir, criar, escrever_bombom, escrever_verso, fechar, ler_bombom, truncar;
+trazer caminho.arquivo_vazio, diretorio_atual, e_arquivo, e_diretorio, existe, tamanho_arquivo;
+trazer texto.comeca_com, contem, indice, juntar, tamanho;
+
 // ─── Constantes globais ──────────────────────────────────────────
 eterno VERSAO_MAJOR: bombom = 1;
 eterno VERSAO_MINOR: bombom = 9;
@@ -235,11 +241,11 @@ carinho fnv1a_bombom(valor: bombom) -> Hash {
 // FNV-1a hash para verso (string)
 carinho fnv1a_verso(texto: verso) -> Hash {
     nova muda hash: bombom = FNV_OFFSET;
-    nova tam: bombom = tamanho_verso(texto);
+    nova tam: bombom = tamanho(texto);
     nova muda i: bombom = 0;
     sempre que i < tam {
-        nova ch: verso = indice_verso(texto, i);
-        nova byte: bombom = tamanho_verso(ch);
+        nova ch: verso = indice(texto, i);
+        nova byte: bombom = tamanho(ch);
         hash = hash ^ byte;
         hash = hash * FNV_PRIME;
         i = i + 1;
@@ -261,11 +267,11 @@ carinho misturar_bits(valor: bombom) -> bombom {
 // Cifra de César em verso
 carinho cifrar_cesar(texto: verso, deslocamento: bombom) -> verso {
     nova muda resultado: verso = "";
-    nova tam: bombom = tamanho_verso(texto);
+    nova tam: bombom = tamanho(texto);
     nova muda i: bombom = 0;
     sempre que i < tam {
-        nova ch: verso = indice_verso(texto, i);
-        resultado = juntar_verso(resultado, ch);
+        nova ch: verso = indice(texto, i);
+        resultado = juntar(resultado, ch);
         i = i + 1;
     }
     mimo resultado;
@@ -290,16 +296,16 @@ carinho checksum_xor(valor: bombom) -> bombom {
 
 // Verifica se um verso é palíndromo
 carinho e_palindromo(texto: verso) -> logica {
-    nova tam: bombom = tamanho_verso(texto);
+    nova tam: bombom = tamanho(texto);
     talvez tam < 2 {
         mimo verdade;
     }
     nova muda esq: bombom = 0;
     nova muda dir: bombom = tam - 1;
     sempre que esq < dir {
-        nova ch_e: verso = indice_verso(texto, esq);
-        nova ch_d: verso = indice_verso(texto, dir);
-        nova iguais: logica = contem_verso(ch_e, ch_d);
+        nova ch_e: verso = indice(texto, esq);
+        nova ch_d: verso = indice(texto, dir);
+        nova iguais: logica = contem(ch_e, ch_d);
         talvez !iguais {
             mimo falso;
         }
@@ -314,7 +320,7 @@ carinho repetir_verso(texto: verso, vezes: bombom) -> verso {
     nova muda resultado: verso = "";
     nova muda i: bombom = 0;
     sempre que i < vezes {
-        resultado = juntar_verso(resultado, texto);
+        resultado = juntar(resultado, texto);
         i = i + 1;
     }
     mimo resultado;
@@ -322,12 +328,12 @@ carinho repetir_verso(texto: verso, vezes: bombom) -> verso {
 
 // Contar ocorrências de um caractere em um verso
 carinho contar_char(texto: verso, alvo: verso) -> bombom {
-    nova tam: bombom = tamanho_verso(texto);
+    nova tam: bombom = tamanho(texto);
     nova muda contagem: bombom = 0;
     nova muda i: bombom = 0;
     sempre que i < tam {
-        nova ch: verso = indice_verso(texto, i);
-        talvez contem_verso(alvo, ch) {
+        nova ch: verso = indice(texto, i);
+        talvez contem(alvo, ch) {
             contagem = contagem + 1;
         }
         i = i + 1;
@@ -343,13 +349,13 @@ carinho barra_progresso(atual: bombom, total: bombom) -> verso {
     nova muda i: bombom = 0;
     sempre que i < largura {
         talvez i < preenchido {
-            barra = juntar_verso(barra, "#");
+            barra = juntar(barra, "#");
         } senao {
-            barra = juntar_verso(barra, ".");
+            barra = juntar(barra, ".");
         }
         i = i + 1;
     }
-    barra = juntar_verso(barra, "]");
+    barra = juntar(barra, "]");
     mimo barra;
 }
 
@@ -358,49 +364,49 @@ carinho barra_progresso(atual: bombom, total: bombom) -> verso {
 // ═══════════════════════════════════════════════════════════════════
 
 // Salvar um par chave=valor num arquivo
-carinho salvar_par(caminho: verso, chave: bombom, valor: bombom) -> logica {
-    talvez caminho_existe(caminho) == falso {
-        nova h: Handle = criar_arquivo(caminho);
+carinho salvar_par(alvo_caminho: verso, chave: bombom, valor: bombom) -> logica {
+    talvez existe(alvo_caminho) == falso {
+        nova h: Handle = criar(alvo_caminho);
         fechar(h);
     }
-    nova handle: Handle = abrir(caminho);
-    truncar_arquivo(handle);
-    escrever(handle, chave * TAMANHO_PAGINA + valor);
+    nova handle: Handle = abrir(alvo_caminho);
+    truncar(handle);
+    escrever_bombom(handle, chave * TAMANHO_PAGINA + valor);
     fechar(handle);
     mimo verdade;
 }
 
 // Ler par codificado de um arquivo
-carinho carregar_par(caminho: verso) -> bombom {
-    talvez caminho_existe(caminho) == falso {
+carinho carregar_par(alvo_caminho: verso) -> bombom {
+    talvez existe(alvo_caminho) == falso {
         mimo 0;
     }
-    talvez e_arquivo(caminho) == falso {
+    talvez e_arquivo(alvo_caminho) == falso {
         mimo 0;
     }
-    talvez e_vazio(caminho) {
+    talvez arquivo_vazio(alvo_caminho) {
         mimo 0;
     }
-    nova handle: Handle = abrir(caminho);
-    nova dados: bombom = ler_arquivo(handle);
+    nova handle: Handle = abrir(alvo_caminho);
+    nova dados: bombom = ler_bombom(handle);
     fechar(handle);
     mimo dados;
 }
 
 // Criar relatório em arquivo texto
 carinho gerar_relatorio(dir_base: verso) -> logica {
-    nova caminho: verso = juntar_caminho(dir_base, "relatorio.txt");
-    nova handle: Handle = criar_arquivo(caminho);
+    nova alvo_caminho: verso = caminho.juntar(dir_base, "relatorio.txt");
+    nova handle: Handle = criar(alvo_caminho);
 
     escrever_verso(handle, "=== RELATORIO PINKER ===");
     escrever_verso(handle, " ");
 
     nova cwd: verso = diretorio_atual();
-    nova linha: verso = juntar_verso("Diretorio: ", cwd);
+    nova linha: verso = juntar("Diretorio: ", cwd);
     escrever_verso(handle, linha);
 
     nova fib10: bombom = fibonacci(10);
-    escrever(handle, fib10);
+    escrever_bombom(handle, fib10);
 
     nova muda primos_encontrados: bombom = 0;
     nova muda num: bombom = 2;
@@ -410,7 +416,7 @@ carinho gerar_relatorio(dir_base: verso) -> logica {
         }
         num = num + 1;
     }
-    escrever(handle, primos_encontrados);
+    escrever_bombom(handle, primos_encontrados);
 
     fechar(handle);
     mimo verdade;
@@ -420,16 +426,16 @@ carinho gerar_relatorio(dir_base: verso) -> logica {
 carinho verificar_artefatos(base: verso) -> bombom {
     nova muda total: bombom = 0;
 
-    nova p1: verso = juntar_caminho(base, "dados.pink");
-    talvez caminho_existe(p1) {
+    nova p1: verso = caminho.juntar(base, "dados.pink");
+    talvez existe(p1) {
         talvez e_arquivo(p1) {
             nova tam: bombom = tamanho_arquivo(p1);
             total = total + tam;
         }
     }
 
-    nova p2: verso = juntar_caminho(base, "cache");
-    talvez caminho_existe(p2) {
+    nova p2: verso = caminho.juntar(base, "cache");
+    talvez existe(p2) {
         talvez e_diretorio(p2) {
             total = total + TAMANHO_PAGINA;
         }
@@ -469,8 +475,8 @@ carinho info_sistema() -> bombom {
     falar("  logica:", tam_logica);
     falar(" ");
 
-    nova home: verso = ambiente_ou("HOME", "/desconhecido");
-    nova user: verso = ambiente_ou("USER", "anonimo");
+    nova home: verso = variavel_ou("HOME", "/desconhecido");
+    nova user: verso = variavel_ou("USER", "anonimo");
     nova cwd: verso = diretorio_atual();
     falar("HOME:", home);
     falar("USER:", user);
@@ -643,8 +649,8 @@ carinho processar_comando(cmd: verso) -> Codigo {
 
 carinho principal() -> bombom {
     nova banner: verso = repetir_verso("~*", 20);
-    nova muda titulo: verso = juntar_verso(banner, " PINKER ");
-    titulo = juntar_verso(titulo, banner);
+    nova muda titulo: verso = juntar(banner, " PINKER ");
+    titulo = juntar(titulo, banner);
     falar(titulo);
     falar(" ");
 
@@ -730,12 +736,12 @@ carinho principal() -> bombom {
         falar(" ");
 
         falar("-- Strings --");
-        nova muda saudacao: verso = juntar_verso("Ola, ", "mundo ");
-        saudacao = juntar_verso(saudacao, "cor-de-rosa!");
+        nova muda saudacao: verso = juntar("Ola, ", "mundo ");
+        saudacao = juntar(saudacao, "cor-de-rosa!");
         falar(saudacao);
-        falar("Tamanho:", tamanho_verso(saudacao));
+        falar("Tamanho:", tamanho(saudacao));
         falar("Comeca com Ola:", comeca_com(saudacao, "Ola"));
-        falar("Contem rosa:", contem_verso(saudacao, "rosa"));
+        falar("Contem rosa:", contem(saudacao, "rosa"));
         falar("Palindromo arara:", e_palindromo("arara"));
         nova estrelas: verso = repetir_verso("*", 30);
         falar(estrelas);

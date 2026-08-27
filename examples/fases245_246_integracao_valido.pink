@@ -1,5 +1,7 @@
 pacote main;
 
+trazer memoria.alocar, liberar;
+
 carinho escrever_byte_na_regiao(regiao: seta<u8>, valor: u8) -> seta<u8> {
     *regiao = valor;
     mimo regiao;

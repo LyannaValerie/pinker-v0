@@ -21,25 +21,25 @@ use std::time::Duration;
 // @pinker-nav:layer evidencia
 // @pinker-nav:summary Prova adulta D7 de pack geral para formatar_verso: aridades 9/13 pelo mesmo ABI, tipos normalizados, placeholders/Unicode/lifetime, sensitivity estrutural contra dispatch/helper por quantidade e paridade interpretador-nativo sob envelope.
 const POSITIVE_SOURCE: &str = r#"
-pacote main;
+pacote main; trazer texto.formatar;
 
 carinho resultado_local() -> verso {
     nova local: verso = "local";
-    mimo formatar_verso("[{}:{}]", local, 99);
+    mimo formatar("[{}:{}]", local, 99);
 }
 
 carinho principal() -> bombom {
-    nova pequeno: verso = formatar_verso("{}={}", "idade", 7);
-    nova oito: verso = formatar_verso("{}{}{}{}{}{}{}{}", 1, 2, 3, 4, 5, 6, 7, 8);
-    nova nove: verso = formatar_verso("{}|{}|{}|{}|{}|{}|{}|{}|{}", 1, 2, 3, 4, 5, 6, 7, 8, 9);
-    nova treze: verso = formatar_verso(
+    nova pequeno: verso = formatar("{}={}", "idade", 7);
+    nova oito: verso = formatar("{}{}{}{}{}{}{}{}", 1, 2, 3, 4, 5, 6, 7, 8);
+    nova nove: verso = formatar("{}|{}|{}|{}|{}|{}|{}|{}|{}", 1, 2, 3, 4, 5, 6, 7, 8, 9);
+    nova treze: verso = formatar(
         "{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}",
         "ação", 2, "três", 4, "cinco", 6, "sete", 8, "nove", 10, "onze", 12, "treze"
     );
-    nova unicode: verso = formatar_verso("Olá, {} — {}", "Pínker", "🌸");
+    nova unicode: verso = formatar("Olá, {} — {}", "Pínker", "🌸");
     nova eco: verso = "eco";
-    nova repetido: verso = formatar_verso("{}{}", eco, eco);
-    nova um: verso = formatar_verso("{}", 1);
+    nova repetido: verso = formatar("{}{}", eco, eco);
+    nova um: verso = formatar("{}", 1);
     falar(pequeno);
     falar(oito);
     falar(nove);
@@ -157,15 +157,15 @@ fn aridades_9_e_13_atravessam_o_mesmo_pack_geral() {
 #[test]
 fn contrato_publico_preserva_aridade_minima_e_tipos_suportados() {
     let zero = common::parse_and_check(
-        "pacote main; carinho principal() -> bombom { nova x: verso = formatar_verso(\"sem pack\"); mimo 0; }",
+        "pacote main; trazer texto.formatar; carinho principal() -> bombom { nova x: verso = formatar(\"sem pack\"); mimo 0; }",
     )
     .unwrap_err()
     .to_string();
     assert!(zero.contains("esperado pelo menos 2"), "{zero}");
 
-    for (tipo, expr) in [("logica", "falso"), ("lista", "lista_bombom_criar()")] {
+    for (tipo, expr) in [("logica", "falso"), ("lista", "lista.bombom_criar()")] {
         let code = format!(
-            "pacote main; carinho principal() -> bombom {{ nova x: verso = formatar_verso(\"{{}}\", {expr}); mimo 0; }}"
+            "pacote main; trazer lista; trazer texto.formatar; carinho principal() -> bombom {{ nova x: verso = formatar(\"{{}}\", {expr}); mimo 0; }}"
         );
         let error = common::parse_and_check(&code).unwrap_err().to_string();
         assert!(
@@ -186,7 +186,7 @@ fn placeholders_invalidos_excesso_vazio_e_unicode_preservam_contrato() {
     ];
     for (name, template, args) in cases {
         let code = format!(
-            "pacote main; carinho principal() -> bombom {{ nova x: verso = formatar_verso(\"{template}\", {args}); falar(x); mimo 0; }}"
+            "pacote main; trazer texto.formatar; carinho principal() -> bombom {{ nova x: verso = formatar(\"{template}\", {args}); falar(x); mimo 0; }}"
         );
         let error = run_code(&code).unwrap_err();
         assert!(
@@ -202,11 +202,11 @@ fn placeholders_invalidos_excesso_vazio_e_unicode_preservam_contrato() {
 #[test]
 fn ir_preserva_tipo_normalizando_bombom_sem_reescrever_verso() {
     let source = r#"
-        pacote main;
+        pacote main; trazer texto.formatar; trazer texto.tamanho;
         carinho principal() -> bombom {
             nova sete: verso = "sete";
-            nova x: verso = formatar_verso("{} {}", 7, sete);
-            mimo tamanho_verso(x);
+            nova x: verso = formatar("{} {}", 7, sete);
+            mimo tamanho(x);
         }
     "#;
     let rendered = common::render_ir(source).expect("renderizar IR D7");
@@ -435,9 +435,9 @@ fn paridade_interpretador_nativo_positiva_e_negativa_e_bounded() {
     assert_eq!(String::from_utf8_lossy(&native.stdout), EXPECTED_STDOUT);
 
     let runtime_negative = r#"
-        pacote main;
+        pacote main; trazer texto.formatar;
         carinho principal() -> bombom {
-            nova x: verso = formatar_verso("{} {}", 1);
+            nova x: verso = formatar("{} {}", 1);
             falar(x);
             mimo 0;
         }
@@ -466,7 +466,7 @@ fn paridade_interpretador_nativo_positiva_e_negativa_e_bounded() {
     assert!(String::from_utf8_lossy(&native.stderr).contains("quantidade de placeholders"));
 
     let semantic_negative =
-        "pacote main; carinho principal() -> bombom { nova x: verso = formatar_verso(\"{}\", falso); mimo 0; }";
+        "pacote main; trazer texto.formatar; carinho principal() -> bombom { nova x: verso = formatar(\"{}\", falso); mimo 0; }";
     let semantic_dir = NativeArtifactDir::create().expect("diretório semântico D7");
     let semantic_source = write_case(&semantic_dir, "d7_format_type_negative", semantic_negative);
     let interpreted = run_interpreter_cli(&semantic_source, "d7-type-interpreter");

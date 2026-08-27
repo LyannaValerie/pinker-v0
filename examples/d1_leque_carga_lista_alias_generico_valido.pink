@@ -1,5 +1,7 @@
 pacote main;
 
+trazer lista.anexar, criar, obter, tamanho;
+
 // D1 — apelidos, especializações genéricas e recursão por lista.
 //
 // Um apelido **não** cria identidade nominal nova: `Numeros`, `ListaCor`,
@@ -72,20 +74,20 @@ carinho soma_arvore(no: Arvore) -> bombom {
 }
 
 carinho principal() -> bombom {
-    nova ns: Numeros = lista_criar();
-    lista_anexar(ns, 4);
-    lista_anexar(ns, 5);
+    nova ns: Numeros = criar();
+    anexar(ns, 4);
+    anexar(ns, 5);
     nova a: ComAlias = ComAlias.Muitos(ns);
     encaixe a {
         caso ComAlias.Muitos(m) {
-            falar(lista_tamanho(m));
-            falar(lista_obter(m, 1));
+            falar(tamanho(m));
+            falar(obter(m, 1));
         }
     }
 
-    nova cores: ListaCor2 = lista_criar();
-    lista_anexar(cores, Cor.Azul);
-    lista_anexar(cores, Cor.Rosa);
+    nova cores: ListaCor2 = criar();
+    anexar(cores, Cor.Azul);
+    anexar(cores, Cor.Rosa);
     nova cx: Caixa = Caixa.Valor(cores);
     encaixe cx {
         caso Caixa.Valor(cs) {
@@ -100,48 +102,48 @@ carinho principal() -> bombom {
 
     nova on: OpcaoNumeros = OpcaoNumeros.Algum(ns);
     encaixe on {
-        caso OpcaoNumeros.Algum(x) { falar(lista_tamanho(x)); }
+        caso OpcaoNumeros.Algum(x) { falar(tamanho(x)); }
         caso OpcaoNumeros.Nenhum { falar(0); }
     }
 
-    nova textos: lista<verso> = lista_criar();
-    lista_anexar(textos, "eco");
+    nova textos: lista<verso> = criar();
+    anexar(textos, "eco");
     nova ot: OpcaoTextos = OpcaoTextos.Algum(textos);
     encaixe ot {
-        caso OpcaoTextos.Algum(t) { falar(lista_obter(t, 0)); }
+        caso OpcaoTextos.Algum(t) { falar(obter(t, 0)); }
         caso OpcaoTextos.Nenhum { falar("vazio"); }
     }
 
     nova oc: OpcaoCores = OpcaoCores.Algum(cores);
     encaixe oc {
-        caso OpcaoCores.Algum(c) { falar(lista_tamanho(c)); }
+        caso OpcaoCores.Algum(c) { falar(tamanho(c)); }
         caso OpcaoCores.Nenhum { falar(0); }
     }
 
     nova rl: ResultadoListaAlias = ResultadoListaAlias.Ok(ns);
     encaixe rl {
-        caso ResultadoListaAlias.Ok(v) { falar(lista_tamanho(v)); }
-        caso ResultadoListaAlias.Erro(e) { falar(lista_tamanho(e)); }
+        caso ResultadoListaAlias.Ok(v) { falar(tamanho(v)); }
+        caso ResultadoListaAlias.Erro(e) { falar(tamanho(e)); }
     }
     nova re: ResultadoLista = ResultadoLista.Erro(textos);
     encaixe re {
-        caso ResultadoLista.Ok(v) { falar(lista_tamanho(v)); }
-        caso ResultadoLista.Erro(e) { falar(lista_obter(e, 0)); }
+        caso ResultadoLista.Ok(v) { falar(tamanho(v)); }
+        caso ResultadoLista.Erro(e) { falar(obter(e, 0)); }
     }
     nova rc: ResultadoCores = ResultadoCores.Ok(cores);
     encaixe rc {
-        caso ResultadoCores.Ok(v) { falar(lista_tamanho(v)); }
+        caso ResultadoCores.Ok(v) { falar(tamanho(v)); }
         caso ResultadoCores.Erro(e) { falar(e); }
     }
 
-    nova folhas: lista<Arvore> = lista_criar();
-    lista_anexar(folhas, Arvore.Folha(6));
-    lista_anexar(folhas, Arvore.Folha(7));
+    nova folhas: lista<Arvore> = criar();
+    anexar(folhas, Arvore.Folha(6));
+    anexar(folhas, Arvore.Folha(7));
     nova galho: Arvore = Arvore.Ramos(folhas);
 
-    nova raiz_filhos: lista<Arvore> = lista_criar();
-    lista_anexar(raiz_filhos, galho);
-    lista_anexar(raiz_filhos, Arvore.Folha(8));
+    nova raiz_filhos: lista<Arvore> = criar();
+    anexar(raiz_filhos, galho);
+    anexar(raiz_filhos, Arvore.Folha(8));
     nova raiz: Arvore = Arvore.Ramos(raiz_filhos);
     falar(soma_arvore(raiz));
 

@@ -1,5 +1,7 @@
 pacote main;
 
+trazer memoria.alocar;
+
 // HR3: o storage do binding extraído pertence ao braço, não ao descritor.
 // A segunda extração acontece **dentro** do braço da primeira, depois de o
 // primeiro binding já ter sido modificado: o segundo binding recebe o snapshot

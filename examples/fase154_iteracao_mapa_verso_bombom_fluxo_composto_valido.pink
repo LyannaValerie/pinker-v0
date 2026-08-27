@@ -1,17 +1,19 @@
 pacote main;
 
+trazer mapa.verso_bombom_criar, verso_bombom_definir, verso_bombom_obter;
+
 carinho carregar_placar() -> mapa<verso,bombom> {
-    nova placar: mapa<verso,bombom> = mapa_verso_bombom_criar();
-    mapa_verso_bombom_definir(placar, "ana", 10);
-    mapa_verso_bombom_definir(placar, "bia", 20);
-    mapa_verso_bombom_definir(placar, "carlos", 30);
+    nova placar: mapa<verso,bombom> = verso_bombom_criar();
+    verso_bombom_definir(placar, "ana", 10);
+    verso_bombom_definir(placar, "bia", 20);
+    verso_bombom_definir(placar, "carlos", 30);
     mimo placar;
 }
 
 carinho somar_placar(placar: mapa<verso,bombom>) -> bombom {
     nova muda soma: bombom = 0;
     para cada jogador em placar {
-        nova pts: bombom = mapa_verso_bombom_obter(placar, jogador);
+        nova pts: bombom = verso_bombom_obter(placar, jogador);
         soma = soma + pts;
     }
     mimo soma;
@@ -20,7 +22,7 @@ carinho somar_placar(placar: mapa<verso,bombom>) -> bombom {
 carinho contar_acima(placar: mapa<verso,bombom>, limite: bombom) -> bombom {
     nova muda total: bombom = 0;
     para cada jogador em placar {
-        nova pts: bombom = mapa_verso_bombom_obter(placar, jogador);
+        nova pts: bombom = verso_bombom_obter(placar, jogador);
         talvez pts > limite {
             total = total + 1;
         }

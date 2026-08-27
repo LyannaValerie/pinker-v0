@@ -1,5 +1,7 @@
 pacote main;
 
+trazer memoria.alocar, liberar;
+
 apelido Bytes = seta<u8>;
 
 carinho criar() -> Bytes {

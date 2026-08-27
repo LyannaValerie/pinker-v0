@@ -16,7 +16,7 @@ use std::time::Duration;
 
 /// Enumeração pura: quantidade e nomes, um por linha.
 const FONTE_LISTAR: &str = r#"
-pacote main;
+pacote main; trazer ambiente.argumento_ou; trazer caminho.listar_diretorio; trazer lista.tamanho;
 
 apelido ResLista = Resultado<lista<verso>, verso>;
 
@@ -24,7 +24,7 @@ carinho principal() -> bombom {
     nova raiz: verso = argumento_ou(0, "ausente");
     tentar listar_diretorio(raiz) {
         sucesso ResLista.Ok(nomes) {
-            falar(lista_tamanho(nomes));
+            falar(tamanho(nomes));
             para cada nome em nomes {
                 falar(nome);
             }
@@ -42,7 +42,7 @@ carinho principal() -> bombom {
 /// Enumeração repetida duas vezes no mesmo processo: a segunda passagem tem de
 /// devolver exatamente a mesma sequência.
 const FONTE_REPETICAO: &str = r#"
-pacote main;
+pacote main; trazer ambiente.argumento_ou; trazer caminho.listar_diretorio;
 
 apelido ResLista = Resultado<lista<verso>, verso>;
 
@@ -69,7 +69,7 @@ carinho principal() -> bombom {
 
 /// Classificação no-follow de cada entrada, composta por `juntar_caminho`.
 const FONTE_TIPOS: &str = r#"
-pacote main;
+pacote main; trazer ambiente.argumento_ou; trazer caminho.juntar; trazer caminho.listar_diretorio; trazer caminho.tipo_de_entrada;
 
 apelido ResLista = Resultado<lista<verso>, verso>;
 apelido ResTipo = Resultado<TipoEntrada, verso>;
@@ -95,7 +95,7 @@ carinho principal() -> bombom {
         sucesso ResLista.Ok(nomes) {
             para cada nome em nomes {
                 falar(nome);
-                classificar(juntar_caminho(raiz, nome));
+                classificar(juntar(raiz, nome));
             }
         }
         falha ResLista.Erro(causa) { falar(causa); }
@@ -107,7 +107,7 @@ carinho principal() -> bombom {
 /// Metadata mínima como critério de seleção: nomes de arquivos regulares não
 /// vazios, sem seguir symlink em nenhum passo.
 const FONTE_SELECAO: &str = r#"
-pacote main;
+pacote main; trazer ambiente.argumento_ou; trazer caminho.juntar; trazer caminho.listar_diretorio; trazer caminho.tamanho_de_entrada; trazer caminho.tipo_de_entrada;
 
 apelido ResLista = Resultado<lista<verso>, verso>;
 apelido ResTipo = Resultado<TipoEntrada, verso>;
@@ -134,7 +134,7 @@ carinho principal() -> bombom {
     tentar listar_diretorio(raiz) {
         sucesso ResLista.Ok(nomes) {
             para cada nome em nomes {
-                nova cheio: verso = juntar_caminho(raiz, nome);
+                nova cheio: verso = juntar(raiz, nome);
                 talvez e_arquivo_regular(cheio) {
                     tentar tamanho_de_entrada(cheio) {
                         sucesso ResNum.Ok(n) {
@@ -159,7 +159,7 @@ carinho principal() -> bombom {
 /// distinguir `symlink_metadata` de `metadata` nesta superfície, e o único que
 /// alcança o braço de falha dela.
 const FONTE_MEDIDA: &str = r#"
-pacote main;
+pacote main; trazer ambiente.argumento_ou; trazer caminho.tamanho_de_entrada;
 
 apelido ResNum = Resultado<bombom, verso>;
 
@@ -183,7 +183,7 @@ carinho principal() -> bombom {
 /// Composição com `propagar?`: a falha da enumeração atravessa a função sem
 /// braço explícito e chega ao consumidor como valor.
 const FONTE_PROPAGACAO: &str = r#"
-pacote main;
+pacote main; trazer ambiente.argumento_ou; trazer caminho.listar_diretorio; trazer lista.tamanho;
 
 apelido ResLista = Resultado<lista<verso>, verso>;
 
@@ -195,7 +195,7 @@ carinho contar(raiz: verso) -> ResLista {
 carinho principal() -> bombom {
     nova raiz: verso = argumento_ou(0, "ausente");
     tentar contar(raiz) {
-        sucesso ResLista.Ok(nomes) { falar(lista_tamanho(nomes)); }
+        sucesso ResLista.Ok(nomes) { falar(tamanho(nomes)); }
         falha ResLista.Erro(causa) { falar("propagou"); falar(causa); }
     }
     falar("fim");
@@ -206,7 +206,7 @@ carinho principal() -> bombom {
 /// Compatibilidade: as superfícies históricas continuam **seguindo** symlink e
 /// as novas continuam não seguindo, lado a lado no mesmo programa.
 const FONTE_COMPAT_FOLLOW: &str = r#"
-pacote main;
+pacote main; trazer ambiente.argumento_ou; trazer caminho.e_diretorio; trazer caminho.tipo_de_entrada;
 
 apelido ResTipo = Resultado<TipoEntrada, verso>;
 
@@ -869,49 +869,49 @@ fn identidade_builtin_da_taxonomia_nao_e_substituivel_pelo_usuario() {
         (
             "leque_antes",
             format!(
-                "pacote main;\n\nleque TipoEntrada {{ Banana, Abacaxi }}\n\n{}",
+                "pacote main; {IMPORTS_DO_CORPO}\n\nleque TipoEntrada {{ Banana, Abacaxi }}\n\n{}",
                 CORPO_QUE_USA_TIPO_DE_ENTRADA
             ),
         ),
         (
             "leque_depois",
             format!(
-                "pacote main;\n\n{}\n\nleque TipoEntrada {{ Banana, Abacaxi }}\n",
+                "pacote main; {IMPORTS_DO_CORPO}\n\n{}\n\nleque TipoEntrada {{ Banana, Abacaxi }}\n",
                 CORPO_QUE_USA_TIPO_DE_ENTRADA
             ),
         ),
         (
             "apelido",
             format!(
-                "pacote main;\n\napelido TipoEntrada = bombom;\n\n{}",
+                "pacote main; {IMPORTS_DO_CORPO}\n\napelido TipoEntrada = bombom;\n\n{}",
                 CORPO_QUE_USA_TIPO_DE_ENTRADA
             ),
         ),
         (
             "ninho",
             format!(
-                "pacote main;\n\nninho TipoEntrada {{\n    campo: bombom;\n}}\n\n{}",
+                "pacote main; {IMPORTS_DO_CORPO}\n\nninho TipoEntrada {{\n    campo: bombom;\n}}\n\n{}",
                 CORPO_QUE_USA_TIPO_DE_ENTRADA
             ),
         ),
         (
             "carinho",
             format!(
-                "pacote main;\n\ncarinho TipoEntrada() -> bombom {{ mimo 7; }}\n\n{}",
+                "pacote main; {IMPORTS_DO_CORPO}\n\ncarinho TipoEntrada() -> bombom {{ mimo 7; }}\n\n{}",
                 CORPO_QUE_USA_TIPO_DE_ENTRADA
             ),
         ),
         (
             "eterno",
             format!(
-                "pacote main;\n\neterno TipoEntrada: bombom = 9;\n\n{}",
+                "pacote main; {IMPORTS_DO_CORPO}\n\neterno TipoEntrada: bombom = 9;\n\n{}",
                 CORPO_QUE_USA_TIPO_DE_ENTRADA
             ),
         ),
         (
             "trato",
             format!(
-                "pacote main;\n\ntrato TipoEntrada {{\n    carinho marcador(valor: si) -> bombom;\n}}\n\n{}",
+                "pacote main; {IMPORTS_DO_CORPO}\n\ntrato TipoEntrada {{\n    carinho marcador(valor: si) -> bombom;\n}}\n\n{}",
                 CORPO_QUE_USA_TIPO_DE_ENTRADA
             ),
         ),
@@ -935,13 +935,16 @@ fn identidade_builtin_da_taxonomia_nao_e_substituivel_pelo_usuario() {
 
     // Controle positivo: sem a declaração conflitante o mesmo corpo compila.
     // Sem isto, a matriz passaria se tudo fosse recusado por qualquer razão.
-    let limpo = format!("pacote main;\n\n{}", CORPO_QUE_USA_TIPO_DE_ENTRADA);
+    let limpo = format!(
+        "pacote main; {IMPORTS_DO_CORPO}\n\n{}",
+        CORPO_QUE_USA_TIPO_DE_ENTRADA
+    );
     common::parse_and_check(&limpo).expect("o corpo sem conflito deveria compilar");
 
     // Controle negativo do escopo: a reserva vale para a identidade da
     // taxonomia, não para qualquer nome parecido.
     let vizinho = format!(
-        "pacote main;\n\nleque TipoDeEntrada {{ Banana, Abacaxi }}\n\n{}",
+        "pacote main; {IMPORTS_DO_CORPO}\n\nleque TipoDeEntrada {{ Banana, Abacaxi }}\n\n{}",
         CORPO_QUE_USA_TIPO_DE_ENTRADA
     );
     common::parse_and_check(&vizinho)
@@ -968,7 +971,7 @@ fn reinterpretar_resultado_nao_inverte_superficie_da_parte_c() {
     // Inverter as variantes de `Resultado` faria um `Ok(TipoEntrada)` produzido
     // pelo runtime ser lido como `Erro`. Recusado pela política da #475.
     let invertido = format!(
-        "pacote main;\n\nleque Resultado<T, E> {{ Erro(E), Ok(T) }}\n\n{}",
+        "pacote main; {IMPORTS_DO_CORPO}\n\nleque Resultado<T, E> {{ Erro(E), Ok(T) }}\n\n{}",
         CORPO_QUE_USA_TIPO_DE_ENTRADA
     );
     let erro = format!(
@@ -989,7 +992,7 @@ fn reinterpretar_resultado_nao_inverte_superficie_da_parte_c() {
 
     // A mesma inversão depois do uso: o veredito não pode depender da ordem.
     let invertido_depois = format!(
-        "pacote main;\n\n{}\n\nleque Resultado<T, E> {{ Erro(E), Ok(T) }}\n",
+        "pacote main; {IMPORTS_DO_CORPO}\n\n{}\n\nleque Resultado<T, E> {{ Erro(E), Ok(T) }}\n",
         CORPO_QUE_USA_TIPO_DE_ENTRADA
     );
     common::parse_and_check(&invertido_depois)
@@ -997,14 +1000,17 @@ fn reinterpretar_resultado_nao_inverte_superficie_da_parte_c() {
 
     // Renomear as variantes de `Resultado` também não passa.
     let renomeado = format!(
-        "pacote main;\n\nleque Resultado<T, E> {{ Bom(T), Ruim(E) }}\n\n{}",
+        "pacote main; {IMPORTS_DO_CORPO}\n\nleque Resultado<T, E> {{ Bom(T), Ruim(E) }}\n\n{}",
         CORPO_QUE_USA_TIPO_DE_ENTRADA
     );
     common::parse_and_check(&renomeado)
         .expect_err("renomear as variantes de Resultado deveria ser recusado");
 
     // Controle positivo: sem nenhuma redeclaração, a mesma superfície compila.
-    let limpo = format!("pacote main;\n\n{}", CORPO_QUE_USA_TIPO_DE_ENTRADA);
+    let limpo = format!(
+        "pacote main; {IMPORTS_DO_CORPO}\n\n{}",
+        CORPO_QUE_USA_TIPO_DE_ENTRADA
+    );
     common::parse_and_check(&limpo)
         .expect("a superfície da Parte C sem conflito deveria continuar compilando");
 
@@ -1030,6 +1036,11 @@ fn reinterpretar_resultado_nao_inverte_superficie_da_parte_c() {
 
 /// Corpo comum dos casos de F1: usa `tipo_de_entrada`, logo materializa a
 /// identidade builtin.
+/// Os imports vivem no cabeçalho montado por quem usa este corpo: `trazer` só
+/// é aceito no topo do programa, e este trecho é concatenado DEPOIS de uma
+/// declaração conflitante em boa parte da matriz.
+const IMPORTS_DO_CORPO: &str = "trazer ambiente.argumento_ou; trazer caminho.tipo_de_entrada;";
+
 const CORPO_QUE_USA_TIPO_DE_ENTRADA: &str = r#"
 apelido ResTipo = Resultado<TipoEntrada, verso>;
 

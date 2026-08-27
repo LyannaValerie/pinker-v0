@@ -17,7 +17,7 @@ use std::time::Duration;
 // ---------------------------------------------------------------------------
 
 const FONTE_PEDIR: &str = r#"
-pacote main;
+pacote main; trazer ambiente.pedir_argumento;
 
 carinho principal() -> bombom {
     falar(pedir_argumento("--chave", "PADRAO"));
@@ -26,7 +26,7 @@ carinho principal() -> bombom {
 "#;
 
 const FONTE_BUSCAR: &str = r#"
-pacote main;
+pacote main; trazer ambiente.buscar_contexto;
 
 carinho principal() -> bombom {
     falar(buscar_contexto("--chave", "PINKER_492_ENV", "PADRAO"));
@@ -35,7 +35,7 @@ carinho principal() -> bombom {
 "#;
 
 const FONTE_TEM_CHAVE: &str = r#"
-pacote main;
+pacote main; trazer ambiente.tem_chave;
 
 carinho principal() -> bombom {
     falar(tem_chave("--chave"));
@@ -44,7 +44,7 @@ carinho principal() -> bombom {
 "#;
 
 const FONTE_TEM_FLAG: &str = r#"
-pacote main;
+pacote main; trazer ambiente.tem_flag;
 
 carinho principal() -> bombom {
     falar(tem_flag("--chave"));
@@ -52,37 +52,9 @@ carinho principal() -> bombom {
 }
 "#;
 
-/// Aliases históricos das três superfícies que os possuem.
-const FONTE_ALIAS_PEDIR: &str = r#"
-pacote main;
-
-carinho principal() -> bombom {
-    falar(argumento_nomeado_ou("--chave", "PADRAO"));
-    mimo 0;
-}
-"#;
-
-const FONTE_ALIAS_BUSCAR: &str = r#"
-pacote main;
-
-carinho principal() -> bombom {
-    falar(argumento_nomeado_ou_ambiente_ou("--chave", "PINKER_492_ENV", "PADRAO"));
-    mimo 0;
-}
-"#;
-
-const FONTE_ALIAS_TEM_CHAVE: &str = r#"
-pacote main;
-
-carinho principal() -> bombom {
-    falar(tem_argumento_nomeado("--chave"));
-    mimo 0;
-}
-"#;
-
 /// Chave de argumento vazia: negativo que já estava em paridade e continua.
 const FONTE_CHAVE_VAZIA: &str = r#"
-pacote main;
+pacote main; trazer ambiente.pedir_argumento;
 
 carinho principal() -> bombom {
     falar(pedir_argumento("", "PADRAO"));
@@ -92,17 +64,17 @@ carinho principal() -> bombom {
 
 /// `ambiente_ou` com chave vazia: uma chave só, e por isso a mensagem genérica.
 const FONTE_AMBIENTE_OU_CHAVE_VAZIA: &str = r#"
-pacote main;
+pacote main; trazer ambiente.variavel_ou;
 
 carinho principal() -> bombom {
-    falar(ambiente_ou("", "PADRAO"));
+    falar(variavel_ou("", "PADRAO"));
     mimo 0;
 }
 "#;
 
 /// Chave de ambiente vazia: o diagnóstico precisa dizer **qual** chave.
 const FONTE_CHAVE_AMBIENTE_VAZIA: &str = r#"
-pacote main;
+pacote main; trazer ambiente.buscar_contexto;
 
 carinho principal() -> bombom {
     falar(buscar_contexto("--chave", "", "PADRAO"));
@@ -592,100 +564,70 @@ fn chave_com_igual_separa_as_duas_perguntas_de_presenca() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn aliases_historicos_tem_o_mesmo_contrato_nas_duas_pontas() {
-    let Some((_driver, Some(runtime_lib))) =
-        common::require_native_evidence(concat!(module_path!(), ":", line!()), true)
-    else {
-        return;
-    };
-
-    let pedir = Sujeito::novo("alias_pedir", FONTE_ALIAS_PEDIR, &runtime_lib);
-    assert_eq!(
-        pedir.paridade("alias_pedir_ausente", &[], Ambiente::Ausente),
-        sucesso("PADRAO")
-    );
-    assert_eq!(
-        pedir.paridade("alias_pedir_valor", &["--chave", "v"], Ambiente::Ausente),
-        sucesso("v")
-    );
-    assert_eq!(
-        pedir.paridade("alias_pedir_igual", &["--chave=v"], Ambiente::Ausente),
-        sucesso("v")
-    );
-    assert_eq!(
-        pedir.paridade("alias_pedir_vazio", &["--chave="], Ambiente::Ausente),
-        sucesso("")
-    );
-
-    let buscar = Sujeito::novo("alias_buscar", FONTE_ALIAS_BUSCAR, &runtime_lib);
-    assert_eq!(
-        buscar.paridade("alias_buscar_padrao", &[], Ambiente::Ausente),
-        sucesso("PADRAO")
-    );
-    assert_eq!(
-        buscar.paridade("alias_buscar_env", &[], Ambiente::Presente("doambiente")),
-        sucesso("doambiente")
-    );
-    assert_eq!(
-        buscar.paridade(
-            "alias_buscar_cli",
-            &["--chave", "v"],
-            Ambiente::Presente("doambiente")
+fn grafias_alias_deixaram_de_ser_chamaveis() {
+    for (alias, argumentos) in [
+        ("argumento_nomeado_ou", "\"--chave\", \"PADRAO\""),
+        (
+            "argumento_nomeado_ou_ambiente_ou",
+            "\"--chave\", \"ENV\", \"PADRAO\"",
         ),
-        sucesso("v")
-    );
-
-    let tem = Sujeito::novo("alias_tem", FONTE_ALIAS_TEM_CHAVE, &runtime_lib);
-    assert_eq!(
-        tem.paridade("alias_tem_sem_valor", &["--chave"], Ambiente::Ausente),
-        sucesso("falso")
-    );
-    assert_eq!(
-        tem.paridade("alias_tem_valor", &["--chave=v"], Ambiente::Ausente),
-        sucesso("verdade")
-    );
+        ("tem_argumento_nomeado", "\"--chave\""),
+    ] {
+        let fonte = format!(
+            "pacote main;\ncarinho principal() -> bombom {{ falar({alias}({argumentos})); mimo 0; }}\n"
+        );
+        let erro = common::parse(&fonte).expect_err("grafia alias não pode mais ser chamável");
+        let msg = format!("{erro:?}");
+        assert!(msg.contains("não está no escopo"), "{alias}: {msg}");
+        // E não por ter sumido: a autoridade continua sabendo quem ela é.
+        assert!(
+            pinker_v0::intrinsic_authority::canonical_public_intrinsic_spelling(alias).is_some(),
+            "{alias} saiu da autoridade em vez de sair da superfície"
+        );
+    }
 }
 
-/// A única diferença remanescente da família, medida e classificada.
+/// A diferença que restava na família FECHOU, e o gate passou a medir isso.
 ///
-/// Quando um **alias histórico** falha, os dois backends recusam a mesma
-/// entrada pelo mesmo motivo, mas nomeiam grafias diferentes da mesma
-/// identidade executiva: o interpretador conhece a grafia chamada, e o nativo
-/// não pode conhecê-la porque `backend_s` mapeia as duas grafias para o mesmo
-/// símbolo de runtime.
+/// Enquanto o alias histórico era chamável, os dois backends recusavam a mesma
+/// entrada pelo mesmo motivo nomeando grafias diferentes da mesma identidade:
+/// o interpretador conhecia a grafia chamada e o nativo não podia conhecê-la,
+/// porque `backend_s` mapeia as duas grafias para o mesmo símbolo de runtime.
+/// A diferença era de ENDEREÇAMENTO POR TEXTO — o assunto da #477 —, e não do
+/// contrato da #492.
 ///
-/// Isto **não** é a divergência da #492: não é o contrato que difere, é o
-/// endereçamento da intrínseca por texto — o assunto da #477. O caso é fixado
-/// aqui para que a diferença não cresça sem ser vista, e para que corrigi-la
-/// pertença à Issue que possui o problema. Pela mesma razão a asserção fixa as
-/// duas grafias observadas em vez de normalizá-las: normalizar esconderia
-/// exatamente o que precisa continuar visível.
+/// A #505 removeu a superfície global e, com ela, a grafia alias como forma
+/// chamável: hoje só existe `ambiente.pedir_argumento`, e as duas pontas
+/// nomeiam a mesma coisa. O caso continua fixado aqui, agora como oráculo de
+/// convergência: se alguma ponta voltar a nomear grafia diferente da outra,
+/// isto fica vermelho.
 #[test]
-fn alias_em_falha_diverge_so_na_grafia_nomeada_pelo_diagnostico() {
+fn alias_em_falha_deixou_de_divergir_na_grafia_nomeada_pelo_diagnostico() {
     let Some((_driver, Some(runtime_lib))) =
         common::require_native_evidence(concat!(module_path!(), ":", line!()), true)
     else {
         return;
     };
 
-    let pedir = Sujeito::novo("alias_falha_pedir", FONTE_ALIAS_PEDIR, &runtime_lib);
+    let pedir = Sujeito::novo("alias_falha_pedir", FONTE_PEDIR, &runtime_lib);
     let (interpretado, nativo) =
         pedir.observar("alias_falha_pedir", &["--chave"], Ambiente::Ausente);
-    assert_eq!(interpretado, sem_valor("argumento_nomeado_ou"));
+    assert_eq!(interpretado, sem_valor("pedir_argumento"));
     assert_eq!(nativo, sem_valor("pedir_argumento"));
+    assert_eq!(interpretado, nativo);
 
-    let buscar = Sujeito::novo("alias_falha_buscar", FONTE_ALIAS_BUSCAR, &runtime_lib);
+    let buscar = Sujeito::novo("alias_falha_buscar", FONTE_BUSCAR, &runtime_lib);
     let (interpretado, nativo) = buscar.observar(
         "alias_falha_buscar",
         &["--chave"],
         Ambiente::Presente("doambiente"),
     );
-    assert_eq!(interpretado, sem_valor("argumento_nomeado_ou_ambiente_ou"));
+    assert_eq!(interpretado, sem_valor("buscar_contexto"));
     assert_eq!(nativo, sem_valor("buscar_contexto"));
+    assert_eq!(interpretado, nativo);
 
-    // O que importa para a #492: nenhuma das duas pontas devolveu valor. A
-    // classe do erro é a mesma, e o ambiente não mascarou nada em nenhuma
-    // delas. Só a grafia nomeada difere.
+    // O que importa para a #492 não mudou: nenhuma das duas pontas devolveu
+    // valor, a classe do erro é a mesma e o ambiente não mascarou nada.
     for observado in [interpretado, nativo] {
         match observado {
             Observavel::Falha(mensagem) => assert!(
@@ -693,7 +635,7 @@ fn alias_em_falha_diverge_so_na_grafia_nomeada_pelo_diagnostico() {
                 "classe do erro mudou: {mensagem}"
             ),
             Observavel::Sucesso(saida) => {
-                panic!("alias devolveu valor para chave sem valor: {saida:?}")
+                panic!("a superfície devolveu valor para chave sem valor: {saida:?}")
             }
         }
     }

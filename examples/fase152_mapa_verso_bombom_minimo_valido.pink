@@ -1,11 +1,13 @@
 pacote main;
 
-carinho principal() -> bombom {
-    nova m: mapa<verso,bombom> = mapa_verso_bombom_criar();
-    mapa_verso_bombom_definir(m, "pontos", 42);
+trazer mapa.verso_bombom_criar, verso_bombom_definir, verso_bombom_obter, verso_bombom_tem;
 
-    talvez mapa_verso_bombom_tem(m, "pontos") {
-        nova v: bombom = mapa_verso_bombom_obter(m, "pontos");
+carinho principal() -> bombom {
+    nova m: mapa<verso,bombom> = verso_bombom_criar();
+    verso_bombom_definir(m, "pontos", 42);
+
+    talvez verso_bombom_tem(m, "pontos") {
+        nova v: bombom = verso_bombom_obter(m, "pontos");
         falar(v);
         mimo v;
     }

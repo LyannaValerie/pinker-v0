@@ -1,13 +1,15 @@
 pacote main;
 
+trazer lista.anexar, criar, tamanho, tirar_ultimo;
+
 leque Cor { Vermelho, Verde, Azul }
 
 carinho principal() -> bombom {
-    nova cores: lista<Cor> = lista_criar();
-    lista_anexar(cores, Cor.Vermelho);
-    lista_anexar(cores, Cor.Azul);
-    lista_anexar(cores, Cor.Verde);
-    falar(lista_tamanho(cores));
+    nova cores: lista<Cor> = criar();
+    anexar(cores, Cor.Vermelho);
+    anexar(cores, Cor.Azul);
+    anexar(cores, Cor.Verde);
+    falar(tamanho(cores));
 
     para cada cor em cores {
         escolha cor {
@@ -16,7 +18,7 @@ carinho principal() -> bombom {
         }
     }
 
-    nova ultima: Cor = lista_tirar_ultimo(cores);
+    nova ultima: Cor = tirar_ultimo(cores);
     talvez ultima == Cor.Verde {
         falar("verde saiu");
     }

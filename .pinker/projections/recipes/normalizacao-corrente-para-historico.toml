@@ -2,7 +2,7 @@ schema = 2
 id = "normalizacao-corrente-para-historico"
 
 [reconstruction]
-expected_overrides = 113
+expected_overrides = 160
 expected_exclusions = 120
 
 [[rules]]
@@ -688,6 +688,15 @@ expect_layer = "parser"
 
 [[rules]]
 op = "override-region"
+key = "apps.guardiao.auditoria"
+from_hash = "fnv1a64:94ca1b6f1f228d0d"
+to_hash = "fnv1a64:69b4289c417bdcd0"
+expect_file = "apps/guardiao_pinker/principal.pink"
+expect_domain = "guardiao"
+expect_layer = "apps"
+
+[[rules]]
+op = "override-region"
 key = "ast.closures.identificadores-livres"
 from_hash = "fnv1a64:70f3faa1d4737582"
 to_hash = "fnv1a64:b2e5a7bf5b9fb4f6"
@@ -1091,7 +1100,7 @@ expect_layer = "evidencia"
 [[rules]]
 op = "override-region"
 key = "evidencia.backend-s-externo.fronteira-subset-textual"
-from_hash = "fnv1a64:3ceeab077cb80371"
+from_hash = "fnv1a64:51efd7321d2410a6"
 to_hash = "fnv1a64:1a5ff550e4878e3f"
 expect_file = "tests/backend_s_external_toolchain_tests.rs"
 expect_domain = "backend-s"
@@ -1146,6 +1155,240 @@ expect_layer = "evidencia"
 
 [[rules]]
 op = "override-region"
+key = "evidencia.cfg.lowering-curto-circuito"
+from_hash = "fnv1a64:dae30fbcee3e367c"
+to_hash = "fnv1a64:73a564b4a9c69d39"
+expect_file = "tests/cfg_ir_tests.rs"
+expect_domain = "cfg"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.interpreter.aleatoriedade-semente"
+from_hash = "fnv1a64:4b91f31f1aaaa6f2"
+to_hash = "fnv1a64:fb3043eb24939b04"
+expect_file = "tests/interpreter_tests.rs"
+expect_domain = "interpreter"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.interpreter.arquivos-csv-serializacao"
+from_hash = "fnv1a64:235e8c716c16a78c"
+to_hash = "fnv1a64:b0f745aed48c405b"
+expect_file = "tests/interpreter_tests.rs"
+expect_domain = "interpreter"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.interpreter.arquivos-e-ambiente-fallback-cli-exemplos"
+from_hash = "fnv1a64:a87ca21f85ac44cb"
+to_hash = "fnv1a64:affbab1668a4d0c8"
+expect_file = "tests/interpreter_tests.rs"
+expect_domain = "interpreter"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.interpreter.arquivos-handle-fechado-e-fluxo-completo"
+from_hash = "fnv1a64:3d961f8cf9f91ef0"
+to_hash = "fnv1a64:3f557984d988afd9"
+expect_file = "tests/interpreter_tests.rs"
+expect_domain = "interpreter"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.interpreter.arquivos-introspeccao-caminho-e-diretorios"
+from_hash = "fnv1a64:92b27688b2591d92"
+to_hash = "fnv1a64:c309b4c5dcc79527"
+expect_file = "tests/interpreter_tests.rs"
+expect_domain = "interpreter"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.interpreter.arquivos-json-serializacao"
+from_hash = "fnv1a64:3c75d96ea9fde023"
+to_hash = "fnv1a64:d6121141ba048c05"
+expect_file = "tests/interpreter_tests.rs"
+expect_domain = "interpreter"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.interpreter.closures-captura-imutavel"
+from_hash = "fnv1a64:bff50425036b18aa"
+to_hash = "fnv1a64:2f02aa16496c4bad"
+expect_file = "tests/interpreter_tests.rs"
+expect_domain = "interpreter"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.interpreter.colecoes-iteracao-lista-e-mapa"
+from_hash = "fnv1a64:dbc0df620079f49b"
+to_hash = "fnv1a64:9d8eda6948f64ef9"
+expect_file = "tests/interpreter_tests.rs"
+expect_domain = "interpreter"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.interpreter.colecoes-lista-bombom"
+from_hash = "fnv1a64:8ec00117f02d880b"
+to_hash = "fnv1a64:0821d833fdc66439"
+expect_file = "tests/interpreter_tests.rs"
+expect_domain = "interpreter"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.interpreter.colecoes-mapa-verso-bombom"
+from_hash = "fnv1a64:49115dec11f760c6"
+to_hash = "fnv1a64:1c850d74e1d0467f"
+expect_file = "tests/interpreter_tests.rs"
+expect_domain = "interpreter"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.interpreter.entrada-argumentos-e-ambiente-cli-exemplos"
+from_hash = "fnv1a64:f277fd342a80412d"
+to_hash = "fnv1a64:ed093513df8b80bc"
+expect_file = "tests/interpreter_tests.rs"
+expect_domain = "interpreter"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.interpreter.entrada-argumentos-nomeados-e-flags"
+from_hash = "fnv1a64:dccfddbf5844e309"
+to_hash = "fnv1a64:a044a08137f99a63"
+expect_file = "tests/interpreter_tests.rs"
+expect_domain = "interpreter"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.interpreter.entrada-contexto-ambiente-e-saida"
+from_hash = "fnv1a64:f876b8b56c5d1fb0"
+to_hash = "fnv1a64:ce701f388a4d8dec"
+expect_file = "tests/interpreter_tests.rs"
+expect_domain = "interpreter"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.interpreter.processos-argv-explicito"
+from_hash = "fnv1a64:34cac59ae3e783e7"
+to_hash = "fnv1a64:27070ef90d415287"
+expect_file = "tests/interpreter_tests.rs"
+expect_domain = "interpreter"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.interpreter.processos-captura-stderr"
+from_hash = "fnv1a64:b9c1b89374fd1a3b"
+to_hash = "fnv1a64:cc7a24a47c364115"
+expect_file = "tests/interpreter_tests.rs"
+expect_domain = "interpreter"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.interpreter.processos-captura-stdout"
+from_hash = "fnv1a64:b0696f75d47c6204"
+to_hash = "fnv1a64:cfbd5f37ce7f3d4d"
+expect_file = "tests/interpreter_tests.rs"
+expect_domain = "interpreter"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.interpreter.processos-entrada-stdin"
+from_hash = "fnv1a64:4a7836125d675c0b"
+to_hash = "fnv1a64:15e57f084d2f2ff3"
+expect_file = "tests/interpreter_tests.rs"
+expect_domain = "interpreter"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.interpreter.processos-externo-executar"
+from_hash = "fnv1a64:8b86bcba21b51610"
+to_hash = "fnv1a64:1972544cfe2e3270"
+expect_file = "tests/interpreter_tests.rs"
+expect_domain = "interpreter"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.interpreter.processos-pipeline"
+from_hash = "fnv1a64:212ca610ac2d3c3b"
+to_hash = "fnv1a64:7481bc431b796577"
+expect_file = "tests/interpreter_tests.rs"
+expect_domain = "interpreter"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.interpreter.tempo-unix-e-formatacao"
+from_hash = "fnv1a64:9563cd84dce7ee24"
+to_hash = "fnv1a64:668be44d4e392b77"
+expect_file = "tests/interpreter_tests.rs"
+expect_domain = "interpreter"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.interpreter.texto-dividir-substituir-juntar-e-buscar"
+from_hash = "fnv1a64:35bb73fac316ac2f"
+to_hash = "fnv1a64:070dac26b1fd2fa7"
+expect_file = "tests/interpreter_tests.rs"
+expect_domain = "interpreter"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.interpreter.texto-formatar-verso"
+from_hash = "fnv1a64:a5c8c7a46281e42e"
+to_hash = "fnv1a64:06fe0c37da4f9de4"
+expect_file = "tests/interpreter_tests.rs"
+expect_domain = "interpreter"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.interpreter.texto-io-por-handle-e-arquivos-releitura"
+from_hash = "fnv1a64:78b2f9f20041e75b"
+to_hash = "fnv1a64:73cdfdf9702acdc4"
+expect_file = "tests/interpreter_tests.rs"
+expect_domain = "interpreter"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.interpreter.texto-verso-e-io-textual-por-caminho"
+from_hash = "fnv1a64:b50cf4e230b6702b"
+to_hash = "fnv1a64:4a88887737f24b16"
+expect_file = "tests/interpreter_tests.rs"
+expect_domain = "interpreter"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.interpreter.texto-verso-intrinsecas-consulta-transformacao"
+from_hash = "fnv1a64:bd287e6c646ff7b6"
+to_hash = "fnv1a64:4a011b59ea3c0a40"
+expect_file = "tests/interpreter_tests.rs"
+expect_domain = "interpreter"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
 key = "evidencia.ir.lowering-tipos-compostos"
 from_hash = "fnv1a64:adddfd8bc905e077"
 to_hash = "fnv1a64:5fb70e644e9d546c"
@@ -1157,11 +1400,56 @@ expect_layer = "evidencia"
 
 [[rules]]
 op = "override-region"
+key = "evidencia.leques.carga-lista-abi-runtime"
+from_hash = "fnv1a64:6ffca7a1b9e64626"
+to_hash = "fnv1a64:6b1a2e70237582cd"
+expect_file = "tests/d1_leque_carga_lista_tests.rs"
+expect_domain = "leques"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
 key = "evidencia.leques.carga-lista-estrutura-ir"
-from_hash = "fnv1a64:a6e50af9b270ba3d"
+from_hash = "fnv1a64:6f66eb63ef7a0c77"
 to_hash = "fnv1a64:e374c93390abfb5d"
 expect_file = "tests/d1_leque_carga_lista_tests.rs"
 expect_domain = "leques"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.leques.carga-lista-matriz-negativa"
+from_hash = "fnv1a64:749c553fc935e05a"
+to_hash = "fnv1a64:942fd39b9c0205c7"
+expect_file = "tests/d1_leque_carga_lista_tests.rs"
+expect_domain = "leques"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.leques.carga-lista-matriz-positiva"
+from_hash = "fnv1a64:8ec8743bbd3d5969"
+to_hash = "fnv1a64:62bcf74446f2b6ea"
+expect_file = "tests/d1_leque_carga_lista_tests.rs"
+expect_domain = "leques"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.parser.desugaring-para-cada"
+from_hash = "fnv1a64:c31ee693148a2e56"
+to_hash = "fnv1a64:60c3ac1bf172219f"
+expect_file = "tests/parser_tests.rs"
+expect_domain = "parser"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.parser.ponteiros-e-colecoes"
+from_hash = "fnv1a64:d1a962055aaca350"
+to_hash = "fnv1a64:743a961fcbd42e3a"
+expect_file = "tests/parser_tests.rs"
+expect_domain = "parser"
 expect_layer = "evidencia"
 
 [[rules]]
@@ -1186,11 +1474,119 @@ expect_layer = "evidencia"
 
 [[rules]]
 op = "override-region"
+key = "evidencia.semantica.acaso"
+from_hash = "fnv1a64:bf09599017f5c266"
+to_hash = "fnv1a64:f8105af01234c02c"
+expect_file = "tests/semantic_tests.rs"
+expect_domain = "semantica"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.semantica.closures-captura-imutavel"
+from_hash = "fnv1a64:355f3ca761300298"
+to_hash = "fnv1a64:f4ab798d771cbcd7"
+expect_file = "tests/semantic_tests.rs"
+expect_domain = "semantica"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.semantica.genericos"
+from_hash = "fnv1a64:691c8164c0ae25b3"
+to_hash = "fnv1a64:8791a27c06fa8334"
+expect_file = "tests/semantic_tests.rs"
+expect_domain = "semantica"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
 key = "evidencia.semantica.imports-por-familia"
-from_hash = "fnv1a64:c34bd7ba1c7d15db"
+from_hash = "fnv1a64:01f0d8f2a652463a"
 to_hash = "fnv1a64:b48164ab8a48fd79"
 from_summary = "Exercita importação por família via `trazer` (tempo, ambiente, acaso, texto, arquivo, caminho, processo) e o acesso legado global sem trazer, rejeitando família desconhecida e membro que a família não exporta, nos casos presentes. Importação aceita não implica uso real do símbolo. A superfície por família em si — grafias qualificada e seletiva, canonicalização e paridade — tem evidência própria em `tests/part_g_familia_superficie_tests.rs`."
 to_summary = "Exercita importação por família via `trazer` (tempo, ambiente, acaso, texto, arquivo, caminho, processo) e o acesso legado global sem trazer, rejeitando família desconhecida e trazer seletivo não suportado, nos casos presentes. Importação aceita não implica uso real do símbolo."
+expect_file = "tests/semantic_tests.rs"
+expect_domain = "semantica"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.semantica.intrinsecas-argumentos-e-contexto"
+from_hash = "fnv1a64:ed6e70a907b50483"
+to_hash = "fnv1a64:caf6739a8521f41b"
+expect_file = "tests/semantic_tests.rs"
+expect_domain = "semantica"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.semantica.intrinsecas-arquivos-io"
+from_hash = "fnv1a64:44494ae1ee7ba99d"
+to_hash = "fnv1a64:c4744e1a6ef60a78"
+expect_file = "tests/semantic_tests.rs"
+expect_domain = "semantica"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.semantica.intrinsecas-caminhos-e-sistema"
+from_hash = "fnv1a64:b0e12adb5624c8aa"
+to_hash = "fnv1a64:411610a1ad6b3116"
+expect_file = "tests/semantic_tests.rs"
+expect_domain = "semantica"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.semantica.intrinsecas-entrada-ambiente"
+from_hash = "fnv1a64:3abcce3c72101a82"
+to_hash = "fnv1a64:f5749a898080c865"
+expect_file = "tests/semantic_tests.rs"
+expect_domain = "semantica"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.semantica.intrinsecas-processos"
+from_hash = "fnv1a64:160ac04ccd2a160b"
+to_hash = "fnv1a64:f55b9ccc1fa77daa"
+expect_file = "tests/semantic_tests.rs"
+expect_domain = "semantica"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.semantica.intrinsecas-texto-e-estruturados"
+from_hash = "fnv1a64:f8d478efcd3854fa"
+to_hash = "fnv1a64:34fa3f241cfdb98a"
+expect_file = "tests/semantic_tests.rs"
+expect_domain = "semantica"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.semantica.listas"
+from_hash = "fnv1a64:e0cba7e1a61c0ac4"
+to_hash = "fnv1a64:415052073bb0bd58"
+expect_file = "tests/semantic_tests.rs"
+expect_domain = "semantica"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.semantica.mapas"
+from_hash = "fnv1a64:11d1dc24ec2f5160"
+to_hash = "fnv1a64:d61244c7de02bb8a"
+expect_file = "tests/semantic_tests.rs"
+expect_domain = "semantica"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.semantica.objetos-trato-fase244"
+from_hash = "fnv1a64:1a7886c9dc6efd5a"
+to_hash = "fnv1a64:8904d84840011ff3"
 expect_file = "tests/semantic_tests.rs"
 expect_domain = "semantica"
 expect_layer = "evidencia"
@@ -1222,6 +1618,15 @@ from_hash = "fnv1a64:f6c99876509e5fb8"
 to_hash = "fnv1a64:251af980a687effd"
 expect_file = "src/interpreter.rs"
 expect_domain = "intrinsecos"
+expect_layer = "interpreter"
+
+[[rules]]
+op = "override-region"
+key = "interpreter.unioes.contabilidade-dominios"
+from_hash = "fnv1a64:4bea84c6bd276890"
+to_hash = "fnv1a64:3eeea94d3013a5ca"
+expect_file = "src/interpreter.rs"
+expect_domain = "unioes"
 expect_layer = "interpreter"
 
 [[rules]]
@@ -1361,7 +1766,7 @@ expect_layer = "parser"
 [[rules]]
 op = "override-region"
 key = "parser.closures.expressao"
-from_hash = "fnv1a64:2df6241fe28ad21c"
+from_hash = "fnv1a64:ab426ab71ec9db35"
 to_hash = "fnv1a64:f374c2b2eb1b9d4c"
 from_summary = "Funções anônimas e vínculos de valor-função: reconhece a closure `(params) -> tipo { corpo }`, materializa sua identidade sintética com proveniência canônica da fonte mais índice local e reconhece os `nova f = ...` que ligam nomes a funções, mantendo o escopo de aliases de valor-função e produzindo `ast::Expr`/vínculos locais."
 to_summary = "Funções anônimas e vínculos de valor-função: reconhece a closure `(params) -> tipo { corpo }` e os `nova f = ...` que ligam nomes a funções, mantendo o escopo de aliases de valor-função e produzindo `ast::Expr`/vínculos locais."
@@ -1372,7 +1777,7 @@ expect_layer = "parser"
 [[rules]]
 op = "override-region"
 key = "parser.comandos.bloco"
-from_hash = "fnv1a64:a8c68fe44de929da"
+from_hash = "fnv1a64:9deeb6775bbafc83"
 to_hash = "fnv1a64:b57c3f39100a2358"
 from_summary = "Blocos e comandos: reconhece `{ ... }`, declarações locais (`nova`/`muda`), atribuições, `mimo` (retorno), `talvez`/`senao`, laços (`sempre`/`repetir`), `quebrar`/`continuar`, `falar` e asm inline, produzindo `ast::Block`/`ast::Stmt`."
 to_summary = "Blocos e comandos: reconhece `{ ... }`, declarações locais (`nova`/`muda`), atribuições, `mimo` (retorno), `talvez`/`senao`, laços (`sempre`/`repetir`), `quebrar`/`continuar`, `falar` e asm inline, produzindo `ast::Block`/`ast::Stmt`."
@@ -1394,7 +1799,7 @@ expect_layer = "parser"
 [[rules]]
 op = "override-region"
 key = "parser.expressoes.postfix"
-from_hash = "fnv1a64:880dfd2ed8be59d0"
+from_hash = "fnv1a64:3f72e9346cb14f49"
 to_hash = "fnv1a64:a0e90b7e07211b9b"
 from_summary = "Cadeia postfix de expressão: chamadas, acesso a campo, índice, chamada genérica explícita e sufixo de cast (`virar`), aplicados sobre a expressão base para produzir o `ast::Expr` final."
 to_summary = "Cadeia postfix de expressão: chamadas, acesso a campo, índice, chamada genérica explícita e sufixo de cast (`virar`), aplicados sobre a expressão base para produzir o `ast::Expr` final."
@@ -1485,9 +1890,9 @@ expect_layer = "parser"
 [[rules]]
 op = "override-region"
 key = "parser.programa.estrutura"
-from_hash = "fnv1a64:895723307f50fbb3"
+from_hash = "fnv1a64:72d742a6c8b33541"
 to_hash = "fnv1a64:c8ac56b28a5a6113"
-from_summary = "Ponto de entrada do parser: constrói o `Program` reconhecendo `pacote`, `trazer` (imports) e a marca freestanding, e despacha os itens de topo via `parse_item`. Dois prepasses estreitos de autoridade precedem qualquer resolução, ambos sobre tokens e sem resolver tipos: um detecta templates genéricos de usuário antes de registrar o `Resultado<T,E>` builtin, tornando USER_WINS independente da ordem textual; outro colhe as identidades de topo do arquivo (`coletar_nomes_de_topo`), que é o que dá à superfície por família a mesma independência de ordem. A redeclaração continua formando com a produção runtime a conjunção inválida da Parte B1."
+from_summary = "Ponto de entrada do parser: constrói o `Program` reconhecendo `pacote`, `trazer` (imports) e a marca freestanding, e despacha os itens de topo via `parse_item`. Desde a #533 a declaração `trazer` aceita vários membros de UM módulo (`trazer M.a, b, c;`) e desaçucara ali mesmo para as unidades `Import` de sempre, na ordem textual, sem que nada a jusante conheça multi-import; a leitura da declaração é `ler_declaracao_trazer`, a mesma que os prepasses de import usam, e o caminho de cursor só produz o diagnóstico das formas recusadas (`M.a, b,;`, `M.a, N.b;`, `M, a;`). Dois prepasses estreitos de autoridade precedem qualquer resolução, ambos sobre tokens e sem resolver tipos: um detecta templates genéricos de usuário antes de registrar o `Resultado<T,E>` builtin, tornando USER_WINS independente da ordem textual; outro colhe as identidades de topo do arquivo (`coletar_nomes_de_topo`), que é o que dá à superfície por família a mesma independência de ordem. A redeclaração continua formando com a produção runtime a conjunção inválida da Parte B1."
 to_summary = "Ponto de entrada do parser: constrói o `Program` reconhecendo `pacote`, `trazer` (imports) e a marca freestanding, e despacha os itens de topo (funções, structs, leques, tratos, impl, aliases, constantes) via `parse_item`. Predeclara os leques genéricos da biblioteca padrão (Fase 241, `Resultado<T,E>`) antes do laço de itens e suprime o predeclarado quando o usuário declara o mesmo nome."
 expect_file = "src/parser.rs"
 expect_domain = "programa"
@@ -1519,6 +1924,24 @@ to_hash = "fnv1a64:b84752baa2afebcf"
 expect_file = "src/printer.rs"
 expect_domain = "ast"
 expect_layer = "printer"
+
+[[rules]]
+op = "override-region"
+key = "repl.avaliacao.pipeline"
+from_hash = "fnv1a64:3f68175ca6097651"
+to_hash = "fnv1a64:0fa504b76509f7f3"
+expect_file = "src/repl.rs"
+expect_domain = "fluxo"
+expect_layer = "repl"
+
+[[rules]]
+op = "override-region"
+key = "repl.ciclo.leitura-avaliacao"
+from_hash = "fnv1a64:a5abceaa53555435"
+to_hash = "fnv1a64:ea1aea2493883154"
+expect_file = "src/repl.rs"
+expect_domain = "fluxo"
+expect_layer = "repl"
 
 [[rules]]
 op = "override-region"
@@ -1649,7 +2072,7 @@ op = "override-region"
 key = "semantic.importacoes.familias"
 from_hash = "fnv1a64:2ad993d7d430896a"
 to_hash = "fnv1a64:6e55b22c24a44135"
-from_summary = "Validação semântica de `trazer` sobre famílias built-in, e dono único da política de colisão de import de família. A lista de famílias e a superfície que cada uma exporta não moram aqui: são consultadas em `familia_superficie`, a autoridade única que o parser também consulta ao canonicalizar. Esta camada decide o que é decisão de import — família desconhecida, membro inexistente na forma seletiva e colisão do membro seletivo com item de topo (`validate_family_import_collision`, atravessada tanto pela CLI quanto pelo caminho de biblioteca). A mensagem de membro inexistente vem da própria autoridade para que a lista de membros exista num lugar só. Identidade homônima trazida por `trazer <modulo>;` não é recusada aqui nem em lugar nenhum: ela vence a família em silêncio, no parser, porque a autoridade de import a entrega como identidade de topo antes da canonicalização."
+from_summary = "Validação semântica de `trazer` sobre os módulos built-in, e dono único da política de colisão de import. A lista de módulos e a superfície que cada um exporta não moram aqui: são consultadas em `familia_superficie`, a autoridade única que o parser também consulta ao canonicalizar. Esta camada decide o que é decisão de import — módulo desconhecido, membro inexistente na forma seletiva e colisão do membro seletivo com item de topo (`validate_family_import_collision`, atravessada tanto pela CLI quanto pelo caminho de biblioteca). A mensagem de membro inexistente vem da própria autoridade. Depois da #505 a colisão de DECLARAÇÃO tem duas causas distintas e mensagens próprias: grafia canônica, reservada porque continua sendo a chave de despacho a jusante, e membro que esta unidade traz. Identidade homônima trazida por `trazer <modulo>;` não é recusada aqui nem em lugar nenhum: ela vence o módulo em silêncio, no parser."
 to_summary = "Famílias de intrínsecas importáveis (`tempo`, `ambiente`, `acaso`, `texto`, `arquivo`, `caminho`, `processo`) e a validação de `trazer`: aceita a importação da família inteira e rejeita importação seletiva (`familia.simbolo`) ou família desconhecida."
 expect_file = "src/semantic.rs"
 expect_domain = "importacoes"

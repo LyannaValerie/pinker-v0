@@ -1,10 +1,14 @@
 pacote main;
 
+trazer ambiente.argumento_ou;
+trazer caminho.e_arquivo, existe;
+trazer processo.sair;
+
 carinho principal() -> bombom {
     nova alvo: verso = argumento_ou(0, "README.md");
-    falar(caminho_existe(alvo));
+    falar(existe(alvo));
     falar(e_arquivo(alvo));
-    talvez caminho_existe(alvo) {
+    talvez existe(alvo) {
         talvez e_arquivo(alvo) {
             mimo 1;
         } senao {
