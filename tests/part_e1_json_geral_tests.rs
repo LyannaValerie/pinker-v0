@@ -12,16 +12,16 @@ use std::time::Duration;
 // @pinker-nav:summary Evidência da Parte E1 com paridade interpretador × ELF nativo em cada caso: a matriz numérica diagonal prova que a mesma gramática projeta `i64` no modelo adulto e `u64` no recorte plano histórico, inclusive `i64::MAX + 1` e `u64::MAX`, que o adulto recusa e o legado preserva no parse e na emissão; o nesting recursivo é atravessado pelo mesmo mecanismo em duas árvores de formatos diferentes; `null` é nó JSON de primeira classe sem escalar Pinker; Unicode, escapes e pares surrogate têm contrato próprio; chave duplicada, lixo à direita e acessor com tag errada recusam; JSON externo malformado atravessa `Resultado` por `tentar` e `propagar?`; a serialização de objeto é determinística por ordem de chave e não pela ordem de inserção; e um workflow real read-only lê um schema versionado do próprio repositório. O controle positivo garante que a matriz não passa por falhar em tudo.
 
 /// Modelo adulto: aceita, e o valor sai exato pela serialização.
-const FONTE_ADULTO: &str = r#"pacote main;
+const FONTE_ADULTO: &str = r#"pacote main; trazer ambiente.argumento_ou; trazer arquivo.ler_caminho_verso; trazer json.emitir; trazer json.ler_resultado; trazer json.objeto_obter;
 
 apelido ResJson = Resultado<ValorJson, verso>;
 
 carinho principal() -> bombom {
     nova caminho: verso = argumento_ou(0, "ausente");
-    tentar ler_json_resultado(ler_arquivo_verso(caminho)) {
+    tentar ler_resultado(ler_caminho_verso(caminho)) {
         sucesso ResJson.Ok(raiz) {
-            nova x: ValorJson = json_objeto_obter(raiz, "x");
-            falar(emitir_json(x));
+            nova x: ValorJson = objeto_obter(raiz, "x");
+            falar(emitir(x));
         }
         falha ResJson.Erro(m) {
             falar("ERRO");
@@ -37,7 +37,7 @@ carinho principal() -> bombom {
 /// Executar dez vezes custaria dez pares fork/supervisor sob envelope, e essa
 /// carga derruba asserções de wall-clock de suítes que medem timeout. Um
 /// processo, dez casos, a mesma cobertura.
-const FONTE_ADULTO_LOTE: &str = r#"pacote main;
+const FONTE_ADULTO_LOTE: &str = r#"pacote main; trazer ambiente.argumento_ou; trazer arquivo.ler_caminho_verso; trazer json.emitir; trazer json.ler_resultado; trazer json.objeto_obter; trazer texto.tamanho;
 
 apelido ResJson = Resultado<ValorJson, verso>;
 
@@ -45,11 +45,11 @@ carinho principal() -> bombom {
     nova muda i: bombom = 0;
     repetir {
         nova caminho: verso = argumento_ou(i, "");
-        talvez tamanho_verso(caminho) > 0 {
-            tentar ler_json_resultado(ler_arquivo_verso(caminho)) {
+        talvez tamanho(caminho) > 0 {
+            tentar ler_resultado(ler_caminho_verso(caminho)) {
                 sucesso ResJson.Ok(raiz) {
-                    nova x: ValorJson = json_objeto_obter(raiz, "x");
-                    falar(emitir_json(x));
+                    nova x: ValorJson = objeto_obter(raiz, "x");
+                    falar(emitir(x));
                 }
                 falha ResJson.Erro(m) {
                     falar("ERRO");
@@ -63,80 +63,80 @@ carinho principal() -> bombom {
 "#;
 
 /// Recorte plano histórico: parse e emissão no domínio `u64`.
-const FONTE_LEGADO: &str = r#"pacote main;
+const FONTE_LEGADO: &str = r#"pacote main; trazer ambiente.argumento_ou; trazer arquivo.ler_caminho_verso; trazer json.emitir_plano_bombom; trazer json.ler_plano_bombom;
 
 carinho principal() -> bombom {
     nova caminho: verso = argumento_ou(0, "ausente");
-    nova dados: mapa<verso,bombom> = ler_json_plano_bombom(ler_arquivo_verso(caminho));
-    falar(emitir_json_plano_bombom(dados));
+    nova dados: mapa<verso,bombom> = ler_plano_bombom(ler_caminho_verso(caminho));
+    falar(emitir_plano_bombom(dados));
     mimo 0;
 }
 "#;
 
 /// Nesting recursivo em duas árvores de formatos materialmente diferentes,
 /// `null` em objeto e em lista, e ordem determinística de objeto.
-const FONTE_ESTRUTURAL: &str = r#"pacote main;
+const FONTE_ESTRUTURAL: &str = r#"pacote main; trazer ambiente.argumento_ou; trazer arquivo.ler_caminho_verso; trazer json.como_logica; trazer json.como_verso; trazer json.emitir; trazer json.ler_resultado; trazer json.lista_obter; trazer json.lista_tamanho; trazer json.objeto_chaves; trazer json.objeto_obter; trazer json.objeto_tamanho; trazer json.objeto_tem; trazer json.tipo; trazer texto.bombom_para_verso;
 
 apelido ResJson = Resultado<ValorJson, verso>;
 
 carinho principal() -> bombom {
     nova caminho: verso = argumento_ou(0, "ausente");
-    tentar ler_json_resultado(ler_arquivo_verso(caminho)) {
+    tentar ler_resultado(ler_caminho_verso(caminho)) {
         sucesso ResJson.Ok(raiz) {
             // objeto -> lista -> objeto
-            nova lista: ValorJson = json_objeto_obter(raiz, "arvore_a");
-            nova primeiro: ValorJson = json_lista_obter(lista, 0);
-            nova folha: ValorJson = json_objeto_obter(primeiro, "folha");
-            falar(emitir_json(folha));
+            nova lista: ValorJson = objeto_obter(raiz, "arvore_a");
+            nova primeiro: ValorJson = lista_obter(lista, 0);
+            nova folha: ValorJson = objeto_obter(primeiro, "folha");
+            falar(emitir(folha));
 
             // lista -> objeto -> lista
-            nova outra: ValorJson = json_objeto_obter(raiz, "arvore_b");
-            nova dentro: ValorJson = json_lista_obter(outra, 0);
-            nova interna: ValorJson = json_objeto_obter(dentro, "itens");
-            nova item: ValorJson = json_lista_obter(interna, 1);
-            falar(emitir_json(item));
+            nova outra: ValorJson = objeto_obter(raiz, "arvore_b");
+            nova dentro: ValorJson = lista_obter(outra, 0);
+            nova interna: ValorJson = objeto_obter(dentro, "itens");
+            nova item: ValorJson = lista_obter(interna, 1);
+            falar(emitir(item));
 
             // null é nó JSON de primeira classe, observável só pelo tipo
-            nova vazio: ValorJson = json_objeto_obter(raiz, "vazio");
-            talvez json_tipo(vazio) == TipoJson.Nulo {
+            nova vazio: ValorJson = objeto_obter(raiz, "vazio");
+            talvez tipo(vazio) == TipoJson.Nulo {
                 falar("nulo-objeto");
             }
-            nova lista_com_nulo: ValorJson = json_objeto_obter(raiz, "lista_nula");
-            nova nulo_em_lista: ValorJson = json_lista_obter(lista_com_nulo, 1);
-            talvez json_tipo(nulo_em_lista) == TipoJson.Nulo {
+            nova lista_com_nulo: ValorJson = objeto_obter(raiz, "lista_nula");
+            nova nulo_em_lista: ValorJson = lista_obter(lista_com_nulo, 1);
+            talvez tipo(nulo_em_lista) == TipoJson.Nulo {
                 falar("nulo-lista");
             }
-            falar(emitir_json(nulo_em_lista));
+            falar(emitir(nulo_em_lista));
 
             // tipos e acessores escalares
-            nova texto: ValorJson = json_objeto_obter(raiz, "texto");
-            falar(json_verso(texto));
-            nova bandeira_sim: ValorJson = json_objeto_obter(raiz, "verdade");
-            talvez json_logica(bandeira_sim) {
+            nova texto: ValorJson = objeto_obter(raiz, "texto");
+            falar(como_verso(texto));
+            nova bandeira_sim: ValorJson = objeto_obter(raiz, "verdade");
+            talvez como_logica(bandeira_sim) {
                 falar("verdadeiro");
             }
-            nova bandeira_nao: ValorJson = json_objeto_obter(raiz, "falsidade");
-            talvez json_logica(bandeira_nao) {
+            nova bandeira_nao: ValorJson = objeto_obter(raiz, "falsidade");
+            talvez como_logica(bandeira_nao) {
                 falar("nao-deveria");
             }
 
             // objeto: tamanho, presença, chaves em ordem determinística
-            nova ordem: ValorJson = json_objeto_obter(raiz, "ordem");
-            falar(bombom_para_verso(json_objeto_tamanho(ordem)));
-            talvez json_objeto_tem(ordem, "b") {
+            nova ordem: ValorJson = objeto_obter(raiz, "ordem");
+            falar(bombom_para_verso(objeto_tamanho(ordem)));
+            talvez objeto_tem(ordem, "b") {
                 falar("tem-b");
             }
-            nova chaves: lista<verso> = json_objeto_chaves(ordem);
+            nova chaves: lista<verso> = objeto_chaves(ordem);
             para cada chave em chaves {
                 falar(chave);
             }
-            falar(emitir_json(ordem));
+            falar(emitir(ordem));
 
             // lista vazia e objeto vazio
-            nova vazia: ValorJson = json_objeto_obter(raiz, "lista_vazia");
-            falar(bombom_para_verso(json_lista_tamanho(vazia)));
-            nova objeto_vazio: ValorJson = json_objeto_obter(raiz, "objeto_vazio");
-            falar(emitir_json(objeto_vazio));
+            nova vazia: ValorJson = objeto_obter(raiz, "lista_vazia");
+            falar(bombom_para_verso(lista_tamanho(vazia)));
+            nova objeto_vazio: ValorJson = objeto_obter(raiz, "objeto_vazio");
+            falar(emitir(objeto_vazio));
         }
         falha ResJson.Erro(m) {
             falar("ERRO");
@@ -148,21 +148,21 @@ carinho principal() -> bombom {
 "#;
 
 /// Unicode: multibyte cru, escapes curtos e par surrogate.
-const FONTE_UNICODE: &str = r#"pacote main;
+const FONTE_UNICODE: &str = r#"pacote main; trazer ambiente.argumento_ou; trazer arquivo.ler_caminho_verso; trazer json.como_verso; trazer json.emitir; trazer json.ler_resultado; trazer json.objeto_obter;
 
 apelido ResJson = Resultado<ValorJson, verso>;
 
 carinho principal() -> bombom {
     nova caminho: verso = argumento_ou(0, "ausente");
-    tentar ler_json_resultado(ler_arquivo_verso(caminho)) {
+    tentar ler_resultado(ler_caminho_verso(caminho)) {
         sucesso ResJson.Ok(raiz) {
-            nova cru: ValorJson = json_objeto_obter(raiz, "cru");
-            falar(json_verso(cru));
-            nova escapado: ValorJson = json_objeto_obter(raiz, "escapado");
-            falar(json_verso(escapado));
-            nova par: ValorJson = json_objeto_obter(raiz, "par");
-            falar(json_verso(par));
-            falar(emitir_json(raiz));
+            nova cru: ValorJson = objeto_obter(raiz, "cru");
+            falar(como_verso(cru));
+            nova escapado: ValorJson = objeto_obter(raiz, "escapado");
+            falar(como_verso(escapado));
+            nova par: ValorJson = objeto_obter(raiz, "par");
+            falar(como_verso(par));
+            falar(emitir(raiz));
         }
         falha ResJson.Erro(m) {
             falar("ERRO");
@@ -175,12 +175,12 @@ carinho principal() -> bombom {
 /// Falha externa recuperável consumida por `propagar?`, e sucesso pelo mesmo
 /// caminho. A propagação é do mecanismo geral — nada aqui é especial por ser
 /// JSON.
-const FONTE_PROPAGAR: &str = r#"pacote main;
+const FONTE_PROPAGAR: &str = r#"pacote main; trazer ambiente.argumento_ou; trazer arquivo.ler_caminho_verso; trazer json.ler_resultado; trazer json.objeto_tamanho; trazer texto.bombom_para_verso;
 
 apelido ResJson = Resultado<ValorJson, verso>;
 
 carinho raiz_de(caminho: verso) -> ResJson {
-    propagar? ler_json_resultado(ler_arquivo_verso(caminho)) como ResJson.Ok(raiz);
+    propagar? ler_resultado(ler_caminho_verso(caminho)) como ResJson.Ok(raiz);
     mimo ResJson.Ok(raiz);
 }
 
@@ -189,7 +189,7 @@ carinho principal() -> bombom {
     tentar raiz_de(caminho) {
         sucesso ResJson.Ok(r) {
             falar("ok");
-            falar(bombom_para_verso(json_objeto_tamanho(r)));
+            falar(bombom_para_verso(objeto_tamanho(r)));
         }
         falha ResJson.Erro(m) { falar("erro"); falar(m); }
     }
@@ -198,16 +198,16 @@ carinho principal() -> bombom {
 "#;
 
 /// Acessor com tag errada é erro de programa, não dado externo malformado.
-const FONTE_TAG_ERRADA: &str = r#"pacote main;
+const FONTE_TAG_ERRADA: &str = r#"pacote main; trazer ambiente.argumento_ou; trazer arquivo.ler_caminho_verso; trazer json.como_verso; trazer json.ler_resultado; trazer json.objeto_obter;
 
 apelido ResJson = Resultado<ValorJson, verso>;
 
 carinho principal() -> bombom {
     nova caminho: verso = argumento_ou(0, "ausente");
-    tentar ler_json_resultado(ler_arquivo_verso(caminho)) {
+    tentar ler_resultado(ler_caminho_verso(caminho)) {
         sucesso ResJson.Ok(raiz) {
-            nova x: ValorJson = json_objeto_obter(raiz, "x");
-            falar(json_verso(x));
+            nova x: ValorJson = objeto_obter(raiz, "x");
+            falar(como_verso(x));
         }
         falha ResJson.Erro(m) { falar("erro"); }
     }
@@ -218,30 +218,30 @@ carinho principal() -> bombom {
 /// Workflow real read-only: lê um schema versionado do próprio repositório e
 /// verifica fatos estruturais dele. Não é fixture inventada para a ocasião —
 /// é o manifesto que a Trama Pinker já usa.
-const FONTE_WORKFLOW_REAL: &str = r#"pacote main;
+const FONTE_WORKFLOW_REAL: &str = r#"pacote main; trazer ambiente.argumento_ou; trazer arquivo.ler_caminho_verso; trazer json.como_verso; trazer json.emitir; trazer json.ler_resultado; trazer json.lista_obter; trazer json.lista_tamanho; trazer json.objeto_obter; trazer json.objeto_tem; trazer texto.bombom_para_verso;
 
 apelido ResJson = Resultado<ValorJson, verso>;
 
 carinho principal() -> bombom {
     nova caminho: verso = argumento_ou(0, "ausente");
-    tentar ler_json_resultado(ler_arquivo_verso(caminho)) {
+    tentar ler_resultado(ler_caminho_verso(caminho)) {
         sucesso ResJson.Ok(schema) {
-            falar(json_verso(json_objeto_obter(schema, "title")));
-            nova requeridos: ValorJson = json_objeto_obter(schema, "required");
-            nova total: bombom = json_lista_tamanho(requeridos);
+            falar(como_verso(objeto_obter(schema, "title")));
+            nova requeridos: ValorJson = objeto_obter(schema, "required");
+            nova total: bombom = lista_tamanho(requeridos);
             falar(bombom_para_verso(total));
             talvez total > 0 {
                 nova muda i: bombom = 0;
                 repetir {
-                    falar(json_verso(json_lista_obter(requeridos, i)));
+                    falar(como_verso(lista_obter(requeridos, i)));
                     i += 1;
                 } ate i >= total;
             }
-            nova propriedades: ValorJson = json_objeto_obter(schema, "properties");
-            nova versao: ValorJson = json_objeto_obter(propriedades, "schema");
-            nova constante: ValorJson = json_objeto_obter(versao, "const");
-            falar(emitir_json(constante));
-            talvez json_objeto_tem(propriedades, "source") {
+            nova propriedades: ValorJson = objeto_obter(schema, "properties");
+            nova versao: ValorJson = objeto_obter(propriedades, "schema");
+            nova constante: ValorJson = objeto_obter(versao, "const");
+            falar(emitir(constante));
+            talvez objeto_tem(propriedades, "source") {
                 falar("tem-source");
             }
         }

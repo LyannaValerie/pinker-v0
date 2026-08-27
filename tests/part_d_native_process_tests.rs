@@ -62,15 +62,15 @@ fn fonte(
         .collect::<Vec<_>>()
         .join("\n");
     format!(
-        r#"pacote main;
+        r#"pacote main; trazer lista.verso_criar; trazer mapa.verso_verso_criar; trazer processo.executar_estruturado;
 apelido Res = Resultado<SaidaProcesso, verso>;
 
 carinho principal() -> bombom {{
-    nova muda argumentos: lista<verso> = lista_verso_criar();
+    nova muda argumentos: lista<verso> = verso_criar();
 {anexos}
-    nova muda ambiente: mapa<verso,verso> = mapa_verso_verso_criar();
+    nova muda ambiente: mapa<verso,verso> = verso_verso_criar();
 {overlays}
-    nova resultado: Res = executar_processo_estruturado(
+    nova resultado: Res = executar_estruturado(
         {programa}, argumentos, {entrada}, {diretorio}, ambiente, {limite}
     );
     encaixe resultado {{
@@ -986,23 +986,23 @@ fn resultado_estruturado_compoe_com_tentar_e_propagar_sem_caso_especial() {
     let fixture = env!("CARGO_BIN_EXE_pinker_part_d_filho");
     let ausente = dir.path().join("executavel-ausente");
     let codigo = format!(
-        r#"pacote main;
+        r#"pacote main; trazer lista.verso_anexar; trazer lista.verso_criar; trazer mapa.verso_verso_criar; trazer processo.codigo; trazer processo.erro; trazer processo.executar_estruturado; trazer processo.saida;
 apelido Res = Resultado<SaidaProcesso, verso>;
 
 carinho sucesso() -> Res {{
-    nova muda argumentos: lista<verso> = lista_verso_criar();
-    lista_verso_anexar(argumentos, "small");
-    nova ambiente: mapa<verso,verso> = mapa_verso_verso_criar();
-    propagar? executar_processo_estruturado(
+    nova muda argumentos: lista<verso> = verso_criar();
+    verso_anexar(argumentos, "small");
+    nova ambiente: mapa<verso,verso> = verso_verso_criar();
+    propagar? executar_estruturado(
         {fixture}, argumentos, "", "", ambiente, LimiteTempo.SemLimite
     ) como Res.Ok(saida);
     mimo Res.Ok(saida);
 }}
 
 carinho falha() -> Res {{
-    nova argumentos: lista<verso> = lista_verso_criar();
-    nova ambiente: mapa<verso,verso> = mapa_verso_verso_criar();
-    propagar? executar_processo_estruturado(
+    nova argumentos: lista<verso> = verso_criar();
+    nova ambiente: mapa<verso,verso> = verso_verso_criar();
+    propagar? executar_estruturado(
         {ausente}, argumentos, "", "", ambiente, LimiteTempo.SemLimite
     ) como Res.Ok(saida);
     mimo Res.Ok(saida);
@@ -1012,9 +1012,9 @@ carinho principal() -> bombom {{
     tentar sucesso() {{
         sucesso Res.Ok(saida) {{
             falar("TENTAR_OK");
-            falar(processo_codigo(saida));
-            falar(processo_saida(saida));
-            falar(processo_erro(saida));
+            falar(codigo(saida));
+            falar(saida(saida));
+            falar(erro(saida));
         }}
         falha Res.Erro(causa) {{ falar("SUCESSO_INESPERADAMENTE_FALHOU"); }}
     }}
@@ -1145,16 +1145,16 @@ fn superficies_historicas_preservam_observaveis_em_interpretador_e_nativo() {
     );
     let resultado = script("resultado.sh", "exit 5");
     let codigo = format!(
-        r#"pacote main;
+        r#"pacote main; trazer processo.capturar_stderr; trazer processo.capturar_stdout; trazer processo.executar; trazer processo.executar_com_entrada; trazer processo.executar_resultado; trazer processo.pipeline_minimo;
 apelido Res = Resultado<bombom, verso>;
 
 carinho principal() -> bombom {{
-    falar(executar_processo({status}));
+    falar(executar({status}));
     falar(capturar_stdout({stdout}));
     falar(capturar_stderr({stderr}));
     falar(executar_com_entrada({stdin}, "dado\n"));
     falar(pipeline_minimo({produtor}, {consumidor}));
-    tentar executar_processo_resultado({resultado}) {{
+    tentar executar_resultado({resultado}) {{
         sucesso Res.Ok(codigo) {{ falar(codigo); }}
         falha Res.Erro(causa) {{ falar("ERRO_INESPERADO"); }}
     }}

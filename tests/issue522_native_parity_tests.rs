@@ -120,7 +120,7 @@ fn afirmar_preserva_sucesso_falha_mensagem_e_as_duas_aridades() {
     let sucesso = Sujeito::novo(
         "issue522_afirmar_sucesso",
         r#"
-pacote main;
+pacote main; trazer assertiva.afirmar;
 carinho principal() -> bombom {
     nova mensagem: verso = "preservada";
     afirmar(verdade);
@@ -143,7 +143,7 @@ carinho principal() -> bombom {
     let falha_com_mensagem = Sujeito::novo(
         "issue522_afirmar_falha_mensagem",
         r#"
-pacote main;
+pacote main; trazer assertiva.afirmar;
 carinho principal() -> bombom {
     afirmar(falso, "contrato 522");
     mimo 99;
@@ -163,7 +163,7 @@ carinho principal() -> bombom {
     let falha_sem_mensagem = Sujeito::novo(
         "issue522_afirmar_falha_simples",
         r#"
-pacote main;
+pacote main; trazer assertiva.afirmar;
 carinho principal() -> bombom {
     afirmar(falso);
     mimo 99;
@@ -247,10 +247,10 @@ carinho principal() -> bombom {
     let separador_vazio = Sujeito::novo(
         "issue522_csv_emitir_sep_vazio",
         r#"
-pacote main;
+pacote main; trazer csv.emitir_linha_bombom; trazer lista.bombom_criar;
 carinho principal() -> bombom {
-    nova itens: lista<bombom> = lista_bombom_criar();
-    falar(emitir_linha_csv_bombom(itens, ""));
+    nova itens: lista<bombom> = bombom_criar();
+    falar(emitir_linha_bombom(itens, ""));
     mimo 0;
 }
 "#,
@@ -282,11 +282,11 @@ carinho principal() -> bombom {
     ] {
         let fonte = format!(
             r#"
-pacote main;
+pacote main; trazer csv.emitir_linha_bombom; trazer lista.bombom_anexar; trazer lista.bombom_criar;
 carinho principal() -> bombom {{
-    nova itens: lista<bombom> = lista_bombom_criar();
-    lista_bombom_anexar(itens, 1);
-    falar(emitir_linha_csv_bombom(itens, {literal}));
+    nova itens: lista<bombom> = bombom_criar();
+    bombom_anexar(itens, 1);
+    falar(emitir_linha_bombom(itens, {literal}));
     mimo 0;
 }}
 "#
@@ -314,14 +314,14 @@ fn ler_csv_preserva_split_parse_falhas_e_lista_resultante() {
     let valido = Sujeito::novo(
         "issue522_csv_ler_valido",
         r#"
-pacote main;
+pacote main; trazer csv.emitir_linha_bombom; trazer csv.ler_linha_bombom; trazer lista.bombom_obter; trazer lista.bombom_tamanho;
 carinho principal() -> bombom {
-    nova itens: lista<bombom> = ler_linha_csv_bombom("7;11;13", ";");
-    falar(lista_bombom_tamanho(itens));
-    falar(lista_bombom_obter(itens, 0));
-    falar(lista_bombom_obter(itens, 1));
-    falar(lista_bombom_obter(itens, 2));
-    falar(emitir_linha_csv_bombom(itens, ";"));
+    nova itens: lista<bombom> = ler_linha_bombom("7;11;13", ";");
+    falar(bombom_tamanho(itens));
+    falar(bombom_obter(itens, 0));
+    falar(bombom_obter(itens, 1));
+    falar(bombom_obter(itens, 2));
+    falar(emitir_linha_bombom(itens, ";"));
     mimo 0;
 }
 "#,
@@ -343,10 +343,10 @@ carinho principal() -> bombom {
     ] {
         let fonte = format!(
             r#"
-pacote main;
+pacote main; trazer csv.ler_linha_bombom; trazer lista.bombom_tamanho;
 carinho principal() -> bombom {{
-    nova itens: lista<bombom> = ler_linha_csv_bombom("{linha}", ",");
-    mimo lista_bombom_tamanho(itens);
+    nova itens: lista<bombom> = ler_linha_bombom("{linha}", ",");
+    mimo bombom_tamanho(itens);
 }}
 "#
         );
@@ -363,10 +363,10 @@ carinho principal() -> bombom {{
     let separador_vazio = Sujeito::novo(
         "issue522_csv_ler_sep_vazio",
         r#"
-pacote main;
+pacote main; trazer csv.ler_linha_bombom; trazer lista.bombom_tamanho;
 carinho principal() -> bombom {
-    nova itens: lista<bombom> = ler_linha_csv_bombom("1", "");
-    mimo lista_bombom_tamanho(itens);
+    nova itens: lista<bombom> = ler_linha_bombom("1", "");
+    mimo bombom_tamanho(itens);
 }
 "#,
         &runtime_lib,
@@ -393,7 +393,7 @@ fn sair_preserva_status_clamp_e_inalcancabilidade() {
     ] {
         let fonte = format!(
             r#"
-pacote main;
+pacote main; trazer processo.sair;
 carinho principal() -> bombom {{
     sair({codigo});
     falar("inalcançável");

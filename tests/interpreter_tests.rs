@@ -220,16 +220,16 @@ fn run_verso_operacional_minimo_em_local_parametro_retorno() {
 fn run_verso_concat_minimo_e_comprimento_minimo_funcionam() {
     let out = run_code(
         r#"
-        pacote main;
+        pacote main; trazer texto.juntar; trazer texto.tamanho;
         carinho junta(a: verso, b: verso) -> verso {
-            mimo juntar_verso(a, b);
+            mimo juntar(a, b);
         }
         carinho principal() -> bombom {
             nova base: verso = "la";
             nova fim: verso = "li";
             nova texto: verso = junta(base, fim);
             falar(texto);
-            nova n: bombom = tamanho_verso(texto);
+            nova n: bombom = tamanho(texto);
             mimo n;
         }"#,
     )
@@ -241,12 +241,12 @@ fn run_verso_concat_minimo_e_comprimento_minimo_funcionam() {
 fn run_indice_verso_minimo_funciona_e_pode_ir_para_falar() {
     let out = run_code(
         r#"
-        pacote main;
+        pacote main; trazer texto.indice; trazer texto.tamanho;
         carinho principal() -> bombom {
             nova texto: verso = "lua";
-            nova letra: verso = indice_verso(texto, 1);
+            nova letra: verso = indice(texto, 1);
             falar(letra);
-            mimo tamanho_verso(letra);
+            mimo tamanho(letra);
         }"#,
     )
     .unwrap();
@@ -257,10 +257,10 @@ fn run_indice_verso_minimo_funciona_e_pode_ir_para_falar() {
 fn run_indice_verso_falha_com_indice_fora_da_faixa() {
     let err = run_code(
         r#"
-        pacote main;
+        pacote main; trazer texto.indice;
         carinho principal() -> bombom {
             nova texto: verso = "oi";
-            nova letra: verso = indice_verso(texto, 2);
+            nova letra: verso = indice(texto, 2);
             falar(letra);
             mimo 0;
         }"#,
@@ -277,9 +277,9 @@ fn run_indice_verso_falha_com_indice_fora_da_faixa() {
 fn run_contem_verso_intrinseca_true_em_caso_positivo() {
     let out = run_code(
         r#"
-        pacote main;
+        pacote main; trazer texto.contem;
         carinho principal() -> bombom {
-            nova ok: logica = contem_verso("pinker v0", "ker");
+            nova ok: logica = contem("pinker v0", "ker");
             falar(ok);
             talvez ok {
                 mimo 1;
@@ -296,9 +296,9 @@ fn run_contem_verso_intrinseca_true_em_caso_positivo() {
 fn run_contem_verso_intrinseca_false_em_caso_negativo() {
     let out = run_code(
         r#"
-        pacote main;
+        pacote main; trazer texto.contem;
         carinho principal() -> bombom {
-            nova ok: logica = contem_verso("pinker v0", "zzz");
+            nova ok: logica = contem("pinker v0", "zzz");
             falar(ok);
             talvez ok {
                 mimo 0;
@@ -315,7 +315,7 @@ fn run_contem_verso_intrinseca_false_em_caso_negativo() {
 fn run_comeca_com_intrinseca_true_em_caso_positivo() {
     let out = run_code(
         r#"
-        pacote main;
+        pacote main; trazer texto.comeca_com;
         carinho principal() -> bombom {
             nova ok: logica = comeca_com("pinker", "pin");
             falar(ok);
@@ -334,7 +334,7 @@ fn run_comeca_com_intrinseca_true_em_caso_positivo() {
 fn run_comeca_com_intrinseca_false_em_caso_negativo() {
     let out = run_code(
         r#"
-        pacote main;
+        pacote main; trazer texto.comeca_com;
         carinho principal() -> bombom {
             nova ok: logica = comeca_com("pinker", "ker");
             falar(ok);
@@ -353,7 +353,7 @@ fn run_comeca_com_intrinseca_false_em_caso_negativo() {
 fn run_termina_com_intrinseca_true_em_caso_positivo() {
     let out = run_code(
         r#"
-        pacote main;
+        pacote main; trazer texto.termina_com;
         carinho principal() -> bombom {
             nova ok: logica = termina_com("pinker", "ker");
             falar(ok);
@@ -372,7 +372,7 @@ fn run_termina_com_intrinseca_true_em_caso_positivo() {
 fn run_termina_com_intrinseca_false_em_caso_negativo() {
     let out = run_code(
         r#"
-        pacote main;
+        pacote main; trazer texto.termina_com;
         carinho principal() -> bombom {
             nova ok: logica = termina_com("pinker", "pin");
             falar(ok);
@@ -391,9 +391,9 @@ fn run_termina_com_intrinseca_false_em_caso_negativo() {
 fn run_igual_verso_intrinseca_true_em_caso_positivo() {
     let out = run_code(
         r#"
-        pacote main;
+        pacote main; trazer texto.igual;
         carinho principal() -> bombom {
-            nova ok: logica = igual_verso("pinker", "pinker");
+            nova ok: logica = igual("pinker", "pinker");
             falar(ok);
             talvez ok {
                 mimo 1;
@@ -410,9 +410,9 @@ fn run_igual_verso_intrinseca_true_em_caso_positivo() {
 fn run_igual_verso_intrinseca_false_em_caso_negativo() {
     let out = run_code(
         r#"
-        pacote main;
+        pacote main; trazer texto.igual;
         carinho principal() -> bombom {
-            nova ok: logica = igual_verso("pinker", "Pinker");
+            nova ok: logica = igual("pinker", "Pinker");
             falar(ok);
             talvez ok {
                 mimo 0;
@@ -429,9 +429,9 @@ fn run_igual_verso_intrinseca_false_em_caso_negativo() {
 fn run_vazio_verso_intrinseca_true_em_string_vazia() {
     let out = run_code(
         r#"
-        pacote main;
+        pacote main; trazer texto.vazio;
         carinho principal() -> bombom {
-            nova ok: logica = vazio_verso("");
+            nova ok: logica = vazio("");
             talvez ok { mimo 1; } senao { mimo 0; }
         }"#,
     )
@@ -443,9 +443,9 @@ fn run_vazio_verso_intrinseca_true_em_string_vazia() {
 fn run_vazio_verso_intrinseca_false_em_conteudo_real() {
     let out = run_code(
         r#"
-        pacote main;
+        pacote main; trazer texto.vazio;
         carinho principal() -> bombom {
-            nova ok: logica = vazio_verso("x");
+            nova ok: logica = vazio("x");
             talvez ok { mimo 0; } senao { mimo 1; }
         }"#,
     )
@@ -457,10 +457,10 @@ fn run_vazio_verso_intrinseca_false_em_conteudo_real() {
 fn run_aparar_verso_intrinseca_remove_bordas() {
     let out = run_code(
         r#"
-        pacote main;
+        pacote main; trazer texto.aparar; trazer texto.igual;
         carinho principal() -> bombom {
-            nova limpo: verso = aparar_verso("  pinker  ");
-            nova ok: logica = igual_verso(limpo, "pinker");
+            nova limpo: verso = aparar("  pinker  ");
+            nova ok: logica = igual(limpo, "pinker");
             talvez ok { mimo 1; } senao { mimo 0; }
         }"#,
     )
@@ -472,10 +472,10 @@ fn run_aparar_verso_intrinseca_remove_bordas() {
 fn run_aparar_verso_pode_resultar_em_vazio() {
     let out = run_code(
         r#"
-        pacote main;
+        pacote main; trazer texto.aparar; trazer texto.vazio;
         carinho principal() -> bombom {
-            nova limpo: verso = aparar_verso("   ");
-            nova ok: logica = vazio_verso(limpo);
+            nova limpo: verso = aparar("   ");
+            nova ok: logica = vazio(limpo);
             talvez ok { mimo 1; } senao { mimo 0; }
         }"#,
     )
@@ -487,10 +487,10 @@ fn run_aparar_verso_pode_resultar_em_vazio() {
 fn run_minusculo_verso_intrinseca_funciona_em_caso_positivo() {
     let out = run_code(
         r#"
-        pacote main;
+        pacote main; trazer texto.igual; trazer texto.minusculo;
         carinho principal() -> bombom {
-            nova texto: verso = minusculo_verso("PiNkEr V0");
-            nova ok: logica = igual_verso(texto, "pinker v0");
+            nova texto: verso = minusculo("PiNkEr V0");
+            nova ok: logica = igual(texto, "pinker v0");
             talvez ok { mimo 1; } senao { mimo 0; }
         }"#,
     )
@@ -502,10 +502,10 @@ fn run_minusculo_verso_intrinseca_funciona_em_caso_positivo() {
 fn run_maiusculo_verso_intrinseca_funciona_em_caso_positivo() {
     let out = run_code(
         r#"
-        pacote main;
+        pacote main; trazer texto.igual; trazer texto.maiusculo;
         carinho principal() -> bombom {
-            nova texto: verso = maiusculo_verso("PiNkEr v0");
-            nova ok: logica = igual_verso(texto, "PINKER V0");
+            nova texto: verso = maiusculo("PiNkEr v0");
+            nova ok: logica = igual(texto, "PINKER V0");
             talvez ok { mimo 1; } senao { mimo 0; }
         }"#,
     )
@@ -517,9 +517,9 @@ fn run_maiusculo_verso_intrinseca_funciona_em_caso_positivo() {
 fn run_indice_verso_em_intrinseca_retorna_primeira_posicao_em_caso_positivo() {
     let out = run_code(
         r#"
-        pacote main;
+        pacote main; trazer texto.indice_em;
         carinho principal() -> bombom {
-            nova pos: bombom = indice_verso_em("ola pinker", "pin");
+            nova pos: bombom = indice_em("ola pinker", "pin");
             talvez pos == 4 { mimo 1; } senao { mimo 0; }
         }"#,
     )
@@ -531,9 +531,9 @@ fn run_indice_verso_em_intrinseca_retorna_primeira_posicao_em_caso_positivo() {
 fn run_indice_verso_em_intrinseca_retorna_u64_max_quando_trecho_ausente() {
     let out = run_code(
         r#"
-        pacote main;
+        pacote main; trazer texto.indice_em;
         carinho principal() -> bombom {
-            nova pos: bombom = indice_verso_em("ola pinker", "zzz");
+            nova pos: bombom = indice_em("ola pinker", "zzz");
             talvez pos == 18446744073709551615 {
                 mimo 1;
             } senao {
@@ -547,9 +547,9 @@ fn run_indice_verso_em_intrinseca_retorna_u64_max_quando_trecho_ausente() {
 
 #[test]
 fn run_fase140_buscar_verso_retorna_primeira_ocorrencia() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer texto.buscar;
         carinho principal() -> bombom {
-            nova pos: bombom = buscar_verso("id=42;id=99", "id=");
+            nova pos: bombom = buscar("id=42;id=99", "id=");
             talvez pos == 0 {
                 mimo 140;
             }
@@ -561,9 +561,9 @@ fn run_fase140_buscar_verso_retorna_primeira_ocorrencia() {
 
 #[test]
 fn run_fase140_buscar_verso_retorna_u64_max_quando_ausente() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer texto.buscar;
         carinho principal() -> bombom {
-            nova pos: bombom = buscar_verso("nome:pinker", "zzz");
+            nova pos: bombom = buscar("nome:pinker", "zzz");
             talvez pos == 18446744073709551615 {
                 mimo 140;
             }
@@ -575,9 +575,9 @@ fn run_fase140_buscar_verso_retorna_u64_max_quando_ausente() {
 
 #[test]
 fn run_fase140_buscar_verso_padrao_vazio_falha() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer texto.buscar;
         carinho principal() -> bombom {
-            nova pos: bombom = buscar_verso("abc", "");
+            nova pos: bombom = buscar("abc", "");
             falar(pos);
             mimo 0;
         }"#;
@@ -589,9 +589,9 @@ fn run_fase140_buscar_verso_padrao_vazio_falha() {
 fn run_nao_vazio_verso_intrinseca_true_em_conteudo_real() {
     let out = run_code(
         r#"
-        pacote main;
+        pacote main; trazer texto.nao_vazio;
         carinho principal() -> bombom {
-            nova ok: logica = nao_vazio_verso("x");
+            nova ok: logica = nao_vazio("x");
             talvez ok { mimo 1; } senao { mimo 0; }
         }"#,
     )
@@ -603,9 +603,9 @@ fn run_nao_vazio_verso_intrinseca_true_em_conteudo_real() {
 fn run_nao_vazio_verso_intrinseca_false_em_string_vazia() {
     let out = run_code(
         r#"
-        pacote main;
+        pacote main; trazer texto.nao_vazio;
         carinho principal() -> bombom {
-            nova ok: logica = nao_vazio_verso("");
+            nova ok: logica = nao_vazio("");
             talvez ok { mimo 0; } senao { mimo 1; }
         }"#,
     )
@@ -622,11 +622,11 @@ fn run_nao_vazio_verso_intrinseca_false_em_string_vazia() {
 fn run_argumento_intrinseca_ler_posicional_minimo() {
     let out = run_code_with_args(
         r#"
-        pacote main;
+        pacote main; trazer ambiente.argumento; trazer texto.tamanho;
         carinho principal() -> bombom {
             nova nome: verso = argumento(0);
             falar("oi", nome);
-            mimo tamanho_verso(nome);
+            mimo tamanho(nome);
         }"#,
         &["Pinker"],
     )
@@ -657,7 +657,7 @@ fn run_argumento_intrinseca_falha_sem_arg_disponivel() {
 fn run_quantos_argumentos_intrinseca_conta_argv_posicional() {
     let out = run_code_with_args(
         r#"
-        pacote main;
+        pacote main; trazer ambiente.quantos_argumentos;
         carinho principal() -> bombom {
             nova total: bombom = quantos_argumentos();
             falar(total);
@@ -674,11 +674,11 @@ fn run_quantos_argumentos_intrinseca_conta_argv_posicional() {
 fn run_tem_argumento_intrinseca_integra_com_argumento() {
     let out = run_code_with_args(
         r#"
-        pacote main;
+        pacote main; trazer ambiente.argumento; trazer ambiente.tem_argumento; trazer processo.sair; trazer texto.tamanho;
         carinho principal() -> bombom {
             talvez tem_argumento(1) {
                 falar(argumento(1));
-                mimo tamanho_verso(argumento(1));
+                mimo tamanho(argumento(1));
             } senao {
                 falar("faltou");
                 sair(9);
@@ -696,7 +696,7 @@ fn run_tem_argumento_intrinseca_integra_com_argumento() {
 fn run_tem_argumento_intrinseca_false_sem_falha_de_argumento() {
     let out = run_code_with_args(
         r#"
-        pacote main;
+        pacote main; trazer ambiente.argumento; trazer ambiente.tem_argumento; trazer processo.sair;
         carinho principal() -> bombom {
             talvez tem_argumento(2) {
                 falar(argumento(2));
@@ -717,11 +717,11 @@ fn run_tem_argumento_intrinseca_false_sem_falha_de_argumento() {
 fn run_argumento_ou_intrinseca_usa_fallback_sem_arg() {
     let out = run_code_with_args(
         r#"
-        pacote main;
+        pacote main; trazer ambiente.argumento_ou; trazer texto.tamanho;
         carinho principal() -> bombom {
             nova nome: verso = argumento_ou(0, "visitante");
             falar("oi", nome);
-            mimo tamanho_verso(nome);
+            mimo tamanho(nome);
         }"#,
         &[],
     )
@@ -734,11 +734,11 @@ fn run_argumento_ou_intrinseca_usa_fallback_sem_arg() {
 fn run_argumento_ou_intrinseca_prioriza_arg_existente() {
     let out = run_code_with_args(
         r#"
-        pacote main;
+        pacote main; trazer ambiente.argumento_ou; trazer texto.tamanho;
         carinho principal() -> bombom {
             nova nome: verso = argumento_ou(0, "visitante");
             falar("oi", nome);
-            mimo tamanho_verso(nome);
+            mimo tamanho(nome);
         }"#,
         &["Pinker"],
     )
@@ -769,7 +769,7 @@ fn run_tem_chave_intrinseca_true_para_forma_separada() {
 fn run_tem_chave_intrinseca_true_para_forma_com_igual() {
     let out = run_code_with_args(
         r#"
-        pacote main;
+        pacote main; trazer ambiente.tem_chave;
         carinho principal() -> bombom {
             talvez tem_chave("--saida") {
                 mimo 1;
@@ -787,7 +787,7 @@ fn run_tem_chave_intrinseca_true_para_forma_com_igual() {
 fn run_tem_chave_intrinseca_false_quando_ausente() {
     let out = run_code_with_args(
         r#"
-        pacote main;
+        pacote main; trazer ambiente.tem_chave;
         carinho principal() -> bombom {
             talvez tem_chave("--inexistente") {
                 mimo 1;
@@ -805,11 +805,11 @@ fn run_tem_chave_intrinseca_false_quando_ausente() {
 fn run_pedir_argumento_retorna_valor_na_forma_separada() {
     let out = run_code_with_args(
         r#"
-        pacote main;
+        pacote main; trazer ambiente.pedir_argumento; trazer texto.tamanho;
         carinho principal() -> bombom {
             nova valor: verso = pedir_argumento("--saida", "padrao");
             falar(valor);
-            mimo tamanho_verso(valor);
+            mimo tamanho(valor);
         }"#,
         &["--saida", "resultado.txt"],
     )
@@ -821,11 +821,11 @@ fn run_pedir_argumento_retorna_valor_na_forma_separada() {
 fn run_pedir_argumento_retorna_valor_na_forma_com_igual() {
     let out = run_code_with_args(
         r#"
-        pacote main;
+        pacote main; trazer ambiente.pedir_argumento; trazer texto.tamanho;
         carinho principal() -> bombom {
             nova valor: verso = pedir_argumento("--saida", "padrao");
             falar(valor);
-            mimo tamanho_verso(valor);
+            mimo tamanho(valor);
         }"#,
         &["--saida=resultado.txt"],
     )
@@ -837,11 +837,11 @@ fn run_pedir_argumento_retorna_valor_na_forma_com_igual() {
 fn run_pedir_argumento_retorna_padrao_quando_ausente() {
     let out = run_code_with_args(
         r#"
-        pacote main;
+        pacote main; trazer ambiente.pedir_argumento; trazer texto.tamanho;
         carinho principal() -> bombom {
             nova valor: verso = pedir_argumento("--inexistente", "padrao");
             falar(valor);
-            mimo tamanho_verso(valor);
+            mimo tamanho(valor);
         }"#,
         &["--saida=resultado.txt"],
     )
@@ -853,7 +853,7 @@ fn run_pedir_argumento_retorna_padrao_quando_ausente() {
 fn run_pedir_argumento_falha_quando_chave_aparece_sem_valor() {
     let err = run_code_with_args(
         r#"
-        pacote main;
+        pacote main; trazer ambiente.pedir_argumento;
         carinho principal() -> bombom {
             nova valor: verso = pedir_argumento("--saida", "padrao");
             falar(valor);
@@ -873,7 +873,7 @@ fn run_pedir_argumento_falha_quando_chave_aparece_sem_valor() {
 fn run_tem_chave_rejeita_chave_vazia() {
     let err = run_code_with_args(
         r#"
-        pacote main;
+        pacote main; trazer ambiente.tem_chave;
         carinho principal() -> bombom {
             talvez tem_chave("") {
                 mimo 1;
@@ -895,7 +895,7 @@ fn run_tem_chave_rejeita_chave_vazia() {
 fn run_pedir_argumento_rejeita_chave_vazia() {
     let err = run_code_with_args(
         r#"
-        pacote main;
+        pacote main; trazer ambiente.pedir_argumento;
         carinho principal() -> bombom {
             nova valor: verso = pedir_argumento("", "padrao");
             falar(valor);
@@ -915,7 +915,7 @@ fn run_pedir_argumento_rejeita_chave_vazia() {
 fn run_tem_flag_verdade_quando_flag_presente() {
     let out = run_code_with_args(
         r#"
-        pacote main;
+        pacote main; trazer ambiente.tem_flag;
         carinho principal() -> bombom {
             talvez tem_flag("--quiet") {
                 mimo 1;
@@ -933,7 +933,7 @@ fn run_tem_flag_verdade_quando_flag_presente() {
 fn run_tem_flag_verdade_para_verbose() {
     let out = run_code_with_args(
         r#"
-        pacote main;
+        pacote main; trazer ambiente.tem_flag;
         carinho principal() -> bombom {
             talvez tem_flag("--verbose") {
                 mimo 1;
@@ -951,7 +951,7 @@ fn run_tem_flag_verdade_para_verbose() {
 fn run_tem_flag_falso_quando_ausente() {
     let out = run_code_with_args(
         r#"
-        pacote main;
+        pacote main; trazer ambiente.tem_flag;
         carinho principal() -> bombom {
             talvez tem_flag("--inexistente") {
                 mimo 1;
@@ -973,7 +973,7 @@ fn run_tem_flag_nao_infere_presenca_de_chave_com_valor_separado() {
     // O teste relevante é: --saida=valor (forma com =) não deve vazar como flag.
     let out = run_code_with_args(
         r#"
-        pacote main;
+        pacote main; trazer ambiente.tem_flag;
         carinho principal() -> bombom {
             talvez tem_flag("--saida") {
                 mimo 1;
@@ -992,7 +992,7 @@ fn run_tem_flag_nao_infere_presenca_de_chave_com_valor_separado() {
 fn run_tem_flag_coexiste_com_argumento_nomeado() {
     let out = run_code_with_args(
         r#"
-        pacote main;
+        pacote main; trazer ambiente.pedir_argumento; trazer ambiente.tem_flag;
         carinho principal() -> bombom {
             nova tem_quiet: logica = tem_flag("--quiet");
             nova saida: verso = pedir_argumento("--saida", "padrao.txt");
@@ -1013,7 +1013,7 @@ fn run_tem_flag_coexiste_com_argumento_nomeado() {
 fn run_tem_flag_rejeita_chave_vazia() {
     let err = run_code_with_args(
         r#"
-        pacote main;
+        pacote main; trazer ambiente.tem_flag;
         carinho principal() -> bombom {
             talvez tem_flag("") {
                 mimo 1;
@@ -1107,7 +1107,7 @@ fn run_buscar_contexto_falha_sem_mascarar_valor_ausente_por_ambiente() {
 fn run_buscar_contexto_rejeita_chave_de_argumento_vazia() {
     let err = run_code(
         r#"
-        pacote main;
+        pacote main; trazer ambiente.buscar_contexto;
         carinho principal() -> bombom {
             nova valor: verso = buscar_contexto("", "PINKER_FASE143", "padrao");
             falar(valor);
@@ -1126,7 +1126,7 @@ fn run_buscar_contexto_rejeita_chave_de_argumento_vazia() {
 fn run_buscar_contexto_rejeita_chave_de_ambiente_vazia() {
     let err = run_code(
         r#"
-        pacote main;
+        pacote main; trazer ambiente.buscar_contexto;
         carinho principal() -> bombom {
             nova valor: verso = buscar_contexto("--saida", "", "padrao");
             falar(valor);
@@ -2941,11 +2941,11 @@ fn run_arquivo_escrita_minima_com_leitura_no_mesmo_handle() {
     let file_path_literal = file_path.to_string_lossy().replace('\\', "\\\\");
     let code = format!(
         r#"
-        pacote main;
+        pacote main; trazer arquivo.abrir; trazer arquivo.escrever_bombom; trazer arquivo.fechar; trazer arquivo.ler_bombom;
         carinho principal() -> bombom {{
             nova h: bombom = abrir("{file_path_literal}");
-            escrever(h, 42);
-            nova v: bombom = ler_arquivo(h);
+            escrever_bombom(h, 42);
+            nova v: bombom = ler_bombom(h);
             fechar(h);
             mimo v;
         }}
@@ -2985,14 +2985,14 @@ fn run_criar_arquivo_e_escrever_verso_minimos_funcionam_com_releitura() {
     file_path.push(unique);
     let source = format!(
         r#"
-        pacote main;
+        pacote main; trazer arquivo.criar; trazer arquivo.escrever_verso; trazer arquivo.fechar; trazer arquivo.ler_verso; trazer texto.tamanho;
         carinho principal() -> bombom {{
-            nova h: bombom = criar_arquivo("{}");
+            nova h: bombom = criar("{}");
             escrever_verso(h, "olá pinker");
-            nova lido: verso = ler_verso_arquivo(h);
+            nova lido: verso = ler_verso(h);
             fechar(h);
             falar(lido);
-            mimo tamanho_verso(lido);
+            mimo tamanho(lido);
         }}"#,
         file_path.to_string_lossy().replace('\\', "\\\\")
     );
@@ -3032,19 +3032,19 @@ fn run_truncar_arquivo_minimo_funciona_e_reflete_em_tamanho_e_vazio() {
             .as_nanos()
     ));
     let source = format!(
-        r#"pacote main;
+        r#"pacote main; trazer arquivo.criar; trazer arquivo.escrever_verso; trazer arquivo.fechar; trazer arquivo.ler_verso; trazer arquivo.truncar; trazer caminho.arquivo_vazio; trazer caminho.tamanho_arquivo; trazer texto.tamanho;
         carinho principal() -> bombom {{
-            nova h: bombom = criar_arquivo("{}");
+            nova h: bombom = criar("{}");
             escrever_verso(h, "conteudo fase 102");
-            truncar_arquivo(h);
-            nova texto: verso = ler_verso_arquivo(h);
+            truncar(h);
+            nova texto: verso = ler_verso(h);
             fechar(h);
             nova t: bombom = tamanho_arquivo("{}");
-            nova v: logica = e_vazio("{}");
-            falar(t, v, tamanho_verso(texto));
+            nova v: logica = arquivo_vazio("{}");
+            falar(t, v, tamanho(texto));
             talvez t == 0 {{
                 talvez v {{
-                    talvez tamanho_verso(texto) == 0 {{
+                    talvez tamanho(texto) == 0 {{
                         mimo 1;
                     }} senao {{
                         mimo 0;
@@ -3070,9 +3070,9 @@ fn run_truncar_arquivo_minimo_funciona_e_reflete_em_tamanho_e_vazio() {
 #[test]
 fn run_truncar_arquivo_falha_com_handle_invalido() {
     let err = run_code(
-        r#"pacote main;
+        r#"pacote main; trazer arquivo.truncar;
         carinho principal() -> bombom {
-            truncar_arquivo(999);
+            truncar(999);
             mimo 0;
         }"#,
     )
@@ -3097,11 +3097,11 @@ fn run_truncar_arquivo_falha_apos_fechar_handle() {
     ));
     std::fs::write(&file_path, "x").expect("falha ao preparar arquivo");
     let source = format!(
-        r#"pacote main;
+        r#"pacote main; trazer arquivo.abrir; trazer arquivo.fechar; trazer arquivo.truncar;
         carinho principal() -> bombom {{
             nova h: bombom = abrir("{}");
             fechar(h);
-            truncar_arquivo(h);
+            truncar(h);
             mimo 0;
         }}"#,
         file_path.to_string_lossy().replace('\\', "\\\\")
@@ -3139,20 +3139,20 @@ fn run_abrir_anexo_e_anexar_verso_minimos_funcionam_com_releitura() {
 
     let source = format!(
         r#"
-        pacote main;
+        pacote main; trazer arquivo.abrir_anexo; trazer arquivo.anexar_verso; trazer arquivo.criar; trazer arquivo.escrever_verso; trazer arquivo.fechar; trazer arquivo.ler_verso; trazer caminho.tamanho_arquivo; trazer texto.igual;
         carinho principal() -> bombom {{
             nova alvo: verso = "{}";
-            nova criado: bombom = criar_arquivo(alvo);
+            nova criado: bombom = criar(alvo);
             escrever_verso(criado, "base");
             fechar(criado);
             nova h: bombom = abrir_anexo(alvo);
             anexar_verso(h, "-A");
             anexar_verso(h, "-B");
-            nova texto: verso = ler_verso_arquivo(h);
+            nova texto: verso = ler_verso(h);
             fechar(h);
             nova tam: bombom = tamanho_arquivo(alvo);
             falar(texto, tam);
-            talvez igual_verso(texto, "base-A-B") {{
+            talvez igual(texto, "base-A-B") {{
                 talvez tam == 8 {{
                     mimo 1;
                 }} senao {{
@@ -3173,7 +3173,7 @@ fn run_abrir_anexo_e_anexar_verso_minimos_funcionam_com_releitura() {
 fn run_anexar_verso_falha_com_handle_invalido() {
     let err = run_code(
         r#"
-        pacote main;
+        pacote main; trazer arquivo.anexar_verso;
         carinho principal() -> bombom {
             anexar_verso(999, "x");
             mimo 0;
@@ -3203,7 +3203,7 @@ fn run_anexar_verso_falha_apos_fechar_handle() {
 
     let source = format!(
         r#"
-        pacote main;
+        pacote main; trazer arquivo.abrir_anexo; trazer arquivo.anexar_verso; trazer arquivo.fechar;
         carinho principal() -> bombom {{
             nova h: bombom = abrir_anexo("{}");
             fechar(h);
@@ -3237,7 +3237,7 @@ fn run_anexar_verso_falha_em_handle_aberto_sem_append() {
 
     let source = format!(
         r#"
-        pacote main;
+        pacote main; trazer arquivo.abrir; trazer arquivo.anexar_verso; trazer arquivo.fechar;
         carinho principal() -> bombom {{
             nova h: bombom = abrir("{}");
             anexar_verso(h, "x");
@@ -3258,7 +3258,7 @@ fn run_anexar_verso_falha_em_handle_aberto_sem_append() {
 #[test]
 fn run_abrir_anexo_falha_com_caminho_invalido() {
     let source = r#"
-        pacote main;
+        pacote main; trazer arquivo.abrir_anexo; trazer arquivo.fechar;
         carinho principal() -> bombom {
             nova h: bombom = abrir_anexo("/pinker/fase108/caminho/invalido/arquivo.txt");
             fechar(h);
@@ -3287,15 +3287,15 @@ fn run_ler_arquivo_verso_minimo_por_caminho_funciona() {
 
     let source = format!(
         r#"
-        pacote main;
+        pacote main; trazer arquivo.criar; trazer arquivo.escrever_verso; trazer arquivo.fechar; trazer arquivo.ler_caminho_verso; trazer texto.contem; trazer texto.igual;
         carinho principal() -> bombom {{
             nova alvo: verso = "{}";
-            nova h: bombom = criar_arquivo(alvo);
+            nova h: bombom = criar(alvo);
             escrever_verso(h, "fase109-ok");
             fechar(h);
-            nova texto: verso = ler_arquivo_verso(alvo);
-            falar(texto, contem_verso(texto, "109"));
-            talvez igual_verso(texto, "fase109-ok") {{
+            nova texto: verso = ler_caminho_verso(alvo);
+            falar(texto, contem(texto, "109"));
+            talvez igual(texto, "fase109-ok") {{
                 mimo 1;
             }} senao {{
                 mimo 0;
@@ -3311,11 +3311,11 @@ fn run_ler_arquivo_verso_minimo_por_caminho_funciona() {
 #[test]
 fn run_arquivo_ou_retorna_padrao_para_caminho_ausente() {
     let source = r#"
-        pacote main;
+        pacote main; trazer arquivo.ler_caminho_ou; trazer texto.igual; trazer texto.nao_vazio;
         carinho principal() -> bombom {
-            nova texto: verso = arquivo_ou("__pinker_fase109_nao_existe__.txt", "padrao109");
-            falar(texto, nao_vazio_verso(texto));
-            talvez igual_verso(texto, "padrao109") {
+            nova texto: verso = ler_caminho_ou("__pinker_fase109_nao_existe__.txt", "padrao109");
+            falar(texto, nao_vazio(texto));
+            talvez igual(texto, "padrao109") {
                 mimo 1;
             } senao {
                 mimo 0;
@@ -3328,9 +3328,9 @@ fn run_arquivo_ou_retorna_padrao_para_caminho_ausente() {
 #[test]
 fn run_ler_arquivo_verso_falha_com_caminho_invalido() {
     let source = r#"
-        pacote main;
+        pacote main; trazer arquivo.ler_caminho_verso;
         carinho principal() -> bombom {
-            nova texto: verso = ler_arquivo_verso("/pinker/fase109/caminho/invalido.txt");
+            nova texto: verso = ler_caminho_verso("/pinker/fase109/caminho/invalido.txt");
             falar(texto);
             mimo 0;
         }"#;
@@ -3375,10 +3375,10 @@ fn run_ouvir_verso_ou_retorna_padrao_em_eof_imediato() {
     fs::write(
         &file_path,
         r#"
-pacote main;
+pacote main; trazer entrada.ouvir_verso_ou; trazer texto.igual;
 carinho principal() -> bombom {
     nova texto: verso = ouvir_verso_ou("padrao110");
-    falar(texto, igual_verso(texto, "padrao110"));
+    falar(texto, igual(texto, "padrao110"));
     mimo 0;
 }"#,
     )
@@ -3429,19 +3429,19 @@ fn run_criar_arquivo_e_escrever_verso_integram_com_argumento_ou_e_juntar_caminho
     std::fs::create_dir(&base_dir).expect("falha ao criar diretório-base");
     let source = format!(
         r#"
-        pacote main;
+        pacote main; trazer ambiente.argumento_ou; trazer arquivo.criar; trazer arquivo.escrever_verso; trazer arquivo.fechar; trazer arquivo.ler_verso; trazer caminho.e_arquivo; trazer caminho.existe; trazer caminho.juntar; trazer texto.tamanho;
         carinho principal() -> bombom {{
             nova base: verso = "{}";
             nova nome: verso = argumento_ou(0, "saida.txt");
-            nova alvo: verso = juntar_caminho(base, nome);
-            nova h: bombom = criar_arquivo(alvo);
+            nova alvo: verso = juntar(base, nome);
+            nova h: bombom = criar(alvo);
             escrever_verso(h, "ok");
-            nova texto: verso = ler_verso_arquivo(h);
+            nova texto: verso = ler_verso(h);
             fechar(h);
-            falar(caminho_existe(alvo), e_arquivo(alvo), texto);
-            talvez caminho_existe(alvo) {{
+            falar(existe(alvo), e_arquivo(alvo), texto);
+            talvez existe(alvo) {{
                 talvez e_arquivo(alvo) {{
-                    talvez tamanho_verso(texto) == 2 {{
+                    talvez tamanho(texto) == 2 {{
                         mimo 1;
                     }} senao {{
                         mimo 0;
@@ -3687,7 +3687,7 @@ fn cli_run_argumento_faltando_falha_com_erro_claro() {
 
 #[test]
 fn cli_run_quantos_e_tem_argumento_minimos_funcionam() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer ambiente.argumento; trazer ambiente.quantos_argumentos; trazer ambiente.tem_argumento; trazer processo.sair;
 carinho principal() -> bombom {
     falar(quantos_argumentos());
     talvez tem_argumento(1) {
@@ -3870,9 +3870,9 @@ fn cli_run_buscar_contexto_falha_sem_valor_mesmo_com_env() {
 fn run_legado_tem_argumento_nomeado_permanece_operacional() {
     let out = run_code_with_args(
         r#"
-        pacote main;
+        pacote main; trazer ambiente.tem_chave;
         carinho principal() -> bombom {
-            talvez tem_argumento_nomeado("--saida") {
+            talvez tem_chave("--saida") {
                 mimo 1;
             } senao {
                 mimo 0;
@@ -3893,9 +3893,9 @@ fn run_legado_tem_argumento_nomeado_permanece_operacional() {
 fn run_caminho_existe_intrinseca_true_para_arquivo_existente() {
     let out = run_code(
         r#"
-        pacote main;
+        pacote main; trazer caminho.existe;
         carinho principal() -> bombom {
-            talvez caminho_existe("README.md") {
+            talvez existe("README.md") {
                 mimo 1;
             } senao {
                 mimo 0;
@@ -3910,9 +3910,9 @@ fn run_caminho_existe_intrinseca_true_para_arquivo_existente() {
 fn run_caminho_existe_intrinseca_false_para_caminho_ausente() {
     let out = run_code(
         r#"
-        pacote main;
+        pacote main; trazer caminho.existe;
         carinho principal() -> bombom {
-            talvez caminho_existe("__pinker_fase96_nao_existe__.pink") {
+            talvez existe("__pinker_fase96_nao_existe__.pink") {
                 mimo 1;
             } senao {
                 mimo 0;
@@ -3927,10 +3927,10 @@ fn run_caminho_existe_intrinseca_false_para_caminho_ausente() {
 fn run_e_arquivo_intrinseca_distingue_arquivo_de_diretorio() {
     let out = run_code(
         r#"
-        pacote main;
+        pacote main; trazer caminho.diretorio_atual; trazer caminho.e_arquivo; trazer caminho.existe;
         carinho principal() -> bombom {
             nova cwd: verso = diretorio_atual();
-            falar(cwd, caminho_existe(cwd), e_arquivo(cwd));
+            falar(cwd, existe(cwd), e_arquivo(cwd));
             talvez e_arquivo("README.md") {
                 mimo 1;
             } senao {
@@ -3946,7 +3946,7 @@ fn run_e_arquivo_intrinseca_distingue_arquivo_de_diretorio() {
 fn run_e_diretorio_intrinseca_true_para_diretorio_existente() {
     let out = run_code(
         r#"
-        pacote main;
+        pacote main; trazer caminho.e_diretorio;
         carinho principal() -> bombom {
             talvez e_diretorio(".") {
                 mimo 1;
@@ -3963,7 +3963,7 @@ fn run_e_diretorio_intrinseca_true_para_diretorio_existente() {
 fn run_e_diretorio_intrinseca_false_para_arquivo_e_caminho_ausente() {
     let out = run_code(
         r#"
-        pacote main;
+        pacote main; trazer caminho.e_diretorio;
         carinho principal() -> bombom {
             nova arquivo: logica = e_diretorio("README.md");
             nova ausente: logica = e_diretorio("__pinker_fase97_nao_existe__.pink");
@@ -3986,12 +3986,12 @@ fn run_e_diretorio_intrinseca_false_para_arquivo_e_caminho_ausente() {
 fn run_juntar_caminho_intrinseca_compoe_sem_prometer_canonicalizacao() {
     let out = run_code(
         r#"
-        pacote main;
+        pacote main; trazer ambiente.argumento_ou; trazer caminho.diretorio_atual; trazer caminho.e_diretorio; trazer caminho.existe; trazer caminho.juntar;
         carinho principal() -> bombom {
             nova cwd: verso = diretorio_atual();
-            nova alvo: verso = juntar_caminho(cwd, argumento_ou(0, "README.md"));
-            falar(alvo, caminho_existe(alvo), e_diretorio(alvo));
-            talvez caminho_existe(alvo) {
+            nova alvo: verso = juntar(cwd, argumento_ou(0, "README.md"));
+            falar(alvo, existe(alvo), e_diretorio(alvo));
+            talvez existe(alvo) {
                 talvez e_diretorio(alvo) {
                     mimo 2;
                 } senao {
@@ -4021,7 +4021,7 @@ fn run_tamanho_arquivo_intrinseca_retorna_tamanho_de_arquivo_existente() {
     std::fs::write(&file_path, "12345").expect("falha ao gravar arquivo temporário");
     let source = format!(
         r#"
-        pacote main;
+        pacote main; trazer caminho.tamanho_arquivo;
         carinho principal() -> bombom {{
             mimo tamanho_arquivo("{}");
         }}"#,
@@ -4047,9 +4047,9 @@ fn run_e_vazio_intrinseca_true_para_arquivo_vazio() {
     std::fs::write(&file_path, "").expect("falha ao gravar arquivo vazio temporário");
     let source = format!(
         r#"
-        pacote main;
+        pacote main; trazer caminho.arquivo_vazio;
         carinho principal() -> bombom {{
-            talvez e_vazio("{}") {{
+            talvez arquivo_vazio("{}") {{
                 mimo 1;
             }} senao {{
                 mimo 0;
@@ -4066,7 +4066,7 @@ fn run_e_vazio_intrinseca_true_para_arquivo_vazio() {
 fn run_tamanho_arquivo_intrinseca_falha_para_caminho_ausente() {
     let err = run_code(
         r#"
-        pacote main;
+        pacote main; trazer caminho.tamanho_arquivo;
         carinho principal() -> bombom {
             mimo tamanho_arquivo("__pinker_fase98_nao_existe__.txt");
         }"#,
@@ -4080,14 +4080,14 @@ fn run_tamanho_arquivo_intrinseca_falha_para_caminho_ausente() {
 fn run_tamanho_arquivo_e_e_vazio_integram_com_argumento_ou_e_juntar_caminho() {
     let out = run_code(
         r#"
-        pacote main;
+        pacote main; trazer ambiente.argumento_ou; trazer caminho.arquivo_vazio; trazer caminho.diretorio_atual; trazer caminho.e_arquivo; trazer caminho.existe; trazer caminho.juntar; trazer caminho.tamanho_arquivo;
         carinho principal() -> bombom {
             nova base: verso = diretorio_atual();
             nova nome: verso = argumento_ou(0, "README.md");
-            nova alvo: verso = juntar_caminho(base, nome);
+            nova alvo: verso = juntar(base, nome);
             nova t: bombom = tamanho_arquivo(alvo);
-            nova v: logica = e_vazio(alvo);
-            falar(alvo, caminho_existe(alvo), e_arquivo(alvo), t, v);
+            nova v: logica = arquivo_vazio(alvo);
+            falar(alvo, existe(alvo), e_arquivo(alvo), t, v);
             talvez t > 0 {
                 talvez v {
                     mimo 0;
@@ -4117,7 +4117,7 @@ fn run_criar_diretorio_intrinseca_cria_diretorio_simples() {
     dir_path.push(unique);
     let source = format!(
         r#"
-        pacote main;
+        pacote main; trazer caminho.criar_diretorio; trazer caminho.e_diretorio;
         carinho principal() -> bombom {{
             criar_diretorio("{}");
             talvez e_diretorio("{}") {{
@@ -4149,10 +4149,10 @@ fn run_remover_arquivo_intrinseca_remove_arquivo_simples() {
     std::fs::write(&file_path, "42").expect("falha ao criar arquivo temporário");
     let source = format!(
         r#"
-        pacote main;
+        pacote main; trazer caminho.existe; trazer caminho.remover_arquivo;
         carinho principal() -> bombom {{
             remover_arquivo("{}");
-            talvez caminho_existe("{}") {{
+            talvez existe("{}") {{
                 mimo 0;
             }} senao {{
                 mimo 1;
@@ -4180,7 +4180,7 @@ fn run_remover_arquivo_intrinseca_falha_para_diretorio() {
     std::fs::create_dir(&dir_path).expect("falha ao criar diretório temporário");
     let source = format!(
         r#"
-        pacote main;
+        pacote main; trazer caminho.remover_arquivo;
         carinho principal() -> bombom {{
             remover_arquivo("{}");
             mimo 0;
@@ -4207,10 +4207,10 @@ fn run_remover_diretorio_intrinseca_remove_diretorio_vazio() {
     std::fs::create_dir(&dir_path).expect("falha ao criar diretório temporário");
     let source = format!(
         r#"
-        pacote main;
+        pacote main; trazer caminho.existe; trazer caminho.remover_diretorio;
         carinho principal() -> bombom {{
             remover_diretorio("{}");
-            talvez caminho_existe("{}") {{
+            talvez existe("{}") {{
                 mimo 0;
             }} senao {{
                 mimo 1;
@@ -4240,7 +4240,7 @@ fn run_remover_diretorio_intrinseca_falha_para_diretorio_nao_vazio() {
     std::fs::write(&child_path, "conteudo").expect("falha ao criar arquivo no diretório");
     let source = format!(
         r#"
-        pacote main;
+        pacote main; trazer caminho.remover_diretorio;
         carinho principal() -> bombom {{
             remover_diretorio("{}");
             mimo 0;
@@ -4268,13 +4268,13 @@ fn run_ler_verso_arquivo_intrinseca_retorna_texto_completo() {
     std::fs::write(&file_path, "linha 1\nlinha 2\n").expect("falha ao criar arquivo temporário");
     let source = format!(
         r#"
-        pacote main;
+        pacote main; trazer arquivo.abrir; trazer arquivo.fechar; trazer arquivo.ler_verso; trazer texto.tamanho;
         carinho principal() -> bombom {{
             nova h: bombom = abrir("{}");
-            nova t: verso = ler_verso_arquivo(h);
+            nova t: verso = ler_verso(h);
             fechar(h);
             falar(t);
-            mimo tamanho_verso(t);
+            mimo tamanho(t);
         }}"#,
         file_path.to_string_lossy().replace('\\', "\\\\")
     );
@@ -4299,12 +4299,12 @@ fn run_contem_e_comeca_com_integram_com_ler_verso_arquivo() {
         .expect("falha ao criar arquivo da fase 103");
     let source = format!(
         r#"
-        pacote main;
+        pacote main; trazer arquivo.abrir; trazer arquivo.fechar; trazer arquivo.ler_verso; trazer texto.comeca_com; trazer texto.contem;
         carinho principal() -> bombom {{
             nova h: bombom = abrir("{}");
-            nova texto: verso = ler_verso_arquivo(h);
+            nova texto: verso = ler_verso(h);
             fechar(h);
-            nova tem: logica = contem_verso(texto, "conteudo");
+            nova tem: logica = contem(texto, "conteudo");
             nova prefixo_ok: logica = comeca_com(texto, "prefixo:");
             falar(tem, prefixo_ok);
             talvez tem {{
@@ -4339,13 +4339,13 @@ fn run_termina_com_e_igual_verso_integram_com_ler_verso_arquivo() {
     std::fs::write(&file_path, "status: ok").expect("falha ao criar arquivo da fase 104");
     let source = format!(
         r#"
-        pacote main;
+        pacote main; trazer arquivo.abrir; trazer arquivo.fechar; trazer arquivo.ler_verso; trazer texto.igual; trazer texto.termina_com;
         carinho principal() -> bombom {{
             nova h: bombom = abrir("{}");
-            nova texto: verso = ler_verso_arquivo(h);
+            nova texto: verso = ler_verso(h);
             fechar(h);
             nova sufixo_ok: logica = termina_com(texto, "ok");
-            nova igual_ok: logica = igual_verso(texto, "status: ok");
+            nova igual_ok: logica = igual(texto, "status: ok");
             falar(sufixo_ok, igual_ok);
             talvez sufixo_ok {{
                 talvez igual_ok {{
@@ -4415,15 +4415,15 @@ fn run_minusculo_e_maiusculo_verso_integram_com_ler_verso_arquivo_e_contem() {
     std::fs::write(&file_path, "PiNkEr v0").expect("falha ao criar arquivo da fase 106");
     let source = format!(
         r#"
-        pacote main;
+        pacote main; trazer arquivo.abrir; trazer arquivo.fechar; trazer arquivo.ler_verso; trazer texto.contem; trazer texto.igual; trazer texto.maiusculo; trazer texto.minusculo;
         carinho principal() -> bombom {{
             nova h: bombom = abrir("{}");
-            nova texto: verso = ler_verso_arquivo(h);
+            nova texto: verso = ler_verso(h);
             fechar(h);
-            nova baixo: verso = minusculo_verso(texto);
-            nova alto: verso = maiusculo_verso(texto);
-            nova ok_baixo: logica = contem_verso(baixo, "pinker");
-            nova ok_alto: logica = igual_verso(alto, "PINKER V0");
+            nova baixo: verso = minusculo(texto);
+            nova alto: verso = maiusculo(texto);
+            nova ok_baixo: logica = contem(baixo, "pinker");
+            nova ok_alto: logica = igual(alto, "PINKER V0");
             falar(ok_baixo, ok_alto);
             talvez ok_baixo {{
                 talvez ok_alto {{
@@ -4457,14 +4457,14 @@ fn run_indice_verso_em_e_nao_vazio_verso_integram_com_ler_verso_arquivo_e_aparar
     std::fs::write(&file_path, "   pinker v0   ").expect("falha ao criar arquivo da fase 107");
     let source = format!(
         r#"
-        pacote main;
+        pacote main; trazer arquivo.abrir; trazer arquivo.fechar; trazer arquivo.ler_verso; trazer texto.aparar; trazer texto.indice_em; trazer texto.nao_vazio;
         carinho principal() -> bombom {{
             nova h: bombom = abrir("{}");
-            nova bruto: verso = ler_verso_arquivo(h);
+            nova bruto: verso = ler_verso(h);
             fechar(h);
-            nova texto: verso = aparar_verso(bruto);
-            nova pos: bombom = indice_verso_em(texto, "v0");
-            nova ok: logica = nao_vazio_verso(texto);
+            nova texto: verso = aparar(bruto);
+            nova pos: bombom = indice_em(texto, "v0");
+            nova ok: logica = nao_vazio(texto);
             falar(pos, ok);
             talvez ok {{
                 talvez pos == 7 {{
@@ -4500,21 +4500,21 @@ fn run_remover_diretorio_e_ler_verso_arquivo_integram_com_argumento_ou_e_juntar_
     std::fs::write(&file_path, "pinker").expect("falha ao criar arquivo temporário");
     let source = format!(
         r#"
-        pacote main;
+        pacote main; trazer ambiente.argumento_ou; trazer arquivo.abrir; trazer arquivo.fechar; trazer arquivo.ler_verso; trazer caminho.criar_diretorio; trazer caminho.e_diretorio; trazer caminho.existe; trazer caminho.juntar; trazer caminho.remover_diretorio; trazer texto.tamanho;
         carinho principal() -> bombom {{
             nova base: verso = "{}";
             nova nome_dir: verso = argumento_ou(0, "saida");
             nova nome_arquivo: verso = argumento_ou(1, "entrada.txt");
-            nova alvo_dir: verso = juntar_caminho(base, nome_dir);
-            nova alvo_arquivo: verso = juntar_caminho(base, nome_arquivo);
+            nova alvo_dir: verso = juntar(base, nome_dir);
+            nova alvo_arquivo: verso = juntar(base, nome_arquivo);
             criar_diretorio(alvo_dir);
             nova h: bombom = abrir(alvo_arquivo);
-            nova t: verso = ler_verso_arquivo(h);
+            nova t: verso = ler_verso(h);
             fechar(h);
             remover_diretorio(alvo_dir);
-            falar(tamanho_verso(t), caminho_existe(alvo_dir), e_diretorio(alvo_dir));
-            talvez tamanho_verso(t) > 0 {{
-                talvez caminho_existe(alvo_dir) {{
+            falar(tamanho(t), existe(alvo_dir), e_diretorio(alvo_dir));
+            talvez tamanho(t) > 0 {{
+                talvez existe(alvo_dir) {{
                     mimo 0;
                 }} senao {{
                     mimo 1;
@@ -4549,17 +4549,17 @@ fn run_criar_diretorio_e_remover_arquivo_integram_com_argumento_ou_e_juntar_cami
     std::fs::write(&file_path, "99").expect("falha ao criar arquivo temporário");
     let source = format!(
         r#"
-        pacote main;
+        pacote main; trazer ambiente.argumento_ou; trazer caminho.criar_diretorio; trazer caminho.e_arquivo; trazer caminho.e_diretorio; trazer caminho.existe; trazer caminho.juntar; trazer caminho.remover_arquivo;
         carinho principal() -> bombom {{
             nova base: verso = "{}";
             nova nome_dir: verso = argumento_ou(0, "saida");
-            nova alvo_dir: verso = juntar_caminho(base, nome_dir);
+            nova alvo_dir: verso = juntar(base, nome_dir);
             criar_diretorio(alvo_dir);
-            nova arquivo: verso = juntar_caminho(base, "temp.txt");
+            nova arquivo: verso = juntar(base, "temp.txt");
             remover_arquivo(arquivo);
-            falar(caminho_existe(alvo_dir), e_diretorio(alvo_dir), caminho_existe(arquivo), e_arquivo(arquivo));
+            falar(existe(alvo_dir), e_diretorio(alvo_dir), existe(arquivo), e_arquivo(arquivo));
             talvez e_diretorio(alvo_dir) {{
-                talvez caminho_existe(arquivo) {{
+                talvez existe(arquivo) {{
                     mimo 0;
                 }} senao {{
                     mimo 1;
@@ -4778,7 +4778,7 @@ fn cli_run_abrir_arquivo_inexistente_falha_com_erro_claro() {
     script_path.push(unique);
     std::fs::write(
         &script_path,
-        r#"pacote t;
+        r#"pacote t; trazer arquivo.abrir; trazer arquivo.fechar;
 carinho principal() -> bombom {
     nova h: bombom = abrir("arquivo_que_nao_existe_12345.txt");
     fechar(h);
@@ -5506,11 +5506,11 @@ fn run_hf3_ler_arquivo_falha_apos_fechar_handle() {
     ));
     std::fs::write(&file_path, "42").expect("falha ao criar fixture");
     let source = format!(
-        r#"pacote main;
+        r#"pacote main; trazer arquivo.abrir; trazer arquivo.fechar; trazer arquivo.ler_bombom;
         carinho principal() -> bombom {{
             nova h: bombom = abrir("{}");
             fechar(h);
-            nova v: bombom = ler_arquivo(h);
+            nova v: bombom = ler_bombom(h);
             mimo v;
         }}"#,
         file_path.to_string_lossy().replace('\\', "\\\\")
@@ -5537,11 +5537,11 @@ fn run_hf3_ler_verso_arquivo_falha_apos_fechar_handle() {
     ));
     std::fs::write(&file_path, "texto").expect("falha ao criar fixture");
     let source = format!(
-        r#"pacote main;
+        r#"pacote main; trazer arquivo.abrir; trazer arquivo.fechar; trazer arquivo.ler_verso;
         carinho principal() -> bombom {{
             nova h: bombom = abrir("{}");
             fechar(h);
-            nova v: verso = ler_verso_arquivo(h);
+            nova v: verso = ler_verso(h);
             mimo 0;
         }}"#,
         file_path.to_string_lossy().replace('\\', "\\\\")
@@ -5568,11 +5568,11 @@ fn run_hf3_escrever_falha_apos_fechar_handle() {
     ));
     std::fs::write(&file_path, "1").expect("falha ao criar fixture");
     let source = format!(
-        r#"pacote main;
+        r#"pacote main; trazer arquivo.abrir; trazer arquivo.escrever_bombom; trazer arquivo.fechar;
         carinho principal() -> bombom {{
             nova h: bombom = abrir("{}");
             fechar(h);
-            escrever(h, 99);
+            escrever_bombom(h, 99);
             mimo 0;
         }}"#,
         file_path.to_string_lossy().replace('\\', "\\\\")
@@ -5599,7 +5599,7 @@ fn run_hf3_escrever_verso_falha_apos_fechar_handle() {
     ));
     std::fs::write(&file_path, "").expect("falha ao criar fixture");
     let source = format!(
-        r#"pacote main;
+        r#"pacote main; trazer arquivo.abrir; trazer arquivo.escrever_verso; trazer arquivo.fechar;
         carinho principal() -> bombom {{
             nova h: bombom = abrir("{}");
             fechar(h);
@@ -5630,7 +5630,7 @@ fn run_hf3_fechar_duplo_falha_com_handle_ja_fechado() {
     ));
     std::fs::write(&file_path, "1").expect("falha ao criar fixture");
     let source = format!(
-        r#"pacote main;
+        r#"pacote main; trazer arquivo.abrir; trazer arquivo.fechar;
         carinho principal() -> bombom {{
             nova h: bombom = abrir("{}");
             fechar(h);
@@ -5661,12 +5661,12 @@ fn run_hf3_ler_verso_arquivo_retorna_vazio_em_arquivo_vazio() {
     ));
     std::fs::write(&file_path, "").expect("falha ao criar fixture");
     let source = format!(
-        r#"pacote main;
+        r#"pacote main; trazer arquivo.abrir; trazer arquivo.fechar; trazer arquivo.ler_verso; trazer texto.tamanho;
         carinho principal() -> bombom {{
             nova h: bombom = abrir("{}");
-            nova v: verso = ler_verso_arquivo(h);
+            nova v: verso = ler_verso(h);
             fechar(h);
-            mimo tamanho_verso(v);
+            mimo tamanho(v);
         }}"#,
         file_path.to_string_lossy().replace('\\', "\\\\")
     );
@@ -5688,13 +5688,13 @@ fn run_hf3_escrever_bombom_depois_ler_verso_retorna_texto_numerico() {
     ));
     std::fs::write(&file_path, "0").expect("falha ao criar fixture");
     let source = format!(
-        r#"pacote main;
+        r#"pacote main; trazer arquivo.abrir; trazer arquivo.escrever_bombom; trazer arquivo.fechar; trazer arquivo.ler_verso; trazer texto.tamanho;
         carinho principal() -> bombom {{
             nova h: bombom = abrir("{}");
-            escrever(h, 42);
-            nova v: verso = ler_verso_arquivo(h);
+            escrever_bombom(h, 42);
+            nova v: verso = ler_verso(h);
             fechar(h);
-            mimo tamanho_verso(v);
+            mimo tamanho(v);
         }}"#,
         file_path.to_string_lossy().replace('\\', "\\\\")
     );
@@ -5706,7 +5706,7 @@ fn run_hf3_escrever_bombom_depois_ler_verso_retorna_texto_numerico() {
 
 #[test]
 fn run_hf3_tamanho_arquivo_falha_em_diretorio() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer caminho.tamanho_arquivo;
         carinho principal() -> bombom {
             mimo tamanho_arquivo("/tmp");
         }"#;
@@ -5720,9 +5720,9 @@ fn run_hf3_tamanho_arquivo_falha_em_diretorio() {
 
 #[test]
 fn run_hf3_e_vazio_falha_em_diretorio() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer caminho.arquivo_vazio;
         carinho principal() -> bombom {
-            nova v: logica = e_vazio("/tmp");
+            nova v: logica = arquivo_vazio("/tmp");
             mimo 0;
         }"#;
     let err = run_code(source).unwrap_err();
@@ -5735,9 +5735,9 @@ fn run_hf3_e_vazio_falha_em_diretorio() {
 
 #[test]
 fn run_hf3_e_vazio_falha_em_caminho_ausente() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer caminho.arquivo_vazio;
         carinho principal() -> bombom {
-            nova v: logica = e_vazio("/caminho/que/nao/existe/hf3_xyzzy.txt");
+            nova v: logica = arquivo_vazio("/caminho/que/nao/existe/hf3_xyzzy.txt");
             mimo 0;
         }"#;
     let err = run_code(source).unwrap_err();
@@ -5760,13 +5760,13 @@ fn run_hf3_criar_arquivo_escrever_verso_ler_verso_fechar_fluxo_completo() {
             .as_nanos()
     ));
     let source = format!(
-        r#"pacote main;
+        r#"pacote main; trazer arquivo.criar; trazer arquivo.escrever_verso; trazer arquivo.fechar; trazer arquivo.ler_verso; trazer texto.tamanho;
         carinho principal() -> bombom {{
-            nova h: bombom = criar_arquivo("{}");
+            nova h: bombom = criar("{}");
             escrever_verso(h, "pinker hf3");
-            nova lido: verso = ler_verso_arquivo(h);
+            nova lido: verso = ler_verso(h);
             fechar(h);
-            mimo tamanho_verso(lido);
+            mimo tamanho(lido);
         }}"#,
         file_path.to_string_lossy().replace('\\', "\\\\")
     );
@@ -5785,9 +5785,9 @@ fn run_hf3_criar_arquivo_escrever_verso_ler_verso_fechar_fluxo_completo() {
 // @pinker-nav:summary Cobre dividir_verso, substituir_verso e juntar_verso — contagem, pedaços vazios, encadeamento, combinações e rejeições — além de busca textual via exemplo CLI.
 #[test]
 fn run_fase137_dividir_verso_contar_dois_pedacos() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer texto.dividir_contar;
         carinho principal() -> bombom {
-            nova n: bombom = dividir_verso_contar("a:b", ":");
+            nova n: bombom = dividir_contar("a:b", ":");
             mimo n;
         }"#;
     let out = run_code(source).unwrap();
@@ -5796,9 +5796,9 @@ fn run_fase137_dividir_verso_contar_dois_pedacos() {
 
 #[test]
 fn run_fase137_dividir_verso_contar_tres_pedacos() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer texto.dividir_contar;
         carinho principal() -> bombom {
-            nova n: bombom = dividir_verso_contar("nome:idade:cidade", ":");
+            nova n: bombom = dividir_contar("nome:idade:cidade", ":");
             mimo n;
         }"#;
     let out = run_code(source).unwrap();
@@ -5807,9 +5807,9 @@ fn run_fase137_dividir_verso_contar_tres_pedacos() {
 
 #[test]
 fn run_fase137_dividir_verso_contar_sem_separador_retorna_um() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer texto.dividir_contar;
         carinho principal() -> bombom {
-            nova n: bombom = dividir_verso_contar("pinker", ":");
+            nova n: bombom = dividir_contar("pinker", ":");
             mimo n;
         }"#;
     let out = run_code(source).unwrap();
@@ -5818,9 +5818,9 @@ fn run_fase137_dividir_verso_contar_sem_separador_retorna_um() {
 
 #[test]
 fn run_fase137_dividir_verso_em_primeiro_pedaco() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer texto.dividir_em;
         carinho principal() -> bombom {
-            nova p: verso = dividir_verso_em("nome:idade:cidade", ":", 0);
+            nova p: verso = dividir_em("nome:idade:cidade", ":", 0);
             falar(p);
             mimo 0;
         }"#;
@@ -5830,10 +5830,10 @@ fn run_fase137_dividir_verso_em_primeiro_pedaco() {
 
 #[test]
 fn run_fase137_dividir_verso_em_segundo_pedaco() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer texto.dividir_em; trazer texto.igual;
         carinho principal() -> bombom {
-            nova p: verso = dividir_verso_em("nome:idade:cidade", ":", 1);
-            nova ok: logica = igual_verso(p, "idade");
+            nova p: verso = dividir_em("nome:idade:cidade", ":", 1);
+            nova ok: logica = igual(p, "idade");
             talvez ok {
                 mimo 137;
             }
@@ -5845,10 +5845,10 @@ fn run_fase137_dividir_verso_em_segundo_pedaco() {
 
 #[test]
 fn run_fase137_dividir_verso_em_terceiro_pedaco() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer texto.dividir_em; trazer texto.igual;
         carinho principal() -> bombom {
-            nova p: verso = dividir_verso_em("nome:idade:cidade", ":", 2);
-            nova ok: logica = igual_verso(p, "cidade");
+            nova p: verso = dividir_em("nome:idade:cidade", ":", 2);
+            nova ok: logica = igual(p, "cidade");
             talvez ok {
                 mimo 137;
             }
@@ -5860,10 +5860,10 @@ fn run_fase137_dividir_verso_em_terceiro_pedaco() {
 
 #[test]
 fn run_fase137_dividir_verso_em_separador_espaco() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer texto.dividir_em; trazer texto.igual;
         carinho principal() -> bombom {
-            nova p: verso = dividir_verso_em("hello world pinker", " ", 2);
-            nova ok: logica = igual_verso(p, "pinker");
+            nova p: verso = dividir_em("hello world pinker", " ", 2);
+            nova ok: logica = igual(p, "pinker");
             talvez ok {
                 mimo 137;
             }
@@ -5875,9 +5875,9 @@ fn run_fase137_dividir_verso_em_separador_espaco() {
 
 #[test]
 fn run_fase137_dividir_verso_em_indice_fora_de_faixa_falha() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer texto.dividir_em;
         carinho principal() -> bombom {
-            nova p: verso = dividir_verso_em("a:b", ":", 5);
+            nova p: verso = dividir_em("a:b", ":", 5);
             mimo 0;
         }"#;
     let err = run_code(source).unwrap_err();
@@ -5890,9 +5890,9 @@ fn run_fase137_dividir_verso_em_indice_fora_de_faixa_falha() {
 
 #[test]
 fn run_fase137_dividir_verso_contar_separador_vazio_falha() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer texto.dividir_contar;
         carinho principal() -> bombom {
-            nova n: bombom = dividir_verso_contar("pinker", "");
+            nova n: bombom = dividir_contar("pinker", "");
             mimo n;
         }"#;
     let err = run_code(source).unwrap_err();
@@ -5905,9 +5905,9 @@ fn run_fase137_dividir_verso_contar_separador_vazio_falha() {
 
 #[test]
 fn run_fase137_dividir_verso_em_separador_vazio_falha() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer texto.dividir_em;
         carinho principal() -> bombom {
-            nova p: verso = dividir_verso_em("pinker", "", 0);
+            nova p: verso = dividir_em("pinker", "", 0);
             mimo 0;
         }"#;
     let err = run_code(source).unwrap_err();
@@ -5920,13 +5920,13 @@ fn run_fase137_dividir_verso_em_separador_vazio_falha() {
 
 #[test]
 fn run_fase137_dividir_verso_em_combina_com_contar() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer texto.dividir_contar; trazer texto.dividir_em; trazer texto.igual;
         carinho principal() -> bombom {
             nova texto: verso = "a,b,c,d";
             nova sep: verso = ",";
-            nova n: bombom = dividir_verso_contar(texto, sep);
-            nova ultimo: verso = dividir_verso_em(texto, sep, 3);
-            nova ok: logica = igual_verso(ultimo, "d");
+            nova n: bombom = dividir_contar(texto, sep);
+            nova ultimo: verso = dividir_em(texto, sep, 3);
+            nova ok: logica = igual(ultimo, "d");
             talvez ok {
                 mimo n;
             }
@@ -5940,10 +5940,10 @@ fn run_fase137_dividir_verso_em_combina_com_contar() {
 
 #[test]
 fn run_fase138_substituir_verso_basico() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer texto.igual; trazer texto.substituir;
         carinho principal() -> bombom {
-            nova t: verso = substituir_verso("hello world", "world", "pinker");
-            nova ok: logica = igual_verso(t, "hello pinker");
+            nova t: verso = substituir("hello world", "world", "pinker");
+            nova ok: logica = igual(t, "hello pinker");
             talvez ok {
                 mimo 138;
             }
@@ -5955,10 +5955,10 @@ fn run_fase138_substituir_verso_basico() {
 
 #[test]
 fn run_fase138_substituir_verso_multiplas_ocorrencias() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer texto.igual; trazer texto.substituir;
         carinho principal() -> bombom {
-            nova t: verso = substituir_verso("a,b,a,c,a", ",", ";");
-            nova ok: logica = igual_verso(t, "a;b;a;c;a");
+            nova t: verso = substituir("a,b,a,c,a", ",", ";");
+            nova ok: logica = igual(t, "a;b;a;c;a");
             talvez ok {
                 mimo 138;
             }
@@ -5970,10 +5970,10 @@ fn run_fase138_substituir_verso_multiplas_ocorrencias() {
 
 #[test]
 fn run_fase138_substituir_verso_sem_ocorrencia_retorna_original() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer texto.igual; trazer texto.substituir;
         carinho principal() -> bombom {
-            nova t: verso = substituir_verso("pinker", "x", "y");
-            nova ok: logica = igual_verso(t, "pinker");
+            nova t: verso = substituir("pinker", "x", "y");
+            nova ok: logica = igual(t, "pinker");
             talvez ok {
                 mimo 138;
             }
@@ -5985,10 +5985,10 @@ fn run_fase138_substituir_verso_sem_ocorrencia_retorna_original() {
 
 #[test]
 fn run_fase138_substituir_verso_por_vazio_remove() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer texto.igual; trazer texto.substituir;
         carinho principal() -> bombom {
-            nova t: verso = substituir_verso("hello world", "world", "");
-            nova ok: logica = igual_verso(t, "hello ");
+            nova t: verso = substituir("hello world", "world", "");
+            nova ok: logica = igual(t, "hello ");
             talvez ok {
                 mimo 138;
             }
@@ -6000,9 +6000,9 @@ fn run_fase138_substituir_verso_por_vazio_remove() {
 
 #[test]
 fn run_fase138_substituir_verso_padrao_vazio_falha() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer texto.substituir;
         carinho principal() -> bombom {
-            nova t: verso = substituir_verso("pinker", "", "x");
+            nova t: verso = substituir("pinker", "", "x");
             mimo 0;
         }"#;
     let err = run_code(source).unwrap_err();
@@ -6015,11 +6015,11 @@ fn run_fase138_substituir_verso_padrao_vazio_falha() {
 
 #[test]
 fn run_fase138_substituir_verso_normaliza_separadores() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer texto.igual; trazer texto.substituir;
         carinho principal() -> bombom {
             nova linha: verso = "nome:idade:cidade";
-            nova normalizado: verso = substituir_verso(linha, ":", "-");
-            nova ok: logica = igual_verso(normalizado, "nome-idade-cidade");
+            nova normalizado: verso = substituir(linha, ":", "-");
+            nova ok: logica = igual(normalizado, "nome-idade-cidade");
             talvez ok {
                 mimo 138;
             }
@@ -6031,12 +6031,12 @@ fn run_fase138_substituir_verso_normaliza_separadores() {
 
 #[test]
 fn run_fase138_substituir_verso_combina_com_split() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer texto.dividir_em; trazer texto.igual; trazer texto.substituir;
         carinho principal() -> bombom {
             nova base: verso = "a.b.c";
-            nova trocado: verso = substituir_verso(base, ".", ",");
-            nova campo1: verso = dividir_verso_em(trocado, ",", 1);
-            nova ok: logica = igual_verso(campo1, "b");
+            nova trocado: verso = substituir(base, ".", ",");
+            nova campo1: verso = dividir_em(trocado, ",", 1);
+            nova ok: logica = igual(campo1, "b");
             talvez ok {
                 mimo 138;
             }
@@ -6052,10 +6052,10 @@ fn run_fase138_substituir_verso_combina_com_split() {
 
 #[test]
 fn run_fase139_juntar_verso_com_basico() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer texto.igual; trazer texto.juntar_com;
         carinho principal() -> bombom {
-            nova r: verso = juntar_verso_com("nome", "-", "idade");
-            nova ok: logica = igual_verso(r, "nome-idade");
+            nova r: verso = juntar_com("nome", "-", "idade");
+            nova ok: logica = igual(r, "nome-idade");
             talvez ok {
                 mimo 139;
             }
@@ -6067,10 +6067,10 @@ fn run_fase139_juntar_verso_com_basico() {
 
 #[test]
 fn run_fase139_juntar_verso_com_separador_vazio() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer texto.igual; trazer texto.juntar_com;
         carinho principal() -> bombom {
-            nova r: verso = juntar_verso_com("abc", "", "def");
-            nova ok: logica = igual_verso(r, "abcdef");
+            nova r: verso = juntar_com("abc", "", "def");
+            nova ok: logica = igual(r, "abcdef");
             talvez ok {
                 mimo 139;
             }
@@ -6082,10 +6082,10 @@ fn run_fase139_juntar_verso_com_separador_vazio() {
 
 #[test]
 fn run_fase139_juntar_verso_com_separador_longo() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer texto.igual; trazer texto.juntar_com;
         carinho principal() -> bombom {
-            nova r: verso = juntar_verso_com("X", " :: ", "Y");
-            nova ok: logica = igual_verso(r, "X :: Y");
+            nova r: verso = juntar_com("X", " :: ", "Y");
+            nova ok: logica = igual(r, "X :: Y");
             talvez ok {
                 mimo 139;
             }
@@ -6097,10 +6097,10 @@ fn run_fase139_juntar_verso_com_separador_longo() {
 
 #[test]
 fn run_fase139_juntar_verso_com_pedaco_vazio_esquerda() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer texto.igual; trazer texto.juntar_com;
         carinho principal() -> bombom {
-            nova r: verso = juntar_verso_com("", ",", "fim");
-            nova ok: logica = igual_verso(r, ",fim");
+            nova r: verso = juntar_com("", ",", "fim");
+            nova ok: logica = igual(r, ",fim");
             talvez ok {
                 mimo 139;
             }
@@ -6112,10 +6112,10 @@ fn run_fase139_juntar_verso_com_pedaco_vazio_esquerda() {
 
 #[test]
 fn run_fase139_juntar_verso_com_pedaco_vazio_direita() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer texto.igual; trazer texto.juntar_com;
         carinho principal() -> bombom {
-            nova r: verso = juntar_verso_com("inicio", ",", "");
-            nova ok: logica = igual_verso(r, "inicio,");
+            nova r: verso = juntar_com("inicio", ",", "");
+            nova ok: logica = igual(r, "inicio,");
             talvez ok {
                 mimo 139;
             }
@@ -6127,11 +6127,11 @@ fn run_fase139_juntar_verso_com_pedaco_vazio_direita() {
 
 #[test]
 fn run_fase139_juntar_verso_com_encadeado() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer texto.igual; trazer texto.juntar_com;
         carinho principal() -> bombom {
-            nova ab: verso = juntar_verso_com("a", ":", "b");
-            nova abc: verso = juntar_verso_com(ab, ":", "c");
-            nova ok: logica = igual_verso(abc, "a:b:c");
+            nova ab: verso = juntar_com("a", ":", "b");
+            nova abc: verso = juntar_com(ab, ":", "c");
+            nova ok: logica = igual(abc, "a:b:c");
             talvez ok {
                 mimo 139;
             }
@@ -6143,12 +6143,12 @@ fn run_fase139_juntar_verso_com_encadeado() {
 
 #[test]
 fn run_fase139_juntar_verso_com_combina_com_split() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer texto.dividir_em; trazer texto.igual; trazer texto.juntar_com;
         carinho principal() -> bombom {
-            nova campo0: verso = dividir_verso_em("nome:idade:cidade", ":", 0);
-            nova campo2: verso = dividir_verso_em("nome:idade:cidade", ":", 2);
-            nova r: verso = juntar_verso_com(campo0, "-", campo2);
-            nova ok: logica = igual_verso(r, "nome-cidade");
+            nova campo0: verso = dividir_em("nome:idade:cidade", ":", 0);
+            nova campo2: verso = dividir_em("nome:idade:cidade", ":", 2);
+            nova r: verso = juntar_com(campo0, "-", campo2);
+            nova ok: logica = igual(r, "nome-cidade");
             talvez ok {
                 mimo 139;
             }
@@ -6160,10 +6160,10 @@ fn run_fase139_juntar_verso_com_combina_com_split() {
 
 #[test]
 fn run_fase139_juntar_verso_com_tudo_vazio() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer texto.igual; trazer texto.juntar_com;
         carinho principal() -> bombom {
-            nova r: verso = juntar_verso_com("", "", "");
-            nova ok: logica = igual_verso(r, "");
+            nova r: verso = juntar_com("", "", "");
+            nova ok: logica = igual(r, "");
             talvez ok {
                 mimo 139;
             }
@@ -6192,10 +6192,10 @@ fn cli_run_fase140_busca_textual_minima_funciona_com_exemplo_versionado() {
 // @pinker-nav:summary Exercita formatar_verso (com bombom, verso e bombom, fluxo composto) e suas rejeições (placeholders a menos, modelo inválido).
 #[test]
 fn run_fase157_formatar_verso_com_bombom() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer texto.formatar; trazer texto.igual;
         carinho principal() -> bombom {
-            nova linha: verso = formatar_verso("saldo={}", 42);
-            nova ok: logica = igual_verso(linha, "saldo=42");
+            nova linha: verso = formatar("saldo={}", 42);
+            nova ok: logica = igual(linha, "saldo=42");
             talvez ok {
                 mimo 157;
             }
@@ -6207,10 +6207,10 @@ fn run_fase157_formatar_verso_com_bombom() {
 
 #[test]
 fn run_fase157_formatar_verso_com_verso_e_bombom() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer texto.formatar; trazer texto.igual;
         carinho principal() -> bombom {
-            nova linha: verso = formatar_verso("{}={}", "idade", 7);
-            nova ok: logica = igual_verso(linha, "idade=7");
+            nova linha: verso = formatar("{}={}", "idade", 7);
+            nova ok: logica = igual(linha, "idade=7");
             talvez ok {
                 mimo 157;
             }
@@ -6222,18 +6222,18 @@ fn run_fase157_formatar_verso_com_verso_e_bombom() {
 
 #[test]
 fn run_fase157_formatar_verso_fluxo_composto_funciona() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer lista.bombom_anexar; trazer lista.bombom_criar; trazer lista.bombom_obter; trazer lista.bombom_tamanho; trazer texto.formatar; trazer texto.igual;
         carinho montar_item(chave: verso, valor: bombom) -> verso {
-            mimo formatar_verso("{}={}", chave, valor);
+            mimo formatar("{}={}", chave, valor);
         }
         carinho principal() -> bombom {
-            nova itens: lista<bombom> = lista_bombom_criar();
-            lista_bombom_anexar(itens, 7);
-            lista_bombom_anexar(itens, 9);
-            nova cabecalho: verso = formatar_verso("relatorio {}", "rodada");
-            nova linha1: verso = montar_item("total", lista_bombom_tamanho(itens));
-            nova linha2: verso = montar_item("primeiro", lista_bombom_obter(itens, 0));
-            talvez igual_verso(cabecalho, "relatorio rodada") && igual_verso(linha1, "total=2") && igual_verso(linha2, "primeiro=7") {
+            nova itens: lista<bombom> = bombom_criar();
+            bombom_anexar(itens, 7);
+            bombom_anexar(itens, 9);
+            nova cabecalho: verso = formatar("relatorio {}", "rodada");
+            nova linha1: verso = montar_item("total", bombom_tamanho(itens));
+            nova linha2: verso = montar_item("primeiro", bombom_obter(itens, 0));
+            talvez igual(cabecalho, "relatorio rodada") && igual(linha1, "total=2") && igual(linha2, "primeiro=7") {
                 mimo 157;
             }
             mimo 0;
@@ -6244,9 +6244,9 @@ fn run_fase157_formatar_verso_fluxo_composto_funciona() {
 
 #[test]
 fn run_fase157_formatar_verso_falha_com_placeholders_a_menos() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer texto.formatar;
         carinho principal() -> bombom {
-            nova linha: verso = formatar_verso("{} {}", 1);
+            nova linha: verso = formatar("{} {}", 1);
             falar(linha);
             mimo 0;
         }"#;
@@ -6260,9 +6260,9 @@ fn run_fase157_formatar_verso_falha_com_placeholders_a_menos() {
 
 #[test]
 fn run_fase157_formatar_verso_falha_com_modelo_invalido() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer texto.formatar;
         carinho principal() -> bombom {
-            nova linha: verso = formatar_verso("{nome}", "ana");
+            nova linha: verso = formatar("{nome}", "ana");
             falar(linha);
             mimo 0;
         }"#;
@@ -6283,10 +6283,10 @@ fn run_fase157_formatar_verso_falha_com_modelo_invalido() {
 // @pinker-nav:summary Cobre ler/emitir linha CSV mínima e fluxo composto, com rejeições de quoting, multiline e separador longo; recorte mínimo, não CSV completo.
 #[test]
 fn run_fase158_ler_linha_csv_bombom_minima_funciona() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer csv.ler_linha_bombom; trazer lista.bombom_obter; trazer lista.bombom_tamanho;
         carinho principal() -> bombom {
-            nova itens: lista<bombom> = ler_linha_csv_bombom("7,11,13", ",");
-            talvez lista_bombom_tamanho(itens) == 3 && lista_bombom_obter(itens, 1) == 11 {
+            nova itens: lista<bombom> = ler_linha_bombom("7,11,13", ",");
+            talvez bombom_tamanho(itens) == 3 && bombom_obter(itens, 1) == 11 {
                 mimo 158;
             }
             mimo 0;
@@ -6297,14 +6297,14 @@ fn run_fase158_ler_linha_csv_bombom_minima_funciona() {
 
 #[test]
 fn run_fase158_emitir_linha_csv_bombom_minima_funciona() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer csv.emitir_linha_bombom; trazer lista.bombom_anexar; trazer lista.bombom_criar; trazer texto.igual;
         carinho principal() -> bombom {
-            nova itens: lista<bombom> = lista_bombom_criar();
-            lista_bombom_anexar(itens, 3);
-            lista_bombom_anexar(itens, 5);
-            lista_bombom_anexar(itens, 8);
-            nova linha: verso = emitir_linha_csv_bombom(itens, ";");
-            talvez igual_verso(linha, "3;5;8") {
+            nova itens: lista<bombom> = bombom_criar();
+            bombom_anexar(itens, 3);
+            bombom_anexar(itens, 5);
+            bombom_anexar(itens, 8);
+            nova linha: verso = emitir_linha_bombom(itens, ";");
+            talvez igual(linha, "3;5;8") {
                 mimo 158;
             }
             mimo 0;
@@ -6315,9 +6315,9 @@ fn run_fase158_emitir_linha_csv_bombom_minima_funciona() {
 
 #[test]
 fn run_fase158_csv_minimo_fluxo_composto_funciona() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer csv.emitir_linha_bombom; trazer csv.ler_linha_bombom; trazer lista.bombom_anexar; trazer texto.igual;
         carinho somar_linha_csv(linha: verso, sep: verso) -> bombom {
-            nova itens: lista<bombom> = ler_linha_csv_bombom(linha, sep);
+            nova itens: lista<bombom> = ler_linha_bombom(linha, sep);
             nova muda total: bombom = 0;
             para cada item em itens {
                 total = total + item;
@@ -6326,11 +6326,11 @@ fn run_fase158_csv_minimo_fluxo_composto_funciona() {
         }
 
         carinho principal() -> bombom {
-            nova itens: lista<bombom> = ler_linha_csv_bombom("10;20;30", ";");
+            nova itens: lista<bombom> = ler_linha_bombom("10;20;30", ";");
             nova total: bombom = somar_linha_csv("10;20;30", ";");
-            lista_bombom_anexar(itens, total);
-            nova resumo: verso = emitir_linha_csv_bombom(itens, ";");
-            talvez igual_verso(resumo, "10;20;30;60") {
+            bombom_anexar(itens, total);
+            nova resumo: verso = emitir_linha_bombom(itens, ";");
+            talvez igual(resumo, "10;20;30;60") {
                 mimo 158;
             }
             mimo 0;
@@ -6345,11 +6345,11 @@ fn run_fase158_ler_linha_csv_bombom_rejeita_quoting() {
     let path = dir.join("pinker_fase158_csv_quoting.txt");
     fs::write(&path, "\"7\",11").unwrap();
     let source = format!(
-        r#"pacote main;
+        r#"pacote main; trazer arquivo.ler_caminho_verso; trazer csv.ler_linha_bombom; trazer lista.bombom_tamanho;
         carinho principal() -> bombom {{
-            nova linha: verso = ler_arquivo_verso("{}");
-            nova itens: lista<bombom> = ler_linha_csv_bombom(linha, ",");
-            mimo lista_bombom_tamanho(itens);
+            nova linha: verso = ler_caminho_verso("{}");
+            nova itens: lista<bombom> = ler_linha_bombom(linha, ",");
+            mimo bombom_tamanho(itens);
         }}"#,
         path.display()
     );
@@ -6368,11 +6368,11 @@ fn run_fase158_ler_linha_csv_bombom_rejeita_multiline() {
     let path = dir.join("pinker_fase158_csv_multiline.txt");
     fs::write(&path, "7,11\n13").unwrap();
     let source = format!(
-        r#"pacote main;
+        r#"pacote main; trazer arquivo.ler_caminho_verso; trazer csv.ler_linha_bombom; trazer lista.bombom_tamanho;
         carinho principal() -> bombom {{
-            nova linha: verso = ler_arquivo_verso("{}");
-            nova itens: lista<bombom> = ler_linha_csv_bombom(linha, ",");
-            mimo lista_bombom_tamanho(itens);
+            nova linha: verso = ler_caminho_verso("{}");
+            nova itens: lista<bombom> = ler_linha_bombom(linha, ",");
+            mimo bombom_tamanho(itens);
         }}"#,
         path.display()
     );
@@ -6387,11 +6387,11 @@ fn run_fase158_ler_linha_csv_bombom_rejeita_multiline() {
 
 #[test]
 fn run_fase158_emitir_linha_csv_bombom_rejeita_separador_longo() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer csv.emitir_linha_bombom; trazer lista.bombom_anexar; trazer lista.bombom_criar;
         carinho principal() -> bombom {
-            nova itens: lista<bombom> = lista_bombom_criar();
-            lista_bombom_anexar(itens, 1);
-            nova linha: verso = emitir_linha_csv_bombom(itens, "::");
+            nova itens: lista<bombom> = bombom_criar();
+            bombom_anexar(itens, 1);
+            nova linha: verso = emitir_linha_bombom(itens, "::");
             falar(linha);
             mimo 0;
         }"#;
@@ -6413,11 +6413,11 @@ fn run_fase159_ler_json_plano_bombom_minimo_funciona() {
     let path = std::env::temp_dir().join("pinker_fase159_json_minimo.json");
     fs::write(&path, "{\"idade\":7,\"pontos\":9}").unwrap();
     let source = format!(
-        r#"pacote main;
+        r#"pacote main; trazer arquivo.ler_caminho_verso; trazer json.ler_plano_bombom; trazer mapa.verso_bombom_obter; trazer mapa.verso_bombom_tamanho;
         carinho principal() -> bombom {{
-            nova json: verso = ler_arquivo_verso("{}");
-            nova dados: mapa<verso,bombom> = ler_json_plano_bombom(json);
-            talvez mapa_verso_bombom_tamanho(dados) == 2 && mapa_verso_bombom_obter(dados, "idade") == 7 {{
+            nova json: verso = ler_caminho_verso("{}");
+            nova dados: mapa<verso,bombom> = ler_plano_bombom(json);
+            talvez verso_bombom_tamanho(dados) == 2 && verso_bombom_obter(dados, "idade") == 7 {{
                 mimo 159;
             }}
             mimo 0;
@@ -6431,16 +6431,16 @@ fn run_fase159_ler_json_plano_bombom_minimo_funciona() {
 
 #[test]
 fn run_fase159_emitir_json_plano_bombom_minimo_funciona() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer json.emitir_plano_bombom; trazer json.ler_plano_bombom; trazer mapa.verso_bombom_criar; trazer mapa.verso_bombom_definir; trazer mapa.verso_bombom_obter; trazer mapa.verso_bombom_tamanho;
         carinho principal() -> bombom {
-            nova dados: mapa<verso,bombom> = mapa_verso_bombom_criar();
-            mapa_verso_bombom_definir(dados, "b", 2);
-            mapa_verso_bombom_definir(dados, "a", 1);
-            nova json: verso = emitir_json_plano_bombom(dados);
-            nova lido: mapa<verso,bombom> = ler_json_plano_bombom(json);
-            talvez mapa_verso_bombom_tamanho(lido) == 2
-                && mapa_verso_bombom_obter(lido, "a") == 1
-                && mapa_verso_bombom_obter(lido, "b") == 2 {
+            nova dados: mapa<verso,bombom> = verso_bombom_criar();
+            verso_bombom_definir(dados, "b", 2);
+            verso_bombom_definir(dados, "a", 1);
+            nova json: verso = emitir_plano_bombom(dados);
+            nova lido: mapa<verso,bombom> = ler_plano_bombom(json);
+            talvez verso_bombom_tamanho(lido) == 2
+                && verso_bombom_obter(lido, "a") == 1
+                && verso_bombom_obter(lido, "b") == 2 {
                 mimo 159;
             }
             mimo 0;
@@ -6451,27 +6451,27 @@ fn run_fase159_emitir_json_plano_bombom_minimo_funciona() {
 
 #[test]
 fn run_fase159_json_plano_fluxo_composto_funciona() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer json.emitir_plano_bombom; trazer json.ler_plano_bombom; trazer mapa.verso_bombom_criar; trazer mapa.verso_bombom_definir; trazer mapa.verso_bombom_obter;
         carinho carregar_relatorio() -> verso {
-            nova dados: mapa<verso,bombom> = mapa_verso_bombom_criar();
-            mapa_verso_bombom_definir(dados, "falhas", 2);
-            mapa_verso_bombom_definir(dados, "ok", 5);
-            mimo emitir_json_plano_bombom(dados);
+            nova dados: mapa<verso,bombom> = verso_bombom_criar();
+            verso_bombom_definir(dados, "falhas", 2);
+            verso_bombom_definir(dados, "ok", 5);
+            mimo emitir_plano_bombom(dados);
         }
 
         carinho principal() -> bombom {
-            nova dados: mapa<verso,bombom> = ler_json_plano_bombom(carregar_relatorio());
+            nova dados: mapa<verso,bombom> = ler_plano_bombom(carregar_relatorio());
             nova muda total: bombom = 0;
             para cada chave em dados {
-                total = total + mapa_verso_bombom_obter(dados, chave);
+                total = total + verso_bombom_obter(dados, chave);
             }
-            mapa_verso_bombom_definir(dados, "total", total);
-            nova json: verso = emitir_json_plano_bombom(dados);
+            verso_bombom_definir(dados, "total", total);
+            nova json: verso = emitir_plano_bombom(dados);
             falar(json);
-            nova validado: mapa<verso,bombom> = ler_json_plano_bombom(json);
-            talvez mapa_verso_bombom_obter(validado, "falhas") == 2
-                && mapa_verso_bombom_obter(validado, "ok") == 5
-                && mapa_verso_bombom_obter(validado, "total") == 7 {
+            nova validado: mapa<verso,bombom> = ler_plano_bombom(json);
+            talvez verso_bombom_obter(validado, "falhas") == 2
+                && verso_bombom_obter(validado, "ok") == 5
+                && verso_bombom_obter(validado, "total") == 7 {
                 mimo 159;
             }
             mimo 0;
@@ -6485,11 +6485,11 @@ fn run_fase159_ler_json_plano_bombom_rejeita_array() {
     let path = std::env::temp_dir().join("pinker_fase159_json_array.json");
     fs::write(&path, "[1,2,3]").unwrap();
     let source = format!(
-        r#"pacote main;
+        r#"pacote main; trazer arquivo.ler_caminho_verso; trazer json.ler_plano_bombom; trazer mapa.verso_bombom_tamanho;
         carinho principal() -> bombom {{
-            nova json: verso = ler_arquivo_verso("{}");
-            nova dados: mapa<verso,bombom> = ler_json_plano_bombom(json);
-            mimo mapa_verso_bombom_tamanho(dados);
+            nova json: verso = ler_caminho_verso("{}");
+            nova dados: mapa<verso,bombom> = ler_plano_bombom(json);
+            mimo verso_bombom_tamanho(dados);
         }}"#,
         path.display()
     );
@@ -6503,11 +6503,11 @@ fn run_fase159_ler_json_plano_bombom_rejeita_escape_rico() {
     let path = std::env::temp_dir().join("pinker_fase159_json_escape.json");
     fs::write(&path, "{\"li\\nha\":1}").unwrap();
     let source = format!(
-        r#"pacote main;
+        r#"pacote main; trazer arquivo.ler_caminho_verso; trazer json.ler_plano_bombom; trazer mapa.verso_bombom_tamanho;
         carinho principal() -> bombom {{
-            nova json: verso = ler_arquivo_verso("{}");
-            nova dados: mapa<verso,bombom> = ler_json_plano_bombom(json);
-            mimo mapa_verso_bombom_tamanho(dados);
+            nova json: verso = ler_caminho_verso("{}");
+            nova dados: mapa<verso,bombom> = ler_plano_bombom(json);
+            mimo verso_bombom_tamanho(dados);
         }}"#,
         path.display()
     );
@@ -6525,11 +6525,11 @@ fn run_fase159_ler_json_plano_bombom_rejeita_nesting() {
     let path = std::env::temp_dir().join("pinker_fase159_json_nesting.json");
     fs::write(&path, "{\"meta\":{\"x\":1}}").unwrap();
     let source = format!(
-        r#"pacote main;
+        r#"pacote main; trazer arquivo.ler_caminho_verso; trazer json.ler_plano_bombom; trazer mapa.verso_bombom_tamanho;
         carinho principal() -> bombom {{
-            nova json: verso = ler_arquivo_verso("{}");
-            nova dados: mapa<verso,bombom> = ler_json_plano_bombom(json);
-            mimo mapa_verso_bombom_tamanho(dados);
+            nova json: verso = ler_caminho_verso("{}");
+            nova dados: mapa<verso,bombom> = ler_plano_bombom(json);
+            mimo verso_bombom_tamanho(dados);
         }}"#,
         path.display()
     );
@@ -6555,10 +6555,10 @@ fn cli_check_fase159_json_basico_valido() {
 // @pinker-nav:summary Exercita tempo unix e formatação de tempo (época, timestamp mínimo positivo, fluxo composto) no interpretador e via CLI; não fixa valor absoluto de relógio.
 #[test]
 fn run_fase160_formatar_tempo_unix_epoca_funciona() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer tempo.formatar_unix; trazer texto.igual;
         carinho principal() -> bombom {
-            nova texto: verso = formatar_tempo_unix(0);
-            talvez igual_verso(texto, "1970-01-01T00:00:00Z") {
+            nova texto: verso = formatar_unix(0);
+            talvez igual(texto, "1970-01-01T00:00:00Z") {
                 mimo 160;
             }
             mimo 0;
@@ -6569,11 +6569,11 @@ fn run_fase160_formatar_tempo_unix_epoca_funciona() {
 
 #[test]
 fn run_fase160_tempo_unix_retorna_timestamp_minimo_positivo() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer tempo.formatar_unix; trazer tempo.unix; trazer texto.tamanho;
         carinho principal() -> bombom {
-            nova ts: bombom = tempo_unix();
-            nova iso: verso = formatar_tempo_unix(ts);
-            talvez ts > 0 && tamanho_verso(iso) == 20 {
+            nova ts: bombom = unix();
+            nova iso: verso = formatar_unix(ts);
+            talvez ts > 0 && tamanho(iso) == 20 {
                 mimo 160;
             }
             mimo 0;
@@ -6584,26 +6584,26 @@ fn run_fase160_tempo_unix_retorna_timestamp_minimo_positivo() {
 
 #[test]
 fn run_fase160_tempo_basico_fluxo_composto_funciona() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer mapa.verso_bombom_criar; trazer mapa.verso_bombom_definir; trazer mapa.verso_bombom_obter; trazer tempo.formatar_unix; trazer tempo.unix; trazer texto.contem; trazer texto.formatar; trazer texto.tamanho;
         carinho carimbar_evento(nome: verso, instante: bombom) -> verso {
-            nova prefixo: verso = formatar_verso("evento={};ts={}", nome, instante);
-            nova iso: verso = formatar_tempo_unix(instante);
-            mimo formatar_verso("{};iso={}", prefixo, iso);
+            nova prefixo: verso = formatar("evento={};ts={}", nome, instante);
+            nova iso: verso = formatar_unix(instante);
+            mimo formatar("{};iso={}", prefixo, iso);
         }
 
         carinho principal() -> bombom {
-            nova ts_inicio: bombom = tempo_unix();
-            nova iso_inicio: verso = formatar_tempo_unix(ts_inicio);
+            nova ts_inicio: bombom = unix();
+            nova iso_inicio: verso = formatar_unix(ts_inicio);
             nova evento: verso = carimbar_evento("coleta", ts_inicio);
 
-            nova relatorio: mapa<verso,bombom> = mapa_verso_bombom_criar();
-            mapa_verso_bombom_definir(relatorio, "inicio_unix", ts_inicio);
-            mapa_verso_bombom_definir(relatorio, "camada", 1);
+            nova relatorio: mapa<verso,bombom> = verso_bombom_criar();
+            verso_bombom_definir(relatorio, "inicio_unix", ts_inicio);
+            verso_bombom_definir(relatorio, "camada", 1);
 
-            talvez tamanho_verso(iso_inicio) == 20
-                && contem_verso(evento, "evento=coleta")
-                && contem_verso(evento, ";iso=")
-                && mapa_verso_bombom_obter(relatorio, "inicio_unix") == ts_inicio {
+            talvez tamanho(iso_inicio) == 20
+                && contem(evento, "evento=coleta")
+                && contem(evento, ";iso=")
+                && verso_bombom_obter(relatorio, "inicio_unix") == ts_inicio {
                 mimo 160;
             }
             mimo 0;
@@ -6681,9 +6681,9 @@ fn cli_run_fase160_tempo_basico_fluxo_composto_valido() {
 // @pinker-nav:summary Cobre executar processo externo mínimo (código zero e não-zero, rejeição de comando vazio) no interpretador e via exemplos CLI.
 #[test]
 fn run_fase161_executar_processo_minimo_retorna_codigo_zero() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer processo.executar;
         carinho principal() -> bombom {
-            nova codigo: bombom = executar_processo("__CMD__");
+            nova codigo: bombom = executar("__CMD__");
             talvez codigo == 0 {
                 mimo 161;
             }
@@ -6696,17 +6696,17 @@ fn run_fase161_executar_processo_minimo_retorna_codigo_zero() {
 
 #[test]
 fn run_fase161_executar_processo_fluxo_composto_funciona() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer processo.executar; trazer texto.formatar;
         carinho verificar(nome: verso, comando: verso) -> bombom {
-            nova codigo: bombom = executar_processo(comando);
-            falar(formatar_verso("{}={}", nome, codigo));
+            nova codigo: bombom = executar(comando);
+            falar(formatar("{}={}", nome, codigo));
             mimo codigo;
         }
 
         carinho principal() -> bombom {
             nova codigo_ok: bombom = verificar("ok", "__CMD_OK__");
             nova codigo_falha: bombom = verificar("falha", "__CMD_FAIL__");
-            nova resumo: verso = formatar_verso("ok_zero={};falha_zero={}", codigo_ok, codigo_falha);
+            nova resumo: verso = formatar("ok_zero={};falha_zero={}", codigo_ok, codigo_falha);
             falar(resumo);
             talvez codigo_ok == 0 && codigo_falha == 1 {
                 mimo 161;
@@ -6727,9 +6727,9 @@ fn run_fase161_executar_processo_fluxo_composto_funciona() {
 
 #[test]
 fn run_fase161_executar_processo_nao_abre_shell_implicito() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer processo.executar;
         carinho principal() -> bombom {
-            nova codigo: bombom = executar_processo("__CMD__ --flag");
+            nova codigo: bombom = executar("__CMD__ --flag");
             mimo codigo;
         }"#
     .replace("__CMD__", &pink_string_literal(fase162_helper_bin("exit0")));
@@ -6743,9 +6743,9 @@ fn run_fase161_executar_processo_nao_abre_shell_implicito() {
 
 #[test]
 fn run_fase161_executar_processo_falha_com_spawn_invalido() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer processo.executar;
         carinho principal() -> bombom {
-            nova codigo: bombom = executar_processo("/__pinker_fase161_comando_inexistente__");
+            nova codigo: bombom = executar("/__pinker_fase161_comando_inexistente__");
             mimo codigo;
         }"#;
     let err = run_code(source).unwrap_err();
@@ -6758,9 +6758,9 @@ fn run_fase161_executar_processo_falha_com_spawn_invalido() {
 
 #[test]
 fn run_fase161_executar_processo_rejeita_comando_vazio() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer processo.executar;
         carinho principal() -> bombom {
-            nova codigo: bombom = executar_processo("");
+            nova codigo: bombom = executar("");
             mimo codigo;
         }"#;
     let err = run_code(source).unwrap_err();
@@ -6814,9 +6814,9 @@ fn cli_run_fase161_processo_externo_fluxo_composto_valido() {
 // @pinker-nav:summary Exercita executar processo com argv explícito mínimo e rejeição de argv fora do recorte, no interpretador e via CLI.
 #[test]
 fn run_fase168_executar_processo_aceita_argv_explicito_minimo() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer processo.executar;
         carinho principal() -> bombom {
-            nova codigo: bombom = executar_processo("__CMD__", "--modo=ok");
+            nova codigo: bombom = executar("__CMD__", "--modo=ok");
             talvez codigo == 0 {
                 mimo 168;
             }
@@ -6829,10 +6829,10 @@ fn run_fase168_executar_processo_aceita_argv_explicito_minimo() {
 
 #[test]
 fn run_fase168_executar_processo_fluxo_composto_com_argv_explicito() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer processo.executar; trazer texto.formatar;
         carinho verificar(nome: verso, comando: verso, arg: verso) -> bombom {
-            nova codigo: bombom = executar_processo(comando, arg);
-            falar(formatar_verso("{}={}", nome, codigo));
+            nova codigo: bombom = executar(comando, arg);
+            falar(formatar("{}={}", nome, codigo));
             mimo codigo;
         }
 
@@ -6851,9 +6851,9 @@ fn run_fase168_executar_processo_fluxo_composto_com_argv_explicito() {
 
 #[test]
 fn run_fase168_executar_processo_rejeita_argv_fora_do_recorte_minimo() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer processo.executar;
         carinho principal() -> bombom {
-            nova codigo: bombom = executar_processo("__CMD__", "--modo=ok", "--extra");
+            nova codigo: bombom = executar("__CMD__", "--modo=ok", "--extra");
             mimo codigo;
         }"#
     .replace("__CMD__", &pink_string_literal(fase168_helper_bin()));
@@ -6910,12 +6910,12 @@ fn cli_run_fase168_argv_explicito_fluxo_composto_valido() {
 // @pinker-nav:summary Cobre captura de stdout de processo (retorna verso, argv explícito, rejeição de stdout não-UTF8) no interpretador e via CLI.
 #[test]
 fn run_fase163_capturar_stdout_minimo_retorna_verso() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer processo.capturar_stdout; trazer texto.contem; trazer texto.tamanho;
         carinho principal() -> bombom {
             nova texto: verso = capturar_stdout("__CMD__");
-            nova tem_status: logica = contem_verso(texto, "status=ok");
-            nova tem_valor: logica = contem_verso(texto, "valor=7");
-            talvez tem_status && tem_valor && tamanho_verso(texto) == 18 {
+            nova tem_status: logica = contem(texto, "status=ok");
+            nova tem_valor: logica = contem(texto, "valor=7");
+            talvez tem_status && tem_valor && tamanho(texto) == 18 {
                 mimo 163;
             }
             mimo 0;
@@ -6930,12 +6930,12 @@ fn run_fase163_capturar_stdout_minimo_retorna_verso() {
 
 #[test]
 fn run_fase169_capturar_stdout_aceita_argv_explicito_minimo() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer processo.capturar_stdout; trazer texto.contem; trazer texto.tamanho;
         carinho principal() -> bombom {
             nova texto: verso = capturar_stdout("__CMD__", "--alvo=rosa");
-            nova tem_status: logica = contem_verso(texto, "status=ok");
-            nova tem_alvo: logica = contem_verso(texto, "alvo=rosa");
-            talvez tem_status && tem_alvo && tamanho_verso(texto) == 20 {
+            nova tem_status: logica = contem(texto, "status=ok");
+            nova tem_alvo: logica = contem(texto, "alvo=rosa");
+            talvez tem_status && tem_alvo && tamanho(texto) == 20 {
                 mimo 169;
             }
             mimo 0;
@@ -6950,12 +6950,12 @@ fn run_fase169_capturar_stdout_aceita_argv_explicito_minimo() {
 
 #[test]
 fn run_fase169_capturar_stdout_fluxo_composto_com_argv_explicito() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer processo.capturar_stdout; trazer texto.contem; trazer texto.formatar; trazer texto.igual; trazer texto.tamanho;
         carinho resumir(texto: verso) -> verso {
-            nova tem_status: logica = contem_verso(texto, "status=ok");
-            nova tem_alvo: logica = contem_verso(texto, "alvo=rosa");
+            nova tem_status: logica = contem(texto, "status=ok");
+            nova tem_alvo: logica = contem(texto, "alvo=rosa");
             talvez tem_status && tem_alvo {
-                mimo formatar_verso("captura={} bytes", tamanho_verso(texto));
+                mimo formatar("captura={} bytes", tamanho(texto));
             }
             mimo "captura=invalida";
         }
@@ -6964,7 +6964,7 @@ fn run_fase169_capturar_stdout_fluxo_composto_com_argv_explicito() {
             nova texto: verso = capturar_stdout("__CMD__", "--alvo=rosa");
             nova resumo: verso = resumir(texto);
             falar(resumo);
-            talvez igual_verso(resumo, "captura=20 bytes") {
+            talvez igual(resumo, "captura=20 bytes") {
                 mimo 169;
             }
             mimo 0;
@@ -6979,10 +6979,10 @@ fn run_fase169_capturar_stdout_fluxo_composto_com_argv_explicito() {
 
 #[test]
 fn run_fase169_capturar_stdout_rejeita_argv_fora_do_recorte_minimo() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer processo.capturar_stdout; trazer texto.tamanho;
         carinho principal() -> bombom {
             nova texto: verso = capturar_stdout("__CMD__", "--alvo=rosa", "--extra");
-            mimo tamanho_verso(texto);
+            mimo tamanho(texto);
         }"#
     .replace(
         "__CMD__",
@@ -7000,12 +7000,12 @@ fn run_fase169_capturar_stdout_rejeita_argv_fora_do_recorte_minimo() {
 
 #[test]
 fn run_fase163_capturar_stdout_fluxo_composto_funciona() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer processo.capturar_stdout; trazer texto.contem; trazer texto.formatar; trazer texto.tamanho;
         carinho resumir(texto: verso) -> verso {
-            nova tem_status: logica = contem_verso(texto, "status=ok");
-            nova tem_valor: logica = contem_verso(texto, "valor=7");
+            nova tem_status: logica = contem(texto, "status=ok");
+            nova tem_valor: logica = contem(texto, "valor=7");
             talvez tem_status && tem_valor {
-                mimo formatar_verso("captura={} bytes", tamanho_verso(texto));
+                mimo formatar("captura={} bytes", tamanho(texto));
             }
             mimo "captura=invalida";
         }
@@ -7014,7 +7014,7 @@ fn run_fase163_capturar_stdout_fluxo_composto_funciona() {
             nova texto: verso = capturar_stdout("__CMD__");
             nova resumo: verso = resumir(texto);
             falar(resumo);
-            talvez contem_verso(resumo, "captura=") {
+            talvez contem(resumo, "captura=") {
                 mimo 163;
             }
             mimo 0;
@@ -7029,10 +7029,10 @@ fn run_fase163_capturar_stdout_fluxo_composto_funciona() {
 
 #[test]
 fn run_fase163_capturar_stdout_falha_com_spawn_invalido() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer processo.capturar_stdout; trazer texto.tamanho;
         carinho principal() -> bombom {
             nova texto: verso = capturar_stdout("/__pinker_fase163_comando_inexistente__");
-            mimo tamanho_verso(texto);
+            mimo tamanho(texto);
         }"#;
     let err = run_code(source).unwrap_err();
     assert!(
@@ -7044,10 +7044,10 @@ fn run_fase163_capturar_stdout_falha_com_spawn_invalido() {
 
 #[test]
 fn run_fase163_capturar_stdout_rejeita_comando_vazio() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer processo.capturar_stdout; trazer texto.tamanho;
         carinho principal() -> bombom {
             nova texto: verso = capturar_stdout("");
-            mimo tamanho_verso(texto);
+            mimo tamanho(texto);
         }"#;
     let err = run_code(source).unwrap_err();
     assert!(
@@ -7059,10 +7059,10 @@ fn run_fase163_capturar_stdout_rejeita_comando_vazio() {
 
 #[test]
 fn run_fase163_capturar_stdout_nao_abre_shell_implicito() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer processo.capturar_stdout; trazer texto.tamanho;
         carinho principal() -> bombom {
             nova texto: verso = capturar_stdout("__CMD__ --flag");
-            mimo tamanho_verso(texto);
+            mimo tamanho(texto);
         }"#
     .replace(
         "__CMD__",
@@ -7078,10 +7078,10 @@ fn run_fase163_capturar_stdout_nao_abre_shell_implicito() {
 
 #[test]
 fn run_fase169_capturar_stdout_com_argv_explicito_ainda_nao_abre_shell_implicito() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer processo.capturar_stdout; trazer texto.tamanho;
         carinho principal() -> bombom {
             nova texto: verso = capturar_stdout("__CMD__ --flag", "--alvo=rosa");
-            mimo tamanho_verso(texto);
+            mimo tamanho(texto);
         }"#
     .replace(
         "__CMD__",
@@ -7097,10 +7097,10 @@ fn run_fase169_capturar_stdout_com_argv_explicito_ainda_nao_abre_shell_implicito
 
 #[test]
 fn run_fase163_capturar_stdout_rejeita_stdout_nao_utf8() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer processo.capturar_stdout; trazer texto.tamanho;
         carinho principal() -> bombom {
             nova texto: verso = capturar_stdout("__CMD__");
-            mimo tamanho_verso(texto);
+            mimo tamanho(texto);
         }"#
     .replace(
         "__CMD__",
@@ -7201,12 +7201,12 @@ fn cli_run_fase169_captura_stdout_argv_explicito_fluxo_composto_valido() {
 // @pinker-nav:summary Cobre captura de stderr (mínimo, argv explícito, preservação UTF-8 estrita) no interpretador e via CLI.
 #[test]
 fn run_fase164_capturar_stderr_minimo_retorna_verso() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer processo.capturar_stderr; trazer texto.contem; trazer texto.tamanho;
         carinho principal() -> bombom {
             nova texto: verso = capturar_stderr("__CMD__");
-            nova tem_erro: logica = contem_verso(texto, "erro=sim");
-            nova tem_codigo: logica = contem_verso(texto, "codigo=9");
-            talvez tem_erro && tem_codigo && tamanho_verso(texto) == 18 {
+            nova tem_erro: logica = contem(texto, "erro=sim");
+            nova tem_codigo: logica = contem(texto, "codigo=9");
+            talvez tem_erro && tem_codigo && tamanho(texto) == 18 {
                 mimo 164;
             }
             mimo 0;
@@ -7221,12 +7221,12 @@ fn run_fase164_capturar_stderr_minimo_retorna_verso() {
 
 #[test]
 fn run_fase170_capturar_stderr_aceita_argv_explicito_minimo() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer processo.capturar_stderr; trazer texto.contem; trazer texto.tamanho;
         carinho principal() -> bombom {
             nova texto: verso = capturar_stderr("__CMD__", "--alvo=rosa");
-            nova tem_erro: logica = contem_verso(texto, "erro=sim");
-            nova tem_alvo: logica = contem_verso(texto, "alvo=rosa");
-            talvez tem_erro && tem_alvo && tamanho_verso(texto) == 19 {
+            nova tem_erro: logica = contem(texto, "erro=sim");
+            nova tem_alvo: logica = contem(texto, "alvo=rosa");
+            talvez tem_erro && tem_alvo && tamanho(texto) == 19 {
                 mimo 170;
             }
             mimo 0;
@@ -7241,12 +7241,12 @@ fn run_fase170_capturar_stderr_aceita_argv_explicito_minimo() {
 
 #[test]
 fn run_fase170_capturar_stderr_fluxo_composto_com_argv_explicito() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer processo.capturar_stderr; trazer texto.contem; trazer texto.formatar; trazer texto.igual; trazer texto.tamanho;
         carinho resumir(stderr_texto: verso) -> verso {
-            nova tem_erro: logica = contem_verso(stderr_texto, "erro=sim");
-            nova tem_alvo: logica = contem_verso(stderr_texto, "alvo=rosa");
+            nova tem_erro: logica = contem(stderr_texto, "erro=sim");
+            nova tem_alvo: logica = contem(stderr_texto, "alvo=rosa");
             talvez tem_erro && tem_alvo {
-                mimo formatar_verso("stderr={} bytes", tamanho_verso(stderr_texto));
+                mimo formatar("stderr={} bytes", tamanho(stderr_texto));
             }
             mimo "stderr=invalido";
         }
@@ -7255,7 +7255,7 @@ fn run_fase170_capturar_stderr_fluxo_composto_com_argv_explicito() {
             nova texto: verso = capturar_stderr("__CMD__", "--alvo=rosa");
             nova resumo: verso = resumir(texto);
             falar(resumo);
-            talvez igual_verso(resumo, "stderr=19 bytes") {
+            talvez igual(resumo, "stderr=19 bytes") {
                 mimo 170;
             }
             mimo 0;
@@ -7270,12 +7270,12 @@ fn run_fase170_capturar_stderr_fluxo_composto_com_argv_explicito() {
 
 #[test]
 fn run_fase164_capturar_stderr_fluxo_composto_funciona() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer processo.capturar_stderr; trazer texto.contem; trazer texto.formatar; trazer texto.tamanho;
         carinho resumir(stderr_texto: verso) -> verso {
-            nova tem_erro: logica = contem_verso(stderr_texto, "erro=sim");
-            nova tem_codigo: logica = contem_verso(stderr_texto, "codigo=9");
+            nova tem_erro: logica = contem(stderr_texto, "erro=sim");
+            nova tem_codigo: logica = contem(stderr_texto, "codigo=9");
             talvez tem_erro && tem_codigo {
-                mimo formatar_verso("stderr={} bytes", tamanho_verso(stderr_texto));
+                mimo formatar("stderr={} bytes", tamanho(stderr_texto));
             }
             mimo "stderr=invalido";
         }
@@ -7284,7 +7284,7 @@ fn run_fase164_capturar_stderr_fluxo_composto_funciona() {
             nova texto: verso = capturar_stderr("__CMD__");
             nova resumo: verso = resumir(texto);
             falar(resumo);
-            talvez contem_verso(resumo, "stderr=") {
+            talvez contem(resumo, "stderr=") {
                 mimo 164;
             }
             mimo 0;
@@ -7299,10 +7299,10 @@ fn run_fase164_capturar_stderr_fluxo_composto_funciona() {
 
 #[test]
 fn run_fase170_capturar_stderr_rejeita_argv_fora_do_recorte_minimo() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer processo.capturar_stderr; trazer texto.tamanho;
         carinho principal() -> bombom {
             nova texto: verso = capturar_stderr("__CMD__", "--alvo=rosa", "--extra");
-            mimo tamanho_verso(texto);
+            mimo tamanho(texto);
         }"#
     .replace(
         "__CMD__",
@@ -7320,10 +7320,10 @@ fn run_fase170_capturar_stderr_rejeita_argv_fora_do_recorte_minimo() {
 
 #[test]
 fn run_fase164_capturar_stderr_falha_com_spawn_invalido() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer processo.capturar_stderr; trazer texto.tamanho;
         carinho principal() -> bombom {
             nova texto: verso = capturar_stderr("/__pinker_fase164_comando_inexistente__");
-            mimo tamanho_verso(texto);
+            mimo tamanho(texto);
         }"#;
     let err = run_code(source).unwrap_err();
     assert!(
@@ -7335,10 +7335,10 @@ fn run_fase164_capturar_stderr_falha_com_spawn_invalido() {
 
 #[test]
 fn run_fase164_capturar_stderr_rejeita_comando_vazio() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer processo.capturar_stderr; trazer texto.tamanho;
         carinho principal() -> bombom {
             nova texto: verso = capturar_stderr("");
-            mimo tamanho_verso(texto);
+            mimo tamanho(texto);
         }"#;
     let err = run_code(source).unwrap_err();
     assert!(
@@ -7350,10 +7350,10 @@ fn run_fase164_capturar_stderr_rejeita_comando_vazio() {
 
 #[test]
 fn run_fase164_capturar_stderr_nao_abre_shell_implicito() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer processo.capturar_stderr; trazer texto.tamanho;
         carinho principal() -> bombom {
             nova texto: verso = capturar_stderr("__CMD__ --flag");
-            mimo tamanho_verso(texto);
+            mimo tamanho(texto);
         }"#
     .replace(
         "__CMD__",
@@ -7369,10 +7369,10 @@ fn run_fase164_capturar_stderr_nao_abre_shell_implicito() {
 
 #[test]
 fn run_fase170_capturar_stderr_com_argv_explicito_ainda_nao_abre_shell_implicito() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer processo.capturar_stderr; trazer texto.tamanho;
         carinho principal() -> bombom {
             nova texto: verso = capturar_stderr("__CMD__ --flag", "--alvo=rosa");
-            mimo tamanho_verso(texto);
+            mimo tamanho(texto);
         }"#
     .replace(
         "__CMD__",
@@ -7388,10 +7388,10 @@ fn run_fase170_capturar_stderr_com_argv_explicito_ainda_nao_abre_shell_implicito
 
 #[test]
 fn run_fase164_capturar_stderr_rejeita_stderr_nao_utf8() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer processo.capturar_stderr; trazer texto.tamanho;
         carinho principal() -> bombom {
             nova texto: verso = capturar_stderr("__CMD__");
-            mimo tamanho_verso(texto);
+            mimo tamanho(texto);
         }"#
     .replace(
         "__CMD__",
@@ -7407,10 +7407,10 @@ fn run_fase164_capturar_stderr_rejeita_stderr_nao_utf8() {
 
 #[test]
 fn run_fase170_capturar_stderr_com_argv_explicito_preserva_utf8_estrito() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer processo.capturar_stderr; trazer texto.tamanho;
         carinho principal() -> bombom {
             nova texto: verso = capturar_stderr("__CMD__", "--alvo=rosa");
-            mimo tamanho_verso(texto);
+            mimo tamanho(texto);
         }"#
     .replace(
         "__CMD__",
@@ -7505,7 +7505,7 @@ fn cli_run_fase164_captura_stderr_fluxo_composto_valido() {
 // @pinker-nav:summary Cobre executar com entrada stdin (código zero, fluxo composto, argv explícito, rejeição de spawn inválido, sem shell implícito) no interpretador e via CLI.
 #[test]
 fn run_fase165_executar_com_entrada_minimo_retorna_codigo_zero() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer processo.executar_com_entrada;
         carinho principal() -> bombom {
             nova codigo: bombom = executar_com_entrada("__CMD__", "rosa\n");
             talvez codigo == 0 {
@@ -7523,17 +7523,17 @@ fn run_fase165_executar_com_entrada_minimo_retorna_codigo_zero() {
 
 #[test]
 fn run_fase165_executar_com_entrada_fluxo_composto_funciona() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer processo.executar_com_entrada; trazer texto.formatar; trazer texto.juntar; trazer texto.tamanho;
         carinho montar() -> verso {
             nova prefixo: verso = "linha=ok\n";
-            nova sufixo: verso = formatar_verso("valor={}\n", 7);
-            mimo juntar_verso(prefixo, sufixo);
+            nova sufixo: verso = formatar("valor={}\n", 7);
+            mimo juntar(prefixo, sufixo);
         }
 
         carinho principal() -> bombom {
             nova entrada: verso = montar();
             nova codigo: bombom = executar_com_entrada("__CMD__", entrada);
-            talvez codigo == 0 && tamanho_verso(entrada) == 17 {
+            talvez codigo == 0 && tamanho(entrada) == 17 {
                 mimo 165;
             }
             mimo 0;
@@ -7548,7 +7548,7 @@ fn run_fase165_executar_com_entrada_fluxo_composto_funciona() {
 
 #[test]
 fn run_fase177_executar_com_entrada_aceita_argv_explicito_minimo() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer processo.executar_com_entrada;
         carinho principal() -> bombom {
             nova codigo: bombom = executar_com_entrada("__CMD__", "argv=ok\n", "--modo=ok");
             talvez codigo == 0 {
@@ -7566,23 +7566,23 @@ fn run_fase177_executar_com_entrada_aceita_argv_explicito_minimo() {
 
 #[test]
 fn run_fase177_executar_com_entrada_fluxo_composto_com_argv_explicito() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer processo.executar_com_entrada; trazer texto.formatar; trazer texto.igual; trazer texto.juntar;
         carinho montar_entrada() -> verso {
             nova prefixo: verso = "linha=argv\n";
-            nova sufixo: verso = formatar_verso("valor={}\n", 177);
-            mimo juntar_verso(prefixo, sufixo);
+            nova sufixo: verso = formatar("valor={}\n", 177);
+            mimo juntar(prefixo, sufixo);
         }
 
         carinho verificar(comando: verso, entrada: verso, arg: verso) -> bombom {
             nova codigo: bombom = executar_com_entrada(comando, entrada, arg);
-            falar(formatar_verso("stdin_argv_status={}", codigo));
+            falar(formatar("stdin_argv_status={}", codigo));
             mimo codigo;
         }
 
         carinho principal() -> bombom {
             nova entrada: verso = montar_entrada();
             nova codigo: bombom = verificar("__CMD__", entrada, "--modo=ok");
-            talvez codigo == 0 && igual_verso(entrada, "linha=argv\nvalor=177\n") {
+            talvez codigo == 0 && igual(entrada, "linha=argv\nvalor=177\n") {
                 mimo 177;
             }
             mimo 0;
@@ -7597,7 +7597,7 @@ fn run_fase177_executar_com_entrada_fluxo_composto_com_argv_explicito() {
 
 #[test]
 fn run_fase165_executar_com_entrada_falha_com_spawn_invalido() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer processo.executar_com_entrada;
         carinho principal() -> bombom {
             nova codigo: bombom = executar_com_entrada("/__pinker_fase165_comando_inexistente__", "rosa\n");
             mimo codigo;
@@ -7612,7 +7612,7 @@ fn run_fase165_executar_com_entrada_falha_com_spawn_invalido() {
 
 #[test]
 fn run_fase165_executar_com_entrada_rejeita_comando_vazio() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer processo.executar_com_entrada;
         carinho principal() -> bombom {
             nova codigo: bombom = executar_com_entrada("", "rosa\n");
             mimo codigo;
@@ -7627,7 +7627,7 @@ fn run_fase165_executar_com_entrada_rejeita_comando_vazio() {
 
 #[test]
 fn run_fase165_executar_com_entrada_nao_abre_shell_implicito() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer processo.executar_com_entrada;
         carinho principal() -> bombom {
             nova codigo: bombom = executar_com_entrada("__CMD__ --flag", "rosa\n");
             mimo codigo;
@@ -7646,7 +7646,7 @@ fn run_fase165_executar_com_entrada_nao_abre_shell_implicito() {
 
 #[test]
 fn run_fase177_executar_com_entrada_com_argv_explicito_ainda_nao_abre_shell_implicito() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer processo.executar_com_entrada;
         carinho principal() -> bombom {
             nova codigo: bombom = executar_com_entrada("__CMD__ --flag", "argv=ok\n", "--modo=ok");
             mimo codigo;
@@ -7740,7 +7740,7 @@ fn cli_run_fase177_stdin_textual_argv_explicito_fluxo_composto_valido() {
 // @pinker-nav:summary Cobre pipeline mínimo (código do consumidor, sem shell implícito) no interpretador e via CLI.
 #[test]
 fn run_fase166_pipeline_minimo_retorna_codigo_do_consumidor() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer processo.pipeline_minimo;
         carinho principal() -> bombom {
             nova codigo: bombom = pipeline_minimo("__PRODUTOR__", "__CONSUMIDOR__");
             talvez codigo == 0 {
@@ -7762,18 +7762,18 @@ fn run_fase166_pipeline_minimo_retorna_codigo_do_consumidor() {
 
 #[test]
 fn run_fase166_pipeline_minimo_fluxo_composto_funciona() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer processo.pipeline_minimo; trazer texto.formatar; trazer texto.igual;
         carinho verificar(nome: verso, produtor: verso, consumidor: verso) -> bombom {
             nova codigo: bombom = pipeline_minimo(produtor, consumidor);
-            falar(formatar_verso("{}={}", nome, codigo));
+            falar(formatar("{}={}", nome, codigo));
             mimo codigo;
         }
 
         carinho principal() -> bombom {
             nova codigo: bombom = verificar("pipe", "__PRODUTOR__", "__CONSUMIDOR__");
-            nova resumo: verso = formatar_verso("pipe_zero={}", codigo);
+            nova resumo: verso = formatar("pipe_zero={}", codigo);
             falar(resumo);
-            talvez codigo == 0 && igual_verso(resumo, "pipe_zero=0") {
+            talvez codigo == 0 && igual(resumo, "pipe_zero=0") {
                 mimo 166;
             }
             mimo 0;
@@ -7792,7 +7792,7 @@ fn run_fase166_pipeline_minimo_fluxo_composto_funciona() {
 
 #[test]
 fn run_fase166_pipeline_minimo_falha_com_spawn_produtor_invalido() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer processo.pipeline_minimo;
         carinho principal() -> bombom {
             nova codigo: bombom = pipeline_minimo("/__pinker_fase166_produtor_inexistente__", "__CONSUMIDOR__");
             mimo codigo;
@@ -7811,7 +7811,7 @@ fn run_fase166_pipeline_minimo_falha_com_spawn_produtor_invalido() {
 
 #[test]
 fn run_fase166_pipeline_minimo_falha_com_spawn_consumidor_invalido() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer processo.pipeline_minimo;
         carinho principal() -> bombom {
             nova codigo: bombom = pipeline_minimo("__PRODUTOR__", "/__pinker_fase166_consumidor_inexistente__");
             mimo codigo;
@@ -7830,7 +7830,7 @@ fn run_fase166_pipeline_minimo_falha_com_spawn_consumidor_invalido() {
 
 #[test]
 fn run_fase166_pipeline_minimo_rejeita_comando_vazio() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer processo.pipeline_minimo;
         carinho principal() -> bombom {
             nova codigo: bombom = pipeline_minimo("", "__CONSUMIDOR__");
             mimo codigo;
@@ -7849,7 +7849,7 @@ fn run_fase166_pipeline_minimo_rejeita_comando_vazio() {
 
 #[test]
 fn run_fase166_pipeline_minimo_nao_abre_shell_implicito() {
-    let source = r#"pacote main;
+    let source = r#"pacote main; trazer processo.pipeline_minimo;
         carinho principal() -> bombom {
             nova codigo: bombom = pipeline_minimo("__PRODUTOR__ --flag", "__CONSUMIDOR__");
             mimo codigo;
@@ -8341,12 +8341,12 @@ fn cli_run_fase151_lista_bombom_tirar_ultimo_fluxo_composto_funciona_com_exemplo
 #[test]
 fn run_mapa_verso_bombom_minimo_criar_definir_obter_tem_funciona() {
     let out = run_code(
-        r#"pacote main;
+        r#"pacote main; trazer mapa.verso_bombom_criar; trazer mapa.verso_bombom_definir; trazer mapa.verso_bombom_obter; trazer mapa.verso_bombom_tem;
          carinho principal() -> bombom {
-             nova m: mapa<verso,bombom> = mapa_verso_bombom_criar();
-             mapa_verso_bombom_definir(m, "idade", 7);
-             talvez mapa_verso_bombom_tem(m, "idade") {
-                 mimo mapa_verso_bombom_obter(m, "idade");
+             nova m: mapa<verso,bombom> = verso_bombom_criar();
+             verso_bombom_definir(m, "idade", 7);
+             talvez verso_bombom_tem(m, "idade") {
+                 mimo verso_bombom_obter(m, "idade");
              }
              mimo 0;
          }"#,
@@ -8358,20 +8358,20 @@ fn run_mapa_verso_bombom_minimo_criar_definir_obter_tem_funciona() {
 #[test]
 fn run_mapa_verso_bombom_fluxo_composto_funciona() {
     let out = run_code(
-        r#"pacote main;
+        r#"pacote main; trazer mapa.verso_bombom_criar; trazer mapa.verso_bombom_definir; trazer mapa.verso_bombom_obter; trazer mapa.verso_bombom_tem;
          carinho carregar() -> mapa<verso,bombom> {
-             nova m: mapa<verso,bombom> = mapa_verso_bombom_criar();
-             mapa_verso_bombom_definir(m, "ana", 10);
-             mapa_verso_bombom_definir(m, "bia", 20);
+             nova m: mapa<verso,bombom> = verso_bombom_criar();
+             verso_bombom_definir(m, "ana", 10);
+             verso_bombom_definir(m, "bia", 20);
              mimo m;
          }
          carinho principal() -> bombom {
              nova placar: mapa<verso,bombom> = carregar();
-             talvez mapa_verso_bombom_tem(placar, "ana") {
-                 nova atual: bombom = mapa_verso_bombom_obter(placar, "ana");
-                 mapa_verso_bombom_definir(placar, "ana", atual + 5);
+             talvez verso_bombom_tem(placar, "ana") {
+                 nova atual: bombom = verso_bombom_obter(placar, "ana");
+                 verso_bombom_definir(placar, "ana", atual + 5);
              }
-             mimo mapa_verso_bombom_obter(placar, "ana");
+             mimo verso_bombom_obter(placar, "ana");
          }"#,
     )
     .unwrap();
@@ -8381,10 +8381,10 @@ fn run_mapa_verso_bombom_fluxo_composto_funciona() {
 #[test]
 fn run_mapa_verso_bombom_obter_chave_ausente_falha_claro() {
     let err = run_code(
-        r#"pacote main;
+        r#"pacote main; trazer mapa.verso_bombom_criar; trazer mapa.verso_bombom_obter;
          carinho principal() -> bombom {
-             nova m: mapa<verso,bombom> = mapa_verso_bombom_criar();
-             mimo mapa_verso_bombom_obter(m, "faltando");
+             nova m: mapa<verso,bombom> = verso_bombom_criar();
+             mimo verso_bombom_obter(m, "faltando");
          }"#,
     )
     .unwrap_err()
@@ -8436,11 +8436,11 @@ fn cli_run_fase152_mapa_verso_bombom_fluxo_composto_valido() {
 #[test]
 fn run_fase153_iteracao_lista_bombom_minima_funciona() {
     let out = run_code(
-        r#"pacote main;
+        r#"pacote main; trazer lista.bombom_anexar; trazer lista.bombom_criar;
          carinho principal() -> bombom {
-             nova itens: lista<bombom> = lista_bombom_criar();
-             lista_bombom_anexar(itens, 5);
-             lista_bombom_anexar(itens, 7);
+             nova itens: lista<bombom> = bombom_criar();
+             bombom_anexar(itens, 5);
+             bombom_anexar(itens, 7);
              nova muda soma: bombom = 0;
              para cada item em itens {
                  soma = soma + item;
@@ -8455,12 +8455,12 @@ fn run_fase153_iteracao_lista_bombom_minima_funciona() {
 #[test]
 fn run_fase153_iteracao_lista_bombom_fluxo_composto_funciona() {
     let out = run_code(
-        r#"pacote main;
+        r#"pacote main; trazer lista.bombom_anexar; trazer lista.bombom_criar;
          carinho carregar() -> lista<bombom> {
-             nova itens: lista<bombom> = lista_bombom_criar();
-             lista_bombom_anexar(itens, 10);
-             lista_bombom_anexar(itens, 20);
-             lista_bombom_anexar(itens, 30);
+             nova itens: lista<bombom> = bombom_criar();
+             bombom_anexar(itens, 10);
+             bombom_anexar(itens, 20);
+             bombom_anexar(itens, 30);
              mimo itens;
          }
          carinho principal() -> bombom {
@@ -8540,13 +8540,13 @@ fn cli_run_fase153_iteracao_lista_bombom_fluxo_composto_valido() {
 #[test]
 fn run_fase154_iteracao_mapa_verso_bombom_minima_funciona() {
     let out = run_code(
-        r#"pacote main;
+        r#"pacote main; trazer mapa.verso_bombom_criar; trazer mapa.verso_bombom_definir; trazer mapa.verso_bombom_obter;
          carinho principal() -> bombom {
-             nova m: mapa<verso,bombom> = mapa_verso_bombom_criar();
-             mapa_verso_bombom_definir(m, "pontos", 42);
+             nova m: mapa<verso,bombom> = verso_bombom_criar();
+             verso_bombom_definir(m, "pontos", 42);
              nova muda total: bombom = 0;
              para cada chave em m {
-                 nova v: bombom = mapa_verso_bombom_obter(m, chave);
+                 nova v: bombom = verso_bombom_obter(m, chave);
                  total = total + v;
              }
              mimo total;
@@ -8559,13 +8559,13 @@ fn run_fase154_iteracao_mapa_verso_bombom_minima_funciona() {
 #[test]
 fn run_fase154_iteracao_mapa_verso_bombom_chave_verso_no_corpo() {
     let out = run_code(
-        r#"pacote main;
+        r#"pacote main; trazer mapa.verso_bombom_criar; trazer mapa.verso_bombom_definir; trazer mapa.verso_bombom_tem;
          carinho principal() -> bombom {
-             nova m: mapa<verso,bombom> = mapa_verso_bombom_criar();
-             mapa_verso_bombom_definir(m, "chave_unica", 7);
+             nova m: mapa<verso,bombom> = verso_bombom_criar();
+             verso_bombom_definir(m, "chave_unica", 7);
              nova muda encontrou: bombom = 0;
              para cada k em m {
-                 talvez mapa_verso_bombom_tem(m, k) {
+                 talvez verso_bombom_tem(m, k) {
                      encontrou = encontrou + 1;
                  }
              }
@@ -8579,15 +8579,15 @@ fn run_fase154_iteracao_mapa_verso_bombom_chave_verso_no_corpo() {
 #[test]
 fn run_fase154_iteracao_mapa_verso_bombom_valor_obter_no_corpo() {
     let out = run_code(
-        r#"pacote main;
+        r#"pacote main; trazer mapa.verso_bombom_criar; trazer mapa.verso_bombom_definir; trazer mapa.verso_bombom_obter;
          carinho principal() -> bombom {
-             nova m: mapa<verso,bombom> = mapa_verso_bombom_criar();
-             mapa_verso_bombom_definir(m, "a", 10);
-             mapa_verso_bombom_definir(m, "b", 20);
-             mapa_verso_bombom_definir(m, "c", 30);
+             nova m: mapa<verso,bombom> = verso_bombom_criar();
+             verso_bombom_definir(m, "a", 10);
+             verso_bombom_definir(m, "b", 20);
+             verso_bombom_definir(m, "c", 30);
              nova muda soma: bombom = 0;
              para cada k em m {
-                 nova v: bombom = mapa_verso_bombom_obter(m, k);
+                 nova v: bombom = verso_bombom_obter(m, k);
                  soma = soma + v;
              }
              mimo soma;
@@ -8600,9 +8600,9 @@ fn run_fase154_iteracao_mapa_verso_bombom_valor_obter_no_corpo() {
 #[test]
 fn run_fase154_iteracao_mapa_verso_bombom_vazio_nao_executa_corpo() {
     let out = run_code(
-        r#"pacote main;
+        r#"pacote main; trazer mapa.verso_bombom_criar;
          carinho principal() -> bombom {
-             nova m: mapa<verso,bombom> = mapa_verso_bombom_criar();
+             nova m: mapa<verso,bombom> = verso_bombom_criar();
              nova muda execucoes: bombom = 0;
              para cada k em m {
                  execucoes = execucoes + 1;
@@ -8618,12 +8618,12 @@ fn run_fase154_iteracao_mapa_verso_bombom_vazio_nao_executa_corpo() {
 fn run_fase154_iteracao_lista_bombom_continua_funcional() {
     // Regressão: Phase 153 ainda funciona após Phase 154.
     let out = run_code(
-        r#"pacote main;
+        r#"pacote main; trazer lista.bombom_anexar; trazer lista.bombom_criar;
          carinho principal() -> bombom {
-             nova itens: lista<bombom> = lista_bombom_criar();
-             lista_bombom_anexar(itens, 1);
-             lista_bombom_anexar(itens, 2);
-             lista_bombom_anexar(itens, 3);
+             nova itens: lista<bombom> = bombom_criar();
+             bombom_anexar(itens, 1);
+             bombom_anexar(itens, 2);
+             bombom_anexar(itens, 3);
              nova muda soma: bombom = 0;
              para cada item em itens {
                  soma = soma + item;
@@ -8638,19 +8638,19 @@ fn run_fase154_iteracao_lista_bombom_continua_funcional() {
 #[test]
 fn run_fase154_iteracao_mapa_em_parametro_funciona() {
     let out = run_code(
-        r#"pacote main;
+        r#"pacote main; trazer mapa.verso_bombom_criar; trazer mapa.verso_bombom_definir; trazer mapa.verso_bombom_obter;
          carinho somar(m: mapa<verso,bombom>) -> bombom {
              nova muda s: bombom = 0;
              para cada k em m {
-                 nova v: bombom = mapa_verso_bombom_obter(m, k);
+                 nova v: bombom = verso_bombom_obter(m, k);
                  s = s + v;
              }
              mimo s;
          }
          carinho principal() -> bombom {
-             nova m: mapa<verso,bombom> = mapa_verso_bombom_criar();
-             mapa_verso_bombom_definir(m, "x", 5);
-             mapa_verso_bombom_definir(m, "y", 15);
+             nova m: mapa<verso,bombom> = verso_bombom_criar();
+             verso_bombom_definir(m, "x", 5);
+             verso_bombom_definir(m, "y", 15);
              mimo somar(m);
          }"#,
     )
@@ -8723,14 +8723,14 @@ fn cli_run_fase154_iteracao_mapa_verso_bombom_fluxo_composto_valido() {
 #[test]
 fn run_fase156_mesma_semente_produz_mesma_sequencia() {
     let out = run_code(
-        r#"pacote main;
+        r#"pacote main; trazer acaso.criar; trazer acaso.proximo;
          carinho principal() -> bombom {
-             nova a: bombom = aleatorio_criar(42);
-             nova b: bombom = aleatorio_criar(42);
-             nova a1: bombom = aleatorio_proximo(a);
-             nova b1: bombom = aleatorio_proximo(b);
-             nova a2: bombom = aleatorio_proximo(a);
-             nova b2: bombom = aleatorio_proximo(b);
+             nova a: bombom = criar(42);
+             nova b: bombom = criar(42);
+             nova a1: bombom = proximo(a);
+             nova b1: bombom = proximo(b);
+             nova a2: bombom = proximo(a);
+             nova b2: bombom = proximo(b);
              talvez a1 == b1 {
                  talvez a2 == b2 {
                      mimo 1;
@@ -8746,12 +8746,12 @@ fn run_fase156_mesma_semente_produz_mesma_sequencia() {
 #[test]
 fn run_fase156_sementes_diferentes_sao_distinguiveis() {
     let out = run_code(
-        r#"pacote main;
+        r#"pacote main; trazer acaso.criar; trazer acaso.proximo;
          carinho principal() -> bombom {
-             nova a: bombom = aleatorio_criar(1);
-             nova b: bombom = aleatorio_criar(2);
-             nova va: bombom = aleatorio_proximo(a);
-             nova vb: bombom = aleatorio_proximo(b);
+             nova a: bombom = criar(1);
+             nova b: bombom = criar(2);
+             nova va: bombom = proximo(a);
+             nova vb: bombom = proximo(b);
              talvez va == vb {
                  mimo 0;
              }
@@ -8765,25 +8765,25 @@ fn run_fase156_sementes_diferentes_sao_distinguiveis() {
 #[test]
 fn run_fase156_fluxo_composto_com_lista_funciona() {
     let out = run_code(
-        r#"pacote main;
+        r#"pacote main; trazer acaso.criar; trazer acaso.proximo; trazer lista.bombom_anexar; trazer lista.bombom_criar; trazer lista.bombom_obter; trazer lista.bombom_tamanho;
          carinho rolar_face(gerador: bombom) -> bombom {
-             mimo (aleatorio_proximo(gerador) % 6) + 1;
+             mimo (proximo(gerador) % 6) + 1;
          }
          carinho jogar_rodada(gerador: bombom, historico: lista<bombom>) -> bombom {
              nova dado_a: bombom = rolar_face(gerador);
              nova dado_b: bombom = rolar_face(gerador);
-             lista_bombom_anexar(historico, dado_a);
-             lista_bombom_anexar(historico, dado_b);
+             bombom_anexar(historico, dado_a);
+             bombom_anexar(historico, dado_b);
              mimo dado_a + dado_b;
          }
          carinho principal() -> bombom {
-             nova gerador: bombom = aleatorio_criar(2024);
-             nova historico: lista<bombom> = lista_bombom_criar();
+             nova gerador: bombom = criar(2024);
+             nova historico: lista<bombom> = bombom_criar();
              nova primeira: bombom = jogar_rodada(gerador, historico);
              nova segunda: bombom = jogar_rodada(gerador, historico);
-             falar(lista_bombom_tamanho(historico));
+             falar(bombom_tamanho(historico));
              falar(primeira, segunda);
-             mimo lista_bombom_obter(historico, 0) + lista_bombom_obter(historico, 3);
+             mimo bombom_obter(historico, 0) + bombom_obter(historico, 3);
          }"#,
     )
     .unwrap();
@@ -8793,9 +8793,9 @@ fn run_fase156_fluxo_composto_com_lista_funciona() {
 #[test]
 fn run_fase156_handle_invalido_falha_claro() {
     let err = run_code(
-        r#"pacote main;
+        r#"pacote main; trazer acaso.proximo;
          carinho principal() -> bombom {
-             mimo aleatorio_proximo(999);
+             mimo proximo(999);
          }"#,
     )
     .unwrap_err()
@@ -9312,11 +9312,11 @@ fn fase243_closure_executa_apos_retorno_do_escopo_criador_no_interpretador() {
 #[test]
 fn fase243_closure_captura_multipla_de_tipos_distintos_executa_no_interpretador() {
     let code = r#"
-        pacote main;
+        pacote main; trazer texto.tamanho;
         carinho fabricar(base: bombom, ligado: logica, rotulo: verso) -> carinho() -> bombom {
             mimo carinho() -> bombom {
                 talvez ligado {
-                    mimo base + tamanho_verso(rotulo);
+                    mimo base + tamanho(rotulo);
                 } senao {
                     mimo base;
                 }

@@ -3427,7 +3427,7 @@ impl Parser {
     // @pinker-nav:start parser.importacoes.superficie-familia
     // @pinker-nav:domain importacoes
     // @pinker-nav:layer parser
-    // @pinker-nav:summary Resolução da superfície por família dentro do parser, e as duas autoridades de precedência que a governam: `nomes_de_topo`, censo de tokens em profundidade zero com as identidades que a Pinker resolve independentemente da ordem textual, e `escopos_locais`, pilha de escopos léxicos reais alimentada em cada ponto onde o parser liga um nome. A família é FALLBACK e o último a responder: cede a identidade de topo em todo o arquivo, cede a ligação local apenas onde ela está visível, e sem o import não opina nem recusa — devolve `None` e o `FieldAccess` histórico é construído como antes desta Parte existir. Antes das duas, a família cede ao `ContextoDeImport` que a autoridade de import entrega pronto: `modulos_reais` decide a classificação `MODULE vs FAMILY` da forma seletiva, e `nomes_importados` traz as identidades de topo de `trazer <modulo>;`, que não passam pelo fluxo de tokens deste arquivo e por isso entram no censo por veredito, não por leitura. A ligação `(família, membro) -> identidade` não mora aqui; vem inteira de `familia_superficie`.
+    // @pinker-nav:summary Resolução da superfície modular dentro do parser, e as autoridades de precedência que a governam: `nomes_de_topo`, censo de tokens em profundidade zero com as identidades que a Pinker resolve independentemente da ordem textual, e `escopos_locais`, pilha de escopos léxicos reais. O módulo é FALLBACK e o último a responder: cede a identidade de topo em todo o arquivo e cede a ligação local onde ela está visível. Depois da #505 o que ele NÃO faz mais é ceder ao global: `recusar_intrinseca_sem_import` recusa, no próprio CANONICALIZATION_BOUNDARY, qualquer grafia pública chamada sem import — canônica ou de membro —, e é isso que torna `GLOBAL_PUBLIC_INTRINSIC = 0` uma propriedade do parser em vez de uma lista. A recusa cede a `identidade_lexical_existente`, então declaração do próprio arquivo continua vencendo. A ligação `(módulo, membro) -> identidade` não mora aqui; vem inteira de `familia_superficie`.
 
     /// Parte G: nomes de módulo em `trazer <nome>.<simbolo>;` cuja classificação
     /// o parser **não pode** fazer sozinho.
@@ -3808,23 +3808,27 @@ impl Parser {
         if canonica.is_none() && modulos.is_empty() {
             return Ok(());
         }
-        let como_importar = if !modulos.is_empty() {
-            // A grafia é membro de um ou mais módulos: o import seletivo do
-            // par é o caminho direto.
-            modulos
-                .iter()
-                .map(|modulo| format!("'trazer {modulo}.{name};'"))
-                .collect::<Vec<_>>()
-                .join(" ou ")
-        } else {
-            // A grafia é canônica e não é membro: ela endereça a identidade,
-            // mas quem a chama escreve o membro.
-            match crate::familia_superficie::par_da_grafia_canonica(name) {
-                Some((modulo, membro)) => format!(
-                    "'{name}' é a grafia canônica de '{modulo}.{membro}'; escreva 'trazer {modulo}.{membro};' e chame '{membro}(...)', ou 'trazer {modulo};' e chame '{modulo}.{membro}(...)'"
-                ),
-                None => format!("'{name}' não pertence a nenhum módulo importável"),
+        // A grafia pode ser as duas coisas ao mesmo tempo: `lista_tamanho` é a
+        // grafia canônica do tamanho de lista E o membro `json.lista_tamanho`.
+        // A dica precisa oferecer os dois caminhos, ou manda o leitor para o
+        // módulo errado.
+        let mut caminhos: Vec<String> = modulos
+            .iter()
+            .map(|modulo| format!("'trazer {modulo}.{name};'"))
+            .collect();
+        if canonica.is_some() {
+            if let Some((modulo, membro)) = crate::familia_superficie::par_da_grafia_canonica(name)
+                .filter(|(_, membro)| *membro != name)
+            {
+                caminhos.push(format!(
+                    "'{name}' é a grafia canônica de '{modulo}.{membro}': escreva 'trazer {modulo}.{membro};' e chame '{membro}(...)', ou 'trazer {modulo};' e chame '{modulo}.{membro}(...)'"
+                ));
             }
+        }
+        let como_importar = if caminhos.is_empty() {
+            format!("'{name}' não pertence a nenhum módulo importável")
+        } else {
+            caminhos.join("; ou ")
         };
         Err(PinkerError::Parse {
             msg: format!(

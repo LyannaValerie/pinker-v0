@@ -16,7 +16,7 @@ use std::process::Output;
 use std::time::Duration;
 
 const VALID_SCALING: &str = r#"
-pacote main;
+pacote main; trazer memoria.alocar; trazer memoria.liberar;
 
 carinho principal() -> bombom {
     nova raw: seta<u8> = alocar(16);
@@ -195,7 +195,7 @@ fn interpretador_cobre_scaling_zero_multiplos_load_store_e_proveniencia() {
 #[test]
 fn derivacao_one_past_existe_mas_acesso_one_past_e_invalido() {
     let derive = r#"
-        pacote main;
+        pacote main; trazer memoria.alocar; trazer memoria.liberar;
         carinho principal() -> bombom {
             nova raw: seta<u8> = alocar(8);
             nova p: seta<u32> = raw virar seta<u32>;

@@ -183,20 +183,20 @@ fn construcao_e_extracao_em_funcoes_tem_paridade() {
 #[test]
 fn copia_do_handle_e_rasa_e_visivel_pelos_aliases() {
     let code = r#"
-        pacote main;
+        pacote main; trazer lista.anexar; trazer lista.criar; trazer lista.tamanho;
         leque Caixa { Valores(lista<bombom>) }
         carinho principal() -> bombom {
-            nova l: lista<bombom> = lista_criar();
-            lista_anexar(l, 1);
+            nova l: lista<bombom> = criar();
+            anexar(l, 1);
             nova c: Caixa = Caixa.Valores(l);
-            lista_anexar(l, 2);
+            anexar(l, 2);
             encaixe c {
                 caso Caixa.Valores(v) {
-                    lista_anexar(v, 3);
-                    falar(lista_tamanho(v));
+                    anexar(v, 3);
+                    falar(tamanho(v));
                 }
             }
-            falar(lista_tamanho(l));
+            falar(tamanho(l));
             mimo 0;
         }
     "#;
@@ -209,13 +209,13 @@ fn copia_do_handle_e_rasa_e_visivel_pelos_aliases() {
 #[test]
 fn lista_vazia_atravessa_a_variante_sem_materializacao() {
     let code = r#"
-        pacote main;
+        pacote main; trazer lista.criar; trazer lista.tamanho;
         leque Caixa { Valores(lista<bombom>) }
         carinho principal() -> bombom {
-            nova l: lista<bombom> = lista_criar();
+            nova l: lista<bombom> = criar();
             nova c: Caixa = Caixa.Valores(l);
             encaixe c {
-                caso Caixa.Valores(v) { falar(lista_tamanho(v)); }
+                caso Caixa.Valores(v) { falar(tamanho(v)); }
             }
             mimo 0;
         }
@@ -319,12 +319,12 @@ fn mensagem_antiga_do_contrato_nao_reaparece() {
 #[test]
 fn lista_de_leque_nao_aceita_lista_de_outro_leque() {
     let code = r#"
-        pacote main;
+        pacote main; trazer lista.criar;
         leque Cor { Rosa }
         leque Token { Fim }
         leque A { X(lista<Cor>) }
         carinho principal() -> bombom {
-            nova tokens: lista<Token> = lista_criar();
+            nova tokens: lista<Token> = criar();
             nova valor: A = A.X(tokens);
             mimo 0;
         }
@@ -338,10 +338,10 @@ fn lista_de_leque_nao_aceita_lista_de_outro_leque() {
 #[test]
 fn lista_de_bombom_nao_aceita_lista_de_verso() {
     let code = r#"
-        pacote main;
+        pacote main; trazer lista.criar;
         leque Pacote { Numeros(lista<bombom>) }
         carinho principal() -> bombom {
-            nova textos: lista<verso> = lista_criar();
+            nova textos: lista<verso> = criar();
             nova p: Pacote = Pacote.Numeros(textos);
             mimo 0;
         }
@@ -356,13 +356,13 @@ fn lista_de_bombom_nao_aceita_lista_de_verso() {
 #[test]
 fn lista_de_apelido_nominal_incorreto_e_recusada() {
     let code = r#"
-        pacote main;
+        pacote main; trazer lista.criar;
         leque Cor { Rosa }
         apelido CorAlias = Cor;
         apelido Errado = bombom;
         leque A { X(lista<CorAlias>) }
         carinho principal() -> bombom {
-            nova ns: lista<Errado> = lista_criar();
+            nova ns: lista<Errado> = criar();
             nova valor: A = A.X(ns);
             mimo 0;
         }
@@ -391,10 +391,10 @@ fn argumento_sem_valor_nao_pode_ser_carga() {
 #[test]
 fn quantidade_errada_de_cargas_e_recusada() {
     let code = r#"
-        pacote main;
+        pacote main; trazer lista.criar;
         leque Evento { Dados(bombom, lista<bombom>, verso) }
         carinho principal() -> bombom {
-            nova l: lista<bombom> = lista_criar();
+            nova l: lista<bombom> = criar();
             nova ev: Evento = Evento.Dados(1, l);
             mimo 0;
         }
@@ -407,10 +407,10 @@ fn quantidade_errada_de_cargas_e_recusada() {
 #[test]
 fn variante_e_leque_inexistentes_sao_recusados() {
     let variante = r#"
-        pacote main;
+        pacote main; trazer lista.criar;
         leque Pacote { Numeros(lista<bombom>) }
         carinho principal() -> bombom {
-            nova l: lista<bombom> = lista_criar();
+            nova l: lista<bombom> = criar();
             nova p: Pacote = Pacote.Ausente(l);
             mimo 0;
         }
@@ -418,9 +418,9 @@ fn variante_e_leque_inexistentes_sao_recusados() {
     assert!(recusa(variante).contains("Ausente"), "{}", recusa(variante));
 
     let leque = r#"
-        pacote main;
+        pacote main; trazer lista.criar;
         carinho principal() -> bombom {
-            nova l: lista<bombom> = lista_criar();
+            nova l: lista<bombom> = criar();
             nova p: bombom = Inexistente.X(l);
             mimo 0;
         }
@@ -432,10 +432,10 @@ fn variante_e_leque_inexistentes_sao_recusados() {
 #[test]
 fn extracao_com_aridade_errada_de_bindings_e_recusada() {
     let code = r#"
-        pacote main;
+        pacote main; trazer lista.criar;
         leque Evento { Dados(bombom, lista<bombom>, verso), Encerrar }
         carinho principal() -> bombom {
-            nova l: lista<bombom> = lista_criar();
+            nova l: lista<bombom> = criar();
             nova ev: Evento = Evento.Dados(1, l, "ok");
             encaixe ev {
                 caso Evento.Dados(n, x) { falar(n); }
@@ -453,13 +453,13 @@ fn extracao_com_aridade_errada_de_bindings_e_recusada() {
 #[test]
 fn binding_extraido_recusa_operacao_de_lista_incompativel() {
     let code = r#"
-        pacote main;
+        pacote main; trazer lista.anexar; trazer lista.criar;
         leque Pacote { Textos(lista<verso>) }
         carinho principal() -> bombom {
-            nova t: lista<verso> = lista_criar();
+            nova t: lista<verso> = criar();
             nova p: Pacote = Pacote.Textos(t);
             encaixe p {
-                caso Pacote.Textos(v) { lista_anexar(v, 42); }
+                caso Pacote.Textos(v) { anexar(v, 42); }
             }
             mimo 0;
         }
@@ -582,17 +582,17 @@ fn apelidos_convergem_para_a_identidade_do_alvo() {
 fn metadata_nao_contem_parametro_generico_residual() {
     let program = lower(
         r#"
-        pacote main;
+        pacote main; trazer lista.criar; trazer lista.tamanho;
         leque Cor { Rosa }
         leque Resultado2<T, E> { Ok(T), Erro(E) }
         apelido RLista = Resultado2<lista<bombom>, lista<verso>>;
         apelido RCores = Resultado2<lista<Cor>, verso>;
         carinho principal() -> bombom {
-            nova ns: lista<bombom> = lista_criar();
+            nova ns: lista<bombom> = criar();
             nova r: RLista = RLista.Ok(ns);
             encaixe r {
-                caso RLista.Ok(v) { falar(lista_tamanho(v)); }
-                caso RLista.Erro(e) { falar(lista_tamanho(e)); }
+                caso RLista.Ok(v) { falar(tamanho(v)); }
+                caso RLista.Erro(e) { falar(tamanho(e)); }
             }
             mimo 0;
         }
@@ -728,16 +728,16 @@ fn helper_de_runtime_deriva_da_classe_de_representacao() {
 fn listas_nao_usam_o_helper_de_verso() {
     let ir_texto = common::render_ir(
         r#"
-        pacote main;
+        pacote main; trazer lista.criar; trazer lista.tamanho;
         leque Cor { Rosa }
         leque P { N(lista<bombom>), T(lista<verso>), C(lista<Cor>), S(verso) }
         carinho principal() -> bombom {
-            nova t: lista<verso> = lista_criar();
+            nova t: lista<verso> = criar();
             nova p: P = P.T(t);
             encaixe p {
-                caso P.N(v) { falar(lista_tamanho(v)); }
-                caso P.T(v) { falar(lista_tamanho(v)); }
-                caso P.C(v) { falar(lista_tamanho(v)); }
+                caso P.N(v) { falar(tamanho(v)); }
+                caso P.T(v) { falar(tamanho(v)); }
+                caso P.C(v) { falar(tamanho(v)); }
                 caso P.S(v) { falar(v); }
             }
             mimo 0;
@@ -828,16 +828,16 @@ fn validador_recusa_metadata_fabricada() {
 fn cargas_de_lista_reutilizam_os_simbolos_de_runtime_existentes() {
     let asm = common::render_backend_s_external_subset_nativo(
         r#"
-        pacote main;
+        pacote main; trazer lista.criar; trazer lista.tamanho;
         leque Cor { Rosa }
         leque P { N(lista<bombom>), T(lista<verso>), C(lista<Cor>) }
         carinho principal() -> bombom {
-            nova ns: lista<bombom> = lista_criar();
+            nova ns: lista<bombom> = criar();
             nova p: P = P.N(ns);
             encaixe p {
-                caso P.N(v) { falar(lista_tamanho(v)); }
-                caso P.T(v) { falar(lista_tamanho(v)); }
-                caso P.C(v) { falar(lista_tamanho(v)); }
+                caso P.N(v) { falar(tamanho(v)); }
+                caso P.T(v) { falar(tamanho(v)); }
+                caso P.C(v) { falar(tamanho(v)); }
             }
             mimo 0;
         }

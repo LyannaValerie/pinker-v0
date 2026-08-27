@@ -21,30 +21,30 @@ use std::time::Duration;
 // @pinker-nav:layer evidencia
 // @pinker-nav:summary Prova adulta D9 de fatiar_verso por Unicode scalar values no intervalo [start,end): cobre ASCII, Unicode multibyte, combining mark, emoji, vazios, bounds, overflow, sensitivity contra byte offset cru, lifetime e paridade interpretador-nativo sob envelope.
 const POSITIVE_SOURCE: &str = r#"
-pacote main;
+pacote main; trazer texto.fatiar;
 
 carinho recorte_local() -> verso {
     nova local: verso = "prefixo🌸sufixo";
-    mimo fatiar_verso(local, 7, 8);
+    mimo fatiar(local, 7, 8);
 }
 
 carinho principal() -> bombom {
-    falar(fatiar_verso("rosa", 0, 1));
-    falar(fatiar_verso("rosa", 1, 3));
-    falar(fatiar_verso("rosa", 3, 4));
-    falar(fatiar_verso("rosa", 0, 4));
-    falar(fatiar_verso("rosa", 2, 2));
-    falar(fatiar_verso("", 0, 0));
-    falar(fatiar_verso("rosa", 4, 4));
-    falar(fatiar_verso("rosa", 1, 4));
-    falar(fatiar_verso("aéz", 1, 2));
-    falar(fatiar_verso("a日z", 1, 2));
-    falar(fatiar_verso("a🌸z", 1, 2));
-    falar(fatiar_verso("aéz", 1, 2));
-    falar(fatiar_verso("aéz", 2, 3));
-    falar(fatiar_verso("Aé日🌸Z", 1, 4));
+    falar(fatiar("rosa", 0, 1));
+    falar(fatiar("rosa", 1, 3));
+    falar(fatiar("rosa", 3, 4));
+    falar(fatiar("rosa", 0, 4));
+    falar(fatiar("rosa", 2, 2));
+    falar(fatiar("", 0, 0));
+    falar(fatiar("rosa", 4, 4));
+    falar(fatiar("rosa", 1, 4));
+    falar(fatiar("aéz", 1, 2));
+    falar(fatiar("a日z", 1, 2));
+    falar(fatiar("a🌸z", 1, 2));
+    falar(fatiar("aéz", 1, 2));
+    falar(fatiar("aéz", 2, 3));
+    falar(fatiar("Aé日🌸Z", 1, 4));
     falar(recorte_local());
-    falar(fatiar_verso("0123456789é日🌸abcdefghij", 5, 20));
+    falar(fatiar("0123456789é日🌸abcdefghij", 5, 20));
     mimo 0;
 }
 "#;

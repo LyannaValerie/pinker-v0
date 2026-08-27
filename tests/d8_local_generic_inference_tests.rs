@@ -14,7 +14,7 @@ use std::process::Output;
 use std::time::Duration;
 
 const CORE_SOURCE: &str = r#"
-pacote main;
+pacote main; trazer texto.igual;
 
 carinho id<T>(valor: T) -> T {
     mimo valor;
@@ -32,7 +32,7 @@ carinho principal() -> bombom {
     nova a: bombom = id(42);
     nova b: verso = par(1, "ok");
     nova c: bombom = mesmo(20, 22);
-    talvez a == 42 && igual_verso(b, "ok") && c == 20 {
+    talvez a == 42 && igual(b, "ok") && c == 20 {
         mimo 0;
     }
     mimo 1;
@@ -40,20 +40,20 @@ carinho principal() -> bombom {
 "#;
 
 const NESTED_SOURCE: &str = r#"
-pacote main;
+pacote main; trazer lista.anexar; trazer lista.criar; trazer lista.obter; trazer texto.igual;
 
 carinho primeiro<T>(itens: lista<T>) -> T {
-    mimo lista_obter(itens, 0);
+    mimo obter(itens, 0);
 }
 
 carinho principal() -> bombom {
-    nova numeros: lista<bombom> = lista_criar();
-    lista_anexar(numeros, 42);
-    nova textos: lista<verso> = lista_criar();
-    lista_anexar(textos, "ok");
+    nova numeros: lista<bombom> = criar();
+    anexar(numeros, 42);
+    nova textos: lista<verso> = criar();
+    anexar(textos, "ok");
     nova numero: bombom = primeiro(numeros);
     nova texto: verso = primeiro(textos);
-    talvez numero == 42 && igual_verso(texto, "ok") {
+    talvez numero == 42 && igual(texto, "ok") {
         mimo 0;
     }
     mimo 1;

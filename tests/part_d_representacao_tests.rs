@@ -14,7 +14,7 @@ use pinker_v0::{
 use std::process::Command;
 
 const PROBE_EXATO: &str = r#"
-pacote main;
+pacote main; trazer lista.criar; trazer processo.codigo; trazer processo.erro; trazer processo.executar_estruturado; trazer processo.saida;
 
 apelido Saida = SaidaProcesso;
 apelido Res = Resultado<SaidaProcesso, verso>;
@@ -24,9 +24,9 @@ carinho atravessar(valor: Res) -> Res { mimo valor; }
 carinho observar(valor: Res) -> bombom {
     encaixe valor {
         caso Res.Ok(saida) {
-            falar(processo_codigo(saida));
-            falar(processo_saida(saida));
-            falar(processo_erro(saida));
+            falar(codigo(saida));
+            falar(saida(saida));
+            falar(erro(saida));
             mimo 0;
         }
         caso Res.Erro(mensagem) { falar(mensagem); mimo 1; }
@@ -35,10 +35,10 @@ carinho observar(valor: Res) -> bombom {
 }
 
 carinho principal() -> bombom {
-    nova muda argumentos: lista<verso> = lista_criar();
+    nova muda argumentos: lista<verso> = criar();
     nova muda ambiente: mapa<verso,verso> = mapa_criar();
     nova resultado: Resultado<SaidaProcesso, verso> = atravessar(
-        executar_processo_estruturado(
+        executar_estruturado(
             "/bin/true", argumentos, "", "", ambiente, LimiteTempo.SemLimite
         )
     );
@@ -142,10 +142,10 @@ fn identidade_reservada_independe_da_ordem_e_categoria_da_declaracao() {
         "eterno {n}: bombom = 0;",
         "trato {n} { carinho valor(valor: si) -> bombom; }",
     ];
-    let uso = r#"carinho principal() -> bombom {
-        nova muda a: lista<verso> = lista_criar();
+    let uso = r#"trazer lista.criar; trazer processo.executar_estruturado; carinho principal() -> bombom {
+        nova muda a: lista<verso> = criar();
         nova muda e: mapa<verso,verso> = mapa_criar();
-        executar_processo_estruturado("/bin/true", a, "", "", e, LimiteTempo.SemLimite);
+        executar_estruturado("/bin/true", a, "", "", e, LimiteTempo.SemLimite);
         mimo 0;
     }"#;
     for nome in ["SaidaProcesso", "LimiteTempo"] {

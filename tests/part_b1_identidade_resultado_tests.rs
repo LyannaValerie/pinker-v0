@@ -17,12 +17,12 @@ use std::time::Duration;
 ///
 /// argv: 0 = caminho existente, 1 = caminho ausente.
 const FONTE_BUILTIN_COMPLETA: &str = r#"
-pacote main;
+pacote main; trazer ambiente.argumento_ou; trazer arquivo.ler_caminho_resultado;
 
 apelido ResVV = Resultado<verso, verso>;
 
 carinho ler(caminho: verso) -> ResVV {
-    propagar? ler_arquivo_resultado(caminho) como ResVV.Ok(conteudo);
+    propagar? ler_caminho_resultado(caminho) como ResVV.Ok(conteudo);
     mimo ResVV.Ok(conteudo);
 }
 
@@ -99,8 +99,8 @@ carinho principal() -> bombom {
 /// por uma razão que não é a que está sendo medida. Aqui a **única** coisa que
 /// pode dar errado é o conflito de identidade. O cenário completo, com consumo,
 /// tem teste próprio em [`cenario_do_defeito_original_e_recusado_nas_duas_ordens`].
-const USO_MINIMO: &str = r#"carinho principal() -> bombom {
-    ler_arquivo_resultado(argumento_ou(0, "ausente"));
+const USO_MINIMO: &str = r#"trazer ambiente.argumento_ou; trazer arquivo.ler_caminho_resultado; carinho principal() -> bombom {
+    ler_caminho_resultado(argumento_ou(0, "ausente"));
     falar("fim");
     mimo 0;
 }"#;
@@ -188,10 +188,10 @@ impl Conflito {
 /// Controle positivo da matriz de recusa: sem a declaração conflitante, o mesmo
 /// programa compila e roda nos dois modos. Sem isto, a matriz poderia passar por
 /// recusar tudo.
-const FONTE_SEM_DECLARACAO: &str = r#"pacote main;
+const FONTE_SEM_DECLARACAO: &str = r#"pacote main; trazer ambiente.argumento_ou; trazer arquivo.ler_caminho_resultado;
 
 carinho principal() -> bombom {
-    ler_arquivo_resultado(argumento_ou(0, "ausente"));
+    ler_caminho_resultado(argumento_ou(0, "ausente"));
     falar("fim");
     mimo 0;
 }
@@ -201,14 +201,14 @@ carinho principal() -> bombom {
 /// runtime, consumido por `tentar`, e a declaração do usuário inverte as
 /// variantes. Antes desta Task, esta fonte imprimia `erro` seguido do conteúdo
 /// do arquivo lido com sucesso.
-const DEFEITO_DECLARACAO_ANTES: &str = r#"pacote main;
+const DEFEITO_DECLARACAO_ANTES: &str = r#"pacote main; trazer ambiente.argumento_ou; trazer arquivo.ler_caminho_resultado;
 
 leque Resultado<T, E> { Erro(E), Ok(T) }
 
 apelido ResVV = Resultado<verso, verso>;
 
 carinho principal() -> bombom {
-    tentar ler_arquivo_resultado(argumento_ou(0, "ausente")) {
+    tentar ler_caminho_resultado(argumento_ou(0, "ausente")) {
         sucesso ResVV.Ok(c) { falar("ok"); falar(c); }
         falha ResVV.Erro(m) { falar("erro"); falar(m); }
     }
@@ -219,12 +219,12 @@ carinho principal() -> bombom {
 /// O mesmo cenário com a declaração **depois** do uso. Antes desta Task esta
 /// ordem se comportava corretamente — a prova de que o significado do valor
 /// dependia da posição no texto.
-const DEFEITO_DECLARACAO_DEPOIS: &str = r#"pacote main;
+const DEFEITO_DECLARACAO_DEPOIS: &str = r#"pacote main; trazer ambiente.argumento_ou; trazer arquivo.ler_caminho_resultado;
 
 apelido ResVV = Resultado<verso, verso>;
 
 carinho principal() -> bombom {
-    tentar ler_arquivo_resultado(argumento_ou(0, "ausente")) {
+    tentar ler_caminho_resultado(argumento_ou(0, "ausente")) {
         sucesso ResVV.Ok(c) { falar("ok"); falar(c); }
         falha ResVV.Erro(m) { falar("erro"); falar(m); }
     }
@@ -490,16 +490,16 @@ fn identidade_reivindicada_em_outro_modulo_e_recusada() {
         return;
     };
 
-    const MODULO_IO: &str = r#"pacote io;
+    const MODULO_IO: &str = r#"pacote io; trazer arquivo.ler_caminho_resultado;
 
 apelido ResVV = Resultado<verso, verso>;
 
 carinho ler(c: verso) -> ResVV {
-    mimo ler_arquivo_resultado(c);
+    mimo ler_caminho_resultado(c);
 }
 "#;
 
-    const RAIZ_CONFLITANTE: &str = r#"pacote main;
+    const RAIZ_CONFLITANTE: &str = r#"pacote main; trazer ambiente.argumento_ou;
 
 trazer io.ler;
 
@@ -527,7 +527,7 @@ carinho principal() -> bombom {
 
     // Controle positivo: os mesmos dois módulos sem a redeclaração compilam e
     // rodam nos dois modos, com o sucesso chegando como `Ok`.
-    const RAIZ_LIMPA: &str = r#"pacote main;
+    const RAIZ_LIMPA: &str = r#"pacote main; trazer ambiente.argumento_ou;
 
 trazer io.ler;
 
@@ -566,7 +566,7 @@ fn outro_template_antes_colidente_agora_coexiste_sem_receber_a_tag_runtime() {
         return;
     };
 
-    const COEXISTENCIA: &str = r#"pacote main;
+    const COEXISTENCIA: &str = r#"pacote main; trazer ambiente.argumento_ou; trazer arquivo.ler_caminho_resultado;
 
 leque Resultado_verso<T> { Erro(T), Ok(T) }
 
@@ -579,7 +579,7 @@ carinho principal() -> bombom {
         caso F.Ok(c) { falar("usuario-ok"); falar(c); }
         caso F.Erro(m) { falar("usuario-erro"); falar(m); }
     }
-    nova runtime: R = ler_arquivo_resultado(argumento_ou(0, "ausente"));
+    nova runtime: R = ler_caminho_resultado(argumento_ou(0, "ausente"));
     encaixe runtime {
         caso R.Ok(c) { falar("runtime-ok"); falar(c); }
         caso R.Erro(m) { falar("runtime-erro"); falar(m); }

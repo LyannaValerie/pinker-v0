@@ -17,7 +17,7 @@ use std::time::Duration;
 // ---------------------------------------------------------------------------
 
 const FONTE_PEDIR: &str = r#"
-pacote main;
+pacote main; trazer ambiente.pedir_argumento;
 
 carinho principal() -> bombom {
     falar(pedir_argumento("--chave", "PADRAO"));
@@ -26,7 +26,7 @@ carinho principal() -> bombom {
 "#;
 
 const FONTE_BUSCAR: &str = r#"
-pacote main;
+pacote main; trazer ambiente.buscar_contexto;
 
 carinho principal() -> bombom {
     falar(buscar_contexto("--chave", "PINKER_492_ENV", "PADRAO"));
@@ -35,7 +35,7 @@ carinho principal() -> bombom {
 "#;
 
 const FONTE_TEM_CHAVE: &str = r#"
-pacote main;
+pacote main; trazer ambiente.tem_chave;
 
 carinho principal() -> bombom {
     falar(tem_chave("--chave"));
@@ -44,7 +44,7 @@ carinho principal() -> bombom {
 "#;
 
 const FONTE_TEM_FLAG: &str = r#"
-pacote main;
+pacote main; trazer ambiente.tem_flag;
 
 carinho principal() -> bombom {
     falar(tem_flag("--chave"));
@@ -54,35 +54,35 @@ carinho principal() -> bombom {
 
 /// Aliases históricos das três superfícies que os possuem.
 const FONTE_ALIAS_PEDIR: &str = r#"
-pacote main;
+pacote main; trazer ambiente.pedir_argumento;
 
 carinho principal() -> bombom {
-    falar(argumento_nomeado_ou("--chave", "PADRAO"));
+    falar(pedir_argumento("--chave", "PADRAO"));
     mimo 0;
 }
 "#;
 
 const FONTE_ALIAS_BUSCAR: &str = r#"
-pacote main;
+pacote main; trazer ambiente.buscar_contexto;
 
 carinho principal() -> bombom {
-    falar(argumento_nomeado_ou_ambiente_ou("--chave", "PINKER_492_ENV", "PADRAO"));
+    falar(buscar_contexto("--chave", "PINKER_492_ENV", "PADRAO"));
     mimo 0;
 }
 "#;
 
 const FONTE_ALIAS_TEM_CHAVE: &str = r#"
-pacote main;
+pacote main; trazer ambiente.tem_chave;
 
 carinho principal() -> bombom {
-    falar(tem_argumento_nomeado("--chave"));
+    falar(tem_chave("--chave"));
     mimo 0;
 }
 "#;
 
 /// Chave de argumento vazia: negativo que já estava em paridade e continua.
 const FONTE_CHAVE_VAZIA: &str = r#"
-pacote main;
+pacote main; trazer ambiente.pedir_argumento;
 
 carinho principal() -> bombom {
     falar(pedir_argumento("", "PADRAO"));
@@ -92,17 +92,17 @@ carinho principal() -> bombom {
 
 /// `ambiente_ou` com chave vazia: uma chave só, e por isso a mensagem genérica.
 const FONTE_AMBIENTE_OU_CHAVE_VAZIA: &str = r#"
-pacote main;
+pacote main; trazer ambiente.variavel_ou;
 
 carinho principal() -> bombom {
-    falar(ambiente_ou("", "PADRAO"));
+    falar(variavel_ou("", "PADRAO"));
     mimo 0;
 }
 "#;
 
 /// Chave de ambiente vazia: o diagnóstico precisa dizer **qual** chave.
 const FONTE_CHAVE_AMBIENTE_VAZIA: &str = r#"
-pacote main;
+pacote main; trazer ambiente.buscar_contexto;
 
 carinho principal() -> bombom {
     falar(buscar_contexto("--chave", "", "PADRAO"));

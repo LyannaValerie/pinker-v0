@@ -15,13 +15,13 @@ use std::time::Duration;
 /// programa termina normalmente. Sem este caso, toda a matriz abaixo poderia
 /// passar por um erro que nada tem a ver com a política de recurso.
 const FONTE_CICLO_VALIDO: &str = r#"
-pacote main;
+pacote main; trazer ambiente.argumento_ou; trazer arquivo.criar; trazer arquivo.escrever_verso; trazer arquivo.fechar; trazer arquivo.ler_verso;
 
 carinho principal() -> bombom {
     nova alvo: verso = argumento_ou(0, "d13_ciclo.txt");
-    nova h: bombom = criar_arquivo(alvo);
+    nova h: bombom = criar(alvo);
     escrever_verso(h, "d13");
-    falar(ler_verso_arquivo(h));
+    falar(ler_verso(h));
     fechar(h);
     falar("fechou");
     mimo 0;
@@ -30,15 +30,15 @@ carinho principal() -> bombom {
 
 /// Uso após release: o handle deixa de designar o recurso.
 const FONTE_USO_APOS_RELEASE: &str = r#"
-pacote main;
+pacote main; trazer ambiente.argumento_ou; trazer arquivo.criar; trazer arquivo.escrever_verso; trazer arquivo.fechar; trazer arquivo.ler_verso;
 
 carinho principal() -> bombom {
     nova alvo: verso = argumento_ou(0, "d13_uso.txt");
-    nova h: bombom = criar_arquivo(alvo);
+    nova h: bombom = criar(alvo);
     escrever_verso(h, "d13");
     fechar(h);
     falar("fechou");
-    falar(ler_verso_arquivo(h));
+    falar(ler_verso(h));
     falar("nao alcancavel");
     mimo 0;
 }
@@ -46,11 +46,11 @@ carinho principal() -> bombom {
 
 /// Double release falha em vez de ser idempotente.
 const FONTE_DOUBLE_RELEASE: &str = r#"
-pacote main;
+pacote main; trazer ambiente.argumento_ou; trazer arquivo.criar; trazer arquivo.escrever_verso; trazer arquivo.fechar;
 
 carinho principal() -> bombom {
     nova alvo: verso = argumento_ou(0, "d13_double.txt");
-    nova h: bombom = criar_arquivo(alvo);
+    nova h: bombom = criar(alvo);
     escrever_verso(h, "d13");
     fechar(h);
     falar("fechou");
@@ -63,22 +63,22 @@ carinho principal() -> bombom {
 /// Stale alias não ressuscita: abrir outro arquivo depois do release não faz
 /// o handle morto voltar a designar um recurso vivo.
 const FONTE_STALE_NAO_RESSUSCITA: &str = r#"
-pacote main;
+pacote main; trazer ambiente.argumento_ou; trazer arquivo.criar; trazer arquivo.escrever_verso; trazer arquivo.fechar; trazer arquivo.ler_verso;
 
 carinho principal() -> bombom {
     nova primeiro: verso = argumento_ou(0, "d13_um.txt");
     nova segundo: verso = argumento_ou(1, "d13_dois.txt");
 
-    nova h1: bombom = criar_arquivo(primeiro);
+    nova h1: bombom = criar(primeiro);
     escrever_verso(h1, "um");
     fechar(h1);
     falar("fechou h1");
 
-    nova h2: bombom = criar_arquivo(segundo);
+    nova h2: bombom = criar(segundo);
     escrever_verso(h2, "dois");
     falar("abriu h2");
 
-    falar(ler_verso_arquivo(h1));
+    falar(ler_verso(h1));
     falar("nao alcancavel");
     mimo 0;
 }
@@ -86,7 +86,7 @@ carinho principal() -> bombom {
 
 /// Handle nunca aberto é um veredicto diferente de handle já liberado.
 const FONTE_HANDLE_NUNCA_ABERTO: &str = r#"
-pacote main;
+pacote main; trazer arquivo.fechar;
 
 carinho principal() -> bombom {
     falar("antes");

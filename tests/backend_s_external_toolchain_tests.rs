@@ -1706,7 +1706,7 @@ fn asm_s_external_subset_fluxo_real_fase115_abi_minima_mais_larga_camada1() {
 fn asm_s_external_subset_falha_clara_fora_do_subset() {
     // Fase 221 (B10) absorveu ambiente/processo; a fronteira de recusa clara
     // passa a ser exercida por stdin interativo (`ouvir`), fora do eixo atual.
-    let code = "pacote main;\n\ncarinho principal() -> bombom {\n    nova n: bombom = ouvir();\n    mimo n;\n}\n";
+    let code = "pacote main; trazer entrada.ouvir;\n\ncarinho principal() -> bombom {\n    nova n: bombom = ouvir();\n    mimo n;\n}\n";
 
     let err = render_backend_s_external_subset(code).unwrap_err();
     assert!(err.to_string().contains("subset externo montável"));

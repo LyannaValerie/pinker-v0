@@ -16,7 +16,7 @@ use std::time::Duration;
 
 /// Enumeração pura: quantidade e nomes, um por linha.
 const FONTE_LISTAR: &str = r#"
-pacote main;
+pacote main; trazer ambiente.argumento_ou; trazer caminho.listar_diretorio; trazer lista.tamanho;
 
 apelido ResLista = Resultado<lista<verso>, verso>;
 
@@ -24,7 +24,7 @@ carinho principal() -> bombom {
     nova raiz: verso = argumento_ou(0, "ausente");
     tentar listar_diretorio(raiz) {
         sucesso ResLista.Ok(nomes) {
-            falar(lista_tamanho(nomes));
+            falar(tamanho(nomes));
             para cada nome em nomes {
                 falar(nome);
             }
@@ -42,7 +42,7 @@ carinho principal() -> bombom {
 /// Enumeração repetida duas vezes no mesmo processo: a segunda passagem tem de
 /// devolver exatamente a mesma sequência.
 const FONTE_REPETICAO: &str = r#"
-pacote main;
+pacote main; trazer ambiente.argumento_ou; trazer caminho.listar_diretorio;
 
 apelido ResLista = Resultado<lista<verso>, verso>;
 
@@ -69,7 +69,7 @@ carinho principal() -> bombom {
 
 /// Classificação no-follow de cada entrada, composta por `juntar_caminho`.
 const FONTE_TIPOS: &str = r#"
-pacote main;
+pacote main; trazer ambiente.argumento_ou; trazer caminho.juntar; trazer caminho.listar_diretorio; trazer caminho.tipo_de_entrada;
 
 apelido ResLista = Resultado<lista<verso>, verso>;
 apelido ResTipo = Resultado<TipoEntrada, verso>;
@@ -95,7 +95,7 @@ carinho principal() -> bombom {
         sucesso ResLista.Ok(nomes) {
             para cada nome em nomes {
                 falar(nome);
-                classificar(juntar_caminho(raiz, nome));
+                classificar(juntar(raiz, nome));
             }
         }
         falha ResLista.Erro(causa) { falar(causa); }
@@ -107,7 +107,7 @@ carinho principal() -> bombom {
 /// Metadata mínima como critério de seleção: nomes de arquivos regulares não
 /// vazios, sem seguir symlink em nenhum passo.
 const FONTE_SELECAO: &str = r#"
-pacote main;
+pacote main; trazer ambiente.argumento_ou; trazer caminho.juntar; trazer caminho.listar_diretorio; trazer caminho.tamanho_de_entrada; trazer caminho.tipo_de_entrada;
 
 apelido ResLista = Resultado<lista<verso>, verso>;
 apelido ResTipo = Resultado<TipoEntrada, verso>;
@@ -134,7 +134,7 @@ carinho principal() -> bombom {
     tentar listar_diretorio(raiz) {
         sucesso ResLista.Ok(nomes) {
             para cada nome em nomes {
-                nova cheio: verso = juntar_caminho(raiz, nome);
+                nova cheio: verso = juntar(raiz, nome);
                 talvez e_arquivo_regular(cheio) {
                     tentar tamanho_de_entrada(cheio) {
                         sucesso ResNum.Ok(n) {
@@ -159,7 +159,7 @@ carinho principal() -> bombom {
 /// distinguir `symlink_metadata` de `metadata` nesta superfície, e o único que
 /// alcança o braço de falha dela.
 const FONTE_MEDIDA: &str = r#"
-pacote main;
+pacote main; trazer ambiente.argumento_ou; trazer caminho.tamanho_de_entrada;
 
 apelido ResNum = Resultado<bombom, verso>;
 
@@ -183,7 +183,7 @@ carinho principal() -> bombom {
 /// Composição com `propagar?`: a falha da enumeração atravessa a função sem
 /// braço explícito e chega ao consumidor como valor.
 const FONTE_PROPAGACAO: &str = r#"
-pacote main;
+pacote main; trazer ambiente.argumento_ou; trazer caminho.listar_diretorio; trazer lista.tamanho;
 
 apelido ResLista = Resultado<lista<verso>, verso>;
 
@@ -195,7 +195,7 @@ carinho contar(raiz: verso) -> ResLista {
 carinho principal() -> bombom {
     nova raiz: verso = argumento_ou(0, "ausente");
     tentar contar(raiz) {
-        sucesso ResLista.Ok(nomes) { falar(lista_tamanho(nomes)); }
+        sucesso ResLista.Ok(nomes) { falar(tamanho(nomes)); }
         falha ResLista.Erro(causa) { falar("propagou"); falar(causa); }
     }
     falar("fim");
@@ -206,7 +206,7 @@ carinho principal() -> bombom {
 /// Compatibilidade: as superfícies históricas continuam **seguindo** symlink e
 /// as novas continuam não seguindo, lado a lado no mesmo programa.
 const FONTE_COMPAT_FOLLOW: &str = r#"
-pacote main;
+pacote main; trazer ambiente.argumento_ou; trazer caminho.e_diretorio; trazer caminho.tipo_de_entrada;
 
 apelido ResTipo = Resultado<TipoEntrada, verso>;
 
@@ -1031,7 +1031,7 @@ fn reinterpretar_resultado_nao_inverte_superficie_da_parte_c() {
 /// Corpo comum dos casos de F1: usa `tipo_de_entrada`, logo materializa a
 /// identidade builtin.
 const CORPO_QUE_USA_TIPO_DE_ENTRADA: &str = r#"
-apelido ResTipo = Resultado<TipoEntrada, verso>;
+trazer ambiente.argumento_ou; trazer caminho.tipo_de_entrada; apelido ResTipo = Resultado<TipoEntrada, verso>;
 
 carinho principal() -> bombom {
     nova alvo: verso = argumento_ou(0, "ausente");

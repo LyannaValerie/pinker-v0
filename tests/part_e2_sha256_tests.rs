@@ -18,7 +18,7 @@ use std::time::Duration;
 /// 56 bytes, que já atravessa dois blocos por causa do padding, e 112 bytes,
 /// que atravessa múltiplos blocos por conteúdo.
 const FONTE_VERSO: &str = r#"
-pacote main;
+pacote main; trazer integridade.sha256_verso;
 
 carinho principal() -> bombom {
     falar(sha256_verso(""));
@@ -42,7 +42,7 @@ fn fonte_bytes() -> String {
     let decomposto = "e\u{0301}";
     format!(
         r#"
-pacote main;
+pacote main; trazer integridade.sha256_verso;
 
 carinho principal() -> bombom {{
     falar(sha256_verso("olá mundo"));
@@ -57,7 +57,7 @@ carinho principal() -> bombom {{
 
 /// Digest de arquivo: superfície falível da Parte B.
 const FONTE_ARQUIVO: &str = r#"
-pacote main;
+pacote main; trazer ambiente.argumento_ou; trazer integridade.sha256_arquivo;
 
 apelido ResVV = Resultado<verso, verso>;
 
@@ -74,7 +74,7 @@ carinho principal() -> bombom {
 /// Workflow real de integridade: comparar o digest observado de um artefato
 /// contra o digest esperado, exatamente como um manifesto faz.
 const FONTE_VERIFICACAO: &str = r#"
-pacote main;
+pacote main; trazer ambiente.argumento_ou; trazer integridade.sha256_arquivo; trazer texto.igual;
 
 apelido ResVV = Resultado<verso, verso>;
 
@@ -83,7 +83,7 @@ carinho principal() -> bombom {
     nova esperado: verso = argumento_ou(1, "ausente");
     tentar sha256_arquivo(alvo) {
         sucesso ResVV.Ok(digest) {
-            talvez igual_verso(digest, esperado) {
+            talvez igual(digest, esperado) {
                 falar("INTEGRO");
                 mimo 0;
             }
@@ -343,7 +343,7 @@ fn sha256_verso_nul_embutido_no_interpretador() {
     // arquivo, onde os bytes são lidos em runtime e nunca passam por `.rodata`.
     let dir = NativeArtifactDir::create().expect("diretório Parte E2 NUL");
     let fonte = r#"
-pacote main;
+pacote main; trazer integridade.sha256_verso;
 
 carinho principal() -> bombom {
     falar(sha256_verso("a\0b"));
@@ -739,7 +739,7 @@ fn uso_invalido_do_programa_e_erro_de_compilacao_nao_resultado() {
     // INVALID_PROGRAM_USE != RECOVERABLE_IO_FAILURE: aridade e tipo errados
     // param no compilador e nunca viram `Resultado`.
     let aridade = r#"
-pacote main;
+pacote main; trazer integridade.sha256_verso;
 
 carinho principal() -> bombom {
     falar(sha256_verso("a", "b"));
@@ -753,7 +753,7 @@ carinho principal() -> bombom {
     );
 
     let tipo = r#"
-pacote main;
+pacote main; trazer integridade.sha256_verso;
 
 carinho principal() -> bombom {
     falar(sha256_verso(42));

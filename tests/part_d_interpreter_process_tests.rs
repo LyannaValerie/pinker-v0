@@ -59,15 +59,15 @@ fn fonte(
         .collect::<Vec<_>>()
         .join("\n");
     format!(
-        r#"pacote main;
+        r#"pacote main; trazer lista.verso_criar; trazer mapa.verso_verso_criar; trazer processo.executar_estruturado;
 apelido Res = Resultado<SaidaProcesso, verso>;
 
 carinho principal() -> bombom {{
-    nova muda argumentos: lista<verso> = lista_verso_criar();
+    nova muda argumentos: lista<verso> = verso_criar();
 {anexos}
-    nova muda ambiente: mapa<verso,verso> = mapa_verso_verso_criar();
+    nova muda ambiente: mapa<verso,verso> = verso_verso_criar();
 {overlays}
-    nova resultado: Res = executar_processo_estruturado(
+    nova resultado: Res = executar_estruturado(
         {programa}, argumentos, {entrada}, {diretorio}, ambiente, {limite}
     );
     encaixe resultado {{

@@ -8391,13 +8391,13 @@ mod contabilidade_dominios_uniao_tests {
                 "    nova p{indice}: seta<u8> = alocar(16);\n    *p{indice} = 1;\n"
             ));
         }
-        format!("pacote main;\ncarinho principal() -> bombom {{\n{corpo}    mimo 0;\n}}\n")
+        format!("pacote main;\ntrazer memoria.alocar;\ncarinho principal() -> bombom {{\n{corpo}    mimo 0;\n}}\n")
     }
 
     /// `n` construções e extrações de união com payload **escalar**.
     fn fonte_uniao_escalar(n: u64) -> String {
         format!(
-            "pacote main;\n\
+            "pacote main;\ntrazer memoria.alocar;\n\
              carinho principal() -> bombom {{\n\
              \x20   nova muda i: bombom = 0;\n\
              \x20   sempre que i < {n} {{\n\
@@ -8418,7 +8418,7 @@ mod contabilidade_dominios_uniao_tests {
     /// pública de origem.
     fn fonte_uniao_agregada(n: u64) -> String {
         format!(
-            "pacote main;\n\
+            "pacote main;\ntrazer memoria.alocar;\n\
              carinho principal() -> bombom {{\n\
              \x20   nova base: seta<[bombom; 2]> = alocar(16) virar seta<[bombom; 2]>;\n\
              \x20   nova celula: seta<bombom> = base virar seta<bombom>;\n\
@@ -8683,7 +8683,7 @@ mod contabilidade_dominios_uniao_tests {
             for indice in 0..extras {
                 corpo.push_str(&format!("    nova extra{indice}: seta<u8> = alocar(16);\n"));
             }
-            format!("pacote main;\ncarinho principal() -> bombom {{\n{corpo}    mimo 0;\n}}\n")
+            format!("pacote main;\ntrazer memoria.alocar;\ncarinho principal() -> bombom {{\n{corpo}    mimo 0;\n}}\n")
         };
 
         // 1 (origem) + 3 extras = 4, exatamente a cota, depois de 128 uniões.
@@ -8819,6 +8819,7 @@ mod contabilidade_dominios_uniao_tests {
     /// Alias transparente, união aninhada achatada e travessia por chamada
     /// direta: nenhuma dessas formas muda a contagem de identidades públicas.
     const FORMAS_COMPOSTAS: &str = r#"pacote main;
+trazer memoria.alocar;
 
 apelido Trio = [bombom; 3];
 
@@ -8867,6 +8868,7 @@ carinho principal() -> bombom {
     #[test]
     fn extracao_e_reinjecao_nao_duplicam_consumo_indevido() {
         let fonte = r#"pacote main;
+trazer memoria.alocar;
 carinho principal() -> bombom {
     nova base: seta<[bombom; 2]> = alocar(16) virar seta<[bombom; 2]>;
     nova celula: seta<bombom> = base virar seta<bombom>;
