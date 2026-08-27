@@ -16,8 +16,10 @@ mod common;
 
 use common::native_process::rust_cleanup_verdict_for_test;
 use std::fs;
+use std::io::Write as _;
 use std::os::unix::fs::symlink;
 use std::os::unix::fs::MetadataExt as _;
+use std::os::unix::fs::PermissionsExt as _;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -44,16 +46,157 @@ fn fixture(caso: &str) -> PathBuf {
     let _ = fs::remove_dir_all(&raiz);
     fs::create_dir_all(raiz.join("scripts")).expect("scripts");
     fs::create_dir_all(raiz.join("target/pinker-exec")).expect("execution root");
-    fs::copy(
-        raiz_do_repositorio().join("scripts/pinker-cleanup.sh"),
-        raiz.join("scripts/pinker-cleanup.sh"),
-    )
-    .expect("copiar cleanup");
-    let script = raiz.join("scripts/pinker-cleanup.sh");
-    let mut permissoes = fs::metadata(&script).expect("metadados").permissions();
-    std::os::unix::fs::PermissionsExt::set_mode(&mut permissoes, 0o755);
-    fs::set_permissions(&script, permissoes).expect("permissões");
+    // Ler a origem é seguro: leitura nunca bloqueia `exec`. O que não pode
+    // existir é descritor **gravável** sobre o inode que será executado.
+    let conteudo = fs::read_to_string(raiz_do_repositorio().join("scripts/pinker-cleanup.sh"))
+        .expect("ler cleanup");
+    publicar_executavel(&raiz.join("scripts/pinker-cleanup.sh"), &conteudo);
     raiz
+}
+
+// ---------------------------------------------------------------------------
+// Publicação do script executável do fixture.
+//
+// Esta suíte publicava o script com `fs::copy` seguido de `chmod 0755` e então
+// o executava direto. O `execve` falhava de forma intermitente com `ETXTBSY`,
+// remotamente na #520 e de novo na #528, e o caminho do fixture ser único por
+// caso, pid e sequência não evitava nada — porque a corrida não é de caminho.
+//
+// `ETXTBSY` ocorre enquanto **qualquer** processo mantém descritor gravável
+// para o inode executado. `fs::copy` abre o destino para escrita neste
+// processo, e `fork` copia a tabela de descritores do **processo inteiro**, não
+// da thread. Um `fork` disparado por outra thread durante a cópia produz um
+// filho que segura aquele descritor até o seu próprio `exec` — o `O_CLOEXEC` do
+// Rust só o fecha num `execve` bem-sucedido. Nesse intervalo o `i_writecount`
+// do inode continua positivo e o nosso `execve` recebe `ETXTBSY`, mesmo depois
+// de a thread que copiou já ter fechado o seu descritor.
+//
+// Medido nesta Task, com 400 rodadas de copiar/chmod/executar caminhos únicos:
+// nenhuma falha sem threads concorrentes, e 18, 39 e 38 falhas com 1, 4 e 8
+// threads que apenas faziam `fork`+`exec` de `/bin/true` e nunca escreviam
+// arquivo algum. A suíte inteira falhava em 67 de 300 execuções a 16 threads e
+// em 0 de 300 com `--test-threads=1`.
+//
+// A publicação segue o desenho já provado por `tests/pinker_flake_runner_tests.rs`,
+// que resolveu esta mesma classe causal:
+//
+//   1. o pai escreve a fonte — `with_extension("fonte")`, isto é, o irmão
+//      `pinker-cleanup.fonte` —, que nunca recebe bit de execução e nunca é
+//      executada, e fecha o descritor antes de qualquer fork;
+//   2. um processo auxiliar materializa o irmão `pinker-cleanup.parcial`. Só
+//      ele abre esse inode para escrita, então nenhum fork do pai pode herdar
+//      o descritor;
+//   3. o pai valida status, tipo, permissão e conteúdo, fail-closed;
+//   4. o auxiliar já terminou, logo não há descritor gravável vivo, e só então
+//      o pai renomeia para o nome final, que nasce completo e executável.
+//
+// Renomear de um nome temporário, sozinho, **não** resolve: `rename` troca o
+// nome, não o inode, e o descritor herdado continua apontando para o mesmo
+// inode. Não há retry de `ETXTBSY` e não há espera por tempo: a condição
+// necessária é eliminada por construção.
+// ---------------------------------------------------------------------------
+
+// pinker-fork-autorizado:inicio
+//
+// Região única desta suíte autorizada a criar processo para materializar
+// executável. A meta-regressão `publicacao_e_a_unica_autoridade_de_bit_executavel`
+// inspeciona apenas o texto **fora** destas sentinelas.
+
+/// Publica um arquivo executável sem que este processo detenha, em momento
+/// algum, descritor gravável para o inode publicado.
+fn publicar_executavel(destino: &Path, conteudo: &str) -> PathBuf {
+    let fonte = destino.with_extension("fonte");
+    let parcial = destino.with_extension("parcial");
+
+    {
+        // Sem bit de execução e nunca executada: manter o descritor aqui é
+        // inofensivo, e ele fecha ao fim do bloco.
+        let mut arquivo = fs::File::create(&fonte).expect("criar fonte não executável");
+        arquivo
+            .write_all(conteudo.as_bytes())
+            .expect("escrever fonte");
+        arquivo.sync_all().expect("sincronizar fonte");
+    }
+
+    // O único processo que abre o inode executável para escrita é este auxiliar.
+    let status = Command::new("install")
+        .arg("-m")
+        .arg("0755")
+        .arg(&fonte)
+        .arg(&parcial)
+        .status()
+        .expect("executar o publicador auxiliar");
+    assert!(
+        status.success(),
+        "publicação falhou fechada para {}: {status:?}",
+        destino.display()
+    );
+
+    // O auxiliar terminou: nenhum descritor gravável sobrevive sobre o inode.
+    let meta = fs::metadata(&parcial).expect("metadados do materializado");
+    assert!(
+        meta.is_file(),
+        "o materializado precisa ser arquivo regular"
+    );
+    assert_eq!(
+        meta.permissions().mode() & 0o777,
+        0o755,
+        "permissões aplicadas antes da publicação"
+    );
+    assert_eq!(
+        fs::read_to_string(&parcial).expect("reler materializado"),
+        conteudo,
+        "conteúdo íntegro antes da publicação"
+    );
+
+    // Só agora o nome final passa a existir, já completo e executável.
+    fs::rename(&parcial, destino).expect("publicar nome final");
+    fs::remove_file(&fonte).expect("remover fonte");
+
+    destino.to_path_buf()
+}
+
+// pinker-fork-autorizado:fim
+
+/// `ETXTBSY`. Comparado pelo número do erro porque
+/// `ErrorKind::ExecutableFileBusy` ainda é instável, e a suíte é stable-only.
+const ETXTBSY: i32 = 26;
+
+fn inode_de(caminho: &Path) -> u64 {
+    fs::metadata(caminho).expect("metadados").ino()
+}
+
+/// Descritores **graváveis** deste processo sobre `inode`, se houver.
+fn descritores_graveis_para(inode: u64) -> Vec<String> {
+    let mut encontrados = Vec::new();
+    let Ok(entradas) = fs::read_dir("/proc/self/fd") else {
+        return encontrados;
+    };
+    for entrada in entradas.flatten() {
+        let numero = entrada.file_name().to_string_lossy().into_owned();
+        let Ok(alvo) = fs::read_link(entrada.path()) else {
+            continue;
+        };
+        let Ok(meta) = fs::metadata(&alvo) else {
+            continue;
+        };
+        if meta.ino() != inode {
+            continue;
+        }
+        let Ok(info) = fs::read_to_string(format!("/proc/self/fdinfo/{numero}")) else {
+            continue;
+        };
+        let modo = info
+            .lines()
+            .find_map(|linha| linha.strip_prefix("flags:"))
+            .and_then(|valor| u32::from_str_radix(valor.trim(), 8).ok())
+            .unwrap_or(0);
+        // O_WRONLY = 1, O_RDWR = 2.
+        if modo & 0o3 != 0 {
+            encontrados.push(format!("{numero} -> {}", alvo.display()));
+        }
+    }
+    encontrados
 }
 
 fn execution_root(raiz: &Path) -> PathBuf {
@@ -204,6 +347,234 @@ fn paridade(caso: &str, nome: &str, esperado: &str, ajustar: impl Fn(Marcador) -
         );
         let _ = fs::remove_dir_all(&raiz);
     }
+}
+
+// ---------------------------------------------------------------------------
+// Regressões da publicação do executável do fixture — Issue #528.
+// ---------------------------------------------------------------------------
+
+/// O inode publicado nasce sem descritor gravável neste processo.
+///
+/// Esta é a condição necessária de `ETXTBSY`: enquanto ela não vale, o `execve`
+/// pode falhar. A asserção é sobre o estado, não sobre tempo.
+#[test]
+fn publicacao_nao_deixa_descritor_gravavel_sobre_o_inode() {
+    let raiz = fixture("sem-descritor-gravavel");
+    let script = raiz.join("scripts/pinker-cleanup.sh");
+
+    assert!(script.is_file(), "o script publicado precisa existir");
+    assert_eq!(
+        fs::metadata(&script)
+            .expect("metadados")
+            .permissions()
+            .mode()
+            & 0o777,
+        0o755,
+        "o script publicado precisa ser executável"
+    );
+    assert_eq!(
+        descritores_graveis_para(inode_de(&script)),
+        Vec::<String>::new(),
+        "nenhum descritor gravável pode sobreviver sobre o inode publicado"
+    );
+    assert!(
+        !script.with_extension("fonte").exists(),
+        "a fonte intermediária não pode sobreviver à publicação"
+    );
+    assert!(
+        !script.with_extension("parcial").exists(),
+        "o materializado intermediário não pode sobreviver à publicação"
+    );
+
+    let _ = fs::remove_dir_all(&raiz);
+}
+
+/// Sensibilidade: sob `fork` concorrente, publicar e executar nunca dá `ETXTBSY`.
+///
+/// As threads de ruído **não escrevem arquivo algum** — só fazem `fork`+`exec`.
+/// Com o mecanismo antigo (`fs::copy` + `chmod` + `execve` direto) isso bastava
+/// para reproduzir a falha, porque o filho herdava o descritor gravável da
+/// cópia. Se a publicação regredir para aquele mecanismo, este teste fica
+/// vermelho: foi verificado por mutação real durante a #528.
+///
+/// O teste falha em `ETXTBSY`; ele nunca o converte em sucesso.
+#[test]
+fn publicacao_sob_fork_concorrente_nunca_produz_etxtbsy() {
+    use std::sync::atomic::AtomicBool;
+    use std::sync::Arc;
+
+    const RUIDO: usize = 4;
+    const RODADAS: usize = 120;
+
+    // O sinal de parada precisa valer também no caminho de panic: sem isto as
+    // threads de ruído continuariam forkando até o fim do processo, sem join.
+    struct PararNoDrop(Arc<AtomicBool>);
+    impl Drop for PararNoDrop {
+        fn drop(&mut self) {
+            self.0.store(true, Ordering::Relaxed);
+        }
+    }
+
+    let parar = Arc::new(AtomicBool::new(false));
+    let guarda = PararNoDrop(Arc::clone(&parar));
+    let mut ruidosas = Vec::new();
+    for _ in 0..RUIDO {
+        let parar = Arc::clone(&parar);
+        ruidosas.push(std::thread::spawn(move || {
+            let mut forks = 0u64;
+            while !parar.load(Ordering::Relaxed) {
+                // Só cria processo. Nunca abre arquivo para escrita.
+                if let Ok(mut filho) = Command::new("/bin/true").spawn() {
+                    let _ = filho.wait();
+                    forks += 1;
+                }
+            }
+            forks
+        }));
+    }
+
+    let mut executadas = 0usize;
+    let mut falha: Option<(usize, i32)> = None;
+    for rodada in 0..RODADAS {
+        let raiz = fixture(&format!("fork-concorrente-{rodada}"));
+        let script = raiz.join("scripts/pinker-cleanup.sh");
+        match Command::new(&script)
+            .args(["--dry-run", "--older-than", "0"])
+            .output()
+        {
+            Ok(_) => executadas += 1,
+            Err(erro) => {
+                falha = Some((rodada, erro.raw_os_error().unwrap_or(-1)));
+                let _ = fs::remove_dir_all(&raiz);
+                break;
+            }
+        }
+        let _ = fs::remove_dir_all(&raiz);
+    }
+
+    drop(guarda);
+    let mut forks = 0u64;
+    for ruidosa in ruidosas {
+        forks += ruidosa.join().expect("thread de ruído");
+    }
+
+    if let Some((rodada, codigo)) = falha {
+        let nome = if codigo == ETXTBSY {
+            "ETXTBSY"
+        } else {
+            "erro de sistema"
+        };
+        panic!(
+            "execução do script publicado falhou com {nome} ({codigo}) na rodada {rodada} \
+             após {executadas} execuções e {forks} forks concorrentes"
+        );
+    }
+
+    assert_eq!(
+        executadas, RODADAS,
+        "todas as rodadas precisam ter executado o script publicado"
+    );
+    assert!(
+        forks >= RODADAS as u64,
+        "o ruído precisa ter criado ao menos um processo por rodada para exercitar \
+         a corrida; observado {forks} para {RODADAS} rodadas"
+    );
+}
+
+/// Meta-regressão: a publicação é a única autoridade do bit executável aqui.
+///
+/// Detecta a reintrodução de escrita direta em caminho executável fora da
+/// região autorizada, e também a descaracterização da própria região: se o
+/// publicador auxiliar ou o `rename` final desaparecerem de dentro dela, o
+/// mecanismo deixou de ser o que este arquivo documenta.
+///
+/// Escopo, para não prometer o que ela não faz: criar processo fora da região
+/// **não** é proibido — os testes o fazem legitimamente. O que a região delimita
+/// é quem pode materializar um inode executável.
+#[test]
+fn publicacao_e_a_unica_autoridade_de_bit_executavel() {
+    let fonte = fs::read_to_string(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/native_quarantine_recovery_tests.rs"),
+    )
+    .expect("ler a própria suíte");
+
+    // Construídas por concatenação para que os literais desta regressão não
+    // casem consigo mesmos ao inspecionar a própria fonte.
+    let abertura = format!("// pinker-fork-{}:inicio", "autorizado");
+    let fechamento = format!("// pinker-fork-{}:fim", "autorizado");
+    assert_eq!(
+        fonte.matches(abertura.as_str()).count(),
+        1,
+        "a sentinela de abertura precisa ser única"
+    );
+    assert_eq!(
+        fonte.matches(fechamento.as_str()).count(),
+        1,
+        "a sentinela de fechamento precisa ser única"
+    );
+    let abre = fonte.find(abertura.as_str()).expect("abertura");
+    let fecha = fonte.find(fechamento.as_str()).expect("fechamento");
+    assert!(abre < fecha, "as sentinelas precisam estar em ordem");
+
+    let autorizada = &fonte[abre..fecha];
+    assert_eq!(
+        autorizada.matches("Command::new(\"install\")").count(),
+        1,
+        "a região autorizada contém exatamente o publicador auxiliar"
+    );
+    assert!(
+        autorizada.contains("fs::rename(&parcial, destino)"),
+        "o nome final precisa nascer por rename, depois do fechamento"
+    );
+
+    // A publicação precisa continuar sendo a única porta.
+    let nome_autoridade = format!("fn publicar_{}", "executavel");
+    assert_eq!(
+        fonte.matches(nome_autoridade.as_str()).count(),
+        1,
+        "a autoridade de publicação precisa ser única"
+    );
+
+    // Fora da região autorizada, nenhuma escrita direta em caminho executável.
+    // As chaves de busca são construídas por concatenação para não casarem com
+    // o próprio texto destas asserções.
+    let fora = format!("{}{}", &fonte[..abre], &fonte[fecha..]);
+    let copia = format!("fs::{}(", "copy");
+    assert_eq!(
+        fora.matches(copia.as_str()).count(),
+        0,
+        "cópia direta abriria o destino para escrita neste processo"
+    );
+    let criar = format!("fs::File::{}(", "create");
+    assert_eq!(
+        fora.matches(criar.as_str()).count(),
+        0,
+        "nenhuma criação de arquivo fora da região autorizada"
+    );
+    let modo = format!("set_{}(", "mode");
+    assert_eq!(
+        fora.matches(modo.as_str()).count(),
+        0,
+        "nenhuma aplicação de modo fora da região autorizada"
+    );
+    // `fs::write` não é proibido aqui: esta suíte escreve legitimamente marker e
+    // sentinela, que são dados e nunca são executados. O que a contagem fixa
+    // protege é a introdução **silenciosa** de uma escrita nova fora da região —
+    // qualquer uma passa a exigir decisão consciente, inclusive a que apontasse
+    // para um caminho executável. Os quatro sítios atuais são
+    // `owner.marker`, `sentinela` (duas vezes) e o marker real.
+    let escrita = format!("fs::{}(", "write");
+    assert_eq!(
+        fora.matches(escrita.as_str()).count(),
+        4,
+        "escrita fora da região autorizada só pode existir para dados não executáveis"
+    );
+    let abertura_manual = format!("Open{}::new", "Options");
+    assert_eq!(
+        fora.matches(abertura_manual.as_str()).count(),
+        0,
+        "abertura manual poderia pedir modo gravável sobre um caminho executável"
+    );
 }
 
 const NOME_BASH: &str = ".pinker-quarantine-999-12345-0";
