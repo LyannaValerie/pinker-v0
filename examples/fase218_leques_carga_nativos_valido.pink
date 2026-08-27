@@ -1,7 +1,6 @@
 pacote main;
 
-trazer lista.anexar;
-trazer lista.criar;
+trazer lista.anexar, criar;
 
 leque Token { Numero(bombom), Palavra(verso), Fim }
 

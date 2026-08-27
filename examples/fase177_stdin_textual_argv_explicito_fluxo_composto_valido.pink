@@ -2,8 +2,7 @@ pacote main;
 
 trazer ambiente.argumento;
 trazer processo.executar_com_entrada;
-trazer texto.formatar;
-trazer texto.juntar;
+trazer texto.formatar, juntar;
 
 carinho montar_entrada() -> verso {
     nova prefixo: verso = "linha=argv\n";

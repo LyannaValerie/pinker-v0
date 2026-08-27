@@ -1,7 +1,6 @@
 pacote main;
 
-trazer texto.aparar;
-trazer texto.juntar;
+trazer texto.aparar, juntar;
 
 
 carinho principal() -> bombom {

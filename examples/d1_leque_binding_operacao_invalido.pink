@@ -1,7 +1,6 @@
 pacote main;
 
-trazer lista.anexar;
-trazer lista.criar;
+trazer lista.anexar, criar;
 
 // D1 negativo — o binding extraído conserva o tipo exato da carga.
 //

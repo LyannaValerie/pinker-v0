@@ -2,8 +2,7 @@ pacote main;
 
 trazer lista;
 trazer mapa;
-trazer lista.anexar;
-trazer lista.criar;
+trazer lista.anexar, criar;
 trazer mapa.definir;
 
 leque Cor { Rosa, Azul }

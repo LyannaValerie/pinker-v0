@@ -5,21 +5,11 @@
 
 pacote guardiao_pinker;
 
-trazer ambiente.pedir_argumento;
-trazer ambiente.tem_flag;
-trazer arquivo.abrir;
-trazer arquivo.fechar;
-trazer arquivo.ler_verso;
-trazer caminho.diretorio_atual;
-trazer caminho.existe;
-trazer caminho.juntar;
+trazer ambiente.pedir_argumento, tem_flag;
+trazer arquivo.abrir, fechar, ler_verso;
+trazer caminho.diretorio_atual, existe, juntar;
 trazer processo.sair;
-trazer texto.contem;
-trazer texto.formatar;
-trazer texto.igual;
-trazer texto.nao_vazio;
-trazer texto.tamanho;
-trazer texto.vazio;
+trazer texto.contem, formatar, igual, nao_vazio, tamanho, vazio;
 
 carinho caminho_no_repo(repo: verso, relativo: verso) -> verso {
     mimo juntar(repo, relativo);

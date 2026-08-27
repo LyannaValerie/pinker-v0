@@ -1,8 +1,6 @@
 pacote fase86_arquivo_leitura_minima_valido;
 
-trazer arquivo.abrir;
-trazer arquivo.fechar;
-trazer arquivo.ler_bombom;
+trazer arquivo.abrir, fechar, ler_bombom;
 
 carinho principal() -> bombom {
     nova handle: bombom = abrir("examples/fase86_input_numero.txt");

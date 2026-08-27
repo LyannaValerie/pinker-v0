@@ -1,7 +1,6 @@
 pacote main;
 
-trazer lista.bombom_anexar;
-trazer lista.bombom_criar;
+trazer lista.bombom_anexar, bombom_criar;
 
 carinho carregar_pontos() -> lista<bombom> {
     nova dados: lista<bombom> = bombom_criar();

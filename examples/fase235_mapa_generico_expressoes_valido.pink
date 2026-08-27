@@ -1,10 +1,6 @@
 pacote demo;
 
-trazer mapa.definir;
-trazer mapa.obter;
-trazer mapa.remover;
-trazer mapa.tamanho;
-trazer mapa.tem;
+trazer mapa.definir, obter, remover, tamanho, tem;
 trazer texto.igual;
 
 carinho mapa_idades() -> mapa<verso,bombom> {

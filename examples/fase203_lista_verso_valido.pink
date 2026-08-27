@@ -1,12 +1,6 @@
 pacote main;
 
-trazer lista.verso_anexar;
-trazer lista.verso_criar;
-trazer lista.verso_definir;
-trazer lista.verso_inserir;
-trazer lista.verso_obter;
-trazer lista.verso_tamanho;
-trazer lista.verso_tirar_ultimo;
+trazer lista.verso_anexar, verso_criar, verso_definir, verso_inserir, verso_obter, verso_tamanho, verso_tirar_ultimo;
 
 carinho principal() -> bombom {
     nova nomes: lista<verso> = verso_criar();

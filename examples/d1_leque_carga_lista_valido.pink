@@ -1,9 +1,6 @@
 pacote main;
 
-trazer lista.anexar;
-trazer lista.criar;
-trazer lista.obter;
-trazer lista.tamanho;
+trazer lista.anexar, criar, obter, tamanho;
 
 // D1 — listas como cargas tipadas de variantes de `leque`.
 //

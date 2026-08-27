@@ -1,8 +1,6 @@
 pacote main;
 
-trazer texto.igual;
-trazer texto.juntar;
-trazer texto.tamanho;
+trazer texto.igual, juntar, tamanho;
 
 carinho sauda(nome: verso) -> verso {
     mimo juntar("ola ", nome);

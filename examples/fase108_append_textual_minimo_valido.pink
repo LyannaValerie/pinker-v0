@@ -1,14 +1,8 @@
 pacote main;
 
 trazer ambiente.argumento_ou;
-trazer arquivo.abrir_anexo;
-trazer arquivo.anexar_verso;
-trazer arquivo.criar;
-trazer arquivo.escrever_verso;
-trazer arquivo.fechar;
-trazer arquivo.ler_verso;
-trazer caminho.juntar;
-trazer caminho.tamanho_arquivo;
+trazer arquivo.abrir_anexo, anexar_verso, criar, escrever_verso, fechar, ler_verso;
+trazer caminho.juntar, tamanho_arquivo;
 trazer texto.igual;
 
 carinho principal() -> bombom {

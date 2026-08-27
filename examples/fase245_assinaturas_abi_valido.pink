@@ -1,7 +1,6 @@
 pacote main;
 
-trazer memoria.alocar;
-trazer memoria.liberar;
+trazer memoria.alocar, liberar;
 
 carinho eco_u8(v: u8) -> u8 { mimo v; }
 carinho eco_u16(v: u16) -> u16 { mimo v; }

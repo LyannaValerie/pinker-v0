@@ -2,8 +2,7 @@ pacote main;
 
 trazer ambiente.argumento;
 trazer processo.capturar_stdout;
-trazer texto.contem;
-trazer texto.tamanho;
+trazer texto.contem, tamanho;
 
 carinho principal() -> bombom {
     nova comando: verso = argumento(0);

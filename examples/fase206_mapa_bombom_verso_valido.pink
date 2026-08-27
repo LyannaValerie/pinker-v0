@@ -1,10 +1,6 @@
 pacote main;
 
-trazer mapa.bombom_verso_criar;
-trazer mapa.bombom_verso_definir;
-trazer mapa.bombom_verso_obter;
-trazer mapa.bombom_verso_remover;
-trazer mapa.bombom_verso_tamanho;
+trazer mapa.bombom_verso_criar, bombom_verso_definir, bombom_verso_obter, bombom_verso_remover, bombom_verso_tamanho;
 
 carinho principal() -> bombom {
     nova nomes: mapa<bombom,verso> = bombom_verso_criar();

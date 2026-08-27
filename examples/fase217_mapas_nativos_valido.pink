@@ -1,20 +1,6 @@
 pacote main;
 
-trazer mapa.bombom_bombom_criar;
-trazer mapa.bombom_bombom_definir;
-trazer mapa.bombom_bombom_obter;
-trazer mapa.bombom_verso_criar;
-trazer mapa.bombom_verso_definir;
-trazer mapa.bombom_verso_obter;
-trazer mapa.verso_bombom_criar;
-trazer mapa.verso_bombom_definir;
-trazer mapa.verso_bombom_obter;
-trazer mapa.verso_bombom_remover;
-trazer mapa.verso_bombom_tamanho;
-trazer mapa.verso_bombom_tem;
-trazer mapa.verso_verso_criar;
-trazer mapa.verso_verso_definir;
-trazer mapa.verso_verso_obter;
+trazer mapa.bombom_bombom_criar, bombom_bombom_definir, bombom_bombom_obter, bombom_verso_criar, bombom_verso_definir, bombom_verso_obter, verso_bombom_criar, verso_bombom_definir, verso_bombom_obter, verso_bombom_remover, verso_bombom_tamanho, verso_bombom_tem, verso_verso_criar, verso_verso_definir, verso_verso_obter;
 
 carinho principal() -> bombom {
     nova notas: mapa<verso,bombom> = verso_bombom_criar();

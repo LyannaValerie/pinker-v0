@@ -1,8 +1,7 @@
 pacote main;
 
 trazer ambiente.argumento_ou;
-trazer caminho.e_arquivo;
-trazer caminho.existe;
+trazer caminho.e_arquivo, existe;
 trazer processo.sair;
 
 carinho principal() -> bombom {

@@ -1,7 +1,6 @@
 pacote main;
 
-trazer tempo.formatar_unix;
-trazer tempo.unix;
+trazer tempo.formatar_unix, unix;
 trazer texto.igual;
 
 carinho principal() -> bombom {

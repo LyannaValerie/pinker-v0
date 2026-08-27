@@ -1,9 +1,6 @@
 pacote fase149_lista_minima_bombom_fluxo_composto_valido;
 
-trazer lista.bombom_anexar;
-trazer lista.bombom_criar;
-trazer lista.bombom_obter;
-trazer lista.bombom_tamanho;
+trazer lista.bombom_anexar, bombom_criar, bombom_obter, bombom_tamanho;
 
 carinho carregar_pedidos() -> lista<bombom> {
     nova pedidos: lista<bombom> = bombom_criar();

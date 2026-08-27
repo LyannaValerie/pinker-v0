@@ -1,9 +1,6 @@
 pacote main;
 
-trazer lista.anexar;
-trazer lista.criar;
-trazer lista.tamanho;
-trazer lista.tirar_ultimo;
+trazer lista.anexar, criar, tamanho, tirar_ultimo;
 
 leque Cor { Vermelho, Verde, Azul }
 

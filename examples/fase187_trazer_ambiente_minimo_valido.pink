@@ -1,9 +1,6 @@
 pacote main;
 
-trazer ambiente.buscar_contexto;
-trazer ambiente.quantos_argumentos;
-trazer ambiente.tem_flag;
-trazer ambiente.variavel_ou;
+trazer ambiente.buscar_contexto, quantos_argumentos, tem_flag, variavel_ou;
 
 carinho principal() -> bombom {
     nova saida: verso = buscar_contexto("--saida", "PINKER_FASE187_AMBIENTE", "padrao.txt");

@@ -1,24 +1,6 @@
 pacote main;
 
-trazer texto.aparar;
-trazer texto.bombom_para_verso;
-trazer texto.buscar;
-trazer texto.comeca_com;
-trazer texto.contem;
-trazer texto.dividir_contar;
-trazer texto.dividir_em;
-trazer texto.formatar;
-trazer texto.indice;
-trazer texto.indice_em;
-trazer texto.juntar;
-trazer texto.juntar_com;
-trazer texto.maiusculo;
-trazer texto.minusculo;
-trazer texto.nao_vazio;
-trazer texto.substituir;
-trazer texto.termina_com;
-trazer texto.vazio;
-trazer texto.verso_para_bombom;
+trazer texto.aparar, bombom_para_verso, buscar, comeca_com, contem, dividir_contar, dividir_em, formatar, indice, indice_em, juntar, juntar_com, maiusculo, minusculo, nao_vazio, substituir, termina_com, vazio, verso_para_bombom;
 
 carinho principal() -> bombom {
     nova fonte: verso = "  Rosa Pinker canta 42 versos  ";

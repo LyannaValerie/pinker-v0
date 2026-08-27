@@ -1,8 +1,6 @@
 pacote main;
 
-trazer ambiente.argumento;
-trazer ambiente.quantos_argumentos;
-trazer ambiente.tem_argumento;
+trazer ambiente.argumento, quantos_argumentos, tem_argumento;
 trazer processo.sair;
 
 carinho principal() -> bombom {

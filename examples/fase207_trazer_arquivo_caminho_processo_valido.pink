@@ -1,13 +1,8 @@
 pacote main;
 
 trazer ambiente.argumento;
-trazer arquivo.criar;
-trazer arquivo.escrever_verso;
-trazer arquivo.fechar;
-trazer arquivo.ler_caminho_verso;
-trazer caminho.existe;
-trazer caminho.juntar;
-trazer caminho.remover_arquivo;
+trazer arquivo.criar, escrever_verso, fechar, ler_caminho_verso;
+trazer caminho.existe, juntar, remover_arquivo;
 trazer processo.executar;
 
 

@@ -1,10 +1,7 @@
 pacote fase159_json_basico_fluxo_composto_valido;
 
-trazer json.emitir_plano_bombom;
-trazer json.ler_plano_bombom;
-trazer mapa.verso_bombom_criar;
-trazer mapa.verso_bombom_definir;
-trazer mapa.verso_bombom_obter;
+trazer json.emitir_plano_bombom, ler_plano_bombom;
+trazer mapa.verso_bombom_criar, verso_bombom_definir, verso_bombom_obter;
 
 carinho carregar_relatorio() -> verso {
     nova dados: mapa<verso,bombom> = verso_bombom_criar();

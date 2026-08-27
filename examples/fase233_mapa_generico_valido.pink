@@ -1,10 +1,6 @@
 pacote demo;
 
-trazer mapa.definir;
-trazer mapa.obter;
-trazer mapa.remover;
-trazer mapa.tamanho;
-trazer mapa.tem;
+trazer mapa.definir, obter, remover, tamanho, tem;
 
 carinho principal() -> bombom {
     nova vb: mapa<verso,bombom> = mapa_criar();

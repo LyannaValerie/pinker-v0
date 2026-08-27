@@ -1,7 +1,6 @@
 pacote main;
 
-trazer texto.dividir_contar;
-trazer texto.dividir_em;
+trazer texto.dividir_contar, dividir_em;
 
 // Fase 137: manipulação textual útil — `split` (camada 1 conservadora).
 // Recorte desta fase:

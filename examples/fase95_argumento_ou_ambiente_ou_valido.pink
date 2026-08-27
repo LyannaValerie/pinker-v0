@@ -1,7 +1,6 @@
 pacote main;
 
-trazer ambiente.argumento_ou;
-trazer ambiente.variavel_ou;
+trazer ambiente.argumento_ou, variavel_ou;
 trazer texto.tamanho;
 
 carinho principal() -> bombom {

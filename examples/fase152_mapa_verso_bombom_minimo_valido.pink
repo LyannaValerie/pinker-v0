@@ -1,9 +1,6 @@
 pacote main;
 
-trazer mapa.verso_bombom_criar;
-trazer mapa.verso_bombom_definir;
-trazer mapa.verso_bombom_obter;
-trazer mapa.verso_bombom_tem;
+trazer mapa.verso_bombom_criar, verso_bombom_definir, verso_bombom_obter, verso_bombom_tem;
 
 carinho principal() -> bombom {
     nova m: mapa<verso,bombom> = verso_bombom_criar();

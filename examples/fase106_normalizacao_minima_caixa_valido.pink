@@ -1,10 +1,7 @@
 pacote main;
 
 trazer ambiente.argumento_ou;
-trazer texto.contem;
-trazer texto.igual;
-trazer texto.maiusculo;
-trazer texto.minusculo;
+trazer texto.contem, igual, maiusculo, minusculo;
 
 carinho principal() -> bombom {
     nova entrada: verso = argumento_ou(0, "PiNkEr V0");

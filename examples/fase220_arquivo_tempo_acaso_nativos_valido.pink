@@ -2,20 +2,9 @@ pacote main;
 
 trazer acaso;
 trazer arquivo;
-trazer acaso.entre;
-trazer acaso.proximo;
-trazer arquivo.abrir_anexo;
-trazer arquivo.anexar_verso;
-trazer arquivo.copiar;
-trazer arquivo.escrever_verso;
-trazer arquivo.fechar;
-trazer arquivo.ler_caminho_ou;
-trazer arquivo.ler_caminho_verso;
-trazer caminho.e_arquivo;
-trazer caminho.existe;
-trazer caminho.juntar;
-trazer caminho.remover_arquivo;
-trazer caminho.tamanho_arquivo;
+trazer acaso.entre, proximo;
+trazer arquivo.abrir_anexo, anexar_verso, copiar, escrever_verso, fechar, ler_caminho_ou, ler_caminho_verso;
+trazer caminho.e_arquivo, existe, juntar, remover_arquivo, tamanho_arquivo;
 trazer tempo.formatar_unix;
 
 carinho principal() -> bombom {

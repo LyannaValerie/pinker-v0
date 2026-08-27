@@ -1,10 +1,6 @@
 pacote main;
 
-trazer texto.bombom_para_verso;
-trazer texto.comeca_com;
-trazer texto.dividir_contar;
-trazer texto.dividir_em;
-trazer texto.verso_para_bombom;
+trazer texto.bombom_para_verso, comeca_com, dividir_contar, dividir_em, verso_para_bombom;
 
 leque Token { Numero(bombom), Palavra(verso), Fim }
 

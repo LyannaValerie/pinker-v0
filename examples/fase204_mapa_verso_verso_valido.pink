@@ -1,10 +1,6 @@
 pacote main;
 
-trazer mapa.verso_verso_criar;
-trazer mapa.verso_verso_definir;
-trazer mapa.verso_verso_obter;
-trazer mapa.verso_verso_remover;
-trazer mapa.verso_verso_tamanho;
+trazer mapa.verso_verso_criar, verso_verso_definir, verso_verso_obter, verso_verso_remover, verso_verso_tamanho;
 
 carinho principal() -> bombom {
     nova cores: mapa<verso,verso> = verso_verso_criar();

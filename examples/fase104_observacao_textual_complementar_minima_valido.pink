@@ -1,13 +1,9 @@
 pacote main;
 
 trazer ambiente.argumento_ou;
-trazer arquivo.criar;
-trazer arquivo.escrever_verso;
-trazer arquivo.fechar;
-trazer arquivo.ler_verso;
+trazer arquivo.criar, escrever_verso, fechar, ler_verso;
 trazer caminho.juntar;
-trazer texto.igual;
-trazer texto.termina_com;
+trazer texto.igual, termina_com;
 
 carinho principal() -> bombom {
     nova base: verso = argumento_ou(0, "/tmp");

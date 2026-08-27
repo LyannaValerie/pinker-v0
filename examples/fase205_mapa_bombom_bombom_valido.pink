@@ -1,10 +1,6 @@
 pacote main;
 
-trazer mapa.bombom_bombom_criar;
-trazer mapa.bombom_bombom_definir;
-trazer mapa.bombom_bombom_obter;
-trazer mapa.bombom_bombom_remover;
-trazer mapa.bombom_bombom_tamanho;
+trazer mapa.bombom_bombom_criar, bombom_bombom_definir, bombom_bombom_obter, bombom_bombom_remover, bombom_bombom_tamanho;
 
 carinho principal() -> bombom {
     nova contagem: mapa<bombom,bombom> = bombom_bombom_criar();

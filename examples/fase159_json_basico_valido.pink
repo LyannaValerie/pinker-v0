@@ -1,11 +1,7 @@
 pacote fase159_json_basico_valido;
 
-trazer json.emitir_plano_bombom;
-trazer json.ler_plano_bombom;
-trazer mapa.verso_bombom_criar;
-trazer mapa.verso_bombom_definir;
-trazer mapa.verso_bombom_obter;
-trazer mapa.verso_bombom_tamanho;
+trazer json.emitir_plano_bombom, ler_plano_bombom;
+trazer mapa.verso_bombom_criar, verso_bombom_definir, verso_bombom_obter, verso_bombom_tamanho;
 
 carinho principal() -> bombom {
     nova base: mapa<verso,bombom> = verso_bombom_criar();

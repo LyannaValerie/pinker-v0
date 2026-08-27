@@ -1,14 +1,7 @@
 pacote main;
 
-trazer lista.anexar;
-trazer lista.criar;
-trazer lista.definir;
-trazer lista.obter;
-trazer lista.tamanho;
-trazer texto.dividir_contar;
-trazer texto.dividir_em;
-trazer texto.igual;
-trazer texto.verso_para_bombom;
+trazer lista.anexar, criar, definir, obter, tamanho;
+trazer texto.dividir_contar, dividir_em, igual, verso_para_bombom;
 
 leque Token { Numero(bombom), Mais, Vezes, Fim }
 

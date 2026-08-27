@@ -1,9 +1,7 @@
 pacote main;
 
 trazer assertiva.afirmar;
-trazer texto.contem;
-trazer texto.igual;
-trazer texto.vazio;
+trazer texto.contem, igual, vazio;
 
 eterno SAUDACAO: verso = "olá mundo";
 eterno VAZIO: verso = "";

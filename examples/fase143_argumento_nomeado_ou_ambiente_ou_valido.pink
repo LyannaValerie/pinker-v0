@@ -1,8 +1,6 @@
 pacote main;
 
-trazer ambiente.buscar_contexto;
-trazer ambiente.quantos_argumentos;
-trazer ambiente.tem_flag;
+trazer ambiente.buscar_contexto, quantos_argumentos, tem_flag;
 trazer texto.igual;
 
 carinho principal() -> bombom {

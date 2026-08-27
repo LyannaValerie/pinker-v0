@@ -1,7 +1,6 @@
 pacote main;
 
-trazer acaso.criar;
-trazer acaso.proximo;
+trazer acaso.criar, proximo;
 
 carinho principal() -> bombom {
     nova gerador_a: bombom = criar(42);

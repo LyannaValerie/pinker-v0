@@ -1,9 +1,7 @@
 pacote main;
 
-trazer entrada.ouvir_verso;
-trazer entrada.ouvir_verso_ou;
-trazer texto.aparar;
-trazer texto.nao_vazio;
+trazer entrada.ouvir_verso, ouvir_verso_ou;
+trazer texto.aparar, nao_vazio;
 
 carinho principal() -> bombom {
     nova texto: verso = ouvir_verso();

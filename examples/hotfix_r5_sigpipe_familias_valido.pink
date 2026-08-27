@@ -17,11 +17,7 @@
 pacote main;
 
 trazer ambiente.argumento;
-trazer processo.capturar_stderr;
-trazer processo.capturar_stdout;
-trazer processo.executar;
-trazer processo.executar_com_entrada;
-trazer processo.pipeline_minimo;
+trazer processo.capturar_stderr, capturar_stdout, executar, executar_com_entrada, pipeline_minimo;
 trazer texto.formatar;
 
 carinho principal() -> bombom {

@@ -1,8 +1,7 @@
 pacote main;
 
 trazer assertiva.afirmar;
-trazer texto.contem;
-trazer texto.vazio;
+trazer texto.contem, vazio;
 
 carinho principal() -> bombom {
     nova texto: verso = """primeira linha

@@ -1,9 +1,7 @@
 pacote fase158_csv_minimo_valido;
 
-trazer csv.emitir_linha_bombom;
-trazer csv.ler_linha_bombom;
-trazer lista.bombom_obter;
-trazer lista.bombom_tamanho;
+trazer csv.emitir_linha_bombom, ler_linha_bombom;
+trazer lista.bombom_obter, bombom_tamanho;
 
 carinho principal() -> bombom {
     nova itens: lista<bombom> = ler_linha_bombom("7,11,13", ",");

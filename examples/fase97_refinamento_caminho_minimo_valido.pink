@@ -1,11 +1,7 @@
 pacote main;
 
 trazer ambiente.argumento_ou;
-trazer caminho.diretorio_atual;
-trazer caminho.e_arquivo;
-trazer caminho.e_diretorio;
-trazer caminho.existe;
-trazer caminho.juntar;
+trazer caminho.diretorio_atual, e_arquivo, e_diretorio, existe, juntar;
 
 carinho principal() -> bombom {
     nova cwd: verso = diretorio_atual();

@@ -10,28 +10,10 @@
 pacote canivete;
 
 trazer caminho;
-trazer ambiente.argumento;
-trazer ambiente.quantos_argumentos;
-trazer ambiente.tem_argumento;
-trazer ambiente.variavel_ou;
-trazer arquivo.abrir;
-trazer arquivo.criar;
-trazer arquivo.escrever_bombom;
-trazer arquivo.escrever_verso;
-trazer arquivo.fechar;
-trazer arquivo.ler_bombom;
-trazer arquivo.truncar;
-trazer caminho.arquivo_vazio;
-trazer caminho.diretorio_atual;
-trazer caminho.e_arquivo;
-trazer caminho.e_diretorio;
-trazer caminho.existe;
-trazer caminho.tamanho_arquivo;
-trazer texto.comeca_com;
-trazer texto.contem;
-trazer texto.indice;
-trazer texto.juntar;
-trazer texto.tamanho;
+trazer ambiente.argumento, quantos_argumentos, tem_argumento, variavel_ou;
+trazer arquivo.abrir, criar, escrever_bombom, escrever_verso, fechar, ler_bombom, truncar;
+trazer caminho.arquivo_vazio, diretorio_atual, e_arquivo, e_diretorio, existe, tamanho_arquivo;
+trazer texto.comeca_com, contem, indice, juntar, tamanho;
 
 // ─── Constantes globais ──────────────────────────────────────────
 eterno VERSAO_MAJOR: bombom = 1;

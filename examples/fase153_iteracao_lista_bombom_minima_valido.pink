@@ -1,7 +1,6 @@
 pacote main;
 
-trazer lista.bombom_anexar;
-trazer lista.bombom_criar;
+trazer lista.bombom_anexar, bombom_criar;
 
 carinho principal() -> bombom {
     nova itens: lista<bombom> = bombom_criar();

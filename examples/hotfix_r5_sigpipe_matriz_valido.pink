@@ -17,9 +17,7 @@ pacote main;
 
 trazer ambiente.argumento;
 trazer processo.executar_com_entrada;
-trazer texto.formatar;
-trazer texto.juntar;
-trazer texto.verso_para_bombom;
+trazer texto.formatar, juntar, verso_para_bombom;
 
 carinho construir_entrada(tamanho: bombom) -> verso {
     talvez tamanho == 0 {

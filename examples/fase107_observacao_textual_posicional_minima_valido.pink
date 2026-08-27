@@ -1,9 +1,7 @@
 pacote main;
 
 trazer ambiente.argumento_ou;
-trazer texto.aparar;
-trazer texto.indice_em;
-trazer texto.nao_vazio;
+trazer texto.aparar, indice_em, nao_vazio;
 
 carinho principal() -> bombom {
     nova entrada: verso = argumento_ou(0, "   pinker v0   ");

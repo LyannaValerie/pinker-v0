@@ -1,19 +1,10 @@
 pacote main;
 
-trazer acaso.criar;
-trazer acaso.entre;
+trazer acaso.criar, entre;
 trazer assertiva.afirmar;
-trazer lista.bombom_anexar;
-trazer lista.bombom_criar;
-trazer lista.bombom_inserir;
-trazer lista.bombom_obter;
-trazer mapa.verso_bombom_criar;
-trazer mapa.verso_bombom_definir;
-trazer mapa.verso_bombom_remover;
-trazer mapa.verso_bombom_tem;
-trazer texto.bombom_para_verso;
-trazer texto.igual;
-trazer texto.verso_para_bombom;
+trazer lista.bombom_anexar, bombom_criar, bombom_inserir, bombom_obter;
+trazer mapa.verso_bombom_criar, verso_bombom_definir, verso_bombom_remover, verso_bombom_tem;
+trazer texto.bombom_para_verso, igual, verso_para_bombom;
 
 carinho principal() -> bombom {
     // verso_para_bombom e bombom_para_verso

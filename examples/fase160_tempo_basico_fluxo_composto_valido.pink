@@ -1,13 +1,9 @@
 pacote main;
 
 trazer json.emitir_plano_bombom;
-trazer mapa.verso_bombom_criar;
-trazer mapa.verso_bombom_definir;
-trazer mapa.verso_bombom_obter;
-trazer tempo.formatar_unix;
-trazer tempo.unix;
-trazer texto.formatar;
-trazer texto.tamanho;
+trazer mapa.verso_bombom_criar, verso_bombom_definir, verso_bombom_obter;
+trazer tempo.formatar_unix, unix;
+trazer texto.formatar, tamanho;
 
 carinho carimbar_evento(nome: verso, instante: bombom) -> verso {
     nova prefixo: verso = formatar("evento={};ts={}", nome, instante);

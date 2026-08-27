@@ -1,7 +1,6 @@
 pacote fase158_csv_minimo_fluxo_composto_valido;
 
-trazer csv.emitir_linha_bombom;
-trazer csv.ler_linha_bombom;
+trazer csv.emitir_linha_bombom, ler_linha_bombom;
 trazer lista.bombom_anexar;
 
 carinho somar_linha_csv(linha: verso, sep: verso) -> bombom {

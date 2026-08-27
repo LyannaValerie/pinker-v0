@@ -1,8 +1,6 @@
 pacote main;
 
-trazer texto.dividir_em;
-trazer texto.juntar;
-trazer texto.juntar_com;
+trazer texto.dividir_em, juntar, juntar_com;
 
 // Fase 139: manipulacao textual util — `join` (camada 1 conservadora).
 //

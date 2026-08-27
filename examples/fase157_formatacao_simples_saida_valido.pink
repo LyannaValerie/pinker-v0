@@ -1,7 +1,6 @@
 pacote fase157_formatacao_simples_saida_valido;
 
-trazer texto.formatar;
-trazer texto.tamanho;
+trazer texto.formatar, tamanho;
 
 carinho principal() -> bombom {
     nova linha: verso = formatar("saldo={}", 42);

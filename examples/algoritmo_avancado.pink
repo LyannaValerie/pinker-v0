@@ -1,39 +1,10 @@
 pacote main;
 
 trazer caminho;
-trazer arquivo.abrir_anexo;
-trazer arquivo.anexar_verso;
-trazer arquivo.criar;
-trazer arquivo.escrever_verso;
-trazer arquivo.fechar;
-trazer arquivo.ler_caminho_verso;
-trazer caminho.diretorio_atual;
-trazer caminho.e_arquivo;
-trazer caminho.existe;
-trazer caminho.remover_arquivo;
-trazer caminho.tamanho_arquivo;
-trazer lista.bombom_anexar;
-trazer lista.bombom_criar;
-trazer lista.bombom_definir;
-trazer lista.bombom_obter;
-trazer lista.bombom_tamanho;
-trazer texto.aparar;
-trazer texto.comeca_com;
-trazer texto.contem;
-trazer texto.dividir_contar;
-trazer texto.dividir_em;
-trazer texto.igual;
-trazer texto.indice;
-trazer texto.indice_em;
-trazer texto.juntar;
-trazer texto.juntar_com;
-trazer texto.maiusculo;
-trazer texto.minusculo;
-trazer texto.nao_vazio;
-trazer texto.substituir;
-trazer texto.tamanho;
-trazer texto.termina_com;
-trazer texto.vazio;
+trazer arquivo.abrir_anexo, anexar_verso, criar, escrever_verso, fechar, ler_caminho_verso;
+trazer caminho.diretorio_atual, e_arquivo, existe, remover_arquivo, tamanho_arquivo;
+trazer lista.bombom_anexar, bombom_criar, bombom_definir, bombom_obter, bombom_tamanho;
+trazer texto.aparar, comeca_com, contem, dividir_contar, dividir_em, igual, indice, indice_em, juntar, juntar_com, maiusculo, minusculo, nao_vazio, substituir, tamanho, termina_com, vazio;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // algoritmo_avancado.pink — Suite completa de algoritmos em Pinker v0

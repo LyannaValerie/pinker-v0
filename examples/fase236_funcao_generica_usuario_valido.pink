@@ -1,8 +1,6 @@
 pacote demo;
 
-trazer lista.anexar;
-trazer lista.criar;
-trazer lista.obter;
+trazer lista.anexar, criar, obter;
 trazer texto.igual;
 
 carinho identidade<T>(valor: T) -> T {
