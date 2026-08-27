@@ -99,7 +99,13 @@ carinho principal() -> bombom {
 /// por uma razão que não é a que está sendo medida. Aqui a **única** coisa que
 /// pode dar errado é o conflito de identidade. O cenário completo, com consumo,
 /// tem teste próprio em [`cenario_do_defeito_original_e_recusado_nas_duas_ordens`].
-const USO_MINIMO: &str = r#"trazer ambiente.argumento_ou; trazer arquivo.ler_caminho_resultado; carinho principal() -> bombom {
+/// Os imports vivem no CABEÇALHO, e não no trecho que a matriz reordena:
+/// `trazer` só é aceito no topo do programa, e mover o trecho não pode mover
+/// o import junto — senão a matriz mediria a posição do import em vez da
+/// ordem da declaração, que é o que ela existe para medir.
+const IMPORTS: &str = "trazer ambiente.argumento_ou; trazer arquivo.ler_caminho_resultado;";
+
+const USO_MINIMO: &str = r#"carinho principal() -> bombom {
     ler_caminho_resultado(argumento_ou(0, "ausente"));
     falar("fim");
     mimo 0;
@@ -176,12 +182,18 @@ const CONFLITOS: &[Conflito] = &[
 impl Conflito {
     /// Declaração **antes** do primeiro uso da superfície falível.
     fn fonte_antes(&self) -> String {
-        format!("pacote main;\n\n{}\n\n{USO_MINIMO}\n", self.declaracao)
+        format!(
+            "pacote main; {IMPORTS}\n\n{}\n\n{USO_MINIMO}\n",
+            self.declaracao
+        )
     }
 
     /// Declaração **depois** do uso/materialização. Mesmo programa, outra ordem.
     fn fonte_depois(&self) -> String {
-        format!("pacote main;\n\n{USO_MINIMO}\n\n{}\n", self.declaracao)
+        format!(
+            "pacote main; {IMPORTS}\n\n{USO_MINIMO}\n\n{}\n",
+            self.declaracao
+        )
     }
 }
 

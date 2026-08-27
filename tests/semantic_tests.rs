@@ -271,8 +271,8 @@ fn argumento_ou_intrinseca_valida_sem_declaracao() {
 #[test]
 fn argumento_ou_intrinseca_rejeita_padrao_nao_verso() {
     let code = "
-        pacote main;
-        carinho principal() -> bombom { mimo tamanho_verso(argumento_ou(0, 1)); }";
+        pacote main; trazer ambiente.argumento_ou; trazer texto.tamanho;
+        carinho principal() -> bombom { mimo tamanho(argumento_ou(0, 1)); }";
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 2 da chamada 'argumento_ou'"));
 }
@@ -686,7 +686,7 @@ fn legado_tem_argumento_nomeado_intrinseca_permanece_valido() {
 #[test]
 fn sair_intrinseca_valida_sem_declaracao() {
     let code = "
-        pacote main;
+        pacote main; trazer processo.sair;
         carinho principal() -> bombom { sair(1); mimo 0; }";
     assert!(parse_and_check(code).is_ok());
 }
@@ -694,7 +694,7 @@ fn sair_intrinseca_valida_sem_declaracao() {
 #[test]
 fn sair_intrinseca_rejeita_argumento_nao_bombom() {
     let code = "
-        pacote main;
+        pacote main; trazer processo.sair;
         carinho principal() -> bombom { sair(verdade); mimo 0; }";
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 1 da chamada 'sair'"));
@@ -807,7 +807,7 @@ fn arquivo_ou_intrinseca_rejeita_padrao_nao_verso() {
 #[test]
 fn abrir_intrinseca_rejeita_argumento_nao_verso() {
     let code = "
-        pacote main;
+        pacote main; trazer arquivo.abrir;
         carinho principal() -> bombom { mimo abrir(1); }";
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 1 da chamada 'abrir'"));
@@ -2994,9 +2994,10 @@ fn api_ampla_de_aleatoriedade_permanece_fora_do_recorte() {
 #[test]
 fn trazer_tempo_familia_aceita() {
     let code = r#"
-        pacote main; trazer tempo.unix;
+        pacote main;
+        trazer tempo;
         carinho principal() -> bombom {
-            nova agora: bombom = unix();
+            nova agora: bombom = tempo.unix();
             mimo agora;
         }
     "#;
@@ -3006,14 +3007,15 @@ fn trazer_tempo_familia_aceita() {
 #[test]
 fn trazer_ambiente_familia_aceita() {
     let code = r#"
-        pacote main; trazer ambiente.buscar_contexto; trazer ambiente.quantos_argumentos; trazer ambiente.tem_flag; trazer ambiente.variavel_ou;
+        pacote main;
+        trazer ambiente;
         carinho principal() -> bombom {
-            nova saida: verso = buscar_contexto("--saida", "PINKER_SAIDA", "padrao.txt");
-            nova origem: verso = variavel_ou("HOME", "/tmp");
-            talvez tem_flag("--quiet") {
+            nova saida: verso = ambiente.buscar_contexto("--saida", "PINKER_SAIDA", "padrao.txt");
+            nova origem: verso = ambiente.variavel_ou("HOME", "/tmp");
+            talvez ambiente.tem_flag("--quiet") {
                 falar(saida, origem);
             }
-            mimo quantos_argumentos();
+            mimo ambiente.quantos_argumentos();
         }
     "#;
     assert!(parse_and_check(code).is_ok());
@@ -3022,10 +3024,11 @@ fn trazer_ambiente_familia_aceita() {
 #[test]
 fn trazer_acaso_familia_aceita() {
     let code = r#"
-        pacote main; trazer acaso.criar; trazer acaso.proximo;
+        pacote main;
+        trazer acaso;
         carinho principal() -> bombom {
-            nova gerador: bombom = criar(42);
-            nova valor: bombom = proximo(gerador);
+            nova gerador: bombom = acaso.criar(42);
+            nova valor: bombom = acaso.proximo(gerador);
             mimo valor;
         }
     "#;
@@ -3091,10 +3094,11 @@ fn trazer_familia_desconhecida_falha() {
 #[test]
 fn trazer_texto_familia_aceita() {
     let code = r#"
-        pacote main; trazer texto.aparar; trazer texto.juntar;
+        pacote main;
+        trazer texto;
         carinho principal() -> bombom {
-            nova saudacao: verso = juntar("rosa", " pinker");
-            nova limpa: verso = aparar("  texto  ");
+            nova saudacao: verso = texto.juntar("rosa", " pinker");
+            nova limpa: verso = texto.aparar("  texto  ");
             falar(saudacao);
             falar(limpa);
             mimo 0;
@@ -3117,13 +3121,15 @@ fn legado_global_texto_sem_trazer_continua_valido() {
     assert!(parse_and_check(code).is_ok());
 }
 
-/// A recusa deixou de ser categórica: o que se recusa é um membro que a
-/// família não exporta. `texto` continua importável inteira e continua sem
-/// membro nenhum a selecionar nesta fase.
+/// A recusa deixou de ser categórica: o que se recusa é um membro que o módulo
+/// não exporta. Depois da #505 `texto` exporta membros, e a grafia usada aqui
+/// — `juntar_verso` — é a CANÔNICA, não a do membro: continua sendo recusa,
+/// agora com a lista real de membros no diagnóstico.
 #[test]
-fn trazer_seletivo_de_familia_sem_membros_falha() {
+fn trazer_seletivo_de_grafia_canonica_em_vez_de_membro_falha() {
     let code = r#"
         pacote main;
+        trazer texto.juntar_verso;
         carinho principal() -> bombom { mimo 0; }
     "#;
     let err = parse_and_check(code).unwrap_err().to_string();
@@ -3132,13 +3138,18 @@ fn trazer_seletivo_de_familia_sem_membros_falha() {
         "{}",
         err
     );
-    assert!(err.contains("não exporta membros nesta fase"), "{}", err);
+    assert!(
+        err.contains("'juntar'"),
+        "o diagnóstico precisa listar os membros reais: {}",
+        err
+    );
 }
 
 #[test]
 fn trazer_seletivo_de_familia_de_tempo_falha() {
     let code = r#"
         pacote main;
+        trazer tempo.tempo_unix;
         carinho principal() -> bombom { mimo 0; }
     "#;
     let err = parse_and_check(code).unwrap_err().to_string();
@@ -3152,11 +3163,12 @@ fn trazer_seletivo_de_familia_de_tempo_falha() {
 #[test]
 fn trazer_arquivo_familia_aceita() {
     let code = r#"
-        pacote main; trazer arquivo.criar; trazer arquivo.escrever_verso; trazer arquivo.fechar;
+        pacote main;
+        trazer arquivo;
         carinho principal() -> bombom {
-            nova cabo: bombom = criar("target/teste_trazer_arquivo.txt");
-            escrever_verso(cabo, "rosa");
-            fechar(cabo);
+            nova cabo: bombom = arquivo.criar("target/teste_trazer_arquivo.txt");
+            arquivo.escrever_verso(cabo, "rosa");
+            arquivo.fechar(cabo);
             mimo 0;
         }
     "#;
@@ -3166,10 +3178,11 @@ fn trazer_arquivo_familia_aceita() {
 #[test]
 fn trazer_caminho_familia_aceita() {
     let code = r#"
-        pacote main; trazer caminho.existe; trazer caminho.juntar;
+        pacote main;
+        trazer caminho;
         carinho principal() -> bombom {
-            nova destino: verso = juntar("docs", "atlas.md");
-            talvez existe(destino) {
+            nova destino: verso = caminho.juntar("docs", "atlas.md");
+            talvez caminho.existe(destino) {
                 falar(destino);
             }
             mimo 0;
@@ -3181,10 +3194,12 @@ fn trazer_caminho_familia_aceita() {
 #[test]
 fn trazer_processo_familia_aceita() {
     let code = r#"
-        pacote main; trazer ambiente.argumento; trazer processo.executar;
+        pacote main;
+        trazer ambiente;
+        trazer processo;
         carinho principal() -> bombom {
-            nova comando: verso = argumento(0);
-            nova codigo: bombom = executar(comando);
+            nova comando: verso = ambiente.argumento(0);
+            nova codigo: bombom = processo.executar(comando);
             mimo codigo;
         }
     "#;
@@ -3239,6 +3254,7 @@ fn legado_global_processo_sem_trazer_continua_valido() {
 fn trazer_seletivo_de_nome_global_em_vez_de_membro_falha() {
     let code = r#"
         pacote main;
+        trazer arquivo.criar_arquivo;
         carinho principal() -> bombom { mimo 0; }
     "#;
     let err = parse_and_check(code).unwrap_err().to_string();
@@ -4688,10 +4704,11 @@ fn fase243_exemplo_canonico_prova_escape_do_escopo_criador() {
 fn fase243_closure_captura_multipla_de_tipos_distintos_aceita() {
     let code = r#"
         pacote main;
+        trazer texto;
         carinho fabricar(base: bombom, ligado: logica, rotulo: verso) -> carinho() -> bombom {
             mimo carinho() -> bombom {
                 talvez ligado {
-                    mimo base + tamanho_verso(rotulo);
+                    mimo base + texto.tamanho(rotulo);
                 } senao {
                     mimo base;
                 }

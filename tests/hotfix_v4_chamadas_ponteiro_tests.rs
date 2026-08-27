@@ -86,7 +86,7 @@ fn programa(forma: &str, com_cast: bool, store: bool) -> String {
         format!("    falar(*{alvo});\n")
     };
     format!(
-        "pacote main;\n\n{prelúdio}{fabricar}\ncarinho principal() -> bombom {{\n{obtencao}{cast}{acesso}    mimo 0;\n}}\n"
+        "pacote main; trazer memoria.alocar;\n\n{prelúdio}{fabricar}\ncarinho principal() -> bombom {{\n{obtencao}{cast}{acesso}    mimo 0;\n}}\n"
     )
 }
 

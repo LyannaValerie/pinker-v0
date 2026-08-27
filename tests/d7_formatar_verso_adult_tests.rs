@@ -163,9 +163,9 @@ fn contrato_publico_preserva_aridade_minima_e_tipos_suportados() {
     .to_string();
     assert!(zero.contains("esperado pelo menos 2"), "{zero}");
 
-    for (tipo, expr) in [("logica", "falso"), ("lista", "lista_bombom_criar()")] {
+    for (tipo, expr) in [("logica", "falso"), ("lista", "lista.bombom_criar()")] {
         let code = format!(
-            "pacote main; trazer texto.formatar; carinho principal() -> bombom {{ nova x: verso = formatar(\"{{}}\", {expr}); mimo 0; }}"
+            "pacote main; trazer lista; trazer texto.formatar; carinho principal() -> bombom {{ nova x: verso = formatar(\"{{}}\", {expr}); mimo 0; }}"
         );
         let error = common::parse_and_check(&code).unwrap_err().to_string();
         assert!(

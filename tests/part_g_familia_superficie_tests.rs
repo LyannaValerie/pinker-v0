@@ -477,6 +477,30 @@ fn matriz_exercita_as_29_superficies_aprovadas() {
     assert_eq!(da_matriz.len(), 29);
 }
 
+/// A terceira grafia da matriz — o nome global histórico — deixou de existir.
+///
+/// A #491 media três grafias equivalentes; a #505 removeu uma delas. Ela não
+/// saiu deste arquivo: virou oráculo negativo, percorrendo a MESMA matriz e
+/// exigindo recusa por escopo em cada linha. Sem isto, apagar a grafia legada
+/// da matriz passaria por migração e ninguém veria a superfície global voltar.
+#[test]
+fn a_grafia_legada_da_matriz_deixou_de_ser_chamavel() {
+    for chamada in MATRIZ_CANONICALIZACAO {
+        let fonte = format!(
+            "pacote main;\ncarinho principal() -> bombom {{\n    {};\n    mimo 0;\n}}\n",
+            chamada_legada(chamada.familia, chamada.membro, chamada.args)
+        );
+        let erro = parse(&fonte).expect_err("a grafia global não pode mais compilar");
+        let msg = format!("{erro:?}");
+        assert!(
+            msg.contains("não está no escopo"),
+            "{}.{} recusada por outro motivo: {msg}",
+            chamada.familia,
+            chamada.membro
+        );
+    }
+}
+
 #[test]
 fn as_tres_grafias_canonicalizam_para_a_mesma_identidade() {
     for chamada in MATRIZ_CANONICALIZACAO {
@@ -1151,7 +1175,10 @@ fn f5_colisao_de_import_seletivo_vale_no_caminho_de_biblioteca() {
     // Depois da #505 a causa é nomeada: não é «a grafia é da linguagem», é
     // «este arquivo traz `arquivo.criar`». O diagnóstico ficou mais preciso
     // sem deixar de ser a mesma recusa.
-    assert!(erro.contains("colide com o membro 'arquivo.criar'"), "{erro}");
+    assert!(
+        erro.contains("colide com o membro 'arquivo.criar'"),
+        "{erro}"
+    );
     assert!(
         !erro.contains("colisão de nome no import"),
         "a expectativa histórica foi substituída por #504: {erro}"

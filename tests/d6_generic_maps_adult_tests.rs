@@ -179,7 +179,7 @@ fn tuple_match_candidates(source: &str) -> Vec<TupleMatchCandidate> {
 }
 
 const BOMBOM_LEQUE: &str = r#"
-pacote main;
+pacote main; trazer mapa.definir; trazer mapa.obter; trazer mapa.remover; trazer mapa.tamanho; trazer mapa.tem; trazer texto;
 
 leque Escolha {
     Vazio,
@@ -189,18 +189,18 @@ leque Escolha {
 
 carinho principal() -> bombom {
     nova m: mapa<bombom, Escolha> = mapa_criar();
-    talvez mapa_tamanho(m) != 0 { mimo 1; }
+    talvez tamanho(m) != 0 { mimo 1; }
 
-    mapa_definir(m, 3, Escolha.Vazio);
-    mapa_definir(m, 1, Escolha.Numero(41));
-    mapa_definir(m, 2, Escolha.Texto("carga"));
-    mapa_definir(m, 1, Escolha.Numero(42));
-    talvez mapa_tamanho(m) != 3 { mimo 2; }
-    talvez !mapa_tem(m, 2) { mimo 3; }
+    definir(m, 3, Escolha.Vazio);
+    definir(m, 1, Escolha.Numero(41));
+    definir(m, 2, Escolha.Texto("carga"));
+    definir(m, 1, Escolha.Numero(42));
+    talvez tamanho(m) != 3 { mimo 2; }
+    talvez !tem(m, 2) { mimo 3; }
 
-    mapa_remover(m, 3);
-    talvez mapa_tem(m, 3) { mimo 4; }
-    talvez mapa_tamanho(m) != 2 { mimo 5; }
+    remover(m, 3);
+    talvez tem(m, 3) { mimo 4; }
+    talvez tamanho(m) != 2 { mimo 5; }
 
     nova muda ordem: bombom = 0;
     para cada chave em m {
@@ -208,27 +208,27 @@ carinho principal() -> bombom {
     }
     talvez ordem != 12 { mimo 6; }
 
-    nova numero: Escolha = mapa_obter(m, 1);
+    nova numero: Escolha = obter(m, 1);
     encaixe numero {
         caso Escolha.Numero(n) { talvez n != 42 { mimo 7; } }
         caso Escolha.Texto(t) { mimo 8; }
         caso Escolha.Vazio { mimo 9; }
     }
-    nova texto: Escolha = mapa_obter(m, 2);
-    encaixe texto {
+    nova escolhido: Escolha = obter(m, 2);
+    encaixe escolhido {
         caso Escolha.Numero(n) { mimo 10; }
-        caso Escolha.Texto(t) { talvez tamanho_verso(t) != 5 { mimo 11; } }
+        caso Escolha.Texto(t) { talvez texto.tamanho(t) != 5 { mimo 11; } }
         caso Escolha.Vazio { mimo 12; }
     }
 
     nova muda i: bombom = 4;
     sempre que i < 13 {
-        mapa_definir(m, i, Escolha.Numero(i * 10));
+        definir(m, i, Escolha.Numero(i * 10));
         i = i + 1;
     }
-    talvez mapa_tamanho(m) != 11 { mimo 13; }
-    mapa_remover(m, 7);
-    talvez mapa_tamanho(m) != 10 { mimo 14; }
+    talvez tamanho(m) != 11 { mimo 13; }
+    remover(m, 7);
+    talvez tamanho(m) != 10 { mimo 14; }
     mimo 0;
 }
 "#;

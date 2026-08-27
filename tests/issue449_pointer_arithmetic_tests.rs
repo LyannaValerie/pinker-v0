@@ -207,7 +207,7 @@ fn derivacao_one_past_existe_mas_acesso_one_past_e_invalido() {
     run_interpreter(derive).expect("one-past deve poder existir");
 
     let access = r#"
-        pacote main;
+        pacote main; trazer memoria.alocar;
         carinho principal() -> bombom {
             nova raw: seta<u8> = alocar(8);
             nova p: seta<u32> = raw virar seta<u32>;

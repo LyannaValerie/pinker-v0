@@ -787,14 +787,13 @@ pub fn forma_qualificada_valida(familia: &str, membro: &str) -> bool {
 ///
 /// Existe para que a mensagem venha da autoridade que conhece os membros, e
 /// não de cada camada que precise recusar um.
+/// Depois da #505 não existe módulo importável sem membro — o gate
+/// `os_modulos_sao_exatamente_os_quinze_aceitos` prova a igualdade entre o
+/// conjunto declarado e o conjunto que exporta —, então o ramo «não exporta
+/// membros nesta fase» deixou de ser alcançável por fonte e saiu junto com a
+/// fase que o justificava.
 pub fn membro_inexistente(familia: &str, membro: &str) -> String {
     let membros = membros_da_familia(familia);
-    if membros.is_empty() {
-        return format!(
-            "membro '{}' não existe na família '{}'; a família '{}' não exporta membros nesta fase",
-            membro, familia, familia
-        );
-    }
     format!(
         "membro '{}' não existe na família '{}'; membros desta fase: {}",
         membro,

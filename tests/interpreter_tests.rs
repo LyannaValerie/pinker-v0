@@ -639,7 +639,7 @@ fn run_argumento_intrinseca_ler_posicional_minimo() {
 fn run_argumento_intrinseca_falha_sem_arg_disponivel() {
     let err = run_code(
         r#"
-        pacote main;
+        pacote main; trazer ambiente.argumento;
         carinho principal() -> bombom {
             falar(argumento(0));
             mimo 0;
@@ -751,7 +751,7 @@ fn run_argumento_ou_intrinseca_prioriza_arg_existente() {
 fn run_tem_chave_intrinseca_true_para_forma_separada() {
     let out = run_code_with_args(
         r#"
-        pacote main;
+        pacote main; trazer ambiente.tem_chave;
         carinho principal() -> bombom {
             talvez tem_chave("--saida") {
                 mimo 1;
@@ -3006,7 +3006,7 @@ fn run_criar_arquivo_e_escrever_verso_minimos_funcionam_com_releitura() {
 #[test]
 fn run_escrever_verso_falha_com_handle_invalido() {
     let err = run_code(
-        r#"pacote main;
+        r#"pacote main; trazer arquivo.escrever_verso;
         carinho principal() -> bombom {
             escrever_verso(999, "x");
             mimo 0;
@@ -4379,15 +4379,15 @@ fn run_aparar_e_vazio_verso_integram_com_ler_verso_arquivo() {
     std::fs::write(&file_path, "   \n\t  ").expect("falha ao criar arquivo da fase 105");
     let source = format!(
         r#"
-        pacote main;
+        pacote main; trazer arquivo; trazer texto;
         carinho principal() -> bombom {{
-            nova h: bombom = abrir("{}");
-            nova texto: verso = ler_verso_arquivo(h);
-            fechar(h);
-            nova limpo: verso = aparar_verso(texto);
-            nova vazio: logica = vazio_verso(limpo);
-            falar(vazio, tamanho_verso(limpo));
-            talvez vazio {{
+            nova h: bombom = arquivo.abrir("{}");
+            nova entrada: verso = arquivo.ler_verso(h);
+            arquivo.fechar(h);
+            nova limpo: verso = texto.aparar(entrada);
+            nova esta_vazio: logica = texto.vazio(limpo);
+            falar(esta_vazio, texto.tamanho(limpo));
+            talvez esta_vazio {{
                 mimo 1;
             }} senao {{
                 mimo 0;
@@ -6910,7 +6910,8 @@ fn cli_run_fase168_argv_explicito_fluxo_composto_valido() {
 // @pinker-nav:summary Cobre captura de stdout de processo (retorna verso, argv explícito, rejeição de stdout não-UTF8) no interpretador e via CLI.
 #[test]
 fn run_fase163_capturar_stdout_minimo_retorna_verso() {
-    let source = r#"pacote main; trazer processo.capturar_stdout; trazer texto.contem; trazer texto.tamanho;
+    let source =
+        r#"pacote main; trazer processo.capturar_stdout; trazer texto.contem; trazer texto.tamanho;
         carinho principal() -> bombom {
             nova texto: verso = capturar_stdout("__CMD__");
             nova tem_status: logica = contem(texto, "status=ok");
@@ -6920,17 +6921,18 @@ fn run_fase163_capturar_stdout_minimo_retorna_verso() {
             }
             mimo 0;
         }"#
-    .replace(
-        "__CMD__",
-        &pink_string_literal(fase163_helper_bin("stdout_ok")),
-    );
+        .replace(
+            "__CMD__",
+            &pink_string_literal(fase163_helper_bin("stdout_ok")),
+        );
     let out = run_code(&source).unwrap();
     assert_eq!(out, Some(RuntimeValue::Int(163)));
 }
 
 #[test]
 fn run_fase169_capturar_stdout_aceita_argv_explicito_minimo() {
-    let source = r#"pacote main; trazer processo.capturar_stdout; trazer texto.contem; trazer texto.tamanho;
+    let source =
+        r#"pacote main; trazer processo.capturar_stdout; trazer texto.contem; trazer texto.tamanho;
         carinho principal() -> bombom {
             nova texto: verso = capturar_stdout("__CMD__", "--alvo=rosa");
             nova tem_status: logica = contem(texto, "status=ok");
@@ -6940,10 +6942,10 @@ fn run_fase169_capturar_stdout_aceita_argv_explicito_minimo() {
             }
             mimo 0;
         }"#
-    .replace(
-        "__CMD__",
-        &pink_string_literal(fase163_helper_bin("stdout_ok")),
-    );
+        .replace(
+            "__CMD__",
+            &pink_string_literal(fase163_helper_bin("stdout_ok")),
+        );
     let out = run_code(&source).unwrap();
     assert_eq!(out, Some(RuntimeValue::Int(169)));
 }
@@ -7201,7 +7203,8 @@ fn cli_run_fase169_captura_stdout_argv_explicito_fluxo_composto_valido() {
 // @pinker-nav:summary Cobre captura de stderr (mínimo, argv explícito, preservação UTF-8 estrita) no interpretador e via CLI.
 #[test]
 fn run_fase164_capturar_stderr_minimo_retorna_verso() {
-    let source = r#"pacote main; trazer processo.capturar_stderr; trazer texto.contem; trazer texto.tamanho;
+    let source =
+        r#"pacote main; trazer processo.capturar_stderr; trazer texto.contem; trazer texto.tamanho;
         carinho principal() -> bombom {
             nova texto: verso = capturar_stderr("__CMD__");
             nova tem_erro: logica = contem(texto, "erro=sim");
@@ -7211,17 +7214,18 @@ fn run_fase164_capturar_stderr_minimo_retorna_verso() {
             }
             mimo 0;
         }"#
-    .replace(
-        "__CMD__",
-        &pink_string_literal(fase164_helper_bin("stderr_ok")),
-    );
+        .replace(
+            "__CMD__",
+            &pink_string_literal(fase164_helper_bin("stderr_ok")),
+        );
     let out = run_code(&source).unwrap();
     assert_eq!(out, Some(RuntimeValue::Int(164)));
 }
 
 #[test]
 fn run_fase170_capturar_stderr_aceita_argv_explicito_minimo() {
-    let source = r#"pacote main; trazer processo.capturar_stderr; trazer texto.contem; trazer texto.tamanho;
+    let source =
+        r#"pacote main; trazer processo.capturar_stderr; trazer texto.contem; trazer texto.tamanho;
         carinho principal() -> bombom {
             nova texto: verso = capturar_stderr("__CMD__", "--alvo=rosa");
             nova tem_erro: logica = contem(texto, "erro=sim");
@@ -7231,10 +7235,10 @@ fn run_fase170_capturar_stderr_aceita_argv_explicito_minimo() {
             }
             mimo 0;
         }"#
-    .replace(
-        "__CMD__",
-        &pink_string_literal(fase164_helper_bin("stderr_ok")),
-    );
+        .replace(
+            "__CMD__",
+            &pink_string_literal(fase164_helper_bin("stderr_ok")),
+        );
     let out = run_code(&source).unwrap();
     assert_eq!(out, Some(RuntimeValue::Int(170)));
 }
@@ -7762,7 +7766,8 @@ fn run_fase166_pipeline_minimo_retorna_codigo_do_consumidor() {
 
 #[test]
 fn run_fase166_pipeline_minimo_fluxo_composto_funciona() {
-    let source = r#"pacote main; trazer processo.pipeline_minimo; trazer texto.formatar; trazer texto.igual;
+    let source =
+        r#"pacote main; trazer processo.pipeline_minimo; trazer texto.formatar; trazer texto.igual;
         carinho verificar(nome: verso, produtor: verso, consumidor: verso) -> bombom {
             nova codigo: bombom = pipeline_minimo(produtor, consumidor);
             falar(formatar("{}={}", nome, codigo));
@@ -7778,14 +7783,14 @@ fn run_fase166_pipeline_minimo_fluxo_composto_funciona() {
             }
             mimo 0;
         }"#
-    .replace(
-        "__PRODUTOR__",
-        &pink_string_literal(fase166_helper_bin("produtor_pipe_ok")),
-    )
-    .replace(
-        "__CONSUMIDOR__",
-        &pink_string_literal(fase166_helper_bin("consumidor_stdin_ok")),
-    );
+        .replace(
+            "__PRODUTOR__",
+            &pink_string_literal(fase166_helper_bin("produtor_pipe_ok")),
+        )
+        .replace(
+            "__CONSUMIDOR__",
+            &pink_string_literal(fase166_helper_bin("consumidor_stdin_ok")),
+        );
     let out = run_code(&source).unwrap();
     assert_eq!(out, Some(RuntimeValue::Int(166)));
 }

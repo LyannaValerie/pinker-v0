@@ -481,8 +481,9 @@ fn parser_aceita_para_cada_em_lista_bombom() {
 fn parser_aceita_para_cada_em_mapa_verso_bombom_sem_chave_por_indice_publica() {
     let source = r#"
         pacote main;
+        trazer mapa;
         carinho principal() -> bombom {
-            nova m: mapa<verso,bombom> = mapa_verso_bombom_criar();
+            nova m: mapa<verso,bombom> = mapa.verso_bombom_criar();
             para cada chave em m {
                 falar(chave);
             }

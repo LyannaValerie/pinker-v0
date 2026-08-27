@@ -625,8 +625,15 @@ mod tests {
             public_intrinsic_member("arquivo", "ler_bombom").map(|entry| entry.identity),
             intrinsic_from_public_spelling("ler_arquivo")
         );
+        // O nome público da superfície falível vem da autoridade que o
+        // declara, e não é reescrito aqui: `falha_operacional` é o único lugar
+        // do `src/` onde essa grafia pode aparecer.
+        let hash_arquivo =
+            crate::falha_operacional::superficie_por_operacao(OperacaoFalivel::HashArquivo)
+                .expect("superfície falível registrada")
+                .intrinseca;
         assert_eq!(
-            public_intrinsic_member("integridade", "sha256_arquivo").map(|entry| entry.identity),
+            public_intrinsic_member("integridade", hash_arquivo).map(|entry| entry.identity),
             Some(IntrinsicIdentity::Fallible(OperacaoFalivel::HashArquivo))
         );
     }

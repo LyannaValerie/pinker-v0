@@ -144,20 +144,17 @@ fn contrato_semantico_exige_verso_e_dois_indices_bombom() {
     .is_ok());
 
     let cases = [
-        ("fatiar_verso(\"rosa\", 1)", "aridade inválida: esperado 3"),
-        ("fatiar_verso(7, 1, 2)", "tipo inválido no argumento 1"),
+        ("fatiar(\"rosa\", 1)", "aridade inválida: esperado 3"),
+        ("fatiar(7, 1, 2)", "tipo inválido no argumento 1"),
+        ("fatiar(\"rosa\", falso, 2)", "tipo inválido no argumento 2"),
         (
-            "fatiar_verso(\"rosa\", falso, 2)",
-            "tipo inválido no argumento 2",
-        ),
-        (
-            "fatiar_verso(\"rosa\", 1, \"dois\")",
+            "fatiar(\"rosa\", 1, \"dois\")",
             "tipo inválido no argumento 3",
         ),
     ];
     for (call, expected) in cases {
         let code = format!(
-            "pacote main; trazer texto.tamanho; carinho principal() -> bombom {{ nova x: verso = {call}; mimo tamanho(x); }}"
+            "pacote main; trazer texto.fatiar; trazer texto.tamanho; carinho principal() -> bombom {{ nova x: verso = {call}; mimo tamanho(x); }}"
         );
         let error = common::parse_and_check(&code).unwrap_err().to_string();
         assert!(error.contains(expected), "{call}: {error}");
@@ -177,22 +174,18 @@ fn ascii_unicode_vazios_boundaries_e_lifetime_funcionam_no_interpretador() {
 #[test]
 fn bounds_invalidos_e_overflow_falham_pelo_erro_de_runtime() {
     let cases = [
-        ("inicio", "fatiar_verso(\"abc\", 4, 4)", "índice inicial"),
-        ("fim", "fatiar_verso(\"abc\", 0, 4)", "índice final"),
-        (
-            "ordem",
-            "fatiar_verso(\"abc\", 2, 1)",
-            "início maior que fim",
-        ),
+        ("inicio", "fatiar(\"abc\", 4, 4)", "índice inicial"),
+        ("fim", "fatiar(\"abc\", 0, 4)", "índice final"),
+        ("ordem", "fatiar(\"abc\", 2, 1)", "início maior que fim"),
         (
             "overflow",
-            "fatiar_verso(\"abc\", 18446744073709551615, 18446744073709551615)",
+            "fatiar(\"abc\", 18446744073709551615, 18446744073709551615)",
             "índice inicial",
         ),
     ];
     for (name, call, expected) in cases {
         let code = format!(
-            "pacote main; trazer texto.tamanho; carinho principal() -> bombom {{ nova x: verso = {call}; mimo tamanho(x); }}"
+            "pacote main; trazer texto.fatiar; trazer texto.tamanho; carinho principal() -> bombom {{ nova x: verso = {call}; mimo tamanho(x); }}"
         );
         let error = run_code(&code).unwrap_err();
         assert!(error.contains(expected), "{name}: {error}");
@@ -306,22 +299,18 @@ fn paridade_interpretador_nativo_positiva_negativa_e_bounded() {
     assert_eq!(String::from_utf8_lossy(&native.stdout), EXPECTED_STDOUT);
 
     let negative_cases = [
-        ("start", "fatiar_verso(\"abc\", 4, 4)", "índice inicial"),
-        ("end", "fatiar_verso(\"abc\", 0, 4)", "índice final"),
-        (
-            "order",
-            "fatiar_verso(\"abc\", 2, 1)",
-            "início maior que fim",
-        ),
+        ("start", "fatiar(\"abc\", 4, 4)", "índice inicial"),
+        ("end", "fatiar(\"abc\", 0, 4)", "índice final"),
+        ("order", "fatiar(\"abc\", 2, 1)", "início maior que fim"),
         (
             "overflow",
-            "fatiar_verso(\"abc\", 18446744073709551615, 18446744073709551615)",
+            "fatiar(\"abc\", 18446744073709551615, 18446744073709551615)",
             "índice inicial",
         ),
     ];
     for (name, call, expected) in negative_cases {
         let source = format!(
-            "pacote main; carinho principal() -> bombom {{ nova x: verso = {call}; falar(x); mimo 0; }}"
+            "pacote main; trazer texto.fatiar; carinho principal() -> bombom {{ nova x: verso = {call}; falar(x); mimo 0; }}"
         );
         let dir = NativeArtifactDir::create().expect("diretório nativo D9 negativo");
         let path = write_case(&dir, &format!("d9_slice_negative_{name}"), &source);

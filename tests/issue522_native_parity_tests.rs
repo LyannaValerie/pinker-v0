@@ -189,7 +189,7 @@ fn dormir_preserva_milisegundos_sem_tolerancia_fragil_de_relogio() {
     let sujeito = Sujeito::novo(
         "issue522_dormir",
         r#"
-pacote main;
+pacote main; trazer tempo.dormir;
 carinho principal() -> bombom {
     falar("antes");
     dormir(0);
@@ -218,18 +218,18 @@ fn emitir_csv_preserva_vazio_um_multiplos_separador_e_u64() {
     let sujeito = Sujeito::novo(
         "issue522_csv_emitir",
         r#"
-pacote main;
+pacote main; trazer csv.emitir_linha_bombom; trazer lista.bombom_anexar; trazer lista.bombom_criar;
 carinho principal() -> bombom {
-    nova vazia: lista<bombom> = lista_bombom_criar();
-    falar(emitir_linha_csv_bombom(vazia, ","));
+    nova vazia: lista<bombom> = bombom_criar();
+    falar(emitir_linha_bombom(vazia, ","));
 
-    nova uma: lista<bombom> = lista_bombom_criar();
-    lista_bombom_anexar(uma, 7);
-    falar(emitir_linha_csv_bombom(uma, ";"));
+    nova uma: lista<bombom> = bombom_criar();
+    bombom_anexar(uma, 7);
+    falar(emitir_linha_bombom(uma, ";"));
 
-    lista_bombom_anexar(uma, 11);
-    lista_bombom_anexar(uma, 18446744073709551615);
-    falar(emitir_linha_csv_bombom(uma, ";"));
+    bombom_anexar(uma, 11);
+    bombom_anexar(uma, 18446744073709551615);
+    falar(emitir_linha_bombom(uma, ";"));
     mimo 0;
 }
 "#,
@@ -427,7 +427,9 @@ fn stdin_interativo_permanece_fora_do_subset_nativo() {
         let fonte = escrever_fonte(
             &dir,
             &format!("issue522_{nome}_continua_excluido"),
-            &format!("pacote main; carinho principal() -> bombom {{ {corpo} mimo 0; }}"),
+            &format!(
+                "pacote main; trazer entrada.{nome}; carinho principal() -> bombom {{ {corpo} mimo 0; }}"
+            ),
         );
         let build = compilar_nativo(&dir, &fonte, &runtime_lib, &format!("stdin-{nome}"));
         assert!(!build.status.success(), "{nome} ganhou suporte nativo");
@@ -475,8 +477,9 @@ carinho principal() -> bombom { mimo afirmar(41); }
     );
     assert!(!build.status.success());
     assert!(
-        String::from_utf8_lossy(&build.stderr)
-            .contains("declaração callable 'afirmar' pertence à superfície intrínseca Pinker"),
+        String::from_utf8_lossy(&build.stderr).contains(
+            "declaração callable 'afirmar' é a grafia canônica da superfície intrínseca Pinker"
+        ),
         "{}",
         String::from_utf8_lossy(&build.stderr)
     );

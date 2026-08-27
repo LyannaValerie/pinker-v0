@@ -317,7 +317,11 @@ fn membro_nao_trazido_nao_ocupa_o_namespace_local() {
                  carinho principal() -> bombom { mimo tamanho(\"oi\"); }\n";
     let ast = common::parse(fonte).expect("declaração homônima de membro sem import");
     semantic::check_program(&ast).expect("semantic aceita o homônimo");
-    assert_eq!(executar(fonte, &[]), 42, "a função do usuário precisa vencer");
+    assert_eq!(
+        executar(fonte, &[]),
+        42,
+        "a função do usuário precisa vencer"
+    );
 
     let com_import = "pacote main;\n\
                       trazer texto.tamanho;\n\
@@ -343,9 +347,8 @@ fn o_alias_legado_nao_e_chamavel_mas_continua_endereçando_a_identidade_adulta()
             pinker_v0::familia_superficie::modulos_que_exportam(alias).is_empty(),
             "{alias} não pode voltar como membro de módulo"
         );
-        let fonte = format!(
-            "pacote main;\ncarinho principal() -> bombom {{ mimo {alias}(\"--x\"); }}\n"
-        );
+        let fonte =
+            format!("pacote main;\ncarinho principal() -> bombom {{ mimo {alias}(\"--x\"); }}\n");
         let erro = common::parse(&fonte).expect_err("alias legado não é chamável");
         assert!(
             format!("{erro:?}").contains("não está no escopo"),
