@@ -157,7 +157,7 @@ fn aridades_9_e_13_atravessam_o_mesmo_pack_geral() {
 #[test]
 fn contrato_publico_preserva_aridade_minima_e_tipos_suportados() {
     let zero = common::parse_and_check(
-        "pacote main; carinho principal() -> bombom { nova x: verso = formatar_verso(\"sem pack\"); mimo 0; }",
+        "pacote main; trazer texto.formatar; carinho principal() -> bombom { nova x: verso = formatar(\"sem pack\"); mimo 0; }",
     )
     .unwrap_err()
     .to_string();
@@ -165,7 +165,7 @@ fn contrato_publico_preserva_aridade_minima_e_tipos_suportados() {
 
     for (tipo, expr) in [("logica", "falso"), ("lista", "lista_bombom_criar()")] {
         let code = format!(
-            "pacote main; carinho principal() -> bombom {{ nova x: verso = formatar_verso(\"{{}}\", {expr}); mimo 0; }}"
+            "pacote main; trazer texto.formatar; carinho principal() -> bombom {{ nova x: verso = formatar(\"{{}}\", {expr}); mimo 0; }}"
         );
         let error = common::parse_and_check(&code).unwrap_err().to_string();
         assert!(
@@ -186,7 +186,7 @@ fn placeholders_invalidos_excesso_vazio_e_unicode_preservam_contrato() {
     ];
     for (name, template, args) in cases {
         let code = format!(
-            "pacote main; carinho principal() -> bombom {{ nova x: verso = formatar_verso(\"{template}\", {args}); falar(x); mimo 0; }}"
+            "pacote main; trazer texto.formatar; carinho principal() -> bombom {{ nova x: verso = formatar(\"{template}\", {args}); falar(x); mimo 0; }}"
         );
         let error = run_code(&code).unwrap_err();
         assert!(
@@ -466,7 +466,7 @@ fn paridade_interpretador_nativo_positiva_e_negativa_e_bounded() {
     assert!(String::from_utf8_lossy(&native.stderr).contains("quantidade de placeholders"));
 
     let semantic_negative =
-        "pacote main; carinho principal() -> bombom { nova x: verso = formatar_verso(\"{}\", falso); mimo 0; }";
+        "pacote main; trazer texto.formatar; carinho principal() -> bombom { nova x: verso = formatar(\"{}\", falso); mimo 0; }";
     let semantic_dir = NativeArtifactDir::create().expect("diretório semântico D7");
     let semantic_source = write_case(&semantic_dir, "d7_format_type_negative", semantic_negative);
     let interpreted = run_interpreter_cli(&semantic_source, "d7-type-interpreter");

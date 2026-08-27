@@ -139,7 +139,7 @@ fn run_native(path: &Path, logical_case: &str) -> Output {
 #[test]
 fn contrato_semantico_exige_verso_e_dois_indices_bombom() {
     assert!(common::parse_and_check(
-        "pacote main; carinho principal() -> bombom { nova x: verso = fatiar_verso(\"rosa\", 1, 3); mimo tamanho_verso(x); }"
+        "pacote main; trazer texto.fatiar; trazer texto.tamanho; carinho principal() -> bombom { nova x: verso = fatiar(\"rosa\", 1, 3); mimo tamanho(x); }"
     )
     .is_ok());
 
@@ -157,7 +157,7 @@ fn contrato_semantico_exige_verso_e_dois_indices_bombom() {
     ];
     for (call, expected) in cases {
         let code = format!(
-            "pacote main; carinho principal() -> bombom {{ nova x: verso = {call}; mimo tamanho_verso(x); }}"
+            "pacote main; trazer texto.tamanho; carinho principal() -> bombom {{ nova x: verso = {call}; mimo tamanho(x); }}"
         );
         let error = common::parse_and_check(&code).unwrap_err().to_string();
         assert!(error.contains(expected), "{call}: {error}");
@@ -192,7 +192,7 @@ fn bounds_invalidos_e_overflow_falham_pelo_erro_de_runtime() {
     ];
     for (name, call, expected) in cases {
         let code = format!(
-            "pacote main; carinho principal() -> bombom {{ nova x: verso = {call}; mimo tamanho_verso(x); }}"
+            "pacote main; trazer texto.tamanho; carinho principal() -> bombom {{ nova x: verso = {call}; mimo tamanho(x); }}"
         );
         let error = run_code(&code).unwrap_err();
         assert!(error.contains(expected), "{name}: {error}");

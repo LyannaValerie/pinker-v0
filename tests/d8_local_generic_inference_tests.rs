@@ -40,7 +40,7 @@ carinho principal() -> bombom {
 "#;
 
 const NESTED_SOURCE: &str = r#"
-pacote main; trazer lista.anexar; trazer lista.criar; trazer lista.obter; trazer texto.igual;
+pacote main; trazer arquivo.criar; trazer lista.anexar; trazer lista.criar; trazer lista.obter; trazer texto.igual;
 
 carinho primeiro<T>(itens: lista<T>) -> T {
     mimo obter(itens, 0);

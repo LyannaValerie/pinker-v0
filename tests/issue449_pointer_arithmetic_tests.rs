@@ -228,12 +228,12 @@ fn negativos_interpretados_cobrem_bounds_uaf_null_overflows_e_alinhamento() {
     let cases = [
         (
             "bounds",
-            "pacote main; carinho principal() -> bombom { nova raw: seta<u8> = alocar(8); nova p: seta<u32> = raw virar seta<u32>; nova q: seta<u32> = p + 3; mimo 0; }",
+            "pacote main; trazer memoria.alocar; carinho principal() -> bombom { nova raw: seta<u8> = alocar(8); nova p: seta<u32> = raw virar seta<u32>; nova q: seta<u32> = p + 3; mimo 0; }",
             "E-RUNTIME-MEM-OUT-OF-BOUNDS",
         ),
         (
             "uaf",
-            "pacote main; carinho principal() -> bombom { nova raw: seta<u8> = alocar(8); nova p: seta<u32> = raw virar seta<u32>; liberar(raw); nova q: seta<u32> = p + 1; mimo 0; }",
+            "pacote main; trazer memoria.alocar; trazer memoria.liberar; carinho principal() -> bombom { nova raw: seta<u8> = alocar(8); nova p: seta<u32> = raw virar seta<u32>; liberar(raw); nova q: seta<u32> = p + 1; mimo 0; }",
             "E-RUNTIME-MEM-USE-AFTER-FREE",
         ),
         (
@@ -253,7 +253,7 @@ fn negativos_interpretados_cobrem_bounds_uaf_null_overflows_e_alinhamento() {
         ),
         (
             "alignment",
-            "pacote main; carinho principal() -> bombom { nova raw: seta<u8> = alocar(8); nova p: seta<u8> = raw + 1; nova q: seta<u32> = p virar seta<u32>; mimo (*q) virar bombom; }",
+            "pacote main; trazer memoria.alocar; carinho principal() -> bombom { nova raw: seta<u8> = alocar(8); nova p: seta<u8> = raw + 1; nova q: seta<u32> = p virar seta<u32>; mimo (*q) virar bombom; }",
             "E-RUNTIME-MEM-MISALIGNED",
         ),
     ];
@@ -298,22 +298,22 @@ fn paridade_interpretador_nativo_valida_e_negativa_e_bounded() {
         ),
         (
             "bounds",
-            "pacote main; carinho principal() -> bombom { nova raw: seta<u8> = alocar(8); nova p: seta<u32> = raw virar seta<u32>; nova q: seta<u32> = p + 3; mimo 0; }",
+            "pacote main; trazer memoria.alocar; carinho principal() -> bombom { nova raw: seta<u8> = alocar(8); nova p: seta<u32> = raw virar seta<u32>; nova q: seta<u32> = p + 3; mimo 0; }",
             "E-RUNTIME-MEM-OUT-OF-BOUNDS",
         ),
         (
             "alignment",
-            "pacote main; carinho principal() -> bombom { nova raw: seta<u8> = alocar(8); nova p: seta<u8> = raw + 1; nova q: seta<u32> = p virar seta<u32>; mimo (*q) virar bombom; }",
+            "pacote main; trazer memoria.alocar; carinho principal() -> bombom { nova raw: seta<u8> = alocar(8); nova p: seta<u8> = raw + 1; nova q: seta<u32> = p virar seta<u32>; mimo (*q) virar bombom; }",
             "E-RUNTIME-MEM-MISALIGNED",
         ),
         (
             "onepast-access",
-            "pacote main; carinho principal() -> bombom { nova raw: seta<u8> = alocar(8); nova p: seta<u32> = raw virar seta<u32>; nova fim: seta<u32> = p + 2; mimo (*fim) virar bombom; }",
+            "pacote main; trazer memoria.alocar; carinho principal() -> bombom { nova raw: seta<u8> = alocar(8); nova p: seta<u32> = raw virar seta<u32>; nova fim: seta<u32> = p + 2; mimo (*fim) virar bombom; }",
             "E-RUNTIME-MEM-CROSS-BOUNDARY",
         ),
         (
             "uaf",
-            "pacote main; carinho principal() -> bombom { nova raw: seta<u8> = alocar(8); nova p: seta<u32> = raw virar seta<u32>; liberar(raw); nova q: seta<u32> = p + 1; mimo 0; }",
+            "pacote main; trazer memoria.alocar; trazer memoria.liberar; carinho principal() -> bombom { nova raw: seta<u8> = alocar(8); nova p: seta<u32> = raw virar seta<u32>; liberar(raw); nova q: seta<u32> = p + 1; mimo 0; }",
             "E-RUNTIME-MEM-USE-AFTER-FREE",
         ),
         (

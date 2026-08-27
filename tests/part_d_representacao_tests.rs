@@ -14,7 +14,7 @@ use pinker_v0::{
 use std::process::Command;
 
 const PROBE_EXATO: &str = r#"
-pacote main; trazer lista.criar; trazer processo.codigo; trazer processo.erro; trazer processo.executar_estruturado; trazer processo.saida;
+pacote main; trazer arquivo.criar; trazer lista.criar; trazer processo.codigo; trazer processo.erro; trazer processo.executar_estruturado; trazer processo.saida;
 
 apelido Saida = SaidaProcesso;
 apelido Res = Resultado<SaidaProcesso, verso>;

@@ -2962,7 +2962,7 @@ fn run_arquivo_escrita_minima_com_leitura_no_mesmo_handle() {
 
 #[test]
 fn run_escrever_falha_com_handle_invalido() {
-    let err = run_code("pacote main; carinho principal() -> bombom { escrever(999, 1); mimo 0; }")
+    let err = run_code("pacote main; trazer arquivo.escrever_bombom; carinho principal() -> bombom { escrever_bombom(999, 1); mimo 0; }")
         .unwrap_err();
     assert!(
         err.contains("handle inválido em 'escrever'"),
@@ -3405,7 +3405,7 @@ fn run_ouvir_verso_falha_com_eof_imediato() {
 #[test]
 fn run_ouvir_verso_falha_com_aridade_invalida_no_runtime() {
     let err =
-        run_code("pacote main; carinho principal() -> bombom { nova t: verso = ouvir_verso(\"x\"); falar(t); mimo 0; }")
+        run_code("pacote main; trazer entrada.ouvir_verso; carinho principal() -> bombom { nova t: verso = ouvir_verso(\"x\"); falar(t); mimo 0; }")
             .unwrap_err();
     assert!(
         err.contains("chamada de 'ouvir_verso' com aridade inválida"),
@@ -8723,7 +8723,7 @@ fn cli_run_fase154_iteracao_mapa_verso_bombom_fluxo_composto_valido() {
 #[test]
 fn run_fase156_mesma_semente_produz_mesma_sequencia() {
     let out = run_code(
-        r#"pacote main; trazer acaso.criar; trazer acaso.proximo;
+        r#"pacote main; trazer acaso.criar; trazer acaso.proximo; trazer arquivo.criar;
          carinho principal() -> bombom {
              nova a: bombom = criar(42);
              nova b: bombom = criar(42);
@@ -8746,7 +8746,7 @@ fn run_fase156_mesma_semente_produz_mesma_sequencia() {
 #[test]
 fn run_fase156_sementes_diferentes_sao_distinguiveis() {
     let out = run_code(
-        r#"pacote main; trazer acaso.criar; trazer acaso.proximo;
+        r#"pacote main; trazer acaso.criar; trazer acaso.proximo; trazer arquivo.criar;
          carinho principal() -> bombom {
              nova a: bombom = criar(1);
              nova b: bombom = criar(2);
@@ -8765,7 +8765,7 @@ fn run_fase156_sementes_diferentes_sao_distinguiveis() {
 #[test]
 fn run_fase156_fluxo_composto_com_lista_funciona() {
     let out = run_code(
-        r#"pacote main; trazer acaso.criar; trazer acaso.proximo; trazer lista.bombom_anexar; trazer lista.bombom_criar; trazer lista.bombom_obter; trazer lista.bombom_tamanho;
+        r#"pacote main; trazer acaso.criar; trazer acaso.proximo; trazer arquivo.criar; trazer lista.bombom_anexar; trazer lista.bombom_criar; trazer lista.bombom_obter; trazer lista.bombom_tamanho;
          carinho rolar_face(gerador: bombom) -> bombom {
              mimo (proximo(gerador) % 6) + 1;
          }
