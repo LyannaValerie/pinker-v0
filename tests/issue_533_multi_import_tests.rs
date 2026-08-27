@@ -754,3 +754,102 @@ fn guardiao_tem_uma_declaracao_por_modulo_importado() {
         );
     }
 }
+
+// ------------------------------------------------- paridade nativa (ataque Q)
+
+/// ADV-533-002 — paridade interpretador/nativo da forma AGRUPADA.
+///
+/// O restante desta suíte prova a equivalência no frontend e pelo `--run`, que
+/// é o interpretador. Isso deixava a afirmação `RUNTIME_DELTA = 0` apoiada
+/// apenas em `git diff`: correta, mas sem oráculo executável próprio da
+/// sintaxe nova. A revisão adversarial apontou a lacuna, construiu o nativo à
+/// mão e mediu paridade — este gate transforma aquela sonda manual em
+/// evidência permanente e falsificável.
+///
+/// `require_native_evidence(..., true)` exige a staticlib de verdade: sob
+/// `PINKER_EXIGE_NATIVO=1` a ausência vira FALHA, não skip, então uma execução
+/// que não linkou o runtime não pode passar por verde.
+#[test]
+fn q_forma_agrupada_tem_paridade_interpretador_nativo_com_runtime_real() {
+    let Some((_driver, Some(runtime_lib))) = common::require_native_evidence(
+        "q_forma_agrupada_tem_paridade_interpretador_nativo_com_runtime_real",
+        true,
+    ) else {
+        return;
+    };
+
+    let dir = NativeArtifactDir::create().expect("diretório #533");
+    let corpo = "carinho principal() -> bombom {
+    falar(tamanho(aparar(\"  oi  \")));
+    falar(nao_vazio(aparar(\"  x  \")));
+    mimo 0;
+}
+";
+    let esperado = "2\nverdade\n";
+
+    // As duas grafias emitem o MESMO programa; só a forma do import difere.
+    // Quatro execuções, um único observável: interpretado e nativo, agrupado e
+    // separado. Qualquer assimetria entre as quatro derruba o gate.
+    for (nome, declaracoes) in [
+        ("agrupado", "trazer texto.tamanho, aparar, nao_vazio;"),
+        (
+            "separado",
+            "trazer texto.tamanho;\ntrazer texto.aparar;\ntrazer texto.nao_vazio;",
+        ),
+    ] {
+        let fonte = escrever(
+            &dir,
+            &format!("q_{nome}.pink"),
+            &format!("pacote main;\n\n{declaracoes}\n\n{corpo}"),
+        );
+
+        let interpretado = rodar(&fonte, &format!("533-q-int-{nome}"));
+        assert!(
+            interpretado.status.success(),
+            "interpretador falhou em {nome}: {}",
+            stderr_de(&interpretado)
+        );
+        assert_eq!(
+            stdout_de(&interpretado),
+            esperado,
+            "interpretador divergiu do oráculo em {nome}"
+        );
+
+        let build = Command::new(env!("CARGO_BIN_EXE_pink"))
+            .args(["build", "--nativo", "--out-dir"])
+            .arg(dir.path())
+            .arg(&fonte)
+            .env("PINKER_RT_LIB", &runtime_lib)
+            .logical_case(&format!("533-q-build-{nome}"))
+            .timeout(Duration::from_secs(180))
+            .output()
+            .expect("compilar #533 sob envelope");
+        assert!(
+            build.status.success(),
+            "build nativo falhou em {nome}: {}",
+            stderr_de(&build)
+        );
+
+        let executavel = dir.path().join(format!("q_{nome}"));
+        assert!(
+            executavel.is_file(),
+            "o build nativo tem de ter produzido o ELF {}",
+            executavel.display()
+        );
+        let nativo = Command::new(&executavel)
+            .logical_case(&format!("533-q-nat-{nome}"))
+            .timeout(Duration::from_secs(60))
+            .output()
+            .expect("executar ELF do #533");
+        assert!(
+            nativo.status.success(),
+            "ELF falhou em {nome}: {}",
+            stderr_de(&nativo)
+        );
+        assert_eq!(
+            stdout_de(&nativo),
+            esperado,
+            "nativo divergiu do oráculo em {nome}"
+        );
+    }
+}
