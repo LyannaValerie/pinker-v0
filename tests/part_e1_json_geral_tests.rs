@@ -75,7 +75,7 @@ carinho principal() -> bombom {
 
 /// Nesting recursivo em duas árvores de formatos materialmente diferentes,
 /// `null` em objeto e em lista, e ordem determinística de objeto.
-const FONTE_ESTRUTURAL: &str = r#"pacote main; trazer ambiente.argumento_ou; trazer arquivo.ler_caminho_verso; trazer json.como_logica; trazer json.como_verso; trazer json.emitir; trazer json.ler_resultado; trazer json.lista_obter; trazer json.lista_tamanho; trazer json.objeto_chaves; trazer json.objeto_obter; trazer json.objeto_tamanho; trazer json.objeto_tem; trazer json.tipo; trazer lista.obter; trazer lista.tamanho; trazer texto.bombom_para_verso;
+const FONTE_ESTRUTURAL: &str = r#"pacote main; trazer ambiente.argumento_ou; trazer arquivo.ler_caminho_verso; trazer json.como_logica; trazer json.como_verso; trazer json.emitir; trazer json.ler_resultado; trazer json.lista_obter; trazer json.lista_tamanho; trazer json.objeto_chaves; trazer json.objeto_obter; trazer json.objeto_tamanho; trazer json.objeto_tem; trazer json.tipo; trazer texto.bombom_para_verso;
 
 apelido ResJson = Resultado<ValorJson, verso>;
 
@@ -85,15 +85,15 @@ carinho principal() -> bombom {
         sucesso ResJson.Ok(raiz) {
             // objeto -> lista -> objeto
             nova lista: ValorJson = objeto_obter(raiz, "arvore_a");
-            nova primeiro: ValorJson = obter(lista, 0);
+            nova primeiro: ValorJson = lista_obter(lista, 0);
             nova folha: ValorJson = objeto_obter(primeiro, "folha");
             falar(emitir(folha));
 
             // lista -> objeto -> lista
             nova outra: ValorJson = objeto_obter(raiz, "arvore_b");
-            nova dentro: ValorJson = obter(outra, 0);
+            nova dentro: ValorJson = lista_obter(outra, 0);
             nova interna: ValorJson = objeto_obter(dentro, "itens");
-            nova item: ValorJson = obter(interna, 1);
+            nova item: ValorJson = lista_obter(interna, 1);
             falar(emitir(item));
 
             // null é nó JSON de primeira classe, observável só pelo tipo
@@ -102,7 +102,7 @@ carinho principal() -> bombom {
                 falar("nulo-objeto");
             }
             nova lista_com_nulo: ValorJson = objeto_obter(raiz, "lista_nula");
-            nova nulo_em_lista: ValorJson = obter(lista_com_nulo, 1);
+            nova nulo_em_lista: ValorJson = lista_obter(lista_com_nulo, 1);
             talvez tipo(nulo_em_lista) == TipoJson.Nulo {
                 falar("nulo-lista");
             }
@@ -134,7 +134,7 @@ carinho principal() -> bombom {
 
             // lista vazia e objeto vazio
             nova vazia: ValorJson = objeto_obter(raiz, "lista_vazia");
-            falar(bombom_para_verso(tamanho(vazia)));
+            falar(bombom_para_verso(lista_tamanho(vazia)));
             nova objeto_vazio: ValorJson = objeto_obter(raiz, "objeto_vazio");
             falar(emitir(objeto_vazio));
         }
@@ -218,7 +218,7 @@ carinho principal() -> bombom {
 /// Workflow real read-only: lê um schema versionado do próprio repositório e
 /// verifica fatos estruturais dele. Não é fixture inventada para a ocasião —
 /// é o manifesto que a Trama Pinker já usa.
-const FONTE_WORKFLOW_REAL: &str = r#"pacote main; trazer ambiente.argumento_ou; trazer arquivo.ler_caminho_verso; trazer json.como_verso; trazer json.emitir; trazer json.ler_resultado; trazer json.lista_obter; trazer json.lista_tamanho; trazer json.objeto_obter; trazer json.objeto_tem; trazer lista.obter; trazer lista.tamanho; trazer texto.bombom_para_verso;
+const FONTE_WORKFLOW_REAL: &str = r#"pacote main; trazer ambiente.argumento_ou; trazer arquivo.ler_caminho_verso; trazer json.como_verso; trazer json.emitir; trazer json.ler_resultado; trazer json.lista_obter; trazer json.lista_tamanho; trazer json.objeto_obter; trazer json.objeto_tem; trazer texto.bombom_para_verso;
 
 apelido ResJson = Resultado<ValorJson, verso>;
 
@@ -228,12 +228,12 @@ carinho principal() -> bombom {
         sucesso ResJson.Ok(schema) {
             falar(como_verso(objeto_obter(schema, "title")));
             nova requeridos: ValorJson = objeto_obter(schema, "required");
-            nova total: bombom = tamanho(requeridos);
+            nova total: bombom = lista_tamanho(requeridos);
             falar(bombom_para_verso(total));
             talvez total > 0 {
                 nova muda i: bombom = 0;
                 repetir {
-                    falar(como_verso(obter(requeridos, i)));
+                    falar(como_verso(lista_obter(requeridos, i)));
                     i += 1;
                 } ate i >= total;
             }

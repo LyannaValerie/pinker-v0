@@ -8089,12 +8089,12 @@ fn cli_run_fase148_array_fixo_escrita_indice_elemento_nao_bombom_invalido_falha(
 #[test]
 fn run_lista_bombom_minima_criar_anexar_obter_funciona() {
     let out = run_code(
-        "pacote main;
+        "pacote main; trazer lista.bombom_anexar; trazer lista.bombom_criar; trazer lista.bombom_obter;
          carinho principal() -> bombom {
-             nova l: lista<bombom> = lista_bombom_criar();
-             lista_bombom_anexar(l, 7);
-             lista_bombom_anexar(l, 11);
-             mimo lista_bombom_obter(l, 1);
+             nova l: lista<bombom> = bombom_criar();
+             bombom_anexar(l, 7);
+             bombom_anexar(l, 11);
+             mimo bombom_obter(l, 1);
          }",
     )
     .unwrap();
@@ -8104,22 +8104,22 @@ fn run_lista_bombom_minima_criar_anexar_obter_funciona() {
 #[test]
 fn run_lista_bombom_fluxo_composto_funciona() {
     let out = run_code(
-        "pacote main;
+        "pacote main; trazer lista.bombom_anexar; trazer lista.bombom_criar; trazer lista.bombom_obter; trazer lista.bombom_tamanho;
          carinho carregar_base() -> lista<bombom> {
-             nova l: lista<bombom> = lista_bombom_criar();
-             lista_bombom_anexar(l, 40);
-             lista_bombom_anexar(l, 2);
+             nova l: lista<bombom> = bombom_criar();
+             bombom_anexar(l, 40);
+             bombom_anexar(l, 2);
              mimo l;
          }
          carinho soma_primeiros(l: lista<bombom>) -> bombom {
-             nova a: bombom = lista_bombom_obter(l, 0);
-             nova b: bombom = lista_bombom_obter(l, 1);
+             nova a: bombom = bombom_obter(l, 0);
+             nova b: bombom = bombom_obter(l, 1);
              mimo a + b;
          }
          carinho principal() -> bombom {
              nova itens: lista<bombom> = carregar_base();
-             lista_bombom_anexar(itens, 99);
-             falar(lista_bombom_tamanho(itens));
+             bombom_anexar(itens, 99);
+             falar(bombom_tamanho(itens));
              mimo soma_primeiros(itens);
          }",
     )
@@ -8160,12 +8160,12 @@ fn cli_check_fase149_lista_homogenea_invalida_falha() {
 #[test]
 fn run_lista_bombom_definir_minimo_funciona() {
     let out = run_code(
-        "pacote main;
+        "pacote main; trazer lista.bombom_anexar; trazer lista.bombom_criar; trazer lista.bombom_definir; trazer lista.bombom_obter;
          carinho principal() -> bombom {
-             nova l: lista<bombom> = lista_bombom_criar();
-             lista_bombom_anexar(l, 7);
-             lista_bombom_definir(l, 0, 33);
-             mimo lista_bombom_obter(l, 0);
+             nova l: lista<bombom> = bombom_criar();
+             bombom_anexar(l, 7);
+             bombom_definir(l, 0, 33);
+             mimo bombom_obter(l, 0);
          }",
     )
     .unwrap();
@@ -8175,22 +8175,22 @@ fn run_lista_bombom_definir_minimo_funciona() {
 #[test]
 fn run_lista_bombom_definir_fluxo_composto_funciona() {
     let out = run_code(
-        "pacote main;
+        "pacote main; trazer lista.bombom_anexar; trazer lista.bombom_criar; trazer lista.bombom_definir; trazer lista.bombom_obter; trazer lista.bombom_tamanho;
          carinho carregar() -> lista<bombom> {
-             nova itens: lista<bombom> = lista_bombom_criar();
-             lista_bombom_anexar(itens, 40);
-             lista_bombom_anexar(itens, 2);
+             nova itens: lista<bombom> = bombom_criar();
+             bombom_anexar(itens, 40);
+             bombom_anexar(itens, 2);
              mimo itens;
          }
          carinho ajustar(itens: lista<bombom>) {
-             nova atual: bombom = lista_bombom_obter(itens, 1);
-             lista_bombom_definir(itens, 1, atual + 8);
+             nova atual: bombom = bombom_obter(itens, 1);
+             bombom_definir(itens, 1, atual + 8);
          }
          carinho principal() -> bombom {
              nova itens: lista<bombom> = carregar();
              ajustar(itens);
-             falar(lista_bombom_tamanho(itens));
-             mimo lista_bombom_obter(itens, 1);
+             falar(bombom_tamanho(itens));
+             mimo bombom_obter(itens, 1);
          }",
     )
     .unwrap();
@@ -8200,11 +8200,11 @@ fn run_lista_bombom_definir_fluxo_composto_funciona() {
 #[test]
 fn run_lista_bombom_definir_fora_da_faixa_falha_claro() {
     let err = run_code(
-        "pacote main;
+        "pacote main; trazer lista.bombom_anexar; trazer lista.bombom_criar; trazer lista.bombom_definir;
          carinho principal() -> bombom {
-             nova l: lista<bombom> = lista_bombom_criar();
-             lista_bombom_anexar(l, 1);
-             lista_bombom_definir(l, 2, 9);
+             nova l: lista<bombom> = bombom_criar();
+             bombom_anexar(l, 1);
+             bombom_definir(l, 2, 9);
              mimo 0;
          }",
     )
@@ -8240,12 +8240,12 @@ fn cli_run_fase150_lista_bombom_definir_fluxo_composto_funciona_com_exemplo_vers
 #[test]
 fn run_lista_bombom_tirar_ultimo_minimo_funciona() {
     let out = run_code(
-        "pacote main;
+        "pacote main; trazer lista.bombom_anexar; trazer lista.bombom_criar; trazer lista.bombom_tirar_ultimo;
          carinho principal() -> bombom {
-             nova l: lista<bombom> = lista_bombom_criar();
-             lista_bombom_anexar(l, 7);
-             lista_bombom_anexar(l, 11);
-             mimo lista_bombom_tirar_ultimo(l);
+             nova l: lista<bombom> = bombom_criar();
+             bombom_anexar(l, 7);
+             bombom_anexar(l, 11);
+             mimo bombom_tirar_ultimo(l);
          }",
     )
     .unwrap();
@@ -8255,23 +8255,23 @@ fn run_lista_bombom_tirar_ultimo_minimo_funciona() {
 #[test]
 fn run_lista_bombom_tirar_ultimo_fluxo_composto_funciona() {
     let out = run_code(
-        "pacote main;
+        "pacote main; trazer lista.bombom_anexar; trazer lista.bombom_criar; trazer lista.bombom_obter; trazer lista.bombom_tamanho; trazer lista.bombom_tirar_ultimo;
          carinho carregar() -> lista<bombom> {
-             nova itens: lista<bombom> = lista_bombom_criar();
-             lista_bombom_anexar(itens, 4);
-             lista_bombom_anexar(itens, 8);
-             lista_bombom_anexar(itens, 15);
+             nova itens: lista<bombom> = bombom_criar();
+             bombom_anexar(itens, 4);
+             bombom_anexar(itens, 8);
+             bombom_anexar(itens, 15);
              mimo itens;
          }
          carinho fechar_lote(itens: lista<bombom>) -> bombom {
-             mimo lista_bombom_tirar_ultimo(itens);
+             mimo bombom_tirar_ultimo(itens);
          }
          carinho principal() -> bombom {
              nova itens: lista<bombom> = carregar();
              nova retirado: bombom = fechar_lote(itens);
              falar(retirado);
-             falar(lista_bombom_tamanho(itens));
-             mimo lista_bombom_obter(itens, 1);
+             falar(bombom_tamanho(itens));
+             mimo bombom_obter(itens, 1);
          }",
     )
     .unwrap();
@@ -8281,10 +8281,10 @@ fn run_lista_bombom_tirar_ultimo_fluxo_composto_funciona() {
 #[test]
 fn run_lista_bombom_tirar_ultimo_em_lista_vazia_falha_claro() {
     let err = run_code(
-        "pacote main;
+        "pacote main; trazer lista.bombom_criar; trazer lista.bombom_tirar_ultimo;
          carinho principal() -> bombom {
-             nova l: lista<bombom> = lista_bombom_criar();
-             mimo lista_bombom_tirar_ultimo(l);
+             nova l: lista<bombom> = bombom_criar();
+             mimo bombom_tirar_ultimo(l);
          }",
     )
     .unwrap_err()
@@ -8723,7 +8723,7 @@ fn cli_run_fase154_iteracao_mapa_verso_bombom_fluxo_composto_valido() {
 #[test]
 fn run_fase156_mesma_semente_produz_mesma_sequencia() {
     let out = run_code(
-        r#"pacote main; trazer acaso.criar; trazer acaso.proximo; trazer arquivo.criar;
+        r#"pacote main; trazer acaso.criar; trazer acaso.proximo;
          carinho principal() -> bombom {
              nova a: bombom = criar(42);
              nova b: bombom = criar(42);
@@ -8746,7 +8746,7 @@ fn run_fase156_mesma_semente_produz_mesma_sequencia() {
 #[test]
 fn run_fase156_sementes_diferentes_sao_distinguiveis() {
     let out = run_code(
-        r#"pacote main; trazer acaso.criar; trazer acaso.proximo; trazer arquivo.criar;
+        r#"pacote main; trazer acaso.criar; trazer acaso.proximo;
          carinho principal() -> bombom {
              nova a: bombom = criar(1);
              nova b: bombom = criar(2);
@@ -8765,7 +8765,7 @@ fn run_fase156_sementes_diferentes_sao_distinguiveis() {
 #[test]
 fn run_fase156_fluxo_composto_com_lista_funciona() {
     let out = run_code(
-        r#"pacote main; trazer acaso.criar; trazer acaso.proximo; trazer arquivo.criar; trazer lista.bombom_anexar; trazer lista.bombom_criar; trazer lista.bombom_obter; trazer lista.bombom_tamanho;
+        r#"pacote main; trazer acaso.criar; trazer acaso.proximo; trazer lista.bombom_anexar; trazer lista.bombom_criar; trazer lista.bombom_obter; trazer lista.bombom_tamanho;
          carinho rolar_face(gerador: bombom) -> bombom {
              mimo (proximo(gerador) % 6) + 1;
          }

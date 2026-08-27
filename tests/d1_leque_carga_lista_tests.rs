@@ -183,7 +183,7 @@ fn construcao_e_extracao_em_funcoes_tem_paridade() {
 #[test]
 fn copia_do_handle_e_rasa_e_visivel_pelos_aliases() {
     let code = r#"
-        pacote main; trazer arquivo.criar; trazer lista.anexar; trazer lista.criar; trazer lista.tamanho;
+        pacote main; trazer lista.anexar; trazer lista.criar; trazer lista.tamanho;
         leque Caixa { Valores(lista<bombom>) }
         carinho principal() -> bombom {
             nova l: lista<bombom> = criar();
@@ -209,7 +209,7 @@ fn copia_do_handle_e_rasa_e_visivel_pelos_aliases() {
 #[test]
 fn lista_vazia_atravessa_a_variante_sem_materializacao() {
     let code = r#"
-        pacote main; trazer arquivo.criar; trazer lista.criar; trazer lista.tamanho;
+        pacote main; trazer lista.criar; trazer lista.tamanho;
         leque Caixa { Valores(lista<bombom>) }
         carinho principal() -> bombom {
             nova l: lista<bombom> = criar();
@@ -319,7 +319,7 @@ fn mensagem_antiga_do_contrato_nao_reaparece() {
 #[test]
 fn lista_de_leque_nao_aceita_lista_de_outro_leque() {
     let code = r#"
-        pacote main; trazer arquivo.criar; trazer lista.criar;
+        pacote main; trazer lista.criar;
         leque Cor { Rosa }
         leque Token { Fim }
         leque A { X(lista<Cor>) }
@@ -338,7 +338,7 @@ fn lista_de_leque_nao_aceita_lista_de_outro_leque() {
 #[test]
 fn lista_de_bombom_nao_aceita_lista_de_verso() {
     let code = r#"
-        pacote main; trazer arquivo.criar; trazer lista.criar;
+        pacote main; trazer lista.criar;
         leque Pacote { Numeros(lista<bombom>) }
         carinho principal() -> bombom {
             nova textos: lista<verso> = criar();
@@ -356,7 +356,7 @@ fn lista_de_bombom_nao_aceita_lista_de_verso() {
 #[test]
 fn lista_de_apelido_nominal_incorreto_e_recusada() {
     let code = r#"
-        pacote main; trazer arquivo.criar; trazer lista.criar;
+        pacote main; trazer lista.criar;
         leque Cor { Rosa }
         apelido CorAlias = Cor;
         apelido Errado = bombom;
@@ -391,7 +391,7 @@ fn argumento_sem_valor_nao_pode_ser_carga() {
 #[test]
 fn quantidade_errada_de_cargas_e_recusada() {
     let code = r#"
-        pacote main; trazer arquivo.criar; trazer lista.criar;
+        pacote main; trazer lista.criar;
         leque Evento { Dados(bombom, lista<bombom>, verso) }
         carinho principal() -> bombom {
             nova l: lista<bombom> = criar();
@@ -407,7 +407,7 @@ fn quantidade_errada_de_cargas_e_recusada() {
 #[test]
 fn variante_e_leque_inexistentes_sao_recusados() {
     let variante = r#"
-        pacote main; trazer arquivo.criar; trazer lista.criar;
+        pacote main; trazer lista.criar;
         leque Pacote { Numeros(lista<bombom>) }
         carinho principal() -> bombom {
             nova l: lista<bombom> = criar();
@@ -418,7 +418,7 @@ fn variante_e_leque_inexistentes_sao_recusados() {
     assert!(recusa(variante).contains("Ausente"), "{}", recusa(variante));
 
     let leque = r#"
-        pacote main; trazer arquivo.criar; trazer lista.criar;
+        pacote main; trazer lista.criar;
         carinho principal() -> bombom {
             nova l: lista<bombom> = criar();
             nova p: bombom = Inexistente.X(l);
@@ -432,7 +432,7 @@ fn variante_e_leque_inexistentes_sao_recusados() {
 #[test]
 fn extracao_com_aridade_errada_de_bindings_e_recusada() {
     let code = r#"
-        pacote main; trazer arquivo.criar; trazer lista.criar;
+        pacote main; trazer lista.criar;
         leque Evento { Dados(bombom, lista<bombom>, verso), Encerrar }
         carinho principal() -> bombom {
             nova l: lista<bombom> = criar();
@@ -453,7 +453,7 @@ fn extracao_com_aridade_errada_de_bindings_e_recusada() {
 #[test]
 fn binding_extraido_recusa_operacao_de_lista_incompativel() {
     let code = r#"
-        pacote main; trazer arquivo.criar; trazer lista.anexar; trazer lista.criar;
+        pacote main; trazer lista.anexar; trazer lista.criar;
         leque Pacote { Textos(lista<verso>) }
         carinho principal() -> bombom {
             nova t: lista<verso> = criar();
@@ -582,7 +582,7 @@ fn apelidos_convergem_para_a_identidade_do_alvo() {
 fn metadata_nao_contem_parametro_generico_residual() {
     let program = lower(
         r#"
-        pacote main; trazer arquivo.criar; trazer lista.criar; trazer lista.tamanho;
+        pacote main; trazer lista.criar; trazer lista.tamanho;
         leque Cor { Rosa }
         leque Resultado2<T, E> { Ok(T), Erro(E) }
         apelido RLista = Resultado2<lista<bombom>, lista<verso>>;
@@ -728,7 +728,7 @@ fn helper_de_runtime_deriva_da_classe_de_representacao() {
 fn listas_nao_usam_o_helper_de_verso() {
     let ir_texto = common::render_ir(
         r#"
-        pacote main; trazer arquivo.criar; trazer lista.criar; trazer lista.tamanho;
+        pacote main; trazer lista.criar; trazer lista.tamanho;
         leque Cor { Rosa }
         leque P { N(lista<bombom>), T(lista<verso>), C(lista<Cor>), S(verso) }
         carinho principal() -> bombom {
@@ -828,7 +828,7 @@ fn validador_recusa_metadata_fabricada() {
 fn cargas_de_lista_reutilizam_os_simbolos_de_runtime_existentes() {
     let asm = common::render_backend_s_external_subset_nativo(
         r#"
-        pacote main; trazer arquivo.criar; trazer lista.criar; trazer lista.tamanho;
+        pacote main; trazer lista.criar; trazer lista.tamanho;
         leque Cor { Rosa }
         leque P { N(lista<bombom>), T(lista<verso>), C(lista<Cor>) }
         carinho principal() -> bombom {

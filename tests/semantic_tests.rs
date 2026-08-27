@@ -186,7 +186,7 @@ fn chamada_de_funcao_inexistente() {
 #[test]
 fn ouvir_intrinseca_valida_sem_declaracao() {
     let code = "
-        pacote main;
+        pacote main; trazer entrada.ouvir;
         carinho principal() -> bombom { mimo ouvir(); }";
     assert!(parse_and_check(code).is_ok());
 }
@@ -194,7 +194,7 @@ fn ouvir_intrinseca_valida_sem_declaracao() {
 #[test]
 fn ouvir_intrinseca_rejeita_aridade_diferente_de_zero() {
     let code = "
-        pacote main;
+        pacote main; trazer entrada.ouvir;
         carinho principal() -> bombom { mimo ouvir(1); }";
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("chamada de 'ouvir' com aridade inválida"));
@@ -246,16 +246,16 @@ fn ouvir_verso_ou_intrinseca_rejeita_aridade_invalida() {
 #[test]
 fn argumento_intrinseca_valida_sem_declaracao() {
     let code = "
-        pacote main;
-        carinho principal() -> bombom { mimo tamanho_verso(argumento(0)); }";
+        pacote main; trazer ambiente.argumento; trazer texto.tamanho;
+        carinho principal() -> bombom { mimo tamanho(argumento(0)); }";
     assert!(parse_and_check(code).is_ok());
 }
 
 #[test]
 fn argumento_intrinseca_rejeita_indice_nao_bombom() {
     let code = "
-        pacote main;
-        carinho principal() -> bombom { mimo tamanho_verso(argumento(falso)); }";
+        pacote main; trazer ambiente.argumento; trazer texto.tamanho;
+        carinho principal() -> bombom { mimo tamanho(argumento(falso)); }";
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 1 da chamada 'argumento'"));
 }
@@ -580,7 +580,7 @@ fn diretorio_atual_intrinseca_rejeita_aridade_diferente_de_zero() {
 #[test]
 fn quantos_argumentos_intrinseca_valida_sem_declaracao() {
     let code = "
-        pacote main;
+        pacote main; trazer ambiente.quantos_argumentos;
         carinho principal() -> bombom { mimo quantos_argumentos(); }";
     assert!(parse_and_check(code).is_ok());
 }
@@ -588,7 +588,7 @@ fn quantos_argumentos_intrinseca_valida_sem_declaracao() {
 #[test]
 fn quantos_argumentos_intrinseca_rejeita_aridade_diferente_de_zero() {
     let code = "
-        pacote main;
+        pacote main; trazer ambiente.quantos_argumentos;
         carinho principal() -> bombom { mimo quantos_argumentos(1); }";
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("chamada de 'quantos_argumentos' com aridade inválida"));
@@ -597,7 +597,7 @@ fn quantos_argumentos_intrinseca_rejeita_aridade_diferente_de_zero() {
 #[test]
 fn tem_argumento_intrinseca_valida_sem_declaracao() {
     let code = "
-        pacote main;
+        pacote main; trazer ambiente.tem_argumento;
         carinho principal() -> bombom {
             talvez tem_argumento(0) { mimo 1; } senao { mimo 0; }
         }";
@@ -607,7 +607,7 @@ fn tem_argumento_intrinseca_valida_sem_declaracao() {
 #[test]
 fn tem_argumento_intrinseca_rejeita_indice_nao_bombom() {
     let code = "
-        pacote main;
+        pacote main; trazer ambiente.tem_argumento;
         carinho principal() -> bombom { talvez tem_argumento(falso) { mimo 1; } senao { mimo 0; } }";
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 1 da chamada 'tem_argumento'"));
@@ -2924,7 +2924,7 @@ fn mapa_verso_bombom_chave_indice_nao_e_superficie_publica_na_fase155() {
 #[test]
 fn aleatorio_basico_com_semente_explicita_valida_sem_declaracao() {
     let code = r#"
-        pacote main; trazer acaso.criar; trazer acaso.proximo; trazer arquivo.criar;
+        pacote main; trazer acaso.criar; trazer acaso.proximo;
         carinho principal() -> bombom {
             nova gerador: bombom = criar(42);
             nova valor: bombom = proximo(gerador);
@@ -2937,7 +2937,7 @@ fn aleatorio_basico_com_semente_explicita_valida_sem_declaracao() {
 #[test]
 fn aleatorio_criar_rejeita_semente_nao_bombom() {
     let code = r#"
-        pacote main; trazer acaso.criar; trazer arquivo.criar;
+        pacote main; trazer acaso.criar;
         carinho principal() -> bombom {
             nova gerador: bombom = criar("oi");
             mimo gerador;
@@ -2954,7 +2954,7 @@ fn aleatorio_criar_rejeita_semente_nao_bombom() {
 #[test]
 fn aleatorio_proximo_rejeita_aridade_invalida() {
     let code = r#"
-        pacote main; trazer acaso.criar; trazer acaso.proximo; trazer arquivo.criar;
+        pacote main; trazer acaso.criar; trazer acaso.proximo;
         carinho principal() -> bombom {
             nova gerador: bombom = criar(7);
             mimo proximo(gerador, 1);
@@ -3022,7 +3022,7 @@ fn trazer_ambiente_familia_aceita() {
 #[test]
 fn trazer_acaso_familia_aceita() {
     let code = r#"
-        pacote main; trazer acaso.criar; trazer acaso.proximo; trazer arquivo.criar;
+        pacote main; trazer acaso.criar; trazer acaso.proximo;
         carinho principal() -> bombom {
             nova gerador: bombom = criar(42);
             nova valor: bombom = proximo(gerador);
@@ -3063,7 +3063,7 @@ fn legado_global_ambiente_sem_trazer_continua_valido() {
 #[test]
 fn legado_global_acaso_sem_trazer_continua_valido() {
     let code = r#"
-        pacote main; trazer acaso.criar; trazer acaso.proximo; trazer arquivo.criar;
+        pacote main; trazer acaso.criar; trazer acaso.proximo;
         carinho principal() -> bombom {
             nova gerador: bombom = criar(7);
             nova valor: bombom = proximo(gerador);
@@ -3881,7 +3881,7 @@ fn leque_carga_de_tipo_desconhecido_rejeitada() {
 #[test]
 fn lista_generica_de_leque_aceita() {
     let code = r#"
-        pacote main; trazer arquivo.criar; trazer lista.anexar; trazer lista.criar; trazer lista.obter; trazer lista.tamanho;
+        pacote main; trazer lista.anexar; trazer lista.criar; trazer lista.obter; trazer lista.tamanho;
         leque Cor { Vermelho, Verde }
         carinho principal() -> bombom {
             nova cores: lista<Cor> = criar();
@@ -3980,7 +3980,7 @@ fn fase234_impl_homonimos_exigem_qualificacao_quando_ambiguo() {
 #[test]
 fn lista_generica_como_parametro_e_retorno_aceita() {
     let code = r#"
-        pacote main; trazer arquivo.criar; trazer lista.anexar; trazer lista.criar; trazer lista.tamanho;
+        pacote main; trazer lista.anexar; trazer lista.criar; trazer lista.tamanho;
         leque Cor { Vermelho, Verde }
         carinho fabrica() -> lista<Cor> {
             nova cores: lista<Cor> = criar();
@@ -4000,7 +4000,7 @@ fn lista_generica_como_parametro_e_retorno_aceita() {
 #[test]
 fn lista_generica_para_cada_aceito() {
     let code = r#"
-        pacote main; trazer arquivo.criar; trazer lista.anexar; trazer lista.criar;
+        pacote main; trazer lista.anexar; trazer lista.criar;
         leque Cor { Vermelho, Verde }
         carinho principal() -> bombom {
             nova cores: lista<Cor> = criar();
@@ -4019,7 +4019,7 @@ fn lista_generica_para_cada_aceito() {
 #[test]
 fn lista_generica_elemento_de_outro_leque_rejeitado() {
     let code = r#"
-        pacote main; trazer arquivo.criar; trazer lista.anexar; trazer lista.criar;
+        pacote main; trazer lista.anexar; trazer lista.criar;
         leque Cor { Vermelho, Verde }
         leque Fruta { Banana, Maca }
         carinho principal() -> bombom {
@@ -4035,7 +4035,7 @@ fn lista_generica_elemento_de_outro_leque_rejeitado() {
 #[test]
 fn lista_generica_de_nao_leque_rejeitada() {
     let code = r#"
-        pacote main; trazer arquivo.criar; trazer lista.criar;
+        pacote main; trazer lista.criar;
         carinho principal() -> bombom {
             nova coisas: lista<Fantasma> = criar();
             mimo 0;
@@ -4048,7 +4048,7 @@ fn lista_generica_de_nao_leque_rejeitada() {
 #[test]
 fn lista_criar_sem_anotacao_rejeitado() {
     let code = r#"
-        pacote main; trazer arquivo.criar; trazer lista.criar;
+        pacote main; trazer lista.criar;
         carinho principal() -> bombom {
             nova coisas = criar();
             mimo 0;
@@ -4061,7 +4061,7 @@ fn lista_criar_sem_anotacao_rejeitado() {
 #[test]
 fn lista_criar_fora_de_nova_rejeitado() {
     let code = r#"
-        pacote main; trazer arquivo.criar; trazer lista.criar; trazer lista.tamanho;
+        pacote main; trazer lista.criar; trazer lista.tamanho;
         carinho principal() -> bombom {
             mimo tamanho(criar());
         }
@@ -4072,7 +4072,7 @@ fn lista_criar_fora_de_nova_rejeitado() {
 #[test]
 fn intrinsecas_genericas_sobre_listas_legadas_aceitas() {
     let code = r#"
-        pacote main; trazer arquivo.criar; trazer lista.anexar; trazer lista.criar; trazer lista.obter; trazer lista.tamanho;
+        pacote main; trazer lista.anexar; trazer lista.criar; trazer lista.obter; trazer lista.tamanho;
         carinho principal() -> bombom {
             nova numeros: lista<bombom> = criar();
             anexar(numeros, 7);
@@ -4102,7 +4102,7 @@ fn lista_legada_monomorphizada_continua_valida() {
 #[test]
 fn lista_generica_nao_aceita_intrinseca_monomorphizada_de_bombom() {
     let code = r#"
-        pacote main; trazer arquivo.criar; trazer lista.bombom_anexar; trazer lista.criar;
+        pacote main; trazer lista.bombom_anexar; trazer lista.criar;
         leque Cor { Vermelho, Verde }
         carinho principal() -> bombom {
             nova cores: lista<Cor> = criar();
@@ -5295,7 +5295,7 @@ fn fase244_semantica_rejeita_materializacao_sem_impl_correspondente() {
 fn fase244_semantica_rejeita_familias_fora_de_escalar_e_ninho() {
     let cases = [
         r#"
-        pacote main; trazer arquivo.criar; trazer lista.criar;
+        pacote main; trazer lista.criar;
         trato Medivel { carinho medir(valor: si) -> bombom; }
         impl Medivel para lista<bombom> {
             carinho medir(valor: lista<bombom>) -> bombom { mimo 1; }
