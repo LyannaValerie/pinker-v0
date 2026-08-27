@@ -479,23 +479,24 @@ fn a_superficie_modular_e_bijetiva_com_a_identidade_publica() {
 /// duas coisas é ambiguidade enquanto a resolução for feita pelo par; este
 /// gate percorre a superfície inteira e confere, no AST canonicalizado, que
 /// ela é.
+///
+/// O esperado vem da TABELA DOURADA, não do registro. Uma injeção de
+/// sensibilidade mostrou que consultar `membro.identity` aqui tornava o teste
+/// auto-consistente: repontar `acaso.criar` para `criar_arquivo` mudava as
+/// duas pontas da comparação ao mesmo tempo, e o gate seguia verde.
 #[test]
 fn import_seletivo_resolve_exatamente_a_identidade_do_par() {
-    for membro in all_public_intrinsic_members() {
-        let esperado = membro.identity.canonical_public_spelling();
+    for (modulo, membro, esperado) in SUPERFICIE_ESPERADA {
         let fonte = format!(
-            "pacote main;\ntrazer {}.{};\ncarinho principal() -> bombom {{ mimo {}(); }}\n",
-            membro.module, membro.member, membro.member
+            "pacote main;\ntrazer {modulo}.{membro};\ncarinho principal() -> bombom {{ mimo {membro}(); }}\n"
         );
-        let programa = parse(&fonte).unwrap_or_else(|erro| {
-            panic!("{}.{} não parseia: {erro:?}", membro.module, membro.member)
-        });
+        let programa =
+            parse(&fonte).unwrap_or_else(|erro| panic!("{modulo}.{membro} não parseia: {erro:?}"));
         let observado = callee_de_principal(&programa)
-            .unwrap_or_else(|| panic!("{}.{} não produziu chamada", membro.module, membro.member));
+            .unwrap_or_else(|| panic!("{modulo}.{membro} não produziu chamada"));
         assert_eq!(
-            observado, esperado,
-            "trazer {}.{} canonicalizou para a identidade errada",
-            membro.module, membro.member
+            observado, *esperado,
+            "trazer {modulo}.{membro} canonicalizou para a identidade errada"
         );
     }
 }
@@ -503,25 +504,15 @@ fn import_seletivo_resolve_exatamente_a_identidade_do_par() {
 /// A forma qualificada resolve para a mesma identidade que a seletiva.
 #[test]
 fn forma_qualificada_resolve_a_mesma_identidade_que_a_seletiva() {
-    for membro in all_public_intrinsic_members() {
-        let esperado = membro.identity.canonical_public_spelling();
+    for (modulo, membro, esperado) in SUPERFICIE_ESPERADA {
         let fonte = format!(
-            "pacote main;\ntrazer {};\ncarinho principal() -> bombom {{ mimo {}.{}(); }}\n",
-            membro.module, membro.module, membro.member
+            "pacote main;\ntrazer {modulo};\ncarinho principal() -> bombom {{ mimo {modulo}.{membro}(); }}\n"
         );
-        let programa = parse(&fonte).unwrap_or_else(|erro| {
-            panic!(
-                "{}.{} qualificada não parseia: {erro:?}",
-                membro.module, membro.member
-            )
-        });
-        let observado = callee_de_principal(&programa).unwrap_or_else(|| {
-            panic!(
-                "{}.{} qualificada não produziu chamada",
-                membro.module, membro.member
-            )
-        });
-        assert_eq!(observado, esperado);
+        let programa = parse(&fonte)
+            .unwrap_or_else(|erro| panic!("{modulo}.{membro} qualificada não parseia: {erro:?}"));
+        let observado = callee_de_principal(&programa)
+            .unwrap_or_else(|| panic!("{modulo}.{membro} qualificada não produziu chamada"));
+        assert_eq!(observado, *esperado);
     }
 }
 
