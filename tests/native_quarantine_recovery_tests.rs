@@ -80,10 +80,12 @@ fn fixture(caso: &str) -> PathBuf {
 // A publicação segue o desenho já provado por `tests/pinker_flake_runner_tests.rs`,
 // que resolveu esta mesma classe causal:
 //
-//   1. o pai escreve `<destino>.fonte`, que nunca recebe bit de execução e
-//      nunca é executada, e fecha o descritor antes de qualquer fork;
-//   2. um processo auxiliar materializa `<destino>.parcial`. Só ele abre esse
-//      inode para escrita, então nenhum fork do pai pode herdar o descritor;
+//   1. o pai escreve a fonte — `with_extension("fonte")`, isto é, o irmão
+//      `pinker-cleanup.fonte` —, que nunca recebe bit de execução e nunca é
+//      executada, e fecha o descritor antes de qualquer fork;
+//   2. um processo auxiliar materializa o irmão `pinker-cleanup.parcial`. Só
+//      ele abre esse inode para escrita, então nenhum fork do pai pode herdar
+//      o descritor;
 //   3. o pai valida status, tipo, permissão e conteúdo, fail-closed;
 //   4. o auxiliar já terminou, logo não há descritor gravável vivo, e só então
 //      o pai renomeia para o nome final, que nasce completo e executável.
@@ -404,7 +406,17 @@ fn publicacao_sob_fork_concorrente_nunca_produz_etxtbsy() {
     const RUIDO: usize = 4;
     const RODADAS: usize = 120;
 
+    // O sinal de parada precisa valer também no caminho de panic: sem isto as
+    // threads de ruído continuariam forkando até o fim do processo, sem join.
+    struct PararNoDrop(Arc<AtomicBool>);
+    impl Drop for PararNoDrop {
+        fn drop(&mut self) {
+            self.0.store(true, Ordering::Relaxed);
+        }
+    }
+
     let parar = Arc::new(AtomicBool::new(false));
+    let guarda = PararNoDrop(Arc::clone(&parar));
     let mut ruidosas = Vec::new();
     for _ in 0..RUIDO {
         let parar = Arc::clone(&parar);
@@ -440,7 +452,7 @@ fn publicacao_sob_fork_concorrente_nunca_produz_etxtbsy() {
         let _ = fs::remove_dir_all(&raiz);
     }
 
-    parar.store(true, Ordering::Relaxed);
+    drop(guarda);
     let mut forks = 0u64;
     for ruidosa in ruidosas {
         forks += ruidosa.join().expect("thread de ruído");
@@ -463,15 +475,22 @@ fn publicacao_sob_fork_concorrente_nunca_produz_etxtbsy() {
         "todas as rodadas precisam ter executado o script publicado"
     );
     assert!(
-        forks > 0,
-        "o ruído precisa ter criado processos, senão o teste não exercita a corrida"
+        forks >= RODADAS as u64,
+        "o ruído precisa ter criado ao menos um processo por rodada para exercitar \
+         a corrida; observado {forks} para {RODADAS} rodadas"
     );
 }
 
 /// Meta-regressão: a publicação é a única autoridade do bit executável aqui.
 ///
-/// Detecta a reintrodução de escrita direta em caminho executável e de criação
-/// de processo materializador fora da região autorizada.
+/// Detecta a reintrodução de escrita direta em caminho executável fora da
+/// região autorizada, e também a descaracterização da própria região: se o
+/// publicador auxiliar ou o `rename` final desaparecerem de dentro dela, o
+/// mecanismo deixou de ser o que este arquivo documenta.
+///
+/// Escopo, para não prometer o que ela não faz: criar processo fora da região
+/// **não** é proibido — os testes o fazem legitimamente. O que a região delimita
+/// é quem pode materializar um inode executável.
 #[test]
 fn publicacao_e_a_unica_autoridade_de_bit_executavel() {
     let fonte = fs::read_to_string(
@@ -503,6 +522,18 @@ fn publicacao_e_a_unica_autoridade_de_bit_executavel() {
         1,
         "a região autorizada contém exatamente o publicador auxiliar"
     );
+    assert!(
+        autorizada.contains("fs::rename(&parcial, destino)"),
+        "o nome final precisa nascer por rename, depois do fechamento"
+    );
+
+    // A publicação precisa continuar sendo a única porta.
+    let nome_autoridade = format!("fn publicar_{}", "executavel");
+    assert_eq!(
+        fonte.matches(nome_autoridade.as_str()).count(),
+        1,
+        "a autoridade de publicação precisa ser única"
+    );
 
     // Fora da região autorizada, nenhuma escrita direta em caminho executável.
     // As chaves de busca são construídas por concatenação para não casarem com
@@ -525,6 +556,24 @@ fn publicacao_e_a_unica_autoridade_de_bit_executavel() {
         fora.matches(modo.as_str()).count(),
         0,
         "nenhuma aplicação de modo fora da região autorizada"
+    );
+    // `fs::write` não é proibido aqui: esta suíte escreve legitimamente marker e
+    // sentinela, que são dados e nunca são executados. O que a contagem fixa
+    // protege é a introdução **silenciosa** de uma escrita nova fora da região —
+    // qualquer uma passa a exigir decisão consciente, inclusive a que apontasse
+    // para um caminho executável. Os quatro sítios atuais são
+    // `owner.marker`, `sentinela` (duas vezes) e o marker real.
+    let escrita = format!("fs::{}(", "write");
+    assert_eq!(
+        fora.matches(escrita.as_str()).count(),
+        4,
+        "escrita fora da região autorizada só pode existir para dados não executáveis"
+    );
+    let abertura_manual = format!("Open{}::new", "Options");
+    assert_eq!(
+        fora.matches(abertura_manual.as_str()).count(),
+        0,
+        "abertura manual poderia pedir modo gravável sobre um caminho executável"
     );
 }
 
