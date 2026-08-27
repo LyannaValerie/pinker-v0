@@ -42,24 +42,69 @@ pub fn validar_namespace_pinker_owned(name: &str, span: Span) -> Result<(), Pink
 }
 // @pinker-nav:end semantic.identificadores.namespace-produtor-de-simbolo
 
+/// #505 — a colisão de declaração passou a ser decidida pela UNIDADE.
+///
+/// ```text
+/// DECLARATION_CONFLICT = NAME_IS_BOUND_TO_AN_INTRINSIC_IN_THIS_UNIT
+/// ```
+///
+/// Enquanto existia superfície global, toda grafia intrínseca ocupava o
+/// namespace callable de todo arquivo, e a política da PR #507 recusava a
+/// declaração homônima em qualquer lugar. Removida a superfície global, essa
+/// pressão deixou de ter causa: um arquivo que não importa `arquivo` não tem
+/// nada de `arquivo` no seu namespace, e recusar `carinho ler_arquivo(...)`
+/// ali seria preservar por acidente uma proibição cuja razão morreu.
+///
+/// O que continua sendo recusado é a colisão real, e ela tem duas formas:
+///
+/// * o import seletivo liga a grafia do membro — `trazer texto.tamanho;` e
+///   `carinho tamanho(...)` disputam o mesmo nome;
+/// * o import liga a grafia canônica para a qual a canonicalização reescreve —
+///   `trazer arquivo.ler_bombom;` produz chamadas a `ler_arquivo`, e um
+///   `carinho ler_arquivo(...)` no mesmo arquivo seria silenciosamente
+///   sombreado pelo despacho intrínseco.
+///
+/// A segunda forma vale também para o import inteiro (`trazer arquivo;`), que
+/// habilita a forma qualificada de todos os membros do módulo e portanto pode
+/// canonicalizar para qualquer grafia canônica dele.
 fn active_intrinsic_declaration_conflict(
     program: &Program,
     name: &str,
 ) -> Option<crate::intrinsic_authority::PublicIntrinsicSpelling> {
-    crate::intrinsic_authority::canonical_public_intrinsic_spelling(name).or_else(|| {
-        program.imports.iter().find_map(|import| {
-            if !crate::familia_superficie::familia_conhecida(&import.module) {
-                return None;
+    program.imports.iter().find_map(|import| {
+        let module = import.module.as_str();
+        if !crate::familia_superficie::familia_conhecida(module) {
+            return None;
+        }
+        match import.symbol.as_deref() {
+            Some(symbol) => {
+                // Forma seletiva: liga a grafia do membro e a grafia canônica
+                // para a qual ele resolve.
+                let canonica = crate::familia_superficie::resolver(module, symbol)?;
+                if symbol == name {
+                    return crate::intrinsic_authority::family_public_intrinsic_spelling(
+                        module, name,
+                    );
+                }
+                if canonica == name {
+                    return crate::intrinsic_authority::canonical_public_intrinsic_spelling(name);
+                }
+                None
             }
-            if import
-                .symbol
-                .as_deref()
-                .is_some_and(|symbol| symbol != name)
-            {
-                return None;
+            None => {
+                // Forma inteira: liga a grafia canônica de todo membro do
+                // módulo, porque qualquer um deles pode ser chamado
+                // qualificado e canonicalizado para ela.
+                let liga = crate::familia_superficie::membros_da_familia(module)
+                    .into_iter()
+                    .filter_map(|membro| crate::familia_superficie::resolver(module, membro))
+                    .any(|canonica| canonica == name);
+                if !liga {
+                    return None;
+                }
+                crate::intrinsic_authority::canonical_public_intrinsic_spelling(name)
             }
-            crate::intrinsic_authority::family_public_intrinsic_spelling(&import.module, name)
-        })
+        }
     })
 }
 
@@ -76,7 +121,7 @@ fn validate_intrinsic_declaration_conflicts(program: &Program) -> Result<(), Pin
         {
             return Err(PinkerError::Semantic {
                 msg: format!(
-                    "declaração callable '{}' pertence à superfície intrínseca Pinker e não pode ser redeclarada pelo usuário",
+                    "declaração callable '{}' colide com a intrínseca que um 'trazer' deste arquivo liga a esse nome; remova o import ou renomeie a declaração",
                     function.name
                 ),
                 span: function.span,

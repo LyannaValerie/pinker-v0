@@ -1,5 +1,7 @@
 pacote main;
 
+trazer assertiva.afirmar;
+
 carinho principal() -> bombom {
     nova muda soma: bombom = 0;
     para i em 0..10 {

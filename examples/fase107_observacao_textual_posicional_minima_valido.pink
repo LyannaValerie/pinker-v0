@@ -1,10 +1,15 @@
 pacote main;
 
+trazer ambiente.argumento_ou;
+trazer texto.aparar;
+trazer texto.indice_em;
+trazer texto.nao_vazio;
+
 carinho principal() -> bombom {
     nova entrada: verso = argumento_ou(0, "   pinker v0   ");
-    nova texto: verso = aparar_verso(entrada);
-    nova pos: bombom = indice_verso_em(texto, "v0");
-    nova ok: logica = nao_vazio_verso(texto);
+    nova texto: verso = aparar(entrada);
+    nova pos: bombom = indice_em(texto, "v0");
+    nova ok: logica = nao_vazio(texto);
     falar(pos, ok);
     talvez ok {
         talvez pos == 7 {

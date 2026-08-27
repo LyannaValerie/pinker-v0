@@ -1,5 +1,8 @@
 pacote main;
 
+trazer ambiente.argumento;
+trazer processo.executar_com_entrada;
+
 carinho principal() -> bombom {
     nova comando: verso = argumento(0);
     nova codigo: bombom = executar_com_entrada(comando, "argv=ok\n", "--modo=ok");

@@ -1,39 +1,49 @@
 pacote main;
 
+trazer lista.anexar;
+trazer lista.criar;
+trazer lista.definir;
+trazer lista.obter;
+trazer lista.tamanho;
+trazer texto.dividir_contar;
+trazer texto.dividir_em;
+trazer texto.igual;
+trazer texto.verso_para_bombom;
+
 leque Token { Numero(bombom), Mais, Vezes, Fim }
 
 leque Expr { Lit(bombom), Soma(Expr, Expr), Mult(Expr, Expr) }
 
 carinho lexar(fonte: verso) -> lista<Token> {
-    nova tokens: lista<Token> = lista_criar();
-    nova quantos: bombom = dividir_verso_contar(fonte, " ");
+    nova tokens: lista<Token> = criar();
+    nova quantos: bombom = dividir_contar(fonte, " ");
     nova muda i: bombom = 0;
     sempre que i < quantos {
-        nova pedaco: verso = dividir_verso_em(fonte, " ", i);
-        talvez igual_verso(pedaco, "+") {
-            lista_anexar(tokens, Token.Mais);
-        } senao talvez igual_verso(pedaco, "*") {
-            lista_anexar(tokens, Token.Vezes);
+        nova pedaco: verso = dividir_em(fonte, " ", i);
+        talvez igual(pedaco, "+") {
+            anexar(tokens, Token.Mais);
+        } senao talvez igual(pedaco, "*") {
+            anexar(tokens, Token.Vezes);
         } senao {
-            lista_anexar(tokens, Token.Numero(verso_para_bombom(pedaco)));
+            anexar(tokens, Token.Numero(verso_para_bombom(pedaco)));
         }
         i = i + 1;
     }
-    lista_anexar(tokens, Token.Fim);
+    anexar(tokens, Token.Fim);
     mimo tokens;
 }
 
 carinho pos(cursor: lista<bombom>) -> bombom {
-    mimo lista_obter(cursor, 0);
+    mimo obter(cursor, 0);
 }
 
 carinho avancar(cursor: lista<bombom>) -> bombom {
-    lista_definir(cursor, 0, lista_obter(cursor, 0) + 1);
+    definir(cursor, 0, obter(cursor, 0) + 1);
     mimo 0;
 }
 
 carinho analisa_fator(tokens: lista<Token>, cursor: lista<bombom>) -> Expr {
-    nova t: Token = lista_obter(tokens, pos(cursor));
+    nova t: Token = obter(tokens, pos(cursor));
     nova ignorado: bombom = avancar(cursor);
     encaixe t {
         caso Token.Numero(n) { mimo Expr.Lit(n); }
@@ -45,7 +55,7 @@ carinho analisa_termo(tokens: lista<Token>, cursor: lista<bombom>) -> Expr {
     nova muda esquerda: Expr = analisa_fator(tokens, cursor);
     nova muda continua: logica = verdade;
     sempre que continua {
-        nova t: Token = lista_obter(tokens, pos(cursor));
+        nova t: Token = obter(tokens, pos(cursor));
         encaixe t {
             caso Token.Vezes {
                 nova ignorado: bombom = avancar(cursor);
@@ -62,7 +72,7 @@ carinho analisa_expr(tokens: lista<Token>, cursor: lista<bombom>) -> Expr {
     nova muda esquerda: Expr = analisa_termo(tokens, cursor);
     nova muda continua: logica = verdade;
     sempre que continua {
-        nova t: Token = lista_obter(tokens, pos(cursor));
+        nova t: Token = obter(tokens, pos(cursor));
         encaixe t {
             caso Token.Mais {
                 nova ignorado: bombom = avancar(cursor);
@@ -87,10 +97,10 @@ carinho avalia(e: Expr) -> bombom {
 carinho principal() -> bombom {
     nova fonte: verso = "2 + 4 * 10";
     nova tokens: lista<Token> = lexar(fonte);
-    falar("tokens:", lista_tamanho(tokens));
+    falar("tokens:", tamanho(tokens));
 
-    nova cursor: lista<bombom> = lista_criar();
-    lista_anexar(cursor, 0);
+    nova cursor: lista<bombom> = criar();
+    anexar(cursor, 0);
 
     nova arvore: Expr = analisa_expr(tokens, cursor);
     nova resultado: bombom = avalia(arvore);

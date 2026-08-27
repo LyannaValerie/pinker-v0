@@ -13,27 +13,59 @@ use crate::falha_operacional::{self, OperacaoFalivel};
 // @pinker-nav:layer semantica
 // @pinker-nav:summary Autoridade única da superfície por família da Parte G: `FAMILIAS` fixa quais famílias built-in são importáveis, `EXPORTACOES` liga cada par `(família, membro)` à identidade executiva que já existe, e `resolver` é o único lugar onde essa ligação é consultada — pelo parser, que canonicaliza a chamada antes de qualquer camada a jusante, e pela semântica, que diagnostica o import. O registro declara apenas ligação: assinatura, aridade, modelo de falha, política de follow e símbolo de runtime continuam sendo ditos por `semantic`, `falha_operacional` e `backend_s`, e nenhum deles é repetido aqui. Para superfície falível a identidade é `OperacaoFalivel`, nunca o texto do nome público — inclusive a grafia do membro, quando homônima, é derivada da autoridade e não escrita neste arquivo.
 
-/// Famílias built-in que `trazer` aceita.
+/// Módulos built-in que `trazer` aceita.
 ///
-/// Lista fechada e única: `semantic` consulta esta constante em vez de manter
-/// uma segunda cópia. Uma família sem exportações continua importável e
-/// continua sendo um no-op de visibilidade — o que ela não faz é resolver
-/// membro nenhum.
+/// Lista fechada e única: `semantic` e `parser` consultam esta constante em vez
+/// de manter uma segunda cópia. Depois da #505 ela não é mais um subconjunto da
+/// superfície pública — ela **é** a superfície pública, e toda intrínseca
+/// pública pertence a exatamente um destes módulos.
 pub const FAMILIAS: &[&str] = &[
-    "tempo", "ambiente", "acaso", "texto", "arquivo", "caminho", "processo",
+    "acaso",
+    "ambiente",
+    "arquivo",
+    "assertiva",
+    "caminho",
+    "csv",
+    "entrada",
+    "integridade",
+    "json",
+    "lista",
+    "mapa",
+    "memoria",
+    "processo",
+    "tempo",
+    "texto",
 ];
+
+const ACASO: &str = "acaso";
+const AMBIENTE: &str = "ambiente";
+const ARQUIVO: &str = "arquivo";
+const ASSERTIVA: &str = "assertiva";
+const CAMINHO: &str = "caminho";
+const CSV: &str = "csv";
+const ENTRADA: &str = "entrada";
+const INTEGRIDADE: &str = "integridade";
+const JSON: &str = "json";
+const LISTA: &str = "lista";
+const MAPA: &str = "mapa";
+const MEMORIA: &str = "memoria";
+const PROCESSO: &str = "processo";
+const TEMPO: &str = "tempo";
+const TEXTO: &str = "texto";
 
 /// Endereço da identidade executiva de um membro.
 ///
 /// Não é um nome novo: é o modo de chegar ao nome que já existe.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IdentidadeCanonica {
-    /// A intrínseca histórica cuja identidade **é** o próprio texto.
+    /// A identidade endereçada pela sua **grafia canônica**.
     ///
-    /// Endereçar por texto é a dívida que a #477 deve resolver; hoje não existe
-    /// outro endereço para essas superfícies. O custo é pago uma vez por
-    /// membro, aqui, e não uma vez por camada de pipeline.
-    Historica(&'static str),
+    /// Cobre toda superfície cuja identidade é o próprio texto — histórica,
+    /// acessor JSON, acessor SHA-256 e acessor de processo. Quem traduz a
+    /// grafia canônica na identidade real é `intrinsic_authority`, autoridade
+    /// única dessa relação; este registro apenas a endereça. Endereçar por
+    /// texto continua sendo a dívida que a #477 deve resolver.
+    PorGrafia(&'static str),
     /// A superfície falível da Parte B, endereçada pela operação.
     ///
     /// O nome público sai de `falha_operacional` e não é repetido neste
@@ -47,7 +79,7 @@ impl IdentidadeCanonica {
     /// declara.
     pub fn nome_publico(&self) -> &'static str {
         match self {
-            IdentidadeCanonica::Historica(nome) => nome,
+            IdentidadeCanonica::PorGrafia(nome) => nome,
             IdentidadeCanonica::Falivel(operacao) => {
                 falha_operacional::superficie_por_operacao(*operacao)
                     .expect("operação falível registrada na autoridade")
@@ -111,38 +143,76 @@ const fn exportar_homonima(familia: &'static str, identidade: IdentidadeCanonica
     }
 }
 
-const ARQUIVO: &str = "arquivo";
-const CAMINHO: &str = "caminho";
-
-/// A superfície aprovada, em ordem de declaração.
+/// A superfície pública inteira, em ordem de módulo e de declaração.
 ///
-/// Cada linha é `(família, grafia, identidade)` e mais nada. Toda pergunta
-/// sobre comportamento — o que a operação faz, o que aceita, se aborta ou
-/// devolve `Resultado`, se segue symlink — continua sendo respondida pela
-/// camada que já a respondia antes desta tabela existir.
+/// Cada linha é `(módulo, grafia, identidade)` e mais nada. Toda pergunta sobre
+/// comportamento — o que a operação faz, o que aceita, se aborta ou devolve
+/// `Resultado`, se segue symlink — continua sendo respondida pela camada que já
+/// a respondia antes desta tabela existir.
 pub const EXPORTACOES: &[Exportacao] = &[
-    // ----- família `arquivo` -----
-    exportar_homonima(ARQUIVO, IdentidadeCanonica::Historica("abrir")),
-    exportar_homonima(ARQUIVO, IdentidadeCanonica::Historica("fechar")),
+    // ----- módulo `acaso` -----
+    exportar(
+        ACASO,
+        "criar",
+        IdentidadeCanonica::PorGrafia("aleatorio_criar"),
+    ),
+    exportar(
+        ACASO,
+        "entre",
+        IdentidadeCanonica::PorGrafia("aleatorio_entre"),
+    ),
+    exportar(
+        ACASO,
+        "proximo",
+        IdentidadeCanonica::PorGrafia("aleatorio_proximo"),
+    ),
+    // ----- módulo `ambiente` -----
+    exportar(
+        AMBIENTE,
+        "variavel_ou",
+        IdentidadeCanonica::PorGrafia("ambiente_ou"),
+    ),
+    exportar_homonima(AMBIENTE, IdentidadeCanonica::PorGrafia("argumento")),
+    exportar_homonima(AMBIENTE, IdentidadeCanonica::PorGrafia("argumento_ou")),
+    exportar_homonima(AMBIENTE, IdentidadeCanonica::PorGrafia("buscar_contexto")),
+    exportar_homonima(AMBIENTE, IdentidadeCanonica::PorGrafia("pedir_argumento")),
+    exportar_homonima(
+        AMBIENTE,
+        IdentidadeCanonica::PorGrafia("quantos_argumentos"),
+    ),
+    exportar_homonima(AMBIENTE, IdentidadeCanonica::PorGrafia("tem_argumento")),
+    exportar_homonima(AMBIENTE, IdentidadeCanonica::PorGrafia("tem_chave")),
+    exportar_homonima(AMBIENTE, IdentidadeCanonica::PorGrafia("tem_flag")),
+    // ----- módulo `arquivo` -----
+    exportar_homonima(ARQUIVO, IdentidadeCanonica::PorGrafia("abrir")),
+    exportar_homonima(ARQUIVO, IdentidadeCanonica::PorGrafia("abrir_anexo")),
+    exportar_homonima(ARQUIVO, IdentidadeCanonica::PorGrafia("anexar_verso")),
+    exportar(
+        ARQUIVO,
+        "copiar",
+        IdentidadeCanonica::PorGrafia("copiar_arquivo"),
+    ),
+    exportar(
+        ARQUIVO,
+        "criar",
+        IdentidadeCanonica::PorGrafia("criar_arquivo"),
+    ),
+    exportar(
+        ARQUIVO,
+        "escrever_bombom",
+        IdentidadeCanonica::PorGrafia("escrever"),
+    ),
+    exportar_homonima(ARQUIVO, IdentidadeCanonica::PorGrafia("escrever_verso")),
+    exportar_homonima(ARQUIVO, IdentidadeCanonica::PorGrafia("fechar")),
     exportar(
         ARQUIVO,
         "ler_bombom",
-        IdentidadeCanonica::Historica("ler_arquivo"),
-    ),
-    exportar(
-        ARQUIVO,
-        "ler_verso",
-        IdentidadeCanonica::Historica("ler_verso_arquivo"),
-    ),
-    exportar(
-        ARQUIVO,
-        "ler_caminho_verso",
-        IdentidadeCanonica::Historica("ler_arquivo_verso"),
+        IdentidadeCanonica::PorGrafia("ler_arquivo"),
     ),
     exportar(
         ARQUIVO,
         "ler_caminho_ou",
-        IdentidadeCanonica::Historica("arquivo_ou"),
+        IdentidadeCanonica::PorGrafia("arquivo_ou"),
     ),
     exportar(
         ARQUIVO,
@@ -151,60 +221,49 @@ pub const EXPORTACOES: &[Exportacao] = &[
     ),
     exportar(
         ARQUIVO,
-        "escrever_bombom",
-        IdentidadeCanonica::Historica("escrever"),
-    ),
-    exportar_homonima(ARQUIVO, IdentidadeCanonica::Historica("escrever_verso")),
-    exportar(
-        ARQUIVO,
-        "criar",
-        IdentidadeCanonica::Historica("criar_arquivo"),
+        "ler_caminho_verso",
+        IdentidadeCanonica::PorGrafia("ler_arquivo_verso"),
     ),
     exportar(
         ARQUIVO,
-        "truncar",
-        IdentidadeCanonica::Historica("truncar_arquivo"),
-    ),
-    exportar_homonima(ARQUIVO, IdentidadeCanonica::Historica("abrir_anexo")),
-    exportar_homonima(ARQUIVO, IdentidadeCanonica::Historica("anexar_verso")),
-    exportar(
-        ARQUIVO,
-        "copiar",
-        IdentidadeCanonica::Historica("copiar_arquivo"),
+        "ler_verso",
+        IdentidadeCanonica::PorGrafia("ler_verso_arquivo"),
     ),
     exportar(
         ARQUIVO,
         "renomear",
-        IdentidadeCanonica::Historica("renomear_arquivo"),
+        IdentidadeCanonica::PorGrafia("renomear_arquivo"),
     ),
     exportar(
         ARQUIVO,
-        "sha256",
-        IdentidadeCanonica::Falivel(OperacaoFalivel::HashArquivo),
+        "truncar",
+        IdentidadeCanonica::PorGrafia("truncar_arquivo"),
     ),
-    // ----- família `caminho` -----
-    exportar_homonima(CAMINHO, IdentidadeCanonica::Historica("caminho_existe")),
-    exportar_homonima(CAMINHO, IdentidadeCanonica::Historica("e_arquivo")),
-    exportar_homonima(CAMINHO, IdentidadeCanonica::Historica("e_diretorio")),
-    exportar_homonima(CAMINHO, IdentidadeCanonica::Historica("juntar_caminho")),
-    exportar_homonima(CAMINHO, IdentidadeCanonica::Historica("tamanho_arquivo")),
-    // O irmão comportamental é `tamanho_arquivo`, não `e_arquivo`: mesma família
-    // de runtime, mesmo FOLLOW, mesma fatalidade e mesma exigência de arquivo
-    // regular. A grafia nomeia o sujeito que a operação de fato exige.
+    // ----- módulo `assertiva` -----
+    exportar_homonima(ASSERTIVA, IdentidadeCanonica::PorGrafia("afirmar")),
+    // ----- módulo `caminho` -----
+    exportar(
+        CAMINHO,
+        "existe",
+        IdentidadeCanonica::PorGrafia("caminho_existe"),
+    ),
+    exportar(
+        CAMINHO,
+        "juntar",
+        IdentidadeCanonica::PorGrafia("juntar_caminho"),
+    ),
+    exportar_homonima(CAMINHO, IdentidadeCanonica::PorGrafia("e_arquivo")),
+    exportar_homonima(CAMINHO, IdentidadeCanonica::PorGrafia("e_diretorio")),
     exportar(
         CAMINHO,
         "arquivo_vazio",
-        IdentidadeCanonica::Historica("e_vazio"),
+        IdentidadeCanonica::PorGrafia("e_vazio"),
     ),
-    exportar_homonima(CAMINHO, IdentidadeCanonica::Historica("criar_diretorio")),
-    exportar_homonima(CAMINHO, IdentidadeCanonica::Historica("remover_arquivo")),
-    exportar_homonima(CAMINHO, IdentidadeCanonica::Historica("remover_diretorio")),
-    exportar_homonima(CAMINHO, IdentidadeCanonica::Historica("diretorio_atual")),
-    // As três superfícies adultas abaixo são homônimas da própria identidade
-    // canônica, e essa identidade é falível: a grafia do membro sai da
-    // autoridade em vez de ser escrita aqui. Nenhuma família pública nova é
-    // aberta nesta fase — o runtime nomear `diretorio` e `entrada` é fato
-    // registrado, não autorização.
+    exportar_homonima(CAMINHO, IdentidadeCanonica::PorGrafia("tamanho_arquivo")),
+    exportar_homonima(CAMINHO, IdentidadeCanonica::PorGrafia("criar_diretorio")),
+    exportar_homonima(CAMINHO, IdentidadeCanonica::PorGrafia("remover_arquivo")),
+    exportar_homonima(CAMINHO, IdentidadeCanonica::PorGrafia("remover_diretorio")),
+    exportar_homonima(CAMINHO, IdentidadeCanonica::PorGrafia("diretorio_atual")),
     exportar_homonima(
         CAMINHO,
         IdentidadeCanonica::Falivel(OperacaoFalivel::EnumerarDiretorio),
@@ -216,6 +275,467 @@ pub const EXPORTACOES: &[Exportacao] = &[
     exportar_homonima(
         CAMINHO,
         IdentidadeCanonica::Falivel(OperacaoFalivel::MedirEntrada),
+    ),
+    // ----- módulo `csv` -----
+    exportar(
+        CSV,
+        "emitir_linha_bombom",
+        IdentidadeCanonica::PorGrafia("emitir_linha_csv_bombom"),
+    ),
+    exportar(
+        CSV,
+        "ler_linha_bombom",
+        IdentidadeCanonica::PorGrafia("ler_linha_csv_bombom"),
+    ),
+    // ----- módulo `entrada` -----
+    exportar_homonima(ENTRADA, IdentidadeCanonica::PorGrafia("ouvir")),
+    exportar_homonima(ENTRADA, IdentidadeCanonica::PorGrafia("ouvir_verso")),
+    exportar_homonima(ENTRADA, IdentidadeCanonica::PorGrafia("ouvir_verso_ou")),
+    // ----- módulo `integridade` -----
+    exportar_homonima(
+        INTEGRIDADE,
+        IdentidadeCanonica::Falivel(OperacaoFalivel::HashArquivo),
+    ),
+    exportar_homonima(INTEGRIDADE, IdentidadeCanonica::PorGrafia("sha256_verso")),
+    // ----- módulo `json` -----
+    exportar(JSON, "tipo", IdentidadeCanonica::PorGrafia("json_tipo")),
+    exportar(
+        JSON,
+        "como_verso",
+        IdentidadeCanonica::PorGrafia("json_verso"),
+    ),
+    exportar(
+        JSON,
+        "como_numero",
+        IdentidadeCanonica::PorGrafia("json_numero"),
+    ),
+    exportar(
+        JSON,
+        "como_logica",
+        IdentidadeCanonica::PorGrafia("json_logica"),
+    ),
+    exportar(
+        JSON,
+        "lista_obter",
+        IdentidadeCanonica::PorGrafia("json_lista_obter"),
+    ),
+    exportar(
+        JSON,
+        "lista_tamanho",
+        IdentidadeCanonica::PorGrafia("json_lista_tamanho"),
+    ),
+    exportar(
+        JSON,
+        "objeto_obter",
+        IdentidadeCanonica::PorGrafia("json_objeto_obter"),
+    ),
+    exportar(
+        JSON,
+        "objeto_tem",
+        IdentidadeCanonica::PorGrafia("json_objeto_tem"),
+    ),
+    exportar(
+        JSON,
+        "objeto_tamanho",
+        IdentidadeCanonica::PorGrafia("json_objeto_tamanho"),
+    ),
+    exportar(
+        JSON,
+        "objeto_chaves",
+        IdentidadeCanonica::PorGrafia("json_objeto_chaves"),
+    ),
+    exportar(JSON, "emitir", IdentidadeCanonica::PorGrafia("emitir_json")),
+    exportar(
+        JSON,
+        "emitir_plano_bombom",
+        IdentidadeCanonica::PorGrafia("emitir_json_plano_bombom"),
+    ),
+    exportar(
+        JSON,
+        "ler_plano_bombom",
+        IdentidadeCanonica::PorGrafia("ler_json_plano_bombom"),
+    ),
+    exportar(
+        JSON,
+        "ler_resultado",
+        IdentidadeCanonica::Falivel(OperacaoFalivel::InterpretarJson),
+    ),
+    // ----- módulo `lista` -----
+    exportar(LISTA, "criar", IdentidadeCanonica::PorGrafia("lista_criar")),
+    exportar(LISTA, "obter", IdentidadeCanonica::PorGrafia("lista_obter")),
+    exportar(
+        LISTA,
+        "definir",
+        IdentidadeCanonica::PorGrafia("lista_definir"),
+    ),
+    exportar(
+        LISTA,
+        "inserir",
+        IdentidadeCanonica::PorGrafia("lista_inserir"),
+    ),
+    exportar(
+        LISTA,
+        "anexar",
+        IdentidadeCanonica::PorGrafia("lista_anexar"),
+    ),
+    exportar(
+        LISTA,
+        "tamanho",
+        IdentidadeCanonica::PorGrafia("lista_tamanho"),
+    ),
+    exportar(
+        LISTA,
+        "tirar_ultimo",
+        IdentidadeCanonica::PorGrafia("lista_tirar_ultimo"),
+    ),
+    exportar(
+        LISTA,
+        "bombom_criar",
+        IdentidadeCanonica::PorGrafia("lista_bombom_criar"),
+    ),
+    exportar(
+        LISTA,
+        "bombom_obter",
+        IdentidadeCanonica::PorGrafia("lista_bombom_obter"),
+    ),
+    exportar(
+        LISTA,
+        "bombom_definir",
+        IdentidadeCanonica::PorGrafia("lista_bombom_definir"),
+    ),
+    exportar(
+        LISTA,
+        "bombom_inserir",
+        IdentidadeCanonica::PorGrafia("lista_bombom_inserir"),
+    ),
+    exportar(
+        LISTA,
+        "bombom_anexar",
+        IdentidadeCanonica::PorGrafia("lista_bombom_anexar"),
+    ),
+    exportar(
+        LISTA,
+        "bombom_tamanho",
+        IdentidadeCanonica::PorGrafia("lista_bombom_tamanho"),
+    ),
+    exportar(
+        LISTA,
+        "bombom_tirar_ultimo",
+        IdentidadeCanonica::PorGrafia("lista_bombom_tirar_ultimo"),
+    ),
+    exportar(
+        LISTA,
+        "verso_criar",
+        IdentidadeCanonica::PorGrafia("lista_verso_criar"),
+    ),
+    exportar(
+        LISTA,
+        "verso_obter",
+        IdentidadeCanonica::PorGrafia("lista_verso_obter"),
+    ),
+    exportar(
+        LISTA,
+        "verso_definir",
+        IdentidadeCanonica::PorGrafia("lista_verso_definir"),
+    ),
+    exportar(
+        LISTA,
+        "verso_inserir",
+        IdentidadeCanonica::PorGrafia("lista_verso_inserir"),
+    ),
+    exportar(
+        LISTA,
+        "verso_anexar",
+        IdentidadeCanonica::PorGrafia("lista_verso_anexar"),
+    ),
+    exportar(
+        LISTA,
+        "verso_tamanho",
+        IdentidadeCanonica::PorGrafia("lista_verso_tamanho"),
+    ),
+    exportar(
+        LISTA,
+        "verso_tirar_ultimo",
+        IdentidadeCanonica::PorGrafia("lista_verso_tirar_ultimo"),
+    ),
+    // ----- módulo `mapa` -----
+    exportar(
+        MAPA,
+        "definir",
+        IdentidadeCanonica::PorGrafia("mapa_definir"),
+    ),
+    exportar(MAPA, "obter", IdentidadeCanonica::PorGrafia("mapa_obter")),
+    exportar(
+        MAPA,
+        "remover",
+        IdentidadeCanonica::PorGrafia("mapa_remover"),
+    ),
+    exportar(
+        MAPA,
+        "tamanho",
+        IdentidadeCanonica::PorGrafia("mapa_tamanho"),
+    ),
+    exportar(MAPA, "tem", IdentidadeCanonica::PorGrafia("mapa_tem")),
+    exportar(
+        MAPA,
+        "bombom_bombom_criar",
+        IdentidadeCanonica::PorGrafia("mapa_bombom_bombom_criar"),
+    ),
+    exportar(
+        MAPA,
+        "bombom_bombom_definir",
+        IdentidadeCanonica::PorGrafia("mapa_bombom_bombom_definir"),
+    ),
+    exportar(
+        MAPA,
+        "bombom_bombom_obter",
+        IdentidadeCanonica::PorGrafia("mapa_bombom_bombom_obter"),
+    ),
+    exportar(
+        MAPA,
+        "bombom_bombom_remover",
+        IdentidadeCanonica::PorGrafia("mapa_bombom_bombom_remover"),
+    ),
+    exportar(
+        MAPA,
+        "bombom_bombom_tamanho",
+        IdentidadeCanonica::PorGrafia("mapa_bombom_bombom_tamanho"),
+    ),
+    exportar(
+        MAPA,
+        "bombom_bombom_tem",
+        IdentidadeCanonica::PorGrafia("mapa_bombom_bombom_tem"),
+    ),
+    exportar(
+        MAPA,
+        "bombom_verso_criar",
+        IdentidadeCanonica::PorGrafia("mapa_bombom_verso_criar"),
+    ),
+    exportar(
+        MAPA,
+        "bombom_verso_definir",
+        IdentidadeCanonica::PorGrafia("mapa_bombom_verso_definir"),
+    ),
+    exportar(
+        MAPA,
+        "bombom_verso_obter",
+        IdentidadeCanonica::PorGrafia("mapa_bombom_verso_obter"),
+    ),
+    exportar(
+        MAPA,
+        "bombom_verso_remover",
+        IdentidadeCanonica::PorGrafia("mapa_bombom_verso_remover"),
+    ),
+    exportar(
+        MAPA,
+        "bombom_verso_tamanho",
+        IdentidadeCanonica::PorGrafia("mapa_bombom_verso_tamanho"),
+    ),
+    exportar(
+        MAPA,
+        "bombom_verso_tem",
+        IdentidadeCanonica::PorGrafia("mapa_bombom_verso_tem"),
+    ),
+    exportar(
+        MAPA,
+        "verso_bombom_criar",
+        IdentidadeCanonica::PorGrafia("mapa_verso_bombom_criar"),
+    ),
+    exportar(
+        MAPA,
+        "verso_bombom_definir",
+        IdentidadeCanonica::PorGrafia("mapa_verso_bombom_definir"),
+    ),
+    exportar(
+        MAPA,
+        "verso_bombom_obter",
+        IdentidadeCanonica::PorGrafia("mapa_verso_bombom_obter"),
+    ),
+    exportar(
+        MAPA,
+        "verso_bombom_remover",
+        IdentidadeCanonica::PorGrafia("mapa_verso_bombom_remover"),
+    ),
+    exportar(
+        MAPA,
+        "verso_bombom_tamanho",
+        IdentidadeCanonica::PorGrafia("mapa_verso_bombom_tamanho"),
+    ),
+    exportar(
+        MAPA,
+        "verso_bombom_tem",
+        IdentidadeCanonica::PorGrafia("mapa_verso_bombom_tem"),
+    ),
+    exportar(
+        MAPA,
+        "verso_verso_criar",
+        IdentidadeCanonica::PorGrafia("mapa_verso_verso_criar"),
+    ),
+    exportar(
+        MAPA,
+        "verso_verso_definir",
+        IdentidadeCanonica::PorGrafia("mapa_verso_verso_definir"),
+    ),
+    exportar(
+        MAPA,
+        "verso_verso_obter",
+        IdentidadeCanonica::PorGrafia("mapa_verso_verso_obter"),
+    ),
+    exportar(
+        MAPA,
+        "verso_verso_remover",
+        IdentidadeCanonica::PorGrafia("mapa_verso_verso_remover"),
+    ),
+    exportar(
+        MAPA,
+        "verso_verso_tamanho",
+        IdentidadeCanonica::PorGrafia("mapa_verso_verso_tamanho"),
+    ),
+    exportar(
+        MAPA,
+        "verso_verso_tem",
+        IdentidadeCanonica::PorGrafia("mapa_verso_verso_tem"),
+    ),
+    // ----- módulo `memoria` -----
+    exportar_homonima(MEMORIA, IdentidadeCanonica::PorGrafia("alocar")),
+    exportar_homonima(MEMORIA, IdentidadeCanonica::PorGrafia("liberar")),
+    // ----- módulo `processo` -----
+    exportar(
+        PROCESSO,
+        "executar",
+        IdentidadeCanonica::PorGrafia("executar_processo"),
+    ),
+    exportar(
+        PROCESSO,
+        "executar_resultado",
+        IdentidadeCanonica::Falivel(OperacaoFalivel::ExecutarProcesso),
+    ),
+    exportar(
+        PROCESSO,
+        "executar_estruturado",
+        IdentidadeCanonica::Falivel(OperacaoFalivel::ExecutarProcessoEstruturado),
+    ),
+    exportar_homonima(
+        PROCESSO,
+        IdentidadeCanonica::PorGrafia("executar_com_entrada"),
+    ),
+    exportar_homonima(PROCESSO, IdentidadeCanonica::PorGrafia("capturar_stdout")),
+    exportar_homonima(PROCESSO, IdentidadeCanonica::PorGrafia("capturar_stderr")),
+    exportar_homonima(PROCESSO, IdentidadeCanonica::PorGrafia("pipeline_minimo")),
+    exportar(
+        PROCESSO,
+        "codigo",
+        IdentidadeCanonica::PorGrafia("processo_codigo"),
+    ),
+    exportar(
+        PROCESSO,
+        "saida",
+        IdentidadeCanonica::PorGrafia("processo_saida"),
+    ),
+    exportar(
+        PROCESSO,
+        "erro",
+        IdentidadeCanonica::PorGrafia("processo_erro"),
+    ),
+    exportar_homonima(PROCESSO, IdentidadeCanonica::PorGrafia("sair")),
+    // ----- módulo `tempo` -----
+    exportar(TEMPO, "unix", IdentidadeCanonica::PorGrafia("tempo_unix")),
+    exportar(
+        TEMPO,
+        "formatar_unix",
+        IdentidadeCanonica::PorGrafia("formatar_tempo_unix"),
+    ),
+    exportar_homonima(TEMPO, IdentidadeCanonica::PorGrafia("dormir")),
+    // ----- módulo `texto` -----
+    exportar(
+        TEXTO,
+        "aparar",
+        IdentidadeCanonica::PorGrafia("aparar_verso"),
+    ),
+    exportar(
+        TEXTO,
+        "buscar",
+        IdentidadeCanonica::PorGrafia("buscar_verso"),
+    ),
+    exportar_homonima(TEXTO, IdentidadeCanonica::PorGrafia("comeca_com")),
+    exportar_homonima(TEXTO, IdentidadeCanonica::PorGrafia("termina_com")),
+    exportar(
+        TEXTO,
+        "contem",
+        IdentidadeCanonica::PorGrafia("contem_verso"),
+    ),
+    exportar(
+        TEXTO,
+        "dividir_contar",
+        IdentidadeCanonica::PorGrafia("dividir_verso_contar"),
+    ),
+    exportar(
+        TEXTO,
+        "dividir_em",
+        IdentidadeCanonica::PorGrafia("dividir_verso_em"),
+    ),
+    exportar(
+        TEXTO,
+        "fatiar",
+        IdentidadeCanonica::PorGrafia("fatiar_verso"),
+    ),
+    exportar(
+        TEXTO,
+        "formatar",
+        IdentidadeCanonica::PorGrafia("formatar_verso"),
+    ),
+    exportar(TEXTO, "igual", IdentidadeCanonica::PorGrafia("igual_verso")),
+    exportar(
+        TEXTO,
+        "indice",
+        IdentidadeCanonica::PorGrafia("indice_verso"),
+    ),
+    exportar(
+        TEXTO,
+        "indice_em",
+        IdentidadeCanonica::PorGrafia("indice_verso_em"),
+    ),
+    exportar(
+        TEXTO,
+        "juntar",
+        IdentidadeCanonica::PorGrafia("juntar_verso"),
+    ),
+    exportar(
+        TEXTO,
+        "juntar_com",
+        IdentidadeCanonica::PorGrafia("juntar_verso_com"),
+    ),
+    exportar(
+        TEXTO,
+        "maiusculo",
+        IdentidadeCanonica::PorGrafia("maiusculo_verso"),
+    ),
+    exportar(
+        TEXTO,
+        "minusculo",
+        IdentidadeCanonica::PorGrafia("minusculo_verso"),
+    ),
+    exportar(
+        TEXTO,
+        "nao_vazio",
+        IdentidadeCanonica::PorGrafia("nao_vazio_verso"),
+    ),
+    exportar(
+        TEXTO,
+        "substituir",
+        IdentidadeCanonica::PorGrafia("substituir_verso"),
+    ),
+    exportar(
+        TEXTO,
+        "tamanho",
+        IdentidadeCanonica::PorGrafia("tamanho_verso"),
+    ),
+    exportar(TEXTO, "vazio", IdentidadeCanonica::PorGrafia("vazio_verso")),
+    exportar_homonima(TEXTO, IdentidadeCanonica::PorGrafia("bombom_para_verso")),
+    exportar_homonima(TEXTO, IdentidadeCanonica::PorGrafia("verso_para_bombom")),
+    exportar_homonima(
+        TEXTO,
+        IdentidadeCanonica::Falivel(OperacaoFalivel::ConverterVersoParaBombom),
     ),
 ];
 
@@ -285,6 +805,34 @@ pub fn membro_inexistente(familia: &str, membro: &str) -> String {
             .collect::<Vec<_>>()
             .join(", ")
     )
+}
+
+/// Módulos que exportam um membro com esta grafia, em ordem de declaração.
+///
+/// Grafia de membro não é única entre módulos — `acaso.criar` e
+/// `arquivo.criar` existem ao mesmo tempo —, então a resposta é uma lista.
+pub fn modulos_que_exportam(membro: &str) -> Vec<&'static str> {
+    let mut modulos: Vec<&'static str> = Vec::new();
+    for exportacao in EXPORTACOES {
+        if exportacao.membro() == membro && !modulos.contains(&exportacao.familia) {
+            modulos.push(exportacao.familia);
+        }
+    }
+    modulos
+}
+
+/// O par `(módulo, membro)` que expõe uma identidade endereçada por grafia
+/// canônica.
+///
+/// Existe para o diagnóstico: quem escreveu a grafia canônica precisa saber
+/// qual import a torna chamável. `None` significa que a grafia não é
+/// endereçada por nenhum membro — o que, depois da #505, é um defeito de
+/// registro, não um estado normal.
+pub fn par_da_grafia_canonica(grafia: &str) -> Option<(&'static str, &'static str)> {
+    EXPORTACOES
+        .iter()
+        .find(|exportacao| exportacao.identidade.nome_publico() == grafia)
+        .map(|exportacao| (exportacao.familia, exportacao.membro()))
 }
 
 /// Diagnóstico de uso qualificado sem o import da família.

@@ -1,5 +1,8 @@
 pacote main;
 
+trazer ambiente.pedir_argumento;
+trazer ambiente.tem_chave;
+
 carinho principal() -> bombom {
     nova tem_saida: logica = tem_chave("--saida");
     nova saida: verso = pedir_argumento("--saida", "padrao.txt");

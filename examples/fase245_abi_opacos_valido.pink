@@ -1,5 +1,11 @@
 pacote main;
 
+trazer lista;
+trazer mapa;
+trazer lista.anexar;
+trazer lista.criar;
+trazer mapa.definir;
+
 leque Cor { Rosa, Azul }
 leque Caixa { Valor(bombom), Vazia }
 
@@ -41,33 +47,33 @@ carinho principal() -> bombom {
     nova f_funcao: seta<carinho(Transformacao) -> Transformacao> = &eco_funcao;
     nova f_trato: seta<carinho(trato<Medivel>) -> trato<Medivel> > = &eco_trato;
 
-    nova lb: lista<bombom> = lista_criar();
-    lista_anexar(lb, 1);
-    falar(lista_tamanho(f_lista_bombom(lb)));
+    nova lb: lista<bombom> = criar();
+    anexar(lb, 1);
+    falar(lista.tamanho(f_lista_bombom(lb)));
 
-    nova lv: lista<verso> = lista_criar();
-    lista_anexar(lv, "rosa");
-    falar(lista_tamanho(f_lista_verso(lv)));
+    nova lv: lista<verso> = criar();
+    anexar(lv, "rosa");
+    falar(lista.tamanho(f_lista_verso(lv)));
 
-    nova lc: lista<Cor> = lista_criar();
-    lista_anexar(lc, Cor.Rosa);
-    falar(lista_tamanho(f_lista_cor(lc)));
+    nova lc: lista<Cor> = criar();
+    anexar(lc, Cor.Rosa);
+    falar(lista.tamanho(f_lista_cor(lc)));
 
     nova mvb: mapa<verso,bombom> = mapa_criar();
-    mapa_definir(mvb, "rosa", 1);
-    falar(mapa_tamanho(f_mapa_vb(mvb)));
+    definir(mvb, "rosa", 1);
+    falar(mapa.tamanho(f_mapa_vb(mvb)));
 
     nova mvv: mapa<verso,verso> = mapa_criar();
-    mapa_definir(mvv, "rosa", "pink");
-    falar(mapa_tamanho(f_mapa_vv(mvv)));
+    definir(mvv, "rosa", "pink");
+    falar(mapa.tamanho(f_mapa_vv(mvv)));
 
     nova mbb: mapa<bombom,bombom> = mapa_criar();
-    mapa_definir(mbb, 1, 2);
-    falar(mapa_tamanho(f_mapa_bb(mbb)));
+    definir(mbb, 1, 2);
+    falar(mapa.tamanho(f_mapa_bb(mbb)));
 
     nova mbv: mapa<bombom,verso> = mapa_criar();
-    mapa_definir(mbv, 1, "rosa");
-    falar(mapa_tamanho(f_mapa_bv(mbv)));
+    definir(mbv, 1, "rosa");
+    falar(mapa.tamanho(f_mapa_bv(mbv)));
 
     falar(f_cor(Cor.Rosa) == Cor.Rosa);
     nova caixa: Caixa = f_caixa(Caixa.Valor(7));

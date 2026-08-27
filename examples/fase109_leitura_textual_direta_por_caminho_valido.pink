@@ -1,18 +1,26 @@
 pacote main;
 
+trazer ambiente.argumento_ou;
+trazer arquivo.criar;
+trazer arquivo.escrever_verso;
+trazer arquivo.fechar;
+trazer arquivo.ler_caminho_ou;
+trazer arquivo.ler_caminho_verso;
+trazer texto.igual;
+
 carinho principal() -> bombom {
     nova alvo: verso = argumento_ou(0, "/tmp/pinker_fase109_exemplo.txt");
-    nova h: bombom = criar_arquivo(alvo);
+    nova h: bombom = criar(alvo);
     escrever_verso(h, "fase109");
     fechar(h);
 
-    nova lido: verso = ler_arquivo_verso(alvo);
-    nova fallback: verso = arquivo_ou("__pinker_fase109_inexistente__.txt", "padrao109");
+    nova lido: verso = ler_caminho_verso(alvo);
+    nova fallback: verso = ler_caminho_ou("__pinker_fase109_inexistente__.txt", "padrao109");
     falar(lido);
     falar(fallback);
 
-    talvez igual_verso(lido, "fase109") {
-        talvez igual_verso(fallback, "padrao109") {
+    talvez igual(lido, "fase109") {
+        talvez igual(fallback, "padrao109") {
             mimo 1;
         } senao {
             mimo 0;

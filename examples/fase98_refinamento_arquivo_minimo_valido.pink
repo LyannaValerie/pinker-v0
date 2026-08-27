@@ -1,17 +1,25 @@
 pacote main;
 
+trazer ambiente.argumento_ou;
+trazer caminho.arquivo_vazio;
+trazer caminho.diretorio_atual;
+trazer caminho.e_arquivo;
+trazer caminho.existe;
+trazer caminho.juntar;
+trazer caminho.tamanho_arquivo;
+
 carinho principal() -> bombom {
     nova base: verso = diretorio_atual();
     nova nome: verso = argumento_ou(0, "README.md");
-    nova alvo: verso = juntar_caminho(base, nome);
+    nova alvo: verso = juntar(base, nome);
 
-    falar(caminho_existe(alvo));
+    falar(existe(alvo));
     falar(e_arquivo(alvo));
-    falar(e_vazio(alvo));
+    falar(arquivo_vazio(alvo));
 
     nova tamanho: bombom = tamanho_arquivo(alvo);
     talvez tamanho > 0 {
-        talvez e_vazio(alvo) {
+        talvez arquivo_vazio(alvo) {
             mimo 0;
         } senao {
             mimo 1;

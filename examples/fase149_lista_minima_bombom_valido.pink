@@ -1,10 +1,14 @@
 pacote fase149_lista_minima_bombom_valido;
 
+trazer lista.bombom_anexar;
+trazer lista.bombom_criar;
+trazer lista.bombom_obter;
+
 carinho principal() -> bombom {
-    nova lista: lista<bombom> = lista_bombom_criar();
-    lista_bombom_anexar(lista, 5);
-    lista_bombom_anexar(lista, 8);
-    falar(lista_bombom_obter(lista, 0));
-    falar(lista_bombom_obter(lista, 1));
+    nova lista: lista<bombom> = bombom_criar();
+    bombom_anexar(lista, 5);
+    bombom_anexar(lista, 8);
+    falar(bombom_obter(lista, 0));
+    falar(bombom_obter(lista, 1));
     mimo 0;
 }

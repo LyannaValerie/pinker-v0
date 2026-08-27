@@ -1,5 +1,7 @@
 pacote main;
 
+trazer entrada.ouvir;
+
 carinho principal() -> bombom {
     nova valor: bombom = ouvir();
     mimo valor + 1;

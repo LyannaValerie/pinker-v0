@@ -1,5 +1,11 @@
 pacote main;
 
+trazer texto.bombom_para_verso;
+trazer texto.comeca_com;
+trazer texto.dividir_contar;
+trazer texto.dividir_em;
+trazer texto.verso_para_bombom;
+
 leque Token { Numero(bombom), Palavra(verso), Fim }
 
 carinho eh_numero(pedaco: verso) -> logica {
@@ -31,10 +37,10 @@ carinho mostra(t: Token) -> bombom {
 
 carinho principal() -> bombom {
     nova fonte: verso = "soma 12 com 30 e guarda em total";
-    nova quantos: bombom = dividir_verso_contar(fonte, " ");
+    nova quantos: bombom = dividir_contar(fonte, " ");
     nova muda i: bombom = 0;
     sempre que i < quantos {
-        nova pedaco: verso = dividir_verso_em(fonte, " ", i);
+        nova pedaco: verso = dividir_em(fonte, " ", i);
         mostra(proximo_token(pedaco));
         i = i + 1;
     }

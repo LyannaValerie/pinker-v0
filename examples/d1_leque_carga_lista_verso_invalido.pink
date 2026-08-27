@@ -1,5 +1,7 @@
 pacote main;
 
+trazer lista.criar;
+
 // D1 negativo — `lista<bombom>` não aceita `lista<verso>`.
 //
 // `lista<verso>` também não é um `verso`: são três identidades distintas com a
@@ -9,7 +11,7 @@ leque Pacote {
 }
 
 carinho principal() -> bombom {
-    nova textos: lista<verso> = lista_criar();
+    nova textos: lista<verso> = criar();
     nova p: Pacote = Pacote.Numeros(textos);
     mimo 0;
 }

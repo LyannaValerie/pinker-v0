@@ -1,9 +1,14 @@
 pacote main;
 
+trazer entrada.ouvir_verso;
+trazer entrada.ouvir_verso_ou;
+trazer texto.aparar;
+trazer texto.nao_vazio;
+
 carinho principal() -> bombom {
     nova texto: verso = ouvir_verso();
     falar(texto);
-    falar(nao_vazio_verso(aparar_verso(texto)));
+    falar(nao_vazio(aparar(texto)));
 
     nova fallback: verso = ouvir_verso_ou("padrão-fase110");
     falar(fallback);

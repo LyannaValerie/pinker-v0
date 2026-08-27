@@ -1,12 +1,18 @@
 pacote main;
 
+trazer ambiente.argumento_ou;
+trazer texto.contem;
+trazer texto.igual;
+trazer texto.maiusculo;
+trazer texto.minusculo;
+
 carinho principal() -> bombom {
     nova entrada: verso = argumento_ou(0, "PiNkEr V0");
-    nova baixo: verso = minusculo_verso(entrada);
-    nova alto: verso = maiusculo_verso(entrada);
+    nova baixo: verso = minusculo(entrada);
+    nova alto: verso = maiusculo(entrada);
 
-    nova ok_baixo: logica = igual_verso(baixo, "pinker v0");
-    nova ok_alto: logica = contem_verso(alto, "PINKER");
+    nova ok_baixo: logica = igual(baixo, "pinker v0");
+    nova ok_alto: logica = contem(alto, "PINKER");
 
     falar(ok_baixo, ok_alto);
 

@@ -1,12 +1,16 @@
 pacote main;
 
+trazer mapa.verso_bombom_criar;
+trazer mapa.verso_bombom_definir;
+trazer mapa.verso_bombom_obter;
+
 carinho principal() -> bombom {
-    nova m: mapa<verso,bombom> = mapa_verso_bombom_criar();
-    mapa_verso_bombom_definir(m, "pontos", 42);
+    nova m: mapa<verso,bombom> = verso_bombom_criar();
+    verso_bombom_definir(m, "pontos", 42);
 
     nova muda total: bombom = 0;
     para cada chave em m {
-        nova v: bombom = mapa_verso_bombom_obter(m, chave);
+        nova v: bombom = verso_bombom_obter(m, chave);
         total = total + v;
     }
 

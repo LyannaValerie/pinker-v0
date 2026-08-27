@@ -19,8 +19,8 @@
 mod common;
 
 use pinker_v0::intrinsic_authority::{
-    all_public_intrinsic_spellings, canonical_alias_target, declaration_conflict_policy,
-    intrinsic_from_public_spelling, public_intrinsic_spelling, DeclarationConflictPolicy,
+    all_canonical_intrinsic_spellings, canonical_alias_target, canonical_public_intrinsic_spelling,
+    declaration_conflict_policy, intrinsic_from_public_spelling, DeclarationConflictPolicy,
     IntrinsicIdentity, PublicIntrinsicOrigin, HISTORICAL_CANONICAL_ALIASES,
 };
 use pinker_v0::{
@@ -41,11 +41,21 @@ const PARES: [(&str, &str); 3] = [
 
 /// Censo do baseline efetivo `1f2d6c55`, recalculado pela própria autoridade.
 ///
-/// Contado sobre `all_public_intrinsic_spellings()`; o domínio-união da #505
-/// soma os três acessores de `saida_processo`, que esta Issue não toca.
+/// Contado sobre `all_canonical_intrinsic_spellings()`. No baseline desta Issue o
+/// domínio-união da #505 somava três acessores de `saida_processo` que a
+/// enumeração central não enxergava.
 const PUBLIC_SPELLINGS_BEFORE: usize = 163;
 const CANONICAL_IDENTITIES_BEFORE: usize = 151;
 const EXPECTED_IDENTITY_DELTA: usize = 3;
+
+/// Grafias que a Stage 0 da #505 **acrescentou** à enumeração central.
+///
+/// A #525 não as tocou e continua não as tocando: elas já eram públicas por
+/// `saida_processo::ACESSORES`, e o que mudou foi a autoridade que as enumera.
+/// A constante existe para que este censo continue exato — somar sem nomear
+/// aceitaria qualquer três grafias novas.
+const STAGE0_ACESSORES_INTEGRADOS: [&str; 3] =
+    ["processo_codigo", "processo_saida", "processo_erro"];
 
 fn identidade(spelling: &str) -> IntrinsicIdentity {
     intrinsic_from_public_spelling(spelling)
@@ -55,7 +65,7 @@ fn identidade(spelling: &str) -> IntrinsicIdentity {
 /// Agrupa grafias públicas por identidade canônica, só onde N grafias > 1.
 fn grafias_por_identidade_compartilhada() -> Vec<(String, Vec<&'static str>)> {
     let mut agrupadas: BTreeMap<String, Vec<&'static str>> = BTreeMap::new();
-    for entry in all_public_intrinsic_spellings() {
+    for entry in all_canonical_intrinsic_spellings() {
         agrupadas
             .entry(format!("{:?}", entry.identity))
             .or_default()
@@ -114,7 +124,7 @@ fn alias_declara_a_grafia_adulta_na_autoridade_central() {
 fn as_seis_grafias_continuam_publicas_e_com_a_propria_grafia_preservada() {
     for (alias, adulta) in PARES {
         for spelling in [alias, adulta] {
-            let entry = public_intrinsic_spelling(spelling)
+            let entry = canonical_public_intrinsic_spelling(spelling)
                 .unwrap_or_else(|| panic!("{spelling} deixou de ser pública"));
             assert_eq!(
                 entry.spelling, spelling,
@@ -131,27 +141,43 @@ fn as_seis_grafias_continuam_publicas_e_com_a_propria_grafia_preservada() {
 
 #[test]
 fn nenhuma_grafia_publica_desaparece() {
-    let spellings = all_public_intrinsic_spellings();
-    assert_eq!(spellings.len(), PUBLIC_SPELLINGS_BEFORE);
+    let spellings = all_canonical_intrinsic_spellings();
+    let esperado = PUBLIC_SPELLINGS_BEFORE + STAGE0_ACESSORES_INTEGRADOS.len();
+    assert_eq!(spellings.len(), esperado);
     let unicas: BTreeSet<_> = spellings.iter().map(|entry| entry.spelling).collect();
     assert_eq!(
         unicas.len(),
-        PUBLIC_SPELLINGS_BEFORE,
+        esperado,
         "grafias públicas precisam continuar unívocas"
     );
+    // O delta é exatamente a integração da Stage 0, nomeada e não apenas
+    // contada: três grafias quaisquer não passam por aqui.
+    for acessor in STAGE0_ACESSORES_INTEGRADOS {
+        assert!(
+            unicas.contains(&acessor),
+            "{acessor} deveria ter entrado na enumeração central pela Stage 0 da #505"
+        );
+    }
 }
 
 #[test]
 fn exatamente_tres_identidades_desaparecem() {
-    let identidades: BTreeSet<String> = all_public_intrinsic_spellings()
+    let identidades: BTreeSet<String> = all_canonical_intrinsic_spellings()
         .iter()
         .map(|entry| format!("{:?}", entry.identity))
         .collect();
     assert_eq!(
         identidades.len(),
-        CANONICAL_IDENTITIES_BEFORE - EXPECTED_IDENTITY_DELTA,
-        "IDENTITY_DELTA deveria ser exatamente -{EXPECTED_IDENTITY_DELTA}"
+        CANONICAL_IDENTITIES_BEFORE - EXPECTED_IDENTITY_DELTA + STAGE0_ACESSORES_INTEGRADOS.len(),
+        "IDENTITY_DELTA da #525 deveria continuar sendo exatamente -{EXPECTED_IDENTITY_DELTA}, \
+         somado apenas às identidades que a Stage 0 da #505 integrou"
     );
+    for acessor in STAGE0_ACESSORES_INTEGRADOS {
+        assert!(
+            identidades.contains(&format!("ProcessAccessor({acessor:?})")),
+            "{acessor} deveria ter identidade própria na autoridade central"
+        );
+    }
 }
 
 #[test]
@@ -267,7 +293,7 @@ fn nenhuma_quarta_equivalencia_e_criada() {
 fn politica_de_conflito_vale_para_as_seis_grafias() {
     for (alias, adulta) in PARES {
         for spelling in [alias, adulta] {
-            let entry = public_intrinsic_spelling(spelling).expect("grafia pública");
+            let entry = canonical_public_intrinsic_spelling(spelling).expect("grafia pública");
             assert_eq!(
                 declaration_conflict_policy(entry),
                 DeclarationConflictPolicy::DeclarationIsRejected

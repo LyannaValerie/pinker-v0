@@ -1,14 +1,21 @@
 pacote fase159_json_basico_valido;
 
-carinho principal() -> bombom {
-    nova base: mapa<verso,bombom> = mapa_verso_bombom_criar();
-    mapa_verso_bombom_definir(base, "idade", 7);
-    mapa_verso_bombom_definir(base, "pontos", 9);
-    nova json: verso = emitir_json_plano_bombom(base);
-    nova dados: mapa<verso,bombom> = ler_json_plano_bombom(json);
+trazer json.emitir_plano_bombom;
+trazer json.ler_plano_bombom;
+trazer mapa.verso_bombom_criar;
+trazer mapa.verso_bombom_definir;
+trazer mapa.verso_bombom_obter;
+trazer mapa.verso_bombom_tamanho;
 
-    falar(mapa_verso_bombom_tamanho(dados));
-    falar(mapa_verso_bombom_obter(dados, "idade"));
+carinho principal() -> bombom {
+    nova base: mapa<verso,bombom> = verso_bombom_criar();
+    verso_bombom_definir(base, "idade", 7);
+    verso_bombom_definir(base, "pontos", 9);
+    nova json: verso = emitir_plano_bombom(base);
+    nova dados: mapa<verso,bombom> = ler_plano_bombom(json);
+
+    falar(verso_bombom_tamanho(dados));
+    falar(verso_bombom_obter(dados, "idade"));
     falar(json);
     mimo 0;
 }

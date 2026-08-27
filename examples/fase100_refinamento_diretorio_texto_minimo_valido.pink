@@ -1,27 +1,39 @@
 pacote main;
 
+trazer ambiente.argumento_ou;
+trazer arquivo.abrir;
+trazer arquivo.fechar;
+trazer arquivo.ler_verso;
+trazer caminho.criar_diretorio;
+trazer caminho.diretorio_atual;
+trazer caminho.e_diretorio;
+trazer caminho.existe;
+trazer caminho.juntar;
+trazer caminho.remover_diretorio;
+trazer texto.tamanho;
+
 carinho principal() -> bombom {
     nova base: verso = diretorio_atual();
     nova nome_dir: verso = argumento_ou(0, "fase100_saida");
     nova nome_arquivo: verso = argumento_ou(1, "README.md");
 
-    nova alvo_dir: verso = juntar_caminho(base, nome_dir);
-    nova alvo_arquivo: verso = juntar_caminho(base, nome_arquivo);
+    nova alvo_dir: verso = juntar(base, nome_dir);
+    nova alvo_arquivo: verso = juntar(base, nome_arquivo);
 
     nova h: bombom = abrir(alvo_arquivo);
-    nova texto: verso = ler_verso_arquivo(h);
+    nova texto: verso = ler_verso(h);
     fechar(h);
 
-    falar(tamanho_verso(texto));
+    falar(tamanho(texto));
 
     criar_diretorio(alvo_dir);
     remover_diretorio(alvo_dir);
-    falar(caminho_existe(alvo_dir), e_diretorio(alvo_dir));
+    falar(existe(alvo_dir), e_diretorio(alvo_dir));
 
-    talvez caminho_existe(alvo_dir) {
+    talvez existe(alvo_dir) {
         mimo 0;
     } senao {
-        talvez tamanho_verso(texto) > 0 {
+        talvez tamanho(texto) > 0 {
             mimo 1;
         } senao {
             mimo 0;

@@ -1,14 +1,19 @@
 pacote main;
 
+trazer ambiente.argumento;
+trazer processo.executar_com_entrada;
+trazer texto.formatar;
+trazer texto.juntar;
+
 carinho montar_entrada() -> verso {
     nova prefixo: verso = "linha=ok\n";
-    nova sufixo: verso = formatar_verso("valor={}\n", 7);
-    mimo juntar_verso(prefixo, sufixo);
+    nova sufixo: verso = formatar("valor={}\n", 7);
+    mimo juntar(prefixo, sufixo);
 }
 
 carinho verificar(comando: verso, entrada: verso) -> bombom {
     nova codigo: bombom = executar_com_entrada(comando, entrada);
-    falar(formatar_verso("stdin_status={}", codigo));
+    falar(formatar("stdin_status={}", codigo));
     mimo codigo;
 }
 

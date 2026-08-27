@@ -1,5 +1,8 @@
 pacote main;
 
+trazer ambiente.pedir_argumento;
+trazer ambiente.tem_flag;
+
 carinho principal() -> bombom {
     nova quiet: logica = tem_flag("--quiet");
     nova verbose: logica = tem_flag("--verbose");

@@ -1,7 +1,11 @@
 pacote main;
 
+trazer texto.igual;
+trazer texto.juntar;
+trazer texto.tamanho;
+
 carinho sauda(nome: verso) -> verso {
-    mimo juntar_verso("ola ", nome);
+    mimo juntar("ola ", nome);
 }
 
 carinho principal() -> bombom {
@@ -9,13 +13,13 @@ carinho principal() -> bombom {
     nova saudacao: verso = sauda(nome);
     falar(saudacao);
 
-    nova completo: verso = juntar_verso(saudacao, juntar_verso(" ", "pinker"));
-    falar(completo, tamanho_verso(completo), verdade);
+    nova completo: verso = juntar(saudacao, juntar(" ", "pinker"));
+    falar(completo, tamanho(completo), verdade);
 
-    talvez igual_verso(saudacao, "ola rosa") {
+    talvez igual(saudacao, "ola rosa") {
         falar("igual confere");
     }
 
-    falar(tamanho_verso("coração"));
-    mimo tamanho_verso(completo) - 15;
+    falar(tamanho("coração"));
+    mimo tamanho(completo) - 15;
 }

@@ -1,22 +1,27 @@
 pacote fase149_lista_minima_bombom_fluxo_composto_valido;
 
+trazer lista.bombom_anexar;
+trazer lista.bombom_criar;
+trazer lista.bombom_obter;
+trazer lista.bombom_tamanho;
+
 carinho carregar_pedidos() -> lista<bombom> {
-    nova pedidos: lista<bombom> = lista_bombom_criar();
-    lista_bombom_anexar(pedidos, 40);
-    lista_bombom_anexar(pedidos, 2);
+    nova pedidos: lista<bombom> = bombom_criar();
+    bombom_anexar(pedidos, 40);
+    bombom_anexar(pedidos, 2);
     mimo pedidos;
 }
 
 carinho total_primeiros(pedidos: lista<bombom>) -> bombom {
-    nova a: bombom = lista_bombom_obter(pedidos, 0);
-    nova b: bombom = lista_bombom_obter(pedidos, 1);
+    nova a: bombom = bombom_obter(pedidos, 0);
+    nova b: bombom = bombom_obter(pedidos, 1);
     mimo a + b;
 }
 
 carinho principal() -> bombom {
     nova pedidos: lista<bombom> = carregar_pedidos();
-    lista_bombom_anexar(pedidos, 99);
-    falar(lista_bombom_tamanho(pedidos));
+    bombom_anexar(pedidos, 99);
+    falar(bombom_tamanho(pedidos));
     falar(total_primeiros(pedidos));
     mimo 0;
 }

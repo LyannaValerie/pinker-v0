@@ -1,5 +1,7 @@
 pacote main;
 
+trazer memoria.alocar;
+
 // Contabilidade de uniões: extração seguida de reinjeção.
 //
 // O binding extraído vive no domínio interno de união, não no registro de

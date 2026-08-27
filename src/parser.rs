@@ -3777,6 +3777,63 @@ impl Parser {
         }
     }
 
+    /// #505 — a superfície intrínseca global deixou de existir.
+    ///
+    /// ```text
+    /// PUBLIC_INTRINSIC -> IMPORTABLE_MODULE_SURFACE
+    /// GLOBAL_PUBLIC_INTRINSIC = 0
+    /// ```
+    ///
+    /// Toda intrínseca pública é membro de exatamente um módulo importável, e
+    /// só é chamável por uma das duas formas que o import habilita: bare, via
+    /// `trazer modulo.membro;`, ou qualificada, via `trazer modulo;`. Ambas
+    /// passam pelo CANONICALIZATION_BOUNDARY acima e chegam aqui já
+    /// canonicalizadas — por isso o chamador só consulta esta recusa quando a
+    /// grafia veio do texto do usuário, e não da canonicalização.
+    ///
+    /// O que se recusa é a chamada, não a declaração: depois desta Issue o
+    /// usuário pode declarar `carinho ler_arquivo(...)` num arquivo que não
+    /// importa `arquivo.ler_bombom`, e a recusa cede antes disso por
+    /// `identidade_lexical_existente`. A pressão global que a #507 exercia
+    /// sobre o namespace inteiro morre junto com a superfície que a
+    /// justificava.
+    fn recusar_intrinseca_sem_import(&self, name: &str, span: Span) -> Result<(), PinkerError> {
+        // Identidade já existente vence, exatamente como vence a família: quem
+        // declarou o nome no próprio arquivo está chamando o que declarou.
+        if self.identidade_lexical_existente(name) {
+            return Ok(());
+        }
+        let canonica = crate::intrinsic_authority::canonical_public_intrinsic_spelling(name);
+        let modulos = crate::familia_superficie::modulos_que_exportam(name);
+        if canonica.is_none() && modulos.is_empty() {
+            return Ok(());
+        }
+        let como_importar = if !modulos.is_empty() {
+            // A grafia é membro de um ou mais módulos: o import seletivo do
+            // par é o caminho direto.
+            modulos
+                .iter()
+                .map(|modulo| format!("'trazer {modulo}.{name};'"))
+                .collect::<Vec<_>>()
+                .join(" ou ")
+        } else {
+            // A grafia é canônica e não é membro: ela endereça a identidade,
+            // mas quem a chama escreve o membro.
+            match crate::familia_superficie::par_da_grafia_canonica(name) {
+                Some((modulo, membro)) => format!(
+                    "'{name}' é a grafia canônica de '{modulo}.{membro}'; escreva 'trazer {modulo}.{membro};' e chame '{membro}(...)', ou 'trazer {modulo};' e chame '{modulo}.{membro}(...)'"
+                ),
+                None => format!("'{name}' não pertence a nenhum módulo importável"),
+            }
+        };
+        Err(PinkerError::Parse {
+            msg: format!(
+                "intrínseca '{name}' não está no escopo: a superfície intrínseca global não existe mais; {como_importar}"
+            ),
+            span,
+        })
+    }
+
     /// Parte G — CANONICALIZATION_BOUNDARY, forma seletiva.
     ///
     /// Membro trazido por `trazer familia.membro;` em posição de chamada. Uma
@@ -6925,6 +6982,12 @@ impl Parser {
     // @pinker-nav:layer parser
     // @pinker-nav:summary Cadeia postfix de expressão: chamadas, acesso a campo, índice, chamada genérica explícita e sufixo de cast (`virar`), aplicados sobre a expressão base para produzir o `ast::Expr` final.
     fn parse_postfix_suffix(&mut self, mut expr: Expr) -> Result<Expr, PinkerError> {
+        // #505: a grafia corrente veio da canonicalização de um membro de
+        // módulo, e não do texto do usuário? É a única coisa que distingue
+        // `arquivo.ler_bombom(...)` de alguém escrevendo `ler_arquivo(...)` a
+        // seco — depois do CANONICALIZATION_BOUNDARY as duas são o mesmo
+        // `Ident`.
+        let mut canonicalizado = false;
         loop {
             if let Some(generic_call) = self.try_parse_explicit_generic_call(&expr)? {
                 expr = generic_call;
@@ -6947,10 +7010,20 @@ impl Parser {
                 // de `Resultado<T,E>` já enxergue a identidade canônica.
                 if let ExprKind::Ident(name) = &expr.kind {
                     if let Some(canonica) = self.resolver_membro_seletivo(name) {
+                        canonicalizado = true;
                         expr = Expr {
                             kind: ExprKind::Ident(canonica.to_string()),
                             span: expr.span,
                         };
+                    }
+                }
+                // #505 — remoção da superfície global. Vem depois das duas
+                // formas de import e antes de qualquer outra reescrita, de
+                // modo que só chegue aqui grafia que o usuário escreveu sem
+                // trazer nada.
+                if !canonicalizado {
+                    if let ExprKind::Ident(name) = &expr.kind {
+                        self.recusar_intrinseca_sem_import(name, expr.span)?;
                     }
                 }
                 if let ExprKind::Ident(name) = &expr.kind {
@@ -7068,12 +7141,14 @@ impl Parser {
                 // como `FieldAccess`. Nada a jusante — nem o resto deste laço —
                 // vê família ou membro.
                 if let Some(canonica) = self.resolver_membro_de_familia(&base_expr, &field)? {
+                    canonicalizado = true;
                     expr = Expr {
                         kind: ExprKind::Ident(canonica.to_string()),
                         span: merge_span(base_expr.span, field_token.span),
                     };
                     continue;
                 }
+                canonicalizado = false;
                 expr = Expr {
                     span: merge_span(base_expr.span, field_token.span),
                     kind: ExprKind::FieldAccess {

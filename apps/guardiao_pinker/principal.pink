@@ -5,30 +5,46 @@
 
 pacote guardiao_pinker;
 
-carinho caminho(repo: verso, relativo: verso) -> verso {
-    mimo juntar_caminho(repo, relativo);
+trazer ambiente.pedir_argumento;
+trazer ambiente.tem_flag;
+trazer arquivo.abrir;
+trazer arquivo.fechar;
+trazer arquivo.ler_verso;
+trazer caminho.diretorio_atual;
+trazer caminho.existe;
+trazer caminho.juntar;
+trazer processo.sair;
+trazer texto.contem;
+trazer texto.formatar;
+trazer texto.igual;
+trazer texto.nao_vazio;
+trazer texto.tamanho;
+trazer texto.vazio;
+
+carinho caminho_no_repo(repo: verso, relativo: verso) -> verso {
+    mimo juntar(repo, relativo);
 }
 
-carinho arquivo(repo: verso, relativo: verso) -> verso {
-    nova alvo: verso = caminho(repo, relativo);
+carinho texto_do_arquivo(repo: verso, relativo: verso) -> verso {
+    nova alvo: verso = caminho_no_repo(repo, relativo);
     nova h: bombom = abrir(alvo);
-    nova texto: verso = ler_verso_arquivo(h);
+    nova texto: verso = ler_verso(h);
     fechar(h);
     mimo texto;
 }
 
-carinho existe(repo: verso, relativo: verso) -> logica {
-    mimo caminho_existe(caminho(repo, relativo));
+carinho arquivo_existe(repo: verso, relativo: verso) -> logica {
+    mimo existe(caminho_no_repo(repo, relativo));
 }
 
 carinho sem_marcador_conflito(texto: verso) -> logica {
-    talvez contem_verso(texto, "<<<<<<<") {
+    talvez contem(texto, "<<<<<<<") {
         mimo falso;
     }
-    talvez contem_verso(texto, "=======") {
+    talvez contem(texto, "=======") {
         mimo falso;
     }
-    talvez contem_verso(texto, ">>>>>>>") {
+    talvez contem(texto, ">>>>>>>") {
         mimo falso;
     }
     mimo verdade;
@@ -49,8 +65,8 @@ carinho detectar_fase_handoff(handoff: verso) -> bombom {
     nova muda encontrada: bombom = 0;
 
     sempre que fase < 400 {
-        nova marcador: verso = formatar_verso("Fase funcional mais recente | **{}**", fase);
-        talvez contem_verso(handoff, marcador) {
+        nova marcador: verso = formatar("Fase funcional mais recente | **{}**", fase);
+        talvez contem(handoff, marcador) {
             encontrada = fase;
         }
         fase = fase + 1;
@@ -68,31 +84,31 @@ carinho validar_consulta(repo: verso, escopo: verso) -> bombom {
 
     falar("Guardiao consulta", escopo, relativo, status);
 
-    talvez vazio_verso(relativo) {
+    talvez vazio(relativo) {
         falhas = falhas + registrar("consulta arquivo informado", falso);
     } senao {
         falhas = falhas + registrar("consulta arquivo informado", verdade);
     }
 
-    talvez falhas == 0 && existe(repo, relativo) {
-        nova texto: verso = arquivo(repo, relativo);
+    talvez falhas == 0 && arquivo_existe(repo, relativo) {
+        nova texto: verso = texto_do_arquivo(repo, relativo);
         falhas = falhas + registrar("consulta arquivo existe", verdade);
         falhas = falhas + registrar("consulta sem conflito", sem_marcador_conflito(texto));
 
-        talvez igual_verso(status, "fase") {
-            talvez vazio_verso(fase) {
+        talvez igual(status, "fase") {
+            talvez vazio(fase) {
                 falhas = falhas + registrar("consulta fase informada", falso);
             } senao {
-                nova marcador_fase: verso = formatar_verso("Fase {}", fase);
-                nova marcador_secao: verso = formatar_verso("{} -", fase);
-                nova marcador_handoff: verso = formatar_verso("**{}**", fase);
-                nova tem_fase: logica = contem_verso(texto, marcador_fase) || contem_verso(texto, marcador_secao) || contem_verso(texto, marcador_handoff);
+                nova marcador_fase: verso = formatar("Fase {}", fase);
+                nova marcador_secao: verso = formatar("{} -", fase);
+                nova marcador_handoff: verso = formatar("**{}**", fase);
+                nova tem_fase: logica = contem(texto, marcador_fase) || contem(texto, marcador_secao) || contem(texto, marcador_handoff);
                 falhas = falhas + registrar("consulta fase presente", tem_fase);
             }
         }
 
-        talvez nao_vazio_verso(busca) {
-            falhas = falhas + registrar("consulta busca presente", contem_verso(texto, busca));
+        talvez nao_vazio(busca) {
+            falhas = falhas + registrar("consulta busca presente", contem(texto, busca));
         }
     } senao {
         falhas = falhas + registrar("consulta arquivo existe", falso);
@@ -119,30 +135,30 @@ carinho principal() -> bombom {
         mimo validar_consulta(repo, "src");
     }
 
-    falhas = falhas + registrar("README.md", existe(repo, "README.md"));
-    falhas = falhas + registrar("MANUAL.md", existe(repo, "MANUAL.md"));
-    falhas = falhas + registrar("docs/handoff_codex.md", existe(repo, "docs/handoff_codex.md"));
-    falhas = falhas + registrar("docs/roadmap.md", existe(repo, "docs/roadmap.md"));
-    falhas = falhas + registrar("docs/history.md", existe(repo, "docs/history.md"));
-    falhas = falhas + registrar("docs/history/indice.md", existe(repo, "docs/history/indice.md"));
-    falhas = falhas + registrar("docs/history/phases/indice.md", existe(repo, "docs/history/phases/indice.md"));
-    falhas = falhas + registrar("docs/history/phases/201a250.md", existe(repo, "docs/history/phases/201a250.md"));
-    falhas = falhas + registrar("apps/README.md", existe(repo, "apps/README.md"));
+    falhas = falhas + registrar("README.md", arquivo_existe(repo, "README.md"));
+    falhas = falhas + registrar("MANUAL.md", arquivo_existe(repo, "MANUAL.md"));
+    falhas = falhas + registrar("docs/handoff_codex.md", arquivo_existe(repo, "docs/handoff_codex.md"));
+    falhas = falhas + registrar("docs/roadmap.md", arquivo_existe(repo, "docs/roadmap.md"));
+    falhas = falhas + registrar("docs/history.md", arquivo_existe(repo, "docs/history.md"));
+    falhas = falhas + registrar("docs/history/indice.md", arquivo_existe(repo, "docs/history/indice.md"));
+    falhas = falhas + registrar("docs/history/phases/indice.md", arquivo_existe(repo, "docs/history/phases/indice.md"));
+    falhas = falhas + registrar("docs/history/phases/201a250.md", arquivo_existe(repo, "docs/history/phases/201a250.md"));
+    falhas = falhas + registrar("apps/README.md", arquivo_existe(repo, "apps/README.md"));
 
     nova muda phases_ausente: logica = verdade;
-    talvez caminho_existe(caminho(repo, "docs/phases.md")) {
+    talvez existe(caminho_no_repo(repo, "docs/phases.md")) {
         phases_ausente = falso;
     }
     falhas = falhas + registrar("docs/phases.md ausente", phases_ausente);
 
-    nova readme: verso = arquivo(repo, "README.md");
-    nova handoff: verso = arquivo(repo, "docs/handoff_codex.md");
-    nova roadmap: verso = arquivo(repo, "docs/roadmap.md");
-    nova hist_indice: verso = arquivo(repo, "docs/history/indice.md");
-    nova hist_fases_indice: verso = arquivo(repo, "docs/history/phases/indice.md");
-    nova hist_fases: verso = arquivo(repo, "docs/history/phases/201a250.md");
+    nova readme: verso = texto_do_arquivo(repo, "README.md");
+    nova handoff: verso = texto_do_arquivo(repo, "docs/handoff_codex.md");
+    nova roadmap: verso = texto_do_arquivo(repo, "docs/roadmap.md");
+    nova hist_indice: verso = texto_do_arquivo(repo, "docs/history/indice.md");
+    nova hist_fases_indice: verso = texto_do_arquivo(repo, "docs/history/phases/indice.md");
+    nova hist_fases: verso = texto_do_arquivo(repo, "docs/history/phases/201a250.md");
 
-    falhas = falhas + registrar("README tamanho", tamanho_verso(readme) < 60000);
+    falhas = falhas + registrar("README tamanho", tamanho(readme) < 60000);
     falhas = falhas + registrar("README sem conflito", sem_marcador_conflito(readme));
     falhas = falhas + registrar("handoff sem conflito", sem_marcador_conflito(handoff));
     falhas = falhas + registrar("roadmap sem conflito", sem_marcador_conflito(roadmap));
@@ -150,18 +166,18 @@ carinho principal() -> bombom {
     falhas = falhas + registrar("history phases sem conflito", sem_marcador_conflito(hist_fases));
 
     nova fase_atual: bombom = detectar_fase_handoff(handoff);
-    nova fase_readme: verso = formatar_verso("Fase {}", fase_atual);
-    nova fase_history: verso = formatar_verso("### {} -", fase_atual);
-    nova fase_indice: verso = formatar_verso("`{} -", fase_atual);
-    nova fase_numero: verso = formatar_verso("{}", fase_atual);
+    nova fase_readme: verso = formatar("Fase {}", fase_atual);
+    nova fase_history: verso = formatar("### {} -", fase_atual);
+    nova fase_indice: verso = formatar("`{} -", fase_atual);
+    nova fase_numero: verso = formatar("{}", fase_atual);
 
     falhas = falhas + registrar("handoff fase detectavel", fase_atual > 0);
-    falhas = falhas + registrar("README fase coerente", fase_atual > 0 && contem_verso(readme, fase_readme));
-    falhas = falhas + registrar("history fase atual", fase_atual > 0 && contem_verso(hist_fases, fase_history));
-    falhas = falhas + registrar("history indice cobre fase", fase_atual > 0 && contem_verso(hist_fases_indice, fase_indice));
-    falhas = falhas + registrar("roadmap menciona fase", fase_atual > 0 && contem_verso(roadmap, fase_numero));
-    falhas = falhas + registrar("handoff HF-6", contem_verso(handoff, "HF-6"));
-    falhas = falhas + registrar("roadmap bloco 20", contem_verso(roadmap, "Bloco 20"));
+    falhas = falhas + registrar("README fase coerente", fase_atual > 0 && contem(readme, fase_readme));
+    falhas = falhas + registrar("history fase atual", fase_atual > 0 && contem(hist_fases, fase_history));
+    falhas = falhas + registrar("history indice cobre fase", fase_atual > 0 && contem(hist_fases_indice, fase_indice));
+    falhas = falhas + registrar("roadmap menciona fase", fase_atual > 0 && contem(roadmap, fase_numero));
+    falhas = falhas + registrar("handoff HF-6", contem(handoff, "HF-6"));
+    falhas = falhas + registrar("roadmap bloco 20", contem(roadmap, "Bloco 20"));
 
     talvez falhas == 0 {
         falar("Pinker Guard", "ok");

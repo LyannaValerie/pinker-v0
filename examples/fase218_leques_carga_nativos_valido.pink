@@ -1,5 +1,8 @@
 pacote main;
 
+trazer lista.anexar;
+trazer lista.criar;
+
 leque Token { Numero(bombom), Palavra(verso), Fim }
 
 leque Expr { Lit(bombom), Soma(Expr, Expr), Mult(Expr, Expr) }
@@ -23,11 +26,11 @@ carinho mostra(t: Token) -> bombom {
 }
 
 carinho principal() -> bombom {
-    nova tokens: lista<Token> = lista_criar();
-    lista_anexar(tokens, Token.Numero(2));
-    lista_anexar(tokens, Token.Palavra("mais"));
-    lista_anexar(tokens, Token.Numero(40));
-    lista_anexar(tokens, Token.Fim);
+    nova tokens: lista<Token> = criar();
+    anexar(tokens, Token.Numero(2));
+    anexar(tokens, Token.Palavra("mais"));
+    anexar(tokens, Token.Numero(40));
+    anexar(tokens, Token.Fim);
     para cada t em tokens {
         mostra(t);
     }

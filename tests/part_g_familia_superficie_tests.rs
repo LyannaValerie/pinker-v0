@@ -299,7 +299,7 @@ fn superficie_falivel_e_endereçada_pela_operacao() {
         .iter()
         .filter_map(|exportacao| match exportacao.identidade {
             IdentidadeCanonica::Falivel(operacao) => Some(operacao),
-            IdentidadeCanonica::Historica(_) => None,
+            IdentidadeCanonica::PorGrafia(_) => None,
         })
         .collect();
     assert_eq!(

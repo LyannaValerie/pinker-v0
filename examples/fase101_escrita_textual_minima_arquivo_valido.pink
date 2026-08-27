@@ -1,21 +1,32 @@
 pacote main;
 
+trazer ambiente.argumento_ou;
+trazer arquivo.criar;
+trazer arquivo.escrever_verso;
+trazer arquivo.fechar;
+trazer arquivo.ler_verso;
+trazer caminho.diretorio_atual;
+trazer caminho.e_arquivo;
+trazer caminho.existe;
+trazer caminho.juntar;
+trazer texto.tamanho;
+
 carinho principal() -> bombom {
     nova base: verso = argumento_ou(0, diretorio_atual());
     nova nome: verso = argumento_ou(1, "fase101_saida.txt");
     nova texto: verso = argumento_ou(2, "ola fase101");
 
-    nova alvo: verso = juntar_caminho(base, nome);
-    nova h: bombom = criar_arquivo(alvo);
+    nova alvo: verso = juntar(base, nome);
+    nova h: bombom = criar(alvo);
     escrever_verso(h, texto);
-    nova relido: verso = ler_verso_arquivo(h);
+    nova relido: verso = ler_verso(h);
     fechar(h);
 
     falar(relido);
 
-    talvez caminho_existe(alvo) {
+    talvez existe(alvo) {
         talvez e_arquivo(alvo) {
-            talvez tamanho_verso(relido) > 0 {
+            talvez tamanho(relido) > 0 {
                 mimo 1;
             } senao {
                 mimo 0;

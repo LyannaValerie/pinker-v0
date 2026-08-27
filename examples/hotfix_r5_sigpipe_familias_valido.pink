@@ -16,25 +16,33 @@
 // a disposição do pai vazando para o filho.
 pacote main;
 
+trazer ambiente.argumento;
+trazer processo.capturar_stderr;
+trazer processo.capturar_stdout;
+trazer processo.executar;
+trazer processo.executar_com_entrada;
+trazer processo.pipeline_minimo;
+trazer texto.formatar;
+
 carinho principal() -> bombom {
     nova filho: verso = argumento(0);
     nova produtor: verso = argumento(1);
     nova consumidor: verso = argumento(2);
 
-    nova executado: bombom = executar_processo(filho, "sigpipe-disposicao");
-    falar(formatar_verso("executar_processo={}", executado));
+    nova executado: bombom = executar(filho, "sigpipe-disposicao");
+    falar(formatar("executar_processo={}", executado));
 
     nova saida: verso = capturar_stdout(filho, "sigpipe-disposicao-imprime");
-    falar(formatar_verso("capturar_stdout={}", saida));
+    falar(formatar("capturar_stdout={}", saida));
 
     nova erro: verso = capturar_stderr(filho, "sigpipe-disposicao-imprime-erro");
-    falar(formatar_verso("capturar_stderr={}", erro));
+    falar(formatar("capturar_stderr={}", erro));
 
     nova com_entrada: bombom = executar_com_entrada(filho, "carga", "sigpipe-disposicao");
-    falar(formatar_verso("executar_com_entrada={}", com_entrada));
+    falar(formatar("executar_com_entrada={}", com_entrada));
 
     nova pipeline: bombom = pipeline_minimo(produtor, consumidor);
-    falar(formatar_verso("pipeline_minimo={}", pipeline));
+    falar(formatar("pipeline_minimo={}", pipeline));
 
     mimo 0;
 }

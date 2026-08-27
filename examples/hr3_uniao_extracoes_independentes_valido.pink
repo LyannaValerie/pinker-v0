@@ -1,5 +1,7 @@
 pacote main;
 
+trazer memoria.alocar;
+
 // HR3: duas extrações da mesma união recebem storages distintos e valores
 // inicialmente iguais. A origem é modificada entre as duas extrações e nenhuma
 // delas observa a mudança, porque ambas vêm do snapshot imutável do descritor.

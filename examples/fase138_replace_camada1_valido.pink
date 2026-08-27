@@ -1,8 +1,10 @@
 pacote main;
 
+trazer texto.substituir;
+
 // Fase 138: manipulação textual útil — `replace` (camada 1 conservadora).
 //
-// substituir_verso(texto, de, para) -> verso
+// substituir(texto, de, para) -> verso
 //   Substitui todas as ocorrências literais de `de` por `para` em `texto`.
 //   O padrão `de` não pode ser vazio.
 //   `para` pode ser vazio (remove todas as ocorrências).
@@ -26,11 +28,11 @@ carinho principal() -> bombom {
     nova sep_novo: verso = "-";
 
     // Troca todos os ':' por '-'
-    nova normalizado: verso = substituir_verso(linha, sep_antigo, sep_novo);
+    nova normalizado: verso = substituir(linha, sep_antigo, sep_novo);
     falar(normalizado);
 
     // Remove todos os '-' (substituição por vazio)
-    nova limpo: verso = substituir_verso(normalizado, "-", "");
+    nova limpo: verso = substituir(normalizado, "-", "");
     falar(limpo);
 
     mimo 0;

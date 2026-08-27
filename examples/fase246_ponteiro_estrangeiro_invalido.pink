@@ -1,5 +1,7 @@
 pacote main;
 
+trazer memoria.liberar;
+
 carinho principal() -> bombom {
     nova bytes: seta<u8> = 4096;
     liberar(bytes);

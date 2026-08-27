@@ -1,9 +1,11 @@
 pacote main;
 
+trazer texto.buscar;
+
 carinho principal() -> bombom {
     nova log: verso = "status=ok;code=42";
-    nova pos_status: bombom = buscar_verso(log, "status=");
-    nova pos_ausente: bombom = buscar_verso(log, "erro=");
+    nova pos_status: bombom = buscar(log, "status=");
+    nova pos_ausente: bombom = buscar(log, "erro=");
 
     falar(pos_status);
     falar(pos_ausente);

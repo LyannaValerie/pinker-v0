@@ -1,10 +1,12 @@
 pacote main;
 
-trazer texto;
+trazer texto.aparar;
+trazer texto.juntar;
+
 
 carinho principal() -> bombom {
-    nova saudacao: verso = juntar_verso("rosa", " pinker");
-    nova limpa: verso = aparar_verso("  texto  ");
+    nova saudacao: verso = juntar("rosa", " pinker");
+    nova limpa: verso = aparar("  texto  ");
     falar(saudacao);
     falar(limpa);
     mimo 0;

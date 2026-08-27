@@ -1,5 +1,7 @@
 pacote main;
 
+trazer memoria.alocar;
+
 // HR3: o payload agregado pode conter **outro agregado**. `Ninhado` guarda um
 // escalar, um array fixo de três células e um escalar final: 40 bytes cujo
 // miolo é ele mesmo um agregado. A injeção copia os 40 bytes integralmente

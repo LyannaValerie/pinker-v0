@@ -1,5 +1,8 @@
 pacote main;
 
+trazer memoria.alocar;
+trazer memoria.liberar;
+
 carinho fabricar_leitor(byte: seta<u8>) -> carinho() -> u8 {
     mimo carinho() -> u8 {
         mimo *byte;

@@ -1,5 +1,7 @@
 pacote main;
 
+trazer memoria.alocar;
+
 // HR3: `Alfa` e `Beta` compartilham representação (`TypeIR::Struct`), tamanho e
 // alinhamento; só a identidade nominal os separa. A união escolhe o membro pelo
 // `ResolvedTypeId` da origem, nunca pela categoria operacional, e o `encaixe`

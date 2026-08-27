@@ -1,11 +1,14 @@
 pacote fase90_verso_indexacao_minima_valido;
 
+trazer texto.indice;
+trazer texto.tamanho;
+
 carinho principal() -> bombom {
     nova texto: verso = "Pinker";
-    nova letra: verso = indice_verso(texto, 2);
+    nova letra: verso = indice(texto, 2);
     falar(letra);
 
-    nova tamanho: bombom = tamanho_verso(letra);
-    falar(tamanho);
+    nova comprimento: bombom = tamanho(letra);
+    falar(comprimento);
     mimo 0;
 }

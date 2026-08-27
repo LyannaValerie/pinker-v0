@@ -1,5 +1,8 @@
 pacote main;
 
+trazer memoria.alocar;
+trazer memoria.liberar;
+
 carinho principal() -> bombom {
     nova bytes: seta<u8> = alocar(16);
     nova interior: seta<u8> = (bytes virar seta<bombom> + 1) virar seta<u8>;

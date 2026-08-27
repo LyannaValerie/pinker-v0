@@ -1,14 +1,21 @@
 pacote main;
 
+trazer ambiente.argumento_ou;
+trazer caminho.diretorio_atual;
+trazer caminho.e_arquivo;
+trazer caminho.e_diretorio;
+trazer caminho.existe;
+trazer caminho.juntar;
+
 carinho principal() -> bombom {
     nova cwd: verso = diretorio_atual();
-    nova alvo: verso = juntar_caminho(cwd, argumento_ou(0, "README.md"));
+    nova alvo: verso = juntar(cwd, argumento_ou(0, "README.md"));
 
-    falar(caminho_existe(alvo));
+    falar(existe(alvo));
     falar(e_arquivo(alvo));
     falar(e_diretorio(alvo));
 
-    talvez caminho_existe(alvo) {
+    talvez existe(alvo) {
         talvez e_arquivo(alvo) {
             mimo 1;
         } senao {

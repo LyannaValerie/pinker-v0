@@ -1,23 +1,30 @@
 pacote main;
 
-trazer arquivo;
-trazer caminho;
-trazer processo;
+trazer ambiente.argumento;
+trazer arquivo.criar;
+trazer arquivo.escrever_verso;
+trazer arquivo.fechar;
+trazer arquivo.ler_caminho_verso;
+trazer caminho.existe;
+trazer caminho.juntar;
+trazer caminho.remover_arquivo;
+trazer processo.executar;
+
 
 carinho principal() -> bombom {
-    nova destino: verso = juntar_caminho("target", "fase207_exemplo.txt");
-    nova cabo: bombom = criar_arquivo(destino);
+    nova destino: verso = juntar("target", "fase207_exemplo.txt");
+    nova cabo: bombom = criar(destino);
     escrever_verso(cabo, "rosa pinker");
     fechar(cabo);
 
-    talvez caminho_existe(destino) {
-        nova conteudo: verso = ler_arquivo_verso(destino);
+    talvez existe(destino) {
+        nova conteudo: verso = ler_caminho_verso(destino);
         falar(conteudo);
     }
     remover_arquivo(destino);
 
     nova comando: verso = argumento(0);
-    nova codigo: bombom = executar_processo(comando);
+    nova codigo: bombom = executar(comando);
     falar(codigo);
     mimo codigo;
 }

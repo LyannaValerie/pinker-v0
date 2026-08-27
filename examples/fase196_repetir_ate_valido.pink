@@ -1,5 +1,7 @@
 pacote main;
 
+trazer assertiva.afirmar;
+
 carinho principal() -> bombom {
     nova muda contador: bombom = 0;
 
