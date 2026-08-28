@@ -229,6 +229,11 @@ def e_diretorio(alvo: Path, quem: str = "caminho") -> bool:
         ) from erro
 
 
+def _presente_como_diretorio(caminho: Path) -> bool:
+    """Diretório regular presente. Inobservável levanta, não vira False."""
+    return e_diretorio(caminho, "recurso") and not e_symlink(caminho, "recurso")
+
+
 def exigir_raizes() -> tuple[Path, Path]:
     main = canonical_main()
     if not e_diretorio(main, "checkout canônico"):
@@ -574,22 +579,34 @@ def remover_arvore_sem_seguir_links(
     return bytes_removidos, arquivos_removidos
 
 
-def medir(caminho: Path) -> tuple[int, int]:
+def medir(caminho: Path) -> tuple[int, int, int]:
+    """Bytes, arquivos e QUANTOS NÃO PUDERAM SER LIDOS.
+
+    O `except OSError: continue` fazia um arquivo ilegível sair da conta sem
+    deixar rastro: o relatório afirmava ter recuperado menos bytes do que
+    havia, com a mesma cara de um diretório menor. Medição não decide
+    remoção, mas é o número que a Task publica como evidência do que foi
+    removido — subcontar em silêncio é afirmar o que não se observou.
+
+    O terceiro valor não deixa a incerteza virar zero.
+    """
     total = 0
     arquivos = 0
-    if not caminho.exists() and not caminho.is_symlink():
-        return 0, 0
-    for base, dirs, nomes in os.walk(caminho, followlinks=False):
+    inobservaveis = 0
+    if estado_do_caminho(caminho, "alvo de medição") == AUSENTE:
+        return 0, 0, 0
+    for base, dirs, nomes in os.walk(caminho, followlinks=False, onerror=lambda _e: None):
         for nome in nomes:
             p = os.path.join(base, nome)
             try:
                 st = os.lstat(p)
             except OSError:
+                inobservaveis += 1
                 continue
             if stat.S_ISREG(st.st_mode):
                 total += st.st_size
             arquivos += 1
-    return total, arquivos
+    return total, arquivos, inobservaveis
 
 
 # ---------------------------------------------------------------------------
@@ -797,12 +814,13 @@ def descrever_recurso(task_root: Path, recurso: Recurso, medido: bool) -> dict[s
         "class": recurso.classe,
         "role": recurso.papel,
         "export": recurso.exporta,
-        "present": caminho.is_dir() and not caminho.is_symlink(),
+        "present": _presente_como_diretorio(caminho),
     }
     if medido:
-        b, f = medir(caminho)
+        b, f, ilegiveis = medir(caminho)
         item["bytes"] = b
         item["files"] = f
+        item["unreadable"] = ilegiveis
     return item
 
 
@@ -899,6 +917,28 @@ def criar_dir(caminho: Path) -> bool:
     return True
 
 
+def _worktree_a_criar(worktree: Path, raiz: Path) -> bool:
+    """A worktree precisa ser criada? Ocupante inválido é recusa, não reuso.
+
+    Regressão da rodada 12: o código original perguntava `worktree.exists()`,
+    que SEGUE symlink. Um link pendente contava como ausente, caía no ramo de
+    criação e morria em `sem_symlink_em_componentes` — recusa correta. Trocar
+    por `estado_do_caminho`, que usa `lstat`, fez o link pendente virar
+    PRESENTE e PULAR o ramo inteiro, inclusive a recusa: o comando respondia
+    PROVISIONED com um symlink quebrado no lugar da worktree.
+
+    Trocar um predicado por outro muda a pergunta. Aqui a pergunta é sobre
+    ocupante, e as três respostas são criar, reusar e recusar.
+    """
+    if e_symlink(worktree, "worktree"):
+        raise ForjaError("DENIED", f"worktree é symlink: {worktree}")
+    if estado_do_caminho(worktree, "worktree") == AUSENTE:
+        return True
+    if not e_diretorio(worktree, "worktree"):
+        raise ForjaError("DENIED", f"worktree ocupada por não-diretório: {worktree}")
+    return False
+
+
 def cmd_provision(args: argparse.Namespace) -> int:
     main, raiz = exigir_raizes()
     # provisionar cria worktree, branch e diretórios: é mutante, e portanto
@@ -967,7 +1007,7 @@ def cmd_provision(args: argparse.Namespace) -> int:
     # Worktree Git: registrada pelo Git, nunca por cópia manual.
     worktree = task_root / "worktree"
     wt_criada = False
-    if args.branch and estado_do_caminho(worktree, "worktree") == AUSENTE:
+    if args.branch and _worktree_a_criar(worktree, raiz):
         sem_symlink_em_componentes(worktree, raiz)
         base = args.base or "HEAD"
         existe_branch = git(main, "rev-parse", "--verify", "--quiet", f"refs/heads/{args.branch}", check=False).returncode == 0
@@ -1031,9 +1071,10 @@ def cmd_list(args: argparse.Namespace) -> int:
             "bound": binding is not None,
         }
         if args.measure:
-            b, f = medir(task_root)
+            b, f, ilegiveis = medir(task_root)
             item["bytes"] = b
             item["files"] = f
+            item["unreadable"] = ilegiveis
         linhas.append(item)
     emitir(
         {
@@ -1196,7 +1237,7 @@ def cmd_seal(args: argparse.Namespace) -> int:
     recuperados = 0
     for recurso in RECURSOS:
         alvo = exigir_contido(task_root / recurso.subpath, task_root, f"recurso {recurso.nome}")
-        antes, arquivos = medir(alvo)
+        antes, arquivos, _ilegiveis = medir(alvo)
         if recurso.classe != Classe.EPHEMERAL:
             itens.append(
                 {"name": recurso.nome, "path": str(alvo), "class": recurso.classe, "action": "PRESERVED", "bytes_before": antes}
@@ -1284,7 +1325,7 @@ def cmd_retire(args: argparse.Namespace) -> int:
 
     provas, identidade = guardas_de_destruicao(main, raiz, task_root, binding)
 
-    bytes_antes, arquivos_antes = medir(task_root)
+    bytes_antes, arquivos_antes, ilegiveis_antes = medir(task_root)
     worktree = task_root / "worktree"
     registrada = worktree_registrada(main, worktree)
     # O `git worktree remove` resolve este caminho por TEXTO. Fixar só a
@@ -1323,6 +1364,7 @@ def cmd_retire(args: argparse.Namespace) -> int:
                 "worktree_registered": registrada,
                 "bytes": bytes_antes,
                 "files": arquivos_antes,
+                "unreadable": ilegiveis_antes,
             }
         )
         return EXIT_OK
@@ -1432,6 +1474,10 @@ def cmd_retire(args: argparse.Namespace) -> int:
             "worktree_was_registered": registrada,
             "reclaimed_bytes": bytes_antes,
             "reclaimed_files": arquivos_antes,
+            # Sem este campo, um arquivo ilegível saía da conta e o relatório
+            # afirmava ter recuperado menos do que havia, sem dizer que não
+            # olhou. Zero aqui é a única forma de `reclaimed_bytes` ser exato.
+            "unreadable_before": ilegiveis_antes,
             "task_root_absent": ausente,
             "stale_git_worktree_metadata": orfas,
             "branch_left_behind": branch_restante,

@@ -1182,12 +1182,16 @@ class PredicadoBooleanoTests(Base):
     # o que nao se prova, num modulo que apaga diretorio, se recusa.
     DINAMICOS = {"__getattribute__", "__getattr__", "attrgetter"}
 
-    # Allowlist FECHADA. Expandir exige editar esta linha e passar pelas tres
-    # provas de `test_isencao_...`, que sao estruturais e nao declarativas.
-    ISENTAS = {
-        "medir": "produz bytes/arquivos para o relatorio; nao decide nada",
-        "descrever_recurso": "monta o dicionario de observacao; nao decide nada",
-    }
+    # VAZIA. A rodada 12 mostrou que a guarda de isencao era insustentavel:
+    # `descrever_recurso` levantava ForjaError TRANSITIVAMENTE (via
+    # `exigir_contido`) e a prova, que so via `raise` direto, aprovava; e
+    # `medir` engolia OSError e subcontava bytes do relatorio. As duas
+    # isentas eram, cada uma a seu modo, a mesma classe de defeito.
+    #
+    # Em vez de tornar a guarda mais esperta — terceira tentativa de regra
+    # esperta nesta ferramenta — as duas passaram a usar os helpers
+    # tri-state. Sem isencao nao ha guarda de isencao para contornar.
+    ISENTAS: dict[str, str] = {}
 
     @staticmethod
     def _funcoes(arvore):
@@ -1218,6 +1222,20 @@ class PredicadoBooleanoTests(Base):
         adivinhar o ponto de uso.
         """
         achados = set()
+        # Ponto fixo: `_A1 = Path.exists` e depois `_A2 = _A1` ligam o mesmo
+        # predicado em dois passos, e a rodada 12 passou pelo gate com essa
+        # cadeia. Repetir a varredura ate estabilizar custa microssegundos e
+        # fecha a cadeia de qualquer comprimento.
+        for _ in range(len(list(ast.walk(arvore)))):
+            antes = len(achados)
+            achados |= cls._passo_de_alias(arvore, achados)
+            if len(achados) == antes:
+                break
+        return achados
+
+    @classmethod
+    def _passo_de_alias(cls, arvore, conhecidos):
+        achados = set()
         for no in ast.walk(arvore):
             # `from os.path import isdir as _existe_dir` liga o nome sem
             # nenhum Attribute e sem nenhum Assign: no ponto de uso so ha um
@@ -1229,10 +1247,17 @@ class PredicadoBooleanoTests(Base):
                     if apelido.name in cls.PROIBIDOS:
                         achados.add(apelido.asname or apelido.name)
                 continue
+            def ligado(valor):
+                if valor is None:
+                    return False
+                if isinstance(valor, ast.Name) and valor.id in conhecidos:
+                    return True
+                return cls._liga_a_proibido(valor)
+
             alvos = []
-            if isinstance(no, ast.Assign) and cls._liga_a_proibido(no.value):
+            if isinstance(no, ast.Assign) and ligado(no.value):
                 alvos = no.targets
-            elif isinstance(no, ast.AnnAssign) and no.value is not None and cls._liga_a_proibido(no.value):
+            elif isinstance(no, ast.AnnAssign) and ligado(no.value):
                 alvos = [no.target]
             for alvo in alvos:
                 if isinstance(alvo, ast.Name):
@@ -1281,57 +1306,20 @@ class PredicadoBooleanoTests(Base):
             "representar 'nao olhei' como False:\n" + "\n".join(ofensas),
         )
 
-    def test_isencao_e_fechada_estrutural_e_nao_declarativa(self) -> None:
-        """Tres provas, porque a rodada 11 furou a versao declarativa.
+    def test_nao_existe_isencao(self) -> None:
+        """A allowlist tem de continuar vazia.
 
-        Antes bastava "ter motivo escrito e nao chamar quatro nomes de
-        remocao". `guardas_de_destruicao` DECIDE a autorizacao e nao chama
-        nenhum desses nomes: pode ser isentada e receber `.exists()` de volta
-        com a matriz inteira verde.
-
-        A prova que separa relatorio de decisao nao e a chamada de remocao: e
-        a capacidade de RECUSAR. Uma funcao que levanta ForjaError decide.
+        Foram tres tentativas de regra esperta nesta ferramenta — lista de
+        nomes, fecho transitivo, guarda de isencao declarativa — e as tres
+        foram contornadas. Uma isencao nova precisa de decisao humana
+        explicita, nao de uma linha a mais num dicionario.
         """
-        arvore = ast.parse(FONTE.read_text(encoding="utf-8"))
-        funcs = self._funcoes(arvore)
-
-        def levanta_forja(nome):
-            return any(
-                isinstance(i, ast.Raise)
-                and isinstance(i.exc, ast.Call)
-                and isinstance(i.exc.func, ast.Name)
-                and i.exc.func.id == "ForjaError"
-                for i in ast.walk(funcs[nome])
-            )
-
-        def alcanca_remocao(nome, vistos=None):
-            vistos = vistos if vistos is not None else set()
-            if nome in vistos or nome not in funcs:
-                return False
-            vistos.add(nome)
-            for i in ast.walk(funcs[nome]):
-                alvo = None
-                if isinstance(i, ast.Call) and isinstance(i.func, ast.Name):
-                    alvo = i.func.id
-                elif isinstance(i, ast.Call) and isinstance(i.func, ast.Attribute):
-                    alvo = i.func.attr
-                if alvo in {"remover_arvore_sem_seguir_links", "rmtree", "unlink", "rmdir"}:
-                    return True
-                if alvo in funcs and alcanca_remocao(alvo, vistos):
-                    return True
-            return False
-
-        for nome, motivo in self.ISENTAS.items():
-            self.assertIn(nome, funcs, f"isencao de {nome} aponta para funcao inexistente")
-            self.assertTrue(motivo.strip(), f"isencao de {nome} sem motivo declarado")
-            self.assertFalse(
-                levanta_forja(nome),
-                f"{nome} levanta ForjaError, logo DECIDE; funcao que pode recusar nao e isentavel",
-            )
-            self.assertFalse(
-                alcanca_remocao(nome),
-                f"{nome} alcanca remocao transitivamente; a isencao mente",
-            )
+        self.assertEqual(
+            self.ISENTAS,
+            {},
+            "isencao reintroduzida: prove por ORACULO COMPORTAMENTAL que a "
+            "funcao nao decide, em vez de declara-lo",
+        )
 
     def test_modulo_nao_engole_a_recusa_do_tri_state(self) -> None:
         """Tripwire sintatico, NAO prova.
@@ -1440,6 +1428,107 @@ class PredicadoBooleanoTests(Base):
             ctx.exception.mensagem,
             "a destruicao parou, mas nao por inobservabilidade do task root",
         )
+
+
+class OcupanteEMedicaoTests(Base):
+    """Rodada 12: regressao de semantica e relatorio que subcontava.
+
+    Estes sao ORACULOS COMPORTAMENTAIS de comando, que era a defesa que
+    faltava: o gate sintatico nunca veria nenhuma das duas coisas.
+    """
+
+    def test_worktree_symlink_pendente_e_recusada_e_nao_provisionada(self) -> None:
+        """A regressao que a troca de predicado introduziu.
+
+        `exists()` segue symlink: link pendente contava como AUSENTE, caia na
+        criacao e morria em `sem_symlink_em_componentes`. `estado_do_caminho`
+        usa `lstat`: link pendente virou PRESENTE e PULOU o ramo, e o comando
+        respondia PROVISIONED com um symlink quebrado no lugar da worktree.
+        """
+        dados = self.provisionar()
+        worktree = Path(dados["task_root"]) / "worktree"
+        shutil.rmtree(worktree)
+        worktree.symlink_to(self.tmp / "alvo-que-nao-existe")
+
+        codigo, r = self.rodar("provision", "--branch", "b2", "--base", "main")
+        self.assertNotEqual(codigo, 0, f"symlink pendente aceito como worktree: {r}")
+        self.assertEqual(r.get("status"), "DENIED", r)
+
+    def test_worktree_ocupada_por_arquivo_e_recusada(self) -> None:
+        dados = self.provisionar()
+        worktree = Path(dados["task_root"]) / "worktree"
+        shutil.rmtree(worktree)
+        worktree.write_text("nao sou diretorio\n", encoding="utf-8")
+
+        codigo, r = self.rodar("provision", "--branch", "b2", "--base", "main")
+        self.assertNotEqual(codigo, 0, f"arquivo aceito como worktree: {r}")
+        self.assertEqual(r.get("status"), "DENIED", r)
+
+    def test_arquivo_ilegivel_e_contado_como_ilegivel_e_nao_sumido(self) -> None:
+        """Subcontar em silencio e afirmar o que nao se observou.
+
+        O relatorio publica `reclaimed_bytes` como evidencia do que foi
+        removido. Um `except OSError: continue` fazia o arquivo sair da conta
+        com a mesma cara de um diretorio menor.
+        """
+        alvo = Path(self.tmp) / "arvore"
+        (alvo / "sub").mkdir(parents=True)
+        (alvo / "sub" / "grande.bin").write_bytes(b"x" * 4096)
+
+        b, f, ilegiveis = fa.medir(alvo)
+        self.assertEqual((b, f, ilegiveis), (4096, 1, 0))
+
+        real_lstat = os.lstat
+
+        def lstat_cego(caminho, *a, **k):
+            if str(caminho).endswith("grande.bin"):
+                raise PermissionError(13, "Permission denied")
+            return real_lstat(caminho, *a, **k)
+
+        os.lstat = lstat_cego
+        try:
+            b2, f2, ilegiveis2 = fa.medir(alvo)
+        finally:
+            os.lstat = real_lstat
+
+        self.assertEqual(ilegiveis2, 1, "arquivo ilegivel sumiu da medicao sem deixar rastro")
+        self.assertEqual(b2, 0)
+
+    def test_task_root_inobservavel_impede_provisionar(self) -> None:
+        """Oraculo de comando que a rodada 12 apontou faltar em cmd_provision."""
+        dados = self.provisionar()
+        task_root = Path(dados["task_root"])
+        real_lstat = Path.lstat
+
+        def lstat_cego(self, *a, **k):
+            if str(self) == str(task_root):
+                raise PermissionError(13, "Permission denied")
+            return real_lstat(self, *a, **k)
+
+        Path.lstat = lstat_cego
+        try:
+            codigo, r = self.rodar("provision", "--branch", "b3", "--base", "main")
+        finally:
+            Path.lstat = real_lstat
+        self.assertNotEqual(codigo, 0, f"task root inobservavel foi provisionado: {r}")
+
+    def test_slot_inobservavel_reprova_a_verificacao(self) -> None:
+        """Oraculo de comando que a rodada 12 apontou faltar em cmd_verify."""
+        dados = self.provisionar()
+        task_root = Path(dados["task_root"])
+        real_lstat = Path.lstat
+
+        def lstat_cego(self, *a, **k):
+            if str(self) == str(task_root):
+                raise PermissionError(13, "Permission denied")
+            return real_lstat(self, *a, **k)
+
+        Path.lstat = lstat_cego
+        try:
+            codigo, r = self.rodar("verify")
+        finally:
+            Path.lstat = real_lstat
+        self.assertNotEqual(codigo, 0, f"slot inobservavel passou na verificacao: {r}")
 
 
 class VerificacaoTests(Base):

@@ -427,6 +427,43 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
         ],
         "test_modulo_inteiro_nao_usa_predicado_booleano_de_existencia",
     ),
+    (
+        "S32",
+        "ocupante inválido volta a ser tratado como worktree presente",
+        [
+            (
+                "    if args.branch and _worktree_a_criar(worktree, raiz):",
+                '    if args.branch and estado_do_caminho(worktree, "worktree") == AUSENTE:',
+            ),
+        ],
+        "test_worktree_symlink_pendente_e_recusada_e_nao_provisionada",
+    ),
+    (
+        "S33",
+        "medição volta a engolir arquivo ilegível sem deixar rastro",
+        [
+            (
+                "                inobservaveis += 1\n                continue",
+                "                continue",
+            ),
+        ],
+        "test_arquivo_ilegivel_e_contado_como_ilegivel_e_nao_sumido",
+    ),
+    (
+        "S34",
+        "predicado proibido entra por cadeia de alias de dois passos",
+        [
+            (
+                'PRESENTE, AUSENTE = "PRESENTE", "AUSENTE"',
+                'PRESENTE, AUSENTE = "PRESENTE", "AUSENTE"\n_A1 = Path.exists\n_A2 = _A1',
+            ),
+            (
+                '    if estado_do_caminho(task_root, "task root") == PRESENTE:',
+                "    if _A2(task_root):",
+            ),
+        ],
+        "test_modulo_inteiro_nao_usa_predicado_booleano_de_existencia",
+    ),
 ]
 
 
