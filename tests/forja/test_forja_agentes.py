@@ -458,7 +458,16 @@ class SegurancaDeCleanupTests(Base):
         Sem isto a guarda de dono dispara antes e o teste passaria pelo motivo
         errado — verde enquanto a contenção estivesse quebrada.
         """
-        return {"state": "RETIREABLE", "agent": fa.agente_corrente(), "task_id": "x"}
+        return {
+            "state": "RETIREABLE",
+            "agent": fa.agente_corrente(),
+            "task_id": "x",
+            # o selo entra aqui porque a guarda de selo vem DEPOIS da contenção:
+            # sem ele o teste pararia no selo e passaria pelo motivo errado,
+            # que é exatamente a armadilha que este fixture existe para evitar
+            "created_at": "2020-01-01T00:00:00Z",
+            "sealed_at": "2020-01-02T00:00:00Z",
+        }
 
     def test_nunca_apaga_o_checkout_candidato_recusa_por_contencao(self) -> None:
         """A recusa precisa ser POR CONTENÇÃO, não por um acaso do ambiente.
@@ -543,14 +552,27 @@ class PropriedadeDaTaskTests(Base):
         return b
 
     def test_retire_recusa_task_de_outrem_via_task_id(self) -> None:
+        """B precisa estar no estado em que SÓ a identidade a protege.
+
+        Com B em ACTIVE o gate de estado recusaria sozinho, e o teste passaria
+        sem nunca exercitar a guarda de identidade — verde pelo motivo errado.
+        Aqui B é legitimamente selada e RETIREABLE: todo gate menos o de
+        identidade aprovaria a destruição.
+        """
         a = self.provisionar("b1")
         b = self._provisionar_b()
-        # de volta a identidade de A, apontando para B
+        self.assertEqual(self.rodar("seal", "--apply")[0], 0)
+        self.assertEqual(self.rodar("state", "--set", "RETIREABLE")[0], 0)
+        binding = json.loads((Path(b["task_root"]) / "task.json").read_text(encoding="utf-8"))
+        self.assertEqual(binding["state"], "RETIREABLE")
+        self.assertIn("sealed_at", binding)
+
         os.environ["FORJA_AGENTES_TEST_TASK"] = a["task_id"]
         codigo, r = self.rodar("retire", "--task-id", b["task_id"], "--apply")
         self.assertEqual(codigo, fa.EXIT_RECUSADO, r)
         self.assertIn("não é a Task ativa do chamador", r["error"])
         self.assertTrue(Path(b["task_root"]).is_dir(), "A retirou o root de B")
+        self.assertTrue((Path(b["task_root"]) / "memory").is_dir(), "A tocou a memória de B")
 
     def test_seal_recusa_task_de_outrem_via_task_id(self) -> None:
         a = self.provisionar("b1")
@@ -762,6 +784,33 @@ class FalhaDeGitTests(Base):
         # e a identidade real passa
         st = raiz.lstat()
         fa.confirmar_identidade(raiz, (st.st_dev, st.st_ino))
+
+    def test_falha_de_desregistro_reporta_o_estado_real_e_nao_presume(self) -> None:
+        """Medido: um subdiretório 0500 faz o Git sair 255 DEPOIS de apagar o
+        registro. Dizer "nada foi removido" ali é o inverso do que aconteceu."""
+        dados = self.provisionar()
+        raiz = Path(dados["task_root"])
+        self.tornar_retiravel()
+        sub = raiz / "worktree" / "sub"
+        sub.mkdir()
+        (sub / "arquivo.txt").write_text("dado\n", encoding="utf-8")
+        os.chmod(sub, 0o500)
+        try:
+            codigo, r = self.rodar("retire", "--apply")
+            self.assertEqual(codigo, fa.EXIT_FALHA, r)
+            msg = r["error"]
+            self.assertIn("registro_removido=", msg)
+            self.assertIn("worktree_no_disco=", msg)
+            # e o verify precisa ENXERGAR o resíduo, não declarar tudo limpo
+            codigo_v, v = self.rodar("verify")
+            if (raiz / "worktree").exists():
+                self.assertEqual(codigo_v, 5, v)
+                self.assertTrue(
+                    v["checks"]["unregistered_worktree_dirs"],
+                    "worktree órfã no disco ficou invisível para verify",
+                )
+        finally:
+            os.chmod(sub, 0o700)
 
     def test_inspecao_de_metadata_que_falha_e_erro_nao_lista_vazia(self) -> None:
         self.provisionar()

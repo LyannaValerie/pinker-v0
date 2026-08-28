@@ -180,8 +180,23 @@ ACTIVE ──> RETIREABLE                      PROIBIDO
 ```
 
 Pular o selo apagaria a worktree e a memória que a revisão ainda usa, então o
-único caminho até `RETIREABLE` passa por um selo real. `retire` recusa qualquer
-estado que não seja `RETIREABLE`.
+único caminho até `RETIREABLE` **pela CLI** passa por um selo real: `SEALED` não
+é atribuível por `state`, só é escrito por um `seal --apply` bem-sucedido, e
+`retire` exige a evidência datada que o selo grava.
+
+O que isso é, exatamente:
+
+```text
+BARREIRA CONTRA ATALHO         sim
+BOUNDARY CONTRA ADULTERAÇÃO    não
+```
+
+O vínculo é um JSON em `agentes/<slot>/task.json`, modo 0660, de propriedade da
+própria Task — que portanto pode escrevê-lo. Os gates elevam o custo de forjar
+um selo dentro da ferramenta; eles não impedem quem edite o arquivo à mão. Uma
+garantia real exigiria estado fora do alcance de escrita da Task, isto é, um
+broker privilegiado, e essa é uma decisão de arquitetura, não um detalhe de
+implementação. Não leia estes gates como prova criptográfica.
 
 ### Comando mutante age sobre a própria Task, e só
 

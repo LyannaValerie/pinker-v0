@@ -116,6 +116,15 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
             # apagar o alvo do outro lado. Uma linha, estável a refatoração do
             # corpo — a versão anterior mutava o bloco inteiro e quebrava a cada
             # mudança vizinha, custando um ciclo de diagnóstico por rodada.
+            # A proteção real é o O_NOFOLLOW, não o lstat: com `stat` o Git
+            # chega a achar que o link é diretório, mas o open recusa com
+            # "Not a directory" e o mutante morre por erro em vez de escapar —
+            # vermelho que não exercita a defesa. Remover o O_NOFOLLOW é o
+            # mutante que produz o escape de verdade.
+            (
+                "            fd = os.open(nome, os.O_RDONLY | os.O_NOFOLLOW | os.O_DIRECTORY, dir_fd=fd_pai)",
+                "            fd = os.open(nome, os.O_RDONLY | os.O_DIRECTORY, dir_fd=fd_pai)",
+            ),
             ("        st = os.lstat(nome, dir_fd=fd_pai)", "        st = os.stat(nome, dir_fd=fd_pai)"),
         ],
         "test_nao_segue_symlink_para_fora_ao_apagar",
@@ -230,28 +239,10 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
         "S19",
         "retire trata falha do Git como sucesso terminal",
         [
-            (
-                "        r = git(main, \"worktree\", \"remove\", \"--force\", str(worktree), check=False)\n"
-                "        if r.returncode != 0:\n"
-                "            raise ForjaError(\n"
-                '                "FAILED",\n'
-                '                f"desregistro da worktree falhou; nada foi removido: {r.stderr.strip()[:200]}",\n'
-                "            )\n"
-                "        if worktree_registrada(main, worktree):\n"
-                "            raise ForjaError(\n"
-                '                "FAILED",\n'
-                '                "Git reportou sucesso mas a worktree continua registrada; nada foi removido",\n'
-                "            )",
-                '        git(main, "worktree", "remove", "--force", str(worktree), check=False)',
-            ),
-            (
-                "    if orfas:\n"
-                "        raise ForjaError(\n"
-                '            "FAILED",\n'
-                '            f"metadata Git órfã após a retirada (root_removed={ausente}): {orfas}",\n'
-                "        )",
-                "    pass",
-            ),
+            # Mutantes mínimos de uma linha: desligam as duas guardas sem
+            # depender do texto do corpo, que muda a cada correção vizinha.
+            ("        if r.returncode != 0:", "        if False:"),
+            ("        if worktree_registrada(main, worktree):", "        if False:"),
         ],
         "test_retire_falha_quando_o_desregistro_falha",
     ),

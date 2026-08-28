@@ -344,7 +344,12 @@ def processos_no_root(
             # prova real, em vez de num override genérico — sem o qual o gate
             # bloquearia por centenas de processos alheios e seria desligado.
             uid = uid_do_processo(entrada)
-            if uid is not None and not uid_alcanca(uid, raiz):
+            # A exclusão por modo só é sólida quando conseguimos ver os
+            # descritores: um fd herdado sobrevive a um `chmod` posterior, então
+            # julgar alcance pelo modo ATUAL descartaria um processo que abriu o
+            # root quando ele era mais permissivo. Se a lista de fd foi
+            # ilegível, o modo não decide nada.
+            if "fd" not in ilegivel and uid is not None and not uid_alcanca(uid, raiz):
                 continue
             if uid == 0:
                 # Processos de root — na prática threads do kernel e daemons do
@@ -1228,9 +1233,22 @@ def cmd_retire(args: argparse.Namespace) -> int:
         confirmar_identidade(task_root, identidade)
         r = git(main, "worktree", "remove", "--force", str(worktree), check=False)
         if r.returncode != 0:
+            # "nada foi removido" seria mentira: medido neste host, um subdiretório
+            # 0500 faz o Git sair 255 com "Permission denied" DEPOIS de já ter
+            # apagado o registro, deixando a worktree no disco e órfã. O estado
+            # real é medido e reportado, em vez de presumido pelo código de saída.
+            ainda_registrada = worktree_registrada(main, worktree)
             raise ForjaError(
                 "FAILED",
-                f"desregistro da worktree falhou; nada foi removido: {r.stderr.strip()[:200]}",
+                f"desregistro da worktree falhou: {r.stderr.strip()[:160]} "
+                f"(registro_removido={not ainda_registrada}; "
+                f"worktree_no_disco={worktree.exists()}). "
+                + (
+                    "A worktree ficou órfã: presente no disco e sem registro. "
+                    "Resolva a causa e reexecute a retirada."
+                    if not ainda_registrada and worktree.exists()
+                    else "Nada foi removido."
+                ),
             )
         if worktree_registrada(main, worktree):
             raise ForjaError(
@@ -1342,6 +1360,23 @@ def metadata_orfa(main: Path) -> list[str]:
     return orfas
 
 
+def worktrees_desregistradas(main: Path, raiz: Path) -> list[str]:
+    """Diretórios `worktree` que existem sem registro Git correspondente."""
+    achados: list[str] = []
+    for nome, _ in slots_existentes(raiz):
+        wt = raiz / nome / "worktree"
+        if not wt.is_dir() or wt.is_symlink():
+            continue
+        if not (wt / ".git").exists():
+            continue
+        try:
+            if not worktree_registrada(main, wt):
+                achados.append(str(wt))
+        except ForjaError:
+            achados.append(f"{wt} (inspeção falhou)")
+    return achados
+
+
 def cmd_verify(args: argparse.Namespace) -> int:
     """Prova os invariantes terminais de forma mecânica."""
     main, raiz = exigir_raizes()
@@ -1404,6 +1439,15 @@ def cmd_verify(args: argparse.Namespace) -> int:
     checagens["stale_git_worktree_metadata"] = orfas
     if orfas:
         problemas.append(f"metadata Git órfã: {orfas}")
+
+    # Resíduo inverso: worktree no disco cujo registro sumiu. `metadata_orfa`
+    # é cega para isto — ela parte de `.git/worktrees`, e aqui a entrada é que
+    # não existe mais. Sem esta checagem o estado meio-destruído do F3 ficaria
+    # invisível para `verify` e para o invariante de metadata limpa.
+    desregistradas = worktrees_desregistradas(main, raiz)
+    checagens["unregistered_worktree_dirs"] = desregistradas
+    if desregistradas:
+        problemas.append(f"worktree presente no disco sem registro Git: {desregistradas}")
 
     # o checkout canônico não deve carregar mutação de implementação de Task
     sujo = git(main, "status", "--porcelain", check=False).stdout.strip().splitlines()
