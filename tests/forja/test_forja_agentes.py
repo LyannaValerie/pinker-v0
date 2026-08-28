@@ -1162,26 +1162,84 @@ class PredicadoBooleanoTests(Base):
     PROIBIDOS = {"exists", "is_file", "is_symlink", "is_dir"}
 
     def test_caminho_destrutivo_nao_usa_predicado_booleano_de_existencia(self) -> None:
+        """Pega tambem alias, getattr e referencia sem chamada.
+
+        A primeira versao so via `obj.exists()` literal, e tres formas
+        equivalentes passavam: `f = alvo.exists`, `getattr(alvo, "exists")` e um
+        helper intermediario. Um gate sintatico nao vence um autor adversarial,
+        mas tem de vencer o autor distraido — que e quem escreveu as sete
+        instancias anteriores.
+        """
         import ast
-        fonte = FONTE.read_text(encoding="utf-8")
-        arvore = ast.parse(fonte)
+        arvore = ast.parse(FONTE.read_text(encoding="utf-8"))
         ofensas = []
         for no in ast.walk(arvore):
             if not isinstance(no, ast.FunctionDef) or no.name not in self.CRITICAS:
                 continue
             for interno in ast.walk(no):
+                # referencia ao atributo, com ou sem chamada: pega o alias
+                if isinstance(interno, ast.Attribute) and interno.attr in self.PROIBIDOS:
+                    ofensas.append(f"{no.name}:{interno.lineno} referencia .{interno.attr}")
+                # getattr(x, "exists") e variantes
                 if (
                     isinstance(interno, ast.Call)
-                    and isinstance(interno.func, ast.Attribute)
-                    and interno.func.attr in self.PROIBIDOS
+                    and isinstance(interno.func, ast.Name)
+                    and interno.func.id == "getattr"
+                    and len(interno.args) >= 2
+                    and isinstance(interno.args[1], ast.Constant)
+                    and interno.args[1].value in self.PROIBIDOS
                 ):
-                    ofensas.append(f"{no.name}:{interno.lineno} usa .{interno.func.attr}()")
+                    ofensas.append(f"{no.name}:{interno.lineno} getattr(..., {interno.args[1].value!r})")
         self.assertEqual(
             ofensas,
             [],
             "predicado booleano de existencia no caminho destrutivo; use "
             "estado_do_caminho(), que nao consegue representar 'nao olhei' como False:\n"
             + "\n".join(ofensas),
+        )
+
+    def test_caminho_destrutivo_nao_engole_a_recusa_do_tri_state(self) -> None:
+        """A terceira possibilidade tem de sobreviver ao CONSUMIDOR.
+
+        Provar a primitiva nao basta: trocar as chamadas de `metadata_orfa` por
+        `except ForjaError: continue` faz a funcao omitir a entrada
+        inobservavel e devolver lista vazia — o mesmo fail-open, um nivel acima.
+        Engolir ForjaError dentro do caminho destrutivo passa a ser recusado.
+        """
+        import ast
+        arvore = ast.parse(FONTE.read_text(encoding="utf-8"))
+        ofensas = []
+        for no in ast.walk(arvore):
+            if not isinstance(no, ast.FunctionDef) or no.name not in self.CRITICAS:
+                continue
+            for interno in ast.walk(no):
+                if not isinstance(interno, ast.ExceptHandler):
+                    continue
+                nomes = []
+                t = interno.type
+                if isinstance(t, ast.Name):
+                    nomes = [t.id]
+                elif isinstance(t, ast.Tuple):
+                    nomes = [e.id for e in t.elts if isinstance(e, ast.Name)]
+                if "ForjaError" not in nomes:
+                    continue
+                # engolir = nao relevantar e nao registrar o caso como achado
+                corpo = interno.body
+                so_segue = all(isinstance(c, (ast.Pass, ast.Continue)) for c in corpo)
+                relevanta = any(isinstance(c, ast.Raise) for c in ast.walk(interno))
+                registra = any(
+                    isinstance(c, ast.Call)
+                    and isinstance(c.func, ast.Attribute)
+                    and c.func.attr == "append"
+                    for c in ast.walk(interno)
+                )
+                if so_segue or not (relevanta or registra):
+                    ofensas.append(f"{no.name}:{interno.lineno} engole ForjaError")
+        self.assertEqual(
+            ofensas,
+            [],
+            "recusa do tri-state engolida no caminho destrutivo; relevante ou "
+            "registre o caso como achado:\n" + "\n".join(ofensas),
         )
 
     def test_estado_do_caminho_e_tri_state(self) -> None:
