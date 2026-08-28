@@ -199,14 +199,44 @@ def agentes_root() -> Path:
     return canonical_main() / AGENTES_DIRNAME
 
 
+def e_symlink(alvo: Path, quem: str = "caminho") -> bool:
+    """True/False só quando observável; inobservável levanta.
+
+    `Path.is_symlink()` engole OSError e devolve False, de modo que "não é
+    symlink" e "não consegui olhar" chegam iguais a quem decide. Nona aparição
+    da mesma classe: o gate anterior cobria sete funções por NOME, e as provas
+    chamadas por elas ficaram de fora.
+    """
+    try:
+        return stat.S_ISLNK(alvo.lstat().st_mode)
+    except FileNotFoundError:
+        return False
+    except OSError as erro:
+        raise ForjaError(
+            "DENIED", f"tipo de {quem} inobservável ({erro.strerror}): {alvo}"
+        ) from erro
+
+
+def e_diretorio(alvo: Path, quem: str = "caminho") -> bool:
+    """True/False só quando observável; inobservável levanta. Segue symlink."""
+    try:
+        return stat.S_ISDIR(os.stat(alvo).st_mode)
+    except FileNotFoundError:
+        return False
+    except OSError as erro:
+        raise ForjaError(
+            "DENIED", f"tipo de {quem} inobservável ({erro.strerror}): {alvo}"
+        ) from erro
+
+
 def exigir_raizes() -> tuple[Path, Path]:
     main = canonical_main()
-    if not main.is_dir():
+    if not e_diretorio(main, "checkout canônico"):
         raise ForjaError("DENIED", f"checkout canônico ausente: {main}")
     raiz = agentes_root()
-    if not raiz.is_dir():
+    if not e_diretorio(raiz, "raiz de agentes"):
         raise ForjaError("DENIED", f"raiz de agentes ausente: {raiz}")
-    if raiz.is_symlink() or main.is_symlink():
+    if e_symlink(raiz, "raiz de agentes") or e_symlink(main, "checkout canônico"):
         raise ForjaError("DENIED", "raiz canônica ou de agentes é symlink")
     return main, raiz
 
@@ -224,7 +254,7 @@ def sem_symlink_em_componentes(caminho: Path, base: Path) -> None:
         rel = caminho.relative_to(base)
     except ValueError as exc:
         raise ForjaError("DENIED", f"caminho escapa da base: {caminho}") from exc
-    if base.is_symlink():
+    if e_symlink(base, "base"):
         raise ForjaError("DENIED", f"base é symlink: {base}")
     atual = base
     for parte in rel.parts:
@@ -233,6 +263,12 @@ def sem_symlink_em_componentes(caminho: Path, base: Path) -> None:
             st = atual.lstat()
         except FileNotFoundError:
             return
+        except OSError as erro:
+            # Fail-closed, mas com o TIPO do contrato: um OSError cru escapa de
+            # quem trata ForjaError e vira exceção não tratada no chamador.
+            raise ForjaError(
+                "DENIED", f"componente inobservável ({erro.strerror}): {atual}"
+            ) from erro
         if stat.S_ISLNK(st.st_mode):
             raise ForjaError("DENIED", f"componente é symlink: {atual}")
 
@@ -281,7 +317,7 @@ def processos_no_root(
     indeterminados: list[dict[str, Any]] = []
     nao_inspecionaveis: list[dict[str, Any]] = []
     proc = Path("/proc")
-    if not proc.is_dir():
+    if not e_diretorio(proc, "/proc"):
         raise ForjaError("DENIED", "/proc indisponível: impossível provar ausência de processo")
 
     def dentro(alvo: str) -> bool:
@@ -582,7 +618,7 @@ def task_do_observador() -> str:
     if override and os.environ.get("FORJA_AGENTES_TEST_MODE") == "1":
         return validar_task(override)
     agente = agente_corrente()
-    if not Path(OBSERVADOR_CANONICO).exists():
+    if estado_do_caminho(Path(OBSERVADOR_CANONICO), "observador canônico") == AUSENTE:
         raise ForjaError("DENIED", f"observador canônico ausente: {OBSERVADOR_CANONICO}")
     proc = subprocess.run(  # noqa: S603 - argv fixo, sem shell
         [OBSERVADOR_CANONICO, "show", "--agent", agente],
@@ -678,9 +714,16 @@ def escrever_binding(slot_dir: Path, dados: dict[str, Any]) -> None:
 def slots_existentes(raiz: Path) -> list[tuple[str, dict[str, Any] | None]]:
     achados: list[tuple[str, dict[str, Any] | None]] = []
     for entrada in sorted(os.scandir(raiz), key=lambda e: e.name):
-        if not entrada.is_dir(follow_symlinks=False):
-            continue
+        # O nome primeiro: só entradas com forma de slot merecem que a
+        # inobservabilidade vire recusa. DirEntry.is_dir() engole OSError e
+        # devolve False, o que faria um slot ilegível simplesmente sumir da
+        # lista — e sumir da lista é como um slot ocupado vira reutilizável.
         if not SLOT_RE.fullmatch(entrada.name):
+            continue
+        alvo = raiz / entrada.name
+        if e_symlink(alvo, f"slot {entrada.name}"):
+            continue
+        if not e_diretorio(alvo, f"slot {entrada.name}"):
             continue
         achados.append((entrada.name, ler_binding(raiz / entrada.name)))
     return achados
@@ -837,10 +880,10 @@ def gid_agentes() -> int | None:
 
 
 def criar_dir(caminho: Path) -> bool:
-    if caminho.is_symlink():
+    if e_symlink(caminho, "destino"):
         raise ForjaError("DENIED", f"destino existe como symlink: {caminho}")
-    if caminho.exists():
-        if not caminho.is_dir():
+    if estado_do_caminho(caminho, "destino") == PRESENTE:
+        if not e_diretorio(caminho, "destino"):
             raise ForjaError("DENIED", f"destino existe e não é diretório: {caminho}")
         return False
     os.mkdir(caminho, MODO_DIR)

@@ -314,6 +314,58 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
         ],
         "test_seal_recusa_quando_o_recurso_e_trocado_apos_a_guarda",
     ),
+    (
+        "S24",
+        "predicado booleano volta por helper externo ao caminho destrutivo",
+        [
+            (
+                '    if estado_do_caminho(task_root, "task root") == AUSENTE:',
+                "    if not _helper_existe(task_root):",
+            ),
+            (
+                "def exigir_raizes() -> tuple[Path, Path]:",
+                "def _helper_existe(p):\n    return p.exists()\n\n\ndef exigir_raizes() -> tuple[Path, Path]:",
+            ),
+        ],
+        "test_caminho_destrutivo_nao_usa_predicado_booleano_de_existencia",
+    ),
+    (
+        "S25",
+        "predicado booleano volta por getattr de nome montado em runtime",
+        [
+            (
+                '    if estado_do_caminho(task_root, "task root") == AUSENTE:',
+                '    if not getattr(task_root, "exi" + "sts")():',
+            ),
+        ],
+        "test_caminho_destrutivo_nao_usa_predicado_booleano_de_existencia",
+    ),
+    (
+        "S26",
+        "consumidor engole a recusa tri-state com append em lista descartada",
+        [
+            (
+                "        except ForjaError as erro:\n"
+                '            achados.append(f"{wt} (inspeção falhou: {erro.mensagem[:60]})")',
+                "        except ForjaError as erro:\n"
+                "            _descarte = []\n"
+                "            _descarte.append(str(erro))\n"
+                "            continue",
+            ),
+        ],
+        "test_inspecao_que_falha_aparece_no_resultado",
+    ),
+    (
+        "S27",
+        "prova de symlink volta ao fail-open na própria função de prova",
+        [
+            (
+                '    if e_symlink(base, "base"):',
+                "    if base.is_symlink():",
+            ),
+        ],
+        "test_caminho_destrutivo_nao_usa_predicado_booleano_de_existencia",
+    ),
 ]
 
 
