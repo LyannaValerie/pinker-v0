@@ -613,6 +613,15 @@ def medir(caminho: Path) -> tuple[int, int, int]:
             except OSError:
                 ilegiveis[0] += 1
                 continue
+            if stat.S_ISDIR(st.st_mode):
+                # `os.walk` chama `onerror` quando `scandir` falha, mas ENGOLE
+                # o OSError de `DirEntry.is_dir()`: a entrada cai em `nomes`
+                # como se fosse arquivo, e a subarvore inteira nunca e
+                # visitada — sem passar por `onerror`. Um diretorio aparecendo
+                # aqui so pode ser isso, entao e inobservabilidade, nao
+                # arquivo.
+                ilegiveis[0] += 1
+                continue
             if stat.S_ISREG(st.st_mode):
                 total += st.st_size
             arquivos += 1
@@ -1275,10 +1284,17 @@ def cmd_seal(args: argparse.Namespace) -> int:
                 f"modo estrito: {len(indeterminados)} processo(s) que alcançam {alvo} com "
                 "evidência ilegível",
             )
+        bytes_removidos = arquivos_removidos = None
         if args.apply:
-            remover_arvore_sem_seguir_links(alvo, identidade_alvo)
+            # A pre-medicao pode ter sido parcial (ilegiveis > 0). A remocao
+            # devolve o que ela REALMENTE apagou, e e esse o numero que o
+            # relatorio deve publicar: somar `antes` fazia o selo apagar 4096
+            # bytes e relatar 0.
+            bytes_removidos, arquivos_removidos = remover_arvore_sem_seguir_links(
+                alvo, identidade_alvo
+            )
             criar_dir(alvo)
-            recuperados += antes
+            recuperados += bytes_removidos
             acao = "RECLAIMED"
         else:
             acao = "WOULD_RECLAIM"
@@ -1290,6 +1306,8 @@ def cmd_seal(args: argparse.Namespace) -> int:
                 "action": acao,
                 "bytes_before": antes,
                 "files_before": arquivos,
+                "bytes_removed": bytes_removidos if args.apply else None,
+                "files_removed": arquivos_removidos if args.apply else None,
                 # O `_` na frente deste valor silenciava exatamente o sinal
                 # que o terceiro retorno de `medir` foi criado para dar.
                 "unreadable_before": ilegiveis,
@@ -1443,8 +1461,13 @@ def cmd_retire(args: argparse.Namespace) -> int:
                 "Git reportou sucesso mas a worktree continua registrada; nada foi removido",
             )
     # 2. remover o root físico sem seguir symlinks
+    bytes_removidos = arquivos_removidos = None
     if estado_do_caminho(task_root, "task root") == PRESENTE:
-        remover_arvore_sem_seguir_links(task_root, identidade)
+        # Mesmo descarte que o selo tinha: `bytes_antes` e pre-medicao e pode
+        # ser parcial. O numero honesto do que sumiu vem da remocao.
+        bytes_removidos, arquivos_removidos = remover_arvore_sem_seguir_links(
+            task_root, identidade
+        )
     # 3. podar metadata do Git. Este passo é necessariamente pós-destrutivo: o
     #    prune só reconhece a worktree como ida depois que o diretório sumiu.
     #    Por isso a falha aqui NÃO pode se apresentar como "nada aconteceu" — o
@@ -1485,8 +1508,10 @@ def cmd_retire(args: argparse.Namespace) -> int:
             "proofs": provas,
             "process_proof_scope": "INSPECTABLE_ONLY",
             "worktree_was_registered": registrada,
-            "reclaimed_bytes": bytes_antes,
-            "reclaimed_files": arquivos_antes,
+            "reclaimed_bytes": bytes_removidos if bytes_removidos is not None else bytes_antes,
+            "reclaimed_files": arquivos_removidos if arquivos_removidos is not None else arquivos_antes,
+            "measured_bytes_before": bytes_antes,
+            "measured_files_before": arquivos_antes,
             # Sem este campo, um arquivo ilegível saía da conta e o relatório
             # afirmava ter recuperado menos do que havia, sem dizer que não
             # olhou. Zero aqui é a única forma de `reclaimed_bytes` ser exato.

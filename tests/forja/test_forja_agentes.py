@@ -1591,22 +1591,136 @@ class OcupanteEMedicaoTests(Base):
 
         self.assertGreater(ilegiveis, 0, "subdiretorio ilegivel sumiu da medicao sem deixar rastro")
 
-    def test_selo_publica_o_que_nao_conseguiu_medir(self) -> None:
-        """O `_` na frente da variavel silenciava o proprio sinal.
+    def test_diretorio_mal_classificado_conta_como_ilegivel(self) -> None:
+        """`os.walk` engole OSError de `DirEntry.is_dir()`.
 
-        `cmd_seal` desempacotava o contador em `_ilegiveis` e o descartava:
-        um recurso com conteudo ilegivel era removido e o relatorio dizia
-        SEALED com bytes_before=0 e nenhum sinal de que a medicao falhou.
+        Quando `is_dir()` levanta, `os.walk` NAO chama `onerror`: poe a
+        entrada em `nomes` como se fosse arquivo e nunca desce. A subarvore
+        inteira sai da conta sem nada dizendo que ninguem olhou — o mesmo
+        fail-open, agora escondido na classificacao.
         """
-        self.provisionar()
-        codigo, r = self.rodar("seal")
-        self.assertEqual(codigo, 0, r)
-        for item in r["items"]:
-            self.assertIn(
-                "unreadable_before",
-                item,
-                f"item {item.get('name')} do selo nao publica o que nao conseguiu medir",
+        raiz = Path(self.tmp) / "arvore-mal-classificada"
+        (raiz / "sub").mkdir(parents=True)
+        (raiz / "sub" / "payload.bin").write_bytes(b"x" * 4096)
+
+        real_scandir = os.scandir
+
+        class EntradaQueNaoDeixaClassificar:
+            def __init__(self, entrada):
+                self._e = entrada
+                self.name = entrada.name
+                self.path = entrada.path
+
+            def is_dir(self, *a, **k):
+                raise PermissionError(13, "Permission denied")
+
+            def is_file(self, *a, **k):
+                return True
+
+            def is_symlink(self, *a, **k):
+                return False
+
+            def stat(self, *a, **k):
+                return self._e.stat(*a, **k)
+
+        class Contexto:
+            def __init__(self, itens):
+                self.itens = itens
+
+            def __enter__(self):
+                return self.itens
+
+            def __exit__(self, *a):
+                return False
+
+            def __iter__(self):
+                return iter(self.itens)
+
+            def close(self):
+                pass
+
+        def scandir_que_mente(caminho="."):
+            itens = list(real_scandir(caminho))
+            if str(caminho) == str(raiz):
+                itens = [
+                    EntradaQueNaoDeixaClassificar(e) if e.name == "sub" else e
+                    for e in itens
+                ]
+            return Contexto(itens)
+
+        os.scandir = scandir_que_mente
+        try:
+            _b, _f, ilegiveis = fa.medir(raiz)
+        finally:
+            os.scandir = real_scandir
+
+        self.assertGreater(
+            ilegiveis,
+            0,
+            "diretorio inobservavel foi contado como arquivo e a subarvore sumiu",
+        )
+
+    def test_selo_publica_o_VALOR_do_que_nao_conseguiu_medir(self) -> None:
+        """Checar a CHAVE nao prova nada sobre o NUMERO.
+
+        A versao anterior deste teste so exigia `unreadable_before` presente.
+        Fixar `unreadable_before: 0` nos dois publicadores mantinha o teste
+        verde — o mutante S36 cobria remover a chave, nao corromper o valor.
+        Agora ha conteudo genuinamente ilegivel e o numero e conferido.
+        """
+        dados = self.provisionar()
+        alvo = Path(dados["task_root"]) / "target"
+        segredo = alvo / "segredo"
+        segredo.mkdir(parents=True, exist_ok=True)
+        (segredo / "payload.bin").write_bytes(b"x" * 4096)
+        os.chmod(segredo, 0o000)
+        try:
+            codigo, r = self.rodar("seal")
+            self.assertEqual(codigo, 0, r)
+            item = next(i for i in r["items"] if i["name"] == "target")
+            # `assertIn` antes do valor: sem isto, remover a chave derruba o
+            # teste por KeyError, que e vermelho pelo motivo errado.
+            self.assertIn("unreadable_before", item, item)
+            self.assertGreater(
+                item["unreadable_before"],
+                0,
+                f"conteudo ilegivel nao apareceu no relatorio do selo: {item}",
             )
+        finally:
+            os.chmod(segredo, 0o755)
+
+    def test_selo_relata_o_que_removeu_e_nao_o_que_mediu(self) -> None:
+        """Pre-medicao parcial nao pode virar relatorio de recuperacao.
+
+        `remover_arvore_sem_seguir_links` devolve o que apagou de fato; o selo
+        somava `antes`, a medicao previa. Com medicao injetada como (0, 0, 1),
+        o selo apagava 4096 bytes e publicava reclaimed_bytes=0.
+        """
+        dados = self.provisionar()
+        alvo = Path(dados["task_root"]) / "target"
+        alvo.mkdir(parents=True, exist_ok=True)
+        (alvo / "payload.bin").write_bytes(b"x" * 4096)
+
+        real_medir = fa.medir
+
+        def medir_parcial(caminho):
+            if str(caminho) == str(alvo):
+                return 0, 0, 1
+            return real_medir(caminho)
+
+        fa.medir = medir_parcial
+        try:
+            codigo, r = self.rodar("seal", "--apply")
+        finally:
+            fa.medir = real_medir
+
+        self.assertEqual(codigo, 0, r)
+        self.assertFalse((alvo / "payload.bin").exists(), "o payload nao foi removido")
+        self.assertGreaterEqual(
+            r["reclaimed_bytes"],
+            4096,
+            f"selo apagou o payload e relatou menos do que removeu: {r['reclaimed_bytes']}",
+        )
 
 
 class VerificacaoTests(Base):

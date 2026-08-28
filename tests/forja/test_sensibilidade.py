@@ -308,8 +308,12 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
         "selo remove o recurso sem fixar identidade",
         [
             (
-                "            remover_arvore_sem_seguir_links(alvo, identidade_alvo)",
-                "            remover_arvore_sem_seguir_links(alvo)",
+                "            bytes_removidos, arquivos_removidos = remover_arvore_sem_seguir_links(\n"
+                "                alvo, identidade_alvo\n"
+                "            )",
+                "            bytes_removidos, arquivos_removidos = remover_arvore_sem_seguir_links(\n"
+                "                alvo\n"
+                "            )",
             ),
         ],
         "test_seal_recusa_quando_o_recurso_e_trocado_apos_a_guarda",
@@ -481,7 +485,7 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
                 "",
             ),
         ],
-        "test_selo_publica_o_que_nao_conseguiu_medir",
+        "test_selo_publica_o_VALOR_do_que_nao_conseguiu_medir",
     ),
     (
         "S37",
@@ -508,6 +512,40 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
             ),
         ],
         "test_slot_inobservavel_reprova_a_verificacao",
+    ),
+    (
+        "S39",
+        "publicador do selo finge que mediu tudo",
+        [
+            (
+                '"unreadable_before": ilegiveis}',
+                '"unreadable_before": 0}',
+            ),
+            (
+                '                "unreadable_before": ilegiveis,',
+                '                "unreadable_before": 0,',
+            ),
+        ],
+        "test_selo_publica_o_VALOR_do_que_nao_conseguiu_medir",
+    ),
+    (
+        "S40",
+        "selo volta a relatar a pré-medição em vez do que removeu",
+        [
+            ("            recuperados += bytes_removidos", "            recuperados += antes"),
+        ],
+        "test_selo_relata_o_que_removeu_e_nao_o_que_mediu",
+    ),
+    (
+        "S41",
+        "medição volta a contar diretório inobservável como arquivo",
+        [
+            (
+                "            if stat.S_ISDIR(st.st_mode):",
+                "            if False:",
+            ),
+        ],
+        "test_diretorio_mal_classificado_conta_como_ilegivel",
     ),
 ]
 
