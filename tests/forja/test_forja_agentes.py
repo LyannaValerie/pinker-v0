@@ -149,6 +149,32 @@ class ProvisionamentoTests(Base):
             self.assertTrue(fa.contido_em(Path(recurso["path"]), Path(raiz)), recurso)
             self.assertEqual(os.path.normpath(recurso["path"]), recurso["path"], recurso)
 
+    def test_provision_nao_cria_nada_fora_do_root_nem_ao_falhar(self) -> None:
+        """A propriedade não é "reprovar o path": é NÃO CRIAR fora do root.
+
+        Um provisionamento que cria o diretório escapado e só depois reprova o
+        caminho satisfaz qualquer asserção sobre a saída, e mesmo assim já
+        sujou o filesystem. O que se assere aqui é o efeito colateral.
+        """
+        raiz = self.main / "agentes"
+        antes = {p.name for p in raiz.iterdir()}
+        codigo, dados = self.rodar("provision", "--branch", "b1", "--base", "main")
+        depois = {p.name for p in raiz.iterdir()}
+        novos = depois - antes
+        # tudo que apareceu tem de ser slot bem formado, nada de `logs` solto
+        for nome in novos:
+            self.assertRegex(nome, r"^a[0-9]{2,4}$", f"provision criou algo fora do contrato: {nome}")
+        # e nada pode ter sido criado acima da raiz de agentes
+        for nome in ("logs", "target", "tmp", "scratch", "cache", "memory", "state", "artifacts"):
+            self.assertFalse(
+                (self.main / nome).exists(),
+                f"provision criou {nome} FORA do task root, ao lado do checkout",
+            )
+        if codigo == 0:
+            raizt = Path(dados["task_root"])
+            for r in dados["resources"]:
+                self.assertTrue(fa.contido_em(Path(r["path"]), raizt), r)
+
     def test_prefixo_textual_nao_e_contencao(self) -> None:
         raiz = Path("/pinker/repo/pinker-v0/agentes/a01")
         fuga = raiz / ".." / "a02" / "target"
@@ -621,6 +647,33 @@ class SeloForjadoTests(Base):
         self.assertIn("sem evidência de EXECUTION_SEAL", r["error"])
         self.assertTrue(raiz.is_dir(), "destruiu uma Task cujo selo nunca ocorreu")
 
+    def test_retire_recusa_evidencia_de_selo_malformada(self) -> None:
+        """A chave existir não basta: `sealed_at: "x"` não é um selo."""
+        dados = self.provisionar()
+        self.rodar("seal", "--apply")
+        self.rodar("state", "--set", "RETIREABLE")
+        raiz = Path(dados["task_root"])
+        binding = json.loads((raiz / "task.json").read_text(encoding="utf-8"))
+        binding["sealed_at"] = "x"
+        (raiz / "task.json").write_text(json.dumps(binding), encoding="utf-8")
+        codigo, r = self.rodar("retire", "--apply")
+        self.assertEqual(codigo, fa.EXIT_RECUSADO, r)
+        self.assertIn("malformada", r["error"])
+        self.assertTrue(raiz.is_dir())
+
+    def test_retire_recusa_selo_anterior_a_criacao_do_root(self) -> None:
+        dados = self.provisionar()
+        self.rodar("seal", "--apply")
+        self.rodar("state", "--set", "RETIREABLE")
+        raiz = Path(dados["task_root"])
+        binding = json.loads((raiz / "task.json").read_text(encoding="utf-8"))
+        binding["sealed_at"] = "2000-01-01T00:00:00Z"
+        (raiz / "task.json").write_text(json.dumps(binding), encoding="utf-8")
+        codigo, r = self.rodar("retire", "--apply")
+        self.assertEqual(codigo, fa.EXIT_RECUSADO, r)
+        self.assertIn("antes da criação", r["error"])
+        self.assertTrue(raiz.is_dir())
+
     def test_selo_real_deixa_evidencia_datada(self) -> None:
         dados = self.provisionar()
         codigo, r = self.rodar("seal", "--apply")
@@ -695,6 +748,20 @@ class FalhaDeGitTests(Base):
         self.assertEqual(codigo, fa.EXIT_FALHA, r)
         self.assertEqual(r["status"], "FAILED")
         self.assertTrue(raiz.is_dir(), "removeu o root apesar de o desregistro falhar")
+
+    def test_identidade_e_conferida_antes_da_primeira_remocao(self) -> None:
+        """O Git resolve o caminho por texto: a primeira remoção também precisa
+        da identidade fixada, não apenas a segunda."""
+        dados = self.provisionar()
+        self.tornar_retiravel()
+        raiz = Path(dados["task_root"])
+        identidade_falsa = (0, 0)
+        with self.assertRaises(fa.ForjaError) as ctx:
+            fa.confirmar_identidade(raiz, identidade_falsa)
+        self.assertIn("identidade do alvo mudou", str(ctx.exception))
+        # e a identidade real passa
+        st = raiz.lstat()
+        fa.confirmar_identidade(raiz, (st.st_dev, st.st_ino))
 
     def test_inspecao_de_metadata_que_falha_e_erro_nao_lista_vazia(self) -> None:
         self.provisionar()

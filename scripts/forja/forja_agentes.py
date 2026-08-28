@@ -323,7 +323,14 @@ def processos_no_root(
         for nome in nomes:
             try:
                 alvo = os.readlink(fddir / nome)
+            except FileNotFoundError:
+                continue  # descritor fechado entre o listdir e o readlink
             except OSError:
+                # Terceira aparição do mesmo fail-open nesta função: engolir o
+                # erro aqui fazia um descritor ilegível desaparecer da conta,
+                # e nem o modo estrito bloqueava por ele.
+                if "fd" not in ilegivel:
+                    ilegivel.append("fd")
                 continue
             if dentro(alvo):
                 achados.append({"pid": pid, "field": f"fd/{nome}", "target": alvo, "comm": comm})
@@ -418,12 +425,32 @@ def processos_estritos() -> bool:
     return os.environ.get("FORJA_AGENTES_STRICT_PROCESSES") == "1"
 
 
-def remover_arvore_sem_seguir_links(raiz: Path) -> tuple[int, int]:
+def confirmar_identidade(alvo: Path, identidade: tuple[int, int]) -> None:
+    """Reconfere que `alvo` ainda é o mesmo objeto aprovado pelas guardas."""
+    try:
+        st = alvo.lstat()
+    except OSError as erro:
+        raise ForjaError("DENIED", f"alvo desapareceu entre a guarda e a operação: {alvo}") from erro
+    if (st.st_dev, st.st_ino) != identidade:
+        raise ForjaError(
+            "DENIED",
+            f"identidade do alvo mudou entre a guarda e a operação: {alvo} não é mais {identidade}",
+        )
+
+
+def remover_arvore_sem_seguir_links(
+    raiz: Path, identidade: tuple[int, int] | None = None
+) -> tuple[int, int]:
     """Remove `raiz` inteira sem jamais atravessar um symlink.
 
     Usa descritores de diretório e `os.unlink(..., dir_fd=)` para que a
     resolução aconteça relativa ao fd já aberto, e não ao caminho textual, que
     poderia ser trocado por um symlink no meio da operação.
+
+    `identidade` é o par `(st_dev, st_ino)` medido no momento em que as guardas
+    aprovaram o alvo. Sem ele, as guardas validam um caminho e o delete reabre
+    o MESMO NOME — que pode já ser outro diretório. Comparar a identidade
+    imediatamente antes de descer fecha essa janela.
     """
     bytes_removidos = 0
     arquivos_removidos = 0
@@ -449,6 +476,14 @@ def remover_arvore_sem_seguir_links(raiz: Path) -> tuple[int, int]:
     pai = raiz.parent
     fd_pai = os.open(str(pai), os.O_RDONLY | os.O_NOFOLLOW | os.O_DIRECTORY)
     try:
+        if identidade is not None:
+            st = os.lstat(raiz.name, dir_fd=fd_pai)
+            if (st.st_dev, st.st_ino) != identidade:
+                raise ForjaError(
+                    "DENIED",
+                    f"identidade do alvo mudou entre a guarda e a remoção: "
+                    f"{raiz} não é mais {identidade}",
+                )
         descer(fd_pai, raiz.name)
     finally:
         os.close(fd_pai)
@@ -817,6 +852,23 @@ def cmd_provision(args: argparse.Namespace) -> int:
         }
     )
     if reaberta:
+        # O selo antigo não pode autorizar a destruição de trabalho novo, mas
+        # apagá-lo sem deixar rastro perde evidência que a revisão pode querer.
+        # Ele sai do campo que autoriza e entra num histórico append-only.
+        # Append-only por CONVENÇÃO, não por mecanismo: o vínculo mora em
+        # armazenamento gravável pelo agente, então isto preserva evidência
+        # contra descarte acidental, não contra adulteração deliberada. Uma
+        # garantia real exigiria estado fora do alcance de escrita da Task.
+        historico = list(binding.get("seal_history") or [])
+        historico.append(
+            {
+                "sealed_at": binding.get("sealed_at"),
+                "reclaimed_bytes": binding.get("sealed_reclaimed_bytes"),
+                "superseded_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                "reopened_from": anterior,
+            }
+        )
+        binding["seal_history"] = historico
         binding.pop("sealed_at", None)
         binding.pop("sealed_reclaimed_bytes", None)
     escrever_binding(task_root, binding)
@@ -935,7 +987,9 @@ def cmd_state(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
-def guardas_de_destruicao(main: Path, raiz: Path, task_root: Path, binding: dict[str, Any] | None) -> list[str]:
+def guardas_de_destruicao(
+    main: Path, raiz: Path, task_root: Path, binding: dict[str, Any] | None
+) -> tuple[list[str], tuple[int, int]]:
     """Todas as provas exigidas antes de qualquer remoção. Fail-closed."""
     provas: list[str] = []
 
@@ -991,12 +1045,30 @@ def guardas_de_destruicao(main: Path, raiz: Path, task_root: Path, binding: dict
 
     # O rótulo não basta: o selo tem de ter deixado marca. Sem isto, escrever
     # RETIREABLE à mão seria suficiente para destruir uma Task nunca selada.
-    if not (binding or {}).get("sealed_at"):
+    selado_em = (binding or {}).get("sealed_at")
+    if not selado_em:
         raise ForjaError(
             "DENIED",
             "sem evidência de EXECUTION_SEAL no vínculo: destruir exige um selo ocorrido, não um rótulo",
         )
-    provas.append(f"EXECUTION_SEAL_EVIDENCE({binding['sealed_at']})")
+    # Exigir apenas que a chave exista aceitaria `sealed_at: "x"`. O valor é
+    # conferido como instante real e não anterior à criação do root: um selo não
+    # pode ter acontecido antes de existir a Task que ele sela.
+    try:
+        instante = time.strptime(selado_em, "%Y-%m-%dT%H:%M:%SZ")
+    except (TypeError, ValueError) as erro:
+        raise ForjaError("DENIED", f"evidência de selo malformada: {selado_em!r}") from erro
+    criado_em = (binding or {}).get("created_at")
+    if criado_em:
+        try:
+            if instante < time.strptime(criado_em, "%Y-%m-%dT%H:%M:%SZ"):
+                raise ForjaError(
+                    "DENIED",
+                    f"selo datado antes da criação do root ({selado_em} < {criado_em})",
+                )
+        except ValueError:
+            pass  # created_at ilegível não invalida um sealed_at bem formado
+    provas.append(f"EXECUTION_SEAL_EVIDENCE({selado_em})")
 
     st = task_root.lstat()
     if st.st_uid != os.getuid():
@@ -1014,7 +1086,9 @@ def guardas_de_destruicao(main: Path, raiz: Path, task_root: Path, binding: dict
             raise ForjaError("DENIED", f"recurso compartilhado dentro do task root: {alvo}")
     provas.append("NO_SHARED_RESOURCE_INSIDE_TASK_ROOT")
 
-    return provas
+    identidade = (st.st_dev, st.st_ino)
+    provas.append(f"TARGET_IDENTITY_PINNED(dev={st.st_dev},ino={st.st_ino})")
+    return provas, identidade
 
 
 def cmd_seal(args: argparse.Namespace) -> int:
@@ -1112,7 +1186,7 @@ def cmd_retire(args: argparse.Namespace) -> int:
     binding = ler_binding(task_root)
     exigir_dono(binding, task_id)
 
-    provas = guardas_de_destruicao(main, raiz, task_root, binding)
+    provas, identidade = guardas_de_destruicao(main, raiz, task_root, binding)
 
     bytes_antes, arquivos_antes = medir(task_root)
     worktree = task_root / "worktree"
@@ -1143,19 +1217,36 @@ def cmd_retire(args: argparse.Namespace) -> int:
     #    Ignorar o código de saída aqui foi o defeito F2: um desregistro que
     #    falha deixa metadata órfã e o comando ainda reportaria RETIRED.
     if registrada:
+        # `git worktree remove --force` desregistra E remove o diretório numa
+        # única operação do Git. Fazer isso ANTES da remoção do root encolhe a
+        # janela pós-destrutiva ao mínimo: se falhar, nada foi tocado.
+        #
+        # A identidade é reconferida AQUI e não só antes de `remover_arvore`:
+        # esta é a primeira operação destrutiva, e o Git resolve o caminho por
+        # texto. Fixar o inode só para a segunda remoção deixaria a primeira
+        # apagando o que quer que estivesse no nome naquele instante.
+        confirmar_identidade(task_root, identidade)
         r = git(main, "worktree", "remove", "--force", str(worktree), check=False)
         if r.returncode != 0:
             raise ForjaError(
                 "FAILED",
                 f"desregistro da worktree falhou; nada foi removido: {r.stderr.strip()[:200]}",
             )
+        if worktree_registrada(main, worktree):
+            raise ForjaError(
+                "FAILED",
+                "Git reportou sucesso mas a worktree continua registrada; nada foi removido",
+            )
     # 2. remover o root físico sem seguir symlinks
     if task_root.exists():
-        remover_arvore_sem_seguir_links(task_root)
+        remover_arvore_sem_seguir_links(task_root, identidade)
     # 3. podar metadata do Git. Este passo é necessariamente pós-destrutivo: o
     #    prune só reconhece a worktree como ida depois que o diretório sumiu.
     #    Por isso a falha aqui NÃO pode se apresentar como "nada aconteceu" — o
     #    root já foi removido, e o relatório precisa dizer isso.
+    # `prune` é rede de segurança idempotente: o desregistro já aconteceu antes
+    # do ponto sem volta. Se falhar aqui, o remédio é reexecutá-lo — e a
+    # mensagem diz exatamente isso, em vez de fingir que nada mudou.
     r = git(main, "worktree", "prune", check=False)
     ausente = not task_root.exists() and not task_root.is_symlink()
     if r.returncode != 0:

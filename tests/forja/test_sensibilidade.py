@@ -110,60 +110,40 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
     ),
     (
         "S6",
-        "delete caminha seguindo symlink e apaga o alvo do outro lado",
+        "delete resolve o nome com stat e atravessa o symlink",
         [
-            (
-                "    pai = raiz.parent\n"
-                "    fd_pai = os.open(str(pai), os.O_RDONLY | os.O_NOFOLLOW | os.O_DIRECTORY)\n"
-                "    try:\n"
-                "        descer(fd_pai, raiz.name)\n"
-                "    finally:\n"
-                "        os.close(fd_pai)\n"
-                "    return bytes_removidos, arquivos_removidos",
-                "    for base, dirs, nomes in os.walk(raiz, topdown=False, followlinks=True):\n"
-                "        for nome in nomes:\n"
-                "            try:\n"
-                "                os.unlink(os.path.join(base, nome))\n"
-                "            except OSError:\n"
-                "                pass\n"
-                "        for d in dirs:\n"
-                "            try:\n"
-                "                os.rmdir(os.path.join(base, d))\n"
-                "            except OSError:\n"
-                "                try:\n"
-                "                    os.unlink(os.path.join(base, d))\n"
-                "                except OSError:\n"
-                "                    pass\n"
-                "    try:\n"
-                "        os.rmdir(raiz)\n"
-                "    except OSError:\n"
-                "        pass\n"
-                "    return bytes_removidos, arquivos_removidos",
-            ),
+            # Mutante mínimo: trocar lstat por stat faz `descer` seguir o link e
+            # apagar o alvo do outro lado. Uma linha, estável a refatoração do
+            # corpo — a versão anterior mutava o bloco inteiro e quebrava a cada
+            # mudança vizinha, custando um ciclo de diagnóstico por rodada.
+            ("        st = os.lstat(nome, dir_fd=fd_pai)", "        st = os.stat(nome, dir_fd=fd_pai)"),
         ],
         "test_nao_segue_symlink_para_fora_ao_apagar",
     ),
     (
         "S6b",
-        "seal resolve o recurso com stat em vez de lstat e atravessa o link",
+        "seal deixa de recusar recurso que é symlink",
         [
+            # Distinto do S6 de propósito: aqui o delete continua sem seguir
+            # link (lstat intacto), então o escape não acontece. O que se perde
+            # é a RECUSA explícita — o selo passaria a tratar um recurso
+            # symlink como recurso comum em vez de bloquear.
             (
                 "        sem_symlink_em_componentes(alvo, canonical_main())\n"
                 '        if alvo.is_symlink():\n'
                 '            raise ForjaError("DENIED", f"recurso é symlink: {alvo}")',
                 "        pass",
             ),
-            ("        st = os.lstat(nome, dir_fd=fd_pai)", "        st = os.stat(nome, dir_fd=fd_pai)"),
         ],
-        "test_seal_nao_segue_symlink_para_fora",
+        "test_recusa_componente_symlink_no_caminho",
     ),
     (
         "S7",
         "finalizer da Task A alcança a memória da Task B",
         [
             (
-                "    provas = guardas_de_destruicao(main, raiz, task_root, binding)",
-                "    provas = guardas_de_destruicao(main, raiz, task_root, binding)\n"
+                "    provas, identidade = guardas_de_destruicao(main, raiz, task_root, binding)",
+                "    provas, identidade = guardas_de_destruicao(main, raiz, task_root, binding)\n"
                 "    if args.apply:\n"
                 "        for _v, _b in slots_existentes(raiz):\n"
                 '            _a = raiz / _v / "memory"\n'
@@ -177,16 +157,7 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
         "S8",
         "worktree removida do disco sem desregistro nem prune: metadata órfã",
         [
-            (
-                "    if registrada:\n"
-                '        r = git(main, "worktree", "remove", "--force", str(worktree), check=False)\n'
-                "        if r.returncode != 0:\n"
-                "            raise ForjaError(\n"
-                '                "FAILED",\n'
-                '                f"desregistro da worktree falhou; nada foi removido: {r.stderr.strip()[:200]}",\n'
-                "            )",
-                "    pass",
-            ),
+            ("    if registrada:", "    if False:"),
             (
                 '    r = git(main, "worktree", "prune", check=False)\n'
                 "    ausente = not task_root.exists() and not task_root.is_symlink()\n"
@@ -265,6 +236,11 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
                 "            raise ForjaError(\n"
                 '                "FAILED",\n'
                 '                f"desregistro da worktree falhou; nada foi removido: {r.stderr.strip()[:200]}",\n'
+                "            )\n"
+                "        if worktree_registrada(main, worktree):\n"
+                "            raise ForjaError(\n"
+                '                "FAILED",\n'
+                '                "Git reportou sucesso mas a worktree continua registrada; nada foi removido",\n'
                 "            )",
                 '        git(main, "worktree", "remove", "--force", str(worktree), check=False)',
             ),
@@ -336,7 +312,7 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
             ),
             ('Recurso("logs", "logs",', 'Recurso("logs", "../logs",'),
         ],
-        "test_todo_recurso_esta_contido_no_task_root",
+        "test_provision_nao_cria_nada_fora_do_root_nem_ao_falhar",
     ),
 ]
 

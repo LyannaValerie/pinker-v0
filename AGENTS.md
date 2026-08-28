@@ -212,7 +212,8 @@ evidência ilegível que alcança o root em bloqueio.
 
 Não retire uma Task antes do merge: a revisão adversarial, a verificação do
 PRIMARY e a disposição do Guia ainda podem precisar da worktree e da memória.
-`retire` recusa qualquer estado que não seja `SEALED` ou `RETIREABLE`, e
+`retire` recusa qualquer estado que não seja `RETIREABLE`, exige evidência
+datada de um selo ocorrido, e
 desregistra a worktree pelo Git antes de remover o diretório, de modo que
 `.git/worktrees` não fique com metadata órfã.
 
