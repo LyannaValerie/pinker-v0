@@ -308,12 +308,12 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
         "selo remove o recurso sem fixar identidade",
         [
             (
-                "            bytes_removidos, arquivos_removidos = remover_arvore_sem_seguir_links(\n"
-                "                alvo, identidade_alvo\n"
-                "            )",
-                "            bytes_removidos, arquivos_removidos = remover_arvore_sem_seguir_links(\n"
-                "                alvo\n"
-                "            )",
+                "                bytes_removidos, arquivos_removidos = remover_arvore_sem_seguir_links(\n"
+                "                    alvo, identidade_alvo\n"
+                "                )",
+                "                bytes_removidos, arquivos_removidos = remover_arvore_sem_seguir_links(\n"
+                "                    alvo\n"
+                "                )",
             ),
         ],
         "test_seal_recusa_quando_o_recurso_e_trocado_apos_a_guarda",
@@ -557,7 +557,11 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
         "provisionamento pula recursos e ninguém olha o disco",
         [
             (
+                '    for recurso in RECURSOS:\n'
+                '        alvo = exigir_contido(task_root / recurso.subpath, task_root, f"recurso {recurso.nome}")\n'
                 '        if recurso.nome == "worktree":',
+                '    for recurso in RECURSOS:\n'
+                '        alvo = exigir_contido(task_root / recurso.subpath, task_root, f"recurso {recurso.nome}")\n'
                 '        if recurso.nome in ("worktree", "cache", "logs"):',
             ),
         ],
@@ -579,10 +583,10 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
         "remoção parcial volta a deixar a Task fora do alcance da ferramenta",
         [
             (
-                "            alcancavel = _reancorar_task_parcialmente_removida(\n"
+                "            resultado = _reancorar_task_parcialmente_removida(\n"
                 "                task_root, binding, task_id, slot\n"
                 "            )",
-                "            alcancavel = False",
+                "            resultado = \"INALCANCAVEL\"",
             ),
         ],
         "test_remocao_parcial_mantem_a_task_retentavel",
@@ -602,7 +606,8 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
             (
                 "                if estado_do_caminho(alvo_rec, f\"recurso {recurso.nome}\") == AUSENTE:\n"
                 "                    ausentes.append(recurso.nome)",
-                "                pass",
+                "                if False:\n"
+                "                    ausentes.append(recurso.nome)",
             ),
         ],
         "test_verify_reprova_recurso_do_contrato_ausente_no_disco",
@@ -612,16 +617,62 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
         "relatório de remoção parcial volta a presumir alcance em vez de medir",
         [
             (
-                "            alcancavel = _reancorar_task_parcialmente_removida(\n"
+                "            resultado = _reancorar_task_parcialmente_removida(\n"
                 "                task_root, binding, task_id, slot\n"
                 "            )",
                 "            _reancorar_task_parcialmente_removida(\n"
                 "                task_root, binding, task_id, slot\n"
                 "            )\n"
-                "            alcancavel = True",
+                "            resultado = \"REANCORADA\"",
             ),
         ],
         "test_remocao_parcial_sem_reancoragem_diz_a_verdade",
+    ),
+    (
+        "S48",
+        "plano de retirada volta a ler medição que ainda não existe",
+        [
+            (
+                "    bytes_antes, arquivos_antes, ilegiveis_antes = medir(task_root)\n"
+                "    worktree = task_root / \"worktree\"",
+                "    worktree = task_root / \"worktree\"",
+            ),
+        ],
+        "test_retire_sem_apply_emite_o_plano",
+    ),
+    (
+        "S49",
+        "recuperado deixa de creditar o que o passo 1 removeu",
+        [
+            (
+                '            "reclaimed_bytes": (bytes_worktree if worktree_removida_no_passo1 else 0)\n'
+                "            + (bytes_removidos if bytes_removidos is not None else 0),",
+                '            "reclaimed_bytes": (bytes_removidos if bytes_removidos is not None else 0),',
+            ),
+        ],
+        "test_recuperado_inclui_o_que_o_passo1_levou",
+    ),
+    (
+        "S50",
+        "verify volta a aceitar symlink no lugar de recurso",
+        [
+            (
+                '                elif e_symlink(alvo_rec, f"recurso {recurso.nome}"):',
+                "                elif False:",
+            ),
+        ],
+        "test_verify_reprova_recurso_symlink_para_fora",
+    ),
+    (
+        "S51",
+        "verify volta a aceitar arquivo no lugar de diretório de recurso",
+        [
+            (
+                '                elif not e_diretorio(alvo_rec, f"recurso {recurso.nome}"):',
+                "                elif False:",
+            ),
+        ],
+        "test_verify_reprova_recurso_que_nao_e_diretorio",
     ),
 ]
 

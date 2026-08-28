@@ -1305,9 +1305,18 @@ def cmd_seal(args: argparse.Namespace) -> int:
             # devolve o que ela REALMENTE apagou, e e esse o numero que o
             # relatorio deve publicar: somar `antes` fazia o selo apagar 4096
             # bytes e relatar 0.
-            bytes_removidos, arquivos_removidos = remover_arvore_sem_seguir_links(
-                alvo, identidade_alvo
-            )
+            try:
+                bytes_removidos, arquivos_removidos = remover_arvore_sem_seguir_links(
+                    alvo, identidade_alvo
+                )
+            except RecursionError as erro:
+                # A remoção é a única função recursiva do módulo e não tem
+                # limite de profundidade: sem isto, `RecursionError` escapa de
+                # todo handler e o comando morre sem status JSON nenhum.
+                raise ForjaError(
+                    "FAILED",
+                    f"árvore profunda demais para remover em {alvo}: {erro}",
+                ) from erro
             criar_dir(alvo)
             recuperados += bytes_removidos
             acao = "RECLAIMED"
@@ -1360,8 +1369,13 @@ def cmd_seal(args: argparse.Namespace) -> int:
 
 def _reancorar_task_parcialmente_removida(
     task_root: Path, binding: dict[str, Any] | None, task_id: str, slot: str
-) -> bool:
+) -> str:
     """Devolve ao alcance da ferramenta uma Task cuja remoção falhou no meio.
+
+    Três resultados, não dois: REANCORADA, ROOT_AUSENTE e INALCANCAVEL.
+    Colapsar ROOT_AUSENTE em "deu certo" fazia o relatório mandar reexecutar
+    a retirada de uma Task que já não existe — a mesma mentira do relatório
+    anterior, com o sinal invertido.
 
     `task.json` mora dentro do root que está sendo removido. Se a remoção
     morre depois de apagá-lo, `descobrir_slot` deixa de enxergar a Task, e
@@ -1374,7 +1388,7 @@ def _reancorar_task_parcialmente_removida(
     """
     try:
         if estado_do_caminho(task_root, "task root parcialmente removido") == AUSENTE:
-            return True  # root sumiu por inteiro: nada a reancorar, nada de resíduo
+            return "ROOT_AUSENTE"  # sumiu por inteiro: nada a reancorar, nada de resíduo
         dados = dict(binding or {})
         dados.setdefault("schema", SCHEMA_BINDING)
         dados.setdefault("task_id", task_id)
@@ -1384,15 +1398,17 @@ def _reancorar_task_parcialmente_removida(
         dados["partial_removal"] = True
         escrever_binding(task_root, dados)
     except (OSError, ForjaError):
-        return False
+        return "INALCANCAVEL"
     # REOBSERVAR. A primeira versão disto devolvia sucesso presumido e o
     # relatório afirmava "a Task continua observável" mesmo quando a
     # reancoragem tinha falhado — a mesma conclusão-sem-olhar que esta
     # ferramenta inteira existe para recusar, agora dita pelo relatório.
     try:
-        return (ler_binding(task_root) or {}).get("task_id") == task_id
+        if (ler_binding(task_root) or {}).get("task_id") == task_id:
+            return "REANCORADA"
+        return "INALCANCAVEL"
     except (OSError, ForjaError):
-        return False
+        return "INALCANCAVEL"
 
 
 def cmd_retire(args: argparse.Namespace) -> int:
@@ -1408,7 +1424,16 @@ def cmd_retire(args: argparse.Namespace) -> int:
 
     provas, identidade = guardas_de_destruicao(main, raiz, task_root, binding)
 
+    # A medição mora AQUI, antes de qualquer destruição, porque `measured_*`
+    # só é "before" se for anterior a tudo. Move-la para depois do passo 1
+    # fazia o relatório perder os bytes que o `git worktree remove` levava —
+    # e ainda certificar a medição como completa.
+    bytes_antes, arquivos_antes, ilegiveis_antes = medir(task_root)
     worktree = task_root / "worktree"
+    # Medida à parte para poder CREDITAR ao passo 1 o que ele remove: sem
+    # isto, `reclaimed_*` conta só o passo 2 e subnotifica toda retirada com
+    # worktree registrada.
+    bytes_worktree, arquivos_worktree, _il_wt = medir(worktree)
     registrada = worktree_registrada(main, worktree)
     # O `git worktree remove` resolve este caminho por TEXTO. Fixar só a
     # identidade do task_root deixava a worktree — o objeto que o Git realmente
@@ -1512,11 +1537,9 @@ def cmd_retire(args: argparse.Namespace) -> int:
                 "Git reportou sucesso mas a worktree continua registrada; nada foi removido",
             )
     # 2. remover o root físico sem seguir symlinks
-    # A medição mora AQUI, e não antes do passo 1: medida antes, ela incluía a
-    # worktree que o `git worktree remove` já levou, e o relatório comparava
-    # `measured_*` com `reclaimed_*` de conjuntos diferentes — subnotificando
-    # toda retirada com worktree registrada.
-    bytes_antes, arquivos_antes, ilegiveis_antes = medir(task_root)
+    worktree_removida_no_passo1 = (
+        estado_do_caminho(worktree, "worktree após o passo 1") == AUSENTE
+    )
     bytes_removidos = arquivos_removidos = None
     if estado_do_caminho(task_root, "task root") == PRESENTE:
         # Mesmo descarte que o selo tinha: `bytes_antes` e pre-medicao e pode
@@ -1525,7 +1548,7 @@ def cmd_retire(args: argparse.Namespace) -> int:
             bytes_removidos, arquivos_removidos = remover_arvore_sem_seguir_links(
                 task_root, identidade
             )
-        except OSError as erro:
+        except (OSError, RecursionError) as erro:
             # Remoção parcial: o vínculo mora DENTRO do root, então uma falha
             # no meio já pode tê-lo levado junto. Sem vínculo, `descobrir_slot`
             # não acha mais a Task: `retire` e `observe` passam a responder
@@ -1533,14 +1556,19 @@ def cmd_retire(args: argparse.Namespace) -> int:
             # ferramenta para concluir. Reescrever o vínculo devolve a Task ao
             # alcance dos comandos, que é o que torna a retirada RETENTÁVEL em
             # vez de terminal.
-            alcancavel = _reancorar_task_parcialmente_removida(
+            resultado = _reancorar_task_parcialmente_removida(
                 task_root, binding, task_id, slot
             )
             causa = getattr(erro, "strerror", None) or erro
-            if alcancavel:
+            if resultado == "REANCORADA":
                 detalhe = (
                     "a Task continua observável e a retirada deve ser reexecutada "
                     f"depois de resolver a causa em {task_root}"
+                )
+            elif resultado == "ROOT_AUSENTE":
+                detalhe = (
+                    f"o root {task_root} já não existe: nada restou para remover, "
+                    "e não há retirada a reexecutar"
                 )
             else:
                 detalhe = (
@@ -1592,8 +1620,13 @@ def cmd_retire(args: argparse.Namespace) -> int:
             # Se a remoção não chegou a rodar (root já ausente), creditar
             # `bytes_antes` seria a ferramenta se dar crédito por bytes que
             # ela não removeu.
-            "reclaimed_bytes": bytes_removidos if bytes_removidos is not None else 0,
-            "reclaimed_files": arquivos_removidos if arquivos_removidos is not None else 0,
+            # O passo 1 (git worktree remove) também destrói, e o que ele
+            # leva tem de aparecer no total, ou o relatório credita menos do
+            # que a ferramenta apagou.
+            "reclaimed_bytes": (bytes_worktree if worktree_removida_no_passo1 else 0)
+            + (bytes_removidos if bytes_removidos is not None else 0),
+            "reclaimed_files": (arquivos_worktree if worktree_removida_no_passo1 else 0)
+            + (arquivos_removidos if arquivos_removidos is not None else 0),
             "measured_bytes_before": bytes_antes,
             "measured_files_before": arquivos_antes,
             # Sem este campo, um arquivo ilegível saía da conta e o relatório
@@ -1773,6 +1806,14 @@ def cmd_verify(args: argparse.Namespace) -> int:
             try:
                 if estado_do_caminho(alvo_rec, f"recurso {recurso.nome}") == AUSENTE:
                     ausentes.append(recurso.nome)
+                elif e_symlink(alvo_rec, f"recurso {recurso.nome}"):
+                    # "Existe um inode com esse nome" e o predicado mais fraco
+                    # possivel. Um symlink aqui aponta para FORA do task root e
+                    # e exatamente a classe de containment que
+                    # `exigir_contido`/`sem_symlink_em_componentes` policiam.
+                    problemas.append(f"recurso {recurso.nome} de {nome} é symlink")
+                elif not e_diretorio(alvo_rec, f"recurso {recurso.nome}"):
+                    problemas.append(f"recurso {recurso.nome} de {nome} não é diretório")
             except ForjaError as erro:
                 problemas.append(f"recurso {recurso.nome} de {nome} inobservável: {erro.mensagem}")
         if ausentes:
@@ -1923,7 +1964,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         if erro.status in {"DENIED", "BLOCKED_BY_MOUNT", "BLOCKED_BY_PROCESS"}:
             return EXIT_RECUSADO
         return EXIT_FALHA
-    except OSError as erro:
+    except (OSError, RecursionError) as erro:
+        # `RecursionError` nao e `OSError`: sem ele aqui, a remocao recursiva
+        # estourando a pilha derrubava o comando com traceback cru, sem status
+        # JSON e sem codigo de saida do contrato.
         print(json.dumps({"status": "FAILED", "error": str(erro)}, ensure_ascii=False), file=sys.stderr)
         return EXIT_FALHA
 

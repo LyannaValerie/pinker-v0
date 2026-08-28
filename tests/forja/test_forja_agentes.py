@@ -1244,8 +1244,11 @@ class PredicadoBooleanoTests(Base):
             # porque a funcao afetada tinha oraculo; o tripwire tem de pegar
             # sozinho, e importar e uma ligacao como outra qualquer.
             if isinstance(no, ast.ImportFrom):
+                # `DINAMICOS` so era consultado na forma `ast.Attribute`, entao
+                # `from operator import methodcaller` entrava pela porta que a
+                # regra de import deixou aberta.
                 for apelido in no.names:
-                    if apelido.name in cls.PROIBIDOS:
+                    if apelido.name in cls.PROIBIDOS or apelido.name in cls.DINAMICOS:
                         achados.add(apelido.asname or apelido.name)
                 continue
             def ligado(valor):
@@ -1290,6 +1293,16 @@ class PredicadoBooleanoTests(Base):
                         ofensas.append(f"{nome}:{interno.lineno} acesso dinamico .{interno.attr}")
                 elif isinstance(interno, ast.Name) and interno.id in aliases:
                     ofensas.append(f"{nome}:{interno.lineno} usa alias {interno.id!r} de predicado proibido")
+                elif (
+                    isinstance(interno, ast.Call)
+                    and any(
+                        isinstance(a, ast.Name) and a.id == "getattr" for a in interno.args
+                    )
+                ):
+                    # `functools.partial(getattr, p, "exists")` passa `getattr`
+                    # como VALOR: nenhuma das regras anteriores o ve, porque
+                    # elas olham `Call.func`.
+                    ofensas.append(f"{nome}:{interno.lineno} passa getattr como valor")
                 elif (
                     isinstance(interno, ast.Call)
                     and isinstance(interno.func, ast.Name)
@@ -1353,7 +1366,15 @@ class PredicadoBooleanoTests(Base):
                 ofensas.append(f"linha {no.lineno}: except {'/'.join(nomes)} largo demais")
             elif "ForjaError" in nomes and all(
                 isinstance(c, (ast.Pass, ast.Continue))
-                or (isinstance(c, ast.Return) and c.value is None)
+                or (
+                    isinstance(c, ast.Return)
+                    and (
+                        c.value is None
+                        or (isinstance(c.value, ast.Constant) and c.value.value is None)
+                    )
+                )
+                or (isinstance(c, ast.Expr) and isinstance(c.value, ast.Constant)
+                    and c.value.value is Ellipsis)
                 for c in no.body
             ):
                 ofensas.append(f"linha {no.lineno}: engole ForjaError sem registrar")
@@ -1494,6 +1515,62 @@ class RelatorioDeRemocaoParcialTests(Base):
             )
 
 
+class PlanoDeRetiradaTests(Base):
+    """Rodada 17 F1: mover a medicao quebrou o comando nao-destrutivo.
+
+    `retire` sem `--apply` le `bytes_antes` no bloco de plano. Ao mover a
+    atribuicao para depois desse bloco, o dry-run passou a morrer com
+    `UnboundLocalError` — que nao e ForjaError nem OSError, entao escapava dos
+    dois handlers de `main()`: traceback cru, sem JSON, sem codigo do
+    contrato. Nenhum teste cobria o plano.
+    """
+
+    def test_retire_sem_apply_emite_o_plano(self) -> None:
+        self.provisionar()
+        self.tornar_retiravel()
+        # O defeito desta classe e um CRASH, e crash cru sobe como erro do
+        # teste em vez de asserção — a meta-suite recusa vermelho que nao
+        # venha de AssertionError, e com razao. Converter aqui e o que torna
+        # o oraculo causal.
+        try:
+            codigo, r = self.rodar("retire")
+        except Exception as erro:  # noqa: BLE001 - o ponto e capturar qualquer crash
+            self.fail(f"retire sem --apply levantou {type(erro).__name__}: {erro}")
+        self.assertEqual(codigo, 0, r)
+        self.assertEqual(r.get("status"), "RETIRE_PLAN", r)
+        for chave in ("bytes", "files", "unreadable", "proofs"):
+            self.assertIn(chave, r, r)
+
+    def test_retire_sem_apply_nao_remove_nada(self) -> None:
+        dados = self.provisionar()
+        task_root = Path(dados["task_root"])
+        self.tornar_retiravel()
+        try:
+            codigo, _r = self.rodar("retire")
+        except Exception as erro:  # noqa: BLE001
+            self.fail(f"retire sem --apply levantou {type(erro).__name__}: {erro}")
+        self.assertEqual(codigo, 0)
+        self.assertTrue(task_root.is_dir(), "o plano removeu o root")
+
+    def test_recuperado_inclui_o_que_o_passo1_levou(self) -> None:
+        """`reclaimed` tem de cobrir o mesmo conjunto que `measured`.
+
+        O `git worktree remove` do passo 1 tambem destroi. Contar so o passo 2
+        subnotificava toda retirada com worktree registrada; medir depois do
+        passo 1 "consertava" o par jogando fora os bytes da worktree.
+        """
+        dados = self.provisionar()
+        (Path(dados["task_root"]) / "artifacts" / "grande.bin").write_bytes(b"x" * 200000)
+        self.tornar_retiravel()
+        codigo, r = self.rodar("retire", "--apply")
+        self.assertEqual(codigo, 0, r)
+        self.assertEqual(
+            r["reclaimed_bytes"],
+            r["measured_bytes_before"],
+            "medido e recuperado cobrem conjuntos diferentes",
+        )
+
+
 class VerifyOlhaODiscoTests(Base):
     """Rodada 16 F2: `verify` provava invariante contra si mesmo.
 
@@ -1512,6 +1589,33 @@ class VerifyOlhaODiscoTests(Base):
         self.assertTrue(
             any("recursos do contrato" in p for p in r.get("problems", [])),
             f"verify reprovou, mas nao pelo recurso ausente: {r.get('problems')}",
+        )
+
+    def test_verify_reprova_recurso_symlink_para_fora(self) -> None:
+        """Existir nao basta: "existe um inode com esse nome" e o predicado
+        mais fraco possivel, e um symlink aqui aponta para FORA do task root.
+        """
+        dados = self.provisionar()
+        alvo = Path(dados["task_root"]) / "memory"
+        shutil.rmtree(alvo)
+        alvo.symlink_to(self.tmp)
+        codigo, r = self.rodar("verify")
+        self.assertNotEqual(codigo, 0, r)
+        self.assertTrue(
+            any("memory" in p and "symlink" in p for p in r.get("problems", [])),
+            f"symlink no lugar de recurso passou pela verificacao: {r.get('problems')}",
+        )
+
+    def test_verify_reprova_recurso_que_nao_e_diretorio(self) -> None:
+        dados = self.provisionar()
+        alvo = Path(dados["task_root"]) / "logs"
+        shutil.rmtree(alvo)
+        alvo.write_text("nao sou diretorio\n", encoding="utf-8")
+        codigo, r = self.rodar("verify")
+        self.assertNotEqual(codigo, 0, r)
+        self.assertTrue(
+            any("logs" in p and "não é diretório" in p for p in r.get("problems", [])),
+            r.get("problems"),
         )
 
     def test_verify_aponta_qual_recurso_falta(self) -> None:
