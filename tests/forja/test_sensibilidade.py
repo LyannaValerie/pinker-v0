@@ -322,12 +322,24 @@ class SensibilidadeTests(unittest.TestCase):
         )
 
     @staticmethod
-    def _quebrou(saida: str, teste: str) -> bool:
-        """O teste nomeado falhou ou errou — e não apenas algum teste qualquer."""
-        return any(
-            linha.startswith(("FAIL: " + teste, "ERROR: " + teste))
-            for linha in saida.splitlines()
-        )
+    def _quebrou(saida: str, teste: str) -> tuple[bool, str]:
+        """O teste nomeado falhou, e devolve também POR QUE falhou.
+
+        Exigir só `FAIL:`/`ERROR:` do nome certo ainda deixa passar o mutante
+        que derruba o alvo por efeito colateral — um `ENOTDIR` levantado antes
+        do oráculo, por exemplo. O motivo é extraído para que o caso possa
+        exigir causalidade, e não apenas coincidência de nome.
+        """
+        linhas = saida.splitlines()
+        for i, linha in enumerate(linhas):
+            if linha.startswith(("FAIL: " + teste, "ERROR: " + teste)):
+                for detalhe in linhas[i : i + 40]:
+                    d = detalhe.strip()
+                    if d.startswith(("AssertionError", "ForjaError", "OSError", "NotADirectoryError",
+                                     "FileNotFoundError", "PermissionError", "TypeError", "ValueError")):
+                        return True, d[:200]
+                return True, "(motivo não extraído)"
+        return False, ""
 
     def _montar(self, tmp: Path) -> Path:
         base = tmp / "arvore"
@@ -345,6 +357,7 @@ class SensibilidadeTests(unittest.TestCase):
 
     def test_cada_mutacao_deixa_a_suite_vermelha(self) -> None:
         falhas: list[str] = []
+        observados: dict[str, str] = {}
         for ident, descricao, pares, alvo in MUTACOES:
             with self.subTest(mutacao=ident):
                 with tempfile.TemporaryDirectory() as t:
@@ -368,13 +381,30 @@ class SensibilidadeTests(unittest.TestCase):
                     arquivo.write_text(texto, encoding="utf-8")
                     r = self._rodar_suite(base)
                     saida = r.stdout + r.stderr
+                    quebrou, motivo = self._quebrou(saida, alvo)
                     if r.returncode == 0:
                         falhas.append(f"{ident} ({descricao}): suíte ficou VERDE com a mutação aplicada")
-                    elif not self._quebrou(saida, alvo):
+                    elif not quebrou:
                         falhas.append(
                             f"{ident} ({descricao}): suíte ficou vermelha, mas NÃO por {alvo} — "
                             "vermelho pelo motivo errado não prova o gate"
                         )
+                    else:
+                        # causalidade: o alvo tem de cair pela propriedade, e não
+                        # por uma exceção do sistema levantada antes do oráculo
+                        acidental = ("NotADirectoryError", "ENOTDIR", "Not a directory",
+                                     "ModuleNotFoundError", "SyntaxError", "ImportError")
+                        if any(a in motivo for a in acidental):
+                            falhas.append(
+                                f"{ident} ({descricao}): {alvo} caiu por efeito colateral "
+                                f"({motivo[:90]}) e não pela propriedade sob teste"
+                            )
+                        else:
+                            observados[ident] = motivo
+        if falhas:
+            print("\nmotivos observados por mutante:")
+            for k, v in sorted(observados.items()):
+                print(f"  {k}: {v[:110]}")
         self.assertEqual(falhas, [], "gates que não fecham:\n" + "\n".join(falhas))
 
 

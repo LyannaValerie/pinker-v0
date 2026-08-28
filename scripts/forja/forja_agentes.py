@@ -24,6 +24,7 @@ elegível, e nunca segue link simbólico ao apagar.
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import errno
 import grp
 import json
@@ -428,6 +429,25 @@ def processos_estritos() -> bool:
     e aceita bloquear.
     """
     return os.environ.get("FORJA_AGENTES_STRICT_PROCESSES") == "1"
+
+
+def instante_canonico(valor: Any, campo: str) -> "dt.datetime":
+    """Converte um carimbo em instante UTC, exigindo forma canônica exata.
+
+    `time.strptime` é permissivo: aceita segundo 61 e tolera variações que nunca
+    foram escritas por este código. Como o valor autoriza destruição, a
+    conversão precisa ser ida-e-volta: se reserializar não devolver o texto
+    original, o carimbo não é o que diz ser.
+    """
+    if not isinstance(valor, str):
+        raise ForjaError("DENIED", f"{campo} ausente ou não textual: {valor!r}")
+    try:
+        instante = dt.datetime.strptime(valor, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.timezone.utc)
+    except (TypeError, ValueError) as erro:
+        raise ForjaError("DENIED", f"{campo} malformado: {valor!r}") from erro
+    if instante.strftime("%Y-%m-%dT%H:%M:%SZ") != valor:
+        raise ForjaError("DENIED", f"{campo} não está em forma canônica: {valor!r}")
+    return instante
 
 
 def confirmar_identidade(alvo: Path, identidade: tuple[int, int]) -> None:
@@ -1056,23 +1076,19 @@ def guardas_de_destruicao(
             "DENIED",
             "sem evidência de EXECUTION_SEAL no vínculo: destruir exige um selo ocorrido, não um rótulo",
         )
-    # Exigir apenas que a chave exista aceitaria `sealed_at: "x"`. O valor é
-    # conferido como instante real e não anterior à criação do root: um selo não
-    # pode ter acontecido antes de existir a Task que ele sela.
-    try:
-        instante = time.strptime(selado_em, "%Y-%m-%dT%H:%M:%SZ")
-    except (TypeError, ValueError) as erro:
-        raise ForjaError("DENIED", f"evidência de selo malformada: {selado_em!r}") from erro
+    # Exigir apenas que a chave exista aceitaria `sealed_at: "x"`. Mas validar
+    # frouxo é quase o mesmo: `strptime` aceita segundo 61 e formas não
+    # canônicas, `created_at` ausente pulava a comparação, e um `created_at`
+    # ilegível caía num `pass`. Cada um desses ramos autorizava destruição a
+    # partir de algo que não foi provado. Agora todos falham fechado.
     criado_em = (binding or {}).get("created_at")
-    if criado_em:
-        try:
-            if instante < time.strptime(criado_em, "%Y-%m-%dT%H:%M:%SZ"):
-                raise ForjaError(
-                    "DENIED",
-                    f"selo datado antes da criação do root ({selado_em} < {criado_em})",
-                )
-        except ValueError:
-            pass  # created_at ilegível não invalida um sealed_at bem formado
+    instante = instante_canonico(selado_em, "sealed_at")
+    nascimento = instante_canonico(criado_em, "created_at")
+    if instante < nascimento:
+        raise ForjaError(
+            "DENIED",
+            f"selo datado antes da criação do root ({selado_em} < {criado_em})",
+        )
     provas.append(f"EXECUTION_SEAL_EVIDENCE({selado_em})")
 
     st = task_root.lstat()
@@ -1124,6 +1140,13 @@ def cmd_seal(args: argparse.Namespace) -> int:
         sem_symlink_em_componentes(alvo, canonical_main())
         if alvo.is_symlink():
             raise ForjaError("DENIED", f"recurso é symlink: {alvo}")
+        # A identidade do recurso é fixada AQUI, imediatamente antes de remover:
+        # o selo apagava por nome, sem o mesmo cuidado que a retirada já tinha.
+        try:
+            st_alvo = alvo.lstat()
+        except OSError as erro:
+            raise ForjaError("DENIED", f"recurso desapareceu antes da selagem: {alvo}") from erro
+        identidade_alvo = (st_alvo.st_dev, st_alvo.st_ino)
         vivos, indeterminados, _ = processos_no_root(alvo)
         if vivos:
             raise ForjaError("BLOCKED_BY_PROCESS", f"processo ativo em {alvo}: {vivos}")
@@ -1134,7 +1157,7 @@ def cmd_seal(args: argparse.Namespace) -> int:
                 "evidência ilegível",
             )
         if args.apply:
-            remover_arvore_sem_seguir_links(alvo)
+            remover_arvore_sem_seguir_links(alvo, identidade_alvo)
             criar_dir(alvo)
             recuperados += antes
             acao = "RECLAIMED"
@@ -1196,6 +1219,13 @@ def cmd_retire(args: argparse.Namespace) -> int:
     bytes_antes, arquivos_antes = medir(task_root)
     worktree = task_root / "worktree"
     registrada = worktree_registrada(main, worktree)
+    # O `git worktree remove` resolve este caminho por TEXTO. Fixar só a
+    # identidade do task_root deixava a worktree — o objeto que o Git realmente
+    # apaga — sem verificação própria.
+    identidade_worktree = None
+    if worktree.exists() or worktree.is_symlink():
+        st_wt = worktree.lstat()
+        identidade_worktree = (st_wt.st_dev, st_wt.st_ino)
     # Toda inspeção falível acontece ANTES do ponto sem volta: se o Git não
     # responder, a Task continua inteira e o erro é sobre a inspeção, não sobre
     # um estado meio destruído.
@@ -1231,24 +1261,34 @@ def cmd_retire(args: argparse.Namespace) -> int:
         # texto. Fixar o inode só para a segunda remoção deixaria a primeira
         # apagando o que quer que estivesse no nome naquele instante.
         confirmar_identidade(task_root, identidade)
+        if identidade_worktree is not None:
+            confirmar_identidade(worktree, identidade_worktree)
         r = git(main, "worktree", "remove", "--force", str(worktree), check=False)
         if r.returncode != 0:
             # "nada foi removido" seria mentira: medido neste host, um subdiretório
             # 0500 faz o Git sair 255 com "Permission denied" DEPOIS de já ter
             # apagado o registro, deixando a worktree no disco e órfã. O estado
             # real é medido e reportado, em vez de presumido pelo código de saída.
+            # Não concluir. Dos quatro quadrantes possíveis, só um justificava
+            # "nada foi removido", e a versão anterior imprimia essa frase em
+            # três — inclusive quando registro E diretório já tinham sumido.
+            # Os observáveis são emitidos como estado; a leitura fica com quem
+            # lê, que é o único que pode saber o resto.
             ainda_registrada = worktree_registrada(main, worktree)
+            no_disco = worktree.exists() or worktree.is_symlink()
+            estado = {
+                (True, True): "registro presente e diretório presente",
+                (True, False): "registro presente e diretório AUSENTE",
+                (False, True): "registro AUSENTE e diretório presente (worktree órfã)",
+                (False, False): "registro AUSENTE e diretório AUSENTE",
+            }[(ainda_registrada, no_disco)]
             raise ForjaError(
                 "FAILED",
-                f"desregistro da worktree falhou: {r.stderr.strip()[:160]} "
-                f"(registro_removido={not ainda_registrada}; "
-                f"worktree_no_disco={worktree.exists()}). "
-                + (
-                    "A worktree ficou órfã: presente no disco e sem registro. "
-                    "Resolva a causa e reexecute a retirada."
-                    if not ainda_registrada and worktree.exists()
-                    else "Nada foi removido."
-                ),
+                f"desregistro da worktree falhou: {r.stderr.strip()[:150]} | "
+                f"estado observado: {estado} "
+                f"(registro_presente={ainda_registrada}; worktree_no_disco={no_disco}). "
+                "Nenhuma conclusão sobre o conteúdo é emitida aqui; "
+                "reexecute a retirada depois de resolver a causa.",
             )
         if worktree_registrada(main, worktree):
             raise ForjaError(
@@ -1345,8 +1385,14 @@ def metadata_orfa(main: Path) -> list[str]:
     if not comum.is_absolute():
         comum = main / comum
     base = comum / "worktrees"
-    if not base.is_dir():
-        return []
+    try:
+        st_base = base.lstat()
+    except FileNotFoundError:
+        return []  # ausência genuína: nenhuma worktree registrada
+    except OSError as erro:
+        raise ForjaError("FAILED", f"metadata de worktree ilegível: {erro}") from erro
+    if not stat.S_ISDIR(st_base.st_mode):
+        raise ForjaError("FAILED", f"metadata de worktree não é diretório: {base}")
     orfas: list[str] = []
     for entrada in base.iterdir():
         gitdir = entrada / "gitdir"
@@ -1365,15 +1411,36 @@ def worktrees_desregistradas(main: Path, raiz: Path) -> list[str]:
     achados: list[str] = []
     for nome, _ in slots_existentes(raiz):
         wt = raiz / nome / "worktree"
-        if not wt.is_dir() or wt.is_symlink():
+        try:
+            st = wt.lstat()
+        except FileNotFoundError:
+            continue  # ausência genuína: slot sem worktree
+        except OSError as erro:
+            achados.append(f"{wt} (ilegível: {erro.strerror})")
             continue
-        if not (wt / ".git").exists():
+        # Symlink e tipo inesperado no lugar de uma worktree SÃO estados
+        # residuais. Pular era o mesmo fail-open de sempre: o caso anômalo
+        # desaparecia justamente da função escrita para encontrá-lo.
+        if stat.S_ISLNK(st.st_mode):
+            achados.append(f"{wt} (symlink no lugar da worktree)")
+            continue
+        if not stat.S_ISDIR(st.st_mode):
+            achados.append(f"{wt} (não é diretório)")
+            continue
+        marcador = wt / ".git"
+        try:
+            marcador.lstat()
+        except FileNotFoundError:
+            achados.append(f"{wt} (diretório de worktree sem marcador .git)")
+            continue
+        except OSError as erro:
+            achados.append(f"{wt} (.git ilegível: {erro.strerror})")
             continue
         try:
             if not worktree_registrada(main, wt):
                 achados.append(str(wt))
-        except ForjaError:
-            achados.append(f"{wt} (inspeção falhou)")
+        except ForjaError as erro:
+            achados.append(f"{wt} (inspeção falhou: {erro.mensagem[:60]})")
     return achados
 
 

@@ -419,12 +419,17 @@ class SegurancaDeCleanupTests(Base):
         alvo = fora / "nao-apague.txt"
         alvo.write_text("preservar\n", encoding="utf-8")
         (raiz / "scratch" / "fuga").symlink_to(fora)
-        self.tornar_retiravel()
-        codigo, resultado = self.rodar("retire", "--apply")
-        self.assertEqual(codigo, 0, resultado)
-        self.assertFalse(raiz.exists())
+        # Nenhum codigo de saida e asserido antes do oraculo. A travessia
+        # acontece no SELO — que limpa scratch — e o erro que ela levanta
+        # depois de ja ter apagado o alvo externo derrubaria o teste pela causa
+        # errada. O unico oraculo aqui e o arquivo de fora.
+        self.rodar("seal", "--apply")
+        self.rodar("state", "--set", "RETIREABLE")
+        self.rodar("retire", "--apply")
         self.assertTrue(alvo.exists(), "o delete seguiu um symlink para fora do task root")
-        self.assertTrue(fora.is_dir())
+        self.assertTrue(fora.is_dir(), "o diretorio externo foi destruido pela travessia")
+        # so depois, o caminho feliz: com o codigo correto tudo isso vale
+        self.assertFalse(raiz.exists(), "o root deveria ter sido removido")
 
     def test_seal_nao_segue_symlink_para_fora(self) -> None:
         dados = self.provisionar()
@@ -680,8 +685,38 @@ class SeloForjadoTests(Base):
         (raiz / "task.json").write_text(json.dumps(binding), encoding="utf-8")
         codigo, r = self.rodar("retire", "--apply")
         self.assertEqual(codigo, fa.EXIT_RECUSADO, r)
-        self.assertIn("malformada", r["error"])
+        self.assertIn("malformado", r["error"])
         self.assertTrue(raiz.is_dir())
+
+    def test_retire_recusa_created_at_ausente_ou_ilegivel(self) -> None:
+        """Ramos que antes autorizavam por omissão: `created_at` ausente pulava
+        a comparação e um `created_at` ilegível caía num `pass`."""
+        for mutacao in ({"remover": "created_at"}, {"created_at": "x"}, {"created_at": 12345}):
+            with self.subTest(mutacao=mutacao):
+                dados = self.provisionar()
+                self.rodar("seal", "--apply")
+                self.rodar("state", "--set", "RETIREABLE")
+                raiz = Path(dados["task_root"])
+                b = json.loads((raiz / "task.json").read_text(encoding="utf-8"))
+                if "remover" in mutacao:
+                    b.pop("created_at", None)
+                else:
+                    b.update(mutacao)
+                (raiz / "task.json").write_text(json.dumps(b), encoding="utf-8")
+                codigo, r = self.rodar("retire", "--apply")
+                self.assertEqual(codigo, fa.EXIT_RECUSADO, r)
+                self.assertIn("created_at", r["error"])
+                self.assertTrue(raiz.is_dir())
+                self.tearDown(); self.setUp()
+
+    def test_retire_recusa_carimbo_nao_canonico(self) -> None:
+        """`strptime` aceita segundo 61 e formas não canônicas; o carimbo que
+        autoriza destruição precisa sobreviver a um round-trip."""
+        for ruim in ("2026-08-28T05:48:61Z", "2026-8-28T05:48:59Z", "2026-08-28T05:48:59"):
+            with self.subTest(carimbo=ruim):
+                with self.assertRaises(fa.ForjaError):
+                    fa.instante_canonico(ruim, "sealed_at")
+        self.assertIsNotNone(fa.instante_canonico("2026-08-28T05:48:59Z", "sealed_at"))
 
     def test_retire_recusa_selo_anterior_a_criacao_do_root(self) -> None:
         dados = self.provisionar()
@@ -799,8 +834,11 @@ class FalhaDeGitTests(Base):
             codigo, r = self.rodar("retire", "--apply")
             self.assertEqual(codigo, fa.EXIT_FALHA, r)
             msg = r["error"]
-            self.assertIn("registro_removido=", msg)
+            # o relatorio emite OBSERVAVEIS, nao conclusao
+            self.assertIn("estado observado:", msg)
+            self.assertIn("registro_presente=", msg)
             self.assertIn("worktree_no_disco=", msg)
+            self.assertNotIn("Nada foi removido", msg)
             # e o verify precisa ENXERGAR o resíduo, não declarar tudo limpo
             codigo_v, v = self.rodar("verify")
             if (raiz / "worktree").exists():
