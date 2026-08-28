@@ -73,12 +73,19 @@ ESTADOS_DESTRUTIVEIS = ("RETIREABLE",)
 # worktree e a memória que a revisão ainda usa. O único caminho até a destruição
 # passa por um selo real.
 TRANSICOES = {
-    "ACTIVE": ("REVIEW", "FIX_REQUIRED", "SEALED"),
-    "REVIEW": ("ACTIVE", "FIX_REQUIRED", "SEALED"),
-    "FIX_REQUIRED": ("ACTIVE", "REVIEW", "SEALED"),
+    "ACTIVE": ("REVIEW", "FIX_REQUIRED"),
+    "REVIEW": ("ACTIVE", "FIX_REQUIRED"),
+    "FIX_REQUIRED": ("ACTIVE", "REVIEW"),
     "SEALED": ("FIX_REQUIRED", "REVIEW", "RETIREABLE"),
     "RETIREABLE": (),
 }
+
+# `SEALED` não aparece em nenhum destino de `state`: ele é escrito apenas por um
+# `seal --apply` bem-sucedido. Deixá-lo alcançável por `state` permitiria forjar
+# o selo — declarar SEALED sem nunca ter recuperado nada — e daí chegar a
+# RETIREABLE com a worktree e a memória intactas mas o gate satisfeito. O selo
+# precisa ser um fato ocorrido, não um rótulo escrito à mão.
+ESTADOS_SO_POR_OPERACAO = {"SEALED": "seal --apply"}
 
 
 class Classe:
@@ -233,8 +240,10 @@ def mountpoints() -> set[Path]:
     resultado: set[Path] = set()
     try:
         linhas = Path("/proc/self/mountinfo").read_text(encoding="utf-8").splitlines()
-    except OSError:
-        return resultado
+    except OSError as erro:
+        # Devolver conjunto vazio faria `sem_mount_interno` certificar ausência
+        # de mount a partir de uma leitura que nunca aconteceu.
+        raise ForjaError("BLOCKED_BY_MOUNT", f"autoridade de mount ilegível: {erro}") from erro
     for linha in linhas:
         campos = linha.split()
         if len(campos) >= 5:
@@ -387,7 +396,12 @@ def uid_alcanca(uid: int, raiz: Path) -> bool:
 
 
 def processos_estritos() -> bool:
-    """Trata processo não inspecionável como bloqueio, e não como limitação.
+    """Bloqueia por processo NÃO-ROOT de alcance equivalente que seja ilegível.
+
+    O nome importa: este modo não prova ausência de processo de root. Threads do
+    kernel e daemons de root continuam apenas contados, porque nenhum agente sem
+    privilégio consegue lê-los — chamar isso de "estrito" sem qualificar seria
+    prometer uma prova que o modo não entrega.
 
     O padrão é reportar, não bloquear, e a razão é medida e não estética:
     processos privilege-separated do mesmo uid (`sshd-session`, com dumpable=0)
@@ -710,6 +724,11 @@ def git(main: Path, *args: str, check: bool = True) -> subprocess.CompletedProce
 
 def worktree_registrada(main: Path, caminho: Path) -> bool:
     proc = git(main, "worktree", "list", "--porcelain", check=False)
+    if proc.returncode != 0:
+        raise ForjaError(
+            "FAILED",
+            f"impossível inspecionar worktrees registradas: {proc.stderr.strip()[:200]}",
+        )
     alvo = str(Path(os.path.abspath(caminho)))
     for linha in proc.stdout.splitlines():
         if linha.startswith("worktree "):
@@ -756,7 +775,9 @@ def criar_dir(caminho: Path) -> bool:
 
 def cmd_provision(args: argparse.Namespace) -> int:
     main, raiz = exigir_raizes()
-    task_id = resolver_task(args.task_id)
+    # provisionar cria worktree, branch e diretórios: é mutante, e portanto
+    # `--task-id` aqui também é asserção, não endereço
+    task_id = resolver_task_propria(args.task_id)
     slot = descobrir_slot(raiz, task_id)
     criado = False
     if slot is None:
@@ -779,6 +800,12 @@ def cmd_provision(args: argparse.Namespace) -> int:
         criar_dir(alvo)
 
     binding = ler_binding(task_root) or {}
+    # Reprovisionar significa que a Task voltou a estar viva. Herdar um estado
+    # terminal deixaria um root recém-provisionado imediatamente destrutível, e
+    # herdar o `sealed_at` faria um selo antigo autorizar a destruição de um
+    # trabalho novo. Ambos são zerados aqui, de propósito.
+    anterior = binding.get("state")
+    reaberta = anterior in ("SEALED", "RETIREABLE")
     binding.update(
         {
             "schema": SCHEMA_BINDING,
@@ -786,9 +813,12 @@ def cmd_provision(args: argparse.Namespace) -> int:
             "slot": slot,
             "agent": binding.get("agent") or agente_corrente(),
             "created_at": binding.get("created_at") or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            "state": binding.get("state") or "ACTIVE",
+            "state": "ACTIVE" if (reaberta or not anterior) else anterior,
         }
     )
+    if reaberta:
+        binding.pop("sealed_at", None)
+        binding.pop("sealed_reclaimed_bytes", None)
     escrever_binding(task_root, binding)
 
     # Worktree Git: registrada pelo Git, nunca por cópia manual.
@@ -809,6 +839,7 @@ def cmd_provision(args: argparse.Namespace) -> int:
     layout = montar_layout(main, raiz, task_id, slot, ler_binding(task_root))
     layout["status"] = "PROVISIONED"
     layout["slot_created"] = criado
+    layout["reopened_from"] = anterior if reaberta else None
     layout["worktree_created"] = wt_criada
     emitir(layout)
     return EXIT_OK
@@ -887,6 +918,12 @@ def cmd_state(args: argparse.Namespace) -> int:
     exigir_dono(binding, task_id)
     binding = dict(binding or {})
     anterior = binding.get("state") or "ACTIVE"
+    if args.set in ESTADOS_SO_POR_OPERACAO and args.set != anterior:
+        raise ForjaError(
+            "DENIED",
+            f"{args.set} não é atribuível por `state`: só é alcançado por "
+            f"`{ESTADOS_SO_POR_OPERACAO[args.set]}`, que precisa ter ocorrido de fato",
+        )
     if args.set != anterior and args.set not in TRANSICOES.get(anterior, ()):
         raise ForjaError(
             "DENIED",
@@ -951,6 +988,15 @@ def guardas_de_destruicao(main: Path, raiz: Path, task_root: Path, binding: dict
     if estado not in ESTADOS_DESTRUTIVEIS:
         raise ForjaError("DENIED", f"estado {estado!r} não autoriza destruição; exigido um de {ESTADOS_DESTRUTIVEIS}")
     provas.append(f"TASK_STATE_ALLOWS_DESTRUCTION({estado})")
+
+    # O rótulo não basta: o selo tem de ter deixado marca. Sem isto, escrever
+    # RETIREABLE à mão seria suficiente para destruir uma Task nunca selada.
+    if not (binding or {}).get("sealed_at"):
+        raise ForjaError(
+            "DENIED",
+            "sem evidência de EXECUTION_SEAL no vínculo: destruir exige um selo ocorrido, não um rótulo",
+        )
+    provas.append(f"EXECUTION_SEAL_EVIDENCE({binding['sealed_at']})")
 
     st = task_root.lstat()
     if st.st_uid != os.getuid():
@@ -1028,7 +1074,16 @@ def cmd_seal(args: argparse.Namespace) -> int:
 
     binding = ler_binding(task_root) or {}
     if args.apply:
-        binding.update({"schema": SCHEMA_BINDING, "task_id": task_id, "slot": slot, "state": "SEALED"})
+        binding.update(
+            {
+                "schema": SCHEMA_BINDING,
+                "task_id": task_id,
+                "slot": slot,
+                "state": "SEALED",
+                "sealed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                "sealed_reclaimed_bytes": recuperados,
+            }
+        )
         escrever_binding(task_root, binding)
 
     emitir(
@@ -1062,6 +1117,10 @@ def cmd_retire(args: argparse.Namespace) -> int:
     bytes_antes, arquivos_antes = medir(task_root)
     worktree = task_root / "worktree"
     registrada = worktree_registrada(main, worktree)
+    # Toda inspeção falível acontece ANTES do ponto sem volta: se o Git não
+    # responder, a Task continua inteira e o erro é sobre a inspeção, não sobre
+    # um estado meio destruído.
+    metadata_orfa(main)
 
     if not args.apply:
         emitir(
@@ -1072,6 +1131,7 @@ def cmd_retire(args: argparse.Namespace) -> int:
                 "slot": slot,
                 "task_root": str(task_root),
                 "proofs": provas,
+                "process_proof_scope": "INSPECTABLE_ONLY",
                 "worktree_registered": registrada,
                 "bytes": bytes_antes,
                 "files": arquivos_antes,
@@ -1092,17 +1152,28 @@ def cmd_retire(args: argparse.Namespace) -> int:
     # 2. remover o root físico sem seguir symlinks
     if task_root.exists():
         remover_arvore_sem_seguir_links(task_root)
-    # 3. podar metadata do Git
+    # 3. podar metadata do Git. Este passo é necessariamente pós-destrutivo: o
+    #    prune só reconhece a worktree como ida depois que o diretório sumiu.
+    #    Por isso a falha aqui NÃO pode se apresentar como "nada aconteceu" — o
+    #    root já foi removido, e o relatório precisa dizer isso.
     r = git(main, "worktree", "prune", check=False)
+    ausente = not task_root.exists() and not task_root.is_symlink()
     if r.returncode != 0:
-        raise ForjaError("FAILED", f"prune falhou após a remoção: {r.stderr.strip()[:200]}")
+        raise ForjaError(
+            "FAILED",
+            f"prune falhou APÓS a remoção do root (root_removed={ausente}); "
+            f"metadata pode ter ficado órfã e exige `git worktree prune` manual: "
+            f"{r.stderr.strip()[:160]}",
+        )
     # 4. provar ausência de metadata órfã — a prova é obrigatória, não informativa
     orfas = metadata_orfa(main)
-    ausente = not task_root.exists() and not task_root.is_symlink()
     if not ausente:
         raise ForjaError("FAILED", f"task root ainda presente após a remoção: {task_root}")
     if orfas:
-        raise ForjaError("FAILED", f"metadata Git órfã após a retirada: {orfas}")
+        raise ForjaError(
+            "FAILED",
+            f"metadata Git órfã após a retirada (root_removed={ausente}): {orfas}",
+        )
     # 5. a branch sobrevive de propósito: apagá-la seria destruir identidade
     #    de commit que o root físico não possuía. Mas silêncio vira resíduo,
     #    então ela é reportada com o que ainda lhe é exclusivo.

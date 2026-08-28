@@ -434,13 +434,23 @@ class SegurancaDeCleanupTests(Base):
         """
         return {"state": "RETIREABLE", "agent": fa.agente_corrente(), "task_id": "x"}
 
-    def test_nunca_apaga_o_checkout_canonico(self) -> None:
+    def test_nunca_apaga_o_checkout_candidato_recusa_por_contencao(self) -> None:
+        """A recusa precisa ser POR CONTENÇÃO, não por um acaso do ambiente.
+
+        Apontar as guardas para o checkout canônico levanta erro mesmo com a
+        contenção desligada, porque o processo de teste tem cwd lá dentro e a
+        guarda de processo dispara primeiro. Verde por acidente é o modo de
+        falha que esta suíte existe para impedir, então o teste asserta o
+        MOTIVO da recusa e não apenas que houve recusa.
+        """
         self.provisionar()
         with self.assertRaises(fa.ForjaError) as ctx:
             fa.guardas_de_destruicao(
                 self.main, self.main / "agentes", self.main, self._binding_valido()
             )
-        self.assertNotIn("vínculo declara o agente", str(ctx.exception))
+        msg = str(ctx.exception)
+        self.assertNotIn("vínculo declara o agente", msg)
+        self.assertIn("contido", msg, f"recusou, mas por outro motivo: {msg}")
         self.assertTrue((self.main / "README.md").exists())
 
     def test_nunca_apaga_a_propria_raiz_de_agentes(self) -> None:
@@ -590,6 +600,75 @@ class TransicaoDeEstadoTests(Base):
         self.assertIn("RETIREABLE", r["error"])
 
 
+class SeloForjadoTests(Base):
+    """Round 2 F2: o selo precisa ser um fato ocorrido, nao um rotulo escrito."""
+
+    def test_state_nao_atribui_sealed(self) -> None:
+        self.provisionar()
+        codigo, r = self.rodar("state", "--set", "SEALED")
+        self.assertEqual(codigo, fa.EXIT_RECUSADO, r)
+        self.assertIn("não é atribuível por `state`", r["error"])
+
+    def test_retire_recusa_rotulo_retireable_sem_selo_ocorrido(self) -> None:
+        dados = self.provisionar()
+        raiz = Path(dados["task_root"])
+        # forja o vinculo a mao: rotulo terminal sem nenhum selo por tras
+        binding = json.loads((raiz / "task.json").read_text(encoding="utf-8"))
+        binding["state"] = "RETIREABLE"
+        (raiz / "task.json").write_text(json.dumps(binding), encoding="utf-8")
+        codigo, r = self.rodar("retire", "--apply")
+        self.assertEqual(codigo, fa.EXIT_RECUSADO, r)
+        self.assertIn("sem evidência de EXECUTION_SEAL", r["error"])
+        self.assertTrue(raiz.is_dir(), "destruiu uma Task cujo selo nunca ocorreu")
+
+    def test_selo_real_deixa_evidencia_datada(self) -> None:
+        dados = self.provisionar()
+        codigo, r = self.rodar("seal", "--apply")
+        self.assertEqual(codigo, 0, r)
+        binding = json.loads((Path(dados["task_root"]) / "task.json").read_text(encoding="utf-8"))
+        self.assertEqual(binding["state"], "SEALED")
+        self.assertIn("sealed_at", binding)
+        self.assertIn("sealed_reclaimed_bytes", binding)
+
+
+class ProvisionEMutanteTests(Base):
+    """Round 2 F1: provisionar cria worktree e branch, logo e mutante."""
+
+    def test_provision_recusa_task_id_alheio(self) -> None:
+        self.provisionar("b1")
+        codigo, r = self.rodar(
+            "provision", "--task-id", "task-alheia-nao-provisionada", "--branch", "bx"
+        )
+        self.assertEqual(codigo, fa.EXIT_RECUSADO, r)
+        self.assertIn("não é a Task ativa do chamador", r["error"])
+        self.assertFalse((self.main / "agentes" / "a02").exists())
+
+
+class MountFailClosedTests(Base):
+    """Round 2 F4: mountinfo ilegivel nao pode certificar ausencia de mount."""
+
+    def test_mountinfo_ilegivel_bloqueia_em_vez_de_certificar(self) -> None:
+        dados = self.provisionar()
+        raiz = Path(dados["task_root"])
+        original = fa.Path
+
+        class PathQueFalhaNoMountinfo(type(Path())):
+            def read_text(self, *a, **k):
+                if str(self) == "/proc/self/mountinfo":
+                    raise OSError("ilegivel de proposito")
+                return super().read_text(*a, **k)
+
+        alvo = fa.__dict__["Path"]
+        fa.__dict__["Path"] = PathQueFalhaNoMountinfo
+        try:
+            with self.assertRaises(fa.ForjaError) as ctx:
+                fa.mountpoints()
+            self.assertIn("mount", str(ctx.exception).lower())
+        finally:
+            fa.__dict__["Path"] = alvo
+        self.assertTrue(raiz.is_dir())
+
+
 class FalhaDeGitTests(Base):
     """F2: falha do Git nao pode virar sucesso terminal."""
 
@@ -641,29 +720,80 @@ class FalhaDeGitTests(Base):
 class ReivindicacaoDeSlotTests(Base):
     """F4: a alocacao de slot precisa ser atomica, nao scan-then-use."""
 
-    def test_reivindicacao_e_atomica_sob_concorrencia(self) -> None:
-        import threading
+    def test_reivindicar_deixa_marca_para_o_proximo_chamador(self) -> None:
+        """Reivindicar precisa ser observável, não apenas planejado.
 
+        Este teste é determinístico de propósito. A primeira versão usava oito
+        threads e uma barreira, e detectava a corrida só às vezes: passou local
+        e no primeiro CI, e ficou verde com a mutação aplicada num segundo CI do
+        MESMO commit. Um detector probabilístico não é um gate — ele apenas
+        adia o vermelho para um momento pior.
+
+        A propriedade que importa não precisa de concorrência para ser
+        expressa: se reivindicar um slot não deixa marca, o próximo chamador
+        reivindica o mesmo. Duas chamadas seguidas bastam.
+        """
         raiz = self.main / "agentes"
-        obtidos: list[str] = []
-        erros: list[Exception] = []
-        trava = threading.Barrier(8)
+        primeiro = fa.reivindicar_slot(raiz)
+        segundo = fa.reivindicar_slot(raiz)
+        self.assertNotEqual(
+            primeiro,
+            segundo,
+            "reivindicar nao deixou marca: o segundo chamador recebeu o mesmo slot",
+        )
+        self.assertTrue((raiz / primeiro).is_dir(), "o slot reivindicado precisa existir ja")
+        self.assertTrue((raiz / segundo).is_dir())
 
-        def reivindicar() -> None:
-            try:
-                trava.wait()
-                obtidos.append(fa.reivindicar_slot(raiz))
-            except Exception as exc:  # noqa: BLE001 - o teste quer o erro
-                erros.append(exc)
+    def test_reivindicar_pula_slot_criado_por_terceiro_no_meio(self) -> None:
+        """Um concorrente que vence a corrida não pode ser sobrescrito.
 
-        fios = [threading.Thread(target=reivindicar) for _ in range(8)]
-        for f in fios:
-            f.start()
-        for f in fios:
-            f.join()
-        self.assertEqual(erros, [])
-        self.assertEqual(len(obtidos), 8)
-        self.assertEqual(len(set(obtidos)), 8, f"slots duplicados sob concorrencia: {obtidos}")
+        O efeito colateral é injetado em `slots_existentes`, que é o ponto por
+        onde as duas implementações passam: a varredura devolve o mundo antigo
+        enquanto o disco já mudou. É exatamente a janela entre olhar e criar.
+        """
+        raiz = self.main / "agentes"
+        original = fa.slots_existentes
+
+        def varredura_obsoleta(r: Path):
+            resultado = original(r)
+            alvo = r / "a01"
+            if not alvo.exists():
+                os.mkdir(alvo, 0o2770)  # o concorrente venceu aqui
+                (alvo / "task.json").write_text(
+                    json.dumps(
+                        {"schema": fa.SCHEMA_BINDING, "task_id": "task-do-concorrente", "slot": "a01"}
+                    ),
+                    encoding="utf-8",
+                )
+            return resultado  # devolve o mundo de antes, de proposito
+
+        fa.slots_existentes = varredura_obsoleta
+        try:
+            obtido = fa.reivindicar_slot(raiz)
+        finally:
+            fa.slots_existentes = original
+        self.assertNotEqual(obtido, "a01", "sobrescreveu o slot de quem venceu a corrida")
+        binding = json.loads((raiz / "a01" / "task.json").read_text(encoding="utf-8"))
+        self.assertEqual(binding["task_id"], "task-do-concorrente", "vinculo do concorrente foi perdido")
+
+    def test_reprovisionar_reabre_e_descarta_o_selo_antigo(self) -> None:
+        """Um root reprovisionado não pode continuar destrutível.
+
+        Herdar `RETIREABLE` deixaria a Task recém-reaberta a um `retire` de
+        distância, e herdar `sealed_at` faria um selo antigo autorizar a
+        destruição de trabalho novo.
+        """
+        dados = self.provisionar("b1")
+        self.rodar("seal", "--apply")
+        self.rodar("state", "--set", "RETIREABLE")
+        codigo, r = self.rodar("provision")
+        self.assertEqual(codigo, 0, r)
+        self.assertEqual(r["state"], "ACTIVE")
+        self.assertEqual(r["reopened_from"], "RETIREABLE")
+        binding = json.loads((Path(dados["task_root"]) / "task.json").read_text(encoding="utf-8"))
+        self.assertNotIn("sealed_at", binding, "selo antigo sobreviveu à reabertura")
+        codigo, r = self.rodar("retire", "--apply")
+        self.assertEqual(codigo, fa.EXIT_RECUSADO, r)
 
     def test_provision_nao_adota_root_sem_vinculo(self) -> None:
         intruso = self.main / "agentes" / "a01"

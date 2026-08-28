@@ -43,6 +43,7 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
                 '    return str(caminho).startswith(str(raiz) + os.sep)',
             ),
         ],
+        "test_prefixo_textual_nao_e_contencao",
     ),
     (
         "S2",
@@ -53,11 +54,22 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
                 '        if recurso.classe != Classe.EPHEMERAL or recurso.nome == "target":',
             ),
         ],
+        "test_seal_preserva_worktree_memoria_e_estado",
     ),
     (
         "S3",
         "recurso compartilhado declarado com caminho relativo, dentro do task root",
-        [('        "path": "/book",', '        "path": "cache/book",')],
+        [
+            (
+                "for _c in COMPARTILHADOS:\n"
+                '    if not os.path.isabs(_c["path"]):\n'
+                '        raise RuntimeError(f"contrato inválido: recurso compartilhado sem caminho absoluto: {_c}")\n'
+                "del _c",
+                "pass",
+            ),
+            ('        "path": "/book",', '        "path": "cache/book",'),
+        ],
+        "test_recursos_compartilhados_ficam_fora_do_task_root",
     ),
     (
         "S4",
@@ -67,6 +79,7 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
             ("        slot = reivindicar_slot(raiz)  # já criou o diretório, atomicamente",
              "        slot = task_id\n        os.makedirs(raiz / slot, exist_ok=True)"),
         ],
+        "test_slot_nao_e_derivado_do_task_id",
     ),
     (
         "S5",
@@ -93,6 +106,7 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
                 "    if False:\n        pass",
             ),
         ],
+        "test_nunca_apaga_o_checkout_candidato_recusa_por_contencao",
     ),
     (
         "S6",
@@ -127,6 +141,7 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
                 "    return bytes_removidos, arquivos_removidos",
             ),
         ],
+        "test_nao_segue_symlink_para_fora_ao_apagar",
     ),
     (
         "S6b",
@@ -140,6 +155,7 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
             ),
             ("        st = os.lstat(nome, dir_fd=fd_pai)", "        st = os.stat(nome, dir_fd=fd_pai)"),
         ],
+        "test_seal_nao_segue_symlink_para_fora",
     ),
     (
         "S7",
@@ -155,6 +171,7 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
                 "                remover_arvore_sem_seguir_links(_a)",
             ),
         ],
+        "test_retirar_a_nao_toca_b",
     ),
     (
         "S8",
@@ -172,13 +189,22 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
             ),
             (
                 '    r = git(main, "worktree", "prune", check=False)\n'
+                "    ausente = not task_root.exists() and not task_root.is_symlink()\n"
                 "    if r.returncode != 0:\n"
-                '        raise ForjaError("FAILED", f"prune falhou após a remoção: {r.stderr.strip()[:200]}")',
-                "    pass",
+                "        raise ForjaError(\n"
+                '            "FAILED",\n'
+                '            f"prune falhou APÓS a remoção do root (root_removed={ausente}); "\n'
+                '            f"metadata pode ter ficado órfã e exige `git worktree prune` manual: "\n'
+                '            f"{r.stderr.strip()[:160]}",\n'
+                "        )",
+                "    ausente = not task_root.exists() and not task_root.is_symlink()",
             ),
             (
                 "    if orfas:\n"
-                '        raise ForjaError("FAILED", f"metadata Git órfã após a retirada: {orfas}")',
+                "        raise ForjaError(\n"
+                '            "FAILED",\n'
+                '            f"metadata Git órfã após a retirada (root_removed={ausente}): {orfas}",\n'
+                "        )",
                 "    pass",
             ),
             (
@@ -186,6 +212,7 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
                 "def metadata_orfa(main: Path) -> list[str]:\n    return []",
             ),
         ],
+        "test_retire_nao_deixa_metadata_orfa",
     ),
     (
         "S10",
@@ -198,6 +225,7 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
                 '    estado = (binding or {}).get("state")',
             ),
         ],
+        "test_retire_exige_estado_elegivel",
     ),
     (
         "S17",
@@ -210,6 +238,7 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
                 "        return validar_task(arg)",
             ),
         ],
+        "test_retire_recusa_task_de_outrem_via_task_id",
     ),
     (
         "S18",
@@ -224,6 +253,7 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
                 "    pass",
             ),
         ],
+        "test_active_nao_salta_direto_para_retireable",
     ),
     (
         "S19",
@@ -240,25 +270,38 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
             ),
             (
                 "    if orfas:\n"
-                '        raise ForjaError("FAILED", f"metadata Git órfã após a retirada: {orfas}")',
+                "        raise ForjaError(\n"
+                '            "FAILED",\n'
+                '            f"metadata Git órfã após a retirada (root_removed={ausente}): {orfas}",\n'
+                "        )",
                 "    pass",
             ),
         ],
+        "test_retire_falha_quando_o_desregistro_falha",
     ),
     (
         "S20",
-        "reivindicação de slot volta a ser scan-then-use, sem exclusão mútua",
+        "reivindicação de slot volta a ser scan-then-use: planeja sem marcar",
         [
             (
                 "        try:\n"
                 "            os.mkdir(alvo, MODO_DIR)\n"
                 "        except FileExistsError:\n"
-                "            continue  # perdemos a corrida para outro provisionamento: siga adiante",
+                "            continue  # perdemos a corrida para outro provisionamento: siga adiante\n"
+                "        try:\n"
+                "            os.chmod(alvo, MODO_DIR)\n"
+                "            gid = gid_agentes()\n"
+                "            if gid is not None and alvo.lstat().st_gid != gid:\n"
+                "                os.chown(alvo, -1, gid)\n"
+                "        except PermissionError:\n"
+                "            pass\n"
+                "        return candidato",
                 "        if alvo.exists():\n"
                 "            continue\n"
-                "        os.makedirs(alvo, MODO_DIR, exist_ok=True)",
+                "        return candidato",
             ),
         ],
+        "test_reivindicar_deixa_marca_para_o_proximo_chamador",
     ),
     (
         "S21",
@@ -271,6 +314,7 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
                 "    pass",
             ),
         ],
+        "test_mutacao_recusa_root_de_outro_agente",
     ),
     (
         "S16",
@@ -292,6 +336,7 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
             ),
             ('Recurso("logs", "logs",', 'Recurso("logs", "../logs",'),
         ],
+        "test_todo_recurso_esta_contido_no_task_root",
     ),
 ]
 
@@ -303,10 +348,18 @@ class SensibilidadeTests(unittest.TestCase):
 
     def _rodar_suite(self, base: Path) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
-            [sys.executable, "-m", "unittest", "discover", "-s", str(base / "tests" / "forja"), "-p", "test_forja_agentes.py"],
+            [sys.executable, "-m", "unittest", "discover", "-s", str(base / "tests" / "forja"), "-p", "test_forja_agentes.py", "-v"],
             capture_output=True,
             text=True,
             cwd=str(base),
+        )
+
+    @staticmethod
+    def _quebrou(saida: str, teste: str) -> bool:
+        """O teste nomeado falhou ou errou — e não apenas algum teste qualquer."""
+        return any(
+            linha.startswith(("FAIL: " + teste, "ERROR: " + teste))
+            for linha in saida.splitlines()
         )
 
     def _montar(self, tmp: Path) -> Path:
@@ -325,12 +378,12 @@ class SensibilidadeTests(unittest.TestCase):
 
     def test_cada_mutacao_deixa_a_suite_vermelha(self) -> None:
         falhas: list[str] = []
-        for ident, descricao, pares in MUTACOES:
+        for ident, descricao, pares, alvo in MUTACOES:
             with self.subTest(mutacao=ident):
                 with tempfile.TemporaryDirectory() as t:
                     base = self._montar(Path(t))
-                    alvo = base / "scripts" / "forja" / "forja_agentes.py"
-                    texto = alvo.read_text(encoding="utf-8")
+                    arquivo = base / "scripts" / "forja" / "forja_agentes.py"
+                    texto = arquivo.read_text(encoding="utf-8")
                     original = texto
                     for antigo, novo in pares:
                         self.assertIn(
@@ -345,10 +398,16 @@ class SensibilidadeTests(unittest.TestCase):
                         original,
                         f"{ident}: a mutação não alterou nada; o resultado seria um falso verde",
                     )
-                    alvo.write_text(texto, encoding="utf-8")
+                    arquivo.write_text(texto, encoding="utf-8")
                     r = self._rodar_suite(base)
+                    saida = r.stdout + r.stderr
                     if r.returncode == 0:
                         falhas.append(f"{ident} ({descricao}): suíte ficou VERDE com a mutação aplicada")
+                    elif not self._quebrou(saida, alvo):
+                        falhas.append(
+                            f"{ident} ({descricao}): suíte ficou vermelha, mas NÃO por {alvo} — "
+                            "vermelho pelo motivo errado não prova o gate"
+                        )
         self.assertEqual(falhas, [], "gates que não fecham:\n" + "\n".join(falhas))
 
 
