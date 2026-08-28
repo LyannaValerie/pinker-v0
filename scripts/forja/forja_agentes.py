@@ -915,7 +915,7 @@ def cmd_provision(args: argparse.Namespace) -> int:
         # Root pré-existente só é reusado quando o vínculo já é desta Task.
         # Adotar um diretório sem vínculo era o outro lado do F4.
         exigir_dono(ler_binding(task_root), task_id)
-    if not task_root.is_dir() or task_root.is_symlink():
+    if not e_diretorio(task_root, "task root") or e_symlink(task_root, "task root"):
         raise ForjaError("DENIED", f"task root não é diretório regular: {task_root}")
 
     for recurso in RECURSOS:
@@ -967,7 +967,7 @@ def cmd_provision(args: argparse.Namespace) -> int:
     # Worktree Git: registrada pelo Git, nunca por cópia manual.
     worktree = task_root / "worktree"
     wt_criada = False
-    if args.branch and not worktree.exists():
+    if args.branch and estado_do_caminho(worktree, "worktree") == AUSENTE:
         sem_symlink_em_componentes(worktree, raiz)
         base = args.base or "HEAD"
         existe_branch = git(main, "rev-parse", "--verify", "--quiet", f"refs/heads/{args.branch}", check=False).returncode == 0
@@ -1549,7 +1549,9 @@ def cmd_verify(args: argparse.Namespace) -> int:
     checagens: dict[str, Any] = {}
 
     checagens["canonical_main"] = str(main)
-    checagens["canonical_main_is_git"] = (main / ".git").exists()
+    checagens["canonical_main_is_git"] = (
+        estado_do_caminho(main / ".git", "marcador Git do checkout canônico") == PRESENTE
+    )
     if not checagens["canonical_main_is_git"]:
         problemas.append("checkout canônico não é repositório Git")
 
@@ -1582,8 +1584,14 @@ def cmd_verify(args: argparse.Namespace) -> int:
             vistos[tid] = nome
         else:
             problemas.append(f"slot sem vínculo legível: {nome}")
-        if task_root.is_symlink():
-            problemas.append(f"slot é symlink: {nome}")
+        # Fail-open real encontrado ao levar o gate ao módulo inteiro:
+        # `is_symlink()` devolvia False para "não consegui olhar", e o slot
+        # inobservável PASSAVA na verificação em vez de virar problema.
+        try:
+            if e_symlink(task_root, f"slot {nome}"):
+                problemas.append(f"slot é symlink: {nome}")
+        except ForjaError as erro:
+            problemas.append(f"slot {nome} inobservável: {erro.mensagem}")
         slots_info.append({"slot": nome, "task_id": tid, "state": (binding or {}).get("state")})
     checagens["slots"] = slots_info
 

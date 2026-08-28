@@ -1146,39 +1146,47 @@ class DeteccaoDeResiduoTests(Base):
 
 
 class PredicadoBooleanoTests(Base):
-    """Gate estrutural contra a nona instancia da mesma classe de defeito.
+    """Gate estrutural contra a classe de defeito que ja apareceu nove vezes.
 
-    A versao anterior deste gate listava SETE FUNCOES A MAO. A rodada
-    adversarial 10 mostrou o que uma lista a mao sempre acaba mostrando: o
-    caminho destrutivo chama `sem_symlink_em_componentes`, `exigir_raizes` e
-    `slots_existentes`, nenhuma delas na lista, e as tres decidiam sobre
-    estado inobservavel com predicado booleano. A lista nao errou por
-    descuido; ela erra por construcao, porque envelhece a cada funcao nova.
+    Historico curto da propria DEFESA, que e o que este bloco documenta:
 
-    Aqui o escopo passa a ser DERIVADO: o fecho transitivo de chamadas a
-    partir das entradas destrutivas. Uma funcao nova entra no gate no momento
-    em que o caminho destrutivo passa a chama-la, sem ninguem lembrar de
-    edita-lo.
+    - rodada  8: o gate so via `obj.exists()` literal.
+    - rodada 10: o gate cobria SETE FUNCOES POR NOME; helper externo,
+      `getattr` dinamico e `attrgetter` passavam, e tres provas reais do
+      caminho destrutivo nunca estiveram na lista.
+    - rodada 11: a correcao da 10 trocou a lista por um FECHO TRANSITIVO, e o
+      fecho tambem foi furado — ele so seguia `ast.Call(func=ast.Name)`, entao
+      `ALIAS_EXISTE = Path.exists` no nivel do modulo entrava na decisao
+      destrutiva por fora dele.
+
+    Tres escopos, tres fugas. O padrao e o escopo: toda tentativa de dizer
+    "estas funcoes aqui sao as criticas" foi contornada por uma forma de
+    alcancar a funcao que o escopo nao modelava. Entao o escopo deixa de ser
+    calculado: e O MODULO INTEIRO, com isencoes fechadas e verificadas.
+
+    Nao ha mais fecho para escapar, nem lista para envelhecer.
     """
 
-    # Escopo = fecho transitivo destas. Nao sao so as que APAGAM: os
-    # detectores de residuo produzem a prova que autoriza (ou nao) apagar, e
-    # foi num deles que a rodada 6 achou a mesma classe de defeito.
-    ENTRADAS = {
-        "cmd_retire", "cmd_seal", "guardas_de_destruicao",
-        "remover_arvore_sem_seguir_links",
-        "metadata_orfa", "worktrees_desregistradas",
+    # Nomes de predicado que devolvem False tanto para "nao e" quanto para
+    # "nao consegui olhar". A lista cobre `pathlib` E `os.path`: nenhum
+    # `os.path.isdir` aparece hoje na ferramenta, e e por isso que entra
+    # agora — proibir antes do primeiro uso custa uma linha; depois do
+    # primeiro uso custa uma rodada adversarial.
+    PROIBIDOS = {
+        "exists", "is_file", "is_symlink", "is_dir",
+        "isdir", "isfile", "islink", "lexists",
+        "is_mount", "is_block_device", "is_char_device", "is_fifo",
+        "is_socket", "is_junction", "access",
     }
-    PROIBIDOS = {"exists", "is_file", "is_symlink", "is_dir"}
     # Acesso dinamico a atributo: nao da para provar QUAL atributo e lido, e
-    # o que nao se prova, no caminho destrutivo, se recusa.
+    # o que nao se prova, num modulo que apaga diretorio, se recusa.
     DINAMICOS = {"__getattribute__", "__getattr__", "attrgetter"}
 
-    # Isencoes por CLASSE, declaradas com o motivo. B-SXVVQGNJBSZL manda
-    # declarar o escopo da prova em vez de fingir cobertura total; o que ele
-    # proibe e a isencao por conveniencia, nao a isencao justificada.
+    # Allowlist FECHADA. Expandir exige editar esta linha e passar pelas tres
+    # provas de `test_isencao_...`, que sao estruturais e nao declarativas.
     ISENTAS = {
-        "medir": "produz bytes/arquivos para o relatorio; nao decide remocao",
+        "medir": "produz bytes/arquivos para o relatorio; nao decide nada",
+        "descrever_recurso": "monta o dicionario de observacao; nao decide nada",
     }
 
     @staticmethod
@@ -1186,59 +1194,64 @@ class PredicadoBooleanoTests(Base):
         return {n.name: n for n in ast.walk(arvore) if isinstance(n, ast.FunctionDef)}
 
     @classmethod
-    def _fecho(cls, arvore):
-        """Fecho transitivo de chamadas a partir das entradas destrutivas."""
-        funcs = cls._funcoes(arvore)
-        visto, pilha = set(), list(cls.ENTRADAS)
-        while pilha:
-            nome = pilha.pop()
-            if nome in visto or nome not in funcs:
-                continue
-            visto.add(nome)
-            for i in ast.walk(funcs[nome]):
-                if isinstance(i, ast.Call) and isinstance(i.func, ast.Name):
-                    if i.func.id in funcs:
-                        pilha.append(i.func.id)
-        return visto
-
-    def test_fecho_destrutivo_cobre_as_provas_que_o_gate_antigo_perdia(self) -> None:
-        """O escopo derivado tem de conter as funcoes que a lista a mao perdeu.
-
-        Este teste existe para que o fecho nao possa ser esvaziado sem alarme:
-        se alguem trocar as entradas por um conjunto menor, ou parar de descer
-        nas chamadas, estas funcoes somem do escopo e o gate volta a ser
-        decorativo.
-        """
-        arvore = ast.parse(FONTE.read_text(encoding="utf-8"))
-        fecho = self._fecho(arvore)
-        for esperada in (
-            "sem_symlink_em_componentes", "exigir_raizes", "slots_existentes",
-            "estado_do_caminho", "confirmar_identidade", "worktrees_desregistradas",
-            "metadata_orfa", "processos_no_root",
+    def _liga_a_proibido(cls, valor) -> bool:
+        """O valor atribuido e um predicado proibido (ou um acesso indecidivel)?"""
+        if isinstance(valor, ast.Attribute):
+            return valor.attr in cls.PROIBIDOS or valor.attr in cls.DINAMICOS
+        if (
+            isinstance(valor, ast.Call)
+            and isinstance(valor.func, ast.Name)
+            and valor.func.id == "getattr"
+            and len(valor.args) >= 2
         ):
-            self.assertIn(esperada, fecho, f"{esperada} saiu do fecho destrutivo")
-        self.assertGreater(len(fecho), 20, "fecho pequeno demais para ser o caminho real")
+            alvo = valor.args[1]
+            return not isinstance(alvo, ast.Constant) or alvo.value in cls.PROIBIDOS
+        return False
 
-    def test_caminho_destrutivo_nao_usa_predicado_booleano_de_existencia(self) -> None:
-        """Pega alias, getattr constante, getattr dinamico e attrgetter.
+    @classmethod
+    def _aliases(cls, arvore):
+        """Nomes ligados a um predicado proibido em QUALQUER lugar do modulo.
 
-        A rodada 10 passou por este gate com quatro formas: `getattr` de nome
-        montado em runtime, `operator.attrgetter`, `__getattribute__` e um
-        helper externo. As tres primeiras morrem aqui; o helper externo morre
-        porque o escopo agora e o fecho, e o helper entra nele ao ser chamado.
+        Foi por aqui que a rodada 11 passou: a ligacao morava no nivel do
+        modulo, fora de toda funcao, e no ponto de uso so aparecia um
+        `ast.Name`. Rastrear a ligacao onde ela acontece e mais barato do que
+        adivinhar o ponto de uso.
+        """
+        achados = set()
+        for no in ast.walk(arvore):
+            alvos = []
+            if isinstance(no, ast.Assign) and cls._liga_a_proibido(no.value):
+                alvos = no.targets
+            elif isinstance(no, ast.AnnAssign) and no.value is not None and cls._liga_a_proibido(no.value):
+                alvos = [no.target]
+            for alvo in alvos:
+                if isinstance(alvo, ast.Name):
+                    achados.add(alvo.id)
+        return achados
+
+    def test_modulo_inteiro_nao_usa_predicado_booleano_de_existencia(self) -> None:
+        """Escopo = modulo inteiro menos isencoes fechadas.
+
+        Pega chamada direta, alias por atribuicao (em qualquer escopo),
+        `getattr` constante, `getattr` de nome montado em runtime,
+        `attrgetter` e `__getattribute__`.
         """
         arvore = ast.parse(FONTE.read_text(encoding="utf-8"))
         funcs = self._funcoes(arvore)
+        aliases = self._aliases(arvore)
         ofensas = []
-        for nome in sorted(self._fecho(arvore)):
+        for nome in sorted(funcs):
             if nome in self.ISENTAS:
                 continue
             for interno in ast.walk(funcs[nome]):
-                if isinstance(interno, ast.Attribute) and interno.attr in self.PROIBIDOS:
-                    ofensas.append(f"{nome}:{interno.lineno} referencia .{interno.attr}")
-                if isinstance(interno, ast.Attribute) and interno.attr in self.DINAMICOS:
-                    ofensas.append(f"{nome}:{interno.lineno} acesso dinamico .{interno.attr}")
-                if (
+                if isinstance(interno, ast.Attribute):
+                    if interno.attr in self.PROIBIDOS:
+                        ofensas.append(f"{nome}:{interno.lineno} referencia .{interno.attr}")
+                    elif interno.attr in self.DINAMICOS:
+                        ofensas.append(f"{nome}:{interno.lineno} acesso dinamico .{interno.attr}")
+                elif isinstance(interno, ast.Name) and interno.id in aliases:
+                    ofensas.append(f"{nome}:{interno.lineno} usa alias {interno.id!r} de predicado proibido")
+                elif (
                     isinstance(interno, ast.Call)
                     and isinstance(interno.func, ast.Name)
                     and interno.func.id == "getattr"
@@ -1249,100 +1262,127 @@ class PredicadoBooleanoTests(Base):
                         if alvo.value in self.PROIBIDOS:
                             ofensas.append(f"{nome}:{interno.lineno} getattr(..., {alvo.value!r})")
                     else:
-                        # nome montado em runtime: indecidivel, logo recusado
                         ofensas.append(f"{nome}:{interno.lineno} getattr com nome dinamico")
         self.assertEqual(
             ofensas,
             [],
-            "predicado booleano de existencia no caminho destrutivo; use "
+            "predicado booleano de existencia fora das isencoes; use "
             "estado_do_caminho()/e_symlink()/e_diretorio(), que nao conseguem "
             "representar 'nao olhei' como False:\n" + "\n".join(ofensas),
         )
 
-    def test_isencao_do_gate_e_declarada_e_nao_cobre_decisao_de_remocao(self) -> None:
-        """Isencao so vale enquanto for o que ela diz ser.
+    def test_isencao_e_fechada_estrutural_e_nao_declarativa(self) -> None:
+        """Tres provas, porque a rodada 11 furou a versao declarativa.
 
-        Uma isencao silenciosa e o modo mais barato de esvaziar um gate: basta
-        acrescentar um nome. Aqui cada isenta precisa de motivo escrito e nao
-        pode chamar nada que remova.
+        Antes bastava "ter motivo escrito e nao chamar quatro nomes de
+        remocao". `guardas_de_destruicao` DECIDE a autorizacao e nao chama
+        nenhum desses nomes: pode ser isentada e receber `.exists()` de volta
+        com a matriz inteira verde.
+
+        A prova que separa relatorio de decisao nao e a chamada de remocao: e
+        a capacidade de RECUSAR. Uma funcao que levanta ForjaError decide.
         """
         arvore = ast.parse(FONTE.read_text(encoding="utf-8"))
         funcs = self._funcoes(arvore)
-        remocao = {"remover_arvore_sem_seguir_links", "rmtree", "unlink", "rmdir"}
-        for nome, motivo in self.ISENTAS.items():
-            self.assertTrue(motivo.strip(), f"isencao de {nome} sem motivo declarado")
-            self.assertIn(nome, funcs, f"isencao de {nome} aponta para funcao inexistente")
+
+        def levanta_forja(nome):
+            return any(
+                isinstance(i, ast.Raise)
+                and isinstance(i.exc, ast.Call)
+                and isinstance(i.exc.func, ast.Name)
+                and i.exc.func.id == "ForjaError"
+                for i in ast.walk(funcs[nome])
+            )
+
+        def alcanca_remocao(nome, vistos=None):
+            vistos = vistos if vistos is not None else set()
+            if nome in vistos or nome not in funcs:
+                return False
+            vistos.add(nome)
             for i in ast.walk(funcs[nome]):
                 alvo = None
                 if isinstance(i, ast.Call) and isinstance(i.func, ast.Name):
                     alvo = i.func.id
                 elif isinstance(i, ast.Call) and isinstance(i.func, ast.Attribute):
                     alvo = i.func.attr
-                self.assertNotIn(
-                    alvo, remocao, f"funcao isenta {nome} chama {alvo}: a isencao mente"
-                )
+                if alvo in {"remover_arvore_sem_seguir_links", "rmtree", "unlink", "rmdir"}:
+                    return True
+                if alvo in funcs and alcanca_remocao(alvo, vistos):
+                    return True
+            return False
 
-    def test_caminho_destrutivo_nao_engole_a_recusa_do_tri_state(self) -> None:
+        for nome, motivo in self.ISENTAS.items():
+            self.assertIn(nome, funcs, f"isencao de {nome} aponta para funcao inexistente")
+            self.assertTrue(motivo.strip(), f"isencao de {nome} sem motivo declarado")
+            self.assertFalse(
+                levanta_forja(nome),
+                f"{nome} levanta ForjaError, logo DECIDE; funcao que pode recusar nao e isentavel",
+            )
+            self.assertFalse(
+                alcanca_remocao(nome),
+                f"{nome} alcanca remocao transitivamente; a isencao mente",
+            )
+
+    def test_modulo_nao_engole_a_recusa_do_tri_state(self) -> None:
         """Tripwire sintatico, NAO prova.
 
-        Esta e a parte que a rodada 10 derrubou com razao: `any(raise)` e
-        `any(.append)` aceitam raise morto sob `if False` e append em lista
-        descartada, e recusavam `return [*achados, msg]`, que e tratamento
-        correto. Sintaxe nao decide se o erro chega a quem chamou.
+        `any(raise)`/`any(.append)` aceitava `raise` morto sob `if False` e
+        `append` em lista descartada, e recusava `return [*achados, msg]`, que
+        e correto. Sintaxe nao decide se o erro chega a quem chamou; quem
+        decide isso e `test_inspecao_que_falha_aparece_no_resultado`.
 
-        O que decide isso e
-        `test_inspecao_que_falha_aparece_no_resultado`, logo abaixo. O que
-        sobra aqui e barato e util: recusar handler largo demais e handler que
-        so segue em frente. Nao trate este teste como prova de propagacao.
+        O que sobra aqui e barato e util: recusar handler largo demais e
+        handler que so segue em frente.
         """
         arvore = ast.parse(FONTE.read_text(encoding="utf-8"))
-        funcs = self._funcoes(arvore)
-        largos = {"Exception", "BaseException"}
         ofensas = []
-        for nome in sorted(self._fecho(arvore)):
-            if nome in self.ISENTAS:
+        for no in ast.walk(arvore):
+            if not isinstance(no, ast.ExceptHandler):
                 continue
-            for interno in ast.walk(funcs[nome]):
-                if not isinstance(interno, ast.ExceptHandler):
-                    continue
-                t = interno.type
-                if t is None:
-                    ofensas.append(f"{nome}:{interno.lineno} except nu")
-                    continue
-                nomes = []
-                if isinstance(t, ast.Name):
-                    nomes = [t.id]
-                elif isinstance(t, ast.Tuple):
-                    nomes = [e.id for e in t.elts if isinstance(e, ast.Name)]
-                if largos & set(nomes):
-                    ofensas.append(f"{nome}:{interno.lineno} except {'/'.join(nomes)} largo demais")
-                    continue
-                if "ForjaError" not in nomes:
-                    continue
-                corpo = interno.body
-                if all(isinstance(c, (ast.Pass, ast.Continue)) for c in corpo):
-                    ofensas.append(f"{nome}:{interno.lineno} engole ForjaError sem registrar")
+            if no.type is None:
+                ofensas.append(f"linha {no.lineno}: except nu")
+                continue
+            nomes = []
+            if isinstance(no.type, ast.Name):
+                nomes = [no.type.id]
+            elif isinstance(no.type, ast.Tuple):
+                nomes = [e.id for e in no.type.elts if isinstance(e, ast.Name)]
+            if {"Exception", "BaseException"} & set(nomes):
+                ofensas.append(f"linha {no.lineno}: except {'/'.join(nomes)} largo demais")
+            elif "ForjaError" in nomes and all(
+                isinstance(c, (ast.Pass, ast.Continue)) for c in no.body
+            ):
+                ofensas.append(f"linha {no.lineno}: engole ForjaError sem registrar")
         self.assertEqual(
             ofensas,
             [],
-            "tratamento de erro largo ou vazio no caminho destrutivo:\n" + "\n".join(ofensas),
+            "tratamento de erro largo ou vazio:\n" + "\n".join(ofensas),
         )
 
     def test_inspecao_que_falha_aparece_no_resultado(self) -> None:
         """O oraculo COMPORTAMENTAL da recusa tri-state.
 
-        Este e o teste que a rodada 10 provou faltar: com ele, engolir a
-        recusa — por append-isca, por `except Exception`, por raise morto ou
-        por qualquer forma que ainda nao imaginamos — deixa a suite vermelha,
-        porque o que se observa e o valor devolvido, nao a sintaxe.
+        A rodada 11 mostrou que ele era incompleto: nao provava que o produtor
+        tinha sido CHAMADO, entao um consumidor que nunca chamasse
+        `worktree_registrada` e reportasse tudo como residuo passava. Agora ha
+        sentinela de chamada e controle positivo.
         """
         dados = self.provisionar()
         wt = Path(dados["task_root"]) / "worktree"
         raiz = self.main / "agentes"
-
         original = fa.worktree_registrada
 
+        # controle positivo: worktree REGISTRADA nao pode aparecer como residuo
+        self.assertNotIn(
+            str(wt),
+            " ".join(fa.worktrees_desregistradas(self.main, raiz)),
+            "worktree registrada reportada como residuo: o detector nao consulta o registro",
+        )
+
+        chamadas = []
+
         def recusa(main, alvo):
+            chamadas.append(alvo)
             raise fa.ForjaError("DENIED", "registro de worktree inobservavel")
 
         fa.worktree_registrada = recusa
@@ -1351,37 +1391,45 @@ class PredicadoBooleanoTests(Base):
         finally:
             fa.worktree_registrada = original
 
-        self.assertTrue(
-            achados,
-            "inspecao que falhou sumiu do resultado: a recusa foi engolida",
-        )
+        self.assertTrue(chamadas, "o detector nem chamou worktree_registrada: o oraculo seria tautologia")
+        self.assertTrue(achados, "inspecao que falhou sumiu do resultado: a recusa foi engolida")
         self.assertIn(str(wt), " ".join(achados))
 
     def test_task_root_inobservavel_bloqueia_a_destruicao(self) -> None:
         """O oraculo COMPORTAMENTAL do predicado de existencia.
 
-        Reintroduzir o fail-open por helper externo mantinha os 86 testes
-        verdes na rodada 10, porque so o gate sintatico olhava para isso.
-        Aqui a propriedade e observada: se o estado do task root nao pode ser
-        lido, a destruicao nao prossegue.
+        A rodada 11 mostrou que ele passava pelo motivo errado: `Path.lstat`
+        cego derrubava `sem_symlink_em_componentes` ANTES da decisao sob
+        teste, entao o teste ficava verde mesmo com a decisao mutada. Aqui a
+        prova de symlink e neutralizada para que a proxima leitura de estado
+        seja exatamente a que se quer observar.
         """
         dados = self.provisionar()
         task_root = Path(dados["task_root"])
         raiz = self.main / "agentes"
 
         real_lstat = Path.lstat
+        real_sem_symlink = fa.sem_symlink_em_componentes
 
         def lstat_cego(self, *a, **k):
             if str(self) == str(task_root):
                 raise PermissionError(13, "Permission denied")
             return real_lstat(self, *a, **k)
 
+        fa.sem_symlink_em_componentes = lambda *a, **k: None
         Path.lstat = lstat_cego
         try:
-            with self.assertRaises(fa.ForjaError):
+            with self.assertRaises(fa.ForjaError) as ctx:
                 fa.guardas_de_destruicao(self.main, raiz, task_root, None)
         finally:
             Path.lstat = real_lstat
+            fa.sem_symlink_em_componentes = real_sem_symlink
+
+        self.assertIn(
+            "inobserv",
+            ctx.exception.mensagem,
+            "a destruicao parou, mas nao por inobservabilidade do task root",
+        )
 
 
 class VerificacaoTests(Base):

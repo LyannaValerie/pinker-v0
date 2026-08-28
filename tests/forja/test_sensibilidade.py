@@ -301,7 +301,7 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
                 "    if task_root.exists():",
             ),
         ],
-        "test_caminho_destrutivo_nao_usa_predicado_booleano_de_existencia",
+        "test_modulo_inteiro_nao_usa_predicado_booleano_de_existencia",
     ),
     (
         "S23",
@@ -327,7 +327,7 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
                 "def _helper_existe(p):\n    return p.exists()\n\n\ndef exigir_raizes() -> tuple[Path, Path]:",
             ),
         ],
-        "test_caminho_destrutivo_nao_usa_predicado_booleano_de_existencia",
+        "test_modulo_inteiro_nao_usa_predicado_booleano_de_existencia",
     ),
     (
         "S25",
@@ -338,7 +338,7 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
                 '    if not getattr(task_root, "exi" + "sts")():',
             ),
         ],
-        "test_caminho_destrutivo_nao_usa_predicado_booleano_de_existencia",
+        "test_modulo_inteiro_nao_usa_predicado_booleano_de_existencia",
     ),
     (
         "S26",
@@ -364,7 +364,53 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
                 "    if base.is_symlink():",
             ),
         ],
-        "test_caminho_destrutivo_nao_usa_predicado_booleano_de_existencia",
+        "test_modulo_inteiro_nao_usa_predicado_booleano_de_existencia",
+    ),
+    (
+        "S28",
+        "predicado proibido entra na decisão por alias de módulo",
+        [
+            (
+                'PRESENTE, AUSENTE = "PRESENTE", "AUSENTE"',
+                'PRESENTE, AUSENTE = "PRESENTE", "AUSENTE"\nALIAS_EXISTE = Path.exists',
+            ),
+            (
+                '    if estado_do_caminho(task_root, "task root") == PRESENTE:',
+                "    if ALIAS_EXISTE(task_root):",
+            ),
+        ],
+        "test_modulo_inteiro_nao_usa_predicado_booleano_de_existencia",
+    ),
+    (
+        "S29",
+        "detector reporta resíduo sem consultar o registro da worktree",
+        [
+            (
+                "        try:\n"
+                "            if not worktree_registrada(main, wt):\n"
+                "                achados.append(str(wt))\n"
+                "        except ForjaError as erro:\n"
+                '            achados.append(f"{wt} (inspeção falhou: {erro.mensagem[:60]})")',
+                "        achados.append(str(wt))",
+            ),
+        ],
+        "test_inspecao_que_falha_aparece_no_resultado",
+    ),
+    (
+        "S30",
+        "verify volta a aceitar slot inobservável como não-symlink",
+        [
+            (
+                "        try:\n"
+                '            if e_symlink(task_root, f"slot {nome}"):\n'
+                '                problemas.append(f"slot é symlink: {nome}")\n'
+                "        except ForjaError as erro:\n"
+                '            problemas.append(f"slot {nome} inobservável: {erro.mensagem}")',
+                "        if task_root.is_symlink():\n"
+                '            problemas.append(f"slot é symlink: {nome}")',
+            ),
+        ],
+        "test_modulo_inteiro_nao_usa_predicado_booleano_de_existencia",
     ),
 ]
 
