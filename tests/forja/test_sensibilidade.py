@@ -447,7 +447,12 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
         "medição volta a engolir arquivo ilegível sem deixar rastro",
         [
             (
-                "                ilegiveis[0] += 1\n                continue",
+                "                st = os.lstat(p)\n"
+                "            except OSError:\n"
+                "                ilegiveis[0] += 1\n"
+                "                continue",
+                "                st = os.lstat(p)\n"
+                "            except OSError:\n"
                 "                continue",
             ),
         ],
@@ -546,6 +551,47 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
             ),
         ],
         "test_diretorio_mal_classificado_conta_como_ilegivel",
+    ),
+    (
+        "S42",
+        "provisionamento pula recursos e ninguém olha o disco",
+        [
+            (
+                '        if recurso.nome == "worktree":',
+                '        if recurso.nome in ("worktree", "cache", "logs"):',
+            ),
+        ],
+        "test_provision_cria_todo_o_conjunto_no_disco",
+    ),
+    (
+        "S43",
+        "present vira constante em vez de estado observado",
+        [
+            (
+                '        "present": _presente_como_diretorio(caminho),',
+                '        "present": True,',
+            ),
+        ],
+        "test_present_reflete_o_disco_e_nao_uma_constante",
+    ),
+    (
+        "S44",
+        "remoção parcial volta a deixar a Task fora do alcance da ferramenta",
+        [
+            (
+                "            _reancorar_task_parcialmente_removida(task_root, binding, task_id, slot)",
+                "            pass",
+            ),
+        ],
+        "test_remocao_parcial_mantem_a_task_retentavel",
+    ),
+    (
+        "S45",
+        "medição volta a ignorar symlink-para-diretório",
+        [
+            ("            if stat.S_ISLNK(st_dir.st_mode):", "            if False:"),
+        ],
+        "test_symlink_para_diretorio_entra_na_medicao",
     ),
 ]
 

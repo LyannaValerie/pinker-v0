@@ -606,6 +606,19 @@ def medir(caminho: Path) -> tuple[int, int, int]:
     if estado_do_caminho(caminho, "alvo de medição") == AUSENTE:
         return 0, 0, 0
     for base, dirs, nomes in os.walk(caminho, followlinks=False, onerror=registrar_falha_ao_descer):
+        # `os.walk` com followlinks=False poe symlink-para-diretorio em `dirs`
+        # e nao desce nele: a entrada nunca aparecia em `nomes` e sumia da
+        # conta. A remocao apaga essas entradas, entao medir sem elas fazia o
+        # relatorio certificar medicao completa de um total que faltava.
+        for nome in dirs:
+            try:
+                st_dir = os.lstat(os.path.join(base, nome))
+            except OSError:
+                ilegiveis[0] += 1
+                continue
+            if stat.S_ISLNK(st_dir.st_mode):
+                total += st_dir.st_size
+                arquivos += 1
         for nome in nomes:
             p = os.path.join(base, nome)
             try:
@@ -1343,6 +1356,35 @@ def cmd_seal(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def _reancorar_task_parcialmente_removida(
+    task_root: Path, binding: dict[str, Any] | None, task_id: str, slot: str
+) -> None:
+    """Devolve ao alcance da ferramenta uma Task cuja remoção falhou no meio.
+
+    `task.json` mora dentro do root que está sendo removido. Se a remoção
+    morre depois de apagá-lo, `descobrir_slot` deixa de enxergar a Task, e
+    `retire`/`observe` respondem NOT_FOUND sobre um diretório que continua no
+    disco: slot ocupado, sem comando que conclua o serviço.
+
+    Reescrever o vínculo é a diferença entre uma falha RETENTÁVEL e um
+    resíduo terminal. É melhor-esforço de propósito: se nem isto for
+    possível, o erro original é o que importa e sobe.
+    """
+    try:
+        if estado_do_caminho(task_root, "task root parcialmente removido") == AUSENTE:
+            return
+        dados = dict(binding or {})
+        dados.setdefault("schema", SCHEMA_BINDING)
+        dados.setdefault("task_id", task_id)
+        dados.setdefault("slot", slot)
+        dados.setdefault("agent", agente_corrente())
+        dados["state"] = "RETIREABLE"
+        dados["partial_removal"] = True
+        escrever_binding(task_root, dados)
+    except (OSError, ForjaError):
+        return
+
+
 def cmd_retire(args: argparse.Namespace) -> int:
     """TASK_RETIRE: destrói o root inteiro, depois de todas as provas."""
     main, raiz = exigir_raizes()
@@ -1465,9 +1507,25 @@ def cmd_retire(args: argparse.Namespace) -> int:
     if estado_do_caminho(task_root, "task root") == PRESENTE:
         # Mesmo descarte que o selo tinha: `bytes_antes` e pre-medicao e pode
         # ser parcial. O numero honesto do que sumiu vem da remocao.
-        bytes_removidos, arquivos_removidos = remover_arvore_sem_seguir_links(
-            task_root, identidade
-        )
+        try:
+            bytes_removidos, arquivos_removidos = remover_arvore_sem_seguir_links(
+                task_root, identidade
+            )
+        except OSError as erro:
+            # Remoção parcial: o vínculo mora DENTRO do root, então uma falha
+            # no meio já pode tê-lo levado junto. Sem vínculo, `descobrir_slot`
+            # não acha mais a Task: `retire` e `observe` passam a responder
+            # NOT_FOUND e o slot fica ocupado para sempre, sem caminho de
+            # ferramenta para concluir. Reescrever o vínculo devolve a Task ao
+            # alcance dos comandos, que é o que torna a retirada RETENTÁVEL em
+            # vez de terminal.
+            _reancorar_task_parcialmente_removida(task_root, binding, task_id, slot)
+            raise ForjaError(
+                "FAILED",
+                f"remoção parcial do task root ({erro.strerror or erro}): a Task "
+                f"continua observável e a retirada deve ser reexecutada depois de "
+                f"resolver a causa em {task_root}",
+            ) from erro
     # 3. podar metadata do Git. Este passo é necessariamente pós-destrutivo: o
     #    prune só reconhece a worktree como ida depois que o diretório sumiu.
     #    Por isso a falha aqui NÃO pode se apresentar como "nada aconteceu" — o
@@ -1508,8 +1566,11 @@ def cmd_retire(args: argparse.Namespace) -> int:
             "proofs": provas,
             "process_proof_scope": "INSPECTABLE_ONLY",
             "worktree_was_registered": registrada,
-            "reclaimed_bytes": bytes_removidos if bytes_removidos is not None else bytes_antes,
-            "reclaimed_files": arquivos_removidos if arquivos_removidos is not None else arquivos_antes,
+            # Se a remoção não chegou a rodar (root já ausente), creditar
+            # `bytes_antes` seria a ferramenta se dar crédito por bytes que
+            # ela não removeu.
+            "reclaimed_bytes": bytes_removidos if bytes_removidos is not None else 0,
+            "reclaimed_files": arquivos_removidos if arquivos_removidos is not None else 0,
             "measured_bytes_before": bytes_antes,
             "measured_files_before": arquivos_antes,
             # Sem este campo, um arquivo ilegível saía da conta e o relatório

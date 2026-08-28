@@ -13,6 +13,7 @@ import importlib.util
 import json
 import os
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -1272,13 +1273,16 @@ class PredicadoBooleanoTests(Base):
         `attrgetter` e `__getattribute__`.
         """
         arvore = ast.parse(FONTE.read_text(encoding="utf-8"))
-        funcs = self._funcoes(arvore)
         aliases = self._aliases(arvore)
         ofensas = []
-        for nome in sorted(funcs):
-            if nome in self.ISENTAS:
-                continue
-            for interno in ast.walk(funcs[nome]):
+        # "Modulo inteiro" tinha de ser literal. A versao anterior iterava
+        # apenas `ast.FunctionDef`: statement de nivel de modulo, corpo de
+        # `ClassDef`, `lambda` de modulo e `AsyncFunctionDef` nunca eram
+        # inspecionados — tres escopos fora do alcance de um gate cujo nome
+        # promete o modulo todo.
+        for escopo, no_raiz in (("<modulo>", arvore),):
+            for interno in ast.walk(no_raiz):
+                nome = escopo
                 if isinstance(interno, ast.Attribute):
                     if interno.attr in self.PROIBIDOS:
                         ofensas.append(f"{nome}:{interno.lineno} referencia .{interno.attr}")
@@ -1427,6 +1431,127 @@ class PredicadoBooleanoTests(Base):
             "inobserv",
             ctx.exception.mensagem,
             "a destruicao parou, mas nao por inobservabilidade do task root",
+        )
+
+
+class RemocaoParcialTests(Base):
+    """Rodada 15 F1: falha no meio da remocao deixava residuo terminal.
+
+    `task.json` mora DENTRO do root em remocao. Uma falha depois de apaga-lo
+    tirava a Task do alcance de `descobrir_slot`: `retire` e `observe`
+    passavam a responder NOT_FOUND sobre um diretorio que continuava no
+    disco. Slot ocupado para sempre, sem comando que concluisse.
+    """
+
+    def test_remocao_parcial_mantem_a_task_retentavel(self) -> None:
+        """A falha tem de ocorrer DEPOIS do vinculo sumir, ou nao prova nada.
+
+        Deixar a ordem de travessia decidir quando a remocao morre torna o
+        teste nao-causal: se ela falhar antes de apagar `task.json`, a Task
+        continua alcancavel com ou sem a correcao. Aqui a falha e injetada no
+        estado exato que produzia o residuo terminal — vinculo ja removido,
+        root ainda no disco.
+        """
+        dados = self.provisionar()
+        task_root = Path(dados["task_root"])
+        self.tornar_retiravel()
+
+        real_remover = fa.remover_arvore_sem_seguir_links
+
+        def remover_pela_metade(raiz, identidade=None):
+            vinculo = Path(raiz) / fa.BINDING_FILENAME
+            if vinculo.exists():
+                vinculo.unlink()
+            raise PermissionError(13, "Permission denied")
+
+        fa.remover_arvore_sem_seguir_links = remover_pela_metade
+        try:
+            codigo, r = self.rodar("retire", "--apply")
+        finally:
+            fa.remover_arvore_sem_seguir_links = real_remover
+
+        self.assertNotEqual(codigo, 0, f"remocao parcial reportada como sucesso: {r}")
+        self.assertTrue(task_root.is_dir(), "fixture invalida: o root deveria continuar no disco")
+
+        codigo_obs, obs = self.rodar("observe")
+        self.assertEqual(
+            codigo_obs,
+            0,
+            f"Task saiu do alcance da ferramenta apos remocao parcial: {obs}",
+        )
+
+
+class MedicaoDeSymlinkTests(Base):
+    def test_symlink_para_diretorio_entra_na_medicao(self) -> None:
+        """`os.walk` poe symlink-para-diretorio em `dirs` e nao desce.
+
+        A entrada nunca chegava em `nomes`, entao sumia da medicao — enquanto
+        a remocao a apagava normalmente. O relatorio certificava medicao
+        completa de um total incompleto.
+        """
+        raiz = Path(self.tmp) / "com-symlink"
+        (raiz / "real").mkdir(parents=True)
+        (raiz / "real" / "a.bin").write_bytes(b"x" * 128)
+        (raiz / "link-para-dir").symlink_to(raiz / "real")
+
+        _b, arquivos, ilegiveis = fa.medir(raiz)
+        self.assertEqual(ilegiveis, 0, "nada aqui e inobservavel")
+        self.assertGreaterEqual(
+            arquivos,
+            2,
+            "symlink-para-diretorio sumiu da medicao: a remocao o apaga, a medicao nao o via",
+        )
+
+
+class DiscoContraAutoRelatoTests(Base):
+    """A ferramenta nao pode ser a testemunha do proprio provisionamento.
+
+    Rodada 15 F2: uma implementacao que PULA `cache` e `logs` no
+    provisionamento e publica `present: True` mantinha os 95 testes verdes.
+    `test_provision_cria_todo_o_conjunto` conferia o relatorio que a propria
+    ferramenta emitiu, e `verify` nunca faz stat de recurso nenhum. O
+    contrato `PROVISIONER_SET == FINALIZER_SET` era provado contra a fala da
+    ferramenta, nao contra o disco.
+    """
+
+    def test_provision_cria_todo_o_conjunto_no_disco(self) -> None:
+        dados = self.provisionar()
+        task_root = Path(dados["task_root"])
+        faltando = []
+        for recurso in fa.RECURSOS:
+            alvo = task_root / recurso.subpath
+            try:
+                st = os.lstat(alvo)
+            except OSError as erro:
+                faltando.append(f"{recurso.nome}: {erro.strerror}")
+                continue
+            if not stat.S_ISDIR(st.st_mode):
+                faltando.append(f"{recurso.nome}: nao e diretorio")
+        self.assertEqual(
+            faltando,
+            [],
+            "recurso do contrato ausente NO DISCO apos provisionar (o relatorio "
+            "da ferramenta nao e testemunha de si mesma)",
+        )
+
+    def test_present_reflete_o_disco_e_nao_uma_constante(self) -> None:
+        dados = self.provisionar()
+        task_root = Path(dados["task_root"])
+        alvo = task_root / "cache"
+        self.assertTrue(alvo.is_dir(), "fixture invalida: cache deveria existir")
+
+        codigo, antes = self.rodar("observe")
+        self.assertEqual(codigo, 0, antes)
+        item_antes = next(r for r in antes["resources"] if r["name"] == "cache")
+        self.assertTrue(item_antes["present"], item_antes)
+
+        shutil.rmtree(alvo)
+        codigo, depois = self.rodar("observe")
+        self.assertEqual(codigo, 0, depois)
+        item_depois = next(r for r in depois["resources"] if r["name"] == "cache")
+        self.assertFalse(
+            item_depois["present"],
+            "recurso removido do disco continuou reportado como present",
         )
 
 
@@ -1624,17 +1749,29 @@ class OcupanteEMedicaoTests(Base):
                 return self._e.stat(*a, **k)
 
         class Contexto:
+            """Dubla `os.scandir`: precisa ser ITERADOR, nao so iteravel.
+
+            Conforme a versao do Python, `os.walk` faz `next(scandir_it)` em
+            vez de `for ... in it`. Um objeto so com `__iter__` passa numa
+            versao e levanta `TypeError: not an iterator` na outra — foi o que
+            deixou a suite verde aqui e vermelha no CI.
+            """
+
             def __init__(self, itens):
                 self.itens = itens
+                self._it = iter(itens)
 
             def __enter__(self):
-                return self.itens
+                return self
 
             def __exit__(self, *a):
                 return False
 
             def __iter__(self):
-                return iter(self.itens)
+                return self
+
+            def __next__(self):
+                return next(self._it)
 
             def close(self):
                 pass
