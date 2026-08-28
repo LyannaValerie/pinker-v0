@@ -392,9 +392,11 @@ class SensibilidadeTests(unittest.TestCase):
                     else:
                         # causalidade: o alvo tem de cair pela propriedade, e não
                         # por uma exceção do sistema levantada antes do oráculo
-                        acidental = ("NotADirectoryError", "ENOTDIR", "Not a directory",
-                                     "ModuleNotFoundError", "SyntaxError", "ImportError")
-                        if any(a in motivo for a in acidental):
+                        # Regra invertida: só AssertionError prova que o oráculo
+                        # do teste disparou. Enumerar exceções "acidentais" era
+                        # uma lista que sempre esqueceria a próxima — foi o que
+                        # aconteceu com FileNotFoundError no S7.
+                        if not motivo.startswith("AssertionError"):
                             falhas.append(
                                 f"{ident} ({descricao}): {alvo} caiu por efeito colateral "
                                 f"({motivo[:90]}) e não pela propriedade sob teste"

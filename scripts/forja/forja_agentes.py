@@ -1222,10 +1222,21 @@ def cmd_retire(args: argparse.Namespace) -> int:
     # O `git worktree remove` resolve este caminho por TEXTO. Fixar só a
     # identidade do task_root deixava a worktree — o objeto que o Git realmente
     # apaga — sem verificação própria.
+    # `Path.exists()` devolve False tanto para "não existe" quanto para "não
+    # consegui olhar" — EACCES no pai basta. Sexta aparição da mesma classe, e
+    # desta vez dentro do código escrito para fechar a quinta. Só ENOENT prova
+    # ausência; qualquer outro erro nega antes de entregar o caminho ao Git.
     identidade_worktree = None
-    if worktree.exists() or worktree.is_symlink():
+    try:
         st_wt = worktree.lstat()
         identidade_worktree = (st_wt.st_dev, st_wt.st_ino)
+    except FileNotFoundError:
+        identidade_worktree = None  # ausência provada
+    except OSError as erro:
+        raise ForjaError(
+            "DENIED",
+            f"estado da worktree inobservável ({erro.strerror}); recusado antes de remover",
+        ) from erro
     # Toda inspeção falível acontece ANTES do ponto sem volta: se o Git não
     # responder, a Task continua inteira e o erro é sobre a inspeção, não sobre
     # um estado meio destruído.
@@ -1275,7 +1286,20 @@ def cmd_retire(args: argparse.Namespace) -> int:
             # Os observáveis são emitidos como estado; a leitura fica com quem
             # lê, que é o único que pode saber o resto.
             ainda_registrada = worktree_registrada(main, worktree)
-            no_disco = worktree.exists() or worktree.is_symlink()
+            try:
+                worktree.lstat()
+                no_disco: bool | None = True
+            except FileNotFoundError:
+                no_disco = False
+            except OSError:
+                no_disco = None  # inobservável: não vira nem presente nem ausente
+            if no_disco is None:
+                raise ForjaError(
+                    "FAILED",
+                    f"desregistro da worktree falhou: {r.stderr.strip()[:150]} | "
+                    f"estado do diretório INOBSERVÁVEL (registro_presente={ainda_registrada}). "
+                    "Nenhuma conclusão é emitida.",
+                )
             estado = {
                 (True, True): "registro presente e diretório presente",
                 (True, False): "registro presente e diretório AUSENTE",
@@ -1394,7 +1418,13 @@ def metadata_orfa(main: Path) -> list[str]:
     if not stat.S_ISDIR(st_base.st_mode):
         raise ForjaError("FAILED", f"metadata de worktree não é diretório: {base}")
     orfas: list[str] = []
-    for entrada in base.iterdir():
+    try:
+        entradas = list(base.iterdir())
+    except OSError as erro:
+        # lstat do diretório pode ter passado e a listagem falhar mesmo assim.
+        # Devolver [] aqui seria a mesma inversão de sempre.
+        raise ForjaError("FAILED", f"metadata de worktree ilistável: {erro.strerror}") from erro
+    for entrada in entradas:
         gitdir = entrada / "gitdir"
         if not gitdir.is_file():
             orfas.append(str(entrada))

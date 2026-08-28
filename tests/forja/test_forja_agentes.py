@@ -270,11 +270,17 @@ class ConcorrenciaTests(Base):
         os.environ["FORJA_AGENTES_TEST_TASK"] = a["task_id"]
         self.tornar_retiravel()
         codigo, resultado = self.rodar("retire", "--apply")
+
+        # A PROPRIEDADE primeiro, e lida sem estourar: `read_bytes` num arquivo
+        # que a mutação apagou levanta FileNotFoundError ANTES de qualquer
+        # assert, e o teste morreria pela exceção em vez de pela violação.
+        self.assertTrue(marca.exists(), "retire(A) apagou a memória de B")
+        self.assertEqual(marca.read_bytes(), antes, "retire(A) mutou a memória de B")
+        self.assertTrue(Path(b["task_root"]).is_dir(), "retire(A) destruiu B")
+
+        # só então o caminho feliz de A
         self.assertEqual(codigo, 0, resultado)
         self.assertTrue(resultado["task_root_absent"])
-
-        self.assertTrue(Path(b["task_root"]).is_dir(), "retire(A) destruiu B")
-        self.assertEqual(marca.read_bytes(), antes, "retire(A) mutou a memória de B")
         saida = git(self.main, "worktree", "list", "--porcelain").stdout
         self.assertIn(str(Path(b["task_root"]) / "worktree"), saida)
 
@@ -956,6 +962,186 @@ class ReivindicacaoDeSlotTests(Base):
         self.assertEqual(codigo, 0, r)
         # nao pode ter adotado a01: ele nao tinha vinculo desta Task
         self.assertNotEqual(r["slot"], "a01")
+
+
+class IdentidadeDoAlvoTests(Base):
+    """Round 6 F3: as guardas de identidade não tinham teste de comportamento.
+
+    Mutantes que removiam as chamadas de `confirmar_identidade` passavam pela
+    suíte inteira. Aqui o alvo é REALMENTE trocado entre a guarda e a remoção,
+    injetando o swap num ponto por onde o código passa obrigatoriamente, e a
+    operação precisa recusar.
+    """
+
+    def test_retire_recusa_quando_a_worktree_e_trocada_apos_a_guarda(self) -> None:
+        dados = self.provisionar()
+        raiz = Path(dados["task_root"])
+        self.tornar_retiravel()
+        wt = raiz / "worktree"
+        impostor = raiz / "impostor"
+        impostor.mkdir()
+        (impostor / "prova.txt").write_text("nao sou a worktree\n", encoding="utf-8")
+
+        original = fa.worktree_registrada
+        trocou = {"feito": False}
+
+        def troca_no_meio(main, caminho):
+            # chamado entre a fixação da identidade e o `git worktree remove`
+            r = original(main, caminho)
+            if not trocou["feito"] and Path(caminho) == wt:
+                trocou["feito"] = True
+                wt.rename(raiz / "worktree-original")
+                impostor.rename(wt)
+            return r
+
+        fa.worktree_registrada = troca_no_meio
+        try:
+            codigo, r = self.rodar("retire", "--apply")
+        finally:
+            fa.worktree_registrada = original
+        self.assertTrue(trocou["feito"], "a injeção não ocorreu; o teste não provaria nada")
+        # A propriedade: o objeto que ocupou o nome depois da guarda NÃO é
+        # removido. Honestidade sobre o mecanismo: nesta troca o próprio Git
+        # também recusa, porque o impostor não tem `.git` válido. A guarda de
+        # identidade é defesa em profundidade sobre essa validação, e este
+        # teste prova a propriedade, não a atribui a uma camada específica.
+        self.assertNotEqual(codigo, 0, r)
+        self.assertTrue((wt / "prova.txt").exists(), "removeu o impostor no lugar do alvo aprovado")
+
+    def test_seal_recusa_quando_o_recurso_e_trocado_apos_a_guarda(self) -> None:
+        dados = self.provisionar()
+        raiz = Path(dados["task_root"])
+        alvo = raiz / "target"
+        (alvo / "peso.bin").write_bytes(b"z" * 4096)
+        impostor = raiz / "impostor"
+        impostor.mkdir()
+        (impostor / "prova.txt").write_text("nao sou o target\n", encoding="utf-8")
+
+        original = fa.processos_no_root
+        trocou = {"feito": False}
+
+        def troca_no_meio(caminho):
+            # chamado depois de fixar a identidade e antes de remover
+            r = original(caminho)
+            if not trocou["feito"] and Path(caminho) == alvo:
+                trocou["feito"] = True
+                alvo.rename(raiz / "target-original")
+                impostor.rename(alvo)
+            return r
+
+        fa.processos_no_root = troca_no_meio
+        try:
+            codigo, r = self.rodar("seal", "--apply")
+        finally:
+            fa.processos_no_root = original
+        self.assertTrue(trocou["feito"], "a injeção não ocorreu; o teste não provaria nada")
+        self.assertEqual(codigo, fa.EXIT_RECUSADO, r)
+        self.assertTrue((alvo / "prova.txt").exists(), "o selo removeu o impostor")
+
+
+class DeteccaoDeResiduoTests(Base):
+    """Round 6 F3: os detectores de resíduo não tinham teste próprio.
+
+    Revertê-los ao fail-open não quebrava nada — um detector sem teste é um
+    comentário.
+    """
+
+    def test_worktree_com_git_ilegivel_e_reportada_e_nao_ignorada(self) -> None:
+        dados = self.provisionar()
+        wt = Path(dados["task_root"]) / "worktree"
+        marcador = wt / ".git"
+        os.chmod(wt, 0o000)
+        try:
+            achados = fa.worktrees_desregistradas(self.main, self.main / "agentes")
+            self.assertTrue(achados, "worktree com .git ilegível desapareceu do detector")
+            self.assertIn(str(wt), " ".join(achados))
+        finally:
+            os.chmod(wt, 0o755)
+
+    def test_symlink_no_lugar_da_worktree_e_achado(self) -> None:
+        dados = self.provisionar()
+        raiz = Path(dados["task_root"])
+        wt = raiz / "worktree"
+        git(self.main, "worktree", "remove", "--force", str(wt))
+        fora = self.tmp / "outro"
+        fora.mkdir()
+        wt.symlink_to(fora)
+        achados = fa.worktrees_desregistradas(self.main, self.main / "agentes")
+        self.assertTrue(any("symlink" in a for a in achados), f"symlink ignorado: {achados}")
+
+    def test_slot_ilegivel_e_achado_e_nao_pulado(self) -> None:
+        """Cobre o ramo em que o lstat da PRÓPRIA worktree falha.
+
+        O teste do `.git` ilegível exercita outro `except`. Cada ramo de erro
+        precisa do seu próprio oráculo — foi assim que a regressão do detector
+        sobreviveu à suíte inteira.
+        """
+        dados = self.provisionar()
+        wt = Path(dados["task_root"]) / "worktree"
+        real_lstat = Path.lstat
+
+        def lstat_que_nega(self, *a, **k):
+            if self == wt:
+                raise PermissionError(13, "Permission denied")
+            return real_lstat(self, *a, **k)
+
+        Path.lstat = lstat_que_nega
+        try:
+            achados = fa.worktrees_desregistradas(self.main, self.main / "agentes")
+        finally:
+            Path.lstat = real_lstat
+        self.assertTrue(achados, "worktree ilegível desapareceu do detector de resíduo")
+        self.assertIn("ilegível", " ".join(achados))
+
+    def test_base_de_metadata_ilegivel_levanta(self) -> None:
+        """Cobre o ramo do lstat da base, distinto do ramo da listagem."""
+        self.provisionar()
+        base = self.main / ".git" / "worktrees"
+        real_lstat = Path.lstat
+
+        def lstat_que_nega(self, *a, **k):
+            if self == base:
+                raise PermissionError(13, "Permission denied")
+            return real_lstat(self, *a, **k)
+
+        Path.lstat = lstat_que_nega
+        try:
+            with self.assertRaises(fa.ForjaError) as ctx:
+                fa.metadata_orfa(self.main)
+            # o motivo tem de ser a leitura da metadata, nao um erro do git
+            self.assertIn("metadata de worktree", str(ctx.exception))
+        finally:
+            Path.lstat = real_lstat
+
+    def test_listagem_de_metadata_que_falha_levanta(self) -> None:
+        """Ramo distinto do lstat: o diretório existe e a LISTAGEM falha."""
+        self.provisionar()
+        base = self.main / ".git" / "worktrees"
+        real_iterdir = Path.iterdir
+
+        def iterdir_que_nega(self, *a, **k):
+            if self == base:
+                raise PermissionError(13, "Permission denied")
+            return real_iterdir(self, *a, **k)
+
+        Path.iterdir = iterdir_que_nega
+        try:
+            with self.assertRaises(fa.ForjaError) as ctx:
+                fa.metadata_orfa(self.main)
+            self.assertIn("ilistável", str(ctx.exception))
+        finally:
+            Path.iterdir = real_iterdir
+
+    def test_metadata_ilegivel_levanta_em_vez_de_devolver_vazio(self) -> None:
+        self.provisionar()
+        comum = self.main / ".git" / "worktrees"
+        self.assertTrue(comum.is_dir())
+        os.chmod(comum, 0o000)
+        try:
+            with self.assertRaises(fa.ForjaError):
+                fa.metadata_orfa(self.main)
+        finally:
+            os.chmod(comum, 0o755)
 
 
 class VerificacaoTests(Base):
