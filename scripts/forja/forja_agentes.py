@@ -268,7 +268,7 @@ def sem_symlink_em_componentes(caminho: Path, base: Path) -> None:
             st = atual.lstat()
         except FileNotFoundError:
             return
-        except OSError as erro:
+        except (OSError, RecursionError) as erro:
             # Fail-closed, mas com o TIPO do contrato: um OSError cru escapa de
             # quem trata ForjaError e vira exceção não tratada no chamador.
             raise ForjaError(
@@ -617,7 +617,9 @@ def medir(caminho: Path) -> tuple[int, int, int]:
                 ilegiveis[0] += 1
                 continue
             if stat.S_ISLNK(st_dir.st_mode):
-                total += st_dir.st_size
+                # Só a ENTRADA entra na conta: a remoção não credita bytes de
+                # symlink, e somar `st_size` aqui fazia medição e remoção
+                # divergirem em bytes enquanto concordavam em arquivos.
                 arquivos += 1
         for nome in nomes:
             p = os.path.join(base, nome)
@@ -1358,7 +1360,7 @@ def cmd_seal(args: argparse.Namespace) -> int:
 
 def _reancorar_task_parcialmente_removida(
     task_root: Path, binding: dict[str, Any] | None, task_id: str, slot: str
-) -> None:
+) -> bool:
     """Devolve ao alcance da ferramenta uma Task cuja remoção falhou no meio.
 
     `task.json` mora dentro do root que está sendo removido. Se a remoção
@@ -1372,7 +1374,7 @@ def _reancorar_task_parcialmente_removida(
     """
     try:
         if estado_do_caminho(task_root, "task root parcialmente removido") == AUSENTE:
-            return
+            return True  # root sumiu por inteiro: nada a reancorar, nada de resíduo
         dados = dict(binding or {})
         dados.setdefault("schema", SCHEMA_BINDING)
         dados.setdefault("task_id", task_id)
@@ -1382,7 +1384,15 @@ def _reancorar_task_parcialmente_removida(
         dados["partial_removal"] = True
         escrever_binding(task_root, dados)
     except (OSError, ForjaError):
-        return
+        return False
+    # REOBSERVAR. A primeira versão disto devolvia sucesso presumido e o
+    # relatório afirmava "a Task continua observável" mesmo quando a
+    # reancoragem tinha falhado — a mesma conclusão-sem-olhar que esta
+    # ferramenta inteira existe para recusar, agora dita pelo relatório.
+    try:
+        return (ler_binding(task_root) or {}).get("task_id") == task_id
+    except (OSError, ForjaError):
+        return False
 
 
 def cmd_retire(args: argparse.Namespace) -> int:
@@ -1398,7 +1408,6 @@ def cmd_retire(args: argparse.Namespace) -> int:
 
     provas, identidade = guardas_de_destruicao(main, raiz, task_root, binding)
 
-    bytes_antes, arquivos_antes, ilegiveis_antes = medir(task_root)
     worktree = task_root / "worktree"
     registrada = worktree_registrada(main, worktree)
     # O `git worktree remove` resolve este caminho por TEXTO. Fixar só a
@@ -1503,6 +1512,11 @@ def cmd_retire(args: argparse.Namespace) -> int:
                 "Git reportou sucesso mas a worktree continua registrada; nada foi removido",
             )
     # 2. remover o root físico sem seguir symlinks
+    # A medição mora AQUI, e não antes do passo 1: medida antes, ela incluía a
+    # worktree que o `git worktree remove` já levou, e o relatório comparava
+    # `measured_*` com `reclaimed_*` de conjuntos diferentes — subnotificando
+    # toda retirada com worktree registrada.
+    bytes_antes, arquivos_antes, ilegiveis_antes = medir(task_root)
     bytes_removidos = arquivos_removidos = None
     if estado_do_caminho(task_root, "task root") == PRESENTE:
         # Mesmo descarte que o selo tinha: `bytes_antes` e pre-medicao e pode
@@ -1519,13 +1533,22 @@ def cmd_retire(args: argparse.Namespace) -> int:
             # ferramenta para concluir. Reescrever o vínculo devolve a Task ao
             # alcance dos comandos, que é o que torna a retirada RETENTÁVEL em
             # vez de terminal.
-            _reancorar_task_parcialmente_removida(task_root, binding, task_id, slot)
-            raise ForjaError(
-                "FAILED",
-                f"remoção parcial do task root ({erro.strerror or erro}): a Task "
-                f"continua observável e a retirada deve ser reexecutada depois de "
-                f"resolver a causa em {task_root}",
-            ) from erro
+            alcancavel = _reancorar_task_parcialmente_removida(
+                task_root, binding, task_id, slot
+            )
+            causa = getattr(erro, "strerror", None) or erro
+            if alcancavel:
+                detalhe = (
+                    "a Task continua observável e a retirada deve ser reexecutada "
+                    f"depois de resolver a causa em {task_root}"
+                )
+            else:
+                detalhe = (
+                    "o vínculo NÃO pôde ser reescrito: a Task deixou de ser "
+                    f"alcançável por comando e o root permanece em {task_root}, "
+                    "exigindo intervenção manual"
+                )
+            raise ForjaError("FAILED", f"remoção parcial do task root ({causa}): {detalhe}") from erro
     # 3. podar metadata do Git. Este passo é necessariamente pós-destrutivo: o
     #    prune só reconhece a worktree como ida depois que o diretório sumiu.
     #    Por isso a falha aqui NÃO pode se apresentar como "nada aconteceu" — o
@@ -1737,7 +1760,30 @@ def cmd_verify(args: argparse.Namespace) -> int:
                 problemas.append(f"slot é symlink: {nome}")
         except ForjaError as erro:
             problemas.append(f"slot {nome} inobservável: {erro.mensagem}")
-        slots_info.append({"slot": nome, "task_id": tid, "state": (binding or {}).get("state")})
+        # `verify` provava invariantes comparando conjuntos iguais por
+        # construcao e nunca fazia stat de recurso nenhum: um provisionamento
+        # que pulasse recursos passava com problems=[]. A prova tem de tocar o
+        # disco. A worktree e a unica ausencia legitima (so existe com
+        # --branch), entao ela nao entra.
+        ausentes = []
+        for recurso in RECURSOS:
+            if recurso.nome == "worktree":
+                continue
+            alvo_rec = task_root / recurso.subpath
+            try:
+                if estado_do_caminho(alvo_rec, f"recurso {recurso.nome}") == AUSENTE:
+                    ausentes.append(recurso.nome)
+            except ForjaError as erro:
+                problemas.append(f"recurso {recurso.nome} de {nome} inobservável: {erro.mensagem}")
+        if ausentes:
+            problemas.append(f"slot {nome} sem recursos do contrato no disco: {sorted(ausentes)}")
+        slots_info.append({
+            "slot": nome,
+            "task_id": tid,
+            "state": (binding or {}).get("state"),
+            "missing_resources": sorted(ausentes),
+            "partial_removal": bool((binding or {}).get("partial_removal")),
+        })
     checagens["slots"] = slots_info
 
     # disjunção: nenhum root é prefixo de outro

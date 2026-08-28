@@ -579,8 +579,10 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
         "remoção parcial volta a deixar a Task fora do alcance da ferramenta",
         [
             (
-                "            _reancorar_task_parcialmente_removida(task_root, binding, task_id, slot)",
-                "            pass",
+                "            alcancavel = _reancorar_task_parcialmente_removida(\n"
+                "                task_root, binding, task_id, slot\n"
+                "            )",
+                "            alcancavel = False",
             ),
         ],
         "test_remocao_parcial_mantem_a_task_retentavel",
@@ -592,6 +594,34 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
             ("            if stat.S_ISLNK(st_dir.st_mode):", "            if False:"),
         ],
         "test_symlink_para_diretorio_entra_na_medicao",
+    ),
+    (
+        "S46",
+        "verify volta a aprovar sem olhar o disco dos recursos",
+        [
+            (
+                "                if estado_do_caminho(alvo_rec, f\"recurso {recurso.nome}\") == AUSENTE:\n"
+                "                    ausentes.append(recurso.nome)",
+                "                pass",
+            ),
+        ],
+        "test_verify_reprova_recurso_do_contrato_ausente_no_disco",
+    ),
+    (
+        "S47",
+        "relatório de remoção parcial volta a presumir alcance em vez de medir",
+        [
+            (
+                "            alcancavel = _reancorar_task_parcialmente_removida(\n"
+                "                task_root, binding, task_id, slot\n"
+                "            )",
+                "            _reancorar_task_parcialmente_removida(\n"
+                "                task_root, binding, task_id, slot\n"
+                "            )\n"
+                "            alcancavel = True",
+            ),
+        ],
+        "test_remocao_parcial_sem_reancoragem_diz_a_verdade",
     ),
 ]
 

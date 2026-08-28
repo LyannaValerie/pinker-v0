@@ -1181,7 +1181,7 @@ class PredicadoBooleanoTests(Base):
     }
     # Acesso dinamico a atributo: nao da para provar QUAL atributo e lido, e
     # o que nao se prova, num modulo que apaga diretorio, se recusa.
-    DINAMICOS = {"__getattribute__", "__getattr__", "attrgetter"}
+    DINAMICOS = {"__getattribute__", "__getattr__", "attrgetter", "methodcaller"}
 
     # VAZIA. A rodada 12 mostrou que a guarda de isencao era insustentavel:
     # `descrever_recurso` levantava ForjaError TRANSITIVAMENTE (via
@@ -1352,7 +1352,9 @@ class PredicadoBooleanoTests(Base):
             if {"Exception", "BaseException"} & set(nomes):
                 ofensas.append(f"linha {no.lineno}: except {'/'.join(nomes)} largo demais")
             elif "ForjaError" in nomes and all(
-                isinstance(c, (ast.Pass, ast.Continue)) for c in no.body
+                isinstance(c, (ast.Pass, ast.Continue))
+                or (isinstance(c, ast.Return) and c.value is None)
+                for c in no.body
             ):
                 ofensas.append(f"linha {no.lineno}: engole ForjaError sem registrar")
         self.assertEqual(
@@ -1434,6 +1436,93 @@ class PredicadoBooleanoTests(Base):
         )
 
 
+class RelatorioDeRemocaoParcialTests(Base):
+    """Rodada 16 F1: o relatorio afirmava alcance sem medir alcance.
+
+    A primeira correcao engolia toda falha da reancoragem e o erro levantado
+    logo depois dizia, incondicionalmente, "a Task continua observavel".
+    Quando a reancoragem falhava, o residuo terminal voltava inteiro e o
+    relatorio afirmava o contrario — conclusao sem observacao, que e a
+    classe de defeito que esta ferramenta existe para recusar.
+    """
+
+    def _falhar_removendo_o_vinculo(self):
+        real = fa.remover_arvore_sem_seguir_links
+
+        def meio(raiz, identidade=None):
+            vinculo = Path(raiz) / fa.BINDING_FILENAME
+            try:
+                os.lstat(vinculo)
+            except FileNotFoundError:
+                pass
+            else:
+                vinculo.unlink()
+            raise PermissionError(13, "Permission denied")
+
+        fa.remover_arvore_sem_seguir_links = meio
+        return real
+
+    def test_remocao_parcial_sem_reancoragem_diz_a_verdade(self) -> None:
+        dados = self.provisionar()
+        self.tornar_retiravel()
+        real_remover = self._falhar_removendo_o_vinculo()
+        real_escrever = fa.escrever_binding
+
+        def escrever_que_falha(slot_dir, dados_bind):
+            if dados_bind.get("partial_removal"):
+                raise OSError(28, "No space left on device")
+            return real_escrever(slot_dir, dados_bind)
+
+        fa.escrever_binding = escrever_que_falha
+        try:
+            codigo, r = self.rodar("retire", "--apply")
+        finally:
+            fa.remover_arvore_sem_seguir_links = real_remover
+            fa.escrever_binding = real_escrever
+
+        self.assertNotEqual(codigo, 0, r)
+        codigo_obs, _obs = self.rodar("observe")
+        alcancavel = codigo_obs == 0
+        erro = r.get("error", "")
+        if alcancavel:
+            self.assertIn("continua observável", erro, r)
+        else:
+            self.assertIn(
+                "NÃO pôde ser reescrito",
+                erro,
+                "a Task ficou inalcancavel e o relatorio afirmou o contrario",
+            )
+
+
+class VerifyOlhaODiscoTests(Base):
+    """Rodada 16 F2: `verify` provava invariante contra si mesmo.
+
+    Ele comparava conjuntos iguais por construcao e nunca fazia stat de
+    recurso nenhum. Um provisionamento que pulasse `cache` e `logs` deixava
+    os dois diretorios ausentes do disco e ainda assim `verify` respondia
+    exit 0, status OK, `problems: []`. A correcao da rodada anterior colocou
+    oraculo de disco nos TESTES e deixou o verificador entregue cego.
+    """
+
+    def test_verify_reprova_recurso_do_contrato_ausente_no_disco(self) -> None:
+        dados = self.provisionar()
+        shutil.rmtree(Path(dados["task_root"]) / "cache")
+        codigo, r = self.rodar("verify")
+        self.assertNotEqual(codigo, 0, f"verify aprovou layout sem recurso do contrato: {r}")
+        self.assertTrue(
+            any("recursos do contrato" in p for p in r.get("problems", [])),
+            f"verify reprovou, mas nao pelo recurso ausente: {r.get('problems')}",
+        )
+
+    def test_verify_aponta_qual_recurso_falta(self) -> None:
+        dados = self.provisionar()
+        shutil.rmtree(Path(dados["task_root"]) / "logs")
+        codigo, r = self.rodar("verify")
+        self.assertNotEqual(codigo, 0, r)
+        slot = r["checks"]["slots"][0]
+        self.assertIn("logs", slot["missing_resources"], slot)
+
+
 class RemocaoParcialTests(Base):
     """Rodada 15 F1: falha no meio da remocao deixava residuo terminal.
 
@@ -1460,7 +1549,14 @@ class RemocaoParcialTests(Base):
 
         def remover_pela_metade(raiz, identidade=None):
             vinculo = Path(raiz) / fa.BINDING_FILENAME
-            if vinculo.exists():
+            # `exists()` aqui seria a mesma classe que o gate proibe, e o gate
+            # nao varre o fileset de teste: um False-por-inobservavel pularia
+            # o unlink e o teste passaria sem NUNCA montar o estado sob teste.
+            try:
+                os.lstat(vinculo)
+            except FileNotFoundError:
+                pass
+            else:
                 vinculo.unlink()
             raise PermissionError(13, "Permission denied")
 
