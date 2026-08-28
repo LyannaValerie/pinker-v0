@@ -162,11 +162,53 @@ TASK_RETIRE      somente após merge humano + main verde + decisão do Guia
 
 ```bash
 forja-agentes seal                 # plano, não remove nada
-forja-agentes seal --apply         # recupera o efêmero
+forja-agentes seal --apply         # recupera o efêmero; deixa a Task SEALED
 forja-agentes state --set RETIREABLE
 forja-agentes retire               # plano com as provas exigidas
 forja-agentes retire --apply       # destrói, fail-closed
 ```
+
+O caminho até a destruição é uma máquina de estados, e a aresta que **não**
+existe é a que importa:
+
+```text
+ACTIVE ──> REVIEW ──> FIX_REQUIRED ──> SEALED ──> RETIREABLE
+   └──────────┴──────────────┘             │
+                                           └──> FIX_REQUIRED (reabrir)
+
+ACTIVE ──> RETIREABLE                      PROIBIDO
+```
+
+Pular o selo apagaria a worktree e a memória que a revisão ainda usa, então o
+único caminho até `RETIREABLE` passa por um selo real. `retire` recusa qualquer
+estado que não seja `RETIREABLE`.
+
+### Comando mutante age sobre a própria Task, e só
+
+```text
+observe | list | env      --task-id de outra Task é PERMITIDO (ler não muta)
+state | seal | retire     --task-id é ASSERÇÃO, não endereço
+```
+
+Num comando mutante, `--task-id` precisa coincidir com a Task que o observador
+canônico atribui ao chamador; divergir é recusado. Além disso o vínculo gravado
+no slot precisa declarar o agente que está chamando.
+
+Isso fecha um ataque que nenhuma guarda de caminho detectaria: o caminho da
+Task B é perfeitamente válido, e sem esta regra `--task-id` seria exatamente o
+mecanismo pelo qual a Task A apagaria a B.
+
+### O alcance da prova de processo está escrito na saída
+
+```text
+NO_INSPECTABLE_PROCESS_IN_TASK_ROOT(uninspectable_same_reach=N;uninspectable_root_owned=M)
+```
+
+Threads do kernel e processos privilege-separated do mesmo uid (`sshd-session`,
+`dumpable=0`) não são inspecionáveis sem privilégio. A prova padrão é sobre os
+processos **inspecionáveis**, e diz isso na própria string em vez de deixar a
+limitação virar silêncio. `FORJA_AGENTES_STRICT_PROCESSES=1` transforma
+evidência ilegível que alcança o root em bloqueio.
 
 Não retire uma Task antes do merge: a revisão adversarial, a verificação do
 PRIMARY e a disposição do Guia ainda podem precisar da worktree e da memória.

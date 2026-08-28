@@ -66,7 +66,19 @@ AMBIENTE_LIMPO = {"PATH": "/usr/bin:/bin", "LC_ALL": "C", "LANG": "C"}
 
 # Estados de lifecycle da Task no root físico.
 ESTADOS = ("ACTIVE", "REVIEW", "FIX_REQUIRED", "SEALED", "RETIREABLE")
-ESTADOS_DESTRUTIVEIS = ("SEALED", "RETIREABLE")
+ESTADOS_DESTRUTIVEIS = ("RETIREABLE",)
+
+# Transições autorizadas. A ausência de uma aresta é a regra, não um esquecimento:
+# `ACTIVE -> RETIREABLE` não existe de propósito, porque pular o selo apagaria a
+# worktree e a memória que a revisão ainda usa. O único caminho até a destruição
+# passa por um selo real.
+TRANSICOES = {
+    "ACTIVE": ("REVIEW", "FIX_REQUIRED", "SEALED"),
+    "REVIEW": ("ACTIVE", "FIX_REQUIRED", "SEALED"),
+    "FIX_REQUIRED": ("ACTIVE", "REVIEW", "SEALED"),
+    "SEALED": ("FIX_REQUIRED", "REVIEW", "RETIREABLE"),
+    "RETIREABLE": (),
+}
 
 
 class Classe:
@@ -238,29 +250,158 @@ def sem_mount_interno(raiz: Path) -> None:
             raise ForjaError("BLOCKED_BY_MOUNT", f"mountpoint dentro do root: {mp}")
 
 
-def processos_no_root(raiz: Path) -> list[dict[str, Any]]:
-    """Processos cujo cwd, exe ou root aponta para dentro de `raiz`."""
+def processos_no_root(
+    raiz: Path,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Processos que tocam `raiz`, e aqueles cuja evidência não pôde ser lida.
+
+    Devolve `(achados, indeterminados, nao_inspecionaveis)`. A separação existe porque um link de
+    `/proc` ilegível não é evidência de ausência: é ausência de evidência. Um
+    único `except OSError: continue` transformaria "não consegui olhar" em "não
+    há ninguém" — que é exatamente o modo fail-open que uma função fail-closed
+    não pode ter. Numa varredura real deste host, 354 links eram ilegíveis.
+
+    Além de cwd/exe/root, inspeciona descritores abertos: um processo pode
+    manter um arquivo ou socket dentro do root sem que nenhum dos três links
+    aponte para lá.
+    """
     prefixo = str(Path(os.path.abspath(raiz))) + os.sep
+    alvo_exato = str(Path(os.path.abspath(raiz)))
     achados: list[dict[str, Any]] = []
+    indeterminados: list[dict[str, Any]] = []
+    nao_inspecionaveis: list[dict[str, Any]] = []
     proc = Path("/proc")
     if not proc.is_dir():
-        return achados
+        raise ForjaError("DENIED", "/proc indisponível: impossível provar ausência de processo")
+
+    def dentro(alvo: str) -> bool:
+        return alvo == alvo_exato or alvo.startswith(prefixo)
+
+    meu_pid = os.getpid()
     for entrada in proc.iterdir():
         if not entrada.name.isdigit():
             continue
+        pid = int(entrada.name)
+        try:
+            comm = (entrada / "comm").read_text(encoding="utf-8").strip()
+        except OSError:
+            comm = "?"
+        atingido = False
+        ilegivel: list[str] = []
         for campo in ("cwd", "exe", "root"):
             try:
                 alvo = os.readlink(entrada / campo)
+            except FileNotFoundError:
+                continue  # processo terminou entre o scandir e o readlink
+            except OSError:
+                ilegivel.append(campo)
+                continue
+            if dentro(alvo):
+                achados.append({"pid": pid, "field": campo, "target": alvo, "comm": comm})
+                atingido = True
+                break
+        if atingido:
+            continue
+        # descritores abertos: arquivo, socket ou mmap dentro do root
+        fddir = entrada / "fd"
+        try:
+            nomes = os.listdir(fddir)
+        except FileNotFoundError:
+            nomes = []
+        except OSError:
+            ilegivel.append("fd")
+            nomes = []
+        for nome in nomes:
+            try:
+                alvo = os.readlink(fddir / nome)
             except OSError:
                 continue
-            if alvo == str(raiz).rstrip(os.sep) or alvo.startswith(prefixo):
-                try:
-                    comm = (entrada / "comm").read_text(encoding="utf-8").strip()
-                except OSError:
-                    comm = "?"
-                achados.append({"pid": int(entrada.name), "field": campo, "target": alvo, "comm": comm})
+            if dentro(alvo):
+                achados.append({"pid": pid, "field": f"fd/{nome}", "target": alvo, "comm": comm})
+                atingido = True
                 break
-    return achados
+        if not atingido and ilegivel and pid != meu_pid:
+            # Ilegível não é automaticamente perigoso. O uid do processo vem de
+            # /proc/PID/status, que é legível mesmo quando os links não são, e
+            # um uid que não alcança o root não pode estar segurando nada lá
+            # dentro. Isso converte a maior parte dos "não consegui olhar" numa
+            # prova real, em vez de num override genérico — sem o qual o gate
+            # bloquearia por centenas de processos alheios e seria desligado.
+            uid = uid_do_processo(entrada)
+            if uid is not None and not uid_alcanca(uid, raiz):
+                continue
+            if uid == 0:
+                # Processos de root — na prática threads do kernel e daemons do
+                # sistema — nunca são legíveis por um agente sem privilégio. Um
+                # gate que bloqueasse por eles bloquearia sempre, e um gate que
+                # bloqueia sempre é desligado. Eles são contados e reportados
+                # para que o alcance da prova fique explícito, em vez de a
+                # limitação desaparecer num silêncio conveniente.
+                nao_inspecionaveis.append({"pid": pid, "uid": uid, "comm": comm})
+                continue
+            indeterminados.append(
+                {"pid": pid, "uid": uid, "unreadable": ilegivel, "comm": comm}
+            )
+    return achados, indeterminados, nao_inspecionaveis
+
+
+def uid_do_processo(entrada: Path) -> int | None:
+    try:
+        for linha in (entrada / "status").read_text(encoding="utf-8").splitlines():
+            if linha.startswith("Uid:"):
+                return int(linha.split()[1])  # real uid
+    except (OSError, ValueError, IndexError):
+        return None
+    return None
+
+
+def uid_alcanca(uid: int, raiz: Path) -> bool:
+    """O uid tem alguma chance de manter um descritor dentro de `raiz`?
+
+    Root alcança tudo. O dono alcança. Um membro do grupo alcança quando o
+    diretório dá permissão ao grupo. Qualquer outro uid não atravessa o modo
+    2770 — e então sua ilegibilidade é irrelevante para esta prova.
+    """
+    if uid == 0:
+        return True
+    try:
+        st = raiz.lstat()
+    except OSError:
+        return True  # não consegui medir o alvo: mantenha a suspeita
+    if uid == st.st_uid:
+        return True
+    modo = st.st_mode & 0o7777
+    if not (modo & 0o070):
+        return False  # grupo sem acesso: só dono e root alcançam
+    try:
+        nome = pwd.getpwuid(uid).pw_name
+        grupo = grp.getgrgid(st.st_gid)
+    except KeyError:
+        return True
+    if nome in grupo.gr_mem:
+        return True
+    try:
+        return pwd.getpwnam(nome).pw_gid == st.st_gid
+    except KeyError:
+        return True
+
+
+def processos_estritos() -> bool:
+    """Trata processo não inspecionável como bloqueio, e não como limitação.
+
+    O padrão é reportar, não bloquear, e a razão é medida e não estética:
+    processos privilege-separated do mesmo uid (`sshd-session`, com dumpable=0)
+    e as threads do kernel nunca são legíveis por um agente sem privilégio.
+    Bloquear por eles tornaria a retirada impossível em qualquer host com SSH —
+    e um gate que nunca deixa passar é um gate que alguém desliga.
+
+    O que o gate garante por padrão é preciso e está escrito na prova emitida:
+    nenhum processo INSPECIONÁVEL toca o root. Os não inspecionáveis são
+    contados e nomeados na saída, de modo que o alcance da prova fique visível
+    em vez de virar silêncio. Quem precisar da versão estrita liga esta variável
+    e aceita bloquear.
+    """
+    return os.environ.get("FORJA_AGENTES_STRICT_PROCESSES") == "1"
 
 
 def remover_arvore_sem_seguir_links(raiz: Path) -> tuple[int, int]:
@@ -368,7 +509,41 @@ def task_do_observador() -> str:
 
 
 def resolver_task(arg: str | None) -> str:
+    """Resolve o TASK_ID para comandos de LEITURA.
+
+    Um `--task-id` explícito é aceito aqui porque observar o layout de outra
+    Task não muta nada.
+    """
     return validar_task(arg) if arg else task_do_observador()
+
+
+def resolver_task_propria(arg: str | None) -> str:
+    """Resolve o TASK_ID para comandos que MUTAM ou DESTROEM.
+
+    Aqui o `--task-id` deixa de ser um endereço e vira uma asserção: ele precisa
+    coincidir com a Task que o observador canônico atribui ao chamador. Sem esta
+    distinção, `--task-id` seria exatamente o mecanismo pelo qual a Task A
+    apagaria a Task B — e nenhuma das guardas de caminho detectaria isso, porque
+    o caminho da B é perfeitamente válido.
+    """
+    observada = task_do_observador()
+    if arg is not None and validar_task(arg) != observada:
+        raise ForjaError(
+            "DENIED",
+            f"comando mutante recusado: --task-id {arg!r} não é a Task ativa do chamador ({observada!r})",
+        )
+    return observada
+
+
+def exigir_dono(binding: dict[str, Any] | None, task_id: str) -> None:
+    """O vínculo gravado no slot precisa concordar com quem está chamando."""
+    if not binding:
+        raise ForjaError("DENIED", "task root sem vínculo legível; recusado para mutação")
+    if binding.get("task_id") != task_id:
+        raise ForjaError("DENIED", "vínculo do slot não corresponde à Task do chamador")
+    dono = binding.get("agent")
+    if dono and dono != agente_corrente():
+        raise ForjaError("DENIED", f"task root pertence ao agente {dono!r}, não a {agente_corrente()!r}")
 
 
 # ---------------------------------------------------------------------------
@@ -395,7 +570,9 @@ def ler_binding(slot_dir: Path) -> dict[str, Any] | None:
 
 def escrever_binding(slot_dir: Path, dados: dict[str, Any]) -> None:
     arquivo = slot_dir / BINDING_FILENAME
-    tmp = slot_dir / f".{BINDING_FILENAME}.tmp"
+    # nome exclusivo por processo: um `.tmp` compartilhado faria dois escritores
+    # concorrentes disputarem o mesmo arquivo intermediário
+    tmp = slot_dir / f".{BINDING_FILENAME}.{os.getpid()}.tmp"
     tmp.write_text(json.dumps(dados, ensure_ascii=False, sort_keys=True, indent=2) + "\n", encoding="utf-8")
     os.chmod(tmp, MODO_ARQ)
     os.replace(tmp, arquivo)
@@ -420,15 +597,31 @@ def descobrir_slot(raiz: Path, task_id: str) -> str | None:
     return encontrados[0] if encontrados else None
 
 
-def alocar_slot(raiz: Path) -> str:
-    """Aloca o menor slot livre. O nome NÃO deriva do task_id."""
+def reivindicar_slot(raiz: Path) -> str:
+    """Reivindica atomicamente o menor slot livre. O nome NÃO deriva do task_id.
+
+    `os.mkdir` é a primitiva de exclusão mútua: ele falha com `EEXIST` se outro
+    processo criou o diretório entre a varredura e a criação. Varrer e depois
+    criar sem tratar `EEXIST` era o defeito F4 — duas Tasks provisionando ao
+    mesmo tempo podiam concordar sobre qual slot estava livre.
+    """
     usados = {nome for nome, _ in slots_existentes(raiz)}
     for n in range(1, 10000):
         candidato = f"a{n:02d}"
         if candidato in usados:
             continue
-        if (raiz / candidato).exists() or (raiz / candidato).is_symlink():
-            continue
+        alvo = raiz / candidato
+        try:
+            os.mkdir(alvo, MODO_DIR)
+        except FileExistsError:
+            continue  # perdemos a corrida para outro provisionamento: siga adiante
+        try:
+            os.chmod(alvo, MODO_DIR)
+            gid = gid_agentes()
+            if gid is not None and alvo.lstat().st_gid != gid:
+                os.chown(alvo, -1, gid)
+        except PermissionError:
+            pass
         return candidato
     raise ForjaError("FAILED", "nenhum slot livre em agentes/")
 
@@ -567,11 +760,16 @@ def cmd_provision(args: argparse.Namespace) -> int:
     slot = descobrir_slot(raiz, task_id)
     criado = False
     if slot is None:
-        slot = alocar_slot(raiz)
+        slot = reivindicar_slot(raiz)  # já criou o diretório, atomicamente
         criado = True
     task_root = raiz / slot
     sem_symlink_em_componentes(task_root, raiz)
-    criar_dir(task_root)
+    if not criado:
+        # Root pré-existente só é reusado quando o vínculo já é desta Task.
+        # Adotar um diretório sem vínculo era o outro lado do F4.
+        exigir_dono(ler_binding(task_root), task_id)
+    if not task_root.is_dir() or task_root.is_symlink():
+        raise ForjaError("DENIED", f"task root não é diretório regular: {task_root}")
 
     for recurso in RECURSOS:
         alvo = exigir_contido(task_root / recurso.subpath, task_root, f"recurso {recurso.nome}")
@@ -678,15 +876,22 @@ def cmd_list(args: argparse.Namespace) -> int:
 
 def cmd_state(args: argparse.Namespace) -> int:
     main, raiz = exigir_raizes()
-    task_id = resolver_task(args.task_id)
+    task_id = resolver_task_propria(args.task_id)
     slot = descobrir_slot(raiz, task_id)
     if slot is None:
         raise ForjaError("NOT_FOUND", f"nenhum task root observado para {task_id}")
     if args.set not in ESTADOS:
         raise ForjaError("DENIED", f"estado inválido: {args.set}; use um de {ESTADOS}")
     task_root = raiz / slot
-    binding = ler_binding(task_root) or {}
-    anterior = binding.get("state")
+    binding = ler_binding(task_root)
+    exigir_dono(binding, task_id)
+    binding = dict(binding or {})
+    anterior = binding.get("state") or "ACTIVE"
+    if args.set != anterior and args.set not in TRANSICOES.get(anterior, ()):
+        raise ForjaError(
+            "DENIED",
+            f"transição não autorizada: {anterior} -> {args.set}; de {anterior} só é permitido {TRANSICOES.get(anterior, ())}",
+        )
     binding.update({"schema": SCHEMA_BINDING, "task_id": task_id, "slot": slot, "state": args.set})
     escrever_binding(task_root, binding)
     emitir({"status": "STATE_SET", "task_id": task_id, "slot": slot, "from": anterior, "to": args.set})
@@ -727,10 +932,20 @@ def guardas_de_destruicao(main: Path, raiz: Path, task_root: Path, binding: dict
     sem_mount_interno(task_root)
     provas.append("NO_MOUNTPOINT_INSIDE_TASK_ROOT")
 
-    vivos = processos_no_root(task_root)
+    vivos, indeterminados, nao_inspecionaveis = processos_no_root(task_root)
     if vivos:
         raise ForjaError("BLOCKED_BY_PROCESS", f"processos ativos no task root: {vivos}")
-    provas.append("NO_LIVE_PROCESS_IN_TASK_ROOT")
+    if indeterminados and processos_estritos():
+        raise ForjaError(
+            "BLOCKED_BY_UNKNOWN_PROCESS",
+            f"modo estrito: {len(indeterminados)} processo(s) que alcançam o root com evidência "
+            f"ilegível; ausência não provada: {indeterminados[:5]}",
+        )
+    provas.append(
+        f"NO_INSPECTABLE_PROCESS_IN_TASK_ROOT"
+        f"(uninspectable_same_reach={len(indeterminados)};"
+        f"uninspectable_root_owned={len(nao_inspecionaveis)})"
+    )
 
     estado = (binding or {}).get("state")
     if estado not in ESTADOS_DESTRUTIVEIS:
@@ -738,9 +953,14 @@ def guardas_de_destruicao(main: Path, raiz: Path, task_root: Path, binding: dict
     provas.append(f"TASK_STATE_ALLOWS_DESTRUCTION({estado})")
 
     st = task_root.lstat()
-    if st.st_uid not in {0, os.getuid()}:
-        raise ForjaError("DENIED", "task root pertence a outra identidade")
-    provas.append("OWNERSHIP_COMPATIBLE")
+    if st.st_uid != os.getuid():
+        raise ForjaError("DENIED", "task root não pertence ao uid do chamador")
+    provas.append("OWNERSHIP_IS_CALLER")
+
+    dono = (binding or {}).get("agent")
+    if dono != agente_corrente():
+        raise ForjaError("DENIED", f"vínculo declara o agente {dono!r}, não {agente_corrente()!r}")
+    provas.append("BINDING_AGENT_IS_CALLER")
 
     for compartilhado in COMPARTILHADOS:
         alvo = Path(os.path.abspath(compartilhado["path"]))
@@ -754,11 +974,12 @@ def guardas_de_destruicao(main: Path, raiz: Path, task_root: Path, binding: dict
 def cmd_seal(args: argparse.Namespace) -> int:
     """EXECUTION_SEAL: recupera o efêmero, preserva o durável."""
     main, raiz = exigir_raizes()
-    task_id = resolver_task(args.task_id)
+    task_id = resolver_task_propria(args.task_id)
     slot = descobrir_slot(raiz, task_id)
     if slot is None:
         raise ForjaError("NOT_FOUND", f"nenhum task root observado para {task_id}")
     task_root = raiz / slot
+    exigir_dono(ler_binding(task_root), task_id)
     sem_symlink_em_componentes(task_root, canonical_main())
     sem_mount_interno(task_root)
 
@@ -778,9 +999,15 @@ def cmd_seal(args: argparse.Namespace) -> int:
         sem_symlink_em_componentes(alvo, canonical_main())
         if alvo.is_symlink():
             raise ForjaError("DENIED", f"recurso é symlink: {alvo}")
-        vivos = processos_no_root(alvo)
+        vivos, indeterminados, _ = processos_no_root(alvo)
         if vivos:
             raise ForjaError("BLOCKED_BY_PROCESS", f"processo ativo em {alvo}: {vivos}")
+        if indeterminados and processos_estritos():
+            raise ForjaError(
+                "BLOCKED_BY_UNKNOWN_PROCESS",
+                f"modo estrito: {len(indeterminados)} processo(s) que alcançam {alvo} com "
+                "evidência ilegível",
+            )
         if args.apply:
             remover_arvore_sem_seguir_links(alvo)
             criar_dir(alvo)
@@ -822,12 +1049,13 @@ def cmd_seal(args: argparse.Namespace) -> int:
 def cmd_retire(args: argparse.Namespace) -> int:
     """TASK_RETIRE: destrói o root inteiro, depois de todas as provas."""
     main, raiz = exigir_raizes()
-    task_id = resolver_task(args.task_id)
+    task_id = resolver_task_propria(args.task_id)
     slot = descobrir_slot(raiz, task_id)
     if slot is None:
         raise ForjaError("NOT_FOUND", f"nenhum task root observado para {task_id}")
     task_root = raiz / slot
     binding = ler_binding(task_root)
+    exigir_dono(binding, task_id)
 
     provas = guardas_de_destruicao(main, raiz, task_root, binding)
 
@@ -851,16 +1079,30 @@ def cmd_retire(args: argparse.Namespace) -> int:
         )
         return EXIT_OK
 
-    # 1. desregistrar a worktree pelo Git, antes de remover o diretório
+    # 1. desregistrar a worktree pelo Git, antes de remover o diretório.
+    #    Ignorar o código de saída aqui foi o defeito F2: um desregistro que
+    #    falha deixa metadata órfã e o comando ainda reportaria RETIRED.
     if registrada:
-        git(main, "worktree", "remove", "--force", str(worktree), check=False)
+        r = git(main, "worktree", "remove", "--force", str(worktree), check=False)
+        if r.returncode != 0:
+            raise ForjaError(
+                "FAILED",
+                f"desregistro da worktree falhou; nada foi removido: {r.stderr.strip()[:200]}",
+            )
     # 2. remover o root físico sem seguir symlinks
     if task_root.exists():
         remover_arvore_sem_seguir_links(task_root)
     # 3. podar metadata do Git
-    git(main, "worktree", "prune", check=False)
-    # 4. provar ausência de metadata órfã
+    r = git(main, "worktree", "prune", check=False)
+    if r.returncode != 0:
+        raise ForjaError("FAILED", f"prune falhou após a remoção: {r.stderr.strip()[:200]}")
+    # 4. provar ausência de metadata órfã — a prova é obrigatória, não informativa
     orfas = metadata_orfa(main)
+    ausente = not task_root.exists() and not task_root.is_symlink()
+    if not ausente:
+        raise ForjaError("FAILED", f"task root ainda presente após a remoção: {task_root}")
+    if orfas:
+        raise ForjaError("FAILED", f"metadata Git órfã após a retirada: {orfas}")
     # 5. a branch sobrevive de propósito: apagá-la seria destruir identidade
     #    de commit que o root físico não possuía. Mas silêncio vira resíduo,
     #    então ela é reportada com o que ainda lhe é exclusivo.
@@ -874,10 +1116,11 @@ def cmd_retire(args: argparse.Namespace) -> int:
             "slot": slot,
             "task_root": str(task_root),
             "proofs": provas,
+            "process_proof_scope": "INSPECTABLE_ONLY",
             "worktree_was_registered": registrada,
             "reclaimed_bytes": bytes_antes,
             "reclaimed_files": arquivos_antes,
-            "task_root_absent": not task_root.exists() and not task_root.is_symlink(),
+            "task_root_absent": ausente,
             "stale_git_worktree_metadata": orfas,
             "branch_left_behind": branch_restante,
         }
@@ -906,10 +1149,18 @@ def branch_orfa(main: Path, branch: str | None) -> dict[str, Any] | None:
 
 
 def metadata_orfa(main: Path) -> list[str]:
-    """Entradas em .git/worktrees cujo diretório de trabalho não existe mais."""
+    """Entradas em .git/worktrees cujo diretório de trabalho não existe mais.
+
+    Falha de inspeção é erro, nunca lista vazia: devolver `[]` quando não foi
+    possível olhar transformaria "não consegui verificar" em "está limpo", que
+    é a mesma inversão fail-open do F3.
+    """
     proc = git(main, "rev-parse", "--git-common-dir", check=False)
     if proc.returncode != 0:
-        return []
+        raise ForjaError(
+            "FAILED",
+            f"impossível inspecionar metadata de worktree: {proc.stderr.strip()[:200]}",
+        )
     comum = Path(proc.stdout.strip())
     if not comum.is_absolute():
         comum = main / comum

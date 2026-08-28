@@ -64,7 +64,8 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
         "TASK_ROOT reconstruído por concatenação do TASK_ID",
         [
             ('SLOT_RE = re.compile(r"^a[0-9]{2,4}$")', 'SLOT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")'),
-            ("        slot = alocar_slot(raiz)", "        slot = task_id"),
+            ("        slot = reivindicar_slot(raiz)  # já criou o diretório, atomicamente",
+             "        slot = task_id\n        os.makedirs(raiz / slot, exist_ok=True)"),
         ],
     ),
     (
@@ -160,12 +161,30 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
         "worktree removida do disco sem desregistro nem prune: metadata órfã",
         [
             (
-                '    if registrada:\n'
-                '        git(main, "worktree", "remove", "--force", str(worktree), check=False)',
+                "    if registrada:\n"
+                '        r = git(main, "worktree", "remove", "--force", str(worktree), check=False)\n'
+                "        if r.returncode != 0:\n"
+                "            raise ForjaError(\n"
+                '                "FAILED",\n'
+                '                f"desregistro da worktree falhou; nada foi removido: {r.stderr.strip()[:200]}",\n'
+                "            )",
                 "    pass",
             ),
-            ('    git(main, "worktree", "prune", check=False)', "    pass"),
-            ("def metadata_orfa(main: Path) -> list[str]:", "def metadata_orfa(main: Path) -> list[str]:\n    return []"),
+            (
+                '    r = git(main, "worktree", "prune", check=False)\n'
+                "    if r.returncode != 0:\n"
+                '        raise ForjaError("FAILED", f"prune falhou após a remoção: {r.stderr.strip()[:200]}")',
+                "    pass",
+            ),
+            (
+                "    if orfas:\n"
+                '        raise ForjaError("FAILED", f"metadata Git órfã após a retirada: {orfas}")',
+                "    pass",
+            ),
+            (
+                "def metadata_orfa(main: Path) -> list[str]:",
+                "def metadata_orfa(main: Path) -> list[str]:\n    return []",
+            ),
         ],
     ),
     (
@@ -177,6 +196,79 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
                 "    if estado not in ESTADOS_DESTRUTIVEIS:\n"
                 '        raise ForjaError("DENIED", f"estado {estado!r} não autoriza destruição; exigido um de {ESTADOS_DESTRUTIVEIS}")',
                 '    estado = (binding or {}).get("state")',
+            ),
+        ],
+    ),
+    (
+        "S17",
+        "comando mutante aceita --task-id de outra Task: A apaga B pela interface",
+        [
+            (
+                "def resolver_task_propria(arg: str | None) -> str:",
+                "def resolver_task_propria(arg: str | None) -> str:\n"
+                "    if arg:\n"
+                "        return validar_task(arg)",
+            ),
+        ],
+    ),
+    (
+        "S18",
+        "state permite qualquer transição, inclusive ACTIVE -> RETIREABLE",
+        [
+            (
+                "    if args.set != anterior and args.set not in TRANSICOES.get(anterior, ()):\n"
+                "        raise ForjaError(\n"
+                '            "DENIED",\n'
+                '            f"transição não autorizada: {anterior} -> {args.set}; de {anterior} só é permitido {TRANSICOES.get(anterior, ())}",\n'
+                "        )",
+                "    pass",
+            ),
+        ],
+    ),
+    (
+        "S19",
+        "retire trata falha do Git como sucesso terminal",
+        [
+            (
+                "        r = git(main, \"worktree\", \"remove\", \"--force\", str(worktree), check=False)\n"
+                "        if r.returncode != 0:\n"
+                "            raise ForjaError(\n"
+                '                "FAILED",\n'
+                '                f"desregistro da worktree falhou; nada foi removido: {r.stderr.strip()[:200]}",\n'
+                "            )",
+                '        git(main, "worktree", "remove", "--force", str(worktree), check=False)',
+            ),
+            (
+                "    if orfas:\n"
+                '        raise ForjaError("FAILED", f"metadata Git órfã após a retirada: {orfas}")',
+                "    pass",
+            ),
+        ],
+    ),
+    (
+        "S20",
+        "reivindicação de slot volta a ser scan-then-use, sem exclusão mútua",
+        [
+            (
+                "        try:\n"
+                "            os.mkdir(alvo, MODO_DIR)\n"
+                "        except FileExistsError:\n"
+                "            continue  # perdemos a corrida para outro provisionamento: siga adiante",
+                "        if alvo.exists():\n"
+                "            continue\n"
+                "        os.makedirs(alvo, MODO_DIR, exist_ok=True)",
+            ),
+        ],
+    ),
+    (
+        "S21",
+        "vínculo do slot deixa de ser conferido: mutação em root de outro agente",
+        [
+            (
+                '    dono = binding.get("agent")\n'
+                "    if dono and dono != agente_corrente():\n"
+                '        raise ForjaError("DENIED", f"task root pertence ao agente {dono!r}, não a {agente_corrente()!r}")',
+                "    pass",
             ),
         ],
     ),

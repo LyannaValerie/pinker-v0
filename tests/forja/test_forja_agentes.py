@@ -91,6 +91,17 @@ class Base(unittest.TestCase):
         except json.JSONDecodeError:
             return codigo, {"raw": bruto}
 
+    def tornar_retiravel(self) -> None:
+        """Leva a Task ao unico estado que autoriza destruicao.
+
+        ACTIVE -> RETIREABLE nao existe de proposito: pular o selo apagaria a
+        worktree e a memoria que a revisao ainda usa.
+        """
+        codigo, r = self.rodar("seal", "--apply")
+        self.assertEqual(codigo, 0, r)
+        codigo, r = self.rodar("state", "--set", "RETIREABLE")
+        self.assertEqual(codigo, 0, r)
+
     def provisionar(self, branch: str = "b1") -> dict:
         codigo, dados = self.rodar("provision", "--branch", branch, "--base", "main")
         self.assertEqual(codigo, 0, dados)
@@ -231,7 +242,7 @@ class ConcorrenciaTests(Base):
         antes = marca.read_bytes()
 
         os.environ["FORJA_AGENTES_TEST_TASK"] = a["task_id"]
-        self.rodar("state", "--set", "RETIREABLE")
+        self.tornar_retiravel()
         codigo, resultado = self.rodar("retire", "--apply")
         self.assertEqual(codigo, 0, resultado)
         self.assertTrue(resultado["task_root_absent"])
@@ -314,7 +325,7 @@ class RetiradaTests(Base):
 
     def test_retire_remove_registro_e_diretorio_da_worktree(self) -> None:
         dados = self.provisionar()
-        self.rodar("state", "--set", "RETIREABLE")
+        self.tornar_retiravel()
         codigo, resultado = self.rodar("retire", "--apply")
         self.assertEqual(codigo, 0, resultado)
         self.assertFalse(Path(dados["task_root"]).exists())
@@ -324,7 +335,7 @@ class RetiradaTests(Base):
 
     def test_retire_nao_deixa_metadata_orfa(self) -> None:
         dados = self.provisionar()
-        self.rodar("state", "--set", "RETIREABLE")
+        self.tornar_retiravel()
         self.rodar("retire", "--apply")
         base = self.main / ".git" / "worktrees"
         restante = sorted(p.name for p in base.iterdir()) if base.is_dir() else []
@@ -336,7 +347,7 @@ class RetiradaTests(Base):
         (raiz / "worktree" / "novo.txt").write_text("trabalho\n", encoding="utf-8")
         git(raiz / "worktree", "add", "-A")
         git(raiz / "worktree", "commit", "-qm", "trabalho da task")
-        self.rodar("state", "--set", "RETIREABLE")
+        self.tornar_retiravel()
         codigo, resultado = self.rodar("retire", "--apply")
         self.assertEqual(codigo, 0, resultado)
         restante = resultado["branch_left_behind"]
@@ -349,7 +360,7 @@ class RetiradaTests(Base):
 
     def test_slot_e_reutilizavel_apos_retirada(self) -> None:
         a = self.provisionar()
-        self.rodar("state", "--set", "RETIREABLE")
+        self.tornar_retiravel()
         self.rodar("retire", "--apply")
         os.environ["FORJA_AGENTES_TEST_TASK"] = "task-nova-depois-da-retirada-um"
         codigo, b = self.rodar("provision", "--branch", "b9", "--base", "main")
@@ -382,7 +393,7 @@ class SegurancaDeCleanupTests(Base):
         alvo = fora / "nao-apague.txt"
         alvo.write_text("preservar\n", encoding="utf-8")
         (raiz / "scratch" / "fuga").symlink_to(fora)
-        self.rodar("state", "--set", "RETIREABLE")
+        self.tornar_retiravel()
         codigo, resultado = self.rodar("retire", "--apply")
         self.assertEqual(codigo, 0, resultado)
         self.assertFalse(raiz.exists())
@@ -415,25 +426,41 @@ class SegurancaDeCleanupTests(Base):
         self.assertEqual(codigo, fa.EXIT_RECUSADO, resultado)
         self.assertTrue((raiz / "target-real").is_dir())
 
+    def _binding_valido(self) -> dict:
+        """Vínculo que passa dono e estado, para o teste alcançar a contenção.
+
+        Sem isto a guarda de dono dispara antes e o teste passaria pelo motivo
+        errado — verde enquanto a contenção estivesse quebrada.
+        """
+        return {"state": "RETIREABLE", "agent": fa.agente_corrente(), "task_id": "x"}
+
     def test_nunca_apaga_o_checkout_canonico(self) -> None:
-        dados = self.provisionar()
-        with self.assertRaises(fa.ForjaError):
-            fa.guardas_de_destruicao(self.main, self.main / "agentes", self.main, {"state": "RETIREABLE"})
+        self.provisionar()
+        with self.assertRaises(fa.ForjaError) as ctx:
+            fa.guardas_de_destruicao(
+                self.main, self.main / "agentes", self.main, self._binding_valido()
+            )
+        self.assertNotIn("vínculo declara o agente", str(ctx.exception))
         self.assertTrue((self.main / "README.md").exists())
 
     def test_nunca_apaga_a_propria_raiz_de_agentes(self) -> None:
         self.provisionar()
-        with self.assertRaises(fa.ForjaError):
+        with self.assertRaises(fa.ForjaError) as ctx:
             fa.guardas_de_destruicao(
-                self.main, self.main / "agentes", self.main / "agentes", {"state": "RETIREABLE"}
+                self.main, self.main / "agentes", self.main / "agentes", self._binding_valido()
             )
+        # não pode parar na guarda de dono: o teste existe para a contenção
+        self.assertNotIn("vínculo declara o agente", str(ctx.exception))
         self.assertTrue((self.main / "agentes" / "README.md").exists())
 
     def test_recusa_caminho_fora_da_raiz_de_agentes(self) -> None:
         fora = self.tmp / "fora3"
         fora.mkdir()
-        with self.assertRaises(fa.ForjaError):
-            fa.guardas_de_destruicao(self.main, self.main / "agentes", fora, {"state": "RETIREABLE"})
+        with self.assertRaises(fa.ForjaError) as ctx:
+            fa.guardas_de_destruicao(
+                self.main, self.main / "agentes", fora, self._binding_valido()
+            )
+        self.assertNotIn("vínculo declara o agente", str(ctx.exception))
         self.assertTrue(fora.is_dir())
 
     def test_recusa_traversal_no_task_id(self) -> None:
@@ -445,8 +472,9 @@ class SegurancaDeCleanupTests(Base):
         raiz = self.main / "agentes"
         intruso = raiz / "nao-e-slot"
         intruso.mkdir()
-        with self.assertRaises(fa.ForjaError):
-            fa.guardas_de_destruicao(self.main, raiz, intruso, {"state": "RETIREABLE"})
+        with self.assertRaises(fa.ForjaError) as ctx:
+            fa.guardas_de_destruicao(self.main, raiz, intruso, self._binding_valido())
+        self.assertIn("slot", str(ctx.exception))
         self.assertTrue(intruso.is_dir())
 
     def test_bloqueia_quando_ha_processo_vivo_no_task_root(self) -> None:
@@ -462,6 +490,188 @@ class SegurancaDeCleanupTests(Base):
         finally:
             proc.kill()
             proc.wait()
+
+
+class PropriedadeDaTaskTests(Base):
+    """Regressoes dos blockers da revisao adversarial (F1, F2, F4).
+
+    O ataque que estes testes fecham nao passa por caminho invalido: o caminho
+    da Task B e perfeitamente valido. O que estava aberto era a interface, que
+    aceitava `--task-id` como endereco em vez de como asserção.
+    """
+
+    def _provisionar_b(self) -> dict:
+        os.environ["FORJA_AGENTES_TEST_TASK"] = "task-b-alvo-de-ataque-longa"
+        codigo, b = self.rodar("provision", "--branch", "b2", "--base", "main")
+        self.assertEqual(codigo, 0, b)
+        return b
+
+    def test_retire_recusa_task_de_outrem_via_task_id(self) -> None:
+        a = self.provisionar("b1")
+        b = self._provisionar_b()
+        # de volta a identidade de A, apontando para B
+        os.environ["FORJA_AGENTES_TEST_TASK"] = a["task_id"]
+        codigo, r = self.rodar("retire", "--task-id", b["task_id"], "--apply")
+        self.assertEqual(codigo, fa.EXIT_RECUSADO, r)
+        self.assertIn("não é a Task ativa do chamador", r["error"])
+        self.assertTrue(Path(b["task_root"]).is_dir(), "A retirou o root de B")
+
+    def test_seal_recusa_task_de_outrem_via_task_id(self) -> None:
+        a = self.provisionar("b1")
+        b = self._provisionar_b()
+        peso = Path(b["task_root"]) / "target" / "peso.bin"
+        peso.write_bytes(b"b" * 2048)
+        os.environ["FORJA_AGENTES_TEST_TASK"] = a["task_id"]
+        codigo, r = self.rodar("seal", "--task-id", b["task_id"], "--apply")
+        self.assertEqual(codigo, fa.EXIT_RECUSADO, r)
+        self.assertTrue(peso.exists(), "A selou o target de B")
+
+    def test_state_recusa_task_de_outrem_via_task_id(self) -> None:
+        a = self.provisionar("b1")
+        b = self._provisionar_b()
+        os.environ["FORJA_AGENTES_TEST_TASK"] = a["task_id"]
+        codigo, r = self.rodar("state", "--task-id", b["task_id"], "--set", "SEALED")
+        self.assertEqual(codigo, fa.EXIT_RECUSADO, r)
+        binding = json.loads((Path(b["task_root"]) / "task.json").read_text(encoding="utf-8"))
+        self.assertEqual(binding.get("state"), "ACTIVE")
+
+    def test_observe_com_task_id_alheio_continua_permitido(self) -> None:
+        a = self.provisionar("b1")
+        b = self._provisionar_b()
+        os.environ["FORJA_AGENTES_TEST_TASK"] = a["task_id"]
+        codigo, r = self.rodar("observe", "--task-id", b["task_id"])
+        self.assertEqual(codigo, 0, r)  # ler nao muta: continua liberado
+        self.assertEqual(r["task_root"], b["task_root"])
+
+    def test_task_id_proprio_explicito_e_aceito(self) -> None:
+        a = self.provisionar("b1")
+        codigo, r = self.rodar("state", "--task-id", a["task_id"], "--set", "REVIEW")
+        self.assertEqual(codigo, 0, r)
+
+    def test_mutacao_recusa_root_de_outro_agente(self) -> None:
+        dados = self.provisionar("b1")
+        binding = json.loads((Path(dados["task_root"]) / "task.json").read_text(encoding="utf-8"))
+        binding["agent"] = "outra-agente"
+        (Path(dados["task_root"]) / "task.json").write_text(
+            json.dumps(binding), encoding="utf-8"
+        )
+        codigo, r = self.rodar("state", "--set", "SEALED")
+        self.assertEqual(codigo, fa.EXIT_RECUSADO, r)
+        self.assertIn("pertence ao agente", r["error"])
+
+
+class TransicaoDeEstadoTests(Base):
+    def test_active_nao_salta_direto_para_retireable(self) -> None:
+        self.provisionar()
+        codigo, r = self.rodar("state", "--set", "RETIREABLE")
+        self.assertEqual(codigo, fa.EXIT_RECUSADO, r)
+        self.assertIn("transição não autorizada", r["error"])
+
+    def test_caminho_autorizado_ate_a_destruicao_passa_pelo_selo(self) -> None:
+        self.provisionar()
+        self.assertEqual(self.rodar("seal", "--apply")[0], 0)
+        self.assertEqual(self.rodar("state", "--set", "RETIREABLE")[0], 0)
+        codigo, r = self.rodar("retire", "--apply")
+        self.assertEqual(codigo, 0, r)
+
+    def test_sealed_pode_reabrir_para_correcao(self) -> None:
+        self.provisionar()
+        self.rodar("seal", "--apply")
+        codigo, r = self.rodar("state", "--set", "FIX_REQUIRED")
+        self.assertEqual(codigo, 0, r)
+        # e dali nao se destroi sem selar de novo
+        self.assertEqual(self.rodar("state", "--set", "RETIREABLE")[0], fa.EXIT_RECUSADO)
+
+    def test_retire_exige_retireable_e_nao_apenas_sealed(self) -> None:
+        self.provisionar()
+        self.rodar("seal", "--apply")
+        codigo, r = self.rodar("retire", "--apply")
+        self.assertEqual(codigo, fa.EXIT_RECUSADO, r)
+        self.assertIn("RETIREABLE", r["error"])
+
+
+class FalhaDeGitTests(Base):
+    """F2: falha do Git nao pode virar sucesso terminal."""
+
+    def test_retire_falha_quando_o_desregistro_falha(self) -> None:
+        dados = self.provisionar()
+        self.tornar_retiravel()
+        raiz = Path(dados["task_root"])
+        original = fa.git
+
+        def git_quebrado(main, *args, check=True):
+            if args[:2] == ("worktree", "remove"):
+                class R:
+                    returncode = 1
+                    stdout = ""
+                    stderr = "falha simulada de desregistro"
+                return R()
+            return original(main, *args, check=check)
+
+        fa.git = git_quebrado
+        try:
+            codigo, r = self.rodar("retire", "--apply")
+        finally:
+            fa.git = original
+        self.assertEqual(codigo, fa.EXIT_FALHA, r)
+        self.assertEqual(r["status"], "FAILED")
+        self.assertTrue(raiz.is_dir(), "removeu o root apesar de o desregistro falhar")
+
+    def test_inspecao_de_metadata_que_falha_e_erro_nao_lista_vazia(self) -> None:
+        self.provisionar()
+        original = fa.git
+
+        def git_quebrado(main, *args, check=True):
+            if args[:1] == ("rev-parse",) and "--git-common-dir" in args:
+                class R:
+                    returncode = 128
+                    stdout = ""
+                    stderr = "nao foi possivel inspecionar"
+                return R()
+            return original(main, *args, check=check)
+
+        fa.git = git_quebrado
+        try:
+            with self.assertRaises(fa.ForjaError):
+                fa.metadata_orfa(self.main)
+        finally:
+            fa.git = original
+
+
+class ReivindicacaoDeSlotTests(Base):
+    """F4: a alocacao de slot precisa ser atomica, nao scan-then-use."""
+
+    def test_reivindicacao_e_atomica_sob_concorrencia(self) -> None:
+        import threading
+
+        raiz = self.main / "agentes"
+        obtidos: list[str] = []
+        erros: list[Exception] = []
+        trava = threading.Barrier(8)
+
+        def reivindicar() -> None:
+            try:
+                trava.wait()
+                obtidos.append(fa.reivindicar_slot(raiz))
+            except Exception as exc:  # noqa: BLE001 - o teste quer o erro
+                erros.append(exc)
+
+        fios = [threading.Thread(target=reivindicar) for _ in range(8)]
+        for f in fios:
+            f.start()
+        for f in fios:
+            f.join()
+        self.assertEqual(erros, [])
+        self.assertEqual(len(obtidos), 8)
+        self.assertEqual(len(set(obtidos)), 8, f"slots duplicados sob concorrencia: {obtidos}")
+
+    def test_provision_nao_adota_root_sem_vinculo(self) -> None:
+        intruso = self.main / "agentes" / "a01"
+        intruso.mkdir()
+        codigo, r = self.rodar("provision", "--branch", "b1", "--base", "main")
+        self.assertEqual(codigo, 0, r)
+        # nao pode ter adotado a01: ele nao tinha vinculo desta Task
+        self.assertNotEqual(r["slot"], "a01")
 
 
 class VerificacaoTests(Base):
