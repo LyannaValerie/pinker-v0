@@ -1494,11 +1494,38 @@ class OcupanteEMedicaoTests(Base):
         self.assertEqual(ilegiveis2, 1, "arquivo ilegivel sumiu da medicao sem deixar rastro")
         self.assertEqual(b2, 0)
 
+    def _slots_sem_inspecionar(self):
+        """Descoberta de slot que nao olha o tipo do diretorio.
+
+        A rodada 13 mostrou que cegar `Path.lstat` do task root derrubava
+        `slots_existentes` ANTES da checagem sob teste, nos dois comandos. O
+        teste ficava verde por recusa vinda do lugar errado — e neutralizar as
+        duas checagens-alvo mantinha os 91 testes verdes. Isolar a descoberta
+        e o que faz o oraculo apontar para o alvo que ele nomeia.
+        """
+        real = fa.slots_existentes
+
+        def stub(raiz):
+            return [
+                (nome, fa.ler_binding(raiz / nome))
+                for nome in sorted(os.listdir(raiz))
+                if fa.SLOT_RE.fullmatch(nome)
+            ]
+
+        fa.slots_existentes = stub
+        return real
+
     def test_task_root_inobservavel_impede_provisionar(self) -> None:
-        """Oraculo de comando que a rodada 12 apontou faltar em cmd_provision."""
+        """Oraculo causal de cmd_provision."""
         dados = self.provisionar()
         task_root = Path(dados["task_root"])
         real_lstat = Path.lstat
+        real_slots = self._slots_sem_inspecionar()
+        # `sem_symlink_em_componentes` recusa o mesmo caminho ANTES: sem
+        # neutraliza-la o teste ficava verde com a checagem-alvo removida,
+        # porque a recusa vinha de outro lugar com outra mensagem.
+        real_sem_symlink = fa.sem_symlink_em_componentes
+        fa.sem_symlink_em_componentes = lambda *a, **k: None
 
         def lstat_cego(self, *a, **k):
             if str(self) == str(task_root):
@@ -1510,13 +1537,19 @@ class OcupanteEMedicaoTests(Base):
             codigo, r = self.rodar("provision", "--branch", "b3", "--base", "main")
         finally:
             Path.lstat = real_lstat
+            fa.slots_existentes = real_slots
+            fa.sem_symlink_em_componentes = real_sem_symlink
         self.assertNotEqual(codigo, 0, f"task root inobservavel foi provisionado: {r}")
+        # Mensagem EXATA da checagem sob teste: recusa generica nao serve,
+        # foi assim que este oraculo passou pelo motivo errado na rodada 13.
+        self.assertIn("tipo de task root inobserv", json.dumps(r, ensure_ascii=False), r)
 
     def test_slot_inobservavel_reprova_a_verificacao(self) -> None:
-        """Oraculo de comando que a rodada 12 apontou faltar em cmd_verify."""
+        """Oraculo causal de cmd_verify."""
         dados = self.provisionar()
         task_root = Path(dados["task_root"])
         real_lstat = Path.lstat
+        real_slots = self._slots_sem_inspecionar()
 
         def lstat_cego(self, *a, **k):
             if str(self) == str(task_root):
@@ -1528,7 +1561,52 @@ class OcupanteEMedicaoTests(Base):
             codigo, r = self.rodar("verify")
         finally:
             Path.lstat = real_lstat
+            fa.slots_existentes = real_slots
         self.assertNotEqual(codigo, 0, f"slot inobservavel passou na verificacao: {r}")
+        self.assertIn("inobserv", json.dumps(r, ensure_ascii=False), r)
+
+    def test_subdiretorio_ilegivel_nao_some_da_medicao(self) -> None:
+        """A callback de `os.walk` era a mesma classe de defeito.
+
+        `onerror=lambda _e: None` descartava a falha de travessia: uma arvore
+        inteira sumia como (0, 0, 0) sem nada dizendo que ninguem olhou — no
+        contador criado exatamente para impedir isso.
+        """
+        raiz = Path(self.tmp) / "arvore"
+        (raiz / "sub").mkdir(parents=True)
+        (raiz / "sub" / "g.bin").write_bytes(b"x" * 4096)
+
+        real_scandir = os.scandir
+
+        def scandir_cego(caminho=".", *a, **k):
+            if str(caminho).endswith("/sub"):
+                raise PermissionError(13, "Permission denied")
+            return real_scandir(caminho, *a, **k)
+
+        os.scandir = scandir_cego
+        try:
+            _b, _f, ilegiveis = fa.medir(raiz)
+        finally:
+            os.scandir = real_scandir
+
+        self.assertGreater(ilegiveis, 0, "subdiretorio ilegivel sumiu da medicao sem deixar rastro")
+
+    def test_selo_publica_o_que_nao_conseguiu_medir(self) -> None:
+        """O `_` na frente da variavel silenciava o proprio sinal.
+
+        `cmd_seal` desempacotava o contador em `_ilegiveis` e o descartava:
+        um recurso com conteudo ilegivel era removido e o relatorio dizia
+        SEALED com bytes_before=0 e nenhum sinal de que a medicao falhou.
+        """
+        self.provisionar()
+        codigo, r = self.rodar("seal")
+        self.assertEqual(codigo, 0, r)
+        for item in r["items"]:
+            self.assertIn(
+                "unreadable_before",
+                item,
+                f"item {item.get('name')} do selo nao publica o que nao conseguiu medir",
+            )
 
 
 class VerificacaoTests(Base):

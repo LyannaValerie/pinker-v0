@@ -443,7 +443,7 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
         "medição volta a engolir arquivo ilegível sem deixar rastro",
         [
             (
-                "                inobservaveis += 1\n                continue",
+                "                ilegiveis[0] += 1\n                continue",
                 "                continue",
             ),
         ],
@@ -463,6 +463,51 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
             ),
         ],
         "test_modulo_inteiro_nao_usa_predicado_booleano_de_existencia",
+    ),
+    (
+        "S35",
+        "callback de os.walk volta a descartar falha de travessia",
+        [
+            ("onerror=registrar_falha_ao_descer", "onerror=lambda _e: None"),
+        ],
+        "test_subdiretorio_ilegivel_nao_some_da_medicao",
+    ),
+    (
+        "S36",
+        "selo volta a descartar o que não conseguiu medir",
+        [
+            (
+                '                "unreadable_before": ilegiveis,\n',
+                "",
+            ),
+        ],
+        "test_selo_publica_o_que_nao_conseguiu_medir",
+    ),
+    (
+        "S37",
+        "provision deixa de validar o tipo do task root",
+        [
+            (
+                '    if not e_diretorio(task_root, "task root") or e_symlink(task_root, "task root"):',
+                "    if False:",
+            ),
+        ],
+        "test_task_root_inobservavel_impede_provisionar",
+    ),
+    (
+        "S38",
+        "verify deixa de checar o tipo do slot",
+        [
+            (
+                "        try:\n"
+                '            if e_symlink(task_root, f"slot {nome}"):\n'
+                '                problemas.append(f"slot é symlink: {nome}")\n'
+                "        except ForjaError as erro:\n"
+                '            problemas.append(f"slot {nome} inobservável: {erro.mensagem}")',
+                "        pass",
+            ),
+        ],
+        "test_slot_inobservavel_reprova_a_verificacao",
     ),
 ]
 

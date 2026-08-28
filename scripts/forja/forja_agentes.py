@@ -592,21 +592,31 @@ def medir(caminho: Path) -> tuple[int, int, int]:
     """
     total = 0
     arquivos = 0
-    inobservaveis = 0
+    # Lista e não inteiro porque `onerror` é uma callback: precisa escrever
+    # num objeto que sobreviva ao escopo dela.
+    ilegiveis = [0]
+
+    def registrar_falha_ao_descer(_erro: OSError) -> None:
+        # `onerror=lambda _e: None` era a MESMA classe de defeito que o
+        # terceiro valor de retorno existe para fechar: um subdiretório
+        # ilegível fazia a árvore inteira sair da conta como (0, 0, 0), sem
+        # nada dizendo que ninguém olhou. A callback conta.
+        ilegiveis[0] += 1
+
     if estado_do_caminho(caminho, "alvo de medição") == AUSENTE:
         return 0, 0, 0
-    for base, dirs, nomes in os.walk(caminho, followlinks=False, onerror=lambda _e: None):
+    for base, dirs, nomes in os.walk(caminho, followlinks=False, onerror=registrar_falha_ao_descer):
         for nome in nomes:
             p = os.path.join(base, nome)
             try:
                 st = os.lstat(p)
             except OSError:
-                inobservaveis += 1
+                ilegiveis[0] += 1
                 continue
             if stat.S_ISREG(st.st_mode):
                 total += st.st_size
             arquivos += 1
-    return total, arquivos, inobservaveis
+    return total, arquivos, ilegiveis[0]
 
 
 # ---------------------------------------------------------------------------
@@ -1237,10 +1247,10 @@ def cmd_seal(args: argparse.Namespace) -> int:
     recuperados = 0
     for recurso in RECURSOS:
         alvo = exigir_contido(task_root / recurso.subpath, task_root, f"recurso {recurso.nome}")
-        antes, arquivos, _ilegiveis = medir(alvo)
+        antes, arquivos, ilegiveis = medir(alvo)
         if recurso.classe != Classe.EPHEMERAL:
             itens.append(
-                {"name": recurso.nome, "path": str(alvo), "class": recurso.classe, "action": "PRESERVED", "bytes_before": antes}
+                {"name": recurso.nome, "path": str(alvo), "class": recurso.classe, "action": "PRESERVED", "bytes_before": antes, "unreadable_before": ilegiveis}
             )
             continue
         if estado_do_caminho(alvo, f"recurso {recurso.nome}") == AUSENTE:
@@ -1280,6 +1290,9 @@ def cmd_seal(args: argparse.Namespace) -> int:
                 "action": acao,
                 "bytes_before": antes,
                 "files_before": arquivos,
+                # O `_` na frente deste valor silenciava exatamente o sinal
+                # que o terceiro retorno de `medir` foi criado para dar.
+                "unreadable_before": ilegiveis,
             }
         )
 
