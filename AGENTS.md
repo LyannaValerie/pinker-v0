@@ -8,6 +8,37 @@ Em Task da Forja, execute este bootstrap **antes do primeiro `cargo`, `make` ou
 `pink` da árvore**. Nenhum comando normativo deste arquivo deve rodar Cargo antes
 dele.
 
+### A memória do agente não é autoridade
+
+```text
+AGENT_PERSISTENT_MEMORY = UNRELIABLE
+AGENT_PERSISTENT_MEMORY_IS_AUTHORITY = FALSE
+```
+
+Sua memória pode sugerir onde procurar. Ela não prova baseline, caminho,
+comando, estado da Task, decisão da Founder nem arquitetura corrente. Autoridade
+é o que se observa agora: Issue/PR, checkpoint, Book, Trama, código, testes,
+`git`, inventário do host e os observadores da Forja. Um caminho lembrado de
+outra Task é hipótese, não fato — confirme antes de usar.
+
+### Topologia corrente
+
+```text
+CANONICAL_MAIN     /pinker/repo/pinker-v0
+AGENTES_ROOT       /pinker/repo/pinker-v0/agentes
+TASK_ROOT          /pinker/repo/pinker-v0/agentes/<slot>    (observado)
+```
+
+O checkout canônico é o **integrador mãe**. Ele acompanha `origin/main`, fica
+limpo e **não recebe mutação de implementação de Task**:
+
+```text
+TASK_IMPLEMENTATION_MUTATES_CANONICAL_MAIN_CHECKOUT = FALSE
+```
+
+Toda Task trabalha na própria worktree, dentro do próprio root. Uma Task tem UM
+root físico, e todo recurso descartável exclusivo dela mora lá dentro.
+
 **Fase 0 — sem build.** Recupere identidade e ambiente; ainda não compile.
 
 1. Recupere a Task e o active context. O `TASK_ID` vem do observador canônico, não
@@ -30,30 +61,34 @@ dele.
    repositório?". Ele **não** é autoridade sobre catálogo, receita, projeção ou
    subcomando que tenha mudado no `HEAD` corrente.
 
-3. Recupere os caminhos físicos da autoridade atual — **não os monte por
-   concatenação a partir do `TASK_ID`**. O layout físico pode mudar; a identidade
-   da Task, não.
+3. Provisione e **observe** o root físico. O slot não deriva do `TASK_ID`:
+   descubra-o, não o construa.
 
    ```bash
-   sudo -n /opt/pinker/bin/forja-task-storage show   # namespaces root-gated
-   fl --report --json                       # slots efêmeros registrados da Task
-   git rev-parse --show-toplevel            # raiz real da worktree
+   forja-agentes provision --branch <branch-da-task>   # idempotente
+   forja-agentes observe                               # layout em JSON
+   eval "$(forja-agentes env)"                         # exports do layout
    ```
 
-   O caminho listado por `fl --report` sob `kind: cache` é, por definição, o slot
-   de build que o finalizador sabe liberar. Use aquele valor; não o reconstrua.
+   `env` exporta exatamente o contrato — e nada fora do root:
 
-   ```bash
-   TASK_ID=$(sudo -n /opt/pinker/bin/forja-lifecycle show | python3 -c 'import json,sys;print(json.load(sys.stdin)["context"]["task"])')
-   TASKDIR=$(git rev-parse --show-toplevel)
-   CARGO_TARGET_DIR=$(fl --report --json | python3 -c 'import json,sys;print(next(r["path"] for r in json.load(sys.stdin)["storage"]["resources"] if r["kind"]=="cache"))')
-   export TASK_ID TASKDIR CARGO_TARGET_DIR
-   mkdir -p "$CARGO_TARGET_DIR"
+   ```text
+   TASK_ID  FORJA_TASK_ROOT  FORJA_CANONICAL_MAIN
+   TASKDIR            <TASK_ROOT>/worktree
+   CARGO_TARGET_DIR   <TASK_ROOT>/target
+   TMPDIR             <TASK_ROOT>/tmp
+   FORJA_SCRATCH      <TASK_ROOT>/scratch
+   FORJA_TASK_MEMORY  <TASK_ROOT>/memory
+   FORJA_TASK_STATE   <TASK_ROOT>/state
+   FORJA_TASK_ARTIFACTS <TASK_ROOT>/artifacts
    ```
 
-   `/pinker/worktrees/tasks/<task-id>` e `/pinker/caches/target/tasks/<task-id>`
-   são o layout canônico *ilustrativo*; trate-os como verdade apenas quando o
-   observador atual os confirmar.
+   Nunca monte o root por concatenação:
+
+   ```text
+   TASK_IDENTITY != PHYSICAL_PATH
+   AGENTES_ROOT + "/" + TASK_ID  ->  ERRADO
+   ```
 
    Dois detalhes que quebram o bloco acima se ignorados:
 
@@ -62,63 +97,87 @@ dele.
      forja-lifecycle show` falha com `command not found`, e dentro de uma
      substituição de comando esse erro é engolido: `TASK_ID` sai vazio e o
      `export` seguinte não reclama. Confira que `TASK_ID` não está vazio.
-   - **`fl --report` pode sair com código diferente de zero** (por exemplo 10,
-     quando há blocker) mesmo produzindo JSON válido. Sob `set -euo pipefail`
-     isso aborta o script. Capture o valor antes de habilitar `pipefail`, ou
-     trate o código de saída explicitamente.
+   - **Confirme cobertura antes de construir.** `forja-agentes observe` lista os
+     recursos com `present: true`. O que não aparece ali não é provisionado nem
+     finalizado — é lacuna de cobertura a resolver **antes** do primeiro build,
+     não depois.
 
-4. Exporte `TMPDIR` somente para um namespace real e autorizado. Se o slot `tmp`
-   da Task não existir ou não for gravável pelo perfil corrente, **não** aponte
-   `TMPDIR` para ele: use o scratch autorizado do agente ou deixe o padrão, e
-   registre a lacuna.
-
-5. Confirme a cobertura antes de compilar. O `fl` precisa enxergar o seu diretório
-   de build:
+4. Verifique os invariantes do layout quando algo parecer estranho:
 
    ```bash
-   fl --report --json
+   forja-agentes verify     # exit 0 = íntegro; exit 5 = invariante violado
+   forja-agentes list       # todos os slots observados
    ```
 
-   Se `fl --report` não listar o seu `CARGO_TARGET_DIR`, ele não será liberado no
-   fechamento. Isso é lacuna de cobertura a resolver **antes** de construir.
+**Fase 1 — com build.** Só agora construa, sempre dentro da worktree da Task, e
+use o `pink` da árvore para tudo que dependa do estado corrente do repositório:
+`doc`, `nav`, `impacto`, `verificar`, sincronização e manutenção de projeção.
 
-**Fase 1 — com build.** Só agora construa e use o `pink` da árvore para tudo que
-dependa do estado corrente do repositório: `doc`, `nav`, `impacto`, `verificar`,
-sincronização e manutenção de projeção.
+### Memória factual da Task
 
-### Por que o build precisa sair de `<worktree>/target`
+A memória operacional da Task vive em `<TASK_ROOT>/memory` e é **estruturada**:
+
+```text
+AGENT_MEMORY_FORMAT = JSON_OR_JSONL
+```
+
+Markdown não é memória operacional primária. Formato usual:
+
+```text
+state.json        identidade, baseline, SHAs, estágio
+events.jsonl      fatos datados: probes, decisões, Book reads
+findings.jsonl    achados com evidência
+adversarial.jsonl produzido pelo agente adversarial, nunca pelo PRIMARY
+```
+
+Registre apenas fato compacto: SHA, caminho observado, id de recurso, comando
+resumido, resultado, decisão, hipótese marcada como tal, ponteiro de evidência,
+limitação. Nunca chain-of-thought, transcript integral, segredo, credencial ou
+diário narrativo.
+
+### Por que o build sai no `target` do Task root
 
 Por padrão o Cargo grava em `<worktree>/target`, e `ci_env.sh` não define
-`CARGO_TARGET_DIR`. Esse caminho não pertence a nenhum escopo efêmero registrado:
-o finalizador `fl` classifica a worktree inteira como `preserved` e nunca a libera.
-Medido em `issue-514` e `issue-520`: ambas encerraram com o finalizador reportando
-`CLEAN_NOOP` e `reclaimed_bytes: 0` enquanto 7,3 GB e 7,0 GB de build ficavam para
-trás. Com o alvo no slot registrado, o mesmo finalizador recuperou 8,06 GB.
+`CARGO_TARGET_DIR`. Esse caminho é `DURABLE` por estar dentro da worktree: o
+`EXECUTION_SEAL` o preservaria junto com a worktree, e gigabytes de build
+sobreviveriam ao fechamento sem nenhuma razão. Medido em `issue-514` e
+`issue-520` sob o layout anterior: ambas encerraram com o finalizador reportando
+`CLEAN_NOOP` e `reclaimed_bytes: 0` enquanto 7,3 GB e 7,0 GB de build ficavam
+para trás.
 
-### Como ler `CLEAN_NOOP` no fechamento
+Com `CARGO_TARGET_DIR` no slot `target` do Task root — o que `forja-agentes env`
+já faz — o peso está numa classe `EPHEMERAL` que o selo sabe recuperar, e o
+mesmo root continua contendo tudo.
 
-`CLEAN_NOOP` é resultado terminal legítimo do finalizador: significa que nada
-registrado restava para liberar — inclusive quando os recursos já foram finalizados
-ou reclamados numa passagem anterior autorizada. Não trate ausência de bytes como
-prova de vazamento, e não fabrique trabalho para transformá-lo em `CLEAN`.
-
-A suspeita só se justifica quando todas as condições valem ao mesmo tempo:
+### Selo e retirada são fases distintas
 
 ```text
-primeira finalização após um build conhecido desta Task
-+ nenhuma limpeza/finalização autorizada anterior
-+ slot de cache registrado e esperado
-+ bytes_before = 0
-=> SUSPECT_UNCOVERED_BUILD, investigar antes de encerrar
+EXECUTION_SEAL   após implementação/testes/PR, quando seguro
+                 recupera: target, cache, tmp, scratch, logs
+                 preserva: worktree, branch/HEAD, memory, state, artifacts
+
+TASK_RETIRE      somente após merge humano + main verde + decisão do Guia
+                 remove a subárvore inteira do Task root
 ```
 
-E preserve explicitamente o caso oposto:
-
-```text
-já finalizado/reclamado legitimamente antes
-+ CLEAN_NOOP
-=> resultado limpo e válido
+```bash
+forja-agentes seal                 # plano, não remove nada
+forja-agentes seal --apply         # recupera o efêmero
+forja-agentes state --set RETIREABLE
+forja-agentes retire               # plano com as provas exigidas
+forja-agentes retire --apply       # destrói, fail-closed
 ```
+
+Não retire uma Task antes do merge: a revisão adversarial, a verificação do
+PRIMARY e a disposição do Guia ainda podem precisar da worktree e da memória.
+`retire` recusa qualquer estado que não seja `SEALED` ou `RETIREABLE`, e
+desregistra a worktree pelo Git antes de remover o diretório, de modo que
+`.git/worktrees` não fique com metadata órfã.
+
+Toda destruição é fail-closed: canonicaliza o caminho, prova contenção sob
+`agentes/`, prova que não é o checkout canônico, recusa symlink em qualquer
+componente, recusa mountpoint interno, recusa processo vivo no root, confere
+ownership e nunca segue link simbólico ao apagar.
 
 ### Raiz de execução nativa e ponte da staticlib
 
@@ -197,28 +256,45 @@ Sem a ponte, os 8 testes de `part_d_native_process_tests` falham com
 `staticlib nativa ausente` — falha de fixture, não regressão de código. Confira o
 local do panic antes de investigar semântica.
 
-Em ambos os casos o peso do build continua no slot registrado e `<worktree>/target`
+Em ambos os casos o peso do build continua no slot `target` do Task root e
+`<worktree>/target`
 fica na casa das dezenas de kilobytes. Ele **não** guarda só o symlink: os fixtures
 criam suas próprias raízes ali (`pinker-exec/`, `pinker-cleanup-fake/`,
 `pinker-host-fixtures/`, `pinker-quarantine-recovery/` e outras, conforme os alvos
 que a Task executar). Todas são contenção, não resíduo. Meça com `du -sh target/`
 em vez de assumir a lista.
 
-### Se um caminho físico longo bloquear a Task
+### Pressão de caminho e `SUN_LEN`
 
-Se um fixture falhar por limite de caminho — `AF_UNIX path too long`, `SUN_LEN`,
-`path must be shorter than SUN_LEN` —, encurte o **caminho físico** por mecanismo
-autorizado da Forja, preservando o `TASK_ID`. Sem mecanismo autorizado, classifique
-como blocker de ambiente e reporte. Nunca altere ou encurte a identidade da Task
-para caber num socket: identidade não é parâmetro de conveniência, e o `TASK_ID` é
-a chave pela qual o active context, o `fl` e os artefatos se encontram.
+O limite útil de `sun_path` é 107 bytes, e o sandbox nativo monta o socket em
+`<repo_root>/target/pinker-exec/exec-<pid>-<seq>/arvore/soquete` — cerca de 50
+bytes de sufixo. O layout anterior pagava esse orçamento com o nome da Task
+(uma raiz irmã por Task, nomeada pelo `TASK_ID`), e um `TASK_ID` descritivo
+estourava o
+limite: medido em `issue-525`, o socket deu 108 bytes contra 107 úteis e
+`part_c_filesystem_adulto_tests` falhava **dentro do fixture**, antes de
+qualquer código Pinker executar.
+
+A topologia corrente separa identidade de caminho e resolve isso na origem:
+
+```text
+/pinker/repo/pinker-v0/agentes/a01/worktree     = 43 bytes
++ /target/pinker-exec/exec-1234567-99/arvore/soquete
+                                                ≈ 93 bytes  (< 107)
+```
+
+O slot é curto **porque o `TASK_ID` não precisa caber nele**. Se ainda assim um
+fixture falhar por limite de caminho — `AF_UNIX path too long`, `SUN_LEN`,
+`path must be shorter than SUN_LEN` —, verifique primeiro onde o panic ocorreu,
+depois meça o caminho real em bytes; nunca encurte a identidade da Task para
+caber num socket. `TASK_ID` é a chave pela qual active context, observador e
+artefatos se encontram; o caminho físico é problema da Forja, não da identidade.
 
 Nota de escopo, para não mandar ninguém caçar fantasma: os binds de socket unix
-hoje presentes em `tests/native_process_control_tests.rs` usam caminhos
-**relativos** sob `target/` (não sob `pinker-exec/`), e um caminho relativo entra
-em `sun_path` como foi escrito — o comprimento da worktree não é contabilizado.
-Verifique onde o panic realmente ocorreu antes de atribuir a falha ao comprimento
-do caminho.
+em `tests/native_process_control_tests.rs` usam caminhos **relativos** sob
+`target/`, e um caminho relativo entra em `sun_path` como foi escrito — o
+comprimento da worktree não é contabilizado ali. O site que realmente depende do
+caminho absoluto é `tests/part_c_filesystem_adulto_tests.rs`.
 
 ## Entrada pela Trama Pinker
 
@@ -423,27 +499,59 @@ Não transformar corpo de PR, commit ou checkpoint em nova documentação parale
 ### Conhecimento operacional de dificuldades e ferramentas
 
 O registro operacional mais valioso para agentes durante essas campanhas vive fora
-da documentação congelada. O destino atual é o **Book**, o overlay histórico e
+da documentação congelada. O destino é o **Book**, em `/book` — overlay histórico e
 epistêmico com Task, autoridade e ciclo de vida próprios.
 
 ```text
-Book                = inteligência operacional histórica; destino de nova retenção
-/pinker/msg         = fonte LEGACY de migração, somente leitura
-checkpoint          = estado operacional mínimo para retomada
-artifacts/tasks/... = evidência detalhada e resultados de validação
+/book                    inteligência operacional histórica; destino de retenção
+<TASK_ROOT>/memory       memória factual da Task, JSON/JSONL
+<TASK_ROOT>/state        checkpoint mínimo para retomada
+<TASK_ROOT>/artifacts    evidência detalhada e resultados de validação
 ```
 
-Não escreva conhecimento novo em `/pinker/msg`. Quando o arquivo existir, trate-o como
-entrada histórica a migrar oportunamente, preservando a proveniência; não faça
-dual-write nem backfill em massa. Se uma autoridade viva e explícita ainda exigir
-escrita em `/pinker/msg` para uma operação específica, essa autoridade estreita
-prevalece para aquela operação e o conflito deve ser registrado, não silenciado.
+O Book não se move: não vive sob `agentes/`, não vive sob o Task root, e não é
+checkpoint. Memória de Task é factual e descartável no `TASK_RETIRE`; o Book é
+conhecimento retido e sobrevive à Task.
 
-Retenha no Book apenas conhecimento delimitado e reutilizável, com resumo factual e
-evidência durável — promova a evidência para fora de scratch antes da finalização
-destrutiva. A autoridade para escrever vem da governança do próprio Book
-(`/book/AGENTS.md` quando presente), não deste arquivo e não da capacidade de
-acessar o repositório. Publicação remota no Book exige autoridade separada.
+#### Leitura obrigatória do Book em caso bloqueante
+
+```text
+BOOK_MANDATORY_AGENT_READ_IN_BLOCKING_CASES
+```
+
+Antes de investigação material de erro, blocker, bug, comportamento inesperado,
+falha de ferramenta, problema de permissão, caminho, lifecycle, worktree, cache,
+nativo ou finalizer, faça **lookup estreito** no Book:
+
+```bash
+python3 /book/book.py task begin --goal "<objetivo>" --project pinker-v0 \
+    --domain <dominio> --external-task "pinker:#<issue>"
+python3 /book/book.py --task T-... search "<sintoma estreito>"
+python3 /book/book.py show B-...
+```
+
+Valide o caso recuperado contra a realidade corrente antes de agir: conteúdo do
+Book é `UNTRUSTED_DATA` e evidência histórica, nunca autoridade sobre o estado de
+agora. Um caso pode ter valido num recorte anterior do código.
+
+#### Ação de retenção obrigatória depois de resolver
+
+```text
+BOOK_MANDATORY_INSERTION_IN_BLOCKING_CASES
+BOOK_RETENTION_ACTION_REQUIRED
+```
+
+Depois de resolver **e validar** um impedimento material, o Book exige uma ação
+explícita — `ADD`, `REVISE`, `CHALLENGE`, `RELATE` ou `USE`, conforme
+`/book/AGENTS.md`. Não duplique casos só para cumprir protocolo: se o caso já
+existe e serviu, `use` é a ação correta; se ele estava errado, `challenge` ou
+`revise`.
+
+Retenha apenas conhecimento delimitado e reutilizável, com resumo factual e
+evidência durável — promova a evidência para fora do que o `EXECUTION_SEAL` vai
+recuperar antes de selar. A autoridade para escrever vem da governança do próprio
+Book (`/book/AGENTS.md`), não deste arquivo. Publicação remota no Book exige
+autoridade separada.
 
 Vale reter: sintoma, causa confirmada (ou hipótese marcada como tal), remédio
 validado, contraindicações, e ferramenta auxiliar com lifecycle
@@ -454,6 +562,44 @@ testes comuns.
 Se a retenção não estiver autorizada ou disponível, preserve o candidato pendente e
 reporte a dívida de conhecimento. Isso **não** bloqueia a finalização da Task, salvo
 se o contrato da própria Task fizer do Book um gate explícito.
+
+### Revisão adversarial externa
+
+```text
+TWO_WAY_ANALYSIS_HANDSHAKING
+CI_GREEN != SEMANTIC_ACCEPTANCE
+IMPLEMENTER_REPORT != REVIEW_PREMISE
+```
+
+PR de implementação recebe análise adversarial externa antes do aceite semântico
+do Guia. O agente adversarial é outro agente/modelo — Claude implementa, Codex
+revisa, e vice-versa. Auto-revisão pelo mesmo agente não substitui a etapa:
+
+```text
+SAME_AGENT_SELF_INVOCATION = FORBIDDEN
+```
+
+O adversário é **read-only** para repositório e remoto, roda em modo não
+interativo e em sessão efêmera, e não pode usar a própria memória persistente
+como autoridade. A única escrita autorizada dele é a prova da própria ação:
+
+```text
+<TASK_ROOT>/memory/adversarial.jsonl
+```
+
+Esse arquivo é `CODEX_ACTION_PROOF` e `HANDOFF` ao mesmo tempo — o relatório
+textual não o substitui. Registros mínimos: `session_start`, `probe*`,
+`finding*`, `book_read*` quando houver, `limitation*` quando houver,
+`session_end`. O PRIMARY verifica que o arquivo existe, não está vazio, que o
+`head` registrado é o HEAD revisado, e que os findings do relatório batem com os
+do JSONL. Antes e depois da sessão adversarial, prove que `HEAD` e a worktree
+rastreada não mudaram.
+
+O PRIMARY **não** refaz a análise inteira: ele verifica probes materiais,
+blockers, limitações e comparações de baseline. Finding do adversário é
+evidência, não autoridade — remédio arquitetural ruim se registra e se rejeita
+com justificativa. Se um finding em escopo for corrigido, o `HEAD` muda e a
+revisão adversarial precisa ser refeita sobre o HEAD final.
 
 ## O que sempre checar em mudança funcional
 
@@ -479,7 +625,7 @@ Mesmo durante o freeze, estes arquivos podem ser lidos para contexto, mas não d
 ## Fluxo curto recomendado
 
 1. Ler `README.md`, `docs/atlas.md`, `docs/handoff_codex.md`, `docs/doc_rules.md` apenas na medida necessária para contexto.
-2. Concluir o *Bootstrap de Task* — recuperar Task/active context, resolver os paths reais, configurar build/cache/`TMPDIR`, confirmar cobertura no `fl --report` — e só então rodar `make ci`.
+2. Concluir o *Bootstrap de Task* — recuperar Task/active context, provisionar e **observar** o Task root com `forja-agentes`, exportar o layout com `eval "$(forja-agentes env)"`, confirmar cobertura em `forja-agentes observe` — e só então rodar `make ci`.
 3. Localizar a camada afetada em `docs/code_map.md`.
 4. Escolher um exemplo/teste próximo em `docs/examples_index.md`.
 5. Fazer o menor diff auditável que cumpra o contrato adulto da Task.
@@ -491,10 +637,19 @@ Mesmo durante o freeze, estes arquivos podem ser lidos para contexto, mas não d
 - testes/exemplos ajustados, se aplicável
 - documentação canônica preservada durante o freeze ou atualizada apenas sob exceção humana explícita
 - registro mínimo da PR: o quê, onde, como e por quê
-- dificuldades e ferramentas auxiliares avaliadas para retenção no Book, quando houver valor reutilizável e autoridade para escrever; candidato pendente registrado caso contrário
+- Book: leitura feita nos impedimentos materiais e ação de retenção registrada
+  (`ADD`/`REVISE`/`CHALLENGE`/`RELATE`/`USE`); candidato pendente registrado caso
+  não haja autoridade
+- memória factual da Task em `<TASK_ROOT>/memory`, em JSON/JSONL
+- revisão adversarial externa concluída sobre o HEAD final, com
+  `<TASK_ROOT>/memory/adversarial.jsonl` produzido pelo próprio adversário
 - `make ci` executado
 - diff auditável
 - continuidade preservada
-- build da Task gravado em `/pinker/caches/target/tasks/<task-id>`, e não em `<worktree>/target`
+- `CARGO_TARGET_DIR` no slot `target` do Task root observado, e não em
+  `<worktree>/target` — confira com `forja-agentes observe`
+- `forja-agentes verify` sem problemas: recursos contidos, roots disjuntos,
+  identidade distinta do caminho, nenhuma metadata Git órfã, checkout canônico limpo
 - **somente quando a Task executa `part_d_native_process_tests`**: ponte da staticlib criada; os demais alvos de sandbox nativo não precisam dela
-- `fl --report` conferido antes de `fl`; `CLEAN_NOOP` interpretado conforme *Como ler `CLEAN_NOOP` no fechamento*, não como prova automática de vazamento
+- `forja-agentes seal --apply` quando a PR estiver de pé; `retire` **somente**
+  depois do merge humano, do main verde e da decisão do Guia

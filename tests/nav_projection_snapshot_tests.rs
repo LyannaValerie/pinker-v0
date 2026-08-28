@@ -880,11 +880,8 @@ fn medidas_sao_identicas_entre_roots_absolutos_diferentes() {
     }
 
     let um = relativizar(
-        "/pinker/work/amara/clone-a",
-        &[
-            "/pinker/work/amara/clone-a/src/um.rs",
-            "/pinker/work/amara/clone-a/src/dois.rs",
-        ],
+        "/var/tmp/clone-a",
+        &["/var/tmp/clone-a/src/um.rs", "/var/tmp/clone-a/src/dois.rs"],
     );
     let outro = relativizar(
         "/var/tmp/outro-root-bem-mais-longo",
