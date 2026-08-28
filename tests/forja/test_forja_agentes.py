@@ -1144,6 +1144,67 @@ class DeteccaoDeResiduoTests(Base):
             os.chmod(comum, 0o755)
 
 
+class PredicadoBooleanoTests(Base):
+    """Gate estrutural contra a oitava instancia da mesma classe de defeito.
+
+    Sete rodadas adversariais encontraram o mesmo erro em sete lugares: um
+    predicado booleano de existencia decidindo sobre estado que pode ser
+    inobservavel. Corrigir call site por call site falhou seis vezes seguidas,
+    porque a correcao fechava um irmao e deixava os outros. Este teste recusa a
+    construcao inteira dentro das funcoes que decidem destruicao.
+    """
+
+    CRITICAS = {
+        "guardas_de_destruicao", "cmd_retire", "cmd_seal",
+        "remover_arvore_sem_seguir_links", "metadata_orfa",
+        "worktrees_desregistradas", "confirmar_identidade",
+    }
+    PROIBIDOS = {"exists", "is_file", "is_symlink", "is_dir"}
+
+    def test_caminho_destrutivo_nao_usa_predicado_booleano_de_existencia(self) -> None:
+        import ast
+        fonte = FONTE.read_text(encoding="utf-8")
+        arvore = ast.parse(fonte)
+        ofensas = []
+        for no in ast.walk(arvore):
+            if not isinstance(no, ast.FunctionDef) or no.name not in self.CRITICAS:
+                continue
+            for interno in ast.walk(no):
+                if (
+                    isinstance(interno, ast.Call)
+                    and isinstance(interno.func, ast.Attribute)
+                    and interno.func.attr in self.PROIBIDOS
+                ):
+                    ofensas.append(f"{no.name}:{interno.lineno} usa .{interno.func.attr}()")
+        self.assertEqual(
+            ofensas,
+            [],
+            "predicado booleano de existencia no caminho destrutivo; use "
+            "estado_do_caminho(), que nao consegue representar 'nao olhei' como False:\n"
+            + "\n".join(ofensas),
+        )
+
+    def test_estado_do_caminho_e_tri_state(self) -> None:
+        d = Path(self.tmp)
+        presente = d / "existe"; presente.mkdir()
+        self.assertEqual(fa.estado_do_caminho(presente), fa.PRESENTE)
+        self.assertEqual(fa.estado_do_caminho(d / "nao-existe"), fa.AUSENTE)
+        real_lstat = Path.lstat
+
+        def nega(self, *a, **k):
+            if self.name == "negado":
+                raise PermissionError(13, "Permission denied")
+            return real_lstat(self, *a, **k)
+
+        Path.lstat = nega
+        try:
+            with self.assertRaises(fa.ForjaError) as ctx:
+                fa.estado_do_caminho(d / "negado", "alvo")
+            self.assertIn("inobservável", str(ctx.exception))
+        finally:
+            Path.lstat = real_lstat
+
+
 class VerificacaoTests(Base):
     def test_verify_aprova_layout_saudavel(self) -> None:
         self.provisionar()

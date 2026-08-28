@@ -450,6 +450,29 @@ def instante_canonico(valor: Any, campo: str) -> "dt.datetime":
     return instante
 
 
+PRESENTE, AUSENTE = "PRESENTE", "AUSENTE"
+
+
+def estado_do_caminho(alvo: Path, quem: str = "caminho") -> str:
+    """PRESENTE, AUSENTE, ou levanta. Nunca um booleano.
+
+    Sétima aparição da mesma classe de defeito nesta ferramenta motivou trocar a
+    correção pontual por uma primitiva. `Path.exists()`, `is_file()` e
+    `is_symlink()` devolvem False para "não existe" E para "não consegui olhar",
+    e cada correção anterior fechou um call site enquanto os irmãos continuavam
+    abertos. Aqui a terceira possibilidade não é representável como False.
+    """
+    try:
+        alvo.lstat()
+        return PRESENTE
+    except FileNotFoundError:
+        return AUSENTE
+    except OSError as erro:
+        raise ForjaError(
+            "DENIED", f"estado de {quem} inobservável ({erro.strerror}): {alvo}"
+        ) from erro
+
+
 def confirmar_identidade(alvo: Path, identidade: tuple[int, int]) -> None:
     """Reconfere que `alvo` ainda é o mesmo objeto aprovado pelas guardas."""
     try:
@@ -1041,7 +1064,9 @@ def guardas_de_destruicao(
     provas.append("SLOT_NAME_WELL_FORMED")
 
     sem_symlink_em_componentes(task_root, real_main)
-    if task_root.is_symlink():
+    if estado_do_caminho(task_root, "task root") == AUSENTE:
+        raise ForjaError("DENIED", f"task root ausente: {task_root}")
+    if stat.S_ISLNK(task_root.lstat().st_mode):
         raise ForjaError("DENIED", "task root é symlink")
     provas.append("NO_SYMLINK_IN_PATH_COMPONENTS")
 
@@ -1134,11 +1159,11 @@ def cmd_seal(args: argparse.Namespace) -> int:
                 {"name": recurso.nome, "path": str(alvo), "class": recurso.classe, "action": "PRESERVED", "bytes_before": antes}
             )
             continue
-        if not alvo.exists():
+        if estado_do_caminho(alvo, f"recurso {recurso.nome}") == AUSENTE:
             itens.append({"name": recurso.nome, "path": str(alvo), "class": recurso.classe, "action": "ABSENT", "bytes_before": 0})
             continue
         sem_symlink_em_componentes(alvo, canonical_main())
-        if alvo.is_symlink():
+        if stat.S_ISLNK(alvo.lstat().st_mode):
             raise ForjaError("DENIED", f"recurso é symlink: {alvo}")
         # A identidade do recurso é fixada AQUI, imediatamente antes de remover:
         # o selo apagava por nome, sem o mesmo cuidado que a retirada já tinha.
@@ -1320,7 +1345,7 @@ def cmd_retire(args: argparse.Namespace) -> int:
                 "Git reportou sucesso mas a worktree continua registrada; nada foi removido",
             )
     # 2. remover o root físico sem seguir symlinks
-    if task_root.exists():
+    if estado_do_caminho(task_root, "task root") == PRESENTE:
         remover_arvore_sem_seguir_links(task_root, identidade)
     # 3. podar metadata do Git. Este passo é necessariamente pós-destrutivo: o
     #    prune só reconhece a worktree como ida depois que o diretório sumiu.
@@ -1330,7 +1355,7 @@ def cmd_retire(args: argparse.Namespace) -> int:
     # do ponto sem volta. Se falhar aqui, o remédio é reexecutá-lo — e a
     # mensagem diz exatamente isso, em vez de fingir que nada mudou.
     r = git(main, "worktree", "prune", check=False)
-    ausente = not task_root.exists() and not task_root.is_symlink()
+    ausente = estado_do_caminho(task_root, "task root após remoção") == AUSENTE
     if r.returncode != 0:
         raise ForjaError(
             "FAILED",
@@ -1426,12 +1451,12 @@ def metadata_orfa(main: Path) -> list[str]:
         raise ForjaError("FAILED", f"metadata de worktree ilistável: {erro.strerror}") from erro
     for entrada in entradas:
         gitdir = entrada / "gitdir"
-        if not gitdir.is_file():
+        if estado_do_caminho(gitdir, "ponteiro gitdir") == AUSENTE:
             orfas.append(str(entrada))
             continue
         alvo = Path(gitdir.read_text(encoding="utf-8").strip())
         # `gitdir` aponta para o arquivo `.git` da worktree
-        if not alvo.exists():
+        if estado_do_caminho(alvo, "worktree apontada") == AUSENTE:
             orfas.append(str(entrada))
     return orfas
 

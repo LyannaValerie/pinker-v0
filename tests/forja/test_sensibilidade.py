@@ -138,9 +138,7 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
             # é a RECUSA explícita — o selo passaria a tratar um recurso
             # symlink como recurso comum em vez de bloquear.
             (
-                "        sem_symlink_em_componentes(alvo, canonical_main())\n"
-                '        if alvo.is_symlink():\n'
-                '            raise ForjaError("DENIED", f"recurso é symlink: {alvo}")',
+                "        sem_symlink_em_componentes(alvo, canonical_main())\n        if stat.S_ISLNK(alvo.lstat().st_mode):\n            raise ForjaError(\"DENIED\", f\"recurso \u00e9 symlink: {alvo}\")",
                 "        pass",
             ),
         ],
@@ -167,18 +165,7 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
         "worktree removida do disco sem desregistro nem prune: metadata órfã",
         [
             ("    if registrada:", "    if False:"),
-            (
-                '    r = git(main, "worktree", "prune", check=False)\n'
-                "    ausente = not task_root.exists() and not task_root.is_symlink()\n"
-                "    if r.returncode != 0:\n"
-                "        raise ForjaError(\n"
-                '            "FAILED",\n'
-                '            f"prune falhou APÓS a remoção do root (root_removed={ausente}); "\n'
-                '            f"metadata pode ter ficado órfã e exige `git worktree prune` manual: "\n'
-                '            f"{r.stderr.strip()[:160]}",\n'
-                "        )",
-                "    ausente = not task_root.exists() and not task_root.is_symlink()",
-            ),
+            ("    r = git(main, \"worktree\", \"prune\", check=False)", "    r = type(\"R\",(),{\"returncode\":0,\"stderr\":\"\"})()"),
             (
                 "    if orfas:\n"
                 "        raise ForjaError(\n"
@@ -304,6 +291,28 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
             ('Recurso("logs", "logs",', 'Recurso("logs", "../logs",'),
         ],
         "test_provision_nao_cria_nada_fora_do_root_nem_ao_falhar",
+    ),
+    (
+        "S22",
+        "caminho destrutivo volta ao predicado booleano de existência",
+        [
+            (
+                '    if estado_do_caminho(task_root, "task root") == PRESENTE:',
+                "    if task_root.exists():",
+            ),
+        ],
+        "test_caminho_destrutivo_nao_usa_predicado_booleano_de_existencia",
+    ),
+    (
+        "S23",
+        "selo remove o recurso sem fixar identidade",
+        [
+            (
+                "            remover_arvore_sem_seguir_links(alvo, identidade_alvo)",
+                "            remover_arvore_sem_seguir_links(alvo)",
+            ),
+        ],
+        "test_seal_recusa_quando_o_recurso_e_trocado_apos_a_guarda",
     ),
 ]
 
