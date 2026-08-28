@@ -1219,6 +1219,16 @@ class PredicadoBooleanoTests(Base):
         """
         achados = set()
         for no in ast.walk(arvore):
+            # `from os.path import isdir as _existe_dir` liga o nome sem
+            # nenhum Attribute e sem nenhum Assign: no ponto de uso so ha um
+            # ast.Name. O oraculo comportamental pegou essa forma, mas so
+            # porque a funcao afetada tinha oraculo; o tripwire tem de pegar
+            # sozinho, e importar e uma ligacao como outra qualquer.
+            if isinstance(no, ast.ImportFrom):
+                for apelido in no.names:
+                    if apelido.name in cls.PROIBIDOS:
+                        achados.add(apelido.asname or apelido.name)
+                continue
             alvos = []
             if isinstance(no, ast.Assign) and cls._liga_a_proibido(no.value):
                 alvos = no.targets

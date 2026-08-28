@@ -412,6 +412,21 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
         ],
         "test_modulo_inteiro_nao_usa_predicado_booleano_de_existencia",
     ),
+    (
+        "S31",
+        "predicado proibido entra por import direto, sem atributo nem atribuição",
+        [
+            (
+                "import stat",
+                "import stat\nfrom os.path import isdir as _existe_dir",
+            ),
+            (
+                '    if estado_do_caminho(task_root, "task root") == AUSENTE:',
+                "    if not _existe_dir(task_root):",
+            ),
+        ],
+        "test_modulo_inteiro_nao_usa_predicado_booleano_de_existencia",
+    ),
 ]
 
 
