@@ -1225,10 +1225,7 @@ fn renderizacao_e_estavel_entre_execucoes_e_independente_de_root() {
             })
             .collect()
     }
-    let um = relativizar(
-        "/pinker/work/amara/clone-a",
-        &["/pinker/work/amara/clone-a/tests/x.rs"],
-    );
+    let um = relativizar("/var/tmp/clone-a", &["/var/tmp/clone-a/tests/x.rs"]);
     let outro = relativizar(
         "/var/tmp/outro-root-bem-mais-longo",
         &["/var/tmp/outro-root-bem-mais-longo/tests/x.rs"],

@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: preflight build check test fmt-check clippy doc-check guard change-history-check ci run-example check-example audit-example smoke docs-sync docs-check nav-sync nav-check cleanup-native
+.PHONY: preflight build check test fmt-check clippy doc-check guard change-history-check ci run-example check-example audit-example smoke docs-sync docs-check nav-sync nav-check cleanup-native forja-check forja-paths-check forja-install-check
 
 CI_ENV := ./ci_env.sh
 
@@ -53,7 +53,21 @@ nav-check:
 cleanup-native:
 	$(CI_ENV) scripts/pinker-cleanup.sh --dry-run
 
-ci: preflight build check test fmt-check clippy doc-check guard docs-check nav-check change-history-check
+# Forja — autoridade de layout `agentes/`. Roda sem host, sem root e sem rede:
+# a suíte monta o layout inteiro num diretório temporário.
+forja-check:
+	python3 -m unittest discover -s tests/forja -p 'test_*.py' -v
+
+# Nenhum arquivo versionado pode ensinar o layout aposentado da Forja.
+forja-paths-check:
+	bash scripts/forja/verificar-paths.sh
+
+# Paridade fonte/instalado. Exige o host da Forja, portanto NÃO entra no `ci`
+# do repositório: é gate de HOST_E2E.
+forja-install-check:
+	bash scripts/forja/instalar.sh --check
+
+ci: preflight build check test fmt-check clippy doc-check guard docs-check nav-check change-history-check forja-check forja-paths-check
 
 run-example:
 	$(CI_ENV) cargo run --bin pink -- $(EX)

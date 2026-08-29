@@ -134,9 +134,9 @@ print(
 PYTHON
 }
 
-# Ficha de catálogo da Forja derivada do mesmo bundle. Não escreve em
-# /pinker/msg: o regime de escrita daquele espaço é por perfil e pertence ao
-# agente, não ao publicador administrativo.
+# Ficha de catálogo da Forja derivada do mesmo bundle. O publicador
+# administrativo não escreve conhecimento operacional em lugar nenhum: esse
+# destino é o Book, sob a autoridade própria dele.
 render_ficha() {
     local release_root="$1" perfil="$2" data="$3"
     [[ -n "$perfil" ]] || fail "perfil vazio"

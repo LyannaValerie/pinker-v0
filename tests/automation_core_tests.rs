@@ -139,10 +139,10 @@ fn planos_de_roots_absolutos_diferentes_tem_a_mesma_forma_canonica() {
     }
 
     let um = construir(
-        "/pinker/work/amara/clone-a",
+        "/var/tmp/clone-a",
         &[
-            ("/pinker/work/amara/clone-a/docs/a.md", b"x"),
-            ("/pinker/work/amara/clone-a/docs/b.md", b"y"),
+            ("/var/tmp/clone-a/docs/a.md", b"x"),
+            ("/var/tmp/clone-a/docs/b.md", b"y"),
         ],
     );
     let outro = construir(

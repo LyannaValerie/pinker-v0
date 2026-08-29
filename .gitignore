@@ -24,3 +24,7 @@ rodar.sh
 *.swp
 *.swo
 *~
+
+# Bytecode Python das ferramentas da Forja
+__pycache__/
+*.pyc

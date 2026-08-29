@@ -40,15 +40,12 @@ commits.
 <!--
 Opcional. Não é diário, e nenhuma PR é obrigada a produzir retenção.
 
-Book                = destino de nova retenção operacional reutilizável,
-                      somente sob a autoridade própria aplicável do Book
-/pinker/msg         = LEGACY, somente leitura; fonte de migração, não destino de
-                      dual-write. Se alguma autoridade viva ainda exigir escrita
-                      para uma operação específica, ela prevalece para aquela
-                      operação e o conflito deve ser registrado, não silenciado
-                      (ver AGENTS.md)
-checkpoint/artifacts = seguem responsáveis por estado e evidência conforme o
-                      contrato vigente
+Book                 = destino de nova retenção operacional reutilizável,
+                       somente sob a autoridade própria aplicável do Book
+<TASK_ROOT>/memory   = memória factual da Task em JSON/JSONL, dentro do root
+                       observado pelo `forja-agentes`
+<TASK_ROOT>/state    = checkpoint e estado de retomada
+<TASK_ROOT>/artifacts = evidência e artefatos da Task
 
 Se houve retenção aplicável, aponte a referência do que foi retido — o id do caso,
 ou o receipt da Task Book quando houver uma. Caso contrário, `nenhuma`. Não copie o
