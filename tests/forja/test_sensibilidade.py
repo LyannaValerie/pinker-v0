@@ -674,6 +674,28 @@ MUTACOES: list[tuple[str, str, list[tuple[str, str]]]] = [
         ],
         "test_verify_reprova_recurso_que_nao_e_diretorio",
     ),
+    (
+        "S52",
+        "root que sumiu por inteiro volta a ser tratado como reancorado",
+        [
+            (
+                '            return "ROOT_AUSENTE"  # sumiu por inteiro: nada a reancorar, nada de resíduo',
+                '            return "REANCORADA"',
+            ),
+        ],
+        "test_root_que_sumiu_por_inteiro_nao_manda_reexecutar",
+    ),
+    (
+        "S53",
+        "handler de componente inobservável volta a ler strerror direto",
+        [
+            (
+                '            causa = getattr(erro, "strerror", None) or erro',
+                "            causa = erro.strerror",
+            ),
+        ],
+        "test_componente_inobservavel_por_recursao_nao_quebra_o_handler",
+    ),
 ]
 
 

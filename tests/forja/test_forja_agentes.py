@@ -38,6 +38,21 @@ def carregar_modulo():
 fa = carregar_modulo()
 
 
+def _presente(caminho: Path) -> bool:
+    """Precondicao de teste que nao mente quando o estado e inobservavel.
+
+    `Path.exists()` devolve False para "nao existe" E para "nao consegui
+    olhar", e uma precondicao falsa faz o teste passar VAZIO, sem nunca
+    montar o estado sob teste. O gate proibe o predicado na fonte e nao varre
+    o fileset de teste, entao a disciplina aqui e manual.
+    """
+    try:
+        os.lstat(caminho)
+    except FileNotFoundError:
+        return False
+    return True
+
+
 def git(caminho: Path, *args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         ["git", "-C", str(caminho), *args],
@@ -372,7 +387,7 @@ class RetiradaTests(Base):
         self.tornar_retiravel()
         self.rodar("retire", "--apply")
         base = self.main / ".git" / "worktrees"
-        restante = sorted(p.name for p in base.iterdir()) if base.is_dir() else []
+        restante = sorted(p.name for p in base.iterdir()) if _presente(base) else []
         self.assertEqual(restante, [])
 
     def test_retire_reporta_a_branch_que_sobrevive(self) -> None:
@@ -849,7 +864,7 @@ class FalhaDeGitTests(Base):
             self.assertNotIn("Nada foi removido", msg)
             # e o verify precisa ENXERGAR o resíduo, não declarar tudo limpo
             codigo_v, v = self.rodar("verify")
-            if (raiz / "worktree").exists():
+            if _presente(raiz / "worktree"):
                 self.assertEqual(codigo_v, 5, v)
                 self.assertTrue(
                     v["checks"]["unregistered_worktree_dirs"],
@@ -1201,6 +1216,14 @@ class PredicadoBooleanoTests(Base):
     @classmethod
     def _liga_a_proibido(cls, valor) -> bool:
         """O valor atribuido e um predicado proibido (ou um acesso indecidivel)?"""
+        if isinstance(valor, ast.Name) and valor.id == "getattr":
+            # `_G = getattr` e depois `_G(p, "exists")`: o alias nunca era
+            # semeado porque so os ALVOS de ligacao eram rastreados, e nao a
+            # ligacao do proprio `getattr`.
+            return True
+        if isinstance(valor, ast.Subscript):
+            alvo = valor.slice
+            return isinstance(alvo, ast.Constant) and alvo.value in cls.PROIBIDOS
         if isinstance(valor, ast.Attribute):
             return valor.attr in cls.PROIBIDOS or valor.attr in cls.DINAMICOS
         if (
@@ -1286,7 +1309,14 @@ class PredicadoBooleanoTests(Base):
         for escopo, no_raiz in (("<modulo>", arvore),):
             for interno in ast.walk(no_raiz):
                 nome = escopo
-                if isinstance(interno, ast.Attribute):
+                if isinstance(interno, ast.Subscript) and isinstance(
+                    interno.slice, ast.Constant
+                ) and interno.slice.value in self.PROIBIDOS:
+                    # `vars(Path)["exists"]` / `Path.__dict__["is_dir"]`
+                    ofensas.append(
+                        f"{nome}:{interno.lineno} indexa {interno.slice.value!r}"
+                    )
+                elif isinstance(interno, ast.Attribute):
                     if interno.attr in self.PROIBIDOS:
                         ofensas.append(f"{nome}:{interno.lineno} referencia .{interno.attr}")
                     elif interno.attr in self.DINAMICOS:
@@ -1513,6 +1543,94 @@ class RelatorioDeRemocaoParcialTests(Base):
                 erro,
                 "a Task ficou inalcancavel e o relatorio afirmou o contrario",
             )
+
+
+class EstadosDaReancoragemTests(Base):
+    """Rodada 18 F3: duas mudancas de comportamento entraram sem oraculo.
+
+    O terceiro estado (`ROOT_AUSENTE`) e os tres handlers de `RecursionError`
+    foram entregues sem nenhum teste os observando: `grep ROOT_AUSENTE
+    tests/forja/` nao devolvia nada.
+    """
+
+    def test_root_que_sumiu_por_inteiro_nao_manda_reexecutar(self) -> None:
+        dados = self.provisionar()
+        task_root = Path(dados["task_root"])
+        self.tornar_retiravel()
+        real = fa.remover_arvore_sem_seguir_links
+
+        def apagar_tudo_e_falhar(raiz, identidade=None):
+            shutil.rmtree(raiz)
+            raise PermissionError(13, "Permission denied")
+
+        fa.remover_arvore_sem_seguir_links = apagar_tudo_e_falhar
+        try:
+            _codigo, r = self.rodar("retire", "--apply")
+        finally:
+            fa.remover_arvore_sem_seguir_links = real
+
+        erro = r.get("error", "")
+        self.assertIn("já não existe", erro, f"root ausente tratado como reancorado: {r}")
+        self.assertNotIn(
+            "deve ser reexecutada",
+            erro,
+            "relatorio manda reexecutar a retirada de uma Task que nao existe mais",
+        )
+        self.assertFalse(_presente(task_root))
+
+    def test_pilha_estourada_vira_status_do_contrato(self) -> None:
+        """`RecursionError` nao e `OSError`: sem tratamento vira traceback cru."""
+        self.provisionar()
+        self.tornar_retiravel()
+        real = fa.remover_arvore_sem_seguir_links
+
+        def estourar(raiz, identidade=None):
+            raise RecursionError("maximum recursion depth exceeded")
+
+        fa.remover_arvore_sem_seguir_links = estourar
+        try:
+            codigo, r = self.rodar("retire", "--apply")
+        except Exception as erro:  # noqa: BLE001
+            self.fail(f"RecursionError escapou como {type(erro).__name__}: {erro}")
+        finally:
+            fa.remover_arvore_sem_seguir_links = real
+        self.assertNotEqual(codigo, 0, r)
+        self.assertIn("status", r, r)
+
+    def test_componente_inobservavel_por_recursao_nao_quebra_o_handler(self) -> None:
+        """O handler lia `erro.strerror`, que so existe em OSError.
+
+        `RecursionError` fazia o PROPRIO handler levantar AttributeError e
+        escapar dos dois handlers de `main()` — a forma de falha que ele
+        existia para impedir.
+        """
+        raiz = Path(self.tmp) / "base"
+        (raiz / "sub").mkdir(parents=True)
+        real_lstat = Path.lstat
+        alvo = raiz / "sub"
+
+        def estourar(self, *a, **k):
+            # So no COMPONENTE: a prova de symlink da base roda antes e
+            # precisa passar, senao o teste nao alcanca o handler sob teste.
+            if str(self) == str(alvo):
+                raise RecursionError("maximum recursion depth exceeded")
+            return real_lstat(self, *a, **k)
+
+        Path.lstat = estourar
+        try:
+            fa.sem_symlink_em_componentes(raiz / "sub", raiz)
+        except fa.ForjaError as erro:
+            self.assertIn("inobserv", erro.mensagem)
+        except Exception as erro:  # noqa: BLE001
+            # O defeito desta classe e o PROPRIO handler crashar, e crash cru
+            # sobe como erro do teste, nao como asserção — a meta-suite recusa
+            # vermelho que nao venha de AssertionError. Converter aqui e o que
+            # torna o oraculo causal.
+            self.fail(f"o handler levantou {type(erro).__name__} em vez de ForjaError: {erro}")
+        else:
+            self.fail("componente inobservavel nao produziu ForjaError")
+        finally:
+            Path.lstat = real_lstat
 
 
 class PlanoDeRetiradaTests(Base):

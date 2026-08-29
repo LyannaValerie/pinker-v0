@@ -271,8 +271,12 @@ def sem_symlink_em_componentes(caminho: Path, base: Path) -> None:
         except (OSError, RecursionError) as erro:
             # Fail-closed, mas com o TIPO do contrato: um OSError cru escapa de
             # quem trata ForjaError e vira exceção não tratada no chamador.
+            # `strerror` só existe em OSError: lê-lo direto fazia o próprio
+            # handler levantar AttributeError e escapar dos dois handlers de
+            # `main()` — a mesma forma de falha que ele existe para impedir.
+            causa = getattr(erro, "strerror", None) or erro
             raise ForjaError(
-                "DENIED", f"componente inobservável ({erro.strerror}): {atual}"
+                "DENIED", f"componente inobservável ({causa}): {atual}"
             ) from erro
         if stat.S_ISLNK(st.st_mode):
             raise ForjaError("DENIED", f"componente é symlink: {atual}")
@@ -1571,11 +1575,26 @@ def cmd_retire(args: argparse.Namespace) -> int:
                     "e não há retirada a reexecutar"
                 )
             else:
+                # "permanece" seria conclusão de presença tirada de um
+                # estado que pode ser justamente o inobservável que levou
+                # até aqui. O relatório diz o que sabe, e nomeia o que não.
+                try:
+                    ainda_no_disco = (
+                        estado_do_caminho(task_root, "task root") == PRESENTE
+                    )
+                    onde = f"o root permanece em {task_root}"
+                except ForjaError:
+                    ainda_no_disco = None
+                    onde = f"o estado do root em {task_root} é inobservável"
                 detalhe = (
                     "o vínculo NÃO pôde ser reescrito: a Task deixou de ser "
-                    f"alcançável por comando e o root permanece em {task_root}, "
-                    "exigindo intervenção manual"
+                    f"alcançável por comando e {onde}, exigindo intervenção manual"
                 )
+                if ainda_no_disco is False:
+                    detalhe = (
+                        "o vínculo NÃO pôde ser reescrito e o root já não "
+                        f"existe em {task_root}: nada restou para remover"
+                    )
             raise ForjaError("FAILED", f"remoção parcial do task root ({causa}): {detalhe}") from erro
     # 3. podar metadata do Git. Este passo é necessariamente pós-destrutivo: o
     #    prune só reconhece a worktree como ida depois que o diretório sumiu.
