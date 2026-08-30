@@ -124,10 +124,10 @@ AGENT_MEMORY_FORMAT = JSON_OR_JSONL
 Markdown não é memória operacional primária. Formato usual:
 
 ```text
-state.json        identidade, baseline, SHAs, estágio
-events.jsonl      fatos datados: probes, decisões, Book reads
-findings.jsonl    achados com evidência
-adversarial.jsonl produzido pelo agente adversarial, nunca pelo PRIMARY
+state.json             identidade, baseline, SHAs, estágio
+events.jsonl           fatos datados: probes, decisões, Book reads
+findings.jsonl         achados com evidência
+review-subagent.jsonl  produzido pelo subagente de revisão, nunca pelo PRIMARY
 ```
 
 Registre apenas fato compacto: SHA, caminho observado, id de recurso, comando
@@ -220,6 +220,16 @@ cd /pinker/playground/ferramentas-agente
 python3 -m unittest discover -s . -p 'test_forja_agentes.py'
 python3 -m unittest discover -s . -p 'test_sensibilidade.py'
 bash instalar-forja-agentes.sh --check
+```
+
+Essa fonte é um repositório Git próprio da Forja, sem remote. Sair do repo da
+Pinker não é sair do versionamento: a integridade interna da autoridade da Forja
+é provada lá, não aqui. `--check` só devolve `PARITY` quando os bytes instalados
+e o commit nomeado pelo recibo batem com a fonte — é assim que se prova que
+`/opt/pinker/bin` não está atrás.
+
+```text
+PINKER_BRIDGE_GATE != FORJA_IMPLEMENTATION_GATE
 ```
 
 ### Raiz de execução nativa e ponte da staticlib
@@ -606,43 +616,56 @@ Se a retenção não estiver autorizada ou disponível, preserve o candidato pen
 reporte a dívida de conhecimento. Isso **não** bloqueia a finalização da Task, salvo
 se o contrato da própria Task fizer do Book um gate explícito.
 
-### Revisão adversarial externa
+### Revisão adversarial
 
 ```text
-TWO_WAY_ANALYSIS_HANDSHAKING
+PRIMARY -> EXACTLY_ONE_REVIEW_SUBAGENT
+REVIEW_TIMING = FINAL_GLOBAL_REVIEW_ONLY
 CI_GREEN != SEMANTIC_ACCEPTANCE
 IMPLEMENTER_REPORT != REVIEW_PREMISE
 ```
 
-PR de implementação recebe análise adversarial externa antes do aceite semântico
-do Guia. O agente adversarial é outro agente/modelo — Claude implementa, Codex
-revisa, e vice-versa. Auto-revisão pelo mesmo agente não substitui a etapa:
+PR de implementação recebe revisão adversarial antes do aceite semântico do
+Guia. O PRIMARY invoca **exatamente um** subagente de revisão por Task — um por
+Task, não um por rodada. Gasto o subagente, remediação posterior é fechamento
+dirigido feito pelo próprio PRIMARY sobre os blockers remediados, e não uma
+segunda revisão ampla.
+
+O timing é global e final: a revisão roda uma vez, sobre o HEAD final da PR, com
+a mudança inteira à vista. Não fatie a revisão ao longo da implementação — uma
+revisão que só viu pedaços não viu a mudança.
+
+Autorrevisão do PRIMARY na mesma sessão não substitui a etapa. O que a substitui
+é o subagente em sessão separada; nada além disso é exigido dele:
 
 ```text
-SAME_AGENT_SELF_INVOCATION = FORBIDDEN
+SAME_SESSION_SELF_REVIEW = FORBIDDEN
+DIFFERENT_COMPANY = NOT_REQUIRED
+DIFFERENT_MODEL = NOT_REQUIRED
+DIFFERENT_PROVIDER = NOT_REQUIRED
 ```
 
-O adversário é **read-only** para repositório e remoto, roda em modo não
-interativo e em sessão efêmera, e não pode usar a própria memória persistente
-como autoridade. A única escrita autorizada dele é a prova da própria ação:
+O revisor é **read-only** para repositório e remoto, roda em sessão efêmera, e
+não pode usar a própria memória persistente como autoridade. A única escrita
+autorizada dele é a prova da própria ação:
 
 ```text
-<TASK_ROOT>/memory/adversarial.jsonl
+<TASK_ROOT>/memory/review-subagent.jsonl
 ```
 
-Esse arquivo é `CODEX_ACTION_PROOF` e `HANDOFF` ao mesmo tempo — o relatório
-textual não o substitui. Registros mínimos: `session_start`, `probe*`,
-`finding*`, `book_read*` quando houver, `limitation*` quando houver,
-`session_end`. O PRIMARY verifica que o arquivo existe, não está vazio, que o
-`head` registrado é o HEAD revisado, e que os findings do relatório batem com os
-do JSONL. Antes e depois da sessão adversarial, prove que `HEAD` e a worktree
-rastreada não mudaram.
+Esse arquivo é prova de ação e `HANDOFF` ao mesmo tempo — o relatório textual
+não o substitui. Registros mínimos: `session_start`, `probe*`, `finding*`,
+`book_read*` quando houver, `limitation*` quando houver, `session_end`. O
+PRIMARY verifica que o arquivo existe, não está vazio, que o `head` registrado é
+o HEAD revisado, e que os findings do relatório batem com os do JSONL. Antes e
+depois da sessão de revisão, prove que `HEAD` e a worktree rastreada não
+mudaram.
 
 O PRIMARY **não** refaz a análise inteira: ele verifica probes materiais,
-blockers, limitações e comparações de baseline. Finding do adversário é
-evidência, não autoridade — remédio arquitetural ruim se registra e se rejeita
-com justificativa. Se um finding em escopo for corrigido, o `HEAD` muda e a
-revisão adversarial precisa ser refeita sobre o HEAD final.
+blockers, limitações e comparações de baseline. Finding do revisor é evidência,
+não autoridade — remédio arquitetural ruim se registra e se rejeita com
+justificativa. Corrigir um finding muda o `HEAD`; o PRIMARY refaz então o
+fechamento dirigido sobre o HEAD final, sem consumir outro subagente.
 
 ## O que sempre checar em mudança funcional
 
@@ -684,8 +707,9 @@ Mesmo durante o freeze, estes arquivos podem ser lidos para contexto, mas não d
   (`ADD`/`REVISE`/`CHALLENGE`/`RELATE`/`USE`); candidato pendente registrado caso
   não haja autoridade
 - memória factual da Task em `<TASK_ROOT>/memory`, em JSON/JSONL
-- revisão adversarial externa concluída sobre o HEAD final, com
-  `<TASK_ROOT>/memory/adversarial.jsonl` produzido pelo próprio adversário
+- revisão adversarial concluída sobre o HEAD final por exatamente um subagente
+  de revisão, com `<TASK_ROOT>/memory/review-subagent.jsonl` produzido por ele
+  mesmo; remediação posterior fecha por fechamento dirigido do PRIMARY
 - `make ci` executado
 - diff auditável
 - continuidade preservada
