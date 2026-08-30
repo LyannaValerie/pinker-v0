@@ -362,9 +362,7 @@ fn predecessor_e_base_snapshot_sao_relacoes_distintas() {
 /// formato ganha capacidade, e a #551 o levou ao 4 ao acrescentar
 /// `materialize-region`. Os treze snapshots continuam exatamente como foram
 /// congelados — reescrevê-los para acompanhar um bump seria mexer na história
-/// para agradar a implementação. O que a guarda abaixo cobra é o que sempre
-/// cobrou: uma única versão em todo o acervo, por decisão e não por acidente de
-/// conteúdo.
+/// para agradar a implementação.
 const VERSAO_DO_ACERVO: u64 = 3;
 
 /// A versão do acervo precisa continuar dentro do que o formato aceita. Falha em
@@ -372,26 +370,49 @@ const VERSAO_DO_ACERVO: u64 = 3;
 /// leitura dos treze artefatos, e isso não é assunto para descobrir em runtime.
 const _: () = assert!(VERSAO_DO_ACERVO <= SNAPSHOT_SCHEMA);
 
-/// O acervo inteiro numa única versão, e essa versão ainda aceita pelo parser.
+/// Nenhuma versão aparece no diretório por acidente de conteúdo.
 ///
 /// Sem esta guarda, um snapshot que por acaso não usa `override-region` poderia
 /// ser emitido em `schema = 1` e continuar válido — e o acervo passaria a
-/// misturar versões por acidente de conteúdo, não por decisão.
+/// misturar versões por acidente, não por decisão.
 ///
-/// Que artefato **novo** nasça na versão corrente é obrigação do emissor, e quem
-/// cobra isso é a forma do candidato no lifecycle (`schema != SNAPSHOT_SCHEMA`
-/// é recusado ali). Aqui a pergunta é outra: o acervo já materializado é
-/// homogêneo e continua legível.
+/// A guarda tem duas metades, porque há duas decisões distintas em jogo:
+///
+/// 1. **o acervo materializado é homogêneo** — os treze snapshots nomeados em
+///    [`DISTRIBUICAO_CANONICA`] estão todos em [`VERSAO_DO_ACERVO`];
+/// 2. **qualquer artefato do diretório está numa das duas versões legítimas** —
+///    a do acervo congelado ou a de emissão corrente. Nada mais entra.
+///
+/// A segunda metade existe porque exigir a versão do acervo de *todo* arquivo
+/// contradiz o emissor: `validate_candidate_shape` recusa candidato cujo schema
+/// não seja `SNAPSHOT_SCHEMA`, então o próximo `pink nav projecao aceitar`
+/// legítimo grava um schema 4 — e não haveria valor capaz de satisfazer as duas
+/// pontas sem reescrever história congelada.
 #[test]
 fn o_acervo_usa_a_versao_corrente_de_cada_formato() {
+    let do_acervo: BTreeSet<&str> = DISTRIBUICAO_CANONICA.iter().map(|(id, _)| *id).collect();
+    let mut homogeneos = 0;
     for (caminho, modelo) in carrega_snapshots() {
-        assert_eq!(
-            modelo.schema,
-            VERSAO_DO_ACERVO,
-            "{} destoa da versão única do acervo",
-            caminho.display()
+        assert!(
+            modelo.schema == VERSAO_DO_ACERVO || modelo.schema == SNAPSHOT_SCHEMA,
+            "{} está em schema {}, que não é nem a versão do acervo nem a de emissão",
+            caminho.display(),
+            modelo.schema
         );
+        if do_acervo.contains(modelo.id.as_str()) {
+            assert_eq!(
+                modelo.schema,
+                VERSAO_DO_ACERVO,
+                "{} destoa da versão única do acervo materializado",
+                caminho.display()
+            );
+            homogeneos += 1;
+        }
     }
+    assert_eq!(
+        homogeneos, SNAPSHOTS_ESPERADOS,
+        "os treze snapshots do acervo precisam estar todos presentes"
+    );
     for (caminho, receita) in carrega_receitas() {
         assert_eq!(
             receita.schema,

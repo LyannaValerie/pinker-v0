@@ -259,6 +259,14 @@ pub enum Rule {
     /// posição conveniente num `match`: é o que torna impossível excluir o que
     /// acabou de ser materializado, ou sobrescrever com override uma região que
     /// só passa a existir aqui.
+    ///
+    /// Não carrega guarda de valor corrente, por construção: ela declara um fato
+    /// sobre um estado que o presente não tem mais como confirmar, e um `from_*`
+    /// não teria contra o que casar. A guarda de drift continua sendo dos
+    /// overrides, que exigem correspondência. Combinada com `exclude-key` sobre
+    /// a mesma chave — a forma de modelar chave reaproveitada por outra região —
+    /// a substituição é total e deliberada: quem escreve a regra está afirmando
+    /// que a região corrente daquela chave não é a histórica.
     MaterializeRegion {
         key: String,
         kind: String,

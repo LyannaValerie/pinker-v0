@@ -767,3 +767,276 @@ fn a_materializacao_carrega_exatamente_os_campos_da_projecao_estavel() {
         assert!(registro.contains(presente), "{presente} sumiu da projeção");
     }
 }
+
+// ---------------------------------------------------------------------------
+// O caso real derivado do bloqueio da #550
+// ---------------------------------------------------------------------------
+//
+// Os testes acima provam o contrato sobre fixtures. Este prova a capacidade
+// sobre o **acervo verdadeiro**, sem tocar um único artefato congelado: o
+// catálogo real perde uma região real em memória, a regra declara o fato
+// histórico, e as medidas do FROZEN continuam exatas.
+//
+// É o cenário que bloqueou a #550, reproduzido sem antecipar a #550: nenhuma
+// região da Forja é escolhida, nada é escrito e nenhum snapshot muda.
+
+use pinker_v0::nav::CodeCatalog;
+use pinker_v0::nav_projection_recipe::{parse_recipe as parse_receita, Recipe};
+use pinker_v0::nav_projection_snapshot::{ProjectionRegion, Rule, SNAPSHOTS_DIR};
+use std::collections::BTreeSet;
+use std::fs;
+use std::path::PathBuf;
+
+fn raiz_do_repo() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+}
+
+fn arquivos_toml(dir: &std::path::Path) -> Vec<PathBuf> {
+    let mut saida: Vec<PathBuf> = fs::read_dir(dir)
+        .expect("diretório legível")
+        .map(|e| e.expect("entrada").path())
+        .filter(|p| p.is_file() && p.extension().is_some_and(|e| e == "toml"))
+        .collect();
+    saida.sort();
+    saida
+}
+
+fn acervo_real() -> (Library, Vec<CodeRegion>, Vec<ProjectionSnapshot>) {
+    let raiz = raiz_do_repo();
+    let mut library = Library::new();
+    let mut receitas: Vec<Recipe> = Vec::new();
+    for caminho in arquivos_toml(&raiz.join(pinker_v0::nav_projection_recipe::RECIPES_DIR)) {
+        let receita =
+            parse_receita(&fs::read_to_string(&caminho).expect("receita legível")).expect("válida");
+        receitas.push(receita.clone());
+        library = library.with_recipe(receita).expect("receita única");
+    }
+    let mut snapshots: Vec<ProjectionSnapshot> = Vec::new();
+    for caminho in arquivos_toml(&raiz.join(SNAPSHOTS_DIR)) {
+        let modelo =
+            parse(&fs::read_to_string(&caminho).expect("snapshot legível")).expect("válido");
+        snapshots.push(modelo.clone());
+        library = library.with_snapshot(modelo).expect("snapshot único");
+    }
+    let catalogo = CodeCatalog::load(&raiz.join("src/navigation.jsonl"))
+        .expect("catálogo versionado")
+        .regions;
+    (library, catalogo, snapshots)
+}
+
+/// Todo seletor citado em qualquer regra do acervo, snapshots e receitas.
+///
+/// A região escolhida para sumir precisa estar fora deste conjunto: remover uma
+/// região que alguma regra nomeia testaria a regra, não a capacidade.
+fn seletores_do_acervo(raiz: &std::path::Path) -> BTreeSet<String> {
+    let mut seletores = BTreeSet::new();
+    for caminho in arquivos_toml(&raiz.join(SNAPSHOTS_DIR)) {
+        let modelo = parse(&fs::read_to_string(&caminho).unwrap()).unwrap();
+        for regra in &modelo.rules {
+            seletores.insert(regra.selector().to_string());
+        }
+    }
+    for caminho in arquivos_toml(&raiz.join(pinker_v0::nav_projection_recipe::RECIPES_DIR)) {
+        let receita = parse_receita(&fs::read_to_string(&caminho).unwrap()).unwrap();
+        for regra in &receita.rules {
+            seletores.insert(regra.selector().to_string());
+        }
+    }
+    seletores
+}
+
+#[test]
+fn o_acervo_real_sobrevive_a_remocao_de_uma_regiao_real() {
+    let raiz = raiz_do_repo();
+    let (library, catalogo, snapshots) = acervo_real();
+
+    // O snapshot que parte do catálogo corrente: é nele que a declaração entra,
+    // e é dele que a cadeia inteira depende.
+    let terminal = snapshots
+        .iter()
+        .find(|s| s.base_snapshot.is_none() && !s.recipes.is_empty())
+        .expect("um snapshot parte do catálogo corrente")
+        .clone();
+
+    // Estado antes: o acervo reconstrói exatamente.
+    let antes = resolve(&library, &terminal.id, &catalogo).expect("acervo íntegro");
+    assert_eq!(
+        antes.measures(),
+        terminal.measures,
+        "o acervo real precisa estar MATCH antes do experimento"
+    );
+
+    // Escolhe deterministicamente uma região que existe no catálogo corrente e
+    // no estado histórico, e que nenhuma regra nomeia.
+    let seletores = seletores_do_acervo(&raiz);
+    let historicas: BTreeSet<&str> = antes.regions.iter().map(|r| r.key.as_str()).collect();
+    let mut candidatas: Vec<&CodeRegion> = catalogo
+        .iter()
+        .filter(|r| historicas.contains(r.key.as_str()) && !seletores.contains(&r.key))
+        .collect();
+    candidatas.sort_by(|a, b| a.key.cmp(&b.key));
+    let alvo = candidatas
+        .first()
+        .expect("há região histórica fora de toda regra")
+        .to_owned()
+        .clone();
+
+    // O fato histórico é lido do estado reconstruído, não do catálogo: é o valor
+    // que a projeção congelada espera.
+    let fato: ProjectionRegion = antes
+        .regions
+        .iter()
+        .find(|r| r.key == alvo.key)
+        .expect("a região está no estado histórico")
+        .clone();
+
+    // Agora a região some do código: o catálogo corrente perde a entrada.
+    let catalogo_sem_alvo: Vec<CodeRegion> = catalogo
+        .iter()
+        .filter(|r| r.key != alvo.key)
+        .cloned()
+        .collect();
+    assert_eq!(catalogo_sem_alvo.len(), catalogo.len() - 1);
+
+    // Sem a regra, é o bloqueio da #550 na cadeia real, nas duas formas em que
+    // ele aparece: o terminal deriva do estado errado, e todo descendente que se
+    // apoia nele para de reconstruir.
+    let terminal_sem_regra = resolve(&library, &terminal.id, &catalogo_sem_alvo)
+        .expect("resolve não confere as próprias medidas do topo");
+    assert_ne!(
+        terminal_sem_regra.measures(),
+        terminal.measures,
+        "sem a declaração, o terminal precisa divergir"
+    );
+    assert_eq!(
+        terminal_sem_regra.measures().regions,
+        terminal.measures.regions - 1,
+        "a divergência é exatamente a região que sumiu"
+    );
+    let mut descendentes_quebrados = 0;
+    for modelo in &snapshots {
+        if modelo.id == terminal.id {
+            continue;
+        }
+        match resolve(&library, &modelo.id, &catalogo_sem_alvo) {
+            Err(HarnessFailure::BaseMeasuresDiverged { .. }) => descendentes_quebrados += 1,
+            outro => panic!("{}: esperada base divergente, veio {outro:?}", modelo.id),
+        }
+    }
+    assert_eq!(
+        descendentes_quebrados,
+        snapshots.len() - 1,
+        "o bloqueio da #550 atinge a cadeia inteira, não uma projeção só"
+    );
+
+    // Com a regra, o FROZEN volta a bater — e nenhuma medida foi recalibrada.
+    let mut remendado = terminal.clone();
+    remendado.rules.push(Rule::MaterializeRegion {
+        key: fato.key.clone(),
+        kind: fato.kind.clone(),
+        domain: fato.domain.clone(),
+        layer: fato.layer.clone(),
+        file: fato.file.clone(),
+        summary: fato.summary.clone(),
+        hash: fato.hash.clone(),
+        status: fato.status.clone(),
+    });
+    remendado.expected_materializations += 1;
+    remendado.schema = SNAPSHOT_SCHEMA_V4;
+
+    let mut library_remendada = Library::new();
+    for caminho in arquivos_toml(&raiz.join(pinker_v0::nav_projection_recipe::RECIPES_DIR)) {
+        library_remendada = library_remendada
+            .with_recipe(parse_receita(&fs::read_to_string(&caminho).unwrap()).unwrap())
+            .unwrap();
+    }
+    for modelo in &snapshots {
+        let usar = if modelo.id == terminal.id {
+            remendado.clone()
+        } else {
+            modelo.clone()
+        };
+        library_remendada = library_remendada.with_snapshot(usar).unwrap();
+    }
+
+    let depois = resolve(&library_remendada, &terminal.id, &catalogo_sem_alvo)
+        .expect("com a declaração, o acervo real reconstrói");
+    assert_eq!(
+        depois.measures(),
+        terminal.measures,
+        "as medidas congeladas do acervo real mudaram"
+    );
+    assert_eq!(
+        stable_projection(depois.regions.iter()),
+        stable_projection(antes.regions.iter()),
+        "a projeção estável do acervo real divergiu"
+    );
+
+    // E a cadeia inteira, não só o terminal: todo descendente continua exato.
+    let mut descendentes = 0;
+    for modelo in &snapshots {
+        if modelo.id == terminal.id {
+            continue;
+        }
+        let reconstruido = resolve(&library_remendada, &modelo.id, &catalogo_sem_alvo)
+            .unwrap_or_else(|e| panic!("{}: {e:?}", modelo.id));
+        assert_eq!(
+            reconstruido.measures(),
+            modelo.measures,
+            "{}: a cadeia real divergiu",
+            modelo.id
+        );
+        descendentes += 1;
+    }
+    assert_eq!(descendentes, snapshots.len() - 1);
+
+    // Nenhum artefato foi tocado: a prova é toda em memória.
+    for caminho in arquivos_toml(&raiz.join(SNAPSHOTS_DIR)) {
+        let texto = fs::read_to_string(&caminho).unwrap();
+        assert!(
+            !texto.contains("materialize-region"),
+            "{} foi escrito pelo teste",
+            caminho.display()
+        );
+    }
+}
+
+// ---------------------------------------------------------------------------
+// O relatório de definição rende o modelo inteiro
+// ---------------------------------------------------------------------------
+
+#[test]
+fn o_relatorio_de_definicao_mostra_o_orcamento_de_materializacao() {
+    use pinker_v0::nav_projection_report::{render_show_human, render_show_json};
+    use pinker_v0::nav_projection_store::StoredSnapshot;
+
+    let guardado = |modelo: ProjectionSnapshot| StoredSnapshot {
+        path: format!("{SNAPSHOTS_DIR}{}.toml", modelo.id),
+        bytes: render(&modelo).into_bytes(),
+        snapshot: modelo,
+        canonical: true,
+    };
+
+    let com = guardado(snapshot_materializando_b());
+    let humano = render_show_human(&com, None);
+    let json = render_show_json(&com, None);
+    assert!(
+        humano.contains("expected_materializations: 1\n"),
+        "o relatório humano omitiu o terceiro orçamento: {humano}"
+    );
+    assert!(
+        json.contains("\"expected_materializations\":1"),
+        "o relatório JSON omitiu o terceiro orçamento: {json}"
+    );
+
+    // Ausente significa zero, e a saída de um snapshot sem materialização
+    // continua exatamente como era antes desta capacidade existir.
+    let sem =
+        guardado(parse(&snapshot_texto("sem", medidas_historicas(), None, "")).expect("válido"));
+    let humano_sem = render_show_human(&sem, None);
+    let json_sem = render_show_json(&sem, None);
+    assert!(!humano_sem.contains("expected_materializations"));
+    assert!(!json_sem.contains("expected_materializations"));
+    assert!(humano_sem.contains("expected_exclusions: 0\n"));
+    assert!(json_sem.contains("\"expected_exclusions\":0,\"rules\""));
+}

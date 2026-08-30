@@ -362,9 +362,36 @@ fn inventory_snapshot_json(stored: &StoredSnapshot) -> String {
     )
 }
 
+/// O terceiro orçamento, emitido apenas quando existe.
+///
+/// Os dois antigos saem sempre porque sempre existiram. Este segue a mesma regra
+/// do artefato TOML — ausente significa zero —, e é o que mantém a saída de um
+/// snapshot anterior ao schema 4 byte a byte como era.
+fn materializations_human(snapshot: &ProjectionSnapshot) -> String {
+    if snapshot.expected_materializations > 0 {
+        format!(
+            "expected_materializations: {}\n",
+            snapshot.expected_materializations
+        )
+    } else {
+        String::new()
+    }
+}
+
+fn materializations_json(snapshot: &ProjectionSnapshot) -> String {
+    if snapshot.expected_materializations > 0 {
+        format!(
+            ",\"expected_materializations\":{}",
+            snapshot.expected_materializations
+        )
+    } else {
+        String::new()
+    }
+}
+
 fn definition_human(snapshot: &ProjectionSnapshot, path: &str) -> String {
     let mut out = format!(
-        "artifact_schema: {}\nid: {}\nstate: {}\npredecessor: {}\njustification: {}\nbase_snapshot: {}\nrecipes: {}\nexpected_overrides: {}\nexpected_exclusions: {}\nmeasures: regioes={} comprimento={} {}\npath: {}\n",
+        "artifact_schema: {}\nid: {}\nstate: {}\npredecessor: {}\njustification: {}\nbase_snapshot: {}\nrecipes: {}\nexpected_overrides: {}\nexpected_exclusions: {}\n{}measures: regioes={} comprimento={} {}\npath: {}\n",
         snapshot.schema,
         snapshot.id,
         snapshot.state,
@@ -374,6 +401,7 @@ fn definition_human(snapshot: &ProjectionSnapshot, path: &str) -> String {
         if snapshot.recipes.is_empty() { "—".to_string() } else { snapshot.recipes.join(",") },
         snapshot.expected_overrides,
         snapshot.expected_exclusions,
+        materializations_human(snapshot),
         snapshot.measures.regions,
         snapshot.measures.length,
         snapshot.measures.fnv1a64_canonical(),
@@ -393,7 +421,7 @@ fn definition_human(snapshot: &ProjectionSnapshot, path: &str) -> String {
 fn definition_json(snapshot: &ProjectionSnapshot, path: &str) -> String {
     let rules: Vec<String> = snapshot.rules.iter().map(rule_json).collect();
     format!(
-        "{{\"artifact_schema\":{},\"id\":{},\"state\":{},\"predecessor\":{},\"justification\":{},\"base_snapshot\":{},\"recipes\":{},\"expected_overrides\":{},\"expected_exclusions\":{},\"rules\":[{}],\"measures\":{},\"path\":{}}}",
+        "{{\"artifact_schema\":{},\"id\":{},\"state\":{},\"predecessor\":{},\"justification\":{},\"base_snapshot\":{},\"recipes\":{},\"expected_overrides\":{},\"expected_exclusions\":{}{},\"rules\":[{}],\"measures\":{},\"path\":{}}}",
         snapshot.schema,
         json_string(&snapshot.id),
         json_string(snapshot.state.as_str()),
@@ -403,6 +431,7 @@ fn definition_json(snapshot: &ProjectionSnapshot, path: &str) -> String {
         string_array_json(&snapshot.recipes),
         snapshot.expected_overrides,
         snapshot.expected_exclusions,
+        materializations_json(snapshot),
         rules.join(","),
         measures_json(&snapshot.measures),
         json_string(path)
