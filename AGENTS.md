@@ -171,6 +171,10 @@ Três consequências práticas, e o resto é da Forja:
 - **A destruição é fail-closed e diz o alcance da própria prova.** Quando a
   saída trouxer `uninspectable_*`, ela está declarando o limite da evidência em
   vez de escondê-lo; leia antes de concluir qualquer coisa sobre resíduo.
+  `FORJA_AGENTES_STRICT_PROCESSES=1` transforma evidência ilegível em bloqueio.
+  E não leia estes gates como prova criptográfica: eles são barreira contra
+  atalho, não fronteira contra adulteração — o vínculo é um JSON no slot, de
+  propriedade da própria Task, que portanto pode escrevê-lo.
 
 Por que `CARGO_TARGET_DIR` sai no slot `target` do Task root: dentro da worktree
 ele seria `DURABLE` e o selo preservaria gigabytes de build sem razão. O
