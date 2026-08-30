@@ -65,8 +65,24 @@ pub const SNAPSHOT_SCHEMA_V2: u64 = 2;
 /// representar a própria história que deveria migrar.
 pub const SNAPSHOT_SCHEMA_V3: u64 = 3;
 
-/// Versão máxima aceita do formato de snapshot.
-pub const SNAPSHOT_SCHEMA: u64 = SNAPSHOT_SCHEMA_V3;
+/// Quarta versão: acrescenta `materialize-region`, a declaração explícita de uma
+/// região que existia no estado histórico e não existe mais no catálogo
+/// corrente.
+///
+/// Congelar a história nunca implicou que toda região histórica ficasse eterna
+/// no código corrente. Até aqui o formato só sabia **tirar** região posterior e
+/// **restaurar campo** de região presente; faltava representar a remoção
+/// legítima, que a Issue #384 já exigia entre seus casos mínimos. Sem ela,
+/// apagar uma única região do catálogo derrubava toda a cadeia congelada.
+pub const SNAPSHOT_SCHEMA_V4: u64 = 4;
+
+/// Versão máxima aceita do formato de snapshot, e a versão em que artefatos
+/// novos nascem.
+///
+/// Versão aceita e versão do acervo são coisas distintas: os snapshots já
+/// materializados continuam exatamente na versão em que foram congelados, e
+/// nenhum deles é reescrito por causa de um bump.
+pub const SNAPSHOT_SCHEMA: u64 = SNAPSHOT_SCHEMA_V4;
 
 /// Schema do relatório de verificação, distinto do schema do artefato TOML.
 pub const SNAPSHOT_REPORT_SCHEMA: u64 = 1;
@@ -80,7 +96,7 @@ pub const MAX_ID_LEN: usize = 64;
 // @pinker-nav:start trama.snapshots.modelo
 // @pinker-nav:domain snapshots
 // @pinker-nav:layer trama
-// @pinker-nav:summary Modelo imutável dos snapshots históricos de projeção do catálogo de navegação: schema versionado, ID estável, estados FROZEN/CANDIDATE, medidas (regiões, comprimento, FNV-1a 64 canônico), predecessor opcional, justificativa e regras de reconstrução tipadas com orçamento explícito de consumo.
+// @pinker-nav:summary Modelo imutável dos snapshots históricos de projeção do catálogo de navegação: schema versionado, ID estável, estados FROZEN/CANDIDATE, medidas (regiões, comprimento, FNV-1a 64 canônico), predecessor opcional, justificativa e regras de reconstrução tipadas com orçamento explícito de consumo, incluindo a materialização de uma região histórica que não existe mais no catálogo corrente, com orçamento próprio e aplicação por último.
 
 /// Qual formato está sendo interpretado.
 ///
@@ -104,7 +120,7 @@ impl SchemaAuthority {
     /// Versões que este formato suporta, em texto.
     pub fn supported_versions(&self) -> &'static str {
         match self {
-            SchemaAuthority::Snapshot => "1, 2 ou 3",
+            SchemaAuthority::Snapshot => "1, 2, 3 ou 4",
             SchemaAuthority::Recipe => "1 ou 2",
         }
     }
@@ -229,6 +245,30 @@ pub enum Rule {
         expect_domain: Option<String>,
         expect_layer: Option<String>,
     },
+    /// Declara uma região que existia no estado histórico e **não existe mais**
+    /// no catálogo corrente. Schema 4 em diante, somente em snapshot.
+    ///
+    /// As demais regras transformam o que o catálogo corrente oferece. Esta é a
+    /// única que afirma um fato que o presente não tem mais como fornecer, e por
+    /// isso carrega o fato inteiro — exatamente os campos que
+    /// [`stable_projection`] lê, nem um a mais. Offsets de linha, símbolos e
+    /// `phase` ficam de fora porque não participam da medida e porque uma região
+    /// sem código corrente não tem posição de linha nenhuma.
+    ///
+    /// Aplica-se **por último**, depois de exclusões e overrides. Isso não é
+    /// posição conveniente num `match`: é o que torna impossível excluir o que
+    /// acabou de ser materializado, ou sobrescrever com override uma região que
+    /// só passa a existir aqui.
+    MaterializeRegion {
+        key: String,
+        kind: String,
+        domain: Option<String>,
+        layer: Option<String>,
+        file: String,
+        summary: String,
+        hash: String,
+        status: String,
+    },
 }
 
 impl Rule {
@@ -241,6 +281,7 @@ impl Rule {
             Rule::ExcludeFile { .. } => "exclude-file",
             Rule::ExcludeKeyPrefix { .. } => "exclude-key-prefix",
             Rule::OverrideRegion { .. } => "override-region",
+            Rule::MaterializeRegion { .. } => "materialize-region",
         }
     }
 
@@ -259,6 +300,13 @@ impl Rule {
     /// | `exclude-file` | 2 | 1 |
     /// | `exclude-key-prefix` | 2 | 1 |
     /// | `override-region` | 3 | 2 |
+    /// | `materialize-region` | 4 | — |
+    ///
+    /// `materialize-region` não existe na autoridade de receita em versão
+    /// alguma: uma receita é transformação reutilizável e não tem medida, estado
+    /// nem predecessor para responder por um fato histórico. A rejeição é
+    /// explícita em [`crate::nav_projection_recipe::parse_recipe`], com
+    /// diagnóstico próprio, e não uma versão mínima inalcançável.
     pub fn min_schema(&self, authority: SchemaAuthority) -> u64 {
         match (self, authority) {
             (Rule::OverrideHash { .. }, _) => 1,
@@ -270,6 +318,7 @@ impl Rule {
             (Rule::ExcludeKeyPrefix { .. }, SchemaAuthority::Recipe) => 1,
             (Rule::OverrideRegion { .. }, SchemaAuthority::Snapshot) => SNAPSHOT_SCHEMA_V3,
             (Rule::OverrideRegion { .. }, SchemaAuthority::Recipe) => 2,
+            (Rule::MaterializeRegion { .. }, _) => SNAPSHOT_SCHEMA_V4,
         }
     }
 
@@ -282,6 +331,7 @@ impl Rule {
             Rule::ExcludeFile { file, .. } => file.as_str(),
             Rule::ExcludeKeyPrefix { prefix, .. } => prefix.as_str(),
             Rule::OverrideRegion { key, .. } => key.as_str(),
+            Rule::MaterializeRegion { key, .. } => key.as_str(),
         }
     }
 
@@ -302,6 +352,7 @@ impl Rule {
                 expected_matches, ..
             } => *expected_matches,
             Rule::OverrideRegion { .. } => 1,
+            Rule::MaterializeRegion { .. } => 1,
         }
     }
 
@@ -317,6 +368,15 @@ impl Rule {
         )
     }
 
+    /// Verdadeiro para a operação que declara um fato histórico ausente.
+    ///
+    /// Materialização não é override nem exclusão: ela tem orçamento próprio,
+    /// porque contá-la em qualquer um dos outros dois mudaria o significado de
+    /// um campo que os artefatos antigos já usam.
+    pub fn is_materialization(&self) -> bool {
+        matches!(self, Rule::MaterializeRegion { .. })
+    }
+
     /// Ordem canônica entre operações: exclusões antes de overrides, que é
     /// também a ordem de aplicação.
     fn op_rank(&self) -> u8 {
@@ -327,6 +387,7 @@ impl Rule {
             Rule::ExcludeFilePrefix { .. } => 3,
             Rule::OverrideHash { .. } => 4,
             Rule::OverrideRegion { .. } => 5,
+            Rule::MaterializeRegion { .. } => 6,
         }
     }
 }
@@ -345,6 +406,13 @@ pub struct ProjectionSnapshot {
     pub expected_overrides: u64,
     /// Quantidade declarada de regras de exclusão, pelo mesmo motivo.
     pub expected_exclusions: u64,
+    /// Quantidade declarada de regras `materialize-region`. Schema 4 em diante.
+    ///
+    /// Orçamento próprio, e não uma linha a mais em `expected_exclusions`:
+    /// materializar não é excluir, e somar as duas mudaria o significado de um
+    /// campo que os artefatos antigos já usam. Ausente significa zero, como
+    /// `base_snapshot` e `recipes`.
+    pub expected_materializations: u64,
     /// Snapshot sobre o qual esta reconstrução se apoia. Schema 2 em diante.
     ///
     /// É a relação de **composição**, distinta de [`ProjectionSnapshot::predecessor`],
@@ -381,7 +449,7 @@ pub const SNAPSHOTS_DIR: &str = ".pinker/projections/";
 // @pinker-nav:start trama.snapshots.erros
 // @pinker-nav:domain snapshots
 // @pinker-nav:layer trama
-// @pinker-nav:summary Taxonomia fechada de falhas de harness dos snapshots históricos: erros de sintaxe TOML, violações estruturais do schema, identificadores e paths inseguros, e todas as formas de consumo incorreto de regras de reconstrução — nenhuma delas pode ser reclassificada como drift.
+// @pinker-nav:summary Taxonomia fechada de falhas de harness dos snapshots históricos: erros de sintaxe TOML, violações estruturais do schema, identificadores e paths inseguros, todas as formas de consumo incorreto de regras de reconstrução, e as falhas próprias da materialização histórica — colisão com região presente, declaração repetida do mesmo fato, orçamento divergente e operação fora da autoridade — nenhuma delas pode ser reclassificada como drift.
 
 /// Erro de sintaxe do subconjunto TOML aceito.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -527,6 +595,26 @@ pub enum HarnessFailure {
         expected: u64,
         consumed: u64,
     },
+    /// `expected_materializations` maior que a quantidade de regras.
+    MaterializationMissing { declared: u64, found: u64 },
+    /// `expected_materializations` menor que a quantidade de regras.
+    MaterializationExcess { declared: u64, found: u64 },
+    /// Duas regras materializando a mesma identidade histórica.
+    ///
+    /// Falha mesmo quando os campos são byte-idênticos: um fato histórico tem
+    /// uma autoridade explícita, e duas declarações do mesmo fato deixariam
+    /// ambígua qual delas o acervo está afirmando.
+    MaterializationRepeated { key: String },
+    /// A chave declarada como histórica já existe no estado reconstruído.
+    ///
+    /// Materializar nunca sobrescreve, nunca funde campos e nunca é ignorada em
+    /// silêncio: se a região está presente, a declaração histórica está errada.
+    MaterializationCollision { key: String },
+    /// Operação declarada numa autoridade que não a possui.
+    OperationOutsideAuthority {
+        authority: SchemaAuthority,
+        op: String,
+    },
 }
 
 impl HarnessFailure {
@@ -578,6 +666,13 @@ impl HarnessFailure {
             HarnessFailure::SelfBase { .. } => "E-SNAP-BASE-PROPRIA",
             HarnessFailure::RecipeSelfStep { .. } => "E-RECEITA-PASSO-PROPRIO",
             HarnessFailure::ExclusionPartiallyConsumed { .. } => "E-SNAP-EXCLUSAO-PARCIAL",
+            HarnessFailure::MaterializationMissing { .. } => "E-SNAP-MATERIALIZACAO-AUSENTE",
+            HarnessFailure::MaterializationExcess { .. } => "E-SNAP-MATERIALIZACAO-EXCEDENTE",
+            HarnessFailure::MaterializationRepeated { .. } => "E-SNAP-MATERIALIZACAO-REPETIDA",
+            HarnessFailure::MaterializationCollision { .. } => "E-SNAP-MATERIALIZACAO-COLISAO",
+            HarnessFailure::OperationOutsideAuthority { .. } => {
+                "E-SNAP-OPERACAO-FORA-DA-AUTORIDADE"
+            }
         }
     }
 }
@@ -807,6 +902,32 @@ impl fmt::Display for HarnessFailure {
                 "exclusão parcialmente consumida em '{}': esperado {}, consumido {}",
                 selector, expected, consumed
             ),
+            HarnessFailure::MaterializationMissing { declared, found } => write!(
+                f,
+                "materialização ausente: expected_materializations = {}, encontradas {}",
+                declared, found
+            ),
+            HarnessFailure::MaterializationExcess { declared, found } => write!(
+                f,
+                "materialização excedente: expected_materializations = {}, encontradas {}",
+                declared, found
+            ),
+            HarnessFailure::MaterializationRepeated { key } => write!(
+                f,
+                "região histórica '{}' materializada duas vezes: um fato, uma autoridade",
+                key
+            ),
+            HarnessFailure::MaterializationCollision { key } => write!(
+                f,
+                "região '{}' já existe no estado: a materialização histórica não sobrescreve nem funde",
+                key
+            ),
+            HarnessFailure::OperationOutsideAuthority { authority, op } => write!(
+                f,
+                "operação '{}' não existe na autoridade de {}",
+                op,
+                authority.as_str()
+            ),
         }
     }
 }
@@ -815,7 +936,7 @@ impl fmt::Display for HarnessFailure {
 // @pinker-nav:start trama.snapshots.medidas
 // @pinker-nav:domain snapshots
 // @pinker-nav:layer trama
-// @pinker-nav:summary FNV-1a 64 sobre bytes e projeção estável canônica de regiões: a forma exata (tupla Debug com schema, key, kind, domain, layer, file, summary, hash e status, uma por linha, ordenada lexicograficamente) que define o comprimento e o hash de toda medida histórica da cartografia.
+// @pinker-nav:summary FNV-1a 64 sobre bytes e projeção estável canônica de regiões: a forma exata (tupla Debug com schema, key, kind, domain, layer, file, summary, hash e status, uma por linha, ordenada lexicograficamente) que define o comprimento e o hash de toda medida histórica da cartografia, com um único formatador servindo tanto a região de código corrente quanto a linha histórica que já não tem fonte.
 
 /// FNV-1a 64 sobre bytes.
 ///
@@ -837,6 +958,119 @@ pub fn fnv1a64_canonical(bytes: &[u8]) -> String {
     format!("{}{:016x}", FNV_PREFIX, fnv1a64(bytes))
 }
 
+/// Uma região **como ela participa da projeção estável**: os oito campos que
+/// [`stable_projection`] lê, e nada além disso.
+///
+/// [`CodeRegion`] tem dezessete campos e descreve uma região de código
+/// **corrente**: posições de linha, símbolos, `phase`. Nenhum deles participa da
+/// medida histórica, e nenhuma regra de reconstrução os lê — verificado regra a
+/// regra. Carregar o tipo inteiro através da reconstrução era excedente
+/// acidental, e foi justamente esse excedente que fez a materialização de uma
+/// região removida parecer impossível: para inserir uma linha histórica era
+/// preciso inventar nove campos que ninguém consulta, entre eles offsets
+/// apontando para código que não existe mais.
+///
+/// A conversão a partir do catálogo corrente acontece uma vez, na borda de
+/// entrada da reconstrução.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProjectionRegion {
+    pub key: String,
+    pub kind: String,
+    pub domain: Option<String>,
+    pub layer: Option<String>,
+    pub file: String,
+    pub summary: String,
+    pub hash: String,
+    pub status: String,
+}
+
+impl From<&CodeRegion> for ProjectionRegion {
+    fn from(region: &CodeRegion) -> ProjectionRegion {
+        ProjectionRegion {
+            key: region.key.clone(),
+            kind: region.kind.clone(),
+            domain: region.domain.clone(),
+            layer: region.layer.clone(),
+            file: region.file.clone(),
+            summary: region.summary.clone(),
+            hash: region.hash.clone(),
+            status: region.status.clone(),
+        }
+    }
+}
+
+/// Os campos estáveis emprestados de uma região, prontos para serializar.
+///
+/// Existe para que a forma canônica continue tendo **uma** autoridade: tanto a
+/// região de código corrente quanto a linha histórica materializada produzem
+/// esta mesma visão, e só ela sabe virar registro.
+pub struct StableFields<'a> {
+    pub key: &'a str,
+    pub kind: &'a str,
+    pub domain: Option<&'a str>,
+    pub layer: Option<&'a str>,
+    pub file: &'a str,
+    pub summary: &'a str,
+    pub hash: &'a str,
+    pub status: &'a str,
+}
+
+impl StableFields<'_> {
+    /// O registro canônico, terminado em `\n`. Toda medida histórica da
+    /// cartografia nasce daqui.
+    fn record(&self) -> String {
+        format!(
+            "{:?}\n",
+            (
+                1,
+                self.key,
+                self.kind,
+                self.domain,
+                self.layer,
+                self.file,
+                self.summary,
+                self.hash,
+                self.status,
+            )
+        )
+    }
+}
+
+/// O que basta para uma região entrar na projeção estável.
+pub trait StableProjectionRow {
+    fn stable_fields(&self) -> StableFields<'_>;
+}
+
+impl StableProjectionRow for CodeRegion {
+    fn stable_fields(&self) -> StableFields<'_> {
+        StableFields {
+            key: self.key.as_str(),
+            kind: self.kind.as_str(),
+            domain: self.domain.as_deref(),
+            layer: self.layer.as_deref(),
+            file: self.file.as_str(),
+            summary: self.summary.as_str(),
+            hash: self.hash.as_str(),
+            status: self.status.as_str(),
+        }
+    }
+}
+
+impl StableProjectionRow for ProjectionRegion {
+    fn stable_fields(&self) -> StableFields<'_> {
+        StableFields {
+            key: self.key.as_str(),
+            kind: self.kind.as_str(),
+            domain: self.domain.as_deref(),
+            layer: self.layer.as_deref(),
+            file: self.file.as_str(),
+            summary: self.summary.as_str(),
+            hash: self.hash.as_str(),
+            status: self.status.as_str(),
+        }
+    }
+}
+
 /// Projeção estável de um conjunto de regiões.
 ///
 /// Esta é a forma que **define** as medidas históricas: um registro por região,
@@ -847,32 +1081,23 @@ pub fn fnv1a64_canonical(bytes: &[u8]) -> String {
 /// A forma é independente do root absoluto porque `CodeRegion::file` já é
 /// repo-relativo. Nenhum estado externo — tempo, PID, usuário, locale, endereço
 /// de memória ou iteração de `HashMap` — participa do resultado.
-pub fn stable_projection<'a>(regions: impl Iterator<Item = &'a CodeRegion>) -> String {
+pub fn stable_projection<'a, R>(regions: impl Iterator<Item = &'a R>) -> String
+where
+    R: StableProjectionRow + 'a,
+{
     let mut records: Vec<String> = regions
-        .map(|region| {
-            format!(
-                "{:?}\n",
-                (
-                    1,
-                    region.key.as_str(),
-                    region.kind.as_str(),
-                    region.domain.as_deref(),
-                    region.layer.as_deref(),
-                    region.file.as_str(),
-                    region.summary.as_str(),
-                    region.hash.as_str(),
-                    region.status.as_str(),
-                )
-            )
-        })
+        .map(|region| region.stable_fields().record())
         .collect();
     records.sort_unstable();
     records.concat()
 }
 
 /// Mede um conjunto de regiões, produzindo as três medidas canônicas.
-pub fn measure<'a>(regions: impl Iterator<Item = &'a CodeRegion>) -> Measures {
-    let collected: Vec<&CodeRegion> = regions.collect();
+pub fn measure<'a, R>(regions: impl Iterator<Item = &'a R>) -> Measures
+where
+    R: StableProjectionRow + 'a,
+{
+    let collected: Vec<&R> = regions.collect();
     let projection = stable_projection(collected.iter().copied());
     Measures {
         regions: collected.len() as u64,
@@ -885,7 +1110,7 @@ pub fn measure<'a>(regions: impl Iterator<Item = &'a CodeRegion>) -> Measures {
 // @pinker-nav:start trama.snapshots.parser
 // @pinker-nav:domain snapshots
 // @pinker-nav:layer trama
-// @pinker-nav:summary Parser TOML estrito do snapshot: aceita apenas tabelas conhecidas, rejeita chave desconhecida, chave duplicada, seção duplicada, string incompleta, escape não suportado, dado residual após o valor, número negativo e overflow, e aplica em seguida toda a validação estrutural e semântica do schema.
+// @pinker-nav:summary Parser TOML estrito do snapshot: aceita apenas tabelas conhecidas, rejeita chave desconhecida, chave duplicada, seção duplicada, string incompleta, escape não suportado, dado residual após o valor, número negativo e overflow, e aplica em seguida toda a validação estrutural e semântica do schema, incluindo o orçamento e a validação por campo do fato histórico materializado.
 
 /// Valor escalar aceito pelo subconjunto TOML.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1191,9 +1416,10 @@ fn parse_value(input: &str, line: usize) -> Result<Scalar, TomlError> {
 }
 
 const ROOT_KEYS: [&str; 5] = ["schema", "id", "state", "predecessor", "justification"];
-const RECONSTRUCTION_KEYS: [&str; 4] = [
+const RECONSTRUCTION_KEYS: [&str; 5] = [
     "expected_overrides",
     "expected_exclusions",
+    "expected_materializations",
     "base_snapshot",
     "recipes",
 ];
@@ -1207,7 +1433,7 @@ const MEASURES_KEYS: [&str; 3] = ["regions", "length", "fnv1a64"];
 ///
 /// A tabela é a fonte única: acrescentar capacidade a uma operação é editar uma
 /// linha aqui, não lembrar de um `if` espalhado pelo braço correspondente.
-const RULE_KEYS_BY_OP: [(&str, &[&str]); 6] = [
+const RULE_KEYS_BY_OP: [(&str, &[&str]); 7] = [
     (
         "override-hash",
         &[
@@ -1238,6 +1464,12 @@ const RULE_KEYS_BY_OP: [(&str, &[&str]); 6] = [
     ("exclude-key-prefix", &["op", "prefix", "expected_matches"]),
     ("exclude-file", &["op", "file", "expected_matches"]),
     ("exclude-file-prefix", &["op", "prefix", "expected_matches"]),
+    (
+        "materialize-region",
+        &[
+            "op", "key", "kind", "domain", "layer", "file", "summary", "hash", "status",
+        ],
+    ),
 ];
 
 /// Campos permitidos para uma operação, ou `None` se a operação é desconhecida.
@@ -1248,7 +1480,7 @@ fn allowed_keys_for_op(op: &str) -> Option<&'static [&'static str]> {
         .map(|(_, campos)| *campos)
 }
 
-const RULE_KEYS: [&str; 14] = [
+const RULE_KEYS: [&str; 20] = [
     "op",
     "key",
     "from",
@@ -1263,6 +1495,12 @@ const RULE_KEYS: [&str; 14] = [
     "prefix",
     "file",
     "expected_matches",
+    "kind",
+    "domain",
+    "layer",
+    "summary",
+    "hash",
+    "status",
 ];
 
 pub(crate) fn reject_unknown(
@@ -1417,6 +1655,22 @@ fn validate_relative_path(value: &str, field: &str) -> Result<(), HarnessFailure
     Ok(())
 }
 
+/// Campo textual obrigatório que também não pode ser vazio.
+///
+/// `summary` fica de fora desta regra de propósito: ele participa da medida e é
+/// obrigatório, mas resumo vazio é um fato histórico possível, e inventar uma
+/// proibição aqui seria política nova, não validação.
+fn require_nonempty(table: &Table, field: &str, scope: &str) -> Result<String, HarnessFailure> {
+    let value = require_text(table, field, scope)?;
+    if value.is_empty() {
+        return Err(HarnessFailure::InvalidField {
+            field: format!("{}{}", scope, field),
+            msg: "valor vazio".to_string(),
+        });
+    }
+    Ok(value)
+}
+
 fn build(raw: RawDocument) -> Result<ProjectionSnapshot, HarnessFailure> {
     reject_unknown(&raw.root, &ROOT_KEYS, "")?;
 
@@ -1435,7 +1689,7 @@ fn build(raw: RawDocument) -> Result<ProjectionSnapshot, HarnessFailure> {
             })
         }
     };
-    if !(SNAPSHOT_SCHEMA_V1..=SNAPSHOT_SCHEMA_V3).contains(&schema) {
+    if !(SNAPSHOT_SCHEMA_V1..=SNAPSHOT_SCHEMA_V4).contains(&schema) {
         return Err(HarnessFailure::SchemaUnknown {
             authority: SchemaAuthority::Snapshot,
             found: schema,
@@ -1504,6 +1758,27 @@ fn build(raw: RawDocument) -> Result<ProjectionSnapshot, HarnessFailure> {
         "expected_exclusions",
         "reconstruction.",
     )?;
+    // Orçamento próprio da materialização: capacidade do schema 4. Ausente
+    // significa zero, e num arquivo anterior declará-lo é falha explícita —
+    // nenhum schema antigo ganha interpretação nova em silêncio.
+    let expected_materializations = match reconstruction_table.get("expected_materializations") {
+        None => 0,
+        Some(_) => {
+            if schema < SNAPSHOT_SCHEMA_V4 {
+                return Err(HarnessFailure::CapabilityRequiresSchema {
+                    authority: SchemaAuthority::Snapshot,
+                    capability: "reconstruction.expected_materializations".to_string(),
+                    found_schema: schema,
+                    required_schema: SNAPSHOT_SCHEMA_V4,
+                });
+            }
+            require_integer(
+                &reconstruction_table,
+                "expected_materializations",
+                "reconstruction.",
+            )?
+        }
+    };
 
     // Composição: capacidade do schema 2. Num arquivo schema 1 ela é falha
     // explícita, nunca leitura silenciosa.
@@ -1559,7 +1834,11 @@ fn build(raw: RawDocument) -> Result<ProjectionSnapshot, HarnessFailure> {
     }
 
     let found_overrides = rules.iter().filter(|rule| rule.is_override()).count() as u64;
-    let found_exclusions = rules.len() as u64 - found_overrides;
+    let found_materializations = rules
+        .iter()
+        .filter(|rule| rule.is_materialization())
+        .count() as u64;
+    let found_exclusions = rules.len() as u64 - found_overrides - found_materializations;
     if expected_overrides > found_overrides {
         return Err(HarnessFailure::OverrideMissing {
             declared: expected_overrides,
@@ -1584,6 +1863,18 @@ fn build(raw: RawDocument) -> Result<ProjectionSnapshot, HarnessFailure> {
             found: found_exclusions,
         });
     }
+    if expected_materializations > found_materializations {
+        return Err(HarnessFailure::MaterializationMissing {
+            declared: expected_materializations,
+            found: found_materializations,
+        });
+    }
+    if expected_materializations < found_materializations {
+        return Err(HarnessFailure::MaterializationExcess {
+            declared: expected_materializations,
+            found: found_materializations,
+        });
+    }
 
     for (position, rule) in rules.iter().enumerate() {
         for other in &rules[position + 1..] {
@@ -1595,7 +1886,17 @@ fn build(raw: RawDocument) -> Result<ProjectionSnapshot, HarnessFailure> {
                     key: rule.selector().to_string(),
                 });
             }
-            if !rule.is_override() && !other.is_override() && rule.op() == other.op() {
+            if rule.is_materialization() && other.is_materialization() {
+                return Err(HarnessFailure::MaterializationRepeated {
+                    key: rule.selector().to_string(),
+                });
+            }
+            if !rule.is_override()
+                && !rule.is_materialization()
+                && !other.is_override()
+                && !other.is_materialization()
+                && rule.op() == other.op()
+            {
                 return Err(HarnessFailure::ExclusionRepeated {
                     selector: rule.selector().to_string(),
                 });
@@ -1620,6 +1921,7 @@ fn build(raw: RawDocument) -> Result<ProjectionSnapshot, HarnessFailure> {
         },
         expected_overrides,
         expected_exclusions,
+        expected_materializations,
         rules,
     })
 }
@@ -1796,6 +2098,32 @@ pub(crate) fn build_rule(table: &Table, index: usize) -> Result<Rule, HarnessFai
                 expected_matches,
             })
         }
+        "materialize-region" => {
+            let key = match optional_text(table, "key", &scope)? {
+                Some(key) if !key.is_empty() => key,
+                _ => return Err(HarnessFailure::RuleWithoutSelector { index, op }),
+            };
+            // O fato histórico é declarado por inteiro. Cada campo obrigatório
+            // participa da projeção estável, e nenhum campo que não participa é
+            // aceito: a lista permitida por operação já recusou o resto.
+            let kind = require_nonempty(table, "kind", &scope)?;
+            let file = require_nonempty(table, "file", &scope)?;
+            validate_relative_path(&file, &format!("{}file", scope))?;
+            let summary = require_text(table, "summary", &scope)?;
+            let hash = require_text(table, "hash", &scope)?;
+            validate_hash(&hash, &format!("{}hash", scope))?;
+            let status = require_nonempty(table, "status", &scope)?;
+            Ok(Rule::MaterializeRegion {
+                key,
+                kind,
+                domain: optional_text(table, "domain", &scope)?,
+                layer: optional_text(table, "layer", &scope)?,
+                file,
+                summary,
+                hash,
+                status,
+            })
+        }
         "exclude-key-prefix" => {
             let prefix = match optional_text(table, "prefix", &scope)? {
                 Some(prefix) if !prefix.is_empty() => prefix,
@@ -1824,7 +2152,7 @@ pub(crate) fn build_rule(table: &Table, index: usize) -> Result<Rule, HarnessFai
 // @pinker-nav:start trama.snapshots.renderizacao
 // @pinker-nav:domain snapshots
 // @pinker-nav:layer trama
-// @pinker-nav:summary Renderer TOML canônico: ordem fixa de campos e seções, regras ordenadas por operação e seletor, escaping mínimo e determinístico, sem qualquer dependência de root absoluto, PID, usuário, locale, tempo, HashMap ou endereço de memória — a saída é função apenas do modelo.
+// @pinker-nav:summary Renderer TOML canônico: ordem fixa de campos e seções, regras ordenadas por operação e seletor, campos opcionais e orçamento de materialização emitidos apenas quando existem, escaping mínimo e determinístico, sem qualquer dependência de root absoluto, PID, usuário, locale, tempo, HashMap ou endereço de memória — a saída é função apenas do modelo.
 
 /// Escapa um texto para string básica TOML.
 ///
@@ -1939,6 +2267,29 @@ pub(crate) fn render_rule_body(rule: &Rule) -> String {
                 out.push_str(&format!("expect_layer = {}\n", toml_escape(valor)));
             }
         }
+        Rule::MaterializeRegion {
+            key,
+            kind,
+            domain,
+            layer,
+            file,
+            summary,
+            hash,
+            status,
+        } => {
+            out.push_str(&format!("key = {}\n", toml_escape(key)));
+            out.push_str(&format!("kind = {}\n", toml_escape(kind)));
+            if let Some(valor) = domain {
+                out.push_str(&format!("domain = {}\n", toml_escape(valor)));
+            }
+            if let Some(valor) = layer {
+                out.push_str(&format!("layer = {}\n", toml_escape(valor)));
+            }
+            out.push_str(&format!("file = {}\n", toml_escape(file)));
+            out.push_str(&format!("summary = {}\n", toml_escape(summary)));
+            out.push_str(&format!("hash = {}\n", toml_escape(hash)));
+            out.push_str(&format!("status = {}\n", toml_escape(status)));
+        }
     }
     out
 }
@@ -1976,6 +2327,14 @@ pub fn render(snapshot: &ProjectionSnapshot) -> String {
         "expected_exclusions = {}\n",
         snapshot.expected_exclusions
     ));
+    // Emitido apenas quando existe. Ausente significa zero, e é por isso que os
+    // snapshots já congelados continuam byte-idênticos ao que o renderer produz.
+    if snapshot.expected_materializations > 0 {
+        out.push_str(&format!(
+            "expected_materializations = {}\n",
+            snapshot.expected_materializations
+        ));
+    }
 
     out.push_str("\n[measures]\n");
     out.push_str(&format!("regions = {}\n", snapshot.measures.regions));
@@ -1999,7 +2358,7 @@ pub fn render(snapshot: &ProjectionSnapshot) -> String {
 // @pinker-nav:start trama.snapshots.reconstrucao
 // @pinker-nav:domain snapshots
 // @pinker-nav:layer trama
-// @pinker-nav:summary Reconstrução pura do estado histórico a partir do catálogo corrente, com livro de consumo por regra: exclusões consomem exatamente o orçamento declarado e ao menos uma correspondência, overrides consomem exatamente uma, e ausência, excedente, ambiguidade, key alterada, path alterado, metadata alterada ou base divergente falham como harness, nunca como drift.
+// @pinker-nav:summary Reconstrução pura do estado histórico a partir do catálogo corrente, com livro de consumo por regra: exclusões consomem exatamente o orçamento declarado e ao menos uma correspondência, overrides e materializações consomem exatamente uma, a ordem fixa é exclusões, overrides e por último materializações, e ausência, excedente, ambiguidade, key alterada, path alterado, metadata alterada, colisão com região presente ou base divergente falham como harness, nunca como drift.
 
 /// Consumo efetivo de uma regra durante a reconstrução.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2013,7 +2372,7 @@ pub struct RuleConsumption {
 /// Resultado de uma reconstrução bem-sucedida.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Reconstruction {
-    pub regions: Vec<CodeRegion>,
+    pub regions: Vec<ProjectionRegion>,
     pub ledger: Vec<RuleConsumption>,
 }
 
@@ -2027,13 +2386,19 @@ impl Reconstruction {
 /// Reconstrói o estado histórico aplicando as regras ao catálogo corrente.
 ///
 /// Função pura: não lê arquivos, não consulta relógio nem ambiente e não altera
-/// a entrada. A ordem de aplicação é sempre exclusões e depois overrides,
-/// independentemente da ordem textual das regras.
+/// a entrada. A ordem de aplicação é fixa e independe da ordem textual das
+/// regras: exclusões, depois overrides, depois materializações.
+///
+/// A materialização vem por último porque é isso que torna estruturalmente
+/// impossível excluir o que acabou de ser declarado, ou aplicar override sobre
+/// uma região que só passa a existir ali — as duas sequências que não têm
+/// significado. Nenhuma delas precisa de código de exceção.
 pub fn reconstruct(
     base: &[CodeRegion],
     snapshot: &ProjectionSnapshot,
 ) -> Result<Reconstruction, HarnessFailure> {
-    let (regions, ledger) = apply_rules(base.to_vec(), &snapshot.rules)?;
+    let entrada: Vec<ProjectionRegion> = base.iter().map(ProjectionRegion::from).collect();
+    let (regions, ledger) = apply_rules(entrada, &snapshot.rules)?;
     Ok(Reconstruction { regions, ledger })
 }
 
@@ -2044,10 +2409,10 @@ pub fn reconstruct(
 /// próprio consumo, e nenhum consumo é contado duas vezes, porque cada regra
 /// pertence a exatamente um escopo.
 pub fn apply_rules(
-    entrada: Vec<CodeRegion>,
+    entrada: Vec<ProjectionRegion>,
     regras: &[Rule],
-) -> Result<(Vec<CodeRegion>, Vec<RuleConsumption>), HarnessFailure> {
-    let mut regions: Vec<CodeRegion> = entrada;
+) -> Result<(Vec<ProjectionRegion>, Vec<RuleConsumption>), HarnessFailure> {
+    let mut regions: Vec<ProjectionRegion> = entrada;
     let mut ledger: Vec<RuleConsumption> = Vec::with_capacity(regras.len());
     let mut rules = regras.to_vec();
     sort_rules(&mut rules);
@@ -2339,6 +2704,36 @@ pub fn apply_rules(
                     consumed: 1,
                 });
             }
+            Rule::MaterializeRegion {
+                key,
+                kind,
+                domain,
+                layer,
+                file,
+                summary,
+                hash,
+                status,
+            } => {
+                if regions.iter().any(|region| &region.key == key) {
+                    return Err(HarnessFailure::MaterializationCollision { key: key.clone() });
+                }
+                regions.push(ProjectionRegion {
+                    key: key.clone(),
+                    kind: kind.clone(),
+                    domain: domain.clone(),
+                    layer: layer.clone(),
+                    file: file.clone(),
+                    summary: summary.clone(),
+                    hash: hash.clone(),
+                    status: status.clone(),
+                });
+                ledger.push(RuleConsumption {
+                    op: rule.op(),
+                    selector: key.clone(),
+                    expected: 1,
+                    consumed: 1,
+                });
+            }
         }
     }
 
@@ -2360,14 +2755,14 @@ pub fn apply_rules(
 /// identidade sob outra chave, a causa é key alterada. Caso contrário, a região
 /// foi removida.
 fn missing_override_failure(
-    regions: &[CodeRegion],
+    regions: &[ProjectionRegion],
     key: &str,
     expect_file: Option<&str>,
     expect_domain: Option<&str>,
     expect_layer: Option<&str>,
 ) -> HarnessFailure {
     if let Some(file) = expect_file {
-        let candidates: Vec<&CodeRegion> = regions
+        let candidates: Vec<&ProjectionRegion> = regions
             .iter()
             .filter(|region| {
                 region.file == file

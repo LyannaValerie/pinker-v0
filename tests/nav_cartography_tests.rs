@@ -9,7 +9,7 @@
 //! `src/main.rs` (camada `cli`), `src/editor_tui.rs` (camada `editor`) e
 //! `src/boot.rs` (camada `boot`).
 
-use pinker_v0::nav::{CodeCatalog, CodeIndex};
+use pinker_v0::nav::{CodeCatalog, CodeIndex, CodeRegion};
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -73,13 +73,45 @@ fn biblioteca_canonica() -> (
     (library, catalogo)
 }
 
+/// O estado histórico reconstruído, para consultas estruturais sobre o mesmo
+/// estado que o snapshot representa.
+///
+/// Não é um `CodeCatalog`: um estado histórico não é código corrente, e desde a
+/// #551 a reconstrução devolve linhas de projeção — os campos que a medida lê —
+/// em vez de regiões de código com posição de linha. As consultas abaixo só
+/// olham `key` e `layer`, que estão nas duas formas.
+struct EstadoHistorico {
+    regions: Vec<pinker_v0::nav_projection_snapshot::ProjectionRegion>,
+}
+
+/// As regiões **correntes** que correspondem, por chave, a um estado histórico.
+///
+/// Posição de linha é fato do código corrente, não do estado histórico: a
+/// reconstrução devolve as linhas da projeção estável, que não têm offset. Antes
+/// da #551 os offsets correntes vazavam pela reconstrução, e as consultas de
+/// ordem textual e de ownership abaixo dependiam desse vazamento sem dizer.
+/// Agora elas perguntam ao catálogo corrente, que é quem tem a resposta.
+///
+/// Uma chave histórica sem região corrente simplesmente não aparece aqui, e as
+/// asserções de cardinalidade que a esperavam falham — que é o comportamento
+/// certo: a consulta é sobre o texto de hoje.
+fn regioes_correntes_do_estado(estado: &EstadoHistorico) -> Vec<CodeRegion> {
+    let (_, corrente) = biblioteca_canonica();
+    let chaves: std::collections::BTreeSet<&str> =
+        estado.regions.iter().map(|r| r.key.as_str()).collect();
+    corrente
+        .into_iter()
+        .filter(|region| chaves.contains(region.key.as_str()))
+        .collect()
+}
+
 /// Estado histórico reconstruído pela autoridade canônica, para consultas
 /// estruturais sobre o mesmo estado que o snapshot representa.
-fn estado_canonico(id: &str) -> CodeCatalog {
+fn estado_canonico(id: &str) -> EstadoHistorico {
     let (library, catalogo) = biblioteca_canonica();
     let composicao = pinker_v0::nav_projection_recipe::resolve(&library, id, &catalogo)
         .unwrap_or_else(|erro| panic!("{id}: reconstrução falhou: {erro:?}"));
-    CodeCatalog {
+    EstadoHistorico {
         regions: composicao.regions,
     }
 }
@@ -6213,8 +6245,8 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
     let unique_keys: HashSet<&str> = all_keys.iter().copied().collect();
     assert_eq!(unique_keys.len(), all_keys.len(), "chaves duplicadas");
 
-    let mut target_regions: Vec<_> = catalog
-        .regions
+    let correntes_do_alvo = regioes_correntes_do_estado(&catalog);
+    let mut target_regions: Vec<_> = correntes_do_alvo
         .iter()
         .filter(|region| region.file == target_path)
         .collect();
@@ -6518,10 +6550,10 @@ fn onda_pink_agente_a_cartografa_nucleo_e_primeiro_dogfood() {
             .as_slice(),
         ),
     ];
+    let correntes_de_ownership = regioes_correntes_do_estado(&catalog);
     for (file, symbols) in ownership {
         let source = fs::read_to_string(repository.join(file)).expect("fonte de ownership");
-        let regions: Vec<_> = catalog
-            .regions
+        let regions: Vec<_> = correntes_de_ownership
             .iter()
             .filter(|region| region.file == file)
             .collect();
@@ -6742,10 +6774,10 @@ fn onda_pink_agente_b_verifica_integridade_e_dogfood_operacional() {
             .as_slice(),
         ),
     ];
+    let correntes_de_ownership = regioes_correntes_do_estado(&catalog);
     for (file, symbols) in ownership {
         let source = fs::read_to_string(repository.join(file)).expect("fonte");
-        let regions: Vec<_> = catalog
-            .regions
+        let regions: Vec<_> = correntes_de_ownership
             .iter()
             .filter(|region| region.file == file)
             .collect();
@@ -6965,10 +6997,10 @@ fn onda_pink_agente_c_publica_retoma_e_cartografa_trama_restante() {
             .as_slice(),
         ),
     ];
+    let correntes_de_ownership = regioes_correntes_do_estado(&catalog);
     for (file, symbols) in ownership {
         let source = fs::read_to_string(repository.join(file)).expect("fonte");
-        let regions = catalog
-            .regions
+        let regions = correntes_de_ownership
             .iter()
             .filter(|region| region.file == file)
             .collect::<Vec<_>>();

@@ -356,19 +356,39 @@ fn predecessor_e_base_snapshot_sao_relacoes_distintas() {
     );
 }
 
-/// Artefato novo nasce na versão corrente do formato, não na mínima que aquele
-/// caso precisaria.
+/// A versão em que este acervo foi congelado.
+///
+/// Não é `SNAPSHOT_SCHEMA`: a versão de **emissão** do formato avança quando o
+/// formato ganha capacidade, e a #551 o levou ao 4 ao acrescentar
+/// `materialize-region`. Os treze snapshots continuam exatamente como foram
+/// congelados — reescrevê-los para acompanhar um bump seria mexer na história
+/// para agradar a implementação. O que a guarda abaixo cobra é o que sempre
+/// cobrou: uma única versão em todo o acervo, por decisão e não por acidente de
+/// conteúdo.
+const VERSAO_DO_ACERVO: u64 = 3;
+
+/// A versão do acervo precisa continuar dentro do que o formato aceita. Falha em
+/// tempo de compilação: um bump que abandonasse a versão congelada quebraria a
+/// leitura dos treze artefatos, e isso não é assunto para descobrir em runtime.
+const _: () = assert!(VERSAO_DO_ACERVO <= SNAPSHOT_SCHEMA);
+
+/// O acervo inteiro numa única versão, e essa versão ainda aceita pelo parser.
 ///
 /// Sem esta guarda, um snapshot que por acaso não usa `override-region` poderia
 /// ser emitido em `schema = 1` e continuar válido — e o acervo passaria a
 /// misturar versões por acidente de conteúdo, não por decisão.
+///
+/// Que artefato **novo** nasça na versão corrente é obrigação do emissor, e quem
+/// cobra isso é a forma do candidato no lifecycle (`schema != SNAPSHOT_SCHEMA`
+/// é recusado ali). Aqui a pergunta é outra: o acervo já materializado é
+/// homogêneo e continua legível.
 #[test]
 fn o_acervo_usa_a_versao_corrente_de_cada_formato() {
     for (caminho, modelo) in carrega_snapshots() {
         assert_eq!(
             modelo.schema,
-            SNAPSHOT_SCHEMA,
-            "{} não está na versão de emissão corrente do formato de snapshot",
+            VERSAO_DO_ACERVO,
+            "{} destoa da versão única do acervo",
             caminho.display()
         );
     }

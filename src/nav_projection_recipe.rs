@@ -40,8 +40,8 @@ use crate::nav::CodeRegion;
 use crate::nav_projection_snapshot::{
     apply_rules, build_rule, measure, optional_list, parse_raw, reject_unknown, render_rule_body,
     require_integer, require_text, sort_rules, toml_escape, validate_id, HarnessFailure, Measures,
-    Outcome, ProjectionSnapshot, Rule, RuleConsumption, SchemaAuthority, SnapshotState,
-    VerifyReport,
+    Outcome, ProjectionRegion, ProjectionSnapshot, Rule, RuleConsumption, SchemaAuthority,
+    SnapshotState, VerifyReport,
 };
 use std::collections::BTreeMap;
 
@@ -61,7 +61,7 @@ pub const RECIPES_DIR: &str = ".pinker/projections/recipes/";
 // @pinker-nav:start trama.snapshots.receita
 // @pinker-nav:domain snapshots
 // @pinker-nav:layer trama
-// @pinker-nav:summary Receita de reconstrução: autoridade reutilizável e mínima para as transformações intermediárias que não possuem medida histórica própria, sem medidas, sem estado e sem predecessor, capaz de compor apenas outras receitas e nunca snapshots, com versionamento próprio independente do formato de snapshot.
+// @pinker-nav:summary Receita de reconstrução: autoridade reutilizável e mínima para as transformações intermediárias que não possuem medida histórica própria, sem medidas, sem estado e sem predecessor, capaz de compor apenas outras receitas e nunca snapshots, com versionamento próprio independente do formato de snapshot, e sem autoridade para afirmar fato histórico — materializar região pertence só ao snapshot.
 
 /// Uma transformação reutilizável, sem identidade histórica.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -176,6 +176,18 @@ pub fn parse_recipe(text: &str) -> Result<Recipe, HarnessFailure> {
         let rule = build_rule(table, index)?;
         // A matriz de capacidades é por autoridade: a mesma operação pode exigir
         // versões diferentes em snapshot e em receita.
+        // Materializar não é transformar: é afirmar um fato histórico. Uma
+        // receita é transformação reutilizável, sem medidas, sem estado e sem
+        // predecessor — não tem como responder por um fato. E porque uma receita
+        // é compartilhada por snapshots com estados históricos diferentes,
+        // injetar a mesma região em todos obrigaria os que não a tinham a
+        // excluí-la de volta. A rejeição é nomeada, não "chave desconhecida".
+        if rule.is_materialization() {
+            return Err(HarnessFailure::OperationOutsideAuthority {
+                authority: SchemaAuthority::Recipe,
+                op: rule.op().to_string(),
+            });
+        }
         let exigido = rule.min_schema(SchemaAuthority::Recipe);
         if exigido > schema {
             return Err(HarnessFailure::CapabilityRequiresSchema {
@@ -334,7 +346,7 @@ impl Library {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Composition {
     /// Regiões do estado reconstruído.
-    pub regions: Vec<CodeRegion>,
+    pub regions: Vec<ProjectionRegion>,
     /// Consumo por escopo, na ordem de aplicação.
     pub ledger: Vec<ScopeConsumption>,
     /// Snapshots de base verificados durante a resolução, do mais profundo ao
@@ -402,8 +414,8 @@ fn resolve_snapshot(
     let mut verified_bases: Vec<String> = Vec::new();
 
     // (1) base, resolvida e verificada contra as próprias medidas.
-    let mut regions: Vec<CodeRegion> = match &snapshot.base_snapshot {
-        None => catalog.to_vec(),
+    let mut regions: Vec<ProjectionRegion> = match &snapshot.base_snapshot {
+        None => catalog.iter().map(ProjectionRegion::from).collect(),
         Some(base_id) => {
             let base = resolve_snapshot(library, base_id, catalog, visitando)?;
             let base_snapshot = library
@@ -446,12 +458,12 @@ fn resolve_snapshot(
     })
 }
 
-type SaidaReceita = (Vec<CodeRegion>, Vec<ScopeConsumption>);
+type SaidaReceita = (Vec<ProjectionRegion>, Vec<ScopeConsumption>);
 
 fn resolve_recipe(
     library: &Library,
     recipe_id: &str,
-    entrada: Vec<CodeRegion>,
+    entrada: Vec<ProjectionRegion>,
     visitando: &mut Vec<String>,
 ) -> Result<SaidaReceita, HarnessFailure> {
     let marca = format!("recipe:{}", recipe_id);

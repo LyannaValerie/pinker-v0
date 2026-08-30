@@ -199,6 +199,7 @@ fn fixture(label: &str) -> Repo {
         measures: measure(catalog.regions.iter()),
         expected_overrides: 0,
         expected_exclusions: 0,
+        expected_materializations: 0,
         base_snapshot: None,
         recipes: Vec::new(),
         rules: Vec::new(),
