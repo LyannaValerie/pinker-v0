@@ -47,6 +47,29 @@ for padrao in "${APOSENTADOS[@]}"; do
     done < <(git grep -n -F --untracked --exclude-standard -- "$padrao" -- . 2>/dev/null || true)
 done
 
+# A implementação da Forja saiu deste repositório na Issue #544 e não volta por
+# descuido. Aqui a prova é de existência, não de menção: citar o caminho antigo
+# em prosa histórica é legítimo, versionar o arquivo de novo não é.
+APOSENTADOS_REPO_SIDE=(
+    'scripts/forja/forja_agentes.py'
+    'scripts/forja/instalar.sh'
+    'tests/forja/test_forja_agentes.py'
+    'tests/forja/test_sensibilidade.py'
+)
+for caminho in "${APOSENTADOS_REPO_SIDE[@]}"; do
+    if [[ -e "$caminho" ]] || git ls-files --error-unmatch -- "$caminho" >/dev/null 2>&1; then
+        printf 'IMPLEMENTACAO_FORJA_DE_VOLTA_NO_REPO %s\n' "$caminho"
+        falhas=$((falhas + 1))
+    fi
+done
+
+# O ponteiro para a autoridade host-side precisa continuar sendo ensinado: sem
+# ele, o repo diz onde a Forja não está e não diz onde ela está.
+if ! git grep -q -F --untracked --exclude-standard -- '/pinker/playground/ferramentas-agente' -- AGENTS.md; then
+    printf 'AGENTS_NAO_ENSINA_A_AUTORIDADE_HOST_SIDE\n'
+    falhas=$((falhas + 1))
+fi
+
 # A raiz corrente precisa estar presente e ser ensinada em algum lugar.
 if ! git grep -q -F --untracked --exclude-standard -- '/pinker/repo/pinker-v0' -- AGENTS.md; then
     printf 'AGENTS_NAO_ENSINA_CANONICAL_MAIN\n'

@@ -124,10 +124,10 @@ AGENT_MEMORY_FORMAT = JSON_OR_JSONL
 Markdown não é memória operacional primária. Formato usual:
 
 ```text
-state.json        identidade, baseline, SHAs, estágio
-events.jsonl      fatos datados: probes, decisões, Book reads
-findings.jsonl    achados com evidência
-adversarial.jsonl produzido pelo agente adversarial, nunca pelo PRIMARY
+state.json             identidade, baseline, SHAs, estágio
+events.jsonl           fatos datados: probes, decisões, Book reads
+findings.jsonl         achados com evidência
+review-subagent.jsonl  produzido pelo subagente de revisão, nunca pelo PRIMARY
 ```
 
 Registre apenas fato compacto: SHA, caminho observado, id de recurso, comando
@@ -135,29 +135,22 @@ resumido, resultado, decisão, hipótese marcada como tal, ponteiro de evidênci
 limitação. Nunca chain-of-thought, transcript integral, segredo, credencial ou
 diário narrativo.
 
-### Por que o build sai no `target` do Task root
+### Ciclo de vida da Task: o que você precisa saber para operar
 
-Por padrão o Cargo grava em `<worktree>/target`, e `ci_env.sh` não define
-`CARGO_TARGET_DIR`. Esse caminho é `DURABLE` por estar dentro da worktree: o
-`EXECUTION_SEAL` o preservaria junto com a worktree, e gigabytes de build
-sobreviveriam ao fechamento sem nenhuma razão. Medido em `issue-514` e
-`issue-520` sob o layout anterior: ambas encerraram com o finalizador reportando
-`CLEAN_NOOP` e `reclaimed_bytes: 0` enquanto 7,3 GB e 7,0 GB de build ficavam
-para trás.
-
-Com `CARGO_TARGET_DIR` no slot `target` do Task root — o que `forja-agentes env`
-já faz — o peso está numa classe `EPHEMERAL` que o selo sabe recuperar, e o
-mesmo root continua contendo tudo.
-
-### Selo e retirada são fases distintas
+O contrato é de invocação, não de implementação. A Forja é a autoridade sobre o
+próprio layout, o próprio modelo de ameaça e a própria semântica de destruição;
+este arquivo só diz o suficiente para você usá-la corretamente.
 
 ```text
 EXECUTION_SEAL   após implementação/testes/PR, quando seguro
-                 recupera: target, cache, tmp, scratch, logs
-                 preserva: worktree, branch/HEAD, memory, state, artifacts
+                 recupera o efêmero (target, cache, tmp, scratch, logs)
+                 preserva worktree, branch/HEAD, memory, state, artifacts
 
 TASK_RETIRE      somente após merge humano + main verde + decisão do Guia
                  remove a subárvore inteira do Task root
+
+ACTIVE ──> REVIEW ──> FIX_REQUIRED ──> SEALED ──> RETIREABLE
+ACTIVE ──> RETIREABLE                             PROIBIDO
 ```
 
 ```bash
@@ -168,74 +161,76 @@ forja-agentes retire               # plano com as provas exigidas
 forja-agentes retire --apply       # destrói, fail-closed
 ```
 
-O caminho até a destruição é uma máquina de estados, e a aresta que **não**
-existe é a que importa:
+Três consequências práticas, e o resto é da Forja:
+
+- **Não retire antes do merge.** A revisão, a verificação do PRIMARY e a
+  disposição do Guia ainda precisam da worktree e da memória.
+- **Comando mutante age sobre a própria Task.** Em `state`, `seal` e `retire`,
+  `--task-id` é asserção, não endereço: divergir do que o observador canônico
+  atribui ao chamador é recusado.
+- **A destruição é fail-closed e diz o alcance da própria prova.** Quando a
+  saída trouxer `uninspectable_*`, ela está declarando o limite da evidência em
+  vez de escondê-lo; leia antes de concluir qualquer coisa sobre resíduo.
+  `FORJA_AGENTES_STRICT_PROCESSES=1` transforma evidência ilegível em bloqueio.
+  E não leia estes gates como prova criptográfica: eles são barreira contra
+  atalho, não fronteira contra adulteração — o vínculo é um JSON no slot, de
+  propriedade da própria Task, que portanto pode escrevê-lo.
+
+Por que `CARGO_TARGET_DIR` sai no slot `target` do Task root: dentro da worktree
+ele seria `DURABLE` e o selo preservaria gigabytes de build sem razão. O
+`forja-agentes env` já resolve isso — use o que ele exporta.
+
+Autoridade da implementação (fonte, suítes e instalador) vive no host, não neste
+repositório — ver *Onde vive a Forja*.
+
+### Onde vive a Forja
+
+A Forja serve aos agentes que trabalham na Pinker. Ela **não** é produto Pinker,
+e este repositório não é autoridade sobre a implementação dela (Issue #544).
 
 ```text
-ACTIVE ──> REVIEW ──> FIX_REQUIRED ──> SEALED ──> RETIREABLE
-   └──────────┴──────────────┘             │
-                                           └──> FIX_REQUIRED (reabrir)
-
-ACTIVE ──> RETIREABLE                      PROIBIDO
+PINKER_REPO   produto Pinker + autoridade mínima de integração
+FORJA_HOST    autoridade operacional da Forja
 ```
 
-Pular o selo apagaria a worktree e a memória que a revisão ainda usa, então o
-único caminho até `RETIREABLE` **pela CLI** passa por um selo real: `SEALED` não
-é atribuível por `state`, só é escrito por um `seal --apply` bem-sucedido, e
-`retire` exige a evidência datada que o selo grava.
+| o que | onde |
+|---|---|
+| binários operacionais | `/opt/pinker/bin/` (`forja-agentes`, `forja-lifecycle`, `ls-forja`, `pink`) |
+| fonte e suítes da Forja | `/pinker/playground/ferramentas-agente/` |
+| catálogo de ferramentas | `ls-forja` sobre `/pinker/state/catalogo` |
+| conhecimento operacional | `/book` |
+| Task roots | `agentes/<slot>` neste checkout, observados — nunca concatenados |
 
-O que isso é, exatamente:
+Descubra a ferramenta antes de inventar uma:
+
+```bash
+ls-forja --json
+ls-forja find <intenção> --json
+ls-forja show <nome> --json
+```
+
+O que este repositório mantém sobre a Forja é só isto: o contrato de invocação
+acima, o `.gitignore` de `agentes/` que impede material de execução de entrar em
+PR, e `forja-paths-check`, que recusa arquivo versionado ensinando um layout
+aposentado. A suíte operacional da Forja **não** roda no `make ci` da Pinker; ela
+é testada onde a autoridade dela vive:
+
+```bash
+cd /pinker/playground/ferramentas-agente
+python3 -m unittest discover -s . -p 'test_forja_agentes.py'
+python3 -m unittest discover -s . -p 'test_sensibilidade.py'
+bash instalar-forja-agentes.sh --check
+```
+
+Essa fonte é um repositório Git próprio da Forja, sem remote. Sair do repo da
+Pinker não é sair do versionamento: a integridade interna da autoridade da Forja
+é provada lá, não aqui. `--check` só devolve `PARITY` quando os bytes instalados
+e o commit nomeado pelo recibo batem com a fonte — é assim que se prova que
+`/opt/pinker/bin` não está atrás.
 
 ```text
-BARREIRA CONTRA ATALHO         sim
-BOUNDARY CONTRA ADULTERAÇÃO    não
+PINKER_BRIDGE_GATE != FORJA_IMPLEMENTATION_GATE
 ```
-
-O vínculo é um JSON em `agentes/<slot>/task.json`, modo 0660, de propriedade da
-própria Task — que portanto pode escrevê-lo. Os gates elevam o custo de forjar
-um selo dentro da ferramenta; eles não impedem quem edite o arquivo à mão. Uma
-garantia real exigiria estado fora do alcance de escrita da Task, isto é, um
-broker privilegiado, e essa é uma decisão de arquitetura, não um detalhe de
-implementação. Não leia estes gates como prova criptográfica.
-
-### Comando mutante age sobre a própria Task, e só
-
-```text
-observe | list | env      --task-id de outra Task é PERMITIDO (ler não muta)
-state | seal | retire     --task-id é ASSERÇÃO, não endereço
-```
-
-Num comando mutante, `--task-id` precisa coincidir com a Task que o observador
-canônico atribui ao chamador; divergir é recusado. Além disso o vínculo gravado
-no slot precisa declarar o agente que está chamando.
-
-Isso fecha um ataque que nenhuma guarda de caminho detectaria: o caminho da
-Task B é perfeitamente válido, e sem esta regra `--task-id` seria exatamente o
-mecanismo pelo qual a Task A apagaria a B.
-
-### O alcance da prova de processo está escrito na saída
-
-```text
-NO_INSPECTABLE_PROCESS_IN_TASK_ROOT(uninspectable_same_reach=N;uninspectable_root_owned=M)
-```
-
-Threads do kernel e processos privilege-separated do mesmo uid (`sshd-session`,
-`dumpable=0`) não são inspecionáveis sem privilégio. A prova padrão é sobre os
-processos **inspecionáveis**, e diz isso na própria string em vez de deixar a
-limitação virar silêncio. `FORJA_AGENTES_STRICT_PROCESSES=1` transforma
-evidência ilegível que alcança o root em bloqueio.
-
-Não retire uma Task antes do merge: a revisão adversarial, a verificação do
-PRIMARY e a disposição do Guia ainda podem precisar da worktree e da memória.
-`retire` recusa qualquer estado que não seja `RETIREABLE`, exige evidência
-datada de um selo ocorrido, e
-desregistra a worktree pelo Git antes de remover o diretório, de modo que
-`.git/worktrees` não fique com metadata órfã.
-
-Toda destruição é fail-closed: canonicaliza o caminho, prova contenção sob
-`agentes/`, prova que não é o checkout canônico, recusa symlink em qualquer
-componente, recusa mountpoint interno, recusa processo vivo no root, confere
-ownership e nunca segue link simbólico ao apagar.
 
 ### Raiz de execução nativa e ponte da staticlib
 
@@ -621,43 +616,56 @@ Se a retenção não estiver autorizada ou disponível, preserve o candidato pen
 reporte a dívida de conhecimento. Isso **não** bloqueia a finalização da Task, salvo
 se o contrato da própria Task fizer do Book um gate explícito.
 
-### Revisão adversarial externa
+### Revisão adversarial
 
 ```text
-TWO_WAY_ANALYSIS_HANDSHAKING
+PRIMARY -> EXACTLY_ONE_REVIEW_SUBAGENT
+REVIEW_TIMING = FINAL_GLOBAL_REVIEW_ONLY
 CI_GREEN != SEMANTIC_ACCEPTANCE
 IMPLEMENTER_REPORT != REVIEW_PREMISE
 ```
 
-PR de implementação recebe análise adversarial externa antes do aceite semântico
-do Guia. O agente adversarial é outro agente/modelo — Claude implementa, Codex
-revisa, e vice-versa. Auto-revisão pelo mesmo agente não substitui a etapa:
+PR de implementação recebe revisão adversarial antes do aceite semântico do
+Guia. O PRIMARY invoca **exatamente um** subagente de revisão por Task — um por
+Task, não um por rodada. Gasto o subagente, remediação posterior é fechamento
+dirigido feito pelo próprio PRIMARY sobre os blockers remediados, e não uma
+segunda revisão ampla.
+
+O timing é global e final: a revisão roda uma vez, sobre o HEAD final da PR, com
+a mudança inteira à vista. Não fatie a revisão ao longo da implementação — uma
+revisão que só viu pedaços não viu a mudança.
+
+Autorrevisão do PRIMARY na mesma sessão não substitui a etapa. O que a substitui
+é o subagente em sessão separada; nada além disso é exigido dele:
 
 ```text
-SAME_AGENT_SELF_INVOCATION = FORBIDDEN
+SAME_SESSION_SELF_REVIEW = FORBIDDEN
+DIFFERENT_COMPANY = NOT_REQUIRED
+DIFFERENT_MODEL = NOT_REQUIRED
+DIFFERENT_PROVIDER = NOT_REQUIRED
 ```
 
-O adversário é **read-only** para repositório e remoto, roda em modo não
-interativo e em sessão efêmera, e não pode usar a própria memória persistente
-como autoridade. A única escrita autorizada dele é a prova da própria ação:
+O revisor é **read-only** para repositório e remoto, roda em sessão efêmera, e
+não pode usar a própria memória persistente como autoridade. A única escrita
+autorizada dele é a prova da própria ação:
 
 ```text
-<TASK_ROOT>/memory/adversarial.jsonl
+<TASK_ROOT>/memory/review-subagent.jsonl
 ```
 
-Esse arquivo é `CODEX_ACTION_PROOF` e `HANDOFF` ao mesmo tempo — o relatório
-textual não o substitui. Registros mínimos: `session_start`, `probe*`,
-`finding*`, `book_read*` quando houver, `limitation*` quando houver,
-`session_end`. O PRIMARY verifica que o arquivo existe, não está vazio, que o
-`head` registrado é o HEAD revisado, e que os findings do relatório batem com os
-do JSONL. Antes e depois da sessão adversarial, prove que `HEAD` e a worktree
-rastreada não mudaram.
+Esse arquivo é prova de ação e `HANDOFF` ao mesmo tempo — o relatório textual
+não o substitui. Registros mínimos: `session_start`, `probe*`, `finding*`,
+`book_read*` quando houver, `limitation*` quando houver, `session_end`. O
+PRIMARY verifica que o arquivo existe, não está vazio, que o `head` registrado é
+o HEAD revisado, e que os findings do relatório batem com os do JSONL. Antes e
+depois da sessão de revisão, prove que `HEAD` e a worktree rastreada não
+mudaram.
 
 O PRIMARY **não** refaz a análise inteira: ele verifica probes materiais,
-blockers, limitações e comparações de baseline. Finding do adversário é
-evidência, não autoridade — remédio arquitetural ruim se registra e se rejeita
-com justificativa. Se um finding em escopo for corrigido, o `HEAD` muda e a
-revisão adversarial precisa ser refeita sobre o HEAD final.
+blockers, limitações e comparações de baseline. Finding do revisor é evidência,
+não autoridade — remédio arquitetural ruim se registra e se rejeita com
+justificativa. Corrigir um finding muda o `HEAD`; o PRIMARY refaz então o
+fechamento dirigido sobre o HEAD final, sem consumir outro subagente.
 
 ## O que sempre checar em mudança funcional
 
@@ -699,8 +707,9 @@ Mesmo durante o freeze, estes arquivos podem ser lidos para contexto, mas não d
   (`ADD`/`REVISE`/`CHALLENGE`/`RELATE`/`USE`); candidato pendente registrado caso
   não haja autoridade
 - memória factual da Task em `<TASK_ROOT>/memory`, em JSON/JSONL
-- revisão adversarial externa concluída sobre o HEAD final, com
-  `<TASK_ROOT>/memory/adversarial.jsonl` produzido pelo próprio adversário
+- revisão adversarial concluída sobre o HEAD final por exatamente um subagente
+  de revisão, com `<TASK_ROOT>/memory/review-subagent.jsonl` produzido por ele
+  mesmo; remediação posterior fecha por fechamento dirigido do PRIMARY
 - `make ci` executado
 - diff auditável
 - continuidade preservada
