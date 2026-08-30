@@ -210,6 +210,27 @@ fn manifesto_detecta_artefato_alterado() {
     assert_eq!(verificar(&path).unwrap(), EXIT_BLOCKED);
 }
 
+// Regressão da Issue #542: o dígito que algum veredito consome — o do
+// executável realmente spawnado — continua observado e registrado. A Task
+// removeu apenas o dígito de git/gh, que nenhum artefato registrava.
+#[test]
+fn validation_registra_identidade_do_executavel_spawnado() {
+    let root = root("provenance");
+    let path = spec(&root, &shell("ok", "exit 0", 0));
+    assert_eq!(executar(&path).expect("run"), EXIT_ACCEPTED);
+    let validation = fs::read_to_string(root.join("delegated/artefatos/validation.json")).unwrap();
+    let shell_path = fs::canonicalize("/bin/sh").unwrap();
+    let digest = sha256_hex(&fs::read(&shell_path).unwrap());
+    assert!(
+        validation.contains(&format!("\"executable_path\":\"{}\"", shell_path.display())),
+        "{validation}"
+    );
+    assert!(
+        validation.contains(&format!("\"executable_sha256\":\"{digest}\"")),
+        "{validation}"
+    );
+}
+
 #[test]
 fn comando_pinker_tipado_executa_pela_cli() {
     let root = root("typed");

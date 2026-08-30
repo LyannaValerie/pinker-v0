@@ -1297,7 +1297,10 @@ struct ObservedExecutable {
 }
 
 impl ObservedExecutable {
-    fn observe(path: &Path) -> Result<Self, String> {
+    /// Valida e canonicaliza o caminho de um executável sem ler seu conteúdo.
+    /// O dígito é caro (SHA-256 do binário inteiro) e só é calculado por
+    /// [`ObservedExecutable::observe`], onde algum veredito o consome.
+    fn resolve(path: &Path) -> Result<PathBuf, String> {
         let absolute = if path.is_absolute() {
             path.to_path_buf()
         } else {
@@ -1329,6 +1332,11 @@ impl ObservedExecutable {
                 ));
             }
         }
+        Ok(canonical)
+    }
+
+    fn observe(path: &Path) -> Result<Self, String> {
+        let canonical = Self::resolve(path)?;
         let bytes = fs::read(&canonical).map_err(|err| err.to_string())?;
         Ok(Self {
             path: canonical,
@@ -1432,9 +1440,10 @@ fn trusted_system_executable(name: &str) -> Result<PathBuf, String> {
     for directory in ["/usr/local/bin", "/usr/bin", "/bin"] {
         let candidate = Path::new(directory).join(name);
         if candidate.exists() {
-            let observed = ObservedExecutable::observe(&candidate)?;
-            observed.verify()?;
-            return Ok(observed.path);
+            // Só o caminho validado é usado aqui: nenhum veredito consome o
+            // dígito de git/gh. Observar o conteúdo custava duas leituras
+            // SHA-256 do binário inteiro por invocação de git.
+            return ObservedExecutable::resolve(&candidate);
         }
     }
     Err(format!(
@@ -3926,7 +3935,7 @@ mod executable_resolution_tests {
 
 #[cfg(all(test, target_os = "linux", target_arch = "x86_64"))]
 mod executable_policy_tests {
-    use super::{ExecutionPolicy, ObservedExecutable};
+    use super::{trusted_system_executable, ExecutionPolicy, ObservedExecutable};
     use std::fs;
     use std::os::unix::fs::{symlink, PermissionsExt};
     use std::path::PathBuf;
@@ -3987,6 +3996,41 @@ mod executable_policy_tests {
         fs::remove_file(&observed.path).unwrap();
         symlink(&replacement, &observed.path).unwrap();
         assert!(observed.verify().unwrap_err().contains("mudou"));
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    // Regressão da Issue #542: resolver o executável de sistema deixou de ler e
+    // digerir o binário inteiro, mas o registro fechado e a validação de
+    // caminho continuam sendo as mesmas — inclusive as recusas que antes vinham
+    // de `observe`.
+    #[test]
+    fn executavel_de_sistema_mantem_registro_fechado_e_validacao_de_caminho() {
+        let git = trusted_system_executable("git").expect("git registrado");
+        assert!(git.is_absolute());
+        assert!(git.is_file());
+        assert_eq!(git, git.canonicalize().unwrap());
+
+        let error = trusted_system_executable("curl").unwrap_err();
+        assert!(error.contains("sem registro"), "{error}");
+
+        let root = std::env::temp_dir().join(format!(
+            "pink-agent-resolve-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::create_dir_all(&root).unwrap();
+        assert!(ObservedExecutable::resolve(&PathBuf::from("relativo"))
+            .unwrap_err()
+            .contains("absoluto"));
+        assert!(ObservedExecutable::resolve(&root)
+            .unwrap_err()
+            .contains("não é arquivo"));
+        let sem_permissao = root.join("sem-permissao");
+        fs::write(&sem_permissao, b"#!/bin/sh\nexit 0\n").unwrap();
+        fs::set_permissions(&sem_permissao, fs::Permissions::from_mode(0o600)).unwrap();
+        assert!(ObservedExecutable::resolve(&sem_permissao)
+            .unwrap_err()
+            .contains("permissão de execução"));
         fs::remove_dir_all(root).unwrap();
     }
 }
