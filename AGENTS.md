@@ -135,29 +135,22 @@ resumido, resultado, decisão, hipótese marcada como tal, ponteiro de evidênci
 limitação. Nunca chain-of-thought, transcript integral, segredo, credencial ou
 diário narrativo.
 
-### Por que o build sai no `target` do Task root
+### Ciclo de vida da Task: o que você precisa saber para operar
 
-Por padrão o Cargo grava em `<worktree>/target`, e `ci_env.sh` não define
-`CARGO_TARGET_DIR`. Esse caminho é `DURABLE` por estar dentro da worktree: o
-`EXECUTION_SEAL` o preservaria junto com a worktree, e gigabytes de build
-sobreviveriam ao fechamento sem nenhuma razão. Medido em `issue-514` e
-`issue-520` sob o layout anterior: ambas encerraram com o finalizador reportando
-`CLEAN_NOOP` e `reclaimed_bytes: 0` enquanto 7,3 GB e 7,0 GB de build ficavam
-para trás.
-
-Com `CARGO_TARGET_DIR` no slot `target` do Task root — o que `forja-agentes env`
-já faz — o peso está numa classe `EPHEMERAL` que o selo sabe recuperar, e o
-mesmo root continua contendo tudo.
-
-### Selo e retirada são fases distintas
+O contrato é de invocação, não de implementação. A Forja é a autoridade sobre o
+próprio layout, o próprio modelo de ameaça e a própria semântica de destruição;
+este arquivo só diz o suficiente para você usá-la corretamente.
 
 ```text
 EXECUTION_SEAL   após implementação/testes/PR, quando seguro
-                 recupera: target, cache, tmp, scratch, logs
-                 preserva: worktree, branch/HEAD, memory, state, artifacts
+                 recupera o efêmero (target, cache, tmp, scratch, logs)
+                 preserva worktree, branch/HEAD, memory, state, artifacts
 
 TASK_RETIRE      somente após merge humano + main verde + decisão do Guia
                  remove a subárvore inteira do Task root
+
+ACTIVE ──> REVIEW ──> FIX_REQUIRED ──> SEALED ──> RETIREABLE
+ACTIVE ──> RETIREABLE                             PROIBIDO
 ```
 
 ```bash
@@ -168,74 +161,62 @@ forja-agentes retire               # plano com as provas exigidas
 forja-agentes retire --apply       # destrói, fail-closed
 ```
 
-O caminho até a destruição é uma máquina de estados, e a aresta que **não**
-existe é a que importa:
+Três consequências práticas, e o resto é da Forja:
+
+- **Não retire antes do merge.** A revisão, a verificação do PRIMARY e a
+  disposição do Guia ainda precisam da worktree e da memória.
+- **Comando mutante age sobre a própria Task.** Em `state`, `seal` e `retire`,
+  `--task-id` é asserção, não endereço: divergir do que o observador canônico
+  atribui ao chamador é recusado.
+- **A destruição é fail-closed e diz o alcance da própria prova.** Quando a
+  saída trouxer `uninspectable_*`, ela está declarando o limite da evidência em
+  vez de escondê-lo; leia antes de concluir qualquer coisa sobre resíduo.
+
+Por que `CARGO_TARGET_DIR` sai no slot `target` do Task root: dentro da worktree
+ele seria `DURABLE` e o selo preservaria gigabytes de build sem razão. O
+`forja-agentes env` já resolve isso — use o que ele exporta.
+
+Autoridade da implementação (fonte, suítes e instalador) vive no host, não neste
+repositório — ver *Onde vive a Forja*.
+
+### Onde vive a Forja
+
+A Forja serve aos agentes que trabalham na Pinker. Ela **não** é produto Pinker,
+e este repositório não é autoridade sobre a implementação dela (Issue #544).
 
 ```text
-ACTIVE ──> REVIEW ──> FIX_REQUIRED ──> SEALED ──> RETIREABLE
-   └──────────┴──────────────┘             │
-                                           └──> FIX_REQUIRED (reabrir)
-
-ACTIVE ──> RETIREABLE                      PROIBIDO
+PINKER_REPO   produto Pinker + autoridade mínima de integração
+FORJA_HOST    autoridade operacional da Forja
 ```
 
-Pular o selo apagaria a worktree e a memória que a revisão ainda usa, então o
-único caminho até `RETIREABLE` **pela CLI** passa por um selo real: `SEALED` não
-é atribuível por `state`, só é escrito por um `seal --apply` bem-sucedido, e
-`retire` exige a evidência datada que o selo grava.
+| o que | onde |
+|---|---|
+| binários operacionais | `/opt/pinker/bin/` (`forja-agentes`, `forja-lifecycle`, `ls-forja`, `pink`) |
+| fonte e suítes da Forja | `/pinker/playground/ferramentas-agente/` |
+| catálogo de ferramentas | `ls-forja` sobre `/pinker/state/catalogo` |
+| conhecimento operacional | `/book` |
+| Task roots | `agentes/<slot>` neste checkout, observados — nunca concatenados |
 
-O que isso é, exatamente:
+Descubra a ferramenta antes de inventar uma:
 
-```text
-BARREIRA CONTRA ATALHO         sim
-BOUNDARY CONTRA ADULTERAÇÃO    não
+```bash
+ls-forja --json
+ls-forja find <intenção> --json
+ls-forja show <nome> --json
 ```
 
-O vínculo é um JSON em `agentes/<slot>/task.json`, modo 0660, de propriedade da
-própria Task — que portanto pode escrevê-lo. Os gates elevam o custo de forjar
-um selo dentro da ferramenta; eles não impedem quem edite o arquivo à mão. Uma
-garantia real exigiria estado fora do alcance de escrita da Task, isto é, um
-broker privilegiado, e essa é uma decisão de arquitetura, não um detalhe de
-implementação. Não leia estes gates como prova criptográfica.
+O que este repositório mantém sobre a Forja é só isto: o contrato de invocação
+acima, o `.gitignore` de `agentes/` que impede material de execução de entrar em
+PR, e `forja-paths-check`, que recusa arquivo versionado ensinando um layout
+aposentado. A suíte operacional da Forja **não** roda no `make ci` da Pinker; ela
+é testada onde a autoridade dela vive:
 
-### Comando mutante age sobre a própria Task, e só
-
-```text
-observe | list | env      --task-id de outra Task é PERMITIDO (ler não muta)
-state | seal | retire     --task-id é ASSERÇÃO, não endereço
+```bash
+cd /pinker/playground/ferramentas-agente
+python3 -m unittest discover -s . -p 'test_forja_agentes.py'
+python3 -m unittest discover -s . -p 'test_sensibilidade.py'
+bash instalar-forja-agentes.sh --check
 ```
-
-Num comando mutante, `--task-id` precisa coincidir com a Task que o observador
-canônico atribui ao chamador; divergir é recusado. Além disso o vínculo gravado
-no slot precisa declarar o agente que está chamando.
-
-Isso fecha um ataque que nenhuma guarda de caminho detectaria: o caminho da
-Task B é perfeitamente válido, e sem esta regra `--task-id` seria exatamente o
-mecanismo pelo qual a Task A apagaria a B.
-
-### O alcance da prova de processo está escrito na saída
-
-```text
-NO_INSPECTABLE_PROCESS_IN_TASK_ROOT(uninspectable_same_reach=N;uninspectable_root_owned=M)
-```
-
-Threads do kernel e processos privilege-separated do mesmo uid (`sshd-session`,
-`dumpable=0`) não são inspecionáveis sem privilégio. A prova padrão é sobre os
-processos **inspecionáveis**, e diz isso na própria string em vez de deixar a
-limitação virar silêncio. `FORJA_AGENTES_STRICT_PROCESSES=1` transforma
-evidência ilegível que alcança o root em bloqueio.
-
-Não retire uma Task antes do merge: a revisão adversarial, a verificação do
-PRIMARY e a disposição do Guia ainda podem precisar da worktree e da memória.
-`retire` recusa qualquer estado que não seja `RETIREABLE`, exige evidência
-datada de um selo ocorrido, e
-desregistra a worktree pelo Git antes de remover o diretório, de modo que
-`.git/worktrees` não fique com metadata órfã.
-
-Toda destruição é fail-closed: canonicaliza o caminho, prova contenção sob
-`agentes/`, prova que não é o checkout canônico, recusa symlink em qualquer
-componente, recusa mountpoint interno, recusa processo vivo no root, confere
-ownership e nunca segue link simbólico ao apagar.
 
 ### Raiz de execução nativa e ponte da staticlib
 
