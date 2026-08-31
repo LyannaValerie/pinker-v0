@@ -250,7 +250,7 @@ automation core.
 
 O JSON de `pink nav projecao` usa `PROJECTION_CLI_SCHEMA = 1`. O relatório
 histórico de `json_report()` usa `SNAPSHOT_REPORT_SCHEMA = 1`. Ambos são
-protocolos de relatório, separados do `SNAPSHOT_SCHEMA = 3` do artefato TOML.
+protocolos de relatório, separados do `SNAPSHOT_SCHEMA = 4` do artefato TOML.
 Saídas são de uma linha, determinísticas, sem ANSI, root absoluto, timestamp,
 PID ou payload completo do plano.
 
