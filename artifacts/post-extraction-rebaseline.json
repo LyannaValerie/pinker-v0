@@ -1,0 +1,23 @@
+{
+  "schema": "pinker-548-post-extraction-rebaseline-v1",
+  "method": "one compatible full cargo test run with lightweight cc shim; no option profiling",
+  "exit": 0,
+  "post_extraction_full_test_wall_ms": 427960.0,
+  "post_extraction_target_count": 115,
+  "post_extraction_native_link_count": 376,
+  "post_extraction_affected_target_count": 39,
+  "post_extraction_sum_link_duration_ms": 85469.2,
+  "post_extraction_link_union_wall_ms": 60952.5,
+  "post_extraction_real_link_share": 14.243,
+  "cc_invocations": 1406,
+  "native_link_count_definition": "cc invocations whose arguments contain pinker_rt",
+  "expensive_profiling_repeated": false,
+  "pre_extraction": {
+    "full_test_wall_ms": 438245.6,
+    "native_link_count": 376,
+    "affected_target_count": 39,
+    "sum_link_duration_ms": 86260.4,
+    "link_union_wall_ms": 63523.1,
+    "real_link_share": 14.495
+  }
+}

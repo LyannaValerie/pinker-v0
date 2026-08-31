@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "phase": "before",
+  "host_root": "/pinker/playground/ferramentas-agente",
+  "head": "5c3a44a65564ebada34547c871ff8ce1523a847a",
+  "branch": "main",
+  "status": "CLEAN",
+  "remote": "NONE",
+  "installed_source_commit": "5c3a44a65564ebada34547c871ff8ce1523a847a",
+  "host_source_commit": "5c3a44a65564ebada34547c871ff8ce1523a847a",
+  "drift": false,
+  "installer_check": "PARITY",
+  "forja_agentes_tests": "PASS (110 tests, 6.063s)",
+  "forja_evidence_verify": "PASS (checked=43 failures=0)",
+  "forja_agentes_verify": "PASS",
+  "sensitivity_test": "PASS (2 tests, 295.515s)",
+  "notes": "host baseline gates completed before Pinker edits; no host mutation"
+}

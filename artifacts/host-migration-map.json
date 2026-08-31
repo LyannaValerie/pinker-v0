@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "host_root": "/pinker/playground/ferramentas-agente",
+  "source_commit_before": "5c3a44a65564ebada34547c871ff8ce1523a847a",
+  "source_commit_after": "5c3a44a65564ebada34547c871ff8ce1523a847a",
+  "remote": "NONE",
+  "needed_behaviors": [],
+  "already_present": ["provision", "observe", "verify", "seal", "retire", "evidence", "local-git", "installer-provenance"],
+  "migrated": [],
+  "deleted_unused": ["Pinker-side agent runner", "Pinker-side publication/baseline harness"],
+  "implementation_language": {"bash": 0, "python": 0, "rust": 0},
+  "decision": "No host port was needed: #544 already owns the required host behavior."
+}

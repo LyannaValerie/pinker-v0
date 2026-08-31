@@ -1,4 +1,4 @@
-schema = 3
+schema = 4
 id = "onda-8h-anterior"
 state = "FROZEN"
 justification = "Estado anterior à evidência da Onda 8H (toolchain externa), medido pelo gate onda_8h_cartografa_evidencias_da_toolchain_externa."

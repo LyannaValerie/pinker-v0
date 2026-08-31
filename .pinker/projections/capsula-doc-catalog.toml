@@ -1,4 +1,4 @@
-schema = 3
+schema = 4
 id = "capsula-doc-catalog"
 state = "FROZEN"
 justification = "Estado completo da cápsula doc-catalog, medido pelo gate capsula_doc_catalog_cartografa_suporte_e_quatro_testes."

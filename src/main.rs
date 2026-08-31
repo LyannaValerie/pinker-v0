@@ -1,6 +1,5 @@
 use pinker_v0::abstract_machine;
 use pinker_v0::abstract_machine_validate;
-use pinker_v0::agent;
 use pinker_v0::backend_s;
 use pinker_v0::backend_text;
 use pinker_v0::backend_text_validate;
@@ -198,26 +197,9 @@ struct NavConfigCli {
     sub: NavSub,
 }
 
-enum AgentSub {
-    Iniciar,
-    Executar,
-    Verificar,
-    Sensibilidade,
-    Publicar,
-    Retomar,
-    Status { json: bool },
-    Relatorio,
-}
-
-struct AgentConfigCli {
-    spec: PathBuf,
-    sub: AgentSub,
-}
-
 struct StateConfigCli {
     repo: String,
     json: bool,
-    agent_spec: Option<PathBuf>,
 }
 
 struct DoctorConfigCli {
@@ -243,7 +225,6 @@ enum CliCommand {
     Repl(ReplConfig),
     Doc(DocConfigCli),
     Nav(NavConfigCli),
-    Agent(AgentConfigCli),
     State(StateConfigCli),
     Doctor(DoctorConfigCli),
     Verify(VerifyConfigCli),
@@ -292,7 +273,6 @@ fn usage(program: &str) -> String {
           repl        abre o REPL mínimo auditável (Fase 167)\n\
           doc         ferramenta documental da Trama Pinker (marco / importação)\n\
           nav         navegação semântica do código da Trama Pinker\n\
-          agente      runner local auditável para tarefas operacionais\n\
            estado      estado consolidado somente leitura do projeto\n\
            doctor      identidade e compatibilidade operacional do pink\n\
            verificar   preflight estruturado antes da suíte completa\n"
@@ -301,14 +281,13 @@ fn usage(program: &str) -> String {
 
 fn state_usage(binary: &str) -> String {
     format!(
-        "Uso: {binary} estado [--repo DIRETÓRIO] [--agente-spec ARQUIVO] [--json]\n\
+        "Uso: {binary} estado [--repo DIRETÓRIO] [--json]\n\
          \n\
          Comando:\n\
            estado      consolida autoridades locais sem escrever nem usar rede\n\
          \n\
          Opções:\n\
            --repo DIRETÓRIO       ponto de partida para descobrir o repositório\n\
-           --agente-spec ARQUIVO  spec explícita do pink agente (opcional)\n\
            --json                 JSON determinístico com schema público 1\n\
            -h, --help             exibe esta ajuda e termina com sucesso\n\
          \n\
@@ -328,19 +307,6 @@ fn verify_usage(binary: &str) -> String {
     format!(
         "Uso: {binary} verificar --diff REF [--repo DIRETÓRIO] [--documentation-frozen] [--corpo ARQUIVO] --json\n\
          Compõe doctor, nav impacto, projeções, pinker-change e estado documental.\n"
-    )
-}
-
-fn agent_usage(binary: &str) -> String {
-    format!(
-        "Uso: {binary} agente iniciar <spec>\n\
-         Uso: {binary} agente executar <spec>\n\
-         Uso: {binary} agente verificar <spec>\n\
-         Uso: {binary} agente sensibilidade <spec>\n\
-         Uso: {binary} agente publicar <spec>\n\
-         Uso: {binary} agente retomar <spec>\n\
-         Uso: {binary} agente status <spec> [--json]\n\
-         Uso: {binary} agente relatorio <spec>\n"
     )
 }
 
@@ -490,7 +456,6 @@ fn help_for_command(program: &str, command: &str) -> Option<String> {
         "repl" => Some(repl_usage(program)),
         "doc" => Some(doc_usage(program)),
         "nav" => Some(nav_usage(program)),
-        "agente" => Some(agent_usage(program)),
         "estado" => Some(state_usage(program)),
         "doctor" => Some(doctor_usage(program)),
         "verificar" => Some(verify_usage(program)),
@@ -1112,47 +1077,8 @@ fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String>
     })
 }
 
-fn parse_agent_args(binary: &str, args: &[String]) -> Result<AgentConfigCli, String> {
-    let Some(subcommand) = args.first() else {
-        return Err(agent_usage(binary));
-    };
-    if matches!(subcommand.as_str(), "--help" | "-h") {
-        return Err(agent_usage(binary));
-    }
-    let json = args.iter().skip(1).any(|arg| arg == "--json");
-    let positional: Vec<&String> = args
-        .iter()
-        .skip(1)
-        .filter(|arg| arg.as_str() != "--json")
-        .collect();
-    if positional.len() != 1 || (json && subcommand != "status") {
-        return Err(agent_usage(binary));
-    }
-    let sub = match subcommand.as_str() {
-        "iniciar" => AgentSub::Iniciar,
-        "executar" => AgentSub::Executar,
-        "verificar" => AgentSub::Verificar,
-        "sensibilidade" => AgentSub::Sensibilidade,
-        "publicar" => AgentSub::Publicar,
-        "retomar" => AgentSub::Retomar,
-        "status" => AgentSub::Status { json },
-        "relatorio" => AgentSub::Relatorio,
-        _ => {
-            return Err(format!(
-                "Subcomando agente desconhecido: '{subcommand}'\n\n{}",
-                agent_usage(binary)
-            ))
-        }
-    };
-    Ok(AgentConfigCli {
-        spec: PathBuf::from(positional[0]),
-        sub,
-    })
-}
-
 fn parse_state_args(binary: &str, args: &[String]) -> Result<StateConfigCli, String> {
     let mut repo: Option<String> = None;
-    let mut agent_spec: Option<PathBuf> = None;
     let mut json = false;
     let mut i = 0usize;
     while i < args.len() {
@@ -1173,22 +1099,6 @@ fn parse_state_args(binary: &str, args: &[String]) -> Result<StateConfigCli, Str
                     ));
                 }
                 repo = Some(args[i].clone());
-            }
-            "--agente-spec" => {
-                if agent_spec.is_some() {
-                    return Err(format!(
-                        "A opção '--agente-spec' não pode ser repetida.\n\n{}",
-                        state_usage(binary)
-                    ));
-                }
-                i += 1;
-                if i >= args.len() || args[i].starts_with('-') {
-                    return Err(format!(
-                        "Flag '--agente-spec' requer um valor.\n\n{}",
-                        state_usage(binary)
-                    ));
-                }
-                agent_spec = Some(PathBuf::from(&args[i]));
             }
             "--json" => {
                 if json {
@@ -1219,7 +1129,6 @@ fn parse_state_args(binary: &str, args: &[String]) -> Result<StateConfigCli, Str
     Ok(StateConfigCli {
         repo: repo.unwrap_or_else(|| ".".to_string()),
         json,
-        agent_spec,
     })
 }
 
@@ -1460,9 +1369,6 @@ fn parse_args() -> Result<CliCommand, String> {
         if cmd == "nav" {
             return parse_nav_args(&program, &flag_args[1..]).map(CliCommand::Nav);
         }
-        if cmd == "agente" {
-            return parse_agent_args(&program, &flag_args[1..]).map(CliCommand::Agent);
-        }
         if cmd == "estado" {
             if cli_tail_start < cli_args.len() {
                 return Err(format!(
@@ -1607,25 +1513,6 @@ fn main() {
         CliCommand::Repl(config) => run_repl(config),
         CliCommand::Doc(config) => std::process::exit(run_doc(config)),
         CliCommand::Nav(config) => std::process::exit(run_nav(config)),
-        CliCommand::Agent(config) => {
-            let result = match config.sub {
-                AgentSub::Iniciar => agent::iniciar(&config.spec),
-                AgentSub::Executar => agent::executar(&config.spec),
-                AgentSub::Verificar => agent::verificar(&config.spec),
-                AgentSub::Sensibilidade => agent::sensibilidade(&config.spec),
-                AgentSub::Publicar => agent::publicar(&config.spec),
-                AgentSub::Retomar => agent::retomar(&config.spec),
-                AgentSub::Status { json } => agent::status(&config.spec, json),
-                AgentSub::Relatorio => agent::relatorio(&config.spec),
-            };
-            match result {
-                Ok(code) => std::process::exit(code),
-                Err(err) => {
-                    eprintln!("E-AGENT: {err}");
-                    std::process::exit(agent::EXIT_BLOCKED);
-                }
-            }
-        }
         CliCommand::State(config) => std::process::exit(run_state(config)),
         CliCommand::Doctor(config) => std::process::exit(run_doctor(config)),
         CliCommand::Verify(config) => std::process::exit(run_verify(config)),
@@ -1694,7 +1581,7 @@ fn run_verify(config: VerifyConfigCli) -> i32 {
 }
 
 fn run_state(config: StateConfigCli) -> i32 {
-    match project_state::collect(Path::new(&config.repo), config.agent_spec.as_deref()) {
+    match project_state::collect(Path::new(&config.repo)) {
         Ok(state) => {
             if config.json {
                 println!("{}", project_state_report::render_json(&state));

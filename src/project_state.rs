@@ -1,10 +1,9 @@
 //! Estado consolidado, estruturado e somente leitura da Pinker (#387).
 //!
 //! Este módulo não cria autoridade. Ele adapta os modelos observacionais da
-//! Trama, documentação, projeções, automation core e `pink agente` para uma
+//! Trama, documentação, projeções e automation core para uma
 //! representação única consumível diretamente por interfaces internas.
 
-use crate::agent::{self, AgentTerminalStatus};
 use crate::automation::RepoRoot;
 use crate::doc::{self, DocConfig};
 use crate::doc_index::{DocCatalog, DocIndex};
@@ -51,7 +50,6 @@ pub enum SourceKind {
     RepoFile,
     Derived,
     LocalCheck,
-    AgentSpec,
     Catalog,
     ProjectionStore,
 }
@@ -62,7 +60,6 @@ impl SourceKind {
             SourceKind::RepoFile => "repo_file",
             SourceKind::Derived => "derived",
             SourceKind::LocalCheck => "local_check",
-            SourceKind::AgentSpec => "agent_spec",
             SourceKind::Catalog => "catalog",
             SourceKind::ProjectionStore => "projection_store",
         }
@@ -93,7 +90,6 @@ pub enum DomainId {
     Documentation,
     Projections,
     LocalChecks,
-    Agent,
     Diagnostics,
 }
 
@@ -105,7 +101,6 @@ impl DomainId {
             DomainId::Documentation => "documentation",
             DomainId::Projections => "projections",
             DomainId::LocalChecks => "local_checks",
-            DomainId::Agent => "agent",
             DomainId::Diagnostics => "diagnostics",
         }
     }
@@ -184,21 +179,6 @@ pub struct LocalChecksState {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AgentState {
-    pub configured: bool,
-    pub reason: Option<String>,
-    pub terminal: Option<String>,
-    pub publication: Option<String>,
-    pub checks: Vec<AgentCheckState>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AgentCheckState {
-    pub id: String,
-    pub status: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Diagnostic {
     pub id: String,
     pub domain: DomainId,
@@ -220,7 +200,6 @@ pub enum DomainDetails {
     Documentation(DocumentationState),
     Projections(ProjectionsState),
     LocalChecks(LocalChecksState),
-    Agent(AgentState),
     Diagnostics(DiagnosticsState),
 }
 
@@ -272,7 +251,7 @@ impl ProjectState {
 // @pinker-nav:start project-state.coleta
 // @pinker-nav:domain estado
 // @pinker-nav:layer adaptadores
-// @pinker-nav:summary Coleta somente leitura que reutiliza RepoRoot, verificadores doc/nav, ProjectionStore mais verify_all e o modelo observacional do agente; falhas de um domínio são preservadas sem apagar domínios independentes.
+// @pinker-nav:summary Coleta somente leitura que reutiliza RepoRoot, verificadores doc/nav e ProjectionStore; falhas de um domínio são preservadas sem apagar domínios independentes.
 
 #[derive(Debug)]
 pub enum CollectError {
@@ -311,14 +290,13 @@ impl CollectedDomain {
 
 /// Coleta o estado consolidado. Depois que a raiz canônica é estabelecida,
 /// falhas pertencem aos domínios e não abortam o relatório.
-pub fn collect(repo: &Path, agent_spec: Option<&Path>) -> Result<ProjectState, CollectError> {
+pub fn collect(repo: &Path) -> Result<ProjectState, CollectError> {
     let root = RepoRoot::discover(repo).map_err(CollectError::Root)?;
     let config = DocConfig::load(root.path());
 
     let trama = collect_trama(&root, config.as_ref().ok());
     let documentation = collect_documentation(&root, config.as_ref().ok());
     let projections = collect_projections(&root);
-    let agent = collect_agent(agent_spec);
 
     let repository = collect_repository(
         config.is_ok(),
@@ -329,14 +307,7 @@ pub fn collect(repo: &Path, agent_spec: Option<&Path>) -> Result<ProjectState, C
     let local_checks =
         collect_local_checks(&trama.domain, &documentation.domain, &projections.domain);
 
-    let mut collected = vec![
-        repository,
-        trama,
-        documentation,
-        projections,
-        local_checks,
-        agent,
-    ];
+    let mut collected = vec![repository, trama, documentation, projections, local_checks];
     let mut diagnostics = Vec::new();
     let mut warnings = Vec::new();
     let mut blockers = Vec::new();
@@ -1016,154 +987,6 @@ fn derive_check_status(checks: &[LocalCheck]) -> StateStatus {
     }
 }
 
-fn collect_agent(spec: Option<&Path>) -> CollectedDomain {
-    let source = Source::new(SourceKind::AgentSpec, None, "pink-agent-v1.status");
-    let Some(spec) = spec else {
-        return CollectedDomain::plain(DomainState {
-            id: DomainId::Agent,
-            status: StateStatus::Unavailable,
-            source,
-            details: DomainDetails::Agent(AgentState {
-                configured: false,
-                reason: Some("agent_spec_not_provided".to_string()),
-                terminal: None,
-                publication: None,
-                checks: Vec::new(),
-            }),
-        });
-    };
-    let observation = agent::observe_status(spec);
-    let publication = agent::observe_publication(spec);
-    match observation {
-        Ok(observation) => {
-            let (publication_status, publication_invalid) = match publication {
-                Ok(observation) => (observation.map(|value| value.status), false),
-                Err(_) => (None, true),
-            };
-            let mut status = match observation.terminal {
-                AgentTerminalStatus::Accepted => StateStatus::Ok,
-                AgentTerminalStatus::Blocked | AgentTerminalStatus::NeedsHumanDecision => {
-                    StateStatus::Blocked
-                }
-            };
-            if publication_status
-                .as_deref()
-                .is_some_and(agent_publication_is_pending)
-                && status == StateStatus::Ok
-            {
-                status = StateStatus::Warning;
-            }
-            let mut item = CollectedDomain::plain(DomainState {
-                id: DomainId::Agent,
-                status,
-                source: source.clone(),
-                details: DomainDetails::Agent(AgentState {
-                    configured: true,
-                    reason: None,
-                    terminal: Some(observation.terminal.as_str().to_string()),
-                    publication: publication_status.clone(),
-                    checks: observation
-                        .checks
-                        .iter()
-                        .map(|check| AgentCheckState {
-                            id: check.id.clone(),
-                            status: check.status.clone(),
-                        })
-                        .collect(),
-                }),
-            });
-            match observation.terminal {
-                AgentTerminalStatus::Accepted => {}
-                AgentTerminalStatus::Blocked => add_blocker_and_diagnostic(
-                    &mut item,
-                    "agent.blocked",
-                    DomainId::Agent,
-                    "O estado terminal observado do agente é BLOCKED.",
-                    "agent_blocked",
-                    source.clone(),
-                ),
-                AgentTerminalStatus::NeedsHumanDecision => add_blocker_and_diagnostic(
-                    &mut item,
-                    "agent.needs_human_decision",
-                    DomainId::Agent,
-                    "O agente requer decisão humana explícita.",
-                    "agent_needs_human_decision",
-                    source.clone(),
-                ),
-            }
-            if let Some(publication_status) = publication_status {
-                if agent_publication_is_pending(&publication_status) {
-                    item.pending.push(PendingOperation {
-                        id: "agent.publication".to_string(),
-                        domain: DomainId::Agent,
-                        kind: "agent_publication".to_string(),
-                        summary: "O lifecycle local do agente registra publicação pendente."
-                            .to_string(),
-                        source: Source::new(
-                            SourceKind::LocalCheck,
-                            None,
-                            "pink-agent-v1.publication-state",
-                        ),
-                        reason: "agent_publication_pending".to_string(),
-                    });
-                }
-            }
-            if publication_invalid {
-                item.diagnostics.push(Diagnostic {
-                    id: "agent.publication_state_invalid".to_string(),
-                    domain: DomainId::Agent,
-                    status: StateStatus::Unknown,
-                    summary: "O estado local de publicação não pôde ser observado.".to_string(),
-                    reason: "agent_publication_state_invalid".to_string(),
-                    source: source.clone(),
-                });
-                if item.domain.status == StateStatus::Ok {
-                    item.domain.status = StateStatus::Partial;
-                }
-            }
-            item
-        }
-        Err(_) => {
-            let mut item = CollectedDomain::plain(DomainState {
-                id: DomainId::Agent,
-                status: StateStatus::Blocked,
-                source: source.clone(),
-                details: DomainDetails::Agent(AgentState {
-                    configured: true,
-                    reason: Some("agent_observation_failed".to_string()),
-                    terminal: None,
-                    publication: None,
-                    checks: Vec::new(),
-                }),
-            });
-            add_blocker_and_diagnostic(
-                &mut item,
-                "agent.observation_failed",
-                DomainId::Agent,
-                "A spec ou o estado local do agente não pôde ser observado.",
-                "agent_observation_failed",
-                source,
-            );
-            item
-        }
-    }
-}
-
-fn agent_publication_is_pending(status: &str) -> bool {
-    matches!(
-        status,
-        "LOCAL_ACCEPTED"
-            | "COMMIT_INTENT"
-            | "COMMITTED"
-            | "PUSH_INTENT"
-            | "PUSHED"
-            | "PR_INTENT"
-            | "PR_CREATED"
-            | "BODY_VERIFIED"
-            | "CHECKS_PENDING"
-    )
-}
-
 fn add_blocker_and_diagnostic(
     item: &mut CollectedDomain,
     id: &str,
@@ -1219,20 +1042,19 @@ fn add_warning_and_diagnostic(
 #[cfg(test)]
 mod tests {
     use super::{
-        derive_overall, DomainDetails, DomainId, DomainState, Source, SourceKind, StateStatus,
+        derive_overall, DomainDetails, DomainId, DomainState, RepositoryState, Source, SourceKind,
+        StateStatus,
     };
 
     fn domain(status: StateStatus) -> DomainState {
         DomainState {
-            id: DomainId::Agent,
+            id: DomainId::Repository,
             status,
             source: Source::new(SourceKind::Derived, None, "test"),
-            details: DomainDetails::Agent(super::AgentState {
-                configured: false,
-                reason: None,
-                terminal: None,
-                publication: None,
-                checks: Vec::new(),
+            details: DomainDetails::Repository(RepositoryState {
+                root_discovered: true,
+                marker: "test".to_string(),
+                authorities: Vec::new(),
             }),
         }
     }

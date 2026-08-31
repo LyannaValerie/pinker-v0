@@ -339,32 +339,6 @@ fn preflight_manifesto_invalido_bloqueia_antes_de_ci() {
 }
 
 #[test]
-fn baseline_script_exige_release_identidade_e_publicacao_atomica() {
-    let script = fs::read_to_string(root().join("scripts/pink-baseline")).unwrap();
-    for required in [
-        "cargo build --locked --release --bin pink",
-        "PINKER_BUILD_COMMIT",
-        "--version-json",
-        "forja-pink-bundle-v1",
-        "forja-software-manifest-v1",
-        "/pinker/releases/pink/$commit",
-        // A exigência é a troca por rename atômico; o nome da variável que carrega
-        // o link candidato é detalhe do publicador, não contrato da F1.
-        "mv -Tf \"$publish_next_link\" \"$exposed_command\"",
-        "sha256sum",
-    ] {
-        assert!(script.contains(required), "ausente: {required}");
-    }
-    assert!(!script.contains("target/debug/pink"));
-    let output = Command::new(root().join("scripts/pink-baseline"))
-        .args(["publish", "--bundle", "/definitely/missing"])
-        .output()
-        .unwrap();
-    assert!(!output.status.success());
-    assert!(String::from_utf8_lossy(&output.stderr).contains("publish exige root"));
-}
-
-#[test]
 fn sensitivity_mantem_composicao_em_uma_autoridade() {
     let main = fs::read_to_string(root().join("src/main.rs")).unwrap();
     let tooling = fs::read_to_string(root().join("src/tooling.rs")).unwrap();

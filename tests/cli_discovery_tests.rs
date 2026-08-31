@@ -78,7 +78,7 @@ fn ajuda_principal_e_aliases_sao_equivalentes_e_bem_sucedidos() {
 
 #[test]
 fn ajuda_de_todos_os_comandos_tem_tres_formas_equivalentes() {
-    for command in ["build", "editor", "repl", "doc", "nav", "agente"] {
+    for command in ["build", "editor", "repl", "doc", "nav"] {
         let expected = format!("Uso: pink {command}");
         let by_help = assert_help(&["help", command], &expected);
         let by_long = assert_help(&[command, "--help"], &expected);
@@ -101,10 +101,6 @@ fn ajuda_prevalece_sobre_argumentos_operacionais_sem_executar_comando() {
     assert_help(&["repl", "--help"], "Uso: pink repl");
     assert_help(&["doc", "mostrar", "ausente", "-h"], "Uso: pink doc");
     assert_help(&["nav", "mostrar", "ausente", "--help"], "Uso: pink nav");
-    assert_help(
-        &["agente", "status", "spec-ausente", "-h"],
-        "Uso: pink agente",
-    );
 }
 
 #[test]
@@ -150,12 +146,6 @@ fn uso_invalido_e_uniformemente_diagnosticado_em_stderr_com_codigo_2() {
             &["nav", "sincronizar", "extra"],
             "não aceita argumentos posicionais",
         ),
-        (
-            &["agente", "desconhecido", "spec"],
-            "Subcomando agente desconhecido",
-        ),
-        (&["agente", "status"], "Uso: pink agente"),
-        (&["agente", "executar", "a", "b"], "Uso: pink agente"),
         (&["um.pink", "dois.pink"], "Apenas um arquivo"),
         (&["--", "arg-runtime"], "nenhum argumento"),
     ];
@@ -185,7 +175,7 @@ fn falha_operacional_de_leitura_permanece_distinta_de_erro_de_uso() {
 }
 
 #[test]
-fn modos_preexistentes_de_arquivo_check_build_doc_nav_e_agente_continuam_alcancaveis() {
+fn modos_preexistentes_de_arquivo_check_build_doc_e_nav_continuam_alcancaveis() {
     let source = Path::new(repo_root()).join("examples/principal_valida.pink");
     let source_text = source.to_str().expect("caminho UTF-8");
 
@@ -223,10 +213,6 @@ fn modos_preexistentes_de_arquivo_check_build_doc_nav_e_agente_continuam_alcanca
     ]);
     assert_eq!(nav.status.code(), Some(0), "{}", stderr(&nav));
     assert!(!nav.stdout.is_empty());
-
-    let operational_agent = run(&["agente", "status", "spec-que-nao-existe-414"]);
-    assert_eq!(operational_agent.status.code(), Some(1));
-    assert!(stderr(&operational_agent).contains("E-AGENT"));
 }
 
 #[test]

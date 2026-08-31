@@ -1,4 +1,4 @@
-schema = 3
+schema = 4
 id = "onda-pink-agente-d"
 state = "FROZEN"
 predecessor = "onda-pink-agente-c"
@@ -6,8 +6,9 @@ justification = "Onda D do agente Pinker: congelamento do contract-v1 sem fechar
 
 [reconstruction]
 recipes = ["normalizacao-corrente-para-historico"]
-expected_overrides = 114
+expected_overrides = 112
 expected_exclusions = 17
+expected_materializations = 17
 
 [measures]
 regions = 484
@@ -368,24 +369,6 @@ to = "fnv1a64:99c4dd1a5a26a992"
 expect_file = "src/cfg_ir_validate.rs"
 expect_domain = "validacao"
 expect_layer = "cfg"
-
-[[rules]]
-op = "override-hash"
-key = "development.agent.runner"
-from = "fnv1a64:38228b49c680256f"
-to = "fnv1a64:de2bbcf439816686"
-expect_file = "src/agent.rs"
-expect_domain = "development"
-expect_layer = "agent"
-
-[[rules]]
-op = "override-hash"
-key = "evidencia.agent.runner"
-from = "fnv1a64:2261eee3422657a1"
-to = "fnv1a64:ef95a558251ab9eb"
-expect_file = "tests/agent_runner_tests.rs"
-expect_domain = "development"
-expect_layer = "evidencia"
 
 [[rules]]
 op = "override-hash"
@@ -1138,3 +1121,190 @@ to_summary = "Abertura do módulo de testes internos do runtime nativo e evidên
 expect_file = "runtime/pinker_rt/src/lib.rs"
 expect_domain = "memoria"
 expect_layer = "evidencia"
+
+[[rules]]
+op = "materialize-region"
+key = "development.agent.artifacts"
+kind = "region"
+domain = "development"
+layer = "agent"
+file = "src/agent.rs"
+summary = "I/O confinado do runner sobre descritores: openat2 rejeita symlinks/magic links e escapes, árvores são criadas componente a componente, temporários usam O_EXCL no mesmo pai e rename atômico, append usa no-follow, e leitura/restauração compartilham a mesma fronteira; JSON/SHA-256 e manifesto permanecem determinísticos."
+hash = "fnv1a64:6299beb7e04a789f"
+status = "active"
+
+[[rules]]
+op = "materialize-region"
+key = "development.agent.contract-v1"
+kind = "region"
+domain = "development"
+layer = "agent"
+file = "src/agent.rs"
+summary = "Congela o contrato pink-agent-v1 em constantes canônicas e serializa um artefato contract-v1.json byte-estável: schema, superfície CLI, tipos de check, estados terminais e de publicação, códigos de saída, requisitos de corpo humano e proibições de merge/auto-merge, com dígito SHA-256 determinístico."
+hash = "fnv1a64:dff46d4b89a38a01"
+status = "active"
+
+[[rules]]
+op = "materialize-region"
+key = "development.agent.git-diff"
+kind = "region"
+domain = "development"
+layer = "agent"
+file = "src/agent.rs"
+summary = "Verifica Git de modo somente leitura: HEAD, branch, limpeza, contagem desde a base, conjunto exato e ordenado do porcelain v1, subconjunto permitido e git diff --check, preservando inclusive a primeira linha."
+hash = "fnv1a64:bb6121023c7797f2"
+status = "active"
+
+[[rules]]
+op = "materialize-region"
+key = "development.agent.lifecycle"
+kind = "region"
+domain = "development"
+layer = "agent"
+file = "src/agent.rs"
+summary = "Ciclo iniciar/executar/verificar/status/relatorio: snapshots Git, execução fail-fast com NOT_RUN, validação de escopo exato, estados ACCEPTED/BLOCKED, códigos de saída mecânicos e emissão dos artefatos terminais canônicos."
+hash = "fnv1a64:692e86d6d62cb4ff"
+status = "active"
+
+[[rules]]
+op = "materialize-region"
+key = "development.agent.marker-only"
+kind = "region"
+domain = "development"
+layer = "agent"
+file = "src/agent.rs"
+summary = "Reconstrói fontes removendo somente linhas de comentários Pinker reais, com estado léxico alinhado à política canônica, e prova SHA-256 base, quantidade, cinco linhas por região, balanceamento e ordem exata das chaves sem modificar o arquivo."
+hash = "fnv1a64:b935a716fa5c6e54"
+status = "active"
+
+[[rules]]
+op = "materialize-region"
+key = "development.agent.paths"
+kind = "region"
+domain = "development"
+layer = "agent"
+file = "src/agent.rs"
+summary = "Confinamento lexical e canônico de repo, worktree, diretório delegado, cwd, escritas e mudanças permitidas; rejeita componentes pai, raízes fora do repositório canônico e qualquer cwd fora do worktree."
+hash = "fnv1a64:ea6bdf7ca0de5880"
+status = "active"
+
+[[rules]]
+op = "materialize-region"
+key = "development.agent.pr-body"
+kind = "region"
+domain = "development"
+layer = "agent"
+file = "src/agent.rs"
+summary = "Valida um único bloco pinker-change UTF-8 confinado ao delegado, sem sentinel ou comentário interno, compara kind, title, áreas e validações e registra execução canônica e SHA-256."
+hash = "fnv1a64:214373cb652be125"
+status = "active"
+
+[[rules]]
+op = "materialize-region"
+key = "development.agent.projection"
+kind = "region"
+domain = "development"
+layer = "agent"
+file = "src/agent.rs"
+summary = "Carrega catálogo JSONL validado, rejeita chaves duplicadas, aplica exclusões exatas e overrides consumidos, ordena a projeção estável de nove campos e mede total, evidence/runtime, bytes e FNV-1a64 sem escrever nas fontes."
+hash = "fnv1a64:dfa1df13184c0c0d"
+status = "active"
+
+[[rules]]
+op = "materialize-region"
+key = "development.agent.publication"
+kind = "region"
+domain = "development"
+layer = "agent"
+file = "src/agent.rs"
+summary = "Publica com precondições estritas, intenções duráveis, staging por paths exatos, commit único, push normal e criação ou reconciliação de uma única PR sem edição, merge ou auto-merge."
+hash = "fnv1a64:eb2774a95dc179fb"
+status = "active"
+
+[[rules]]
+op = "materialize-region"
+key = "development.agent.remote-checks"
+kind = "region"
+domain = "development"
+layer = "agent"
+file = "src/agent.rs"
+summary = "Consulta somente checks exatos do SHA candidato, persiste eventos e snapshots, aceita apenas SUCCESS e distingue pendência, ausência, duplicidade e conclusões bloqueantes sem rerun ou bypass."
+hash = "fnv1a64:aaefc42c42725192"
+status = "active"
+
+[[rules]]
+op = "materialize-region"
+key = "development.agent.resume"
+kind = "region"
+domain = "development"
+layer = "agent"
+file = "src/agent.rs"
+summary = "Retoma de forma idempotente reconciliando spec, commit, branch remota, PR, body e SHA dos checks; estados ACCEPTED e BLOCKED são somente leitura e timeout permanece retomável."
+hash = "fnv1a64:e4daa73f7dda953b"
+status = "active"
+
+[[rules]]
+op = "materialize-region"
+key = "development.agent.runner"
+kind = "region"
+domain = "development"
+layer = "agent"
+file = "src/agent.rs"
+summary = "Executor com política externa: shell exige PINKER_AGENT_ALLOW_SHELL, programas exigem allowlist externa e viram caminhos absolutos observados com SHA-256 antes do spawn; Pinker tipado preserva resolução própria, cwd/env continuam confinados e o resultado registra identidade do executável."
+hash = "fnv1a64:de2bbcf439816686"
+status = "active"
+
+[[rules]]
+op = "materialize-region"
+key = "development.agent.sensitivity"
+kind = "region"
+domain = "development"
+layer = "agent"
+file = "src/agent.rs"
+summary = "Executa mutações reversíveis confinadas: snapshot e SHA-256, match exato, substituição atômica, probe sem shell, captura de saída/duração/exit, restauração obrigatória dos bytes e detecção de efeitos laterais, parando diante de falha de restauração."
+hash = "fnv1a64:22264763a22cb84a"
+status = "active"
+
+[[rules]]
+op = "materialize-region"
+key = "development.agent.spec"
+kind = "region"
+domain = "development"
+layer = "agent"
+file = "src/agent.rs"
+summary = "Modelo e parser determinístico do formato line-oriented agent-spec-v1: campos escalares únicos, listas repetíveis explícitas e comandos ordenados; rejeita schema, campo e comando duplicado, shell implícito e valores malformados sem depender de crates externas."
+hash = "fnv1a64:33af6004dd72d2f5"
+status = "active"
+
+[[rules]]
+op = "materialize-region"
+key = "evidencia.agent.cli-spec"
+kind = "region"
+domain = "development"
+layer = "evidencia"
+file = "tests/agent_cli_tests.rs"
+summary = "Contrato público e parsing estrito do agent-spec-v1: superfície CLI, spec válida, schema, campos e comandos duplicados/desconhecidos, shell explícito e comando Pinker tipado."
+hash = "fnv1a64:6ad868d5804dc9a8"
+status = "active"
+
+[[rules]]
+op = "materialize-region"
+key = "evidencia.agent.limits"
+kind = "region"
+domain = "development"
+layer = "evidencia"
+file = "tests/agent_limits_tests.rs"
+summary = "Limites de path, cwd, variáveis e diff em repositórios sintéticos: rejeita fuga do repo/delegado/worktree, aceita somente mudanças enumeradas e bloqueia arquivo alterado fora do escopo."
+hash = "fnv1a64:e5485edb563d1bdf"
+status = "active"
+
+[[rules]]
+op = "materialize-region"
+key = "evidencia.agent.runner"
+kind = "region"
+domain = "development"
+layer = "evidencia"
+file = "tests/agent_runner_tests.rs"
+summary = "Execução real em repositórios sintéticos confinados: códigos esperados e inesperados, stdout/stderr persistidos e exibidos, fail-fast NOT_RUN, estados terminais, Pinker tipado, relatório e manifesto SHA-256 com detecção de adulteração."
+hash = "fnv1a64:ef95a558251ab9eb"
+status = "active"

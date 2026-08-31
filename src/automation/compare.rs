@@ -185,9 +185,9 @@ pub fn check(plan: &Plan, observed: &ObservedState) -> Result<CheckReport, Failu
             path: target.path().as_str().to_string(),
             change: classify(desired, observed_bytes),
             desired_bytes: desired.map(<[u8]>::len),
-            desired_digest: desired.map(crate::agent::sha256_hex),
+            desired_digest: desired.map(pinker_sha256_contract::sha256_hex),
             observed_bytes: observed_bytes.map(<[u8]>::len),
-            observed_digest: observed_bytes.map(crate::agent::sha256_hex),
+            observed_digest: observed_bytes.map(pinker_sha256_contract::sha256_hex),
         });
     }
 

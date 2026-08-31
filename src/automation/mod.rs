@@ -3,13 +3,12 @@
 //! Este módulo é o **automation core** da separação aprovada na Issue #385:
 //!
 //! ```text
-//! pink agente          → orquestração, processos, Git, rede e publicação
+//! autoridade host-side → orquestração operacional fora do produto Pinker
 //! adaptador de domínio → invariantes e cálculo do estado desejado
 //! automation core      → plano, comparação, check local e relatórios
 //! ```
 //!
-//! O core não executa processos, não acessa a rede, não executa Git, não publica
-//! e não conhece estados internos do runner nem do `pink agente`.
+//! O core não executa processos, não acessa a rede, não executa Git nem publica.
 //!
 //! # Fronteiras deste recorte (Estágio B da campanha dos itens 2 e 3 da #417)
 //!
@@ -18,8 +17,8 @@
 //! renomeia, não aplica plano algum. O estado observado entra como **dado**,
 //! fornecido pelo chamador; quem o obtém do disco é o estágio seguinte.
 //!
-//! Também não há CLI, consumidor real, mudança em `src/agent.rs` nem qualquer
-//! alteração do contrato congelado `pink-agent-v1`.
+//! Também não há CLI, consumidor real, mudança em a implementação organizacional nem qualquer
+//! alteração do contrato congelado o contrato Pinker independente.
 //!
 //! # O plano é efêmero
 //!
@@ -435,7 +434,7 @@ pub const RECOVERY_PROCEDURE: &str =
 /// Escapa um texto para string JSON.
 ///
 /// As implementações existentes no repositório (`src/nav.rs`, `src/main.rs`,
-/// `src/doc_index.rs`, `src/change.rs`, `src/agent.rs`) são todas privadas dos
+/// `src/doc_index.rs`, `src/change.rs`, a implementação organizacional) são todas privadas dos
 /// seus módulos: não há autoridade pública a reutilizar, e promover uma delas
 /// mudaria a superfície de outro domínio para acomodar este. A cópia é declarada
 /// e coberta por teste de escaping.

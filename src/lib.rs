@@ -1,6 +1,5 @@
 pub mod abstract_machine;
 pub mod abstract_machine_validate;
-pub mod agent;
 pub mod ambiente_processo;
 pub mod anonymous_identity;
 pub mod ast;

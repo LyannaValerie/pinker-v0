@@ -12,7 +12,7 @@ use std::time::UNIX_EPOCH;
 // @pinker-nav:start evidencia.project-state.contrato
 // @pinker-nav:domain estado
 // @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita schema, ordem, disponibilidade parcial, drift e harness de autoridades reais, agente observacional, CLI, independência de root e invariância somente leitura do estado consolidado.
+// @pinker-nav:summary Exercita schema, ordem, disponibilidade parcial, drift e harness das autoridades reais, CLI, independência de root e invariância somente leitura do estado consolidado.
 
 static NEXT: AtomicU64 = AtomicU64::new(0);
 
@@ -71,7 +71,7 @@ fn copy_tree(source: &Path, destination: &Path) {
 }
 
 fn state(root: &Path) -> ProjectState {
-    collect(root, None).expect("estado estrutural")
+    collect(root).expect("estado estrutural")
 }
 
 fn status(state: &ProjectState, id: DomainId) -> StateStatus {
@@ -85,67 +85,10 @@ fn projection_details(state: &ProjectState) -> &pinker_v0::project_state::Projec
     }
 }
 
-fn agent_details(state: &ProjectState) -> &pinker_v0::project_state::AgentState {
-    match &state.domain(DomainId::Agent).unwrap().details {
-        DomainDetails::Agent(details) => details,
-        _ => panic!("detalhe de agente"),
-    }
-}
-
 fn replace_once(path: &Path, from: &str, to: &str) {
     let text = fs::read_to_string(path).unwrap();
     assert!(text.contains(from), "fixture não contém {from}");
     fs::write(path, text.replacen(from, to, 1)).unwrap();
-}
-
-fn valid_agent_spec(root: &Path, terminal: &str) -> PathBuf {
-    let delegated = root.join("agent-delegated");
-    let worktree = root.join("agent-worktree");
-    fs::create_dir_all(delegated.join("artefatos")).unwrap();
-    fs::create_dir_all(&worktree).unwrap();
-    let path = delegated.join("task.agent");
-    fs::write(
-        &path,
-        format!(
-            "schema = 1\n\
-             task_id = STATE-TEST\n\
-             repo_root = {}\n\
-             worktree = {}\n\
-             delegated_root = {}\n\
-             expected_base = fixture\n\
-             allowed_write = .\n\
-             verdict.accepted = ACCEPTED_TEST\n\
-             verdict.blocked = BLOCKED_TEST\n\
-             verdict.human = HUMAN_TEST\n\
-             command.one.kind = program\n\
-             command.one.program = /usr/bin/true\n\
-             command.one.cwd = .\n\
-             command.one.expect = 0\n\
-             command.one.shell = false\n",
-            root.display(),
-            worktree.display(),
-            delegated.display()
-        ),
-    )
-    .unwrap();
-    fs::write(
-        delegated.join("artefatos/resultado.json"),
-        format!("{{\n  \"status\": \"{terminal}\",\n  \"commands\": [\n    {{\"id\":\"one\",\"status\":\"PASSED\",\"exit_code\":0}}\n  ]\n}}\n"),
-    )
-    .unwrap();
-    path
-}
-
-fn write_publication(spec: &Path, status: &str) {
-    let delegated = spec.parent().unwrap();
-    fs::create_dir_all(delegated.join("estado")).unwrap();
-    fs::write(
-        delegated.join("estado/publication-state.json"),
-        format!(
-            "{{\n  \"schema\": 1,\n  \"status\": \"{status}\",\n  \"spec_hash\": \"abc\",\n  \"candidate\": \"\",\n  \"parent\": \"\",\n  \"tree\": \"\",\n  \"pr_number\": null,\n  \"pr_url\": null,\n  \"body_digest\": \"\"\n}}\n"
-        ),
-    )
-    .unwrap();
 }
 
 fn json_is_valid(input: &str) -> bool {
@@ -296,7 +239,6 @@ fn schema_ordem_fontes_e_estado_saudavel_sao_deterministicos() {
             DomainId::Documentation,
             DomainId::Projections,
             DomainId::LocalChecks,
-            DomainId::Agent,
             DomainId::Diagnostics,
         ]
     );
@@ -308,7 +250,7 @@ fn schema_ordem_fontes_e_estado_saudavel_sao_deterministicos() {
         assert_eq!(status(&state, id), StateStatus::Ok);
         assert!(!state.domain(id).unwrap().source.authority.is_empty());
     }
-    assert_eq!(state.overall, StateStatus::Partial);
+    assert_eq!(state.overall, StateStatus::Ok);
     let projections = projection_details(&state);
     assert_eq!(projections.frozen, 13);
     assert_eq!(projections.candidate, 0);
@@ -317,7 +259,7 @@ fn schema_ordem_fontes_e_estado_saudavel_sao_deterministicos() {
 
     let json = render_json(&state);
     assert!(json_is_valid(&json));
-    assert!(json.starts_with("{\"schema\":1,\"overall\":\"PARTIAL\",\"domains\":"));
+    assert!(json.starts_with("{\"schema\":1,\"overall\":\"OK\",\"domains\":"));
     assert!(!json.contains('\u{1b}'));
     assert!(!json.contains(env!("CARGO_MANIFEST_DIR")));
     assert_eq!(json, render_json(&state));
@@ -444,72 +386,6 @@ fn projection_drift_harness_candidate_e_causas_nao_sao_ocultados() {
         .any(|cause| cause.cause == "onda-pink-agente-d" && !cause.blocked.is_empty()));
 }
 
-#[test]
-fn agente_ausente_accepted_blocked_humano_pendente_e_invalido() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let absent = collect(root, None).unwrap();
-    assert_eq!(status(&absent, DomainId::Agent), StateStatus::Unavailable);
-    assert_eq!(
-        agent_details(&absent).reason.as_deref(),
-        Some("agent_spec_not_provided")
-    );
-
-    let temp = Fixture::copy("agent");
-    let accepted = valid_agent_spec(temp.path(), "ACCEPTED");
-    let observed = collect(temp.path(), Some(&accepted)).unwrap();
-    assert_eq!(status(&observed, DomainId::Agent), StateStatus::Ok);
-    assert_eq!(
-        agent_details(&observed).terminal.as_deref(),
-        Some("ACCEPTED")
-    );
-    assert_eq!(agent_details(&observed).checks.len(), 1);
-
-    fs::write(
-        accepted.parent().unwrap().join("artefatos/resultado.json"),
-        "{\n  \"status\": \"BLOCKED\"\n}\n",
-    )
-    .unwrap();
-    let observed = collect(temp.path(), Some(&accepted)).unwrap();
-    assert_eq!(status(&observed, DomainId::Agent), StateStatus::Blocked);
-    assert!(observed
-        .blockers
-        .iter()
-        .any(|item| item.reason == "agent_blocked"));
-
-    fs::write(
-        accepted.parent().unwrap().join("artefatos/resultado.json"),
-        "{\n  \"status\": \"NEEDS_HUMAN_DECISION\"\n}\n",
-    )
-    .unwrap();
-    let observed = collect(temp.path(), Some(&accepted)).unwrap();
-    assert_eq!(
-        agent_details(&observed).terminal.as_deref(),
-        Some("NEEDS_HUMAN_DECISION")
-    );
-    assert!(observed
-        .blockers
-        .iter()
-        .any(|item| item.reason == "agent_needs_human_decision"));
-
-    fs::write(
-        accepted.parent().unwrap().join("artefatos/resultado.json"),
-        "{\n  \"status\": \"ACCEPTED\"\n}\n",
-    )
-    .unwrap();
-    write_publication(&accepted, "CHECKS_PENDING");
-    let observed = collect(temp.path(), Some(&accepted)).unwrap();
-    assert_eq!(status(&observed, DomainId::Agent), StateStatus::Warning);
-    assert!(observed
-        .pending_operations
-        .iter()
-        .any(|item| item.reason == "agent_publication_pending"));
-
-    fs::write(&accepted, "schema = 999\n").unwrap();
-    let observed = collect(temp.path(), Some(&accepted)).unwrap();
-    assert_eq!(status(&observed, DomainId::Agent), StateStatus::Blocked);
-    assert_eq!(status(&observed, DomainId::Documentation), StateStatus::Ok);
-}
-
 fn authority_snapshot(root: &Path) -> BTreeMap<String, (u64, u64, Vec<u8>)> {
     fn walk(root: &Path, current: &Path, out: &mut BTreeMap<String, (u64, u64, Vec<u8>)>) {
         let mut entries = fs::read_dir(current)
@@ -609,43 +485,12 @@ fn cli_estado_cobre_help_flags_streams_e_exits() {
     assert!(output.stderr.is_empty());
     assert!(String::from_utf8(output.stdout)
         .unwrap()
-        .starts_with("Pinker — PARTIAL\n"));
-
-    let temp = Fixture::copy("cli-agent");
-    let spec = valid_agent_spec(temp.path(), "ACCEPTED");
-    let output = pink(&[
-        "estado",
-        "--repo",
-        temp.path().to_str().unwrap(),
-        "--agente-spec",
-        spec.to_str().unwrap(),
-        "--json",
-    ]);
-    assert_eq!(output.status.code(), Some(0));
-    assert!(String::from_utf8(output.stdout)
-        .unwrap()
-        .contains("\"terminal\":\"ACCEPTED\""));
-    fs::write(&spec, "schema = 999\n").unwrap();
-    let output = pink(&[
-        "estado",
-        "--repo",
-        temp.path().to_str().unwrap(),
-        "--agente-spec",
-        spec.to_str().unwrap(),
-        "--json",
-    ]);
-    assert_eq!(output.status.code(), Some(0));
-    assert!(output.stderr.is_empty());
-    assert!(String::from_utf8(output.stdout)
-        .unwrap()
-        .contains("\"reason\":\"agent_observation_failed\""));
+        .starts_with("Pinker — OK\n"));
 
     for args in [
         vec!["estado", "--desconhecida"],
         vec!["estado", "--repo"],
-        vec!["estado", "--agente-spec"],
         vec!["estado", "--repo", root, "--repo", root],
-        vec!["estado", "--agente-spec", "a", "--agente-spec", "b"],
         vec!["estado", "--json", "--json"],
         vec!["estado", "inesperado"],
     ] {
@@ -669,7 +514,7 @@ fn sensibilidade_protege_reuso_read_only_e_renderer_unico() {
     assert!(collector.contains("nav::verify_repository"));
     assert!(collector.contains("doc::verify_repository"));
     assert!(collector.contains("nav_projection_report::verify_all"));
-    assert!(collector.contains("agent::observe_status"));
+    assert!(!collector.contains("agent::observe_status"));
     assert!(!collector.contains("Command::new"));
     assert!(!collector.contains("fs::write"));
     assert!(!collector.contains("SystemTime::now"));

@@ -363,7 +363,7 @@ fn predecessor_e_base_snapshot_sao_relacoes_distintas() {
 /// `materialize-region`. Os treze snapshots continuam exatamente como foram
 /// congelados — reescrevê-los para acompanhar um bump seria mexer na história
 /// para agradar a implementação.
-const VERSAO_DO_ACERVO: u64 = 3;
+const VERSAO_DO_ACERVO: u64 = 4;
 
 /// A versão do acervo precisa continuar dentro do que o formato aceita. Falha em
 /// tempo de compilação: um bump que abandonasse a versão congelada quebraria a
@@ -427,8 +427,8 @@ fn o_acervo_usa_a_versao_corrente_de_cada_formato() {
 // Guarda de autoridade única das projeções históricas
 // ---------------------------------------------------------------------------
 
-/// Mapeamento provado dos 31 casos comportamentais históricos para os 13
-/// snapshots canônicos.
+/// Mapeamento provado dos casos comportamentais ainda exercitados pela
+/// cartografia para os snapshots canônicos.
 ///
 /// É uma tabela de **identidade** — caso → snapshot — e nada mais: não contém
 /// `regions`, `length`, `fnv1a64` nem regra de reconstrução. Essas vivem
@@ -449,7 +449,18 @@ const DISTRIBUICAO_CANONICA: [(&str, usize); 13] = [
     ("onda-pink-agente-d", 1),
 ];
 
-const CASOS_HISTORICOS: usize = 31;
+const CASOS_CARTOGRAFADOS_APOS_EXTRACAO: [(&str, usize); 9] = [
+    ("capsula-doc-catalog", 2),
+    ("capsula-nav-catalog", 3),
+    ("capsula-trama-query", 1),
+    ("onda-8-convergencia", 4),
+    ("onda-8f-anterior", 1),
+    ("onda-8g-anterior", 1),
+    ("onda-8h-anterior", 1),
+    ("onda-8i-anterior", 1),
+    ("onda-8j-anterior", 1),
+];
+const CASOS_HISTORICOS_CARTOGRAFADOS_APOS_EXTRACAO: usize = 15;
 const HARNESS: &str = include_str!("nav_cartography_tests.rs");
 
 /// Identificadores citados por `verifica_snapshot_canonico("…")` no harness.
@@ -470,29 +481,32 @@ fn os_casos_historicos_referenciam_a_autoridade_canonica_por_id() {
     let refs = referencias_canonicas();
     assert_eq!(
         refs.len(),
-        CASOS_HISTORICOS,
-        "a cartografia deve referenciar exatamente {CASOS_HISTORICOS} casos \
+        CASOS_HISTORICOS_CARTOGRAFADOS_APOS_EXTRACAO,
+        "a cartografia deve referenciar exatamente {CASOS_HISTORICOS_CARTOGRAFADOS_APOS_EXTRACAO} casos \
          históricos; achados {}",
         refs.len()
     );
     let unicos: BTreeSet<&str> = refs.iter().copied().collect();
     assert_eq!(
         unicos.len(),
-        SNAPSHOTS_ESPERADOS,
-        "os casos devem cobrir os {SNAPSHOTS_ESPERADOS} snapshots distintos"
+        CASOS_CARTOGRAFADOS_APOS_EXTRACAO.len(),
+        "os casos devem cobrir os snapshots cartografados após a extração"
     );
 
     // Distribuição exata: impede tanto a perda de um caso quanto a repetição
     // artificial de outro para recompor a cardinalidade.
-    for (id, esperado) in DISTRIBUICAO_CANONICA {
+    for (id, esperado) in CASOS_CARTOGRAFADOS_APOS_EXTRACAO {
         let achado = refs.iter().filter(|candidato| **candidato == id).count();
         assert_eq!(
             achado, esperado,
             "{id}: esperados {esperado} casos históricos, achados {achado}"
         );
     }
-    let declarado: usize = DISTRIBUICAO_CANONICA.iter().map(|(_, n)| n).sum();
-    assert_eq!(declarado, CASOS_HISTORICOS);
+    let declarado: usize = CASOS_CARTOGRAFADOS_APOS_EXTRACAO
+        .iter()
+        .map(|(_, n)| n)
+        .sum();
+    assert_eq!(declarado, CASOS_HISTORICOS_CARTOGRAFADOS_APOS_EXTRACAO);
 
     // Nenhum identificador inventado: todos resolvem na biblioteca real.
     let library = biblioteca();

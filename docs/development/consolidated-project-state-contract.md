@@ -13,7 +13,6 @@ canonical_for:
 related:
   - development.automation-core-contract
   - development.projection-snapshots-contract
-  - development.pink-agent-v1-contract
   - development.deterministic-infrastructure-window
 ---
 
@@ -25,8 +24,8 @@ related:
 
 Este documento define o recorte somente leitura da Issue #387, autorizado pela
 janela da Issue #417. A superfície reúne fatos já possuídos pela Trama, pela
-documentação, pelas projeções históricas, pelo automation core e pelo
-`pink agente`; ela não cria uma segunda fonte de verdade para nenhum deles.
+documentação, pelas projeções históricas e pelo automation core; ela não cria
+uma segunda fonte de verdade para nenhum deles.
 
 <!-- @pinker-doc:start
 id: development.consolidated-project-state-contract.modelo
@@ -59,8 +58,7 @@ Todo relatório contém, no mínimo, `schema`, `overall`, `domains`, `warnings`,
 3. `documentation`;
 4. `projections`;
 5. `local_checks`;
-6. `agent`;
-7. `diagnostics`.
+6. `diagnostics`.
 
 Os estados JSON canônicos são `OK`, `WARNING`, `BLOCKED`, `UNKNOWN`,
 `UNAVAILABLE` e `PARTIAL`. Os três últimos não equivalem a sucesso. O
@@ -76,17 +74,16 @@ hostname, PID e horário corrente não fazem parte do protocolo.
 
 Disponibilidade parcial é parte do modelo. Uma autoridade inválida bloqueia o
 domínio correspondente sem apagar os demais. Falha de harness de projeção é
-`BLOCKED`, nunca `UNKNOWN`; ausência opcional de spec de agente é
-`UNAVAILABLE`, não erro global.
+`BLOCKED`, nunca `UNKNOWN`.
 <!-- @pinker-doc:end development.consolidated-project-state-contract.modelo -->
 
 <!-- @pinker-doc:start
 id: development.consolidated-project-state-contract.autoridades
-tags: [desenvolvimento, trama, documentacao, projecoes, agente]
+tags: [desenvolvimento, trama, documentacao, projecoes]
 aliases:
   - autoridades do estado consolidado
   - dominios do pink estado
-summary: Adaptação sem duplicação das autoridades de root, Trama, documentação, projeções, checks e pink agente.
+summary: Adaptação sem duplicação das autoridades de root, Trama, documentação, projeções e checks.
 -->
 ## Autoridades adaptadas
 
@@ -110,12 +107,6 @@ o estado consolidado nunca prepara nem aceita snapshots.
 acima. Ele não introduz `doctor` nem probes ambientais. `diagnostics` agrega os
 diagnósticos produzidos pelos adapters; não é um subsistema independente.
 
-Quando `--agente-spec ARQUIVO` é fornecido, `agent` chama o modelo observacional
-Rust da autoridade de `pink agente status`, preservando `ACCEPTED`, `BLOCKED` e
-`NEEDS_HUMAN_DECISION`, além do lifecycle local de publicação já persistido. A
-implementação não executa `pink agente`, não parseia stdout e não consulta rede.
-Sem a opção, o domínio é `UNAVAILABLE` com reason estável
-`agent_spec_not_provided`; nenhuma spec é procurada por heurística.
 <!-- @pinker-doc:end development.consolidated-project-state-contract.autoridades -->
 
 <!-- @pinker-doc:start
@@ -152,7 +143,7 @@ Warnings e blockers carregam `id`, `domain`, `summary`, `source` e `reason`. O
 identificador e o reason são estáveis e não são derivados da mensagem humana.
 Operações pendentes têm também `kind` e só aparecem quando uma autoridade
 declara um fato suficiente: catálogo com drift, `CANDIDATE` explícito ou
-publicação local de agente em estado pendente. Efeitos descendentes de uma
+Efeitos descendentes de uma
 causa de projeção permanecem agrupados.
 
 A coleta é somente leitura por construção: não grava no repositório ou no

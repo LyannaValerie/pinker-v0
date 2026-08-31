@@ -1,0 +1,7 @@
+{
+  "schema": 1,
+  "removed": ["src/agent.rs", "tests/agent_cli_tests.rs", "tests/agent_limits_tests.rs", "tests/agent_runner_tests.rs", "tests/f2_forja_integration_tests.rs", "scripts/forja/verificar-paths.sh", "scripts/pink-baseline"],
+  "changed": ["src/main.rs", "src/project_state.rs", "src/project_state_report.rs", "src/tooling.rs", "Makefile", "AGENTS.md", "agentes/README.md", "docs/development/consolidated-project-state-contract.md"],
+  "surviving": {"src/automation": "PINKER_PRODUCT", "scripts/pinker-flake-runner.sh": "PINKER_PRODUCT", "scripts/pinker-cleanup.sh": "PINKER_PRODUCT", "pinker_sha256_contract": "PINKER_PRODUCT", "agentes/.gitignore": "MINIMAL_BRIDGE"},
+  "behavior_location": {"task_lifecycle": "/pinker/playground/ferramentas-agente", "sha256": "runtime/pinker_sha256_contract", "product_state": "src/project_state.rs"}
+}

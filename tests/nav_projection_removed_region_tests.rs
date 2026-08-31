@@ -993,9 +993,11 @@ fn o_acervo_real_sobrevive_a_remocao_de_uma_regiao_real() {
     // Nenhum artefato foi tocado: a prova é toda em memória.
     for caminho in arquivos_toml(&raiz.join(SNAPSHOTS_DIR)) {
         let texto = fs::read_to_string(&caminho).unwrap();
-        assert!(
-            !texto.contains("materialize-region"),
-            "{} foi escrito pelo teste",
+        let has_materialization = texto.contains("materialize-region");
+        assert_eq!(
+            has_materialization,
+            caminho.file_name().and_then(|n| n.to_str()) == Some("onda-pink-agente-d.toml"),
+            "materialização inesperada ou ausente em {}",
             caminho.display()
         );
     }

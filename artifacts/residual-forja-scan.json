@@ -1,0 +1,27 @@
+{
+  "schema": "pinker-550-residual-scan-v2",
+  "method": "git grep census after code/doc/nav synchronization; each hit classified by causal ownership",
+  "invalid_forja_residue_count": 0,
+  "rust_forja_organizational_surfaces": [],
+  "minimal_bridge": [".github/pull_request_template.md", ".gitignore", "AGENTS.md", "MANUAL.md", "agentes/README.md"],
+  "pinker_product": ["src/automation/plan.rs", "src/union_canon.rs", "tests/part_b1_identidade_resultado_tests.rs"],
+  "historical_reference": [
+    ".pinker/changes/historical-exceptions-v1.yaml",
+    ".pinker/projections/capsula-trama-query.toml",
+    ".pinker/projections/onda-pink-agente-a.toml",
+    ".pinker/projections/onda-pink-agente-b.toml",
+    ".pinker/projections/onda-pink-agente-c.toml",
+    ".pinker/projections/onda-pink-agente-d.toml",
+    "docs/development/code-navigation-inventory.md",
+    "docs/development/pink-agent-v1-closure.md",
+    "docs/development/projection-snapshots-contract.md",
+    "docs/development/tramas-v1.md",
+    "docs/navigation.jsonl",
+    "src/navigation.jsonl",
+    "tests/nav_projection_authority_tests.rs",
+    "tests/nav_projection_cli_tests.rs",
+    "tests/nav_projection_removed_region_tests.rs",
+    "tests/project_state_tests.rs"
+  ],
+  "census_hits": 95
+}

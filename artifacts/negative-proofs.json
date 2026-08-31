@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "N1_pinker_without_forja_rust": "PASS",
+  "N2_no_pure_forja_cargo_target": "PASS",
+  "N3_pink_agente_absent": "PASS",
+  "N4_host_provisions_task": "PASS (host tests and verify)",
+  "N5_host_independent_of_pinker_worktree": "PASS (host source unchanged and local)",
+  "N6_host_remote_none": "PASS",
+  "N7_installed_provenance": "PASS",
+  "N8_current_regions_absent": "PASS",
+  "N9_frozen_match": "PASS (13/13)",
+  "N10_frozen_measure_delta": "PASS (none)",
+  "N11_language_compiler_runtime": "PASS (PINKER_EXIGE_NATIVO=1 make ci)",
+  "N12_native_backend": "PASS (PINKER_EXIGE_NATIVO=1 make ci; focused 75/75)"
+}

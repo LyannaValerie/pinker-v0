@@ -1,0 +1,7 @@
+{
+  "schema": 1,
+  "root": "/pinker/playground/ferramentas-agente",
+  "before": {"head": "5c3a44a65564ebada34547c871ff8ce1523a847a", "status": "CLEAN", "remote": "NONE"},
+  "after": {"head": "5c3a44a65564ebada34547c871ff8ce1523a847a", "status": "CLEAN", "remote": "NONE"},
+  "changed": false
+}

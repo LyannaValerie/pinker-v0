@@ -20,14 +20,8 @@
 //! componente, revalidado imediatamente antes da substituição; ele não é
 //! substituto de `openat2` com `RESOLVE_BENEATH`.
 //!
-//! O runner tem um `ConfinedFs` sobre descritores que faz exatamente isso, mas
-//! ele é privado de `src/agent.rs`, deriva a própria raiz do pai do alvo em vez
-//! de uma raiz de repositório, existe apenas para `linux/x86_64` e vive dentro
-//! de uma região catalogada da superfície congelada `pink-agent-v1`. Torná-lo
-//! público mudaria essa superfície e recalibraria medidas históricas da
-//! cartografia, o que o contrato desta campanha proíbe. Esta política é a
-//! abstração menor e explícita exigida por esse caso, com seus limites
-//! declarados acima.
+//! A implementação operacional host-side é dona de confinamento por descritor.
+//! Este módulo conserva somente a política Pinker independente e seus limites.
 
 use super::compare::{check, ChangeKind, CheckReport, Observation, ObservedState};
 use super::plan::Plan;
@@ -540,8 +534,8 @@ pub fn verify_written(
                     ),
                 });
             }
-            let esperado_digest = crate::agent::sha256_hex(esperado);
-            let lido_digest = crate::agent::sha256_hex(lido);
+            let esperado_digest = pinker_sha256_contract::sha256_hex(esperado);
+            let lido_digest = pinker_sha256_contract::sha256_hex(lido);
             if esperado_digest != lido_digest {
                 return Err(Failure::VerifyAfterApplyFailure {
                     path: relative.as_str().to_string(),

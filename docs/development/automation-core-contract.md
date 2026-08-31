@@ -33,19 +33,19 @@ aliases:
   - automation core
   - nucleo comum de automacao
   - plano de automacao
-summary: Fronteira entre pink agente, adaptador de domínio e núcleo, e o que o núcleo puro pode e não pode fazer.
+summary: Fronteira entre a autoridade host-side, o adaptador de domínio e o núcleo, e o que o núcleo puro pode e não pode fazer.
 -->
 ## Fronteira
 
 ```text
-pink agente          → orquestração, processos, Git, rede e publicação
+autoridade host-side → orquestração, processos, Git, rede e publicação
 adaptador de domínio → invariantes e cálculo do estado desejado
 automation core      → plano, comparação, check local e relatórios
 ```
 
 O núcleo não executa processos, não acessa a rede, não executa Git, não publica
-e não conhece estados internos do runner nem do `pink agente`. Sua única
-dependência sobre `src/agent.rs` é `sha256_hex`, função pura de bytes: o
+e não conhece estados internos de qualquer runner. Sua única dependência sobre
+o contrato `pinker_sha256_contract` é `sha256_hex`, função pura de bytes: o
 contrato proíbe adicionar crate de hash e proíbe duplicar hashing em silêncio, e
 essa é a única implementação pública de SHA-256 do repositório.
 
@@ -64,7 +64,7 @@ trivialmente sem escrita porque não tem filesystem para escrever. A camada loca
 confinamento.
 
 Fora do núcleo continuam CLI, regras de domínio, processos, rede, Git e qualquer
-alteração do contrato congelado `pink-agent-v1`. O primeiro consumidor real é o
+alteração do contrato congelado de automação. O primeiro consumidor real é o
 lifecycle de snapshots de projeção: ele calcula bytes desejados para preparar e
 aceitar candidates, mas delega integralmente ao núcleo root, paths, allowlists,
 observação, digest, autorização, stale protection, apply e relatório de
@@ -229,11 +229,9 @@ Não há proteção absoluta contra TOCTOU em filesystem hostil concorrente. A
 política é lexical mais `symlink_metadata`, e não substitui `openat2` com
 `RESOLVE_BENEATH`.
 
-O runner tem um `ConfinedFs` sobre descritores que faz exatamente isso, mas ele
-é privado de `src/agent.rs`, deriva a própria raiz do pai do alvo em vez de uma
-raiz de repositório, existe apenas para `linux/x86_64` e vive dentro de uma
-região catalogada da superfície congelada `pink-agent-v1`. Torná-lo público
-mudaria essa superfície e recalibraria medidas históricas da cartografia.
+A autoridade host-side mantém o confinamento operacional dos descritores. O
+núcleo Pinker não duplica essa implementação nem a torna pública; apenas
+preserva o contrato local de automação e seus checks determinísticos.
 
 Este núcleo também **não cria diretórios**: um target cujo diretório pai não
 existe falha explicitamente.
