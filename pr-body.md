@@ -14,3 +14,20 @@ removidas, sem alteração de medidas FROZEN, além do rebaseline mínimo da #54
 
 Gates locais: `PINKER_EXIGE_NATIVO=1 make ci`, Trama/nav/doc e projeções FROZEN
 13/13 MATCH. AUTO_MERGE = FALSE.
+
+```pinker-change
+schema: 1
+kind: phase
+title: "Extrai a superfície organizacional da Forja do Pinker"
+status: completed
+area:
+  - development.forja-extraction
+  - development.trama
+updates:
+  state: false
+  history: false
+  roadmap: false
+validation:
+  required:
+    - make ci
+```
