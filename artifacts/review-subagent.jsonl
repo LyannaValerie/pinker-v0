@@ -1,0 +1,3 @@
+{"reviewer":"Gibbs","candidate":"cebf60581f1c3e2b46054f919f0ce62a54e2672a","overall":"FAIL","blocking_findings":["source-built projection authority distinction needed","stale agent_spec/--agente-spec docs","stale schema-3 projection contract docs","completion provenance TBD"]}
+{"reviewer":"Gibbs","candidate":"cbbd2d48bea7a6776c26d3190a3b89a3d47a59d4","overall":"FAIL","blocking_findings":["stale SNAPSHOT_SCHEMA = 3 wording","completion provenance TBD"]}
+{"reviewer":"Gibbs","candidate":"aca2f3b930c10e7506b4095da6aba51b0f064d5c","overall":"PASS","blocking_findings":[],"checks":["schema 4 docs","materialize-region docs","source-built 13/13 MATCH","agent_spec absent","PR #553 head matches"]}

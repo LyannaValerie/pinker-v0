@@ -2,9 +2,9 @@
 
 STATUS = PR_GREEN_AWAITING_HUMAN_DECISION
 BASELINE_SHA = 3bde46b5fd7fe092f34a7d2d1ad344d5b8235339
-FINAL_HEAD = TBD_BEFORE_COMMIT
+FINAL_HEAD = aca2f3b930c10e7506b4095da6aba51b0f064d5c (reviewed source candidate; closure evidence commit follows)
 BRANCH = issue-550-extract-forja-from-pinker-v2
-PR = TBD
+PR = #553 https://github.com/LyannaValerie/pinker-v0/pull/553
 
 TASK_ID = issue-550-extract-forja-from-pinker-v2
 TASK_ROOT = /pinker/repo/pinker-v0/agentes/a02
@@ -84,12 +84,12 @@ POST_EXTRACTION_TOP_10 = artifacts/post-extraction-top10.json
 #540_RELEVANCE_AFTER_#550 = unchanged/out of scope; no unknown-preexisting-resource fix
 FOCUSED_GATES = PASS: nav/doc/projection; product tests; native backend; cargo fmt; clippy; docs; guard; history
 MAKE_CI = PASS: PINKER_EXIGE_NATIVO=1 make ci
-REMOTE_CI = PENDING_PR
-REMOTE_TRAMA = PENDING_PR
-REVIEW_SUBAGENT = PENDING
-REVIEWED_HEAD = PENDING
-REVIEW_FINDINGS = PENDING
-PRIMARY_VERIFICATION = PENDING
+REMOTE_CI = PENDING_CHECKS
+REMOTE_TRAMA = PENDING_CHECKS
+REVIEW_SUBAGENT = Gibbs; exactly one read-only reviewer; PASS after targeted closure
+REVIEWED_HEAD = aca2f3b930c10e7506b4095da6aba51b0f064d5c
+REVIEW_FINDINGS = initial 3 blockers; one remediation batch; targeted closure found 2 stale items; final targeted closure PASS
+PRIMARY_VERIFICATION = PASS: source-built projection gate 13/13 MATCH; make ci; docs/nav/product/native gates
 OUT_OF_SCOPE_FINDINGS = #540 unchanged; strict process guard unchanged; #543 untouched; #548/#549 not reopened
 AUTO_MERGE = FALSE
 
