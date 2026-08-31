@@ -67,7 +67,7 @@ precedência `BLOCKED`, `WARNING`, `PARTIAL`, `OK`; um domínio `UNKNOWN` ou
 `UNAVAILABLE` contribui para `PARTIAL` quando não há estado mais severo.
 
 Cada domínio e cada fato material identifica uma `source` tipada. Os kinds
-iniciais são `repo_file`, `derived`, `local_check`, `agent_spec`, `catalog` e
+iniciais são `repo_file`, `derived`, `local_check`, `catalog` e
 `projection_store`; `authority` carrega um identificador interno estável e
 `path`, quando existe, é sempre repo-relativo. Root absoluto, mtime, usuário,
 hostname, PID e horário corrente não fazem parte do protocolo.
@@ -125,8 +125,6 @@ As formas públicas são:
 pink estado
 pink estado --json
 pink estado --repo DIRETÓRIO
-pink estado --agente-spec ARQUIVO
-pink estado --agente-spec ARQUIVO --json
 ```
 
 Ajuda está disponível por `pink help estado`, `pink estado --help` e
