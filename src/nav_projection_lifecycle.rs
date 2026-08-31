@@ -236,6 +236,7 @@ pub fn plan_prepare(
         },
         expected_overrides: 0,
         expected_exclusions: 0,
+        expected_materializations: 0,
         base_snapshot: None,
         recipes: vec![desired_recipe.id.clone()],
         rules: Vec::new(),
@@ -518,6 +519,7 @@ fn validate_candidate_shape(
         || snapshot.recipes != [expected_recipe]
         || snapshot.expected_overrides != 0
         || snapshot.expected_exclusions != 0
+        || snapshot.expected_materializations != 0
         || !snapshot.rules.is_empty()
         || snapshot.predecessor.is_none()
         || snapshot

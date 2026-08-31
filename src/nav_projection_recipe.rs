@@ -39,9 +39,9 @@
 use crate::nav::CodeRegion;
 use crate::nav_projection_snapshot::{
     apply_rules, build_rule, measure, optional_list, parse_raw, reject_unknown, render_rule_body,
-    require_integer, require_text, sort_rules, toml_escape, validate_id, HarnessFailure, Measures,
-    Outcome, ProjectionSnapshot, Rule, RuleConsumption, SchemaAuthority, SnapshotState,
-    VerifyReport,
+    require_integer, require_text, sort_rules, toml_escape, validate_id, validate_rules,
+    HarnessFailure, Measures, Outcome, ProjectionRegion, ProjectionSnapshot, Rule, RuleConsumption,
+    SchemaAuthority, SnapshotState, VerifyReport,
 };
 use std::collections::BTreeMap;
 
@@ -61,7 +61,7 @@ pub const RECIPES_DIR: &str = ".pinker/projections/recipes/";
 // @pinker-nav:start trama.snapshots.receita
 // @pinker-nav:domain snapshots
 // @pinker-nav:layer trama
-// @pinker-nav:summary Receita de reconstrução: autoridade reutilizável e mínima para as transformações intermediárias que não possuem medida histórica própria, sem medidas, sem estado e sem predecessor, capaz de compor apenas outras receitas e nunca snapshots, com versionamento próprio independente do formato de snapshot.
+// @pinker-nav:summary Receita de reconstrução: autoridade reutilizável e mínima para as transformações intermediárias que não possuem medida histórica própria, sem medidas, sem estado e sem predecessor, capaz de compor apenas outras receitas e nunca snapshots, com versionamento próprio independente do formato de snapshot, e sem autoridade para afirmar fato histórico — materializar região pertence só ao snapshot.
 
 /// Uma transformação reutilizável, sem identidade histórica.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -73,6 +73,20 @@ pub struct Recipe {
     pub expected_overrides: u64,
     pub expected_exclusions: u64,
     pub rules: Vec<Rule>,
+}
+
+impl Recipe {
+    /// Autoridade e capacidade deste modelo, independentemente de ele ter vindo
+    /// de [`parse_recipe`] ou de ter sido construído em memória.
+    ///
+    /// Os campos são públicos, então `Recipe` é construtível diretamente em
+    /// Rust. Isso é conveniente para teste e para o lifecycle, e não pode
+    /// significar que a autoridade do formato seja contornável: quem constrói
+    /// uma receita à mão e a leva a uma [`Library`] passa exatamente pela mesma
+    /// checagem que o texto passaria.
+    pub fn validate_model(&self) -> Result<(), HarnessFailure> {
+        validate_rules(self.schema, &self.rules, SchemaAuthority::Recipe)
+    }
 }
 // @pinker-nav:end trama.snapshots.receita
 
@@ -173,20 +187,12 @@ pub fn parse_recipe(text: &str) -> Result<Recipe, HarnessFailure> {
 
     let mut rules = Vec::with_capacity(raw.rules.len());
     for (index, table) in raw.rules.iter().enumerate() {
-        let rule = build_rule(table, index)?;
-        // A matriz de capacidades é por autoridade: a mesma operação pode exigir
-        // versões diferentes em snapshot e em receita.
-        let exigido = rule.min_schema(SchemaAuthority::Recipe);
-        if exigido > schema {
-            return Err(HarnessFailure::CapabilityRequiresSchema {
-                authority: SchemaAuthority::Recipe,
-                capability: format!("op '{}'", rule.op()),
-                found_schema: schema,
-                required_schema: exigido,
-            });
-        }
-        rules.push(rule);
+        rules.push(build_rule(table, index)?);
     }
+    // Autoridade e capacidade são propriedades do modelo, e a mesma validação
+    // roda em `Library::with_recipe`. Aqui ela chega pelo texto; lá, por uma
+    // `Recipe` construída em memória.
+    validate_rules(schema, &rules, SchemaAuthority::Recipe)?;
     let encontrados_override = rules.iter().filter(|r| r.is_override()).count() as u64;
     let encontradas_exclusoes = rules.len() as u64 - encontrados_override;
     if expected_overrides != encontrados_override {
@@ -232,6 +238,14 @@ pub fn parse_recipe(text: &str) -> Result<Recipe, HarnessFailure> {
 /// A ordem declarada de `steps` é preservada: ela é procedural, e ordená-la por
 /// nome mudaria o significado. As regras locais, que são independentes entre si,
 /// seguem a mesma canonicalização do formato de snapshot.
+/// Serializa o modelo. **Não** decide validade.
+///
+/// A validade é decidida nas duas fronteiras que importam — ingestão
+/// ([`parse_recipe`]) e execução ([`Library::with_recipe`]) —, e é por isso que
+/// um modelo inválido construído em memória é um beco sem saída: nenhuma
+/// `Library` o executa, e os bytes que este renderer produz não voltam pelo
+/// parser. Quem tem um modelo vindo da API e quer saber antes de serializar
+/// chama [`Recipe::validate_model`].
 pub fn render_recipe(recipe: &Recipe) -> String {
     let mut out = String::new();
     out.push_str(&format!("schema = {}\n", recipe.schema));
@@ -286,10 +300,16 @@ impl Library {
     }
 
     /// Acrescenta um snapshot. Identificador repetido é falha de harness.
+    /// Acrescenta um snapshot, validando o modelo antes de aceitá-lo.
+    ///
+    /// A fronteira de execução valida pelo mesmo motivo que a de ingestão: um
+    /// modelo construído em memória não passou pelo parser, e sem esta checagem
+    /// a matriz de capacidades por versão seria contornável pela API.
     pub fn with_snapshot(
         mut self,
         snapshot: ProjectionSnapshot,
     ) -> Result<Library, HarnessFailure> {
+        snapshot.validate_model()?;
         if self.snapshots.contains_key(&snapshot.id) {
             return Err(HarnessFailure::DuplicateSnapshot {
                 id: snapshot.id.clone(),
@@ -299,9 +319,17 @@ impl Library {
         Ok(self)
     }
 
-    /// Acrescenta uma receita. Namespace separado: um snapshot com o mesmo
-    /// identificador textual não colide.
+    /// Acrescenta uma receita, validando o modelo antes de aceitá-la.
+    ///
+    /// É aqui que `materialize-region` deixa de ser contornável: o parser já
+    /// recusava a operação no texto, mas uma `Recipe` construída diretamente em
+    /// Rust chegava a `apply_rules` e materializava. A autoridade é do modelo,
+    /// não do formato de arquivo.
+    ///
+    /// Namespace separado: um snapshot com o mesmo identificador textual não
+    /// colide.
     pub fn with_recipe(mut self, recipe: Recipe) -> Result<Library, HarnessFailure> {
+        recipe.validate_model()?;
         if self.recipes.contains_key(&recipe.id) {
             return Err(HarnessFailure::DuplicateRecipe {
                 id: recipe.id.clone(),
@@ -334,7 +362,7 @@ impl Library {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Composition {
     /// Regiões do estado reconstruído.
-    pub regions: Vec<CodeRegion>,
+    pub regions: Vec<ProjectionRegion>,
     /// Consumo por escopo, na ordem de aplicação.
     pub ledger: Vec<ScopeConsumption>,
     /// Snapshots de base verificados durante a resolução, do mais profundo ao
@@ -402,8 +430,8 @@ fn resolve_snapshot(
     let mut verified_bases: Vec<String> = Vec::new();
 
     // (1) base, resolvida e verificada contra as próprias medidas.
-    let mut regions: Vec<CodeRegion> = match &snapshot.base_snapshot {
-        None => catalog.to_vec(),
+    let mut regions: Vec<ProjectionRegion> = match &snapshot.base_snapshot {
+        None => catalog.iter().map(ProjectionRegion::from).collect(),
         Some(base_id) => {
             let base = resolve_snapshot(library, base_id, catalog, visitando)?;
             let base_snapshot = library
@@ -446,12 +474,12 @@ fn resolve_snapshot(
     })
 }
 
-type SaidaReceita = (Vec<CodeRegion>, Vec<ScopeConsumption>);
+type SaidaReceita = (Vec<ProjectionRegion>, Vec<ScopeConsumption>);
 
 fn resolve_recipe(
     library: &Library,
     recipe_id: &str,
-    entrada: Vec<CodeRegion>,
+    entrada: Vec<ProjectionRegion>,
     visitando: &mut Vec<String>,
 ) -> Result<SaidaReceita, HarnessFailure> {
     let marca = format!("recipe:{}", recipe_id);

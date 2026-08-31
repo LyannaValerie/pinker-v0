@@ -11,8 +11,9 @@ use pinker_v0::nav_projection_recipe::{
     RECIPE_SCHEMA, RECIPE_SCHEMA_V1, RECIPE_SCHEMA_V2,
 };
 use pinker_v0::nav_projection_snapshot::{
-    measure, parse, render, stable_projection, HarnessFailure, Measures, ProjectionSnapshot, Rule,
-    SchemaAuthority, SnapshotState, SNAPSHOT_SCHEMA_V1, SNAPSHOT_SCHEMA_V2, SNAPSHOT_SCHEMA_V3,
+    measure, parse, render, stable_projection, HarnessFailure, Measures, ProjectionRegion,
+    ProjectionSnapshot, Rule, SchemaAuthority, SnapshotState, SNAPSHOT_SCHEMA_V1,
+    SNAPSHOT_SCHEMA_V2, SNAPSHOT_SCHEMA_V3,
 };
 
 // ---------------------------------------------------------------------------
@@ -85,13 +86,24 @@ fn snapshot(
     rules: Vec<Rule>,
 ) -> ProjectionSnapshot {
     let overrides = rules.iter().filter(|r| r.op() == "override-hash").count() as u64;
+    // A versão declarada precisa comportar as regras declaradas. A fixture pedia
+    // schema 2 mesmo carregando `override-region`, que é capacidade do 3; isso
+    // só passava porque `with_snapshot` não validava o modelo. Agora a fixture
+    // deriva o mínimo, como um artefato real faria.
+    let schema = rules
+        .iter()
+        .map(|r| r.min_schema(SchemaAuthority::Snapshot))
+        .max()
+        .unwrap_or(SNAPSHOT_SCHEMA_V2)
+        .max(SNAPSHOT_SCHEMA_V2);
     ProjectionSnapshot {
-        schema: SNAPSHOT_SCHEMA_V2,
+        schema,
         id: id.to_string(),
         state,
         predecessor: None,
         justification: Some("fixture sintetica".to_string()),
         measures: medidas,
+        expected_materializations: 0,
         expected_overrides: overrides,
         expected_exclusions: rules.len() as u64 - overrides,
         base_snapshot: base.map(str::to_string),
@@ -1074,8 +1086,8 @@ fn o_diagnostico_de_schema_e_separado_por_autoridade() {
     let msg = de_snapshot.to_string();
     assert!(msg.contains("desconhecido para snapshot"), "{msg}");
     assert!(
-        msg.contains("aceita 1, 2 ou 3"),
-        "snapshot aceita as três versões e a mensagem precisa dizer isso: {msg}"
+        msg.contains("aceita 1, 2, 3 ou 4"),
+        "snapshot aceita as quatro versões e a mensagem precisa dizer isso: {msg}"
     );
 
     let de_receita = parse_recipe(&RECEITA_V1.replace("schema = 1", "schema = 9"))
@@ -1083,7 +1095,7 @@ fn o_diagnostico_de_schema_e_separado_por_autoridade() {
     assert_eq!(de_receita.code(), "E-RECEITA-SCHEMA");
     assert!(de_receita.to_string().contains("aceita 1 ou 2"));
     assert!(
-        !de_receita.to_string().contains("1, 2 ou 3"),
+        !de_receita.to_string().contains("1, 2, 3 ou 4"),
         "a receita citou o conjunto do snapshot"
     );
 
@@ -1365,7 +1377,10 @@ const PAR_SUMMARY: &str = concat!(
 );
 
 /// Aplica uma regra isolada a uma região e devolve o resultado.
-fn aplicar_regra(regra: Rule, entrada: Vec<CodeRegion>) -> Result<Vec<CodeRegion>, HarnessFailure> {
+fn aplicar_regra(
+    regra: Rule,
+    entrada: Vec<CodeRegion>,
+) -> Result<Vec<ProjectionRegion>, HarnessFailure> {
     let library = Library::new()
         .with_snapshot(snapshot(
             "isolado",

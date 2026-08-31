@@ -75,6 +75,7 @@ fn snapshot(
         measures: measure(catalog.iter()),
         expected_overrides: 0,
         expected_exclusions: 0,
+        expected_materializations: 0,
         base_snapshot: base.map(str::to_string),
         recipes: Vec::new(),
         rules: Vec::new(),
