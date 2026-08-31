@@ -3,7 +3,7 @@ name: CI
 on:
   push:
     branches:
-      - '**'
+      - main
   pull_request:
 
 # Permissões mínimas: este CI apenas verifica (build, testes, lint, doc). Ele
