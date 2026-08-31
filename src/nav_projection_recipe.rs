@@ -39,9 +39,9 @@
 use crate::nav::CodeRegion;
 use crate::nav_projection_snapshot::{
     apply_rules, build_rule, measure, optional_list, parse_raw, reject_unknown, render_rule_body,
-    require_integer, require_text, sort_rules, toml_escape, validate_id, HarnessFailure, Measures,
-    Outcome, ProjectionRegion, ProjectionSnapshot, Rule, RuleConsumption, SchemaAuthority,
-    SnapshotState, VerifyReport,
+    require_integer, require_text, sort_rules, toml_escape, validate_id, validate_rules,
+    HarnessFailure, Measures, Outcome, ProjectionRegion, ProjectionSnapshot, Rule, RuleConsumption,
+    SchemaAuthority, SnapshotState, VerifyReport,
 };
 use std::collections::BTreeMap;
 
@@ -73,6 +73,20 @@ pub struct Recipe {
     pub expected_overrides: u64,
     pub expected_exclusions: u64,
     pub rules: Vec<Rule>,
+}
+
+impl Recipe {
+    /// Autoridade e capacidade deste modelo, independentemente de ele ter vindo
+    /// de [`parse_recipe`] ou de ter sido construído em memória.
+    ///
+    /// Os campos são públicos, então `Recipe` é construtível diretamente em
+    /// Rust. Isso é conveniente para teste e para o lifecycle, e não pode
+    /// significar que a autoridade do formato seja contornável: quem constrói
+    /// uma receita à mão e a leva a uma [`Library`] passa exatamente pela mesma
+    /// checagem que o texto passaria.
+    pub fn validate_model(&self) -> Result<(), HarnessFailure> {
+        validate_rules(self.schema, &self.rules, SchemaAuthority::Recipe)
+    }
 }
 // @pinker-nav:end trama.snapshots.receita
 
@@ -173,32 +187,12 @@ pub fn parse_recipe(text: &str) -> Result<Recipe, HarnessFailure> {
 
     let mut rules = Vec::with_capacity(raw.rules.len());
     for (index, table) in raw.rules.iter().enumerate() {
-        let rule = build_rule(table, index)?;
-        // A matriz de capacidades é por autoridade: a mesma operação pode exigir
-        // versões diferentes em snapshot e em receita.
-        // Materializar não é transformar: é afirmar um fato histórico. Uma
-        // receita é transformação reutilizável, sem medidas, sem estado e sem
-        // predecessor — não tem como responder por um fato. E porque uma receita
-        // é compartilhada por snapshots com estados históricos diferentes,
-        // injetar a mesma região em todos obrigaria os que não a tinham a
-        // excluí-la de volta. A rejeição é nomeada, não "chave desconhecida".
-        if rule.is_materialization() {
-            return Err(HarnessFailure::OperationOutsideAuthority {
-                authority: SchemaAuthority::Recipe,
-                op: rule.op().to_string(),
-            });
-        }
-        let exigido = rule.min_schema(SchemaAuthority::Recipe);
-        if exigido > schema {
-            return Err(HarnessFailure::CapabilityRequiresSchema {
-                authority: SchemaAuthority::Recipe,
-                capability: format!("op '{}'", rule.op()),
-                found_schema: schema,
-                required_schema: exigido,
-            });
-        }
-        rules.push(rule);
+        rules.push(build_rule(table, index)?);
     }
+    // Autoridade e capacidade são propriedades do modelo, e a mesma validação
+    // roda em `Library::with_recipe`. Aqui ela chega pelo texto; lá, por uma
+    // `Recipe` construída em memória.
+    validate_rules(schema, &rules, SchemaAuthority::Recipe)?;
     let encontrados_override = rules.iter().filter(|r| r.is_override()).count() as u64;
     let encontradas_exclusoes = rules.len() as u64 - encontrados_override;
     if expected_overrides != encontrados_override {
@@ -244,6 +238,14 @@ pub fn parse_recipe(text: &str) -> Result<Recipe, HarnessFailure> {
 /// A ordem declarada de `steps` é preservada: ela é procedural, e ordená-la por
 /// nome mudaria o significado. As regras locais, que são independentes entre si,
 /// seguem a mesma canonicalização do formato de snapshot.
+/// Serializa o modelo. **Não** decide validade.
+///
+/// A validade é decidida nas duas fronteiras que importam — ingestão
+/// ([`parse_recipe`]) e execução ([`Library::with_recipe`]) —, e é por isso que
+/// um modelo inválido construído em memória é um beco sem saída: nenhuma
+/// `Library` o executa, e os bytes que este renderer produz não voltam pelo
+/// parser. Quem tem um modelo vindo da API e quer saber antes de serializar
+/// chama [`Recipe::validate_model`].
 pub fn render_recipe(recipe: &Recipe) -> String {
     let mut out = String::new();
     out.push_str(&format!("schema = {}\n", recipe.schema));
@@ -298,10 +300,16 @@ impl Library {
     }
 
     /// Acrescenta um snapshot. Identificador repetido é falha de harness.
+    /// Acrescenta um snapshot, validando o modelo antes de aceitá-lo.
+    ///
+    /// A fronteira de execução valida pelo mesmo motivo que a de ingestão: um
+    /// modelo construído em memória não passou pelo parser, e sem esta checagem
+    /// a matriz de capacidades por versão seria contornável pela API.
     pub fn with_snapshot(
         mut self,
         snapshot: ProjectionSnapshot,
     ) -> Result<Library, HarnessFailure> {
+        snapshot.validate_model()?;
         if self.snapshots.contains_key(&snapshot.id) {
             return Err(HarnessFailure::DuplicateSnapshot {
                 id: snapshot.id.clone(),
@@ -311,9 +319,17 @@ impl Library {
         Ok(self)
     }
 
-    /// Acrescenta uma receita. Namespace separado: um snapshot com o mesmo
-    /// identificador textual não colide.
+    /// Acrescenta uma receita, validando o modelo antes de aceitá-la.
+    ///
+    /// É aqui que `materialize-region` deixa de ser contornável: o parser já
+    /// recusava a operação no texto, mas uma `Recipe` construída diretamente em
+    /// Rust chegava a `apply_rules` e materializava. A autoridade é do modelo,
+    /// não do formato de arquivo.
+    ///
+    /// Namespace separado: um snapshot com o mesmo identificador textual não
+    /// colide.
     pub fn with_recipe(mut self, recipe: Recipe) -> Result<Library, HarnessFailure> {
+        recipe.validate_model()?;
         if self.recipes.contains_key(&recipe.id) {
             return Err(HarnessFailure::DuplicateRecipe {
                 id: recipe.id.clone(),

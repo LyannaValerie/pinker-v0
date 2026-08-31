@@ -11,7 +11,7 @@
 //! esteja correta.
 
 use pinker_v0::nav::CodeRegion;
-use pinker_v0::nav_projection_recipe::{parse_recipe, resolve, Library};
+use pinker_v0::nav_projection_recipe::{parse_recipe, render_recipe, resolve, Library, Recipe};
 use pinker_v0::nav_projection_snapshot::{
     measure, parse, reconstruct, render, stable_projection, HarnessFailure, Measures, Outcome,
     ProjectionSnapshot, SnapshotState, SNAPSHOT_SCHEMA_V3, SNAPSHOT_SCHEMA_V4,
@@ -781,7 +781,7 @@ fn a_materializacao_carrega_exatamente_os_campos_da_projecao_estavel() {
 // região da Forja é escolhida, nada é escrito e nenhum snapshot muda.
 
 use pinker_v0::nav::CodeCatalog;
-use pinker_v0::nav_projection_recipe::{parse_recipe as parse_receita, Recipe};
+use pinker_v0::nav_projection_recipe::parse_recipe as parse_receita;
 use pinker_v0::nav_projection_snapshot::{ProjectionRegion, Rule, SNAPSHOTS_DIR};
 use std::collections::BTreeSet;
 use std::fs;
@@ -1039,4 +1039,187 @@ fn o_relatorio_de_definicao_mostra_o_orcamento_de_materializacao() {
     assert!(!json_sem.contains("expected_materializations"));
     assert!(humano_sem.contains("expected_exclusions: 0\n"));
     assert!(json_sem.contains("\"expected_exclusions\":0,\"rules\""));
+}
+
+// ---------------------------------------------------------------------------
+// A autoridade é do modelo, não do formato de arquivo
+// ---------------------------------------------------------------------------
+//
+// O parser recusa `materialize-region` numa receita. Isso não bastava: `Recipe`
+// tem campos públicos, e uma receita construída diretamente em Rust chegava a
+// `apply_rules` sem passar por `parse_recipe`. A mesma classe de furo existia do
+// lado do snapshot, onde um modelo em schema 1 executava uma operação do 4.
+//
+// A validação passou a ser do modelo, nas duas fronteiras que importam:
+//
+// ```text
+// ingestão   parse / parse_recipe
+// execução   Library::with_snapshot / Library::with_recipe
+// ```
+
+fn materializa_b() -> Rule {
+    Rule::MaterializeRegion {
+        key: "b".to_string(),
+        kind: "region".to_string(),
+        domain: Some("dominio".to_string()),
+        layer: Some("camada".to_string()),
+        file: "src/b.rs".to_string(),
+        summary: "Resumo de b.".to_string(),
+        hash: HASH_B.to_string(),
+        status: "active".to_string(),
+    }
+}
+
+/// Uma receita construída à mão, sem passar pelo parser.
+fn receita_programatica(schema: u64, regras: Vec<Rule>) -> Recipe {
+    let overrides = regras.iter().filter(|r| r.is_override()).count() as u64;
+    Recipe {
+        schema,
+        id: "programatica".to_string(),
+        steps: Vec::new(),
+        expected_overrides: overrides,
+        expected_exclusions: regras.len() as u64 - overrides,
+        rules: regras,
+    }
+}
+
+#[test]
+fn receita_programatica_com_materializacao_e_recusada_antes_de_executar() {
+    let receita = receita_programatica(2, vec![materializa_b()]);
+
+    // A fronteira de execução recusa, e recusa com o nome certo.
+    match Library::new().with_recipe(receita.clone()) {
+        Err(HarnessFailure::OperationOutsideAuthority { op, authority }) => {
+            assert_eq!(op, "materialize-region");
+            assert_eq!(authority.as_str(), "receita");
+        }
+        outro => panic!("a Library aceitou a receita: {outro:?}"),
+    }
+
+    // E o próprio modelo sabe responder, para quem quiser perguntar antes.
+    assert!(matches!(
+        receita.validate_model(),
+        Err(HarnessFailure::OperationOutsideAuthority { .. })
+    ));
+}
+
+#[test]
+fn a_receita_recusada_nao_chega_a_materializar_regiao_alguma() {
+    // A prova de que a recusa acontece **antes** de apply_rules: sem a Library,
+    // não há resolve, e o catálogo corrente permanece sem `b`.
+    let receita = receita_programatica(2, vec![materializa_b()]);
+    let terminal = ProjectionSnapshot {
+        schema: SNAPSHOT_SCHEMA_V4,
+        id: "usa-a-receita".to_string(),
+        state: SnapshotState::Frozen,
+        predecessor: None,
+        justification: Some("fixture".to_string()),
+        measures: medidas_historicas(),
+        expected_overrides: 0,
+        expected_exclusions: 0,
+        expected_materializations: 0,
+        base_snapshot: None,
+        recipes: vec!["programatica".to_string()],
+        rules: Vec::new(),
+    };
+    let erro = Library::new()
+        .with_recipe(receita)
+        .expect_err("a receita não pode entrar");
+    assert_eq!(erro.code(), "E-SNAP-OPERACAO-FORA-DA-AUTORIDADE");
+
+    // Sem a receita, o snapshot que a declara não resolve — falha nomeada, e não
+    // uma materialização silenciosa.
+    let library = Library::new()
+        .with_snapshot(terminal)
+        .expect("o snapshot em si é válido");
+    match resolve(&library, "usa-a-receita", &catalogo_sem_b()) {
+        Err(HarnessFailure::RecipeMissing { id }) => assert_eq!(id, "programatica"),
+        outro => panic!("esperada receita ausente, veio {outro:?}"),
+    }
+}
+
+#[test]
+fn snapshot_programatico_nao_burla_a_matriz_de_capacidades() {
+    // A mesma classe de furo do outro lado: schema 1 executando operação do 4.
+    let mut modelo = snapshot_materializando_b();
+    modelo.schema = SNAPSHOT_SCHEMA_V3;
+    match Library::new().with_snapshot(modelo.clone()) {
+        Err(HarnessFailure::CapabilityRequiresSchema {
+            authority,
+            capability,
+            found_schema,
+            required_schema,
+        }) => {
+            assert_eq!(authority.as_str(), "snapshot");
+            assert!(capability.contains("materialize-region"), "{capability}");
+            assert_eq!((found_schema, required_schema), (3, 4));
+        }
+        outro => panic!("a Library aceitou o snapshot: {outro:?}"),
+    }
+    assert!(modelo.validate_model().is_err());
+
+    // E o schema fora do conjunto aceito também não passa pela API.
+    let mut fora = snapshot_materializando_b();
+    fora.schema = 99;
+    assert!(matches!(
+        Library::new().with_snapshot(fora),
+        Err(HarnessFailure::SchemaUnknown { .. })
+    ));
+}
+
+#[test]
+fn o_modelo_valido_continua_entrando_pelas_duas_fronteiras() {
+    // A guarda não pode ter fechado a porta certa: snapshot e receita legítimos
+    // seguem entrando, e o resultado é o mesmo de sempre.
+    let receita = receita_programatica(
+        2,
+        vec![Rule::ExcludeKey {
+            key: "posterior".to_string(),
+            expected_matches: 1,
+        }],
+    );
+    let library = Library::new()
+        .with_recipe(receita)
+        .expect("receita legítima entra")
+        .with_snapshot(snapshot_materializando_b())
+        .expect("snapshot legítimo entra");
+    let reconstrucao =
+        resolve(&library, "historico", &catalogo_sem_b()).expect("reconstrução válida");
+    assert_eq!(reconstrucao.measures(), medidas_historicas());
+}
+
+#[test]
+fn o_modelo_invalido_e_um_beco_sem_saida_tambem_na_serializacao() {
+    // `render_recipe` é serializador puro: ele não decide validade. A propriedade
+    // que fecha o caso é que o modelo inválido não tem para onde ir — nem
+    // executa, nem volta pelo parser.
+    let receita = receita_programatica(2, vec![materializa_b()]);
+    let texto = render_recipe(&receita);
+
+    // CANNOT_BE_EXECUTED
+    assert_eq!(
+        Library::new()
+            .with_recipe(receita.clone())
+            .expect_err("não executa")
+            .code(),
+        "E-SNAP-OPERACAO-FORA-DA-AUTORIDADE"
+    );
+
+    // CANNOT_BE_INGESTED — os bytes renderizados não voltam a ser receita válida
+    match parse_recipe(&texto) {
+        Err(HarnessFailure::OperationOutsideAuthority { op, .. }) => {
+            assert_eq!(op, "materialize-region")
+        }
+        outro => panic!("o parser aceitou o que a autoridade recusa: {outro:?}"),
+    }
+
+    // O mesmo vale para o snapshot com capacidade acima da versão declarada.
+    let mut modelo = snapshot_materializando_b();
+    modelo.schema = SNAPSHOT_SCHEMA_V3;
+    let texto_snapshot = render(&modelo);
+    assert!(Library::new().with_snapshot(modelo).is_err());
+    assert!(matches!(
+        parse(&texto_snapshot),
+        Err(HarnessFailure::CapabilityRequiresSchema { .. })
+    ));
 }

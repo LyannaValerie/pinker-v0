@@ -125,6 +125,16 @@ impl SchemaAuthority {
         }
     }
 
+    /// A versão declarada está dentro do que este formato aceita?
+    pub fn supports(&self, schema: u64) -> bool {
+        match self {
+            SchemaAuthority::Snapshot => {
+                (SNAPSHOT_SCHEMA_V1..=SNAPSHOT_SCHEMA_V4).contains(&schema)
+            }
+            SchemaAuthority::Recipe => (1..=2).contains(&schema),
+        }
+    }
+
     /// Código estável do erro de schema deste formato.
     pub fn schema_error_code(&self) -> &'static str {
         match self {
@@ -441,6 +451,12 @@ pub struct ProjectionSnapshot {
 }
 
 impl ProjectionSnapshot {
+    /// Autoridade e capacidade deste modelo, independentemente de ele ter vindo
+    /// de `parse` ou de ter sido construído em memória.
+    pub fn validate_model(&self) -> Result<(), HarnessFailure> {
+        validate_rules(self.schema, &self.rules, SchemaAuthority::Snapshot)
+    }
+
     /// Path repo-relativo canônico do arquivo deste snapshot.
     ///
     /// Não abre nem escreve nada: apenas deriva o nome a partir do ID já
@@ -1663,6 +1679,60 @@ fn validate_relative_path(value: &str, field: &str) -> Result<(), HarnessFailure
     Ok(())
 }
 
+/// A validação de autoridade e capacidade de um modelo, seja ele parseado ou
+/// construído em memória.
+///
+/// Existe porque as duas coisas que este validador cobra — quais operações
+/// pertencem a esta autoridade, e qual versão cada uma exige — são propriedades
+/// do **modelo**, não do texto. Deixá-las só no parser tornava a regra
+/// contornável: uma [`crate::nav_projection_recipe::Recipe`] construída
+/// diretamente em Rust, com os campos públicos que ela tem, entrava numa
+/// `Library` e materializava região sem passar por `parse_recipe`.
+///
+/// Por isso o mesmo validador roda nas duas fronteiras que importam:
+///
+/// ```text
+/// ingestão   parse / parse_recipe
+/// execução   Library::with_snapshot / Library::with_recipe
+/// ```
+///
+/// A renderização continua sendo serialização pura do modelo — ela não decide
+/// validade —, e quem tiver um modelo vindo da API e quiser saber antes de
+/// serializar chama [`ProjectionSnapshot::validate_model`] ou
+/// [`crate::nav_projection_recipe::Recipe::validate_model`].
+pub fn validate_rules(
+    schema: u64,
+    rules: &[Rule],
+    authority: SchemaAuthority,
+) -> Result<(), HarnessFailure> {
+    if !authority.supports(schema) {
+        return Err(HarnessFailure::SchemaUnknown {
+            authority,
+            found: schema,
+        });
+    }
+    for rule in rules {
+        // Materializar afirma um fato histórico, e só um snapshot tem medidas,
+        // estado e predecessor para responder por ele. A recusa é nomeada.
+        if authority == SchemaAuthority::Recipe && rule.is_materialization() {
+            return Err(HarnessFailure::OperationOutsideAuthority {
+                authority,
+                op: rule.op().to_string(),
+            });
+        }
+        let exigido = rule.min_schema(authority);
+        if exigido > schema {
+            return Err(HarnessFailure::CapabilityRequiresSchema {
+                authority,
+                capability: format!("op '{}'", rule.op()),
+                found_schema: schema,
+                required_schema: exigido,
+            });
+        }
+    }
+    Ok(())
+}
+
 /// Campo textual obrigatório que também não pode ser vazio.
 ///
 /// `summary` fica de fora desta regra de propósito: ele participa da medida e é
@@ -1828,18 +1898,9 @@ fn build(raw: RawDocument) -> Result<ProjectionSnapshot, HarnessFailure> {
 
     let mut rules = Vec::with_capacity(raw.rules.len());
     for (index, table) in raw.rules.iter().enumerate() {
-        let rule = build_rule(table, index)?;
-        let exigido = rule.min_schema(SchemaAuthority::Snapshot);
-        if exigido > schema {
-            return Err(HarnessFailure::CapabilityRequiresSchema {
-                authority: SchemaAuthority::Snapshot,
-                capability: format!("op '{}'", rule.op()),
-                found_schema: schema,
-                required_schema: exigido,
-            });
-        }
-        rules.push(rule);
+        rules.push(build_rule(table, index)?);
     }
+    validate_rules(schema, &rules, SchemaAuthority::Snapshot)?;
 
     let found_overrides = rules.iter().filter(|rule| rule.is_override()).count() as u64;
     let found_materializations = rules

@@ -86,8 +86,18 @@ fn snapshot(
     rules: Vec<Rule>,
 ) -> ProjectionSnapshot {
     let overrides = rules.iter().filter(|r| r.op() == "override-hash").count() as u64;
+    // A versão declarada precisa comportar as regras declaradas. A fixture pedia
+    // schema 2 mesmo carregando `override-region`, que é capacidade do 3; isso
+    // só passava porque `with_snapshot` não validava o modelo. Agora a fixture
+    // deriva o mínimo, como um artefato real faria.
+    let schema = rules
+        .iter()
+        .map(|r| r.min_schema(SchemaAuthority::Snapshot))
+        .max()
+        .unwrap_or(SNAPSHOT_SCHEMA_V2)
+        .max(SNAPSHOT_SCHEMA_V2);
     ProjectionSnapshot {
-        schema: SNAPSHOT_SCHEMA_V2,
+        schema,
         id: id.to_string(),
         state,
         predecessor: None,
