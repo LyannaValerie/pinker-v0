@@ -40,8 +40,9 @@ pinker_sha256_contract = { path = "runtime/pinker_sha256_contract" }
 # `panic = unwind`, link estático e ABI pública continuam os do perfil `dev`.
 #
 # O escopo é o grafo exato que compõe a staticlib — `pinker_rt` e os quatro
-# contratos locais que ele consome. Isso reproduz byte a byte o artefato do
-# experimento V2; otimizar o compilador inteiro não faz parte desta política.
+# contratos locais que ele consome. Isso reproduz byte a byte, sobre a mesma
+# árvore, o artefato produzido pela configuração experimental V2; otimizar o
+# compilador inteiro não faz parte desta política.
 #
 # `panic` e `lto` não podem ser declarados em override de pacote no Cargo 1.78;
 # ambos são herdados de `dev` (`panic = "unwind"`, `lto = false`), que este

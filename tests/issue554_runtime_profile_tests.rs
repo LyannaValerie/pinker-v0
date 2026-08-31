@@ -85,22 +85,19 @@ struct UnidadeCompilada {
 ///
 /// `--message-format=json` reporta o perfil resolvido também para unidades já
 /// atualizadas, então o custo é uma consulta, não uma recompilação.
-fn unidades_da_staticlib() -> Vec<UnidadeCompilada> {
+fn unidades_compiladas(argumentos: &[&str]) -> Vec<UnidadeCompilada> {
     let raiz = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let mut argumentos_cargo = vec!["build", "--locked"];
+    argumentos_cargo.extend_from_slice(argumentos);
+    argumentos_cargo.push("--message-format=json");
     let saida = Command::new(env!("CARGO"))
         .current_dir(raiz)
-        .args([
-            "build",
-            "--locked",
-            "-p",
-            "pinker_rt",
-            "--message-format=json",
-        ])
+        .args(argumentos_cargo)
         .output()
-        .expect("cargo build -p pinker_rt precisa ser invocável a partir do teste");
+        .expect("cargo build precisa ser invocável a partir do teste");
     assert!(
         saida.status.success(),
-        "cargo build -p pinker_rt falhou: {}",
+        "cargo build falhou: {}",
         String::from_utf8_lossy(&saida.stderr)
     );
 
@@ -147,9 +144,17 @@ fn unidades_da_staticlib() -> Vec<UnidadeCompilada> {
     }
     assert!(
         !unidades.is_empty(),
-        "nenhum artefato de compilação foi reportado por cargo build -p pinker_rt"
+        "nenhum artefato de compilação foi reportado por cargo build"
     );
     unidades
+}
+
+fn unidades_da_staticlib() -> Vec<UnidadeCompilada> {
+    unidades_compiladas(&["-p", "pinker_rt"])
+}
+
+fn unidades_do_workspace() -> Vec<UnidadeCompilada> {
+    unidades_compiladas(&[])
 }
 
 fn staticlib() -> PathBuf {
@@ -194,6 +199,28 @@ fn perfil_efetivo_do_runtime_e_otimizado_com_semantica_dev() {
         assert!(
             unidade.overflow_checks,
             "{esperado} não pode perder overflow checks em troca de velocidade"
+        );
+    }
+}
+
+/// A otimização é estritamente do grafo da staticlib: o compilador e seu binário
+/// continuam no `dev` normal, mesmo que alguém tente otimizar o workspace todo.
+#[test]
+fn compilador_permanece_nao_otimizado() {
+    let unidades = unidades_do_workspace();
+    for esperado in ["pinker_v0", "pink"] {
+        let unidade = unidades
+            .iter()
+            .find(|unidade| unidade.pacote == esperado)
+            .unwrap_or_else(|| {
+                panic!(
+                    "{esperado} não aparece entre as unidades do workspace: {:?}",
+                    unidades.iter().map(|u| &u.pacote).collect::<Vec<_>>()
+                )
+            });
+        assert_eq!(
+            unidade.opt_level, "0",
+            "{esperado} não pode receber a otimização reservada ao runtime"
         );
     }
 }
