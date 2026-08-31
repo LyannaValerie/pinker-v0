@@ -1,7 +1,0 @@
-{
-  "schema": 1,
-  "removed_forja_oracles": ["agent_cli_tests", "agent_limits_tests", "agent_runner_tests", "f2_forja_integration_tests"],
-  "preserved_product_oracles": ["automation_core_tests", "f1_tooling_tests (product subset)", "cli_discovery_tests (product subset)", "project_state_tests (product state)", "nav_cartography_tests (current product cartography)", "nav_projection_authority_tests", "nav_projection_cli_tests", "native backend and language suites"],
-  "product_test_power": "PRESERVED",
-  "count_is_not_invariant": true
-}

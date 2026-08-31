@@ -363,35 +363,21 @@ fn predecessor_e_base_snapshot_sao_relacoes_distintas() {
 /// `materialize-region`. Os treze snapshots continuam exatamente como foram
 /// congelados — reescrevê-los para acompanhar um bump seria mexer na história
 /// para agradar a implementação.
-const VERSAO_DO_ACERVO: u64 = 4;
+const VERSAO_DO_ACERVO: u64 = 3;
 
 /// A versão do acervo precisa continuar dentro do que o formato aceita. Falha em
 /// tempo de compilação: um bump que abandonasse a versão congelada quebraria a
 /// leitura dos treze artefatos, e isso não é assunto para descobrir em runtime.
 const _: () = assert!(VERSAO_DO_ACERVO <= SNAPSHOT_SCHEMA);
 
-/// Nenhuma versão aparece no diretório por acidente de conteúdo.
-///
-/// Sem esta guarda, um snapshot que por acaso não usa `override-region` poderia
-/// ser emitido em `schema = 1` e continuar válido — e o acervo passaria a
-/// misturar versões por acidente, não por decisão.
-///
-/// A guarda tem duas metades, porque há duas decisões distintas em jogo:
-///
-/// 1. **o acervo materializado é homogêneo** — os treze snapshots nomeados em
-///    [`DISTRIBUICAO_CANONICA`] estão todos em [`VERSAO_DO_ACERVO`];
-/// 2. **qualquer artefato do diretório está numa das duas versões legítimas** —
-///    a do acervo congelado ou a de emissão corrente. Nada mais entra.
-///
-/// A segunda metade existe porque exigir a versão do acervo de *todo* arquivo
-/// contradiz o emissor: `validate_candidate_shape` recusa candidato cujo schema
-/// não seja `SNAPSHOT_SCHEMA`, então o próximo `pink nav projecao aceitar`
-/// legítimo grava um schema 4 — e não haveria valor capaz de satisfazer as duas
-/// pontas sem reescrever história congelada.
+/// O acervo conserva a versão em que cada witness foi congelado. A única
+/// evolução autorizada é a do snapshot que usa uma capacidade nova: hoje,
+/// `onda-pink-agente-d` precisa de `materialize-region` e portanto usa schema 4;
+/// os demais continuam em schema 3.
 #[test]
-fn o_acervo_usa_a_versao_corrente_de_cada_formato() {
+fn o_acervo_preserva_a_versao_congelada_de_cada_witness() {
     let do_acervo: BTreeSet<&str> = DISTRIBUICAO_CANONICA.iter().map(|(id, _)| *id).collect();
-    let mut homogeneos = 0;
+    let mut encontrados = 0;
     for (caminho, modelo) in carrega_snapshots() {
         assert!(
             modelo.schema == VERSAO_DO_ACERVO || modelo.schema == SNAPSHOT_SCHEMA,
@@ -400,17 +386,22 @@ fn o_acervo_usa_a_versao_corrente_de_cada_formato() {
             modelo.schema
         );
         if do_acervo.contains(modelo.id.as_str()) {
+            let esperado = if modelo.id == "onda-pink-agente-d" {
+                SNAPSHOT_SCHEMA
+            } else {
+                VERSAO_DO_ACERVO
+            };
             assert_eq!(
                 modelo.schema,
-                VERSAO_DO_ACERVO,
-                "{} destoa da versão única do acervo materializado",
+                esperado,
+                "{} não preserva a versão autorizada do witness",
                 caminho.display()
             );
-            homogeneos += 1;
+            encontrados += 1;
         }
     }
     assert_eq!(
-        homogeneos, SNAPSHOTS_ESPERADOS,
+        encontrados, SNAPSHOTS_ESPERADOS,
         "os treze snapshots do acervo precisam estar todos presentes"
     );
     for (caminho, receita) in carrega_receitas() {

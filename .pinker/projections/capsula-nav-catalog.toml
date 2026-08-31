@@ -1,4 +1,4 @@
-schema = 4
+schema = 3
 id = "capsula-nav-catalog"
 state = "FROZEN"
 justification = "Estado completo da cápsula nav-catalog, medido pelo gate capsula_nav_catalog_cartografa_suporte_e_seis_testes."

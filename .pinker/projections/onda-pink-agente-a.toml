@@ -1,4 +1,4 @@
-schema = 4
+schema = 3
 id = "onda-pink-agente-a"
 state = "FROZEN"
 predecessor = "capsula-trama-query"

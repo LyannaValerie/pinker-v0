@@ -1,4 +1,4 @@
-schema = 4
+schema = 3
 id = "capsula-trama-query"
 state = "FROZEN"
 predecessor = "capsula-doc-catalog"

@@ -1,4 +1,4 @@
-schema = 4
+schema = 3
 id = "onda-8i-anterior"
 state = "FROZEN"
 justification = "Estado anterior à evidência da Onda 8I (paridade do backend nativo), medido pelo gate onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo."

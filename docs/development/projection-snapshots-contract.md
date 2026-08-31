@@ -72,7 +72,7 @@ Um snapshot congela exatamente três medidas da projeção estável:
 
 Formato TOML, um arquivo por snapshot, em `.pinker/projections/<id>.toml`. O
 exemplo abaixo usa `schema = 1` porque é a forma mínima do formato — lista plana,
-sem composição. **Artefatos novos são emitidos em `schema = 4`**; as versões
+sem composição. **Artefatos novos são emitidos em `schema = 3`**; as versões
 anteriores seguem aceitas para leitura.
 
 ```toml
@@ -250,7 +250,7 @@ automation core.
 
 O JSON de `pink nav projecao` usa `PROJECTION_CLI_SCHEMA = 1`. O relatório
 histórico de `json_report()` usa `SNAPSHOT_REPORT_SCHEMA = 1`. Ambos são
-protocolos de relatório, separados do `SNAPSHOT_SCHEMA = 4` do artefato TOML.
+protocolos de relatório, separados do `SNAPSHOT_SCHEMA = 3` do artefato TOML.
 Saídas são de uma linha, determinísticas, sem ANSI, root absoluto, timestamp,
 PID ou payload completo do plano.
 
@@ -259,24 +259,23 @@ PID ou payload completo do plano.
 Recipes não recebem lifecycle. Quando o catálogo evolui, manutenção semântica
 é edição humana deliberada: regras estritas e, quando apropriado, composição por
 `steps`. Nenhum FROZEN ou medida é recalibrado. Recipe consegue excluir regiões
-posteriores, adaptar campos com precondições e materializar fatos históricos
-estáveis de regiões removidas. A ordem é `exclude`, `override`, `materialize`;
-colisão com região corrente continua `HARNESS_FAILURE`, nunca drift.
+posteriores e adaptar campos com precondições; não consegue fabricar região
+histórica removida. Falha de consumo continua `HARNESS_FAILURE`, nunca drift.
 
 Continuam fora deste contrato: comando de manutenção automática de recipes,
-transação multi-arquivo, rollback global, novo executor e alterações de
-superfícies históricas fora da autoridade declarada.
+transação multi-arquivo, rollback global, novo executor e qualquer alteração de
+`pink-agent-v1`.
 <!-- @pinker-doc:end development.projection-snapshots-contract.reconstrucao -->
 
 <!-- @pinker-doc:start
 id: development.projection-snapshots-contract.composicao
 tags: [desenvolvimento, snapshots, composicao, receitas, schema]
 aliases:
-  - schema 2, 3 e 4 de snapshot
+  - schema 2 e 3 de snapshot
   - receita de reconstrucao
   - composicao de reconstrucao
   - autoridade historica materializada
-summary: Schemas 2, 3 e 4 do snapshot, formato de receita, invariantes do grafo de composição e o acervo histórico materializado.
+summary: Schemas 2 e 3 do snapshot, formato de receita, invariantes do grafo de composição e o acervo histórico materializado da Issue #384.
 -->
 ## Quantas receitas a migração criou
 
@@ -334,13 +333,12 @@ autoridade, deliberadamente menor.
 | estado | sim | **não** |
 | predecessor | sim | **não** |
 | compõe | `base_snapshot` + `recipes` | apenas `recipes` |
-| versões aceitas | 1, 2, 3, 4 | 1, 2 |
-| versão emitida hoje | `schema = 4` | `schema = 2` |
+| versões aceitas | 1, 2, 3 | 1, 2 |
+| versão emitida hoje | `schema = 3` | `schema = 2` |
 
 Os formatos são versionados de forma independente e evoluíram em ritmos
-diferentes. O snapshot ganhou composição no `schema = 2`, `override-region` no
-`schema = 3` e `materialize-region` no `schema = 4`; a receita estreou em 1 e
-ganhou `override-region` em 2. Cada
+diferentes. O snapshot ganhou composição no `schema = 2` e `override-region` no
+`schema = 3`; a receita estreou em 1 e ganhou `override-region` em 2. Cada
 autoridade sobe de versão quando **ela** ganha capacidade, não quando a outra
 sobe.
 
@@ -423,7 +421,7 @@ formato fala:
 
 | Situação | Código | Mensagem |
 |---|---|---|
-| snapshot com versão fora de {1, 2, 3, 4} | `E-SNAP-SCHEMA` | "schema N desconhecido para snapshot; este formato aceita 1, 2, 3 ou 4" |
+| snapshot com versão fora de {1, 2, 3} | `E-SNAP-SCHEMA` | "schema N desconhecido para snapshot; este formato aceita 1, 2 ou 3" |
 | receita com versão fora de {1, 2} | `E-RECEITA-SCHEMA` | "schema N desconhecido para receita; este formato aceita 1 ou 2" |
 
 O mesmo vale para autorreferência, porque a relação não é a mesma nas duas:

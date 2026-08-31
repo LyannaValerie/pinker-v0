@@ -39,6 +39,24 @@ Rust/Cargo.
 - Documentação só muda quando a Task exige ajuste de superfície; não faça
   rebuild documental amplo.
 
+## Execução nativa Pinker
+
+- `tests/common/native_process_sandbox.rs` ancora o sandbox em
+  `<worktree>/target/pinker-exec`, ignorando `CARGO_TARGET_DIR` por desenho. A
+  raiz é canonicalizada e deve permanecer dentro do repositório; trocar
+  `<worktree>/target` por symlink externo falha com `PermissionDenied`.
+- Todo teste que usa `ControlledCommand` herda esse sandbox. Os casos recebem
+  nomes únicos, mas compartilham o diretório-pai; considere interferência ali ao
+  investigar flakes. Esses diretórios são contenção de produto, não resíduo da
+  Forja.
+- `part_d_native_process_tests` exige a staticlib em
+  `<worktree>/target/debug/libpinker_rt.a`. Quando o build usa target externo,
+  mantenha nesse caminho uma ponte para
+  `<CARGO_TARGET_DIR>/debug/libpinker_rt.a`.
+- O socket Unix nasce abaixo de `target/pinker-exec` e está sujeito ao limite
+  útil de 107 bytes de `sun_path`. Preserve o caminho físico curto do worktree;
+  `TASK_ID` continua sendo identidade lógica, não componente de path.
+
 ## Validação
 
 Use a toolchain Rust `1.78.0`, os testes de produto afetados, Trama,

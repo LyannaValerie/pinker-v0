@@ -1,4 +1,4 @@
-schema = 4
+schema = 3
 id = "onda-8-convergencia"
 state = "FROZEN"
 justification = "Conjunto histórico convergido da Onda 8, fechado pelo gate onda_8_convergencia_fecha_cadeia_8a_8j."
