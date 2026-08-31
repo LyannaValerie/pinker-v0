@@ -29,9 +29,9 @@ fn runner_temporario_foi_removido() {
 // @pinker-nav:start evidencia.trama.ci.readonly-workflow
 // @pinker-nav:domain trama
 // @pinker-nav:layer evidencia
-// @pinker-nav:summary Inspeção textual do workflow Trama: contents read, gatilho pull_request, validação específica sem make ci e ausência de push, commit, Base64 ou upload de artefato; o CI conserva o gate integral.
+// @pinker-nav:summary Inspeção textual do workflow permanente: contents read, gatilho pull_request, make ci e ausência de push, commit, Base64 ou upload de artefato.
 #[test]
-fn workflow_trama_e_somente_leitura_sem_gate_integral() {
+fn workflow_permanente_e_somente_leitura() {
     let path = workflow_dir().join("trama.yml");
     let text = std::fs::read_to_string(path).expect("workflow permanente presente");
 
@@ -47,11 +47,8 @@ fn workflow_trama_e_somente_leitura_sem_gate_integral() {
     );
     // Roda em pull_request.
     assert!(text.contains("pull_request"), "deve rodar em pull_request");
-    // A Trama só valida o bloco do PR; o gate integral pertence ao CI.
-    assert!(!text.contains("make ci"), "não deve recomputar make ci");
-    let ci = std::fs::read_to_string(workflow_dir().join("ci.yml"))
-        .expect("workflow de CI presente");
-    assert!(ci.contains("make ci"), "CI deve executar make ci");
+    // Executa make ci.
+    assert!(text.contains("make ci"), "deve executar make ci");
 
     // Nunca faz push, commit, nem reconstrói patches Base64.
     for forbidden in ["git push", "git commit", "base64 -d", "upload-artifact"] {

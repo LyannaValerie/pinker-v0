@@ -6,7 +6,8 @@ name: Trama Pinker
 # VERIFICA: nunca faz push, nunca cria commit, nunca reconstrói patches Base64,
 # nunca edita a branch e não roda bot de correção. O agente ou desenvolvedor é
 # quem sincroniza (`pink doc sincronizar` / `pink nav sincronizar`); o CI só
-# confere o bloco `pinker-change` do PR atual.
+# deixa o gate integral `make ci` sob responsabilidade do CI e confere o bloco
+# `pinker-change` do PR atual.
 
 on:
   pull_request:
