@@ -225,7 +225,7 @@ fn digest_e_sha256_da_forma_canonica() {
     let plano = plano();
     assert_eq!(
         plano.digest(),
-        pinker_v0::agent::sha256_hex(plano.to_canonical_json().as_bytes())
+        pinker_sha256_contract::sha256_hex(plano.to_canonical_json().as_bytes())
     );
     assert_eq!(plano.digest().len(), 64);
 }
@@ -879,9 +879,8 @@ fn o_nucleo_puro_nao_expoe_apply_root_nem_cli() {
 
 #[test]
 fn o_nucleo_nao_conhece_estados_do_pink_agente() {
-    // A única dependência sobre `crate::agent` é `sha256_hex`, função pura de
-    // bytes: o contrato proíbe adicionar crate de SHA-256 e proíbe duplicar
-    // hashing em silêncio, e essa é a única implementação pública do repositório.
+    // O núcleo reutiliza contrato SHA-256 compartilhado, sem importar estados
+    // organizacionais do agente.
     for (nome, fonte) in FONTES {
         for proibido in [
             "CONTRACT_",
@@ -894,26 +893,21 @@ fn o_nucleo_nao_conhece_estados_do_pink_agente() {
         ] {
             assert!(
                 !fonte.contains(proibido),
-                "{nome} importou estado do pink agente: {proibido}"
+                "{nome} importou estado operacional: {proibido}"
             );
         }
     }
     let usos: usize = FONTES
         .iter()
-        .map(|(_, fonte)| fonte.matches("crate::agent::").count())
+        .map(|(_, fonte)| fonte.matches("pinker_sha256_contract::sha256_hex").count())
         .sum();
     assert!(
         usos > 0,
         "o digest precisa reutilizar a autoridade de SHA-256"
     );
-    for (nome, fonte) in FONTES {
-        for (posicao, _) in fonte.match_indices("crate::agent::") {
-            assert!(
-                fonte[posicao..].starts_with("crate::agent::sha256_hex"),
-                "{nome}: o único uso permitido de `crate::agent` é sha256_hex"
-            );
-        }
-    }
+    assert!(FONTES
+        .iter()
+        .all(|(_, fonte)| !fonte.contains("crate::pinker_sha256_contract::")));
 }
 
 #[test]

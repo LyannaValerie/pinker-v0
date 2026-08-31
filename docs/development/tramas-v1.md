@@ -12,7 +12,6 @@ canonical_for:
   - development.tramas-policy
 related:
   - development.code-navigation
-  - development.pink-agent
   - roadmap
 ---
 

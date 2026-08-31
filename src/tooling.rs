@@ -4,7 +4,6 @@
 //! diff. Ele adapta as autoridades existentes para os contratos estruturados
 //! de `pink doctor`, `pink nav impacto` e `pink verificar`.
 
-use crate::agent;
 use crate::automation::RepoRoot;
 use crate::change;
 use crate::diff_coverage::{self, CoverageAuthorities, RelationStatus};
@@ -13,7 +12,7 @@ use crate::doc_index::DocCatalog;
 use crate::nav::{self, CodeCatalog};
 use crate::nav_projection_store::ProjectionStore;
 use crate::project_state::{self, DomainDetails, DomainId, StateStatus};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::fs;
 use std::io::Read;
 use std::path::{Component, Path, PathBuf};
@@ -21,7 +20,6 @@ use std::process::{Command, Stdio};
 
 pub const TOOLING_SCHEMA: u64 = 1;
 pub const AVAILABLE_SUBCOMMANDS: &[&str] = &[
-    "agente",
     "build",
     "doc",
     "doctor",
@@ -198,7 +196,7 @@ pub fn recommended_action(
     projection_state: &str,
 ) -> String {
     if !compatibility.usable() {
-        return "scripts/pink-baseline build --output <bundle> && sudo scripts/pink-baseline publish --bundle <bundle>".to_string();
+        return "rebuild or reinstall pink from the current Pinker release".to_string();
     }
     if navigation_catalog != "CURRENT" {
         return "pink nav sincronizar".to_string();
@@ -214,7 +212,7 @@ pub fn collect_doctor(repo: &Path) -> Result<DoctorReport, String> {
     let repo_head = git_output(root.path(), &["rev-parse", "HEAD"])?;
     let binary_commit = binary_commit().to_string();
     let compatibility = compatibility(root.path(), &binary_commit, &repo_head);
-    let state = project_state::collect(root.path(), None).map_err(|error| error.to_string())?;
+    let state = project_state::collect(root.path()).map_err(|error| error.to_string())?;
     let navigation_catalog = navigation_status(&state);
     let projection_state = projection_status(&state);
     let binary_path = std::env::current_exe()
@@ -878,35 +876,15 @@ pub fn preflight_exit_code(report: &PreflightReport) -> i32 {
 }
 // @pinker-nav:end tooling.f1.unified-preflight
 
-// @pinker-nav:start tooling.f1.bundle-identity
-// @pinker-nav:domain tooling
-// @pinker-nav:layer bootstrap
-// @pinker-nav:summary Identidade do bundle release do pink derivada de versão, commit da origem e SHA-256 do payload para validação pelo publisher administrativo.
-pub fn bundle_identity(repo: &Path, binary: &Path) -> Result<BTreeMap<String, String>, String> {
-    let root = RepoRoot::discover(repo).map_err(|error| error.to_string())?;
-    let commit = git_output(root.path(), &["rev-parse", "HEAD"])?;
-    let bytes = fs::read(binary).map_err(|error| error.to_string())?;
-    let mut identity = BTreeMap::new();
-    identity.insert("version".to_string(), env!("CARGO_PKG_VERSION").to_string());
-    identity.insert("commit".to_string(), commit);
-    identity.insert("sha256".to_string(), agent::sha256_hex(&bytes));
-    identity.insert(
-        "source".to_string(),
-        root.path().to_string_lossy().into_owned(),
-    );
-    Ok(identity)
-}
-// @pinker-nav:end tooling.f1.bundle-identity
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn recommended_action_has_deterministic_priority() {
-        assert!(
-            recommended_action(Compatibility::Incompatible, "STALE", "STALE")
-                .starts_with("scripts/pink-baseline")
+        assert_eq!(
+            recommended_action(Compatibility::Incompatible, "STALE", "STALE"),
+            "rebuild or reinstall pink from the current Pinker release"
         );
         assert_eq!(
             recommended_action(Compatibility::Exact, "STALE", "STALE"),

@@ -561,7 +561,7 @@ fn workflow_real_de_verificacao_de_integridade() {
     // manifesto de verdade vem de quem publicou o artefato — nunca recalculado
     // pela implementação sob teste.
     //
-    // O formato é o mesmo `sha256=<hex>` que `scripts/pink-baseline` já usa
+    // O formato é o contrato compartilhado `sha256=<hex>`
     // para conferir um bundle publicado. É o recorte de VERIFICAÇÃO desse
     // workflow, não a ferramenta inteira: nada de build, publish, root ou
     // instalação atômica.

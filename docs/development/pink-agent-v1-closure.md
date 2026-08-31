@@ -9,9 +9,6 @@ audience:
   - human
   - agent
 related:
-  - development.pink-agent
-  - development.pink-agent-v1-contract
-  - development.pink-agent-roadmap
 ---
 
 # Fechamento da série A–D do `pink agente`

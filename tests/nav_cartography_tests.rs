@@ -193,16 +193,12 @@ fn retain_membership_base(catalog: &mut CodeCatalog) {
                 | "trama.snapshots.verificacao"
         )
     });
-    // Onda 9: arquivos do agente e da Trama que não existiam antes, e a raiz
+    // Onda 9: arquivos históricos da Trama que não existiam antes, e a raiz
     // `apps/`, que a onda ativou.
     catalog.regions.retain(|region| {
         !matches!(
             region.file.as_str(),
-            "src/agent.rs"
-                | "tests/agent_cli_tests.rs"
-                | "tests/agent_limits_tests.rs"
-                | "tests/agent_runner_tests.rs"
-                | "tests/trama_ci_tests.rs"
+            "tests/trama_ci_tests.rs"
                 | "tests/trama_manifest_tests.rs"
                 | "tests/trama_projection_tests.rs"
                 | "tests/trama_scale_tests.rs"
@@ -569,7 +565,7 @@ fn catalogo_real_cartografa_o_guardiao_pinker_da_onda_9() {
     // congelados, porque `project_pre_automation_core` e
     // `project_pre_projection_snapshot_contract` removem as regiões novas antes
     // de qualquer reconstrução.
-    assert_eq!(index.regions.len(), 621);
+    assert_eq!(index.regions.len(), 602);
 
     // Exatamente uma região Pinker, a do Guardião, com metadados congelados.
     let guardiao: Vec<_> = index
@@ -593,7 +589,7 @@ fn catalogo_real_cartografa_o_guardiao_pinker_da_onda_9() {
             .filter(|r| r.layer.as_deref() == Some(layer))
             .count()
     };
-    assert_eq!(by_layer("evidencia"), 301);
+    assert_eq!(by_layer("evidencia"), 298);
     assert_eq!(by_layer("runtime"), 22);
     assert_eq!(by_layer("apps"), 1);
 }
@@ -2345,7 +2341,7 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
         .filter(|region| region.key != "backend-s.lowering.objetos-trato-nativos")
         .count();
     assert_eq!(
-        historical_catalog_total, 444,
+        historical_catalog_total, 443,
         "o estado histórico da Onda 8E deve totalizar 341 regiões (340 + 1 região nova de Fase 243 em src/ast.rs; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +3 regiões do endurecimento pós-PR #411); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends); mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476; mais a região de evidência da paridade de argumento nomeado da #492; mais as sete regiões da autoridade nativa de símbolos da #497; mais as sete regiões da composição modular da #514: identidade de fonte no diagnóstico, unidade e grafo de módulo, ambiente de import explícito, resolução nominal canônica, projeção de execução, visibilidade de tratos por unidade e validação modular local; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região do índice de fontes de módulo da #514"
     );
 }
@@ -2456,7 +2452,7 @@ fn onda_8f_cartografa_evidencias_do_backend_textual() {
         .filter(|region| !region.key.starts_with("evidencia.runtime."))
         .count();
     assert_eq!(
-        historical_catalog_total, 444,
+        historical_catalog_total, 443,
         "o estado histórico da Onda 8F deve totalizar 349 regiões (348 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +3 regiões do endurecimento pós-PR #411); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends); mais a evidência D9 de fatiar_verso; mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476; mais a região de evidência da paridade de argumento nomeado da #492; mais as sete regiões da autoridade nativa de símbolos da #497; mais as sete regiões da composição modular da #514: identidade de fonte no diagnóstico, unidade e grafo de módulo, ambiente de import explícito, resolução nominal canônica, projeção de execução, visibilidade de tratos por unidade e validação modular local; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região do índice de fontes de módulo da #514"
     );
 
@@ -2592,7 +2588,7 @@ fn onda_8f_cartografa_evidencias_do_backend_textual() {
         .collect();
     assert_eq!(
         previous_regions.len(),
-        436,
+        435,
         "as 341 regiões anteriores devem ser preservadas (340 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +3 regiões do endurecimento pós-PR #411); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends); mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476; mais a região de evidência da paridade de argumento nomeado da #492; mais as sete regiões da autoridade nativa de símbolos da #497; mais as sete regiões da composição modular da #514: identidade de fonte no diagnóstico, unidade e grafo de módulo, ambiente de import explícito, resolução nominal canônica, projeção de execução, visibilidade de tratos por unidade e validação modular local; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região do índice de fontes de módulo da #514"
     );
 
@@ -2694,7 +2690,7 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
         .filter(|region| !region.key.starts_with("evidencia.runtime."))
         .count();
     assert_eq!(
-        historical_catalog_total, 452,
+        historical_catalog_total, 451,
         "o estado histórico da Onda 8G deve totalizar 356 regiões (355 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +3 regiões do endurecimento pós-PR #411); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends); mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476; mais a região de evidência da paridade de argumento nomeado da #492; mais as sete regiões da autoridade nativa de símbolos da #497; mais as sete regiões da composição modular da #514: identidade de fonte no diagnóstico, unidade e grafo de módulo, ambiente de import explícito, resolução nominal canônica, projeção de execução, visibilidade de tratos por unidade e validação modular local; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região do índice de fontes de módulo da #514"
     );
     assert_eq!(
@@ -2996,7 +2992,7 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
         .collect();
     assert_eq!(
         previous_regions.len(),
-        445,
+        444,
         "as 349 regiões anteriores devem ser preservadas semanticamente (348 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +3 regiões do endurecimento pós-PR #411); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends); mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476; mais a região de evidência da paridade de argumento nomeado da #492; mais as sete regiões da autoridade nativa de símbolos da #497; mais as sete regiões da composição modular da #514: identidade de fonte no diagnóstico, unidade e grafo de módulo, ambiente de import explícito, resolução nominal canônica, projeção de execução, visibilidade de tratos por unidade e validação modular local; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região do índice de fontes de módulo da #514"
     );
 
@@ -3776,7 +3772,7 @@ fn onda_8_convergencia_fecha_cadeia_8a_8j() {
 
     assert_eq!(
         historical.len(),
-        489,
+        488,
         "a convergência da Onda 8 exige exatamente 387 regiões (386 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +5 regiões do endurecimento pós-PR #411); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends); mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476; mais a região de evidência da paridade de argumento nomeado da #492; mais as sete regiões da autoridade nativa de símbolos da #497; mais as sete regiões da composição modular da #514: identidade de fonte no diagnóstico, unidade e grafo de módulo, ambiente de import explícito, resolução nominal canônica, projeção de execução, visibilidade de tratos por unidade e validação modular local; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região do índice de fontes de módulo da #514"
     );
     assert_eq!(
@@ -3992,7 +3988,7 @@ fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
         .filter(|region| !region.key.starts_with("evidencia.runtime."))
         .count();
     assert_eq!(
-        historical_catalog_total, 462,
+        historical_catalog_total, 461,
         "o estado histórico da Onda 8H deve totalizar 366 regiões (365 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +3 regiões do endurecimento pós-PR #411); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends); mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476; mais a região de evidência da paridade de argumento nomeado da #492; mais as sete regiões da autoridade nativa de símbolos da #497; mais as sete regiões da composição modular da #514: identidade de fonte no diagnóstico, unidade e grafo de módulo, ambiente de import explícito, resolução nominal canônica, projeção de execução, visibilidade de tratos por unidade e validação modular local; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região do índice de fontes de módulo da #514"
     );
     assert_eq!(
@@ -4477,7 +4473,7 @@ fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
         .collect();
     assert_eq!(
         previous_regions.len(),
-        452,
+        451,
         "as 356 regiões anteriores devem ser preservadas semanticamente (355 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +3 regiões do endurecimento pós-PR #411); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends); mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476; mais a região de evidência da paridade de argumento nomeado da #492; mais as sete regiões da autoridade nativa de símbolos da #497; mais as sete regiões da composição modular da #514: identidade de fonte no diagnóstico, unidade e grafo de módulo, ambiente de import explícito, resolução nominal canônica, projeção de execução, visibilidade de tratos por unidade e validação modular local; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região do índice de fontes de módulo da #514"
     );
 
@@ -4612,7 +4608,7 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
                 && region.file != "tests/trama_query_tests.rs")
             .filter(|region| !region.key.starts_with("evidencia.runtime."))
             .count(),
-        476,
+        475,
         "o estado histórico da Onda 8I deve totalizar 380 regiões (379 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +3 regiões do endurecimento pós-PR #411); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends); mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476; mais a região de evidência da paridade de argumento nomeado da #492; mais as sete regiões da autoridade nativa de símbolos da #497; mais as sete regiões da composição modular da #514: identidade de fonte no diagnóstico, unidade e grafo de módulo, ambiente de import explícito, resolução nominal canônica, projeção de execução, visibilidade de tratos por unidade e validação modular local; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região do índice de fontes de módulo da #514"
     );
     assert_eq!(
@@ -5154,7 +5150,7 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
         .collect();
     assert_eq!(
         previous_regions.len(),
-        462,
+        461,
         "as 366 regiões anteriores devem ser preservadas semanticamente (365 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +3 regiões do endurecimento pós-PR #411); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends); mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476; mais a região de evidência da paridade de argumento nomeado da #492; mais as sete regiões da autoridade nativa de símbolos da #497; mais as sete regiões da composição modular da #514: identidade de fonte no diagnóstico, unidade e grafo de módulo, ambiente de import explícito, resolução nominal canônica, projeção de execução, visibilidade de tratos por unidade e validação modular local; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região do índice de fontes de módulo da #514"
     );
 
@@ -5261,7 +5257,7 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
                 && region.file != "tests/doc_catalog_tests.rs"
                 && region.file != "tests/trama_query_tests.rs")
             .count(),
-        489,
+        488,
         "a Onda 8J deve totalizar 387 regiões (386 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +5 regiões do endurecimento pós-PR #411); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends); mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476; mais a região de evidência da paridade de argumento nomeado da #492; mais as sete regiões da autoridade nativa de símbolos da #497; mais as sete regiões da composição modular da #514: identidade de fonte no diagnóstico, unidade e grafo de módulo, ambiente de import explícito, resolução nominal canônica, projeção de execução, visibilidade de tratos por unidade e validação modular local; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região do índice de fontes de módulo da #514"
     );
     assert_eq!(
@@ -5826,7 +5822,7 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
         .collect();
     assert_eq!(
         previous_regions.len(),
-        477,
+        476,
         "as 380 regiões anteriores devem ser preservadas semanticamente (379 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +3 regiões do endurecimento pós-PR #411); mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476; mais a região de evidência da paridade de argumento nomeado da #492; mais as sete regiões da autoridade nativa de símbolos da #497; mais as sete regiões da composição modular da #514: identidade de fonte no diagnóstico, unidade e grafo de módulo, ambiente de import explícito, resolução nominal canônica, projeção de execução, visibilidade de tratos por unidade e validação modular local; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região do índice de fontes de módulo da #514"
     );
 
@@ -6436,931 +6432,4 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
         portal.contains("Política das Tramas") && portal.contains("tramas-v1.md"),
         "o portal de desenvolvimento deve referenciar o contrato das Tramas"
     );
-}
-
-#[test]
-fn onda_pink_agente_a_cartografa_nucleo_e_primeiro_dogfood() {
-    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let catalog_path = repository.join("src/navigation.jsonl");
-    let catalog = estado_canonico("onda-pink-agente-a");
-    // 427 = 426 histórico + 1 região nova de Fase 243 em src/ast.rs;
-    // 434 = 431 + 3 regiões das correções da revisão humana da PR #411;
-    // 439 = 437 + 2 regiões de HR4 em src/ir.rs;
-    // 446 = 441 + 5 regiões do endurecimento pós-PR #411; mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends).
-    assert_eq!(
-        catalog
-            .regions
-            .iter()
-            .filter(|region| region.layer.as_deref() == Some("evidencia"))
-            .count(),
-        254
-    );
-    assert_eq!(
-        catalog
-            .regions
-            .iter()
-            .filter(|region| region.layer.as_deref() == Some("runtime"))
-            .count(),
-        16
-    );
-
-    let ci_keys = [
-        "evidencia.trama.ci.workflow-path",
-        "evidencia.trama.ci.b64-scan",
-        "evidencia.trama.ci.temporary-runner",
-        "evidencia.trama.ci.readonly-workflow",
-        "evidencia.trama.ci.change-validation",
-        "evidencia.trama.ci.temporary-artifacts",
-        "evidencia.trama.ci.all-workflows-readonly",
-    ];
-    let template_keys = [
-        "evidencia.trama.template.parse-support",
-        "evidencia.trama.template.block-structure",
-        "evidencia.trama.template.placeholder-safety",
-        "evidencia.trama.template.filled-valid",
-    ];
-    let agent_keys = [
-        "development.agent.spec",
-        "development.agent.paths",
-        "development.agent.artifacts",
-        "development.agent.runner",
-        "development.agent.lifecycle",
-        "evidencia.agent.cli-spec",
-        "evidencia.agent.runner",
-        "evidencia.agent.limits",
-    ];
-    for key in ci_keys
-        .iter()
-        .chain(template_keys.iter())
-        .chain(agent_keys.iter())
-    {
-        assert_eq!(
-            catalog
-                .regions
-                .iter()
-                .filter(|region| region.key == *key)
-                .count(),
-            1,
-            "região ausente ou duplicada: {key}"
-        );
-    }
-    assert_eq!(
-        catalog
-            .regions
-            .iter()
-            .filter(|region| region.file == "tests/trama_ci_tests.rs")
-            .count(),
-        7
-    );
-    assert_eq!(
-        catalog
-            .regions
-            .iter()
-            .filter(|region| region.file == "tests/trama_template_tests.rs")
-            .count(),
-        4
-    );
-
-    let ownership = [
-        (
-            "tests/trama_ci_tests.rs",
-            [
-                "fn workflow_dir",
-                "fn has_b64",
-                "fn runner_temporario_foi_removido",
-                "fn workflow_permanente_e_somente_leitura",
-                "fn workflow_valida_bloco_incondicionalmente_e_reage_a_edicao",
-                "fn artefatos_temporarios_nao_existem",
-                "fn nenhum_workflow_permanente_escreve_na_branch",
-            ]
-            .as_slice(),
-        ),
-        (
-            "tests/trama_template_tests.rs",
-            [
-                "fn template()",
-                "fn fence_count",
-                "fn extract_block",
-                "fn template_tem_exatamente_um_bloco_pinker_change",
-                "fn bloco_do_template_nao_tem_comentario_inline",
-                "fn template_cru_falha_com_placeholder",
-                "fn template_nao_traz_valores_padrao_enganosos",
-                "fn template_preenchido_passa_parse_e_validate",
-            ]
-            .as_slice(),
-        ),
-    ];
-    let correntes_de_ownership = regioes_correntes_do_estado(&catalog);
-    for (file, symbols) in ownership {
-        let source = fs::read_to_string(repository.join(file)).expect("fonte de ownership");
-        let regions: Vec<_> = correntes_de_ownership
-            .iter()
-            .filter(|region| region.file == file)
-            .collect();
-        for symbol in symbols {
-            let line = source
-                .lines()
-                .position(|candidate| candidate.contains(symbol))
-                .map(|index| index + 1)
-                .unwrap_or_else(|| panic!("símbolo ausente: {symbol}"));
-            assert_eq!(
-                regions
-                    .iter()
-                    .filter(|region| line >= region.content_start && line <= region.content_end)
-                    .count(),
-                1,
-                "ownership não exato para {symbol}"
-            );
-        }
-    }
-
-    for (file, expected_sha) in [
-        (
-            "tests/trama_ci_tests.rs",
-            "2663b31038da950b6810690a5b7581ed88f65f1dd502d9a46259be1ee98f054e",
-        ),
-        (
-            "tests/trama_template_tests.rs",
-            "c3502d06773bee26918ad1d412d083768b7be9eca353259ee3d8440520fa6388",
-        ),
-    ] {
-        let source = fs::read_to_string(repository.join(file)).expect("fonte marker-only");
-        let stripped = source
-            .lines()
-            .filter(|line| !line.trim_start().starts_with("// @pinker-nav:"))
-            .collect::<Vec<_>>()
-            .join("\n")
-            + "\n";
-        assert_eq!(
-            sha256_hex(stripped.as_bytes()),
-            expected_sha,
-            "marker-only: {file}"
-        );
-    }
-
-    // +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs;
-    // +5 regiões do endurecimento pós-PR #411 (itens R5, V4, V3 e clone raso); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends).
-
-    verifica_snapshot_canonico("capsula-trama-query");
-    // Cadeia histórica que esta onda preserva, do mais recente ao mais antigo.
-    verifica_snapshot_canonico("capsula-doc-catalog");
-    verifica_snapshot_canonico("capsula-nav-catalog");
-    verifica_snapshot_canonico("onda-8-convergencia");
-
-    verifica_snapshot_canonico("onda-pink-agente-a");
-
-    let regenerated = CodeIndex::scan_repo(&repository).expect("regeneração canônica");
-    assert!(regenerated.verify().is_empty());
-    assert_eq!(
-        fs::read_to_string(catalog_path).expect("catálogo"),
-        regenerated.render_jsonl()
-    );
-    let core = include_str!("../src/agent.rs");
-    for contract in [
-        "parse_spec_text",
-        "execute_one",
-        "artifact_manifest",
-        "NOT_RUN",
-    ] {
-        assert!(core.contains(contract));
-    }
-    for test_file in [
-        "agent_cli_tests.rs",
-        "agent_runner_tests.rs",
-        "agent_limits_tests.rs",
-    ] {
-        assert!(repository.join("tests").join(test_file).is_file());
-    }
-    let contract = include_str!("../docs/development/pink-agent.md");
-    let roadmap = include_str!("../docs/development/pink-agent-roadmap.md");
-    let inventory = include_str!("../docs/development/code-navigation-inventory.md");
-    for statement in [
-        "A Onda A não conclui a ferramenta",
-        "não conclui a Trama",
-        "trama_manifest_tests",
-        "trama_sync_tests",
-        "Onda 9",
-        "`apps/` continua reservada",
-    ] {
-        assert!(
-            contract.contains(statement)
-                || roadmap.contains(statement)
-                || inventory.contains(statement),
-            "contrato documental ausente: {statement}"
-        );
-    }
-    // Fechamento formal (VALIDATION_ONLY_CONFLICT autorizado pela Founder): o
-    // documento vivo passa a coexistir histórico e estado corrente. A Onda A
-    // continua sem fechar a Trama; a responsabilidade histórica é preservada.
-    let (historico, corrente) = inventory
-        .split_once("## Fechamento formal da Trama Pinker V1 (estado corrente)")
-        .expect("seção de estado corrente do fechamento formal ausente");
-    assert!(
-        historico.contains("trama_complete = false"),
-        "histórico da Onda A deve preservar trama_complete = false"
-    );
-    assert!(
-        corrente.contains("trama_complete = true"),
-        "estado corrente registra trama_complete = true; a Onda A não fechou a Trama"
-    );
-}
-
-#[test]
-fn onda_pink_agente_b_verifica_integridade_e_dogfood_operacional() {
-    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let catalog_path = repository.join("src/navigation.jsonl");
-    let catalog = estado_canonico("onda-pink-agente-b"); // 441 = 440 histórico + 1 região nova de Fase 243 em src/ast.rs;
-                                                         // 448 = 445 + 3 regiões das correções da revisão humana da PR #411;
-                                                         // 453 = 451 + 2 regiões de HR4 em src/ir.rs;
-                                                         // 460 = 455 + 5 regiões do endurecimento pós-PR #411; mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends).
-    assert_eq!(
-        catalog
-            .regions
-            .iter()
-            .filter(|region| region.key.starts_with("evidencia."))
-            .count(),
-        264
-    );
-    assert_eq!(
-        catalog
-            .regions
-            .iter()
-            .filter(|region| region.layer.as_deref() == Some("runtime"))
-            .count(),
-        16
-    );
-
-    let agent_keys = [
-        "development.agent.git-diff",
-        "development.agent.marker-only",
-        "development.agent.projection",
-        "development.agent.sensitivity",
-    ];
-    let trama_keys = [
-        "evidencia.trama.manifest.fixture-config",
-        "evidencia.trama.manifest.process-support",
-        "evidencia.trama.manifest.idempotence-immutability",
-        "evidencia.trama.manifest.enum-validation",
-        "evidencia.trama.manifest.unknown-field",
-        "evidencia.trama.sync.fixture-config",
-        "evidencia.trama.sync.process-support",
-        "evidencia.trama.sync.invalid-source",
-        "evidencia.trama.sync.preserve-last-valid",
-        "evidencia.trama.sync.atomic-write",
-    ];
-    for key in agent_keys.iter().chain(trama_keys.iter()) {
-        assert_eq!(
-            catalog
-                .regions
-                .iter()
-                .filter(|region| region.key == *key)
-                .count(),
-            1,
-            "região ausente ou duplicada: {key}"
-        );
-    }
-    let trama: Vec<_> = catalog
-        .regions
-        .iter()
-        .filter(|region| trama_keys.contains(&region.key.as_str()))
-        .collect();
-    assert_eq!(
-        trama
-            .iter()
-            .filter(|region| region.layer.as_deref() == Some("support"))
-            .count(),
-        4
-    );
-    assert_eq!(
-        trama
-            .iter()
-            .filter(|region| region.layer.as_deref() == Some("evidence"))
-            .count(),
-        6
-    );
-
-    let ownership = [
-        (
-            "tests/trama_manifest_tests.rs",
-            [
-                "const DOC_TOML",
-                "fn body",
-                "fn temp_repo",
-                "fn write",
-                "fn import",
-                "fn setup",
-                "fn manifesto_idempotente_com_conteudo_igual",
-                "fn manifesto_imutavel_com_conteudo_diferente",
-                "fn enum_de_kind_invalido_falha",
-                "fn enum_de_status_invalido_falha",
-                "fn campo_desconhecido_falha",
-            ]
-            .as_slice(),
-        ),
-        (
-            "tests/trama_sync_tests.rs",
-            [
-                "const DOC_TOML",
-                "const PORTAL",
-                "const CORE_OK",
-                "const CORE_BAD",
-                "fn temp_repo",
-                "fn write",
-                "fn doc",
-                "fn sincronizar_recusa_fonte_invalida",
-                "fn ultimo_catalogo_valido_preservado_apos_falha",
-                "fn escrita_e_atomica_sem_temporario_residual",
-            ]
-            .as_slice(),
-        ),
-    ];
-    let correntes_de_ownership = regioes_correntes_do_estado(&catalog);
-    for (file, symbols) in ownership {
-        let source = fs::read_to_string(repository.join(file)).expect("fonte");
-        let regions: Vec<_> = correntes_de_ownership
-            .iter()
-            .filter(|region| region.file == file)
-            .collect();
-        assert_eq!(regions.len(), 5);
-        assert_eq!(
-            source
-                .lines()
-                .filter(|line| line.trim_start().starts_with("// @pinker-nav:"))
-                .count(),
-            25
-        );
-        for symbol in symbols {
-            let line = source
-                .lines()
-                .position(|candidate| candidate.contains(symbol))
-                .map(|index| index + 1)
-                .unwrap();
-            assert_eq!(
-                regions
-                    .iter()
-                    .filter(|region| line >= region.content_start && line <= region.content_end)
-                    .count(),
-                1,
-                "ownership não exato: {symbol}"
-            );
-        }
-    }
-    for (file, expected_sha) in [
-        (
-            "tests/trama_manifest_tests.rs",
-            "01716912a03323623624d6c5b22a5e092f8493ee8d6a87ce9784ef47c099cf02",
-        ),
-        (
-            "tests/trama_sync_tests.rs",
-            "b52a580436f8fd09724655b9f933454c1f330c7e7e6fc113e3aca3434f2fe0e4",
-        ),
-    ] {
-        let source = fs::read_to_string(repository.join(file)).unwrap();
-        let stripped = source
-            .lines()
-            .filter(|line| !line.trim_start().starts_with("// @pinker-nav:"))
-            .collect::<Vec<_>>()
-            .join("\n")
-            + "\n";
-        assert_eq!(
-            sha256_hex(stripped.as_bytes()),
-            expected_sha,
-            "marker-only: {file}"
-        );
-    }
-
-    verifica_snapshot_canonico("onda-pink-agente-b");
-    // Cadeia histórica que esta onda preserva, do mais recente ao mais antigo.
-    verifica_snapshot_canonico("onda-pink-agente-a");
-    verifica_snapshot_canonico("capsula-trama-query");
-    verifica_snapshot_canonico("capsula-doc-catalog");
-    verifica_snapshot_canonico("capsula-nav-catalog");
-    verifica_snapshot_canonico("onda-8-convergencia");
-
-    let regenerated = CodeIndex::scan_repo(&repository).expect("regeneração canônica");
-    assert!(regenerated.verify().is_empty());
-    assert_eq!(
-        fs::read_to_string(catalog_path).unwrap(),
-        regenerated.render_jsonl()
-    );
-    let core = include_str!("../src/agent.rs");
-    for contract in [
-        "run_git_check",
-        "run_marker_check",
-        "run_projection_check",
-        "pub fn sensibilidade",
-        "schema != 1",
-    ] {
-        assert!(core.contains(contract));
-    }
-    let docs = format!(
-        "{}\n{}\n{}",
-        include_str!("../docs/development/pink-agent.md"),
-        include_str!("../docs/development/pink-agent-roadmap.md"),
-        include_str!("../docs/development/code-navigation-inventory.md")
-    );
-    for statement in [
-        "Onda A completa",
-        "Onda B completa",
-        "Onda C",
-        "trama_projection_tests.rs",
-        "trama_scale_tests.rs",
-        "trama_complete = false",
-        "Onda 9 inativa",
-        "`apps/` reservada",
-    ] {
-        assert!(
-            docs.contains(statement),
-            "documentação ausente: {statement}"
-        );
-    }
-    // Fechamento formal (VALIDATION_ONLY_CONFLICT autorizado pela Founder): o
-    // inventário vivo passa a coexistir histórico e estado corrente. Esta onda
-    // continua sem fechar a Trama; a responsabilidade histórica é preservada.
-    let (docs_historico, docs_corrente) = docs
-        .split_once("## Fechamento formal da Trama Pinker V1 (estado corrente)")
-        .expect("seção de estado corrente do fechamento formal ausente no inventário vivo");
-    assert!(
-        docs_historico.contains("trama_complete = false"),
-        "histórico da onda deve preservar trama_complete = false"
-    );
-    assert!(
-        docs_corrente.contains("trama_complete = true"),
-        "estado corrente registra trama_complete = true; esta onda não fechou a Trama"
-    );
-    assert!(!docs.contains("Onda 9 ativa"));
-}
-
-#[test]
-fn onda_pink_agente_c_publica_retoma_e_cartografa_trama_restante() {
-    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let catalog_path = repository.join("src/navigation.jsonl");
-    let catalog = estado_canonico("onda-pink-agente-c"); // 461 = 458 + 3 regiões das correções da revisão humana da PR #411;
-                                                         // 466 = 464 + 2 regiões de HR4 em src/ir.rs;
-                                                         // 473 = 468 + 5 regiões do endurecimento pós-PR #411; mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends).
-    assert_eq!(
-        catalog
-            .regions
-            .iter()
-            .filter(|region| region.key.starts_with("evidencia."))
-            .count(),
-        273
-    );
-    assert_eq!(
-        catalog
-            .regions
-            .iter()
-            .filter(|region| region.layer.as_deref() == Some("runtime"))
-            .count(),
-        16
-    );
-
-    let agent_keys = [
-        "development.agent.pr-body",
-        "development.agent.publication",
-        "development.agent.remote-checks",
-        "development.agent.resume",
-    ];
-    let trama_keys = [
-        "evidencia.trama.projection.fixture-config",
-        "evidencia.trama.projection.process-support",
-        "evidencia.trama.projection.families-human-preservation",
-        "evidencia.trama.projection.idempotence",
-        "evidencia.trama.projection.missing-consumer",
-        "evidencia.trama.scale.fixture-config",
-        "evidencia.trama.scale.process-support",
-        "evidencia.trama.scale.large-catalog",
-        "evidencia.trama.scale.deterministic-order",
-    ];
-    for key in agent_keys.iter().chain(trama_keys.iter()) {
-        assert_eq!(
-            catalog
-                .regions
-                .iter()
-                .filter(|region| region.key == *key)
-                .count(),
-            1,
-            "região ausente ou duplicada: {key}"
-        );
-    }
-    let trama = catalog
-        .regions
-        .iter()
-        .filter(|region| trama_keys.contains(&region.key.as_str()))
-        .collect::<Vec<_>>();
-    assert_eq!(
-        trama
-            .iter()
-            .filter(|region| region.layer.as_deref() == Some("support"))
-            .count(),
-        4
-    );
-    assert_eq!(
-        trama
-            .iter()
-            .filter(|region| region.layer.as_deref() == Some("evidence"))
-            .count(),
-        5
-    );
-    let ownership = [
-        (
-            "tests/trama_projection_tests.rs",
-            [
-                "const DOC_TOML_FULL",
-                "const DOC_TOML_NO_STATE",
-                "const BODY",
-                "const BODY_STATE_ONLY",
-                "fn portal",
-                "fn target",
-                "fn temp_repo",
-                "fn write",
-                "fn doc",
-                "fn import",
-                "fn full_fixture",
-                "fn projecoes_history_state_roadmap_e_regioes_humanas",
-                "fn projecoes_sao_idempotentes",
-                "fn flag_updates_sem_consumidor_causa_erro",
-            ]
-            .as_slice(),
-        ),
-        (
-            "tests/trama_scale_tests.rs",
-            [
-                "const DOC_TOML",
-                "fn temp_repo",
-                "fn write",
-                "fn doc",
-                "fn synthetic_catalog",
-                "fn catalogo_com_mais_de_5000_entradas_e_consultavel",
-                "fn ordenacao_determinista_em_escala",
-            ]
-            .as_slice(),
-        ),
-    ];
-    let correntes_de_ownership = regioes_correntes_do_estado(&catalog);
-    for (file, symbols) in ownership {
-        let source = fs::read_to_string(repository.join(file)).expect("fonte");
-        let regions = correntes_de_ownership
-            .iter()
-            .filter(|region| region.file == file)
-            .collect::<Vec<_>>();
-        for symbol in symbols {
-            let line = source
-                .lines()
-                .position(|candidate| candidate.contains(symbol))
-                .map(|index| index + 1)
-                .unwrap();
-            assert_eq!(
-                regions
-                    .iter()
-                    .filter(|region| line >= region.content_start && line <= region.content_end)
-                    .count(),
-                1,
-                "ownership não exato: {symbol}"
-            );
-        }
-    }
-    assert_eq!(
-        [
-            "tests/trama_projection_tests.rs",
-            "tests/trama_scale_tests.rs"
-        ]
-        .iter()
-        .map(|file| fs::read_to_string(repository.join(file))
-            .unwrap()
-            .lines()
-            .filter(|line| line.trim_start().starts_with("// @pinker-nav:"))
-            .count())
-        .sum::<usize>(),
-        45
-    );
-    for (file, expected_sha) in [
-        (
-            "tests/trama_projection_tests.rs",
-            "0b4af6240fc8e106ebc1b00bcbecb8f6884c8d12cd9ee5148028105bc3f567a3",
-        ),
-        (
-            "tests/trama_scale_tests.rs",
-            "f79be70554969da5d8499a2e20b1cb46881a3e5575ee2da8569d53d46f933e8c",
-        ),
-    ] {
-        let source = fs::read_to_string(repository.join(file)).unwrap();
-        let stripped = source
-            .lines()
-            .filter(|line| !line.trim_start().starts_with("// @pinker-nav:"))
-            .collect::<Vec<_>>()
-            .join("\n")
-            + "\n";
-        assert_eq!(sha256_hex(stripped.as_bytes()), expected_sha);
-    }
-
-    verifica_snapshot_canonico("onda-pink-agente-c");
-
-    verifica_snapshot_canonico("onda-pink-agente-b");
-    let core = include_str!("../src/agent.rs");
-    for contract in [
-        "run_pr_body_check",
-        "pub fn publicar",
-        "read_required_checks",
-        "pub fn retomar",
-        "comando GH não autorizado",
-    ] {
-        assert!(core.contains(contract));
-    }
-    for forbidden in [
-        "gh pr merge",
-        "gh pr edit",
-        "gh run rerun",
-        "\"--auto-merge\"",
-    ] {
-        assert!(!core.contains(forbidden));
-    }
-    let docs = format!(
-        "{}\n{}\n{}",
-        include_str!("../docs/development/pink-agent.md"),
-        include_str!("../docs/development/pink-agent-roadmap.md"),
-        include_str!("../docs/development/code-navigation-inventory.md")
-    );
-    for statement in [
-        "Onda A completa",
-        "Onda B completa",
-        "Onda C completa",
-        "Onda D",
-        "seis suítes operacionais",
-        "trama_complete = false",
-        "Onda 9 inativa",
-        "`apps/` reservada",
-    ] {
-        assert!(
-            docs.contains(statement),
-            "documentação ausente: {statement}"
-        );
-    }
-    // Fechamento formal (VALIDATION_ONLY_CONFLICT autorizado pela Founder): o
-    // inventário vivo passa a coexistir histórico e estado corrente. Esta onda
-    // continua sem fechar a Trama; a responsabilidade histórica é preservada.
-    let (docs_historico, docs_corrente) = docs
-        .split_once("## Fechamento formal da Trama Pinker V1 (estado corrente)")
-        .expect("seção de estado corrente do fechamento formal ausente no inventário vivo");
-    assert!(
-        docs_historico.contains("trama_complete = false"),
-        "histórico da onda deve preservar trama_complete = false"
-    );
-    assert!(
-        docs_corrente.contains("trama_complete = true"),
-        "estado corrente registra trama_complete = true; esta onda não fechou a Trama"
-    );
-    assert!(!docs.contains("Onda 9 ativa"));
-    let regenerated = CodeIndex::scan_repo(&repository).expect("regeneração canônica");
-    assert!(regenerated.verify().is_empty());
-    assert_eq!(
-        fs::read_to_string(catalog_path).unwrap(),
-        regenerated.render_jsonl()
-    );
-}
-
-#[test]
-fn onda_pink_agente_d_congela_v1_sem_fechar_trama() {
-    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let catalog_path = repository.join("src/navigation.jsonl");
-    let catalog = estado_canonico("onda-pink-agente-d");
-
-    // CATALOG — totais exatos da Onda D (455 = 454 histórico + 1 região
-    // nova de Fase 243 em src/ast.rs; 462 = 459 + 3 regiões das correções da
-    // revisão humana da PR #411; 467 = 465 + 2 regiões de HR4 em src/ir.rs;
-    // 474 = 469 + 5 regiões do endurecimento pós-PR #411); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends).
-    assert_eq!(
-        catalog
-            .regions
-            .iter()
-            .filter(|r| r.key.starts_with("evidencia."))
-            .count(),
-        273
-    );
-    assert_eq!(
-        catalog
-            .regions
-            .iter()
-            .filter(|r| r.layer.as_deref() == Some("runtime"))
-            .count(),
-        16
-    );
-
-    // TOOL — nova região única contract-v1 com metadata exata.
-    let contract_regions: Vec<_> = catalog
-        .regions
-        .iter()
-        .filter(|r| r.key == "development.agent.contract-v1")
-        .collect();
-    assert_eq!(contract_regions.len(), 1, "exatamente uma nova região");
-    assert_eq!(contract_regions[0].domain.as_deref(), Some("development"));
-    assert_eq!(contract_regions[0].layer.as_deref(), Some("agent"));
-
-    // Regiões A/B/C preservadas (as tocadas seguem presentes uma única vez).
-    for key in [
-        "development.agent.spec",
-        "development.agent.paths",
-        "development.agent.artifacts",
-        "development.agent.runner",
-        "development.agent.git-diff",
-        "development.agent.marker-only",
-        "development.agent.projection",
-        "development.agent.pr-body",
-        "development.agent.publication",
-        "development.agent.remote-checks",
-        "development.agent.resume",
-        "development.agent.sensitivity",
-        "development.agent.lifecycle",
-        "evidencia.agent.cli-spec",
-        "evidencia.agent.runner",
-        "evidencia.agent.limits",
-    ] {
-        assert_eq!(
-            catalog.regions.iter().filter(|r| r.key == key).count(),
-            1,
-            "região A/B/C ausente ou duplicada: {key}"
-        );
-    }
-
-    // Contrato congelado — superfície exata via constantes canônicas.
-    assert_eq!(pinker_v0::agent::CONTRACT_ID, "pink-agent-v1");
-    assert_eq!(pinker_v0::agent::CONTRACT_VERSION, 1);
-    assert_eq!(pinker_v0::agent::CONTRACT_SPEC_SCHEMA, 1);
-    assert_eq!(
-        pinker_v0::agent::CONTRACT_SUBCOMMANDS,
-        [
-            "iniciar",
-            "executar",
-            "verificar",
-            "sensibilidade",
-            "publicar",
-            "retomar",
-            "status",
-            "relatorio"
-        ]
-    );
-    assert_eq!(
-        pinker_v0::agent::CONTRACT_CHECK_KINDS,
-        ["git", "marker-only", "projection", "pr-body"]
-    );
-    assert_eq!(
-        pinker_v0::agent::CONTRACT_TERMINAL_STATES,
-        ["ACCEPTED", "BLOCKED", "NEEDS_HUMAN_DECISION"]
-    );
-    assert_eq!(pinker_v0::agent::CONTRACT_PUBLICATION_STATES.len(), 12);
-    assert_eq!(
-        pinker_v0::agent::CONTRACT_REQUIRED_BODY_SECTIONS,
-        [
-            "Resumo",
-            "Problema",
-            "Implementação",
-            "Validação",
-            "Limitações",
-            "Próximo passo"
-        ]
-    );
-    assert_eq!(pinker_v0::agent::CONTRACT_MIN_SECTION_CHARS, 40);
-    assert_eq!(pinker_v0::agent::CONTRACT_MIN_HUMAN_CHARS, 400);
-    assert_eq!(
-        (
-            pinker_v0::agent::EXIT_ACCEPTED,
-            pinker_v0::agent::EXIT_BLOCKED,
-            pinker_v0::agent::EXIT_NEEDS_HUMAN
-        ),
-        (0, 1, 2)
-    );
-    let json = pinker_v0::agent::contract_v1_json();
-    for prohibition in [
-        "\"merge\": false",
-        "\"auto_merge\": false",
-        "\"force_push\": false",
-        "\"workflow_rerun\": false",
-        "\"remote_body_edit\": false",
-    ] {
-        assert!(
-            json.contains(prohibition),
-            "proibição ausente: {prohibition}"
-        );
-    }
-    assert!(!json.contains("true"), "nenhuma capacidade pode ser true");
-    // Artefato contract-v1 estável (dígito congelado).
-    assert_eq!(
-        pinker_v0::agent::contract_digest(),
-        "c0115ffd65820e0e0afd04ec7d1642db3fdb0e0bf93b8186540d5cb7ade798f4"
-    );
-
-    // status/report referenciam o dígito; nenhuma capacidade proibida no runner.
-    let core = include_str!("../src/agent.rs");
-    assert!(core.contains("contract_digest"));
-    assert!(core.contains("contract_id"));
-    for forbidden in [
-        "gh pr merge",
-        "gh pr edit",
-        "gh run rerun",
-        "\"--auto-merge\"",
-        "verify-before-sync",
-    ] {
-        assert!(
-            !core.contains(forbidden),
-            "capacidade proibida presente: {forbidden}"
-        );
-    }
-
-    // CATALOG — projeção integral 460 medida (454 + 1 região nova de Fase 243 em src/ast.rs) e predecessor 454 canônico da base c6478.
-
-    verifica_snapshot_canonico("onda-pink-agente-d");
-    let prev = estado_canonico("onda-pink-agente-c");
-
-    verifica_snapshot_canonico("onda-pink-agente-c");
-    // Cadeia histórica preservada: 439 a partir do 453 reconstruído.
-
-    verifica_snapshot_canonico("onda-pink-agente-b");
-    // Nenhuma key removida: 453 é subconjunto exato de 454 com delta 1.
-    let keys454: std::collections::BTreeSet<_> =
-        catalog.regions.iter().map(|r| r.key.as_str()).collect();
-    let keys453: std::collections::BTreeSet<_> =
-        prev.regions.iter().map(|r| r.key.as_str()).collect();
-    assert!(keys453.is_subset(&keys454));
-    assert_eq!(keys454.len() - keys453.len(), 1);
-
-    // TRAMA — seis suítes operacionais e cápsulas anteriores presentes.
-    for suite in [
-        "tests/trama_ci_tests.rs",
-        "tests/trama_template_tests.rs",
-        "tests/trama_manifest_tests.rs",
-        "tests/trama_sync_tests.rs",
-        "tests/trama_projection_tests.rs",
-        "tests/trama_scale_tests.rs",
-        "tests/nav_catalog_tests.rs",
-        "tests/doc_catalog_tests.rs",
-        "tests/trama_query_tests.rs",
-    ] {
-        assert!(repository.join(suite).is_file(), "suíte ausente: {suite}");
-    }
-
-    // Regeneração canônica idêntica.
-    let regenerated = CodeIndex::scan_repo(&repository).expect("regeneração canônica");
-    assert!(regenerated.verify().is_empty());
-    assert_eq!(
-        fs::read_to_string(catalog_path).unwrap(),
-        regenerated.render_jsonl()
-    );
-
-    // DOCUMENTATION — A/B/C/D completas do agente, V1 congelado, Trama incompleta.
-    let contract_doc = include_str!("../docs/development/pink-agent-v1-contract.md");
-    let closure_doc = include_str!("../docs/development/pink-agent-v1-closure.md");
-    let roadmap = include_str!("../docs/development/pink-agent-roadmap.md");
-    let inventory = include_str!("../docs/development/code-navigation-inventory.md");
-    let docs = format!("{contract_doc}\n{closure_doc}\n{roadmap}\n{inventory}");
-    for statement in [
-        "Onda A completa",
-        "Onda B completa",
-        "Onda C completa",
-        "Onda D completa",
-        "pink_agent_v1_frozen = true",
-        "pink_agent_series_a_d_complete = true",
-        "trama_complete = false",
-        "Onda 9 inativa",
-        "`apps/` reservada",
-        "seis suítes operacionais",
-        "merge manual",
-        "checks repetidos",
-    ] {
-        assert!(
-            docs.contains(statement),
-            "documentação ausente: {statement}"
-        );
-    }
-    // A Onda D NÃO fecha a Trama.
-    // Fechamento formal (VALIDATION_ONLY_CONFLICT autorizado pela Founder): o
-    // inventário vivo passa a coexistir histórico e estado corrente. Esta onda
-    // continua sem fechar a Trama; a responsabilidade histórica é preservada.
-    let (docs_historico, docs_corrente) = docs
-        .split_once("## Fechamento formal da Trama Pinker V1 (estado corrente)")
-        .expect("seção de estado corrente do fechamento formal ausente no inventário vivo");
-    assert!(
-        docs_historico.contains("trama_complete = false"),
-        "histórico da onda deve preservar trama_complete = false"
-    );
-    assert!(
-        docs_corrente.contains("trama_complete = true"),
-        "estado corrente registra trama_complete = true; esta onda não fechou a Trama"
-    );
-    assert!(!docs.contains("Onda 9 ativa"));
-    for nonclaim in [
-        "não é sandbox",
-        "não prova",
-        "cobertura exaustiva",
-        "não faz merge",
-        "não conclui a Trama",
-        "não implementa a Onda 9",
-        "não altera `apps/`",
-        "verify-before-sync",
-    ] {
-        assert!(
-            closure_doc.contains(nonclaim),
-            "non-claim ausente: {nonclaim}"
-        );
-    }
-    assert!(contract_doc.contains("pink-agent-v1"));
 }

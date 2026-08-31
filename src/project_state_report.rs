@@ -4,9 +4,9 @@
 //! consulta autoridades, recalcula overall ou executa I/O.
 
 use crate::project_state::{
-    AgentState, AuthorityAvailability, Diagnostic, DocumentationState, DomainDetails, DomainState,
-    Finding, LocalCheck, PendingOperation, ProjectState, ProjectionCause, ProjectionItem,
-    ProjectionsState, RepositoryState, Source, TramaState,
+    AuthorityAvailability, Diagnostic, DocumentationState, DomainDetails, DomainState, Finding,
+    LocalCheck, PendingOperation, ProjectState, ProjectionCause, ProjectionItem, ProjectionsState,
+    RepositoryState, Source, TramaState,
 };
 
 // @pinker-nav:start project-state.renderizacao
@@ -111,14 +111,6 @@ fn append_domain_summary(out: &mut String, domain: &DomainState) {
                 .collect::<Vec<_>>()
                 .join(", ")
         )),
-        DomainDetails::Agent(details) => out.push_str(&format!(
-            "  configurado={} terminal={} publicação={} checks={} motivo={}\n",
-            details.configured,
-            details.terminal.as_deref().unwrap_or("—"),
-            details.publication.as_deref().unwrap_or("—"),
-            details.checks.len(),
-            details.reason.as_deref().unwrap_or("—")
-        )),
         DomainDetails::Diagnostics(details) => {
             out.push_str(&format!("  entradas={}\n", details.entries.len()))
         }
@@ -148,7 +140,6 @@ fn human_domain(id: &str) -> &str {
         "documentation" => "Documentação",
         "projections" => "Projeções",
         "local_checks" => "Checks locais",
-        "agent" => "Agente",
         "diagnostics" => "Diagnósticos",
         _ => id,
     }
@@ -199,7 +190,6 @@ fn details_json(details: &DomainDetails) -> String {
                 .join(",");
             format!("{{\"checks\":[{checks}]}}")
         }
-        DomainDetails::Agent(details) => agent_json(details),
         DomainDetails::Diagnostics(details) => {
             let entries = details
                 .entries
@@ -310,29 +300,6 @@ fn local_check_json(check: &LocalCheck) -> String {
         json_string(&check.id),
         json_string(check.status.as_str()),
         source_json(&check.source)
-    )
-}
-
-fn agent_json(details: &AgentState) -> String {
-    let checks = details
-        .checks
-        .iter()
-        .map(|check| {
-            format!(
-                "{{\"id\":{},\"status\":{}}}",
-                json_string(&check.id),
-                json_string(&check.status)
-            )
-        })
-        .collect::<Vec<_>>()
-        .join(",");
-    format!(
-        "{{\"configured\":{},\"reason\":{},\"terminal\":{},\"publication\":{},\"checks\":[{}]}}",
-        details.configured,
-        option_string(details.reason.as_deref()),
-        option_string(details.terminal.as_deref()),
-        option_string(details.publication.as_deref()),
-        checks
     )
 }
 

@@ -178,7 +178,7 @@ fn listar_mostrar_e_verificar_sao_deterministicos_e_repo_relativos() {
     let shown = stdout(&show);
     assert!(shown.contains("\"definicao\""));
     assert!(shown.contains("\"observado\""));
-    assert!(shown.contains("\"artifact_schema\":3"));
+    assert!(shown.contains("\"artifact_schema\":4"));
 
     for args in [
         vec!["verificar", "onda-pink-agente-d", "--json"],

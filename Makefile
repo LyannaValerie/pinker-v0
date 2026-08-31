@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: preflight build check test fmt-check clippy doc-check guard change-history-check ci run-example check-example audit-example smoke docs-sync docs-check nav-sync nav-check cleanup-native forja-paths-check
+.PHONY: preflight build check test fmt-check clippy doc-check guard change-history-check ci run-example check-example audit-example smoke docs-sync docs-check nav-sync nav-check cleanup-native
 
 CI_ENV := ./ci_env.sh
 
@@ -53,20 +53,7 @@ nav-check:
 cleanup-native:
 	$(CI_ENV) scripts/pinker-cleanup.sh --dry-run
 
-# Nenhum arquivo versionado pode ensinar o layout aposentado da Forja. Este é o
-# único gate de Forja que pertence ao `ci` da Pinker: o sujeito dele é o
-# conteúdo versionado deste repositório, não a máquina operacional da Forja —
-# ele só pode rodar aqui, e guarda a corretude da própria ponte.
-#
-# A suíte operacional da Forja NÃO roda mais aqui (Issue #544). A autoridade
-# dela é o host, e é lá que ela é testada:
-#
-#   /pinker/playground/ferramentas-agente/test_forja_agentes.py
-#   /pinker/playground/ferramentas-agente/test_sensibilidade.py
-forja-paths-check:
-	bash scripts/forja/verificar-paths.sh
-
-ci: preflight build check test fmt-check clippy doc-check guard docs-check nav-check change-history-check forja-paths-check
+ci: preflight build check test fmt-check clippy doc-check guard docs-check nav-check change-history-check
 
 run-example:
 	$(CI_ENV) cargo run --bin pink -- $(EX)

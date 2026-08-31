@@ -247,15 +247,14 @@ impl Plan {
     ///
     /// É o SHA-256 da forma canônica, que **inclui o payload hexadecimal**:
     /// alterar um único byte de conteúdo muda o digest. Reutiliza
-    /// [`crate::agent::sha256_hex`], que desde a Parte E2 é reexport do núcleo
-    /// compartilhado `pinker_sha256_contract` — continua sendo a única
+    /// SHA-256 do núcleo compartilhado `pinker_sha256_contract`.
     /// implementação de SHA-256 do repositório, agora também alcançável pelo
     /// runtime nativo. O contrato segue o mesmo: nenhuma dependência EXTERNA de
     /// hash e nenhuma duplicação silenciosa do algoritmo. A dependência é sobre
     /// uma função pura de bytes: o núcleo não conhece, não lê e não traduz
-    /// nenhum estado do `pink agente`.
+    /// nenhum estado da autoridade operacional.
     pub fn digest(&self) -> String {
-        crate::agent::sha256_hex(self.to_canonical_json().as_bytes())
+        pinker_sha256_contract::sha256_hex(self.to_canonical_json().as_bytes())
     }
 }
 // @pinker-nav:end automation.plano.serializacao

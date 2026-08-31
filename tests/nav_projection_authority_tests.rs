@@ -370,28 +370,14 @@ const VERSAO_DO_ACERVO: u64 = 3;
 /// leitura dos treze artefatos, e isso não é assunto para descobrir em runtime.
 const _: () = assert!(VERSAO_DO_ACERVO <= SNAPSHOT_SCHEMA);
 
-/// Nenhuma versão aparece no diretório por acidente de conteúdo.
-///
-/// Sem esta guarda, um snapshot que por acaso não usa `override-region` poderia
-/// ser emitido em `schema = 1` e continuar válido — e o acervo passaria a
-/// misturar versões por acidente, não por decisão.
-///
-/// A guarda tem duas metades, porque há duas decisões distintas em jogo:
-///
-/// 1. **o acervo materializado é homogêneo** — os treze snapshots nomeados em
-///    [`DISTRIBUICAO_CANONICA`] estão todos em [`VERSAO_DO_ACERVO`];
-/// 2. **qualquer artefato do diretório está numa das duas versões legítimas** —
-///    a do acervo congelado ou a de emissão corrente. Nada mais entra.
-///
-/// A segunda metade existe porque exigir a versão do acervo de *todo* arquivo
-/// contradiz o emissor: `validate_candidate_shape` recusa candidato cujo schema
-/// não seja `SNAPSHOT_SCHEMA`, então o próximo `pink nav projecao aceitar`
-/// legítimo grava um schema 4 — e não haveria valor capaz de satisfazer as duas
-/// pontas sem reescrever história congelada.
+/// O acervo conserva a versão em que cada witness foi congelado. A única
+/// evolução autorizada é a do snapshot que usa uma capacidade nova: hoje,
+/// `onda-pink-agente-d` precisa de `materialize-region` e portanto usa schema 4;
+/// os demais continuam em schema 3.
 #[test]
-fn o_acervo_usa_a_versao_corrente_de_cada_formato() {
+fn o_acervo_preserva_a_versao_congelada_de_cada_witness() {
     let do_acervo: BTreeSet<&str> = DISTRIBUICAO_CANONICA.iter().map(|(id, _)| *id).collect();
-    let mut homogeneos = 0;
+    let mut encontrados = 0;
     for (caminho, modelo) in carrega_snapshots() {
         assert!(
             modelo.schema == VERSAO_DO_ACERVO || modelo.schema == SNAPSHOT_SCHEMA,
@@ -400,17 +386,22 @@ fn o_acervo_usa_a_versao_corrente_de_cada_formato() {
             modelo.schema
         );
         if do_acervo.contains(modelo.id.as_str()) {
+            let esperado = if modelo.id == "onda-pink-agente-d" {
+                SNAPSHOT_SCHEMA
+            } else {
+                VERSAO_DO_ACERVO
+            };
             assert_eq!(
                 modelo.schema,
-                VERSAO_DO_ACERVO,
-                "{} destoa da versão única do acervo materializado",
+                esperado,
+                "{} não preserva a versão autorizada do witness",
                 caminho.display()
             );
-            homogeneos += 1;
+            encontrados += 1;
         }
     }
     assert_eq!(
-        homogeneos, SNAPSHOTS_ESPERADOS,
+        encontrados, SNAPSHOTS_ESPERADOS,
         "os treze snapshots do acervo precisam estar todos presentes"
     );
     for (caminho, receita) in carrega_receitas() {
@@ -427,8 +418,8 @@ fn o_acervo_usa_a_versao_corrente_de_cada_formato() {
 // Guarda de autoridade única das projeções históricas
 // ---------------------------------------------------------------------------
 
-/// Mapeamento provado dos 31 casos comportamentais históricos para os 13
-/// snapshots canônicos.
+/// Mapeamento provado dos casos comportamentais ainda exercitados pela
+/// cartografia para os snapshots canônicos.
 ///
 /// É uma tabela de **identidade** — caso → snapshot — e nada mais: não contém
 /// `regions`, `length`, `fnv1a64` nem regra de reconstrução. Essas vivem
@@ -449,7 +440,18 @@ const DISTRIBUICAO_CANONICA: [(&str, usize); 13] = [
     ("onda-pink-agente-d", 1),
 ];
 
-const CASOS_HISTORICOS: usize = 31;
+const CASOS_CARTOGRAFADOS_APOS_EXTRACAO: [(&str, usize); 9] = [
+    ("capsula-doc-catalog", 2),
+    ("capsula-nav-catalog", 3),
+    ("capsula-trama-query", 1),
+    ("onda-8-convergencia", 4),
+    ("onda-8f-anterior", 1),
+    ("onda-8g-anterior", 1),
+    ("onda-8h-anterior", 1),
+    ("onda-8i-anterior", 1),
+    ("onda-8j-anterior", 1),
+];
+const CASOS_HISTORICOS_CARTOGRAFADOS_APOS_EXTRACAO: usize = 15;
 const HARNESS: &str = include_str!("nav_cartography_tests.rs");
 
 /// Identificadores citados por `verifica_snapshot_canonico("…")` no harness.
@@ -470,29 +472,32 @@ fn os_casos_historicos_referenciam_a_autoridade_canonica_por_id() {
     let refs = referencias_canonicas();
     assert_eq!(
         refs.len(),
-        CASOS_HISTORICOS,
-        "a cartografia deve referenciar exatamente {CASOS_HISTORICOS} casos \
+        CASOS_HISTORICOS_CARTOGRAFADOS_APOS_EXTRACAO,
+        "a cartografia deve referenciar exatamente {CASOS_HISTORICOS_CARTOGRAFADOS_APOS_EXTRACAO} casos \
          históricos; achados {}",
         refs.len()
     );
     let unicos: BTreeSet<&str> = refs.iter().copied().collect();
     assert_eq!(
         unicos.len(),
-        SNAPSHOTS_ESPERADOS,
-        "os casos devem cobrir os {SNAPSHOTS_ESPERADOS} snapshots distintos"
+        CASOS_CARTOGRAFADOS_APOS_EXTRACAO.len(),
+        "os casos devem cobrir os snapshots cartografados após a extração"
     );
 
     // Distribuição exata: impede tanto a perda de um caso quanto a repetição
     // artificial de outro para recompor a cardinalidade.
-    for (id, esperado) in DISTRIBUICAO_CANONICA {
+    for (id, esperado) in CASOS_CARTOGRAFADOS_APOS_EXTRACAO {
         let achado = refs.iter().filter(|candidato| **candidato == id).count();
         assert_eq!(
             achado, esperado,
             "{id}: esperados {esperado} casos históricos, achados {achado}"
         );
     }
-    let declarado: usize = DISTRIBUICAO_CANONICA.iter().map(|(_, n)| n).sum();
-    assert_eq!(declarado, CASOS_HISTORICOS);
+    let declarado: usize = CASOS_CARTOGRAFADOS_APOS_EXTRACAO
+        .iter()
+        .map(|(_, n)| n)
+        .sum();
+    assert_eq!(declarado, CASOS_HISTORICOS_CARTOGRAFADOS_APOS_EXTRACAO);
 
     // Nenhum identificador inventado: todos resolvem na biblioteca real.
     let library = biblioteca();

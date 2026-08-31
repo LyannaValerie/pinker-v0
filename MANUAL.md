@@ -865,8 +865,8 @@ A taxonomia pública é:
   respectivamente para catálogo ausente/inválido, ausência de resultado e
   fonte/âncora divergente.
 
-Os códigos operacionais de `pink agente` permanecem válidos depois do parsing;
-erros de invocação de `agente` usam `2`. `pink comandos`, `pink env`,
+Os códigos da antiga superfície de agente não fazem parte da CLI Pinker atual;
+a operação correspondente pertence à autoridade host-side da Forja. `pink comandos`, `pink env`,
 `pink doctor` e `pink listar` não são comandos raiz implementados. O nome
 `listar` permanece disponível apenas como subcomando próprio de `doc` e `nav`.
 
