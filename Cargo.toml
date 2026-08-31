@@ -30,3 +30,51 @@ pinker_argv_contract = { path = "runtime/pinker_argv_contract" }
 pinker_memory_contract = { path = "runtime/pinker_memory_contract" }
 pinker_json_contract = { path = "runtime/pinker_json_contract" }
 pinker_sha256_contract = { path = "runtime/pinker_sha256_contract" }
+
+# Política de perfil do runtime nativo (#554, decisão da Founder na #548).
+#
+# `libpinker_rt.a` é entrada interna de build de `pink build --nativo`, e cada
+# link nativo paga o custo de materializar o executável estático a partir dela.
+# Compilar o runtime otimizado reduziu a mediana de link em ~31% na medição da
+# #548 sem tocar semântica: `debug-assertions`, `overflow-checks`, `debug = 2`,
+# `panic = unwind`, link estático e ABI pública continuam os do perfil `dev`.
+#
+# O escopo é o grafo exato que compõe a staticlib — `pinker_rt` e os quatro
+# contratos locais que ele consome. Isso reproduz byte a byte o artefato do
+# experimento V2; otimizar o compilador inteiro não faz parte desta política.
+#
+# `panic` e `lto` não podem ser declarados em override de pacote no Cargo 1.78;
+# ambos são herdados de `dev` (`panic = "unwind"`, `lto = false`), que este
+# workspace não redefine. Os três campos de semântica de desenvolvimento ficam
+# explícitos de propósito: herdá-los silenciosamente deixaria a política
+# indefesa contra drift futuro do perfil `dev`.
+
+[profile.dev.package.pinker_rt]
+opt-level = 3
+debug = 2
+debug-assertions = true
+overflow-checks = true
+
+[profile.dev.package.pinker_argv_contract]
+opt-level = 3
+debug = 2
+debug-assertions = true
+overflow-checks = true
+
+[profile.dev.package.pinker_memory_contract]
+opt-level = 3
+debug = 2
+debug-assertions = true
+overflow-checks = true
+
+[profile.dev.package.pinker_json_contract]
+opt-level = 3
+debug = 2
+debug-assertions = true
+overflow-checks = true
+
+[profile.dev.package.pinker_sha256_contract]
+opt-level = 3
+debug = 2
+debug-assertions = true
+overflow-checks = true
