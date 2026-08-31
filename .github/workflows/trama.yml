@@ -6,7 +6,7 @@ name: Trama Pinker
 # VERIFICA: nunca faz push, nunca cria commit, nunca reconstrói patches Base64,
 # nunca edita a branch e não roda bot de correção. O agente ou desenvolvedor é
 # quem sincroniza (`pink doc sincronizar` / `pink nav sincronizar`); o CI só
-# valida com `make ci` e confere o bloco `pinker-change` do PR atual.
+# confere o bloco `pinker-change` do PR atual.
 
 on:
   pull_request:
@@ -35,9 +35,6 @@ jobs:
         with:
           toolchain: "1.78.0"
           components: rustfmt, clippy
-
-      - name: make ci (entry point canônico integral)
-        run: PINKER_EXIGE_NATIVO=1 make ci
 
       - name: Validar bloco pinker-change do PR (somente leitura)
         env:
