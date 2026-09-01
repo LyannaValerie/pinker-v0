@@ -3761,7 +3761,7 @@ impl Drop for DiretorioIntermediario {
 // @pinker-nav:start cli.modulos.importacao
 // @pinker-nav:domain modulos
 // @pinker-nav:layer cli
-// @pinker-nav:summary parse_program_from_source tokeniza e parseia uma string de fonte já vinculada ao SourceId da unidade, entregando ao parser o contexto de import resolvido antes do parse. base_dir_de devolve o diretório de resolução dos `.pink`; contexto_de_import responde, ANTES do parse, as perguntas que o parser não pode responder sozinho: quais nomes de `trazer X.y;` são módulo Pinker real (via modulo_real_existe), que identidades de topo os `trazer <modulo>;` deste arquivo trazem, que tratos os imports explícitos autorizam como alvo de `impl` (#517) e se alguma dessas leituras falhou (import_incompleto). As três últimas saem de uma leitura só por módulo em contexto_de_import_com_pilha, best-effort, sem diagnóstico próprio e DIRETA — só os itens do próprio módulo entram, então nenhum reexport implícito nasce daí. A leitura de cada módulo monta o contexto DELE pela mesma conta, porque ler o vizinho com contexto vazio era ler um arquivo diferente do que o carregador lê em seguida; a pilha `visitando` é o análogo de `loading` e para em ciclo sem contribuir. Quando uma leitura falha, o parser não converte a própria cegueira em recusa: import_incompleto suspende a recusa de `impl` sobre trato não visto, e o carregador produz o erro real do módulo — ausente, ilegível ou em ciclo — com o span e a fonte certos. load_module_program registra a fonte do módulo no SourceMap antes de parseá-lo, detecta ciclo comparando com a pilha `loading`, recursa nos imports do módulo — pulando ali a mesma família built-in que o programa raiz pula — e só então insere a unidade no ModuleGraph, de modo que a ordem de inserção já seja ordem de dependência. carregar_e_projetar é o ponto de entrada: monta o grafo sem descartar nada da unidade, valida cada import da raiz pela superfície que o importador passa a enxergar (colisão com item local, colisão entre imports, import duplicado, símbolo inexistente) SEM materializar item algum, roda a validação modular local de cada unidade com os imports de família que ela escreveu, resolve o grafo para identidades canônicas e só então o projeta num Program único. Import de família built-in continua sem virar item e sobrevive na projeção para a autoridade semântica validá-lo.
+// @pinker-nav:summary parse_program_from_source tokeniza e parseia uma string de fonte já vinculada ao SourceId da unidade, entregando ao parser o contexto de import resolvido antes do parse. base_dir_de devolve o diretório de resolução dos `.pink`; contexto_de_import responde, ANTES do parse, as perguntas que o parser não pode responder sozinho: quais nomes de `trazer X.y;` são módulo Pinker real (via modulo_real_existe), que identidades de topo os `trazer <modulo>;` deste arquivo trazem, que tratos os imports explícitos autorizam como alvo de `impl` (#517) e se alguma dessas leituras falhou (import_incompleto). As três últimas saem de uma leitura só por módulo em contexto_de_import_com_pilha, best-effort, sem diagnóstico próprio e DIRETA — só os itens do próprio módulo entram, então nenhum reexport implícito nasce daí. A leitura de cada módulo monta o contexto DELE pela mesma conta, porque ler o vizinho com contexto vazio era ler um arquivo diferente do que o carregador lê em seguida; a pilha `visitando` é o análogo de `loading` e para em ciclo sem contribuir. Ausência de `<módulo>.pink` na forma seletiva é classificada como o carregador a classifica: família built-in não corresponde a arquivo e a ausência é legítima; módulo que não existe é erro dele. Quando uma leitura falha ou o módulo pedido não existe, o parser não converte a própria cegueira em recusa: import_incompleto suspende a recusa de `impl` sobre trato não visto, e o carregador produz o erro real do módulo — ausente, ilegível ou em ciclo — com o span e a fonte certos. load_module_program registra a fonte do módulo no SourceMap antes de parseá-lo, detecta ciclo comparando com a pilha `loading`, recursa nos imports do módulo — pulando ali a mesma família built-in que o programa raiz pula — e só então insere a unidade no ModuleGraph, de modo que a ordem de inserção já seja ordem de dependência. carregar_e_projetar é o ponto de entrada: monta o grafo sem descartar nada da unidade, valida cada import da raiz pela superfície que o importador passa a enxergar (colisão com item local, colisão entre imports, import duplicado, símbolo inexistente) SEM materializar item algum, roda a validação modular local de cada unidade com os imports de família que ela escreveu, resolve o grafo para identidades canônicas e só então o projeta num Program único. Import de família built-in continua sem virar item e sobrevive na projeção para a autoridade semântica validá-lo.
 fn parse_program_from_source(
     source: &str,
     base_dir: &Path,
@@ -3854,6 +3854,22 @@ fn contexto_de_import_com_pilha(
     // `REAL_MODULE_X > BUILTIN_FAMILY_X` que decide `modulos_reais`.
     for (modulo, membros) in Parser::membros_trazidos_seletivamente(tokens) {
         if !modulo_real_existe(base_dir, &modulo) {
+            // Ausência de `<módulo>.pink` significa duas coisas MUITO
+            // diferentes, e a classificação é a mesma que `carregar_e_projetar`
+            // aplica logo em seguida — não uma segunda política.
+            //
+            // Família built-in: a ausência é legítima, a família não
+            // corresponde a arquivo nenhum e nunca correspondeu. Nada a ler,
+            // nada a marcar.
+            //
+            // Módulo que simplesmente não existe: quem não leu não pode dizer
+            // "não existe". Sem esta marca o prepass entregava ao parser uma
+            // superfície vazia com cara de completa, e `impl` sobre um trato
+            // desse módulo era recusado ANTES de o carregador dizer "módulo não
+            // encontrado" — o erro autoritativo e o span do import sumiam.
+            if !pinker_v0::familia_superficie::familia_conhecida(modulo.as_str()) {
+                import_incompleto = true;
+            }
             continue;
         }
         let Some(programa) = ler_modulo_best_effort(base_dir, &modulo, visitando) else {

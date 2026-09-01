@@ -317,6 +317,82 @@ fn erro_de_sintaxe_no_modulo_nao_vira_trato_nao_importado() {
     );
 }
 
+/// G-517-1 — a forma SELETIVA de um módulo ausente seguia outro ramo do
+/// prepass: `modulo_real_existe` era falso, o laço fazia `continue` sem marcar
+/// nada, e o parser recusava o `impl` ANTES de o carregador dizer "módulo não
+/// encontrado". O erro autoritativo e o span do import desapareciam.
+///
+/// A forma inteira já estava coberta e NÃO substitui esta: são ramos distintos.
+#[test]
+fn modulo_ausente_em_import_seletivo_continua_com_o_erro_do_carregador() {
+    let c = caso(
+        "g1a_517",
+        "pacote main;\ntrazer m517_ausente.Marca;\n\nimpl Marca para bombom {\n    carinho marcar(valor: bombom) -> bombom { mimo valor + 1; }\n}\n\ncarinho principal() -> bombom { mimo 0; }\n",
+        &[],
+    );
+    let saida = checar(&c, "g1a-517-seletivo-ausente");
+    let erro = stderr(&saida);
+    assert_eq!(codigo(&saida), 1, "{erro}");
+    assert!(
+        erro.contains("módulo 'm517_ausente' não encontrado"),
+        "o erro do carregador é a autoridade: {erro}"
+    );
+    // O span é o do IMPORT, não o do `impl`: o trecho renderizado é a linha do
+    // `trazer`, e a linha do `impl` não aparece.
+    assert!(erro.contains("trazer m517_ausente.Marca;"), "{erro}");
+    assert!(!erro.contains("impl Marca para bombom {"), "{erro}");
+    assert!(
+        !erro.contains("nem trazido por import"),
+        "o parser não pode fabricar o erro de impl sobre um módulo que ninguém leu: {erro}"
+    );
+
+    // Controle pareado: sem o `impl`, o mesmo import produz exatamente o mesmo
+    // diagnóstico. É essa igualdade que prova que o `impl` deixou de mascarar.
+    let controle = caso(
+        "g1b_517",
+        "pacote main;\ntrazer m517_ausente.Marca;\n\ncarinho principal() -> bombom { mimo 0; }\n",
+        &[],
+    );
+    let erro_controle = stderr(&checar(&controle, "g1b-517-controle"));
+    assert!(
+        erro_controle.contains("módulo 'm517_ausente' não encontrado"),
+        "{erro_controle}"
+    );
+}
+
+/// A contrapartida de G-517-1: a ausência de `<família>.pink` é LEGÍTIMA, e não
+/// pode marcar o prepass como incompleto. Se marcasse, qualquer arquivo que
+/// importasse uma família built-in desligaria a recusa de `impl` sobre trato
+/// inexistente — trocando um mascaramento por outro.
+#[test]
+fn import_seletivo_de_familia_builtin_nao_desliga_a_recusa_de_impl() {
+    let c = caso(
+        "g1c_517",
+        "pacote main;\ntrazer texto.tamanho;\n\nimpl Marca para bombom {\n    carinho marcar(valor: bombom) -> bombom { mimo valor + 1; }\n}\n\ncarinho principal() -> bombom { mimo tamanho(\"abc\"); }\n",
+        &[],
+    );
+    let saida = checar(&c, "g1c-517-familia-nao-desliga");
+    let erro = stderr(&saida);
+    assert_eq!(codigo(&saida), 1, "{erro}");
+    assert!(
+        erro.contains("impl usa trato 'Marca'"),
+        "família built-in importada não autoriza `impl` sobre trato inexistente: {erro}"
+    );
+}
+
+/// E a família built-in continua funcionando como sempre funcionou, ao lado de
+/// um `impl` legítimo sobre trato importado de módulo real.
+#[test]
+fn import_seletivo_de_familia_builtin_convive_com_impl_sobre_trato_importado() {
+    let c = caso(
+        "g1d_517",
+        "pacote main;\ntrazer texto.tamanho;\ntrazer m517_a.Marca;\n\nimpl Marca para bombom {}\n\ncarinho principal() -> bombom {\n    nova x: bombom = 10;\n    mimo x.marcar() + tamanho(\"abc\");\n}\n",
+        &modulos_homonimos(),
+    );
+    let saida = executar(&c, "g1d-517-familia-convive");
+    assert_eq!(codigo(&saida), 14, "{}", stderr(&saida));
+}
+
 /// Módulo AUSENTE continua com o erro histórico do carregador, não com a recusa
 /// do parser.
 #[test]
