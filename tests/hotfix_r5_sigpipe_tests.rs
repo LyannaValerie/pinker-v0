@@ -32,6 +32,7 @@ const EXEMPLO_FAMILIAS: &str = "examples/hotfix_r5_sigpipe_familias_valido.pink"
 /// Teto de tempo por célula. Qualquer deadlock (writer órfão, `wait` antes da
 /// escrita, pipe nunca fechado) estoura este limite em vez de travar a suíte.
 const LIMITE: Duration = Duration::from_secs(30);
+const TAMANHO_STDIN_R5: &str = "PINKER_R5_STDIN_TAMANHO";
 
 /// Comportamentos do filho diante do stdin escrito pelo pai.
 const MODOS_FILHO: [&str; 5] = [
@@ -171,6 +172,7 @@ fn celula_interpretada(modo: &str, tamanho: u64, antes: u64) -> Option<Saida> {
         &tamanho.to_string(),
         &antes.to_string(),
     ]);
+    comando.env(TAMANHO_STDIN_R5, tamanho.to_string());
     executar_com_limite(comando)
 }
 
@@ -182,6 +184,7 @@ fn celula_nativa(binario: &Path, modo: &str, tamanho: u64, antes: u64) -> Option
         &tamanho.to_string(),
         &antes.to_string(),
     ]);
+    comando.env(TAMANHO_STDIN_R5, tamanho.to_string());
     executar_com_limite(comando)
 }
 
@@ -247,6 +250,23 @@ fn exigir_invariantes(rotulo: &str, saida: &Saida) {
     }
 }
 
+/// `espera` é determinístico: a sonda só fecha depois de observar a escrita
+/// completa (até a capacidade) ou o pipe cheio (acima dela). Isso também torna
+/// uma leitura acidental detectável: ela faria as escritas grandes terminarem
+/// em `ok`, não no EPIPE diagnosticado esperado.
+fn exigir_espera_causal(rotulo: &str, tamanho: u64, saida: &Saida) {
+    let esperado = if tamanho <= CAPACIDADE_PIPE {
+        "ok"
+    } else {
+        "epipe-diagnosticado"
+    };
+    assert_eq!(
+        saida.classe(),
+        esperado,
+        "{rotulo}: espera não preservou a fronteira causal do pipe"
+    );
+}
+
 // @pinker-nav:start evidencia.hotfix.r5-sigpipe-ordem
 // @pinker-nav:domain processos
 // @pinker-nav:layer evidencia
@@ -274,6 +294,14 @@ fn r5_matriz_sigpipe_independe_da_ordem_e_mantem_paridade() {
 
                 exigir_invariantes(&format!("interpretador {rotulo}"), &interpretado);
                 exigir_invariantes(&format!("nativo {rotulo}"), &nativo);
+                if modo == "espera" {
+                    exigir_espera_causal(
+                        &format!("interpretador {rotulo}"),
+                        tamanho,
+                        &interpretado,
+                    );
+                    exigir_espera_causal(&format!("nativo {rotulo}"), tamanho, &nativo);
+                }
 
                 let corrida = celula_decidida_por_corrida(modo, tamanho);
                 assert_eq!(
@@ -293,6 +321,38 @@ fn r5_matriz_sigpipe_independe_da_ordem_e_mantem_paridade() {
             }
         }
     }
+}
+
+/// Guardião do mecanismo test-only: `espera` observa o pipe com `ioctl`, sem
+/// ler stdin nem recuperar uma espera fixa sob outro nome.
+#[test]
+fn r5_espera_observa_pipe_sem_consumir_nem_dormir() {
+    let filho = include_str!("../src/bin/pinker_hf412_filho_stdin.rs");
+    let espera = filho
+        .split("\"espera\" =>")
+        .nth(1)
+        .and_then(|trecho| trecho.split("// Lê tudo até EOF.").next())
+        .expect("modo espera presente");
+    assert!(
+        filho.contains("FIONREAD"),
+        "espera precisa observar ocupação do pipe"
+    );
+    assert!(
+        filho.contains("F_GETPIPE_SZ"),
+        "espera precisa observar capacidade do pipe"
+    );
+    assert!(filho.contains("PINKER_R5_STDIN_TAMANHO"));
+    assert!(filho.contains("tamanho.min(capacidade as u64)"));
+    assert!(
+        !filho.contains("thread::sleep"),
+        "sleep não é sincronização causal"
+    );
+    assert!(
+        espera.contains("esperar_escrita(tamanho)"),
+        "espera não pode encerrar antes da condição observável"
+    );
+    assert!(!espera.contains("drenar_stdin()"));
+    assert!(!espera.contains(".read("));
 }
 
 /// A disposição instalada pelo runtime é confinada ao processo Pinker.
