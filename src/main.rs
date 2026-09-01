@@ -3761,7 +3761,7 @@ impl Drop for DiretorioIntermediario {
 // @pinker-nav:start cli.modulos.importacao
 // @pinker-nav:domain modulos
 // @pinker-nav:layer cli
-// @pinker-nav:summary parse_program_from_source tokeniza e parseia uma string de fonte já vinculada ao SourceId da unidade, entregando ao parser o contexto de import resolvido antes do parse. base_dir_de devolve o diretório de resolução dos `.pink`; contexto_de_import responde, ANTES do parse, as duas perguntas que o parser não pode responder sozinho — quais nomes de `trazer X.y;` são módulo Pinker real (via modulo_real_existe) e que identidades de topo os `trazer <modulo>;` deste arquivo trazem (via nomes_trazidos_por_modulo, leitura best-effort e sem diagnóstico próprio). load_module_program registra a fonte do módulo no SourceMap antes de parseá-lo, detecta ciclo comparando com a pilha `loading`, recursa nos imports do módulo — pulando ali a mesma família built-in que o programa raiz pula — e só então insere a unidade no ModuleGraph, de modo que a ordem de inserção já seja ordem de dependência. carregar_e_projetar é o ponto de entrada: monta o grafo sem descartar nada da unidade, valida cada import da raiz pela superfície que o importador passa a enxergar (colisão com item local, colisão entre imports, import duplicado, símbolo inexistente) SEM materializar item algum, roda a validação modular local de cada unidade com os imports de família que ela escreveu, resolve o grafo para identidades canônicas e só então o projeta num Program único. Import de família built-in continua sem virar item e sobrevive na projeção para a autoridade semântica validá-lo.
+// @pinker-nav:summary parse_program_from_source tokeniza e parseia uma string de fonte já vinculada ao SourceId da unidade, entregando ao parser o contexto de import resolvido antes do parse. base_dir_de devolve o diretório de resolução dos `.pink`; contexto_de_import responde, ANTES do parse, as três perguntas que o parser não pode responder sozinho — quais nomes de `trazer X.y;` são módulo Pinker real (via modulo_real_existe), que identidades de topo os `trazer <modulo>;` deste arquivo trazem (via nomes_trazidos_por_modulo) e que tratos os imports explícitos autorizam como alvo de `impl` (via tratos_trazidos_por_import, #517), as duas últimas por leitura best-effort e sem diagnóstico próprio, ambas apoiadas em ler_modulo_best_effort e ambas DIRETAS, de modo que nenhum reexport implícito nasça daí. load_module_program registra a fonte do módulo no SourceMap antes de parseá-lo, detecta ciclo comparando com a pilha `loading`, recursa nos imports do módulo — pulando ali a mesma família built-in que o programa raiz pula — e só então insere a unidade no ModuleGraph, de modo que a ordem de inserção já seja ordem de dependência. carregar_e_projetar é o ponto de entrada: monta o grafo sem descartar nada da unidade, valida cada import da raiz pela superfície que o importador passa a enxergar (colisão com item local, colisão entre imports, import duplicado, símbolo inexistente) SEM materializar item algum, roda a validação modular local de cada unidade com os imports de família que ela escreveu, resolve o grafo para identidades canônicas e só então o projeta num Program único. Import de família built-in continua sem virar item e sobrevive na projeção para a autoridade semântica validá-lo.
 fn parse_program_from_source(
     source: &str,
     base_dir: &Path,
@@ -3811,7 +3811,76 @@ fn contexto_de_import(tokens: &[Token], base_dir: &Path) -> ContextoDeImport {
             .filter(|module| modulo_real_existe(base_dir, module))
             .collect(),
         nomes_importados: nomes_trazidos_por_modulo(tokens, base_dir),
+        tratos_importados: tratos_trazidos_por_import(tokens, base_dir),
     }
+}
+
+/// #517: tratos que os imports explícitos deste arquivo autorizam como alvo de
+/// `impl`.
+///
+/// A pergunta é a mesma de sempre — «que superfície este import traz?» — só que
+/// feita antes do parse, porque é o parser que precisa saber se `impl T` tem um
+/// trato para referenciar. Sem esta resposta, `declarado localmente` continuaria
+/// valendo por `visível e autorizado`, que é o defeito da #517.
+///
+/// A consulta é a MESMA de `nomes_trazidos_por_modulo`: best-effort, sem
+/// diagnóstico próprio e **direta**. Só os itens do próprio módulo entram; o que
+/// ele importa continua sendo ambiente de implementação dele, então nenhum
+/// reexport implícito nasce aqui. O import inteiro herda a exclusão histórica
+/// das famílias built-in de `modulos_trazidos_inteiros`; a forma seletiva só
+/// consulta o disco quando existe módulo real, pela mesma precedência
+/// `REAL_MODULE_X > BUILTIN_FAMILY_X` que decide `modulos_reais`.
+///
+/// Nada aqui decide identidade: a chave é a grafia que o importador escreveu, e
+/// quem a canoniza para a unidade de origem é `module_resolve`, contra o
+/// ambiente que a unidade autorizou.
+fn tratos_trazidos_por_import(
+    tokens: &[Token],
+    base_dir: &Path,
+) -> HashMap<String, ast::TraitDecl> {
+    let mut tratos = HashMap::new();
+    for modulo in Parser::modulos_trazidos_inteiros(tokens) {
+        let Some(programa) = ler_modulo_best_effort(base_dir, &modulo) else {
+            continue;
+        };
+        for trait_decl in tratos_do_programa(&programa) {
+            tratos.insert(trait_decl.name.clone(), trait_decl.clone());
+        }
+    }
+    for (modulo, membros) in Parser::membros_trazidos_seletivamente(tokens) {
+        if !modulo_real_existe(base_dir, &modulo) {
+            continue;
+        }
+        let Some(programa) = ler_modulo_best_effort(base_dir, &modulo) else {
+            continue;
+        };
+        for trait_decl in tratos_do_programa(&programa) {
+            if membros.iter().any(|membro| *membro == trait_decl.name) {
+                tratos.insert(trait_decl.name.clone(), trait_decl.clone());
+            }
+        }
+    }
+    tratos
+}
+
+fn tratos_do_programa(programa: &ast::Program) -> impl Iterator<Item = &ast::TraitDecl> {
+    programa.items.iter().filter_map(|item| match item {
+        ast::Item::Trait(trait_decl) => Some(trait_decl),
+        _ => None,
+    })
+}
+
+/// Leitura direta de um módulo vizinho, sem diagnóstico próprio.
+///
+/// Módulo ausente, ilegível ou com erro de sintaxe não contribui nada e não
+/// interrompe nada: o carregador refaz a mesma leitura logo em seguida e produz
+/// o erro histórico, na ordem histórica.
+fn ler_modulo_best_effort(base_dir: &Path, modulo: &str) -> Option<ast::Program> {
+    let fonte = fs::read_to_string(base_dir.join(format!("{}.pink", modulo))).ok()?;
+    let tokens = Lexer::new(&fonte).tokenize().ok()?;
+    Parser::with_generic_origin(tokens, GenericOrigin::module(modulo))
+        .parse()
+        .ok()
 }
 
 /// Parte G: identidades de topo que os `trazer <modulo>;` deste arquivo trazem.
@@ -3829,17 +3898,7 @@ fn contexto_de_import(tokens: &[Token], base_dir: &Path) -> ContextoDeImport {
 fn nomes_trazidos_por_modulo(tokens: &[Token], base_dir: &Path) -> HashSet<String> {
     let mut nomes = HashSet::new();
     for modulo in Parser::modulos_trazidos_inteiros(tokens) {
-        let caminho = base_dir.join(format!("{}.pink", modulo));
-        let Ok(fonte) = fs::read_to_string(&caminho) else {
-            continue;
-        };
-        let Ok(tokens_do_modulo) = Lexer::new(&fonte).tokenize() else {
-            continue;
-        };
-        let Ok(programa) =
-            Parser::with_generic_origin(tokens_do_modulo, GenericOrigin::module(modulo.as_str()))
-                .parse()
-        else {
+        let Some(programa) = ler_modulo_best_effort(base_dir, &modulo) else {
             continue;
         };
         nomes.extend(
