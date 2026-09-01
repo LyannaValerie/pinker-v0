@@ -8,7 +8,7 @@
 // @pinker-nav:start tratos.metodos.identidade
 // @pinker-nav:domain tratos
 // @pinker-nav:layer identidade
-// @pinker-nav:summary Identidade estruturada de método parametrizada pela identidade resolvida do alvo, compartilhada pela autoridade semântica e pela visão derivada da IR; também centraliza o codec injetivo dos nomes provisórios `__impl_*`, que preservam spellings para transporte e renderização mas nunca decidem coerência ou despacho.
+// @pinker-nav:summary Identidade estruturada de método parametrizada pela identidade resolvida do alvo, compartilhada pela autoridade semântica e pela visão derivada da IR; também centraliza o codec injetivo dos nomes provisórios `__impl_*` e `__trait_default_check_*` — mesma gramática, prefixos distintos —, que preservam spellings para transporte e renderização mas nunca decidem coerência ou despacho.
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct MethodIdentity<T> {
@@ -42,8 +42,39 @@ pub fn render_provisional_function_name(
     )
 }
 
+/// Prefixo do corpo default materializado apenas para checagem semântica.
+///
+/// Ele nasce quando um override explícito vence a seleção: o corpo do contrato
+/// continua sendo checado, mas a função não entra em `method_index` nem em
+/// vtable. O codec é o mesmo de `__impl_*`, com outro prefixo.
+pub const TRAIT_DEFAULT_CHECK_PREFIX: &str = "__trait_default_check_";
+
+pub fn render_trait_default_check_function_name(
+    trait_name: &str,
+    target_spelling: &str,
+    method_name: &str,
+) -> String {
+    format!(
+        "{}{}_{}_{}_{}_{}",
+        TRAIT_DEFAULT_CHECK_PREFIX,
+        trait_name.len(),
+        trait_name,
+        target_spelling.len(),
+        target_spelling,
+        method_name
+    )
+}
+
+pub fn parse_trait_default_check_function_name(name: &str) -> Option<(String, String, String)> {
+    parse_com_prefixo(name, TRAIT_DEFAULT_CHECK_PREFIX)
+}
+
 pub fn parse_provisional_function_name(name: &str) -> Option<(String, String, String)> {
-    let rest = name.strip_prefix("__impl_")?;
+    parse_com_prefixo(name, "__impl_")
+}
+
+fn parse_com_prefixo(name: &str, prefixo: &str) -> Option<(String, String, String)> {
+    let rest = name.strip_prefix(prefixo)?;
     let (trait_len, rest) = rest.split_once('_')?;
     let trait_len: usize = trait_len.parse().ok()?;
     if rest.len() < trait_len + 1 || !rest.is_char_boundary(trait_len) {

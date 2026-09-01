@@ -262,6 +262,28 @@ pub struct ContextoDeImport {
     /// Identidades de topo que os `trazer <modulo>;` deste arquivo trazem.
     /// Entram no censo de topo e vencem a família como qualquer outro item.
     pub nomes_importados: HashSet<String>,
+    /// #517: tratos que os imports explícitos desta unidade autorizam como
+    /// alvo de `impl`, indexados pela grafia que o importador enxerga.
+    ///
+    /// `IMPORTED_TRAIT_VISIBLE_FOR_REFERENCE` e
+    /// `IMPORTED_TRAIT_VALID_IMPL_TARGET` passam a ser a MESMA autoridade: a de
+    /// import. O parser recebe o veredito pronto, como já recebe
+    /// `modulos_reais` e `nomes_importados`; ele continua sem política de
+    /// módulo e sem procurar arquivo. A identidade canônica NÃO é decidida
+    /// aqui — a grafia registrada é a que o importador escreveu, e quem a
+    /// canoniza é `module_resolve`, pelo ambiente que a unidade autorizou.
+    pub tratos_importados: HashMap<String, TraitDecl>,
+    /// #517: algum módulo importado por esta unidade não pôde ser lido pelo
+    /// prepass — ausente, ilegível, com erro de sintaxe ou em ciclo.
+    ///
+    /// A superfície acima está INCOMPLETA, e o parser não pode transformar a
+    /// própria cegueira em recusa: quem não enxergou não pode dizer "não
+    /// existe". O carregador refaz a mesma leitura logo em seguida e produz o
+    /// erro real — módulo ausente, falha ao ler o módulo, ciclo — com o span e
+    /// a fonte certos. Sem esta flag, um erro de sintaxe dentro do módulo
+    /// chegava ao usuário disfarçado de "você esqueceu o import", apontando a
+    /// linha do `impl` na raiz.
+    pub import_incompleto: bool,
 }
 
 impl Parser {
@@ -364,13 +386,10 @@ impl Parser {
         method_name: &str,
     ) -> String {
         let target_key = Self::impl_type_key(target_ty);
-        format!(
-            "__trait_default_check_{}_{}_{}_{}_{}",
-            trait_name.len(),
+        crate::method_identity::render_trait_default_check_function_name(
             trait_name,
-            target_key.len(),
-            target_key,
-            method_name
+            &target_key,
+            method_name,
         )
     }
 
@@ -1337,16 +1356,35 @@ impl Parser {
         })
     }
 
+    /// #517: o trato que este `impl` referencia, se esta unidade tem autoridade
+    /// sobre ele.
+    ///
+    /// `TRAIT_SPELLING != TRAIT_IDENTITY`: esta função responde apenas se a
+    /// unidade PODE implementar a grafia, e devolve a declaração de onde os
+    /// defaults saem. A identidade canônica continua sendo decidida em
+    /// `module_resolve`, contra o ambiente de import — nunca por esta grafia.
+    ///
+    /// A declaração local vem primeiro porque ela é a autoridade da própria
+    /// unidade; quando as duas existem, a colisão de import é recusada logo em
+    /// seguida pela autoridade que a possui, com a mensagem histórica.
+    fn trato_alvo_de_impl(&self, trait_name: &str) -> Option<&TraitDecl> {
+        self.trait_decls
+            .get(trait_name)
+            .or_else(|| self.contexto_de_import.tratos_importados.get(trait_name))
+    }
+
     fn parse_impl_block(&mut self) -> Result<ParsedImplBlock, PinkerError> {
         let start_span = self.previous().span;
         let trait_name = self
             .consume(TokenKind::Ident, "nome do trato em impl")?
             .lexeme
             .clone();
-        if !self.trait_decls.contains_key(&trait_name) {
+        if self.trato_alvo_de_impl(&trait_name).is_none()
+            && !self.contexto_de_import.import_incompleto
+        {
             return Err(PinkerError::Parse {
                 msg: format!(
-                    "impl usa trato '{}' não declarado antes deste ponto",
+                    "impl usa trato '{}' não declarado antes deste ponto nem trazido por import",
                     trait_name
                 ),
                 span: self.previous().span,
@@ -1406,12 +1444,14 @@ impl Parser {
         for pending in impl_relations {
             let trait_name = &pending.relation.trait_name;
             let target_ty = &pending.relation.target_ty;
-            let methods = self
-                .trait_decls
-                .get(trait_name)
-                .expect("impl só é registrado para trato já declarado")
-                .methods
-                .clone();
+            // Com a superfície de import incompleta o `impl` foi aceito sem
+            // trato conhecido: não há default a materializar, e o carregador
+            // recusa o programa em seguida com o erro real do módulo.
+            let Some(trait_decl) = self.trato_alvo_de_impl(trait_name) else {
+                debug_assert!(self.contexto_de_import.import_incompleto);
+                continue;
+            };
+            let methods = trait_decl.methods.clone();
 
             for method in &methods {
                 let Some(body) = &method.body else {
@@ -3475,7 +3515,7 @@ impl Parser {
     // @pinker-nav:start parser.importacoes.superficie-familia
     // @pinker-nav:domain importacoes
     // @pinker-nav:layer parser
-    // @pinker-nav:summary Resolução da superfície modular dentro do parser, e as autoridades de precedência que a governam: `nomes_de_topo`, censo de tokens em profundidade zero com as identidades que a Pinker resolve independentemente da ordem textual, e `escopos_locais`, pilha de escopos léxicos reais. O módulo é FALLBACK e o último a responder: cede a identidade de topo em todo o arquivo e cede a ligação local onde ela está visível. Depois da #505 o que ele NÃO faz mais é ceder ao global: `recusar_intrinseca_sem_import` recusa, no próprio CANONICALIZATION_BOUNDARY, qualquer grafia pública chamada sem import — canônica ou de membro —, e é isso que torna `GLOBAL_PUBLIC_INTRINSIC = 0` uma propriedade do parser em vez de uma lista. A recusa cede a `identidade_lexical_existente`, então declaração do próprio arquivo continua vencendo. A ligação `(módulo, membro) -> identidade` não mora aqui; vem inteira de `familia_superficie`. A #533 acrescentou `ler_declaracao_trazer` como autoridade sintática ÚNICA da declaração: os três varredores de token desta região (`familias_seletivas_candidatas`, `modulos_trazidos_inteiros`, `coletar_nomes_de_topo`) e o laço de import do parser leem por ela, de modo que `ALL_IMPORT_PREPASSES_SEE_THE_SAME_MEMBERS` seja construção e não coincidência — o censo de identidades de topo passou a registrar TODOS os membros da lista, não só o primeiro.
+    // @pinker-nav:summary Resolução da superfície modular dentro do parser, e as autoridades de precedência que a governam: `nomes_de_topo`, censo de tokens em profundidade zero com as identidades que a Pinker resolve independentemente da ordem textual, e `escopos_locais`, pilha de escopos léxicos reais. O módulo é FALLBACK e o último a responder: cede a identidade de topo em todo o arquivo e cede a ligação local onde ela está visível. Depois da #505 o que ele NÃO faz mais é ceder ao global: `recusar_intrinseca_sem_import` recusa, no próprio CANONICALIZATION_BOUNDARY, qualquer grafia pública chamada sem import — canônica ou de membro —, e é isso que torna `GLOBAL_PUBLIC_INTRINSIC = 0` uma propriedade do parser em vez de uma lista. A recusa cede a `identidade_lexical_existente`, então declaração do próprio arquivo continua vencendo. A ligação `(módulo, membro) -> identidade` não mora aqui; vem inteira de `familia_superficie`. A #533 acrescentou `ler_declaracao_trazer` como autoridade sintática ÚNICA da declaração: os quatro varredores de token desta região (`familias_seletivas_candidatas`, `modulos_trazidos_inteiros`, `membros_trazidos_seletivamente`, `coletar_nomes_de_topo`) e o laço de import do parser leem por ela, de modo que `ALL_IMPORT_PREPASSES_SEE_THE_SAME_MEMBERS` seja construção e não coincidência — o censo de identidades de topo passou a registrar TODOS os membros da lista, não só o primeiro. `membros_trazidos_seletivamente` é da #517 e devolve `(módulo, membros)` cru, sem decidir o que é família nem o que é módulo real: quem decide continua sendo a autoridade de import.
 
     /// #533: autoridade sintática ÚNICA da declaração `trazer`.
     ///
@@ -3668,6 +3708,34 @@ impl Parser {
             }
         }
         modulos
+    }
+
+    /// #517: declarações `trazer M.a, b;` deste arquivo, na forma sintática.
+    ///
+    /// Quarta leitora — e não quarta gramática — de `ler_declaracao_trazer`:
+    /// devolve `(módulo, membros)` sem decidir o que é família, o que é módulo
+    /// real nem o que um membro significa. A forma inteira fica de fora porque
+    /// `modulos_trazidos_inteiros` já a responde, com a exclusão histórica das
+    /// famílias que esta pergunta não pode reproduzir sozinha.
+    pub fn membros_trazidos_seletivamente(tokens: &[Token]) -> Vec<(String, Vec<String>)> {
+        let mut declaracoes = Vec::new();
+        for indice in 0..tokens.len() {
+            let Some(declaracao) = Self::ler_declaracao_trazer(tokens, indice) else {
+                continue;
+            };
+            if declaracao.membros.is_empty() {
+                continue;
+            }
+            declaracoes.push((
+                tokens[declaracao.modulo].lexeme.clone(),
+                declaracao
+                    .membros
+                    .iter()
+                    .map(|membro| tokens[*membro].lexeme.clone())
+                    .collect(),
+            ));
+        }
+        declaracoes
     }
 
     /// Parte G: registra o efeito de um `trazer` de família built-in.

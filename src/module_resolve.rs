@@ -381,7 +381,7 @@ fn ambiente_da_unidade(
 // @pinker-nav:start modulos.resolucao.nominal-canonica
 // @pinker-nav:domain modulos
 // @pinker-nav:layer compilador
-// @pinker-nav:summary resolver_grafo reescreve declarações e referências de cada unidade para o nome canônico da unidade de origem, usando exclusivamente o ambiente que aquela unidade autorizou: a raiz preserva a grafia e o módulo qualifica pela própria chave, de modo que dois módulos independentes possam declarar o mesmo nome interno sem colidir e nenhuma referência de módulo possa ser satisfeita por disponibilidade acidental na raiz ou em irmão. Nomes possuídos pelo compilador, intrínsecas públicas, formas qualificadas de família, locais, parâmetros, bindings de padrão e parâmetros de tipo não são reescritos. Referência livre não autorizada que exista em outra unidade é recusada com o span e a fonte de quem a escreveu, em vez de religada em silêncio.
+// @pinker-nav:summary resolver_grafo reescreve declarações e referências de cada unidade para o nome canônico da unidade de origem, usando exclusivamente o ambiente que aquela unidade autorizou: a raiz preserva a grafia e o módulo qualifica pela própria chave, de modo que dois módulos independentes possam declarar o mesmo nome interno sem colidir e nenhuma referência de módulo possa ser satisfeita por disponibilidade acidental na raiz ou em irmão. Nomes possuídos pelo compilador, intrínsecas públicas, formas qualificadas de família, locais, parâmetros, bindings de padrão e parâmetros de tipo não são reescritos. Referência livre não autorizada que exista em outra unidade é recusada com o span e a fonte de quem a escreveu, em vez de religada em silêncio. Desde a #517 o CORPO default de um trato importado é resolvido contra o ambiente da unidade que DECLAROU o trato, e não contra o do importador: o parser copia esse corpo para a unidade que fez o `impl`, e como a raiz preserva grafia, resolvê-lo ali deixaria um homônimo da raiz capturar em silêncio o auxiliar do módulo. Só o corpo troca de ambiente; os tipos, inclusive o alvo do `impl`, continuam sendo da unidade que escreveu o `impl`.
 struct Resolvedor<'a> {
     unit_key: ModuleKey,
     env: &'a ModuleEnvironment,
@@ -399,10 +399,49 @@ struct Resolvedor<'a> {
     /// declaração transforma uma grafia builtin em entidade alcançável por
     /// engano.
     declaradas_na_raiz: &'a HashSet<String>,
+    /// #517: unidades que declararam cada trato, para que o corpo default
+    /// copiado pelo parser continue significando o que significava na origem.
+    origem_dos_tratos: OrigemDosTratos<'a>,
     /// Escopos de valor: parâmetros, locais e bindings de padrão.
     bound: Vec<HashSet<String>>,
     /// Escopos de tipo: parâmetros de tipo de função, struct e leque.
     type_bound: Vec<HashSet<String>>,
+}
+
+/// #517 — `TRAIT_DEFAULT_BODY_BELONGS_TO_THE_DECLARING_UNIT`.
+///
+/// O parser materializa o corpo default de um trato dentro da unidade que
+/// escreveu o `impl`, com as grafias originais. Enquanto trato e `impl` moravam
+/// no mesmo arquivo isso era inofensivo. Com `impl` sobre trato importado o
+/// corpo passa a ser resolvido contra o ambiente de OUTRA unidade — e a raiz,
+/// que preserva grafia, capturaria em silêncio qualquer homônimo do auxiliar
+/// que o módulo usa. Estes três índices dizem, para um nome canônico de trato,
+/// qual unidade o declarou e qual ambiente o corpo dele autorizou.
+#[derive(Clone, Copy)]
+struct OrigemDosTratos<'a> {
+    tratos: &'a HashMap<String, ModuleId>,
+    chaves: &'a HashMap<ModuleId, ModuleKey>,
+    ambientes: &'a HashMap<ModuleId, ModuleEnvironment>,
+}
+
+/// A função carrega o corpo default de um trato, copiado pelo parser?
+///
+/// Duas formas, um só fato: o default materializado como o próprio método do
+/// `impl` (quando nenhum override venceu) e o default materializado só para
+/// checagem (quando um override venceu). O método escrito pelo usuário no
+/// `impl` NÃO entra: o corpo dele foi escrito na unidade que fez o `impl`.
+fn corpo_default_de_trato(function: &FunctionDecl) -> Option<String> {
+    if let Some((trait_name, _, _)) =
+        crate::method_identity::parse_trait_default_check_function_name(&function.name)
+    {
+        return Some(trait_name);
+    }
+    let facts = function.impl_facts.as_ref()?;
+    if !facts.generated_default {
+        return None;
+    }
+    crate::method_identity::parse_provisional_function_name(&function.name)
+        .map(|(trait_name, _, _)| trait_name)
 }
 
 impl<'a> Resolvedor<'a> {
@@ -412,6 +451,7 @@ impl<'a> Resolvedor<'a> {
         modulos_carregados: &'a HashSet<String>,
         declaradas_no_grafo: &'a HashMap<String, Vec<Declaracao>>,
         declaradas_na_raiz: &'a HashSet<String>,
+        origem_dos_tratos: OrigemDosTratos<'a>,
     ) -> Self {
         Self {
             unit_key,
@@ -419,9 +459,30 @@ impl<'a> Resolvedor<'a> {
             modulos_carregados,
             declaradas_no_grafo,
             declaradas_na_raiz,
+            origem_dos_tratos,
             bound: Vec::new(),
             type_bound: Vec::new(),
         }
+    }
+
+    /// #517: unidade e ambiente em que o corpo default desta função foi escrito,
+    /// quando ela veio de um trato de OUTRA unidade.
+    ///
+    /// A identidade do trato é a canônica, obtida pelo mesmo ambiente que
+    /// resolve o `impl`. Trato da própria unidade devolve `None` e o corpo
+    /// continua sendo resolvido exatamente como sempre foi.
+    fn origem_do_corpo_default(
+        &self,
+        function: &FunctionDecl,
+    ) -> Option<(ModuleKey, &'a ModuleEnvironment)> {
+        let trait_spelling = corpo_default_de_trato(function)?;
+        let canonical = canonizar_grafia(&trait_spelling, self.env);
+        let id = *self.origem_dos_tratos.tratos.get(&canonical)?;
+        let chave = self.origem_dos_tratos.chaves.get(&id)?;
+        if *chave == self.unit_key {
+            return None;
+        }
+        Some((chave.clone(), self.origem_dos_tratos.ambientes.get(&id)?))
     }
 
     fn ligado(&self, name: &str) -> bool {
@@ -579,10 +640,24 @@ impl<'a> Resolvedor<'a> {
         }
         self.bound
             .push(function.params.iter().map(|p| p.name.clone()).collect());
-        self.resolver_bloco(&mut function.body)?;
+        // Os TIPOS já foram resolvidos acima, contra o ambiente desta unidade:
+        // o alvo do `impl` é um tipo desta unidade e continua sendo. O que muda
+        // de ambiente é só o CORPO, e só quando ele é o default copiado de um
+        // trato de outra unidade.
+        let resultado = match self.origem_do_corpo_default(function) {
+            Some((chave, env)) => {
+                let chave_anterior = std::mem::replace(&mut self.unit_key, chave);
+                let env_anterior = std::mem::replace(&mut self.env, env);
+                let resultado = self.resolver_bloco(&mut function.body);
+                self.unit_key = chave_anterior;
+                self.env = env_anterior;
+                resultado
+            }
+            None => self.resolver_bloco(&mut function.body),
+        };
         self.bound.pop();
         self.type_bound.pop();
-        Ok(())
+        resultado
     }
 
     fn resolver_const(&mut self, constant: &mut ConstDecl) -> Result<(), PinkerError> {
@@ -1059,6 +1134,29 @@ pub fn resolver_grafo(graph: &ModuleGraph) -> Result<ModuleGraph, PinkerError> {
         .filter(|name| !nao_e_entidade_de_unidade(name))
         .map(ToOwned::to_owned)
         .collect();
+    // #517: quem declarou cada trato, pelo nome canônico que ele terá depois da
+    // resolução. Montado ANTES do laço, sobre o grafo intacto, porque
+    // `canonizar_declaracoes` reescreve os nomes unidade a unidade.
+    let tratos_por_unidade: HashMap<String, ModuleId> = graph
+        .units()
+        .iter()
+        .flat_map(|unit| {
+            unit.items.iter().filter_map(move |item| match item {
+                Item::Trait(trait_decl) => Some((unit.canonical(&trait_decl.name), unit.id)),
+                _ => None,
+            })
+        })
+        .collect();
+    let chaves_de_unidade: HashMap<ModuleId, ModuleKey> = graph
+        .units()
+        .iter()
+        .map(|unit| (unit.id, unit.key.clone()))
+        .collect();
+    let origem_dos_tratos = OrigemDosTratos {
+        tratos: &tratos_por_unidade,
+        chaves: &chaves_de_unidade,
+        ambientes: &ambientes,
+    };
     let mut resolvido = graph.clone();
 
     for id in graph.dependency_order() {
@@ -1075,6 +1173,7 @@ pub fn resolver_grafo(graph: &ModuleGraph) -> Result<ModuleGraph, PinkerError> {
             &modulos_carregados,
             &declaradas,
             &declaradas_na_raiz,
+            origem_dos_tratos,
         );
         for item in &mut unit.items {
             resolvedor.resolver_item(item)?;
