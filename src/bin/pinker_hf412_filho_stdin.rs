@@ -26,12 +26,58 @@ const SIG_DFL: usize = 0;
 const SIG_IGN: usize = 1;
 const SIG_ERR: usize = usize::MAX;
 
+// `espera` é uma sonda Linux da matriz: o pai escreve num pipe e o filho
+// observa sua ocupação sem consumir um byte sequer.
+#[cfg(target_os = "linux")]
+const FIONREAD: usize = 0x541B;
+#[cfg(target_os = "linux")]
+const F_SETPIPE_SZ: i32 = 1031;
+#[cfg(target_os = "linux")]
+const F_GETPIPE_SZ: i32 = 1032;
+#[cfg(target_os = "linux")]
+const CAPACIDADE_ESPERADA_PIPE: i32 = 65536;
+const TAMANHO_STDIN_R5: &str = "PINKER_R5_STDIN_TAMANHO";
+
 /// Sentinela distinta de qualquer disposição real; sinaliza que o construtor
 /// não rodou.
 const NAO_OBSERVADA: usize = usize::MAX - 1;
 
 extern "C" {
     fn signal(signal: i32, handler: usize) -> usize;
+    #[cfg(target_os = "linux")]
+    fn fcntl(fd: i32, command: i32, argument: i32) -> i32;
+    #[cfg(target_os = "linux")]
+    fn ioctl(fd: i32, request: usize, argument: *mut i32) -> i32;
+}
+
+/// Espera a escrita do pai alcançar uma condição observável, sem chamar
+/// `read(2)`. `FIONREAD` vê bytes já escritos no pipe; quando alcança todo o
+/// tamanho, a escrita pequena terminou. Para uma escrita maior, alcançar a
+/// capacidade prova que o writer está sob pressão, pois este processo não
+/// drena o pipe.
+#[cfg(target_os = "linux")]
+fn esperar_escrita(tamanho: u64) -> Result<(), ()> {
+    let mut capacidade = unsafe { fcntl(0, F_GETPIPE_SZ, 0) };
+    // Só a célula de 65536 precisa ampliar o pipe. As escritas maiores devem
+    // observar a capacidade real, não disputar a cota de pipes do host.
+    if tamanho <= CAPACIDADE_ESPERADA_PIPE as u64 && capacidade < tamanho as i32 {
+        capacidade = unsafe { fcntl(0, F_SETPIPE_SZ, tamanho as i32) };
+    }
+    if capacidade < tamanho.min(CAPACIDADE_ESPERADA_PIPE as u64) as i32 {
+        return Err(());
+    }
+    let alvo = tamanho.min(capacidade as u64);
+
+    loop {
+        let mut disponiveis = 0;
+        if unsafe { ioctl(0, FIONREAD, &mut disponiveis) } != 0 {
+            return Err(());
+        }
+        if disponiveis as u64 >= alvo {
+            return Ok(());
+        }
+        std::hint::spin_loop();
+    }
 }
 
 /// Disposição de `SIGPIPE` herdada através de `exec`, capturada **antes** da
@@ -117,6 +163,10 @@ fn modo_por_papel() -> &'static str {
 
 fn main() -> ExitCode {
     let argv1 = std::env::args().nth(1);
+    let tamanho: u64 = std::env::var(TAMANHO_STDIN_R5)
+        .ok()
+        .and_then(|valor| valor.parse().ok())
+        .unwrap_or_default();
     let modo = match argv1.as_deref() {
         Some(modo) if !modo.is_empty() => modo,
         _ => modo_por_papel(),
@@ -124,11 +174,24 @@ fn main() -> ExitCode {
     match modo {
         // Encerra sem ler nada, imediatamente.
         "encerra" => ExitCode::from(0),
-        // Nunca lê e permanece vivo tempo suficiente para o pai preencher o
-        // buffer do pipe e bloquear; só então encerra, fechando o pipe.
+        // Linux/test-only: nunca lê; só encerra depois que a ocupação do pipe
+        // prova escrita completa ou pressão real sobre o writer.
         "espera" => {
-            std::thread::sleep(std::time::Duration::from_millis(300));
-            ExitCode::from(0)
+            #[cfg(target_os = "linux")]
+            {
+                match esperar_escrita(tamanho) {
+                    Ok(()) => ExitCode::from(0),
+                    Err(()) => {
+                        eprintln!("sonda Linux do pipe indisponível");
+                        ExitCode::from(2)
+                    }
+                }
+            }
+            #[cfg(not(target_os = "linux"))]
+            {
+                eprintln!("modo espera requer Linux");
+                ExitCode::from(2)
+            }
         }
         // Lê tudo até EOF.
         "le-tudo" => {
