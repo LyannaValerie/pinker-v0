@@ -164,6 +164,178 @@ fn p1_modulo_tambem_pode_implementar_trato_que_importou() {
 }
 
 // ---------------------------------------------------------------------------
+// Composição — o prepass de import tem de enxergar o que o carregador enxerga
+// ---------------------------------------------------------------------------
+
+/// `m517_meio` só compila porque o parse dele consulta o PRÓPRIO contexto de
+/// import: ele faz `impl` sobre um trato que importou. O prepass do importador
+/// lia esse módulo com contexto vazio, o parse falhava ali e só ali, o `.ok()?`
+/// engolia a falha e o importador recebia "trato não trazido por import" sobre
+/// um módulo perfeitamente válido.
+fn modulos_em_composicao() -> Vec<(&'static str, &'static str)> {
+    vec![
+        (
+            "m517_fundo",
+            "pacote m517_fundo;\n\ntrato Base517 {\n    carinho basear(valor: bombom) -> bombom { mimo valor + 3; }\n}\n",
+        ),
+        (
+            "m517_meio",
+            "pacote m517_meio;\ntrazer m517_fundo.Base517;\n\nimpl Base517 para bombom {}\n\ntrato Marca {\n    carinho marcar(valor: bombom) -> bombom { mimo valor + 20; }\n}\n\ncarinho util_meio() -> bombom { mimo 3; }\n",
+        ),
+    ]
+}
+
+/// Controle pareado: o mesmo módulo, importado por um MEMBRO NÃO-TRATO, compila
+/// e roda. Sem este controle, o caso abaixo poderia estar verde por acidente.
+#[test]
+fn controle_modulo_que_implementa_trato_importado_compila() {
+    let c = caso(
+        "cp0_517",
+        "pacote main;\ntrazer m517_meio.util_meio;\n\ncarinho principal() -> bombom { mimo util_meio(); }\n",
+        &modulos_em_composicao(),
+    );
+    let saida = executar(&c, "cp0-517-controle");
+    assert_eq!(codigo(&saida), 3, "{}", stderr(&saida));
+}
+
+/// O caso: a raiz importa um TRATO desse mesmo módulo e o implementa. O prepass
+/// precisa montar o contexto do módulo pela mesma conta que o carregador usa.
+#[test]
+fn raiz_implementa_trato_de_modulo_que_implementa_trato_importado() {
+    let c = caso(
+        "cp1_517",
+        "pacote main;\ntrazer m517_meio.Marca;\n\nimpl Marca para bombom {}\n\ncarinho principal() -> bombom {\n    nova x: bombom = 10;\n    mimo x.marcar();\n}\n",
+        &modulos_em_composicao(),
+    );
+    let saida = executar(&c, "cp1-517-composicao");
+    assert_eq!(codigo(&saida), 30, "{}", stderr(&saida));
+    assert!(
+        ir(&c, "cp1-517-ir").contains(&simbolo_de_impl("m517_meio.Marca", "bombom", "marcar")),
+        "a identidade continua sendo a do módulo que declarou o trato"
+    );
+}
+
+/// A mesma classe de falha sem `impl` nenhum: o parse do módulo depende do
+/// contexto porque ele chama, por grafia de intrínseca pública, uma função que
+/// o próprio módulo importou. `recusar_intrinseca_sem_import` recusa isso sob
+/// contexto vazio — e o importador pagava a conta.
+#[test]
+fn prepass_enxerga_modulo_cujo_parse_depende_do_proprio_import() {
+    let modulos = [
+        (
+            "m517_q",
+            "pacote m517_q;\n\ncarinho aparar(v: bombom) -> bombom { mimo v + 3; }\n",
+        ),
+        (
+            "m517_intr",
+            "pacote m517_intr;\ntrazer m517_q;\n\ntrato Marca {\n    carinho marcar(valor: bombom) -> bombom { mimo valor + 20; }\n}\n\ncarinho usa_intr() -> bombom { mimo aparar(4); }\n",
+        ),
+    ];
+    let controle = caso(
+        "cp2a_517",
+        "pacote main;\ntrazer m517_intr.usa_intr;\n\ncarinho principal() -> bombom { mimo usa_intr(); }\n",
+        &modulos,
+    );
+    let saida = executar(&controle, "cp2a-517-controle");
+    assert_eq!(codigo(&saida), 7, "{}", stderr(&saida));
+
+    let c = caso(
+        "cp2b_517",
+        "pacote main;\ntrazer m517_intr.Marca;\n\nimpl Marca para bombom {}\n\ncarinho principal() -> bombom {\n    nova x: bombom = 10;\n    mimo x.marcar();\n}\n",
+        &modulos,
+    );
+    let saida = executar(&c, "cp2b-517-caso");
+    assert_eq!(codigo(&saida), 30, "{}", stderr(&saida));
+}
+
+/// O prepass agora recursa, então precisa parar em ciclo pela mesma pilha que o
+/// carregador usa — e deixar o diagnóstico de ciclo para ele.
+#[test]
+fn ciclo_entre_modulos_para_no_prepass_e_o_carregador_diagnostica() {
+    let c = caso(
+        "cp3_517",
+        "pacote main;\ntrazer m517_x.Xt;\n\nimpl Xt para bombom {}\n\ncarinho principal() -> bombom { mimo 0; }\n",
+        &[
+            (
+                "m517_x",
+                "pacote m517_x;\ntrazer m517_y.Yt;\n\ntrato Xt { carinho xis(valor: bombom) -> bombom { mimo valor + 1; } }\n",
+            ),
+            (
+                "m517_y",
+                "pacote m517_y;\ntrazer m517_x.Xt;\n\ntrato Yt { carinho ips(valor: bombom) -> bombom { mimo valor + 2; } }\n",
+            ),
+        ],
+    );
+    let saida = checar(&c, "cp3-517-ciclo");
+    let erro = stderr(&saida);
+    assert_eq!(codigo(&saida), 1, "{erro}");
+    assert!(erro.contains("ciclo de módulos detectado"), "{erro}");
+}
+
+// ---------------------------------------------------------------------------
+// Módulo ilegível — quem não enxergou não pode dizer "não existe"
+// ---------------------------------------------------------------------------
+
+/// O mesmo módulo quebrado tem de produzir o MESMO diagnóstico, com ou sem
+/// `impl` sobre um trato dele. Antes, o `impl` mascarava o erro de sintaxe do
+/// módulo como "trato não trazido por import", com o span na raiz e sem sequer
+/// nomear o arquivo culpado.
+#[test]
+fn erro_de_sintaxe_no_modulo_nao_vira_trato_nao_importado() {
+    let modulos = [(
+        "m517_quebrado",
+        "pacote m517_quebrado;\n\ncarinho faz() -> bombom { nova p: bombom = ; mimo p; }\n\ntrato Marca {\n    carinho marcar(valor: bombom) -> bombom { mimo valor + 1; }\n}\n",
+    )];
+
+    let controle = caso(
+        "qb1_517",
+        "pacote main;\ntrazer m517_quebrado.faz;\n\ncarinho principal() -> bombom { mimo faz(); }\n",
+        &modulos,
+    );
+    let erro_controle = stderr(&checar(&controle, "qb1-517-controle"));
+    assert!(
+        erro_controle.contains("falha ao ler módulo 'm517_quebrado'"),
+        "{erro_controle}"
+    );
+
+    let c = caso(
+        "qb2_517",
+        "pacote main;\ntrazer m517_quebrado.Marca;\n\nimpl Marca para bombom {}\n\ncarinho principal() -> bombom { mimo 0; }\n",
+        &modulos,
+    );
+    let saida = checar(&c, "qb2-517-caso");
+    let erro = stderr(&saida);
+    assert_eq!(codigo(&saida), 1, "{erro}");
+    assert!(
+        erro.contains("falha ao ler módulo 'm517_quebrado'"),
+        "o erro real do módulo tem de sobreviver ao `impl`: {erro}"
+    );
+    assert!(erro.contains("m517_quebrado.pink"), "{erro}");
+    assert!(
+        !erro.contains("nem trazido por import"),
+        "a recusa do parser não pode mascarar o módulo ilegível: {erro}"
+    );
+}
+
+/// Módulo AUSENTE continua com o erro histórico do carregador, não com a recusa
+/// do parser.
+#[test]
+fn modulo_ausente_continua_com_o_erro_do_carregador() {
+    let c = caso(
+        "qb3_517",
+        "pacote main;\ntrazer m517_inexistente;\n\nimpl Marca para bombom {}\n\ncarinho principal() -> bombom { mimo 0; }\n",
+        &[],
+    );
+    let saida = checar(&c, "qb3-517-ausente");
+    let erro = stderr(&saida);
+    assert_eq!(codigo(&saida), 1, "{erro}");
+    assert!(
+        erro.contains("módulo 'm517_inexistente' não encontrado"),
+        "{erro}"
+    );
+}
+
+// ---------------------------------------------------------------------------
 // P3 — identidade canônica sobrevive a homônimo em outra unidade
 // ---------------------------------------------------------------------------
 
@@ -410,6 +582,43 @@ fn n1_import_de_outro_simbolo_do_modulo_nao_autoriza_o_trato() {
     let erro = stderr(&saida);
     assert_eq!(codigo(&saida), 1, "{erro}");
     assert!(erro.contains("impl usa trato 'Marca'"), "{erro}");
+}
+
+/// Controle pareado das recusas N1/N6: o MESMO `m517_b` que a N1 recusa por
+/// falta de import é importável de fato quando o import existe. Sem este
+/// controle, uma implementação que devolvesse `tratos_importados` vazio para
+/// todo módulo deixaria as recusas verdes pelo motivo errado.
+#[test]
+fn controle_positivo_do_modulo_recusado_em_n1() {
+    let c = caso(
+        "n1ctl_517",
+        "pacote main;\ntrazer m517_b.Marca;\n\nimpl Marca para bombom {}\n\ncarinho principal() -> bombom {\n    nova x: bombom = 10;\n    mimo x.marcar();\n}\n",
+        &modulos_homonimos(),
+    );
+    let saida = executar(&c, "n1ctl-517-controle");
+    assert_eq!(
+        codigo(&saida),
+        12,
+        "com import, o trato de m517_b é alvo legítimo e o default dele (+2) executa: {}",
+        stderr(&saida)
+    );
+    assert!(
+        ir(&c, "n1ctl-517-ir").contains(&simbolo_de_impl("m517_b.Marca", "bombom", "marcar")),
+        "e a identidade é a de m517_b"
+    );
+}
+
+/// Controle pareado da N6: o trato que a ponte NÃO reexporta é importável
+/// diretamente da origem, no mesmo conjunto de fontes.
+#[test]
+fn controle_positivo_do_trato_que_a_ponte_nao_reexporta() {
+    let c = caso(
+        "n6ctl_517",
+        "pacote main;\ntrazer m517_a.Marca;\n\nimpl Marca para bombom {}\n\ncarinho principal() -> bombom {\n    nova x: bombom = 10;\n    mimo x.marcar();\n}\n",
+        &modulos_ponte(),
+    );
+    let saida = executar(&c, "n6ctl-517-controle");
+    assert_eq!(codigo(&saida), 11, "{}", stderr(&saida));
 }
 
 // ---------------------------------------------------------------------------

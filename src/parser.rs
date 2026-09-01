@@ -273,6 +273,17 @@ pub struct ContextoDeImport {
     /// aqui — a grafia registrada é a que o importador escreveu, e quem a
     /// canoniza é `module_resolve`, pelo ambiente que a unidade autorizou.
     pub tratos_importados: HashMap<String, TraitDecl>,
+    /// #517: algum módulo importado por esta unidade não pôde ser lido pelo
+    /// prepass — ausente, ilegível, com erro de sintaxe ou em ciclo.
+    ///
+    /// A superfície acima está INCOMPLETA, e o parser não pode transformar a
+    /// própria cegueira em recusa: quem não enxergou não pode dizer "não
+    /// existe". O carregador refaz a mesma leitura logo em seguida e produz o
+    /// erro real — módulo ausente, falha ao ler o módulo, ciclo — com o span e
+    /// a fonte certos. Sem esta flag, um erro de sintaxe dentro do módulo
+    /// chegava ao usuário disfarçado de "você esqueceu o import", apontando a
+    /// linha do `impl` na raiz.
+    pub import_incompleto: bool,
 }
 
 impl Parser {
@@ -1368,7 +1379,9 @@ impl Parser {
             .consume(TokenKind::Ident, "nome do trato em impl")?
             .lexeme
             .clone();
-        if self.trato_alvo_de_impl(&trait_name).is_none() {
+        if self.trato_alvo_de_impl(&trait_name).is_none()
+            && !self.contexto_de_import.import_incompleto
+        {
             return Err(PinkerError::Parse {
                 msg: format!(
                     "impl usa trato '{}' não declarado antes deste ponto nem trazido por import",
@@ -1431,11 +1444,14 @@ impl Parser {
         for pending in impl_relations {
             let trait_name = &pending.relation.trait_name;
             let target_ty = &pending.relation.target_ty;
-            let methods = self
-                .trato_alvo_de_impl(trait_name)
-                .expect("impl só é registrado para trato declarado ou importado")
-                .methods
-                .clone();
+            // Com a superfície de import incompleta o `impl` foi aceito sem
+            // trato conhecido: não há default a materializar, e o carregador
+            // recusa o programa em seguida com o erro real do módulo.
+            let Some(trait_decl) = self.trato_alvo_de_impl(trait_name) else {
+                debug_assert!(self.contexto_de_import.import_incompleto);
+                continue;
+            };
+            let methods = trait_decl.methods.clone();
 
             for method in &methods {
                 let Some(body) = &method.body else {
