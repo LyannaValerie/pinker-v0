@@ -6,7 +6,7 @@ justification = "Onda D do agente Pinker: congelamento do contract-v1 sem fechar
 
 [reconstruction]
 recipes = ["normalizacao-corrente-para-historico"]
-expected_overrides = 112
+expected_overrides = 113
 expected_exclusions = 17
 expected_materializations = 17
 
@@ -378,6 +378,12 @@ to = "fnv1a64:5317e9720ce7472a"
 expect_file = "tests/backend_s_external_toolchain_tests.rs"
 expect_domain = "backend-s"
 expect_layer = "evidencia"
+
+[[rules]]
+op = "override-hash"
+key = "evidencia.hotfix.r5-sigpipe-ordem"
+from = "fnv1a64:959b1cd38efcba52"
+to = "fnv1a64:5bf8eee2490fdf45"
 
 [[rules]]
 op = "override-hash"

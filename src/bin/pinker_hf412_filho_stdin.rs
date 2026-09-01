@@ -57,10 +57,6 @@ extern "C" {
 /// drena o pipe.
 #[cfg(target_os = "linux")]
 fn esperar_escrita(tamanho: u64) -> Result<(), ()> {
-    if tamanho == 0 {
-        return Ok(());
-    }
-
     let mut capacidade = unsafe { fcntl(0, F_GETPIPE_SZ, 0) };
     // Só a célula de 65536 precisa ampliar o pipe. As escritas maiores devem
     // observar a capacidade real, não disputar a cota de pipes do host.
@@ -183,13 +179,13 @@ fn main() -> ExitCode {
         "espera" => {
             #[cfg(target_os = "linux")]
             {
-                return match esperar_escrita(tamanho) {
+                match esperar_escrita(tamanho) {
                     Ok(()) => ExitCode::from(0),
                     Err(()) => {
                         eprintln!("sonda Linux do pipe indisponível");
                         ExitCode::from(2)
                     }
-                };
+                }
             }
             #[cfg(not(target_os = "linux"))]
             {
