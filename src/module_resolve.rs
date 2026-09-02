@@ -157,6 +157,14 @@ fn nao_e_entidade_de_unidade(name: &str) -> bool {
 /// entidades iguais, e materializar as duas cópias duplicaria símbolo de
 /// runtime sem criar entidade nova.
 ///
+/// `__trait_default_check_*` pertence, depois que a recomposição o endereça
+/// pelo trato canônico: o corpo default tem uma declaração só, a do trato, e
+/// duas unidades que implementem a MESMA relação canônica copiam o MESMO corpo.
+/// Nome igual prova entidade igual, e a conferência estrutural mantém a prova
+/// fechada. Sem isto, duas unidades que sobrescrevem a mesma relação emitiriam
+/// duas funções homônimas e a duplicata seria recusada por choque de nome de
+/// função sintética, no lugar da autoridade de contratos de trato.
+///
 /// `__impl_*` NÃO pertence a este conjunto. Ele codifica apenas
 /// `(trato, alvo, método)`; dois corpos genuinamente distintos da mesma relação
 /// produzem o mesmo nome. Deduplicá-lo descartaria uma implementação em
@@ -165,6 +173,7 @@ fn nao_e_entidade_de_unidade(name: &str) -> bool {
 fn e_identidade_endereçada_por_conteudo(name: &str) -> bool {
     name.starts_with("__gen_")
         || name.starts_with(crate::anonymous_identity::ANONYMOUS_CALLABLE_PREFIX)
+        || name.starts_with(crate::method_identity::TRAIT_DEFAULT_CHECK_PREFIX)
 }
 
 /// Superfície global aprovada: intrínseca pública ou forma qualificada de
@@ -1083,24 +1092,32 @@ fn canonizar_declaracoes(unit: &mut ModuleUnit) {
     }
 }
 
-/// Recompõe o nome provisional `__impl_*` a partir das identidades já
-/// canônicas do trato e do alvo.
+/// Recompõe o nome provisional de um corpo sintético de `trato` — `__impl_*` e
+/// `__trait_default_check_*` — a partir das identidades já canônicas do trato e
+/// do alvo.
 ///
 /// O codec é injetivo por comprimento, então dois módulos que implementam o
 /// mesmo trato para o mesmo nome de tipo deixam de produzir o mesmo nome.
+///
+/// A checagem do default entra pela mesma porta que o método: ela prova o corpo
+/// de UM contrato, e o contrato é `(trato canônico, alvo canônico, método)`.
+/// Recompor só o método deixava a checagem endereçada pela grafia textual, e
+/// dois tratos homônimos de unidades distintas voltavam a compartilhar uma
+/// identidade que não é a mesma.
 fn recompor_nomes_de_impl(unit: &mut ModuleUnit, env: &ModuleEnvironment) {
     for item in &mut unit.items {
         let Item::Function(function) = item else {
             continue;
         };
-        let Some((trait_name, target_spelling, method_name)) =
-            crate::method_identity::parse_provisional_function_name(&function.name)
+        let Some((prefixo, trait_name, target_spelling, method_name)) =
+            crate::method_identity::parse_synthetic_trait_body_name(&function.name)
         else {
             continue;
         };
         let canonical_trait = canonizar_grafia(&trait_name, env);
         let canonical_target = canonizar_grafia(&target_spelling, env);
-        function.name = crate::method_identity::render_provisional_function_name(
+        function.name = crate::method_identity::render_synthetic_trait_body_name(
+            prefixo,
             &canonical_trait,
             &canonical_target,
             &method_name,
@@ -1241,9 +1258,15 @@ pub fn projetar_programa(graph: &ModuleGraph) -> Result<Program, PinkerError> {
             let Some(nome) = importable_item_name(item) else {
                 continue;
             };
-            let e_metodo_de_impl =
-                crate::method_identity::parse_provisional_function_name(nome).is_some();
-            if !e_metodo_de_impl && !alcancaveis.contains(nome) {
+            // Corpo sintético de `trato` — o método do `impl` e a checagem do
+            // corpo default vencido por override — não é alcançado por
+            // referência: ninguém o nomeia. Ele existe porque a relação de
+            // `impl` existe, e a relação entra sempre. Perguntar só por
+            // `__impl_*` aqui era o que fazia a unidade física que hospeda o
+            // `impl` decidir se o corpo default recebia validação semântica.
+            let e_corpo_sintetico_de_trato =
+                crate::method_identity::parse_synthetic_trait_body_name(nome).is_some();
+            if !e_corpo_sintetico_de_trato && !alcancaveis.contains(nome) {
                 continue;
             }
             // Identidade reservada do runtime é materializada pelo parser em
@@ -1540,13 +1563,15 @@ fn fecho_alcancavel(graph: &ModuleGraph) -> HashSet<String> {
                 semear(referenciado, &mut alcancaveis, &mut pendentes);
             }
         }
-        // Métodos de `impl` sempre materializados: o que eles usam precisa vir
-        // junto.
+        // Corpos sintéticos de `trato` sempre materializados: o que eles usam
+        // precisa vir junto. Vale para a checagem do default exatamente como
+        // vale para o método — os dois são corpo copiado pelo parser, e um
+        // corpo que sobrevive sem suas dependências não é validável.
         for item in &unit.items {
             let Some(nome) = importable_item_name(item) else {
                 continue;
             };
-            if crate::method_identity::parse_provisional_function_name(nome).is_none() {
+            if crate::method_identity::parse_synthetic_trait_body_name(nome).is_none() {
                 continue;
             }
             for referenciado in referencias_do_item(item) {
