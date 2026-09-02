@@ -1397,6 +1397,24 @@ impl SemanticChecker {
         if !self.nome_sem_identidade(base) {
             return None;
         }
+        // #532: quando existe módulo real homônimo da família, ele governa o
+        // nome — e os itens dele entram COMO GRAFIA CRUA, não pela forma
+        // qualificada. Mandar o leitor escrever `trazer <base>;` seria mandá-lo
+        // repetir o que já escreveu: a autoridade de import consumiu esse
+        // `trazer` como import de módulo, então o nome chega aqui sem
+        // identidade e a dica de família mentiria o remédio.
+        //
+        // A entidade canônica `base.campo` é o que prova qual das duas leituras
+        // está em jogo, e ela existe no programa projetado.
+        let canonico = format!("{base}.{campo}");
+        if self.funcs.contains_key(&canonico) {
+            return Some(PinkerError::Semantic {
+                msg: format!(
+                    "'{base}' é um módulo Pinker, não uma família built-in; os itens de '{base}' entram com a própria grafia — escreva '{campo}(...)'"
+                ),
+                span,
+            });
+        }
         Some(PinkerError::Semantic {
             msg: crate::familia_superficie::familia_nao_importada(base, campo),
             span,

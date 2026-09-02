@@ -114,6 +114,32 @@ fn paridade(c: &Caso, nome: &str, caso_logico: &str) -> Option<(i32, String)> {
     ))
 }
 
+/// Atravessa o pipeline inteiro em processo — parser, semantic, IR e os quatro
+/// validadores, até a execução da máquina — e devolve o valor de `principal`.
+///
+/// É o oráculo que o censo de reservas textuais precisa: parar na semântica
+/// provaria a ausência da reserva na única camada onde ela já não existia.
+fn valor_pelo_pipeline_completo(fonte: &str) -> Result<Option<i64>, String> {
+    use pinker_v0::interpreter::RuntimeValue;
+    let programa = common::parse(fonte).map_err(|erro| erro.to_string())?;
+    pinker_v0::semantic::check_program(&programa).map_err(|erro| erro.to_string())?;
+    let ir = pinker_v0::ir::lower_program(&programa).map_err(|erro| erro.to_string())?;
+    pinker_v0::ir_validate::validate_program(&ir).map_err(|erro| erro.to_string())?;
+    let cfg = pinker_v0::cfg_ir::lower_program(&ir).map_err(|erro| erro.to_string())?;
+    pinker_v0::cfg_ir_validate::validate_program(&cfg).map_err(|erro| erro.to_string())?;
+    let selecionado = pinker_v0::instr_select::lower_program(&cfg).map_err(|e| e.to_string())?;
+    pinker_v0::instr_select_validate::validate_program(&selecionado)
+        .map_err(|erro| erro.to_string())?;
+    let maquina =
+        pinker_v0::abstract_machine::lower_program(&selecionado).map_err(|e| e.to_string())?;
+    pinker_v0::abstract_machine_validate::validate_program(&maquina)
+        .map_err(|erro| erro.to_string())?;
+    match pinker_v0::interpreter::run_program(&maquina).map_err(|erro| erro.to_string())? {
+        Some(RuntimeValue::Int(valor)) => Ok(Some(valor as i64)),
+        outro => Err(format!("valor inesperado: {outro:?}")),
+    }
+}
+
 /// Callee do primeiro `mimo` de `principal`, na forma em que o parser o
 /// entregou — `Ident` para função do usuário, `Intrinsic` para identidade
 /// resolvida.
@@ -210,6 +236,39 @@ fn i1_p4_usuario_e_intrinseca_coexistem_com_observaveis_distintos() {
     assert_eq!(codigo(&saida), 43, "{}", erro(&saida));
 }
 
+/// I1-P5' — censo NATIVO das grafias que têm ramo textual próprio no backend.
+///
+/// O censo do pipeline em processo para na máquina abstrata e não veria um
+/// desvio por grafia no emissor SysV. As grafias abaixo são exatamente as que
+/// `backend_s` trata fora da rota comum: `formatar_verso`, pelo pack de
+/// substituições, e as de despacho por aridade. Uma delas escapando do portão
+/// de identidade é miscompilação silenciosa — o interpretador acerta e o ELF
+/// erra —, e é isso que este censo mede.
+#[test]
+fn i1_p5_censo_nativo_das_grafias_com_ramo_proprio_no_backend() {
+    const COM_RAMO_PROPRIO: [&str; 8] = [
+        "formatar_verso",
+        "afirmar",
+        "executar_processo",
+        "capturar_stdout",
+        "capturar_stderr",
+        "executar_com_entrada",
+        // Controles de rota comum, para o censo não medir só o caminho especial.
+        "tamanho_verso",
+        "ler_arquivo",
+    ];
+    for grafia in COM_RAMO_PROPRIO {
+        let fonte = format!(
+            "pacote main;\ncarinho {grafia}(valor: bombom) -> bombom {{ mimo valor + 1; }}\ncarinho principal() -> bombom {{ mimo {grafia}(41); }}\n"
+        );
+        let c = caso("censo_nativo", &fonte, &[]);
+        let Some((codigo_saida, _)) = paridade(&c, "censo_nativo", "issue-532-censo-nativo") else {
+            return;
+        };
+        assert_eq!(codigo_saida, 42, "{grafia}: a função do usuário não venceu");
+    }
+}
+
 /// I1-P5: interpretador e nativo concordam no caso de homônimo.
 #[test]
 fn i1_p5_interpretador_e_nativo_concordam_no_homonimo() {
@@ -242,24 +301,25 @@ fn censo_de_reservas_textuais_para_funcao_do_usuario_e_zero() {
         "a autoridade encolheu inesperadamente: {}",
         grafias.len()
     );
-    let mut reservadas: Vec<&str> = Vec::new();
+    // O oráculo atravessa TODAS as camadas e observa o valor devolvido: uma
+    // grafia ainda reservada — ou ainda capturada — em qualquer uma delas
+    // aparece aqui como recusa ou como valor errado, não como "compila".
+    let mut reservadas: Vec<(&str, String)> = Vec::new();
     for entrada in &grafias {
         let fonte = format!(
-            "pacote main;\ncarinho {}(valor: bombom) -> bombom {{ mimo valor; }}\ncarinho principal() -> bombom {{ mimo 0; }}\n",
-            entrada.spelling
+            "pacote main;\ncarinho {}(valor: bombom) -> bombom {{ mimo valor + 1; }}\ncarinho principal() -> bombom {{ mimo {}(41); }}\n",
+            entrada.spelling, entrada.spelling
         );
-        let Ok(programa) = common::parse(&fonte) else {
-            reservadas.push(entrada.spelling);
-            continue;
-        };
-        if pinker_v0::semantic::check_program(&programa).is_err() {
-            reservadas.push(entrada.spelling);
+        match valor_pelo_pipeline_completo(&fonte) {
+            Ok(Some(42)) => {}
+            Ok(outro) => reservadas.push((entrada.spelling, format!("valor {outro:?}"))),
+            Err(erro) => reservadas.push((entrada.spelling, erro)),
         }
     }
     assert_eq!(
         reservadas,
-        Vec::<&str>::new(),
-        "grafias canônicas ainda reservadas para o usuário"
+        Vec::<(&str, String)>::new(),
+        "grafias canônicas ainda reservadas ou capturadas para o usuário"
     );
 }
 // @pinker-nav:end evidencia.identidade.intrinseca-vs-grafia
@@ -370,6 +430,47 @@ fn i2_p2_p3_p4_ligacao_homonima_vence_o_nome_do_modulo_em_qualquer_ordem() {
         assert_eq!(codigo(&saida), 1, "{rotulo} foi aceito");
         assert!(erro(&saida).contains("tamanho"), "{}", erro(&saida));
     }
+}
+
+/// I4/NB — o diagnóstico não manda repetir o `trazer` que já foi escrito.
+///
+/// Com `REAL_MODULE_X > BUILTIN_FAMILY_X` valendo na forma inteira, o `trazer
+/// texto;` de um programa com `texto.pink` real é consumido como import de
+/// MÓDULO. O nome chega à semântica sem identidade, e a dica histórica de
+/// família mandaria escrever exatamente a linha que já está no arquivo. A dica
+/// passou a nomear a leitura correta; a histórica continua intacta quando não
+/// existe módulo real.
+#[test]
+fn i4_dica_de_familia_nao_manda_repetir_o_trazer_ja_escrito() {
+    let com_modulo = caso(
+        "i4_dica",
+        "pacote main;\ntrazer texto;\ncarinho principal() -> bombom { mimo texto.tamanho(1); }\n",
+        &[("texto", TEXTO_REAL)],
+    );
+    let saida = checar(&com_modulo, "issue-532-i4-dica");
+    let mensagem = erro(&saida);
+    assert_eq!(codigo(&saida), 1);
+    assert!(
+        mensagem.contains("é um módulo Pinker, não uma família built-in"),
+        "{mensagem}"
+    );
+    assert!(
+        !mensagem.contains("escreva 'trazer texto;'"),
+        "a dica mandou repetir o import que o arquivo já tem: {mensagem}"
+    );
+
+    let sem_modulo = caso(
+        "i4_dica_controle",
+        "pacote main;\ncarinho principal() -> bombom { mimo texto.tamanho(\"abc\"); }\n",
+        &[],
+    );
+    let saida = checar(&sem_modulo, "issue-532-i4-dica-controle");
+    assert_eq!(codigo(&saida), 1);
+    assert!(
+        erro(&saida).contains("não foi importada neste arquivo"),
+        "a dica histórica de família se perdeu: {}",
+        erro(&saida)
+    );
 }
 
 /// I2-P5: o diagnóstico da colisão aponta o span da fonte do usuário, e não

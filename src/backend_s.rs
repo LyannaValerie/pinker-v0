@@ -865,7 +865,14 @@ fn extract_external_callconv_program(
                         // dois braços são valores trivialmente puros. Braços
                         // com chamadas, alocações ou outros efeitos já foram
                         // separados em blocos lazy antes da seleção.
-                        if callee == "__ternario" {
+                        //
+                        // #532: os dois desvios por grafia abaixo acontecem
+                        // ANTES de `resolver_rota_de_chamada` e fazem
+                        // `continue`, então o portão de identidade daquela
+                        // autoridade não os alcança. Eles precisam do portão
+                        // aqui, ou a grafia volta a ser autoridade executiva
+                        // neste emissor — e só neste.
+                        if identidade.dispatches_as_builtin() && callee == "__ternario" {
                             if args.len() != 3 {
                                 return Err(err(
                                     "subset externo montável (Fase 214) exige `__ternario` com 3 argumentos",
@@ -910,7 +917,7 @@ fn extract_external_callconv_program(
                         // um pack contíguo e passamos modelo/count/entries à
                         // autoridade única do runtime, independentemente da
                         // quantidade de argumentos.
-                        if callee == "formatar_verso" {
+                        if identidade.dispatches_as_builtin() && callee == "formatar_verso" {
                             if args.len() < 2 {
                                 return Err(err(
                                     "subset externo montável exige ao menos uma substituição em formatar_verso",
