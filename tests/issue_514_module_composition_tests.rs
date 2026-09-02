@@ -868,7 +868,7 @@ fn paridade_interpretador_e_nativo_de_programa_composto() {
 fn revisao_n1_declaracao_de_grafia_builtin_em_modulo_nao_quebra_a_raiz() {
     let c = caso(
         "raiz_n1",
-        "pacote main;\ntrazer n1_mod.ua;\n\ncarinho principal() -> bombom {\n    nova mm: mapa<verso, bombom> = mapa_criar();\n    mimo ua();\n}\n",
+        "pacote main;\ntrazer n1_mod.ua;\ntrazer mapa.criar;\n\ncarinho principal() -> bombom {\n    nova mm: mapa<verso, bombom> = criar();\n    mimo ua();\n}\n",
         &[(
             "n1_mod",
             "pacote n1_mod;\n\ncarinho mapa_criar() -> bombom {\n    mimo 1;\n}\n\ncarinho ua() -> bombom {\n    mimo 2;\n}\n",
@@ -1210,7 +1210,7 @@ fn revisao_n1_linha_grafia_builtin_nao_vira_ponte_para_a_raiz() {
         "pacote main;\ntrazer n1m_mod.ub;\n\ncarinho principal() -> bombom {\n    mimo ub();\n}\n",
         &[(
             "n1m_mod",
-            "pacote n1m_mod;\n\ncarinho ub() -> bombom {\n    nova mm: mapa<verso, bombom> = mapa_criar();\n    mimo 5;\n}\n",
+            "pacote n1m_mod;\ntrazer mapa.criar;\n\ncarinho ub() -> bombom {\n    nova mm: mapa<verso, bombom> = criar();\n    mimo 5;\n}\n",
         )],
     );
     let saida = executar(&controle, "revisao-n1-linha-controle");
@@ -1356,17 +1356,26 @@ fn revisao_n1_duplo_grafia_intrinseca_declarada_nao_captura_em_caminho_algum() {
     }
 }
 
-/// Revisão adversarial N1'' — o estreitamento deliberado que essa correção traz.
+/// Revisão adversarial N1'' — o estreitamento deliberado, e o que a #532 fez
+/// com ele.
 ///
-/// Quando NENHUMA unidade reivindica a grafia, ela continua sendo superfície
-/// global e o módulo alcança o builtin normalmente. Quando a raiz a reivindica,
-/// o módulo passa a ser recusado — inclusive quando ele queria o builtin.
+/// A #514 documentou um canto: quando a RAIZ reivindicava a grafia de uma
+/// intrínseca, o módulo que quisesse aquele builtin pela grafia crua passava a
+/// ser recusado com diagnóstico, em vez de ser religado em silêncio.
 ///
-/// Isso é escolha, não descuido. A alternativa era manter seis religações
-/// silenciosas para preservar um programa em que a raiz declara uma entidade de
-/// topo com a grafia exata de uma intrínseca pública — declaração que, para a
-/// própria raiz, já é código morto, porque o builtin vence o despacho. Trocar
-/// religação silenciosa por diagnóstico é a direção certa; o inverso não é.
+/// O canto só era alcançável porque ainda existia grafia builtin chamável a
+/// seco: `mapa_criar`, a última. A #532 a moveu para `mapa.criar`, e com
+/// `GLOBAL_CALLABLE_BUILTIN_EXCEPTIONS = 0` nenhum módulo endereça mais uma
+/// intrínseca por grafia crua — cada unidade a traz por import próprio.
+///
+/// ```text
+/// ROOT_DECLARES_OLD_CANONICAL_SPELLING -> NÃO CUSTA A INTRÍNSECA A NINGUÉM
+/// ```
+///
+/// O que este teste mede agora é o dos dois lados: sem reivindicação, o módulo
+/// alcança a intrínseca; COM a reivindicação da raiz, ele continua alcançando.
+/// A recusa não sumiu por enfraquecimento — sumiu porque a disputa de nome que
+/// a produzia deixou de existir.
 #[test]
 fn revisao_n1_duplo_estreitamento_e_deliberado_e_tem_diagnostico() {
     // Sem reivindicação: o módulo alcança o builtin.
@@ -1375,7 +1384,7 @@ fn revisao_n1_duplo_estreitamento_e_deliberado_e_tem_diagnostico() {
         "pacote main;\ntrazer n1e_mod.ua;\n\ncarinho principal() -> bombom {\n    mimo ua();\n}\n",
         &[(
             "n1e_mod",
-            "pacote n1e_mod;\n\ncarinho ua() -> bombom {\n    nova mm: mapa<verso, bombom> = mapa_criar();\n    mimo 42;\n}\n",
+            "pacote n1e_mod;\ntrazer mapa.criar;\n\ncarinho ua() -> bombom {\n    nova mm: mapa<verso, bombom> = criar();\n    mimo 42;\n}\n",
         )],
     );
     assert_eq!(
@@ -1390,16 +1399,15 @@ fn revisao_n1_duplo_estreitamento_e_deliberado_e_tem_diagnostico() {
         "pacote main;\ntrazer n1f_mod.ua;\n\ncarinho mapa_criar(v: bombom) -> bombom {\n    mimo 77;\n}\n\ncarinho principal() -> bombom {\n    mimo ua();\n}\n",
         &[(
             "n1f_mod",
-            "pacote n1f_mod;\n\ncarinho ua() -> bombom {\n    nova mm: mapa<verso, bombom> = mapa_criar();\n    mimo 42;\n}\n",
+            "pacote n1f_mod;\ntrazer mapa.criar;\n\ncarinho ua() -> bombom {\n    nova mm: mapa<verso, bombom> = criar();\n    mimo 42;\n}\n",
         )],
     );
-    let saida = checar(&reivindicada, "revisao-n1-duplo-reivindicada");
-    let erro = stderr(&saida);
-    assert_eq!(codigo(&saida), 1, "{erro}");
-    assert!(erro.contains("mapa_criar"), "{erro}");
-    assert!(
-        erro.contains("raiz") && erro.contains("n1f_mod"),
-        "o diagnóstico precisa dizer quem declarou e quem não importou: {erro}"
+    let saida = executar(&reivindicada, "revisao-n1-duplo-reivindicada");
+    assert_eq!(
+        codigo(&saida),
+        42,
+        "a declaração homônima da raiz custou ao módulo a intrínseca que ele trouxe: {}",
+        stderr(&saida)
     );
 }
 
@@ -1415,7 +1423,7 @@ fn revisao_n1_duplo_estreitamento_e_deliberado_e_tem_diagnostico() {
 /// ninguém e não deve custar nada a ninguém.
 #[test]
 fn revisao_n1_triplo_reivindicacao_de_irmao_nao_tira_o_builtin_de_ninguem() {
-    const USUARIO: &str = "pacote n1t_user;\ntrazer mapa.definir;\ntrazer mapa.obter;\n\ncarinho uu() -> bombom {\n    nova mm: mapa<verso, bombom> = mapa_criar();\n    definir(mm, \"k\", 42);\n    mimo obter(mm, \"k\");\n}\n";
+    const USUARIO: &str = "pacote n1t_user;\ntrazer mapa.criar;\ntrazer mapa.definir;\ntrazer mapa.obter;\n\ncarinho uu() -> bombom {\n    nova mm: mapa<verso, bombom> = criar();\n    definir(mm, \"k\", 42);\n    mimo obter(mm, \"k\");\n}\n";
 
     // Irmão reivindica a grafia, em cada espécie que a #507 permite declarar.
     for (rotulo, declaracao) in [
@@ -1457,7 +1465,7 @@ fn revisao_n1_triplo_reivindicacao_de_irmao_nao_tira_o_builtin_de_ninguem() {
             ),
             (
                 "n1u_b",
-                "pacote n1u_b;\ntrazer n1u_c.uc;\ntrazer mapa.definir;\ntrazer mapa.obter;\n\ncarinho ub() -> bombom {\n    nova mm: mapa<verso, bombom> = mapa_criar();\n    definir(mm, \"k\", 42);\n    mimo obter(mm, \"k\") + uc();\n}\n",
+                "pacote n1u_b;\ntrazer n1u_c.uc;\ntrazer mapa.criar;\ntrazer mapa.definir;\ntrazer mapa.obter;\n\ncarinho ub() -> bombom {\n    nova mm: mapa<verso, bombom> = criar();\n    definir(mm, \"k\", 42);\n    mimo obter(mm, \"k\") + uc();\n}\n",
             ),
             (
                 "n1u_a",
@@ -1473,18 +1481,20 @@ fn revisao_n1_triplo_reivindicacao_de_irmao_nao_tira_o_builtin_de_ninguem() {
         stderr(&saida)
     );
 
-    // E o canto documentado continua sendo o canto documentado: quando é a RAIZ
-    // que reivindica, o módulo é recusado.
+    // #532: a reivindicação da RAIZ também deixou de custar o builtin. O canto
+    // documentado pela #514 dependia de existir grafia builtin chamável a seco;
+    // com `mapa.criar`, o módulo endereça a intrínseca pelo próprio import e a
+    // declaração homônima da raiz é apenas uma função do usuário.
     let raiz_reivindica = caso(
         "raiz_n1v",
         "pacote main;\ntrazer n1t_user.uu;\n\ncarinho mapa_criar(v: bombom) -> bombom {\n    mimo 1;\n}\n\ncarinho principal() -> bombom {\n    mimo uu();\n}\n",
         &[("n1t_user", USUARIO)],
     );
-    let saida = checar(&raiz_reivindica, "revisao-n1-triplo-raiz");
+    let saida = executar(&raiz_reivindica, "revisao-n1-triplo-raiz");
     assert_eq!(
         codigo(&saida),
-        1,
-        "a reivindicação da raiz deixou de ser decidida: {}",
+        42,
+        "a declaração homônima da raiz tirou o builtin do módulo: {}",
         stderr(&saida)
     );
 }

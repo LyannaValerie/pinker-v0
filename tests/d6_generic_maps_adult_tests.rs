@@ -179,7 +179,7 @@ fn tuple_match_candidates(source: &str) -> Vec<TupleMatchCandidate> {
 }
 
 const BOMBOM_LEQUE: &str = r#"
-pacote main; trazer mapa.definir; trazer mapa.obter; trazer mapa.remover; trazer mapa.tamanho; trazer mapa.tem; trazer texto;
+pacote main; trazer mapa.criar; trazer mapa.definir; trazer mapa.obter; trazer mapa.remover; trazer mapa.tamanho; trazer mapa.tem; trazer texto;
 
 leque Escolha {
     Vazio,
@@ -188,7 +188,7 @@ leque Escolha {
 }
 
 carinho principal() -> bombom {
-    nova m: mapa<bombom, Escolha> = mapa_criar();
+    nova m: mapa<bombom, Escolha> = criar();
     talvez tamanho(m) != 0 { mimo 1; }
 
     definir(m, 3, Escolha.Vazio);
@@ -234,12 +234,12 @@ carinho principal() -> bombom {
 "#;
 
 const VERSO_LEQUE: &str = r#"
-pacote main; trazer mapa.definir; trazer mapa.obter; trazer mapa.tem; trazer texto.formatar; trazer texto.tamanho;
+pacote main; trazer mapa.criar; trazer mapa.definir; trazer mapa.obter; trazer mapa.tem; trazer texto.formatar; trazer texto.tamanho;
 
 leque Escolha { Vazio, Numero(bombom), Texto(verso) }
 
 carinho principal() -> bombom {
-    nova m: mapa<verso, Escolha> = mapa_criar();
+    nova m: mapa<verso, Escolha> = criar();
     nova chave: verso = formatar("{}{}", "cha", "ve");
     definir(m, chave, Escolha.Numero(77));
     definir(m, "outra", Escolha.Texto("payload"));
@@ -258,12 +258,12 @@ carinho principal() -> bombom {
 "#;
 
 const PARITY_SOURCE: &str = r#"
-pacote main; trazer mapa.definir; trazer mapa.obter; trazer mapa.remover; trazer mapa.tamanho; trazer texto.formatar;
+pacote main; trazer mapa.criar; trazer mapa.definir; trazer mapa.obter; trazer mapa.remover; trazer mapa.tamanho; trazer texto.formatar;
 
 leque Escolha { Vazio, Numero(bombom), Texto(verso) }
 
 carinho principal() -> bombom {
-    nova a: mapa<bombom, Escolha> = mapa_criar();
+    nova a: mapa<bombom, Escolha> = criar();
     definir(a, 1, Escolha.Vazio);
     definir(a, 2, Escolha.Numero(41));
     definir(a, 3, Escolha.Texto("carga"));
@@ -274,7 +274,7 @@ carinho principal() -> bombom {
     remover(a, 1);
     falar(tamanho(a));
 
-    nova b: mapa<verso, Escolha> = mapa_criar();
+    nova b: mapa<verso, Escolha> = criar();
     nova chave: verso = formatar("{}{}", "cha", "ve");
     definir(b, chave, Escolha.Numero(77));
     definir(b, "outra", Escolha.Texto("payload"));
@@ -325,10 +325,10 @@ carinho principal() -> bombom {
 #[test]
 fn lookup_ausente_falha_com_diagnostico_de_runtime() {
     let code = r#"
-pacote main; trazer mapa.obter;
+pacote main; trazer mapa.criar; trazer mapa.obter;
 leque Escolha { Vazio }
 carinho principal() -> bombom {
-    nova m: mapa<bombom, Escolha> = mapa_criar();
+    nova m: mapa<bombom, Escolha> = criar();
     nova x: Escolha = obter(m, 99);
     mimo 0;
 }
@@ -344,9 +344,10 @@ carinho principal() -> bombom {
 fn chave_sem_capacidade_falha_na_semantica() {
     let code = r#"
 pacote main;
+trazer mapa.criar;
 leque Escolha { Vazio }
 carinho principal() -> bombom {
-    nova m: mapa<logica, Escolha> = mapa_criar();
+    nova m: mapa<logica, Escolha> = criar();
     mimo 0;
 }
 "#;
@@ -362,8 +363,9 @@ carinho principal() -> bombom {
 fn valor_sem_lifetime_aprovado_falha_na_semantica() {
     let code = r#"
 pacote main;
+trazer mapa.criar;
 carinho principal() -> bombom {
-    nova m: mapa<bombom, lista<bombom>> = mapa_criar();
+    nova m: mapa<bombom, lista<bombom>> = criar();
     mimo 0;
 }
 "#;
@@ -531,12 +533,12 @@ fn paridade_interpretador_nativo_positiva_e_negativa_e_bounded() {
     let negative_cases = [
         (
             "key",
-            "pacote main; leque K { A } carinho principal() -> bombom { nova m: mapa<K,bombom> = mapa_criar(); mimo 0; }",
+            "pacote main; trazer mapa.criar; leque K { A } carinho principal() -> bombom { nova m: mapa<K,bombom> = criar(); mimo 0; }",
             "tipo de chave de mapa incompatível",
         ),
         (
             "value",
-            "pacote main; carinho principal() -> bombom { nova m: mapa<bombom,lista<bombom>> = mapa_criar(); mimo 0; }",
+            "pacote main; trazer mapa.criar; carinho principal() -> bombom { nova m: mapa<bombom,lista<bombom>> = criar(); mimo 0; }",
             "representação de valor de mapa não suportada",
         ),
     ];

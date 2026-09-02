@@ -3632,10 +3632,12 @@ impl Parser {
     /// módulo é o carregador; esta função só devolve a pergunta, lida do fluxo
     /// de tokens, para que a resposta volte em `Parser::com_contexto_de_import`.
     ///
-    /// A forma inteira (`trazer <nome>;`) não aparece aqui de propósito: ela
-    /// nunca carregou módulo, nem antes desta Parte, e continuar sem consultar
-    /// o disco é preservar o comportamento histórico, não uma omissão.
-    pub fn familias_seletivas_candidatas(tokens: &[Token]) -> Vec<String> {
+    /// #532 — a forma inteira entra aqui pelo mesmo motivo que a seletiva.
+    /// `REAL_MODULE_X > BUILTIN_FAMILY_X` é precedência de identidade do nome;
+    /// deixar `trazer <familia>;` fora do censo era decidir a mesma pergunta
+    /// por forma sintática, e foi isso que fez `trazer texto;` ignorar um
+    /// `texto.pink` real que `trazer texto.X;` enxergava.
+    pub fn familias_candidatas(tokens: &[Token]) -> Vec<String> {
         let mut candidatos: Vec<String> = Vec::new();
         for indice in 0..tokens.len() {
             // #533: a leitura da declaração é a compartilhada. A pergunta desta
@@ -3646,9 +3648,6 @@ impl Parser {
             let Some(declaracao) = Self::ler_declaracao_trazer(tokens, indice) else {
                 continue;
             };
-            if declaracao.membros.is_empty() {
-                continue;
-            }
             let modulo = &tokens[declaracao.modulo].lexeme;
             if !crate::familia_superficie::familia_conhecida(modulo.as_str()) {
                 continue;
@@ -3674,17 +3673,31 @@ impl Parser {
     /// arrancaria de um módulo histórico todo export homônimo de membro
     /// aprovado.
     fn seletivo_de_familia(&self, modulo: &str, membro: &str) -> bool {
-        !self.contexto_de_import.modulos_reais.contains(modulo)
+        self.familia_governa(modulo)
             && crate::familia_superficie::resolver(modulo, membro).is_some()
+    }
+
+    /// #532 — a família governa este nome NESTE arquivo?
+    ///
+    /// Uma pergunta, uma autoridade, as duas formas de `trazer`. O veredito de
+    /// existência do módulo real vem de `modulos_reais`, colhido pela mesma
+    /// conta para a forma inteira e para a seletiva.
+    fn familia_governa(&self, modulo: &str) -> bool {
+        crate::familia_superficie::familia_governa(
+            modulo,
+            self.contexto_de_import.modulos_reais.contains(modulo),
+        )
     }
 
     /// Parte G: nomes de `trazer <nome>;` que **podem** ser módulo Pinker.
     ///
-    /// Famílias built-in ficam de fora de propósito: `trazer arquivo;` nunca
-    /// carregou módulo, nem antes desta Parte, e continuar sem consultar o
-    /// disco é preservar o comportamento histórico. O que sobra é a lista de
-    /// módulos cujos itens de topo entram neste arquivo — e cujos nomes o
-    /// parser precisa conhecer para não capturá-los.
+    /// #532 — nome de família built-in NÃO é filtrado aqui.
+    ///
+    /// Esta é uma leitura sintática: ela diz quem foi escrito na forma inteira,
+    /// não quem governa o nome. Quem decide é `familia_superficie::
+    /// familia_governa`, no chamador que possui o veredito de existência do
+    /// módulo real. Filtrar família aqui era decidir a precedência sem os dois
+    /// fatos — e é o que fazia `trazer texto;` não enxergar `texto.pink`.
     pub fn modulos_trazidos_inteiros(tokens: &[Token]) -> Vec<String> {
         let mut modulos: Vec<String> = Vec::new();
         for indice in 0..tokens.len() {
@@ -3700,9 +3713,6 @@ impl Parser {
                 continue;
             }
             let modulo = &tokens[declaracao.modulo].lexeme;
-            if crate::familia_superficie::familia_conhecida(modulo.as_str()) {
-                continue;
-            }
             if !modulos.contains(modulo) {
                 modulos.push(modulo.clone());
             }
@@ -3749,7 +3759,11 @@ impl Parser {
     /// continuam sendo recusa da autoridade semântica de import, que enxerga o
     /// programa inteiro e produz a mensagem única.
     fn registrar_import_de_familia(&mut self, module: &str, symbol: Option<&str>) {
-        if !crate::familia_superficie::familia_conhecida(module) {
+        // #532: uma família só governa o nome quando não existe módulo real
+        // homônimo, e isso vale para as DUAS formas. Antes a forma inteira
+        // pulava esta pergunta e registrava a família por cima de um módulo
+        // real que a forma seletiva já respeitava.
+        if !self.familia_governa(module) {
             return;
         }
         match symbol {
@@ -3968,7 +3982,7 @@ impl Parser {
         let ExprKind::Ident(familia) = &base.kind else {
             return Ok(None);
         };
-        if !crate::familia_superficie::familia_conhecida(familia.as_str()) {
+        if !self.familia_governa(familia.as_str()) {
             return Ok(None);
         }
         // Qualquer identidade já existente com o mesmo nome vence a família,
@@ -4556,6 +4570,7 @@ impl Parser {
             ExprKind::AddressOf(operand) => {
                 ExprKind::AddressOf(Box::new(Self::substitute_expr(operand, substitutions)))
             }
+            ExprKind::Intrinsic(identity) => ExprKind::Intrinsic(*identity),
             ExprKind::Call(callee, args) => ExprKind::Call(
                 Box::new(Self::substitute_expr(callee, substitutions)),
                 args.iter()
@@ -4815,9 +4830,12 @@ impl Parser {
                     .cloned()
                     .unwrap_or_else(|| name.clone()),
             ),
-            ExprKind::IntLit(_) | ExprKind::BoolLit(_) | ExprKind::StringLit(_) => {
-                expr.kind.clone()
-            }
+            // #532: identidade intrínseca não é nome de parâmetro-função e
+            // nunca é substituída por callback estático.
+            ExprKind::Intrinsic(_)
+            | ExprKind::IntLit(_)
+            | ExprKind::BoolLit(_)
+            | ExprKind::StringLit(_) => expr.kind.clone(),
         };
         Expr {
             kind,
@@ -5883,7 +5901,7 @@ impl Parser {
                 Box::new(Expr {
                     kind: ExprKind::Call(
                         Box::new(Expr {
-                            kind: ExprKind::Ident("lista_tamanho".to_string()),
+                            kind: Self::callee_intrinseco("lista_tamanho"),
                             span: helper_span,
                         }),
                         vec![Expr {
@@ -5907,7 +5925,7 @@ impl Parser {
             init: Expr {
                 kind: ExprKind::Call(
                     Box::new(Expr {
-                        kind: ExprKind::Ident("lista_obter".to_string()),
+                        kind: Self::callee_intrinseco("lista_obter"),
                         span: helper_span,
                     }),
                     vec![
@@ -6004,7 +6022,7 @@ impl Parser {
                 Box::new(Expr {
                     kind: ExprKind::Call(
                         Box::new(Expr {
-                            kind: ExprKind::Ident("lista_bombom_tamanho".to_string()),
+                            kind: Self::callee_intrinseco("lista_bombom_tamanho"),
                             span: helper_span,
                         }),
                         vec![Expr {
@@ -6025,7 +6043,7 @@ impl Parser {
             init: Expr {
                 kind: ExprKind::Call(
                     Box::new(Expr {
-                        kind: ExprKind::Ident("lista_bombom_obter".to_string()),
+                        kind: Self::callee_intrinseco("lista_bombom_obter"),
                         span: helper_span,
                     }),
                     vec![
@@ -6121,7 +6139,7 @@ impl Parser {
                 Box::new(Expr {
                     kind: ExprKind::Call(
                         Box::new(Expr {
-                            kind: ExprKind::Ident("lista_verso_tamanho".to_string()),
+                            kind: Self::callee_intrinseco("lista_verso_tamanho"),
                             span: helper_span,
                         }),
                         vec![Expr {
@@ -6142,7 +6160,7 @@ impl Parser {
             init: Expr {
                 kind: ExprKind::Call(
                     Box::new(Expr {
-                        kind: ExprKind::Ident("lista_verso_obter".to_string()),
+                        kind: Self::callee_intrinseco("lista_verso_obter"),
                         span: helper_span,
                     }),
                     vec![
@@ -6243,7 +6261,7 @@ impl Parser {
             init: Expr {
                 kind: ExprKind::Call(
                     Box::new(Expr {
-                        kind: ExprKind::Ident("mapa_verso_bombom_tamanho".to_string()),
+                        kind: Self::callee_intrinseco("mapa_verso_bombom_tamanho"),
                         span: helper_span,
                     }),
                     vec![Expr {
@@ -6395,7 +6413,7 @@ impl Parser {
             init: Expr {
                 kind: ExprKind::Call(
                     Box::new(Expr {
-                        kind: ExprKind::Ident("mapa_tamanho".to_string()),
+                        kind: Self::callee_intrinseco("mapa_tamanho"),
                         span: helper_span,
                     }),
                     vec![Expr {
@@ -6538,7 +6556,7 @@ impl Parser {
             init: Expr {
                 kind: ExprKind::Call(
                     Box::new(Expr {
-                        kind: ExprKind::Ident("mapa_verso_verso_tamanho".to_string()),
+                        kind: Self::callee_intrinseco("mapa_verso_verso_tamanho"),
                         span: helper_span,
                     }),
                     vec![Expr {
@@ -6693,7 +6711,7 @@ impl Parser {
             init: Expr {
                 kind: ExprKind::Call(
                     Box::new(Expr {
-                        kind: ExprKind::Ident("mapa_bombom_bombom_tamanho".to_string()),
+                        kind: Self::callee_intrinseco("mapa_bombom_bombom_tamanho"),
                         span: helper_span,
                     }),
                     vec![Expr {
@@ -6849,7 +6867,7 @@ impl Parser {
             init: Expr {
                 kind: ExprKind::Call(
                     Box::new(Expr {
-                        kind: ExprKind::Ident("mapa_bombom_verso_tamanho".to_string()),
+                        kind: Self::callee_intrinseco("mapa_bombom_verso_tamanho"),
                         span: helper_span,
                     }),
                     vec![Expr {
@@ -7220,8 +7238,13 @@ impl Parser {
         // #505: a grafia corrente veio da canonicalização de um membro de
         // módulo, e não do texto do usuário? É a única coisa que distingue
         // `arquivo.ler_bombom(...)` de alguém escrevendo `ler_arquivo(...)` a
-        // seco — depois do CANONICALIZATION_BOUNDARY as duas são o mesmo
-        // `Ident`.
+        // seco.
+        //
+        // #532: esta distinção deixou de morrer aqui. Ela era local ao parser —
+        // dentro deste laço as duas formas viravam o mesmo `Ident`, e a partir
+        // daí toda camada tinha de readivinhar pelo texto. Agora ela é promovida
+        // a `ExprKind::Intrinsic`, e é essa identidade que atravessa semantic,
+        // IR, interpretador e backend nativo.
         let mut canonicalizado = false;
         loop {
             if let Some(generic_call) = self.try_parse_explicit_generic_call(&expr)? {
@@ -7359,6 +7382,7 @@ impl Parser {
                         }
                     }
                 }
+                expr = Self::promover_identidade_intrinseca(expr, canonicalizado);
                 expr = Expr {
                     span: merge_span(expr.span, self.previous().span),
                     kind: ExprKind::Call(Box::new(expr), args),
@@ -7407,7 +7431,49 @@ impl Parser {
             }
             break;
         }
-        Ok(expr)
+        Ok(Self::promover_identidade_intrinseca(expr, canonicalizado))
+    }
+
+    /// #532 — fim do CANONICALIZATION_BOUNDARY: a grafia vira identidade.
+    ///
+    /// Só chega aqui com `canonicalizado = true` a expressão cuja grafia foi
+    /// produzida por um `trazer` resolvido — nunca a que o usuário escreveu. A
+    /// promoção acontece no fim porque as reescritas intermediárias do postfix
+    /// (monomorfização genérica de mapa/lista, materialização de `Resultado`,
+    /// leque de `json_tipo`) ainda falam a linguagem da grafia canônica; o que
+    /// muda é que a grafia final deixa de ser a autoridade e passa a viajar
+    /// dentro da identidade.
+    ///
+    /// Uma grafia canonicalizada que a autoridade não reconheça como pública é
+    /// forma interna do compilador e continua como `Ident`: `native_symbol` já
+    /// impede que o usuário a declare, então ela não disputa nome com ninguém.
+    /// #532 — callee intrínseco que o próprio compilador materializa.
+    ///
+    /// Açúcar de linguagem (`para cada`, interpolação `$"..."`) abaixa para
+    /// chamadas de intrínsecas que o usuário não escreveu. Elas nascem já com
+    /// identidade, e não com uma grafia que uma função homônima do usuário
+    /// pudesse disputar.
+    fn callee_intrinseco(grafia: &str) -> ExprKind {
+        ExprKind::Intrinsic(
+            crate::intrinsic_authority::intrinsic_from_public_spelling(grafia)
+                .expect("grafia intrínseca materializada pelo parser é pública"),
+        )
+    }
+
+    fn promover_identidade_intrinseca(expr: Expr, canonicalizado: bool) -> Expr {
+        if !canonicalizado {
+            return expr;
+        }
+        let ExprKind::Ident(name) = &expr.kind else {
+            return expr;
+        };
+        match crate::intrinsic_authority::callee_identity_da_grafia_canonica(name.as_str()) {
+            crate::intrinsic_authority::CalleeIdentity::Intrinsic(identity) => Expr {
+                kind: ExprKind::Intrinsic(identity),
+                span: expr.span,
+            },
+            _ => expr,
+        }
     }
 
     fn try_parse_explicit_generic_call(
@@ -7548,7 +7614,7 @@ impl Parser {
         Ok(Expr {
             kind: ExprKind::Call(
                 Box::new(Expr {
-                    kind: ExprKind::Ident("formatar_verso".to_string()),
+                    kind: Self::callee_intrinseco("formatar_verso"),
                     span,
                 }),
                 call_args,

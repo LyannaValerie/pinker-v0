@@ -55,8 +55,16 @@ fn callee_de_principal(programa: &pinker_v0::ast::Program) -> Option<String> {
             let ExprKind::Call(callee, _) = &expr.kind else {
                 continue;
             };
-            if let ExprKind::Ident(nome) = &callee.kind {
-                return Some(nome.clone());
+            // #532: a canonicalização deixou de produzir um `Ident` e passou a
+            // produzir a identidade. A grafia canônica continua sendo o
+            // observável — é o que esta tabela dourada compara —, agora lida de
+            // dentro da identidade em vez de um nome no namespace do usuário.
+            match &callee.kind {
+                ExprKind::Intrinsic(identidade) => {
+                    return Some(identidade.canonical_public_spelling().to_string())
+                }
+                ExprKind::Ident(nome) => return Some(nome.clone()),
+                _ => {}
             }
         }
     }
@@ -183,6 +191,7 @@ const SUPERFICIE_ESPERADA: &[(&str, &str, &str)] = &[
     ("lista", "verso_anexar", "lista_verso_anexar"),
     ("lista", "verso_tamanho", "lista_verso_tamanho"),
     ("lista", "verso_tirar_ultimo", "lista_verso_tirar_ultimo"),
+    ("mapa", "criar", "mapa_criar"),
     ("mapa", "definir", "mapa_definir"),
     ("mapa", "obter", "mapa_obter"),
     ("mapa", "remover", "mapa_remover"),
@@ -683,19 +692,20 @@ fn ligacao_pendente_do_proprio_statement_cede() {
     parse(fonte).expect("o parser não pode recusar a auto-referência pendente");
 }
 
-/// A única grafia builtin chamável sem import é `mapa_criar`, e ela é nomeada.
+/// Nenhuma grafia builtin é chamável sem import.
 ///
-/// A revisão adversarial da #505 encontrou que `mapa_criar` — o construtor
-/// genérico de mapa — continua chamável a seco, enquanto `lista.criar` virou
-/// membro. A assimetria é real e PREEXISTE a esta Issue: `mapa_criar` está em
-/// `GRAFIAS_BUILTIN_NAO_PUBLICAS` desde a #507, a revisão taxonômica a
-/// classificou como `INTERNAL_ONLY_NOT_PUBLIC_INTRINSIC`, e por isso ela nunca
-/// entrou nas 151 identidades públicas.
+/// A revisão adversarial da #505 encontrou uma exceção — `mapa_criar`, o
+/// construtor genérico de mapa — e este teste a manteve nomeada para que ela
+/// não crescesse em silêncio. A #532 fechou a exceção: `mapa_criar` passou a
+/// ser `mapa.criar`, pela mesma tradução que `lista_criar` -> `lista.criar` já
+/// tinha recebido, e o conjunto esperado passou a ser vazio.
 ///
-/// O que esta Issue pode fazer sem invadir a taxonomia aceita é impedir que a
-/// exceção CRESÇA em silêncio. Toda grafia que `semantic` despacha como
-/// builtin é ou pública — e então recusada a seco — ou exatamente
-/// `mapa_criar`. Uma segunda exceção quebra aqui.
+/// ```text
+/// GLOBAL_CALLABLE_BUILTIN_EXCEPTIONS = 0
+/// ```
+///
+/// O teste continua sendo o guarda de crescimento: qualquer grafia que
+/// `semantic` despache como builtin e que seja chamável a seco quebra aqui.
 #[test]
 fn a_excecao_builtin_nao_publica_e_exatamente_uma_e_tem_nome() {
     const NAO_CHAMAVEIS: &[&str] = &["si", "trato"];
@@ -728,8 +738,8 @@ fn a_excecao_builtin_nao_publica_e_exatamente_uma_e_tem_nome() {
     }
     assert_eq!(
         excecoes,
-        BTreeSet::from(["mapa_criar".to_string()]),
-        "a exceção builtin não pública mudou de tamanho ou de nome"
+        BTreeSet::new(),
+        "uma grafia builtin voltou a ser chamável sem import"
     );
 }
 

@@ -460,28 +460,31 @@ fn callee_inexistente_e_homonimo_de_usuario_nao_sao_capturados() {
         String::from_utf8_lossy(&build.stderr)
     );
 
-    let declaracao_homonima = escrever_fonte(
-        &dir,
+    // #532: a grafia canônica deixou de ser reservada. A declaração homônima é
+    // aceita, e o que a #522 protege — a intrínseca não ser capturada — passou
+    // a ser provado pelo caminho oposto: a chamada não qualificada alcança a
+    // função do USUÁRIO, nos dois backends.
+    //
+    // ```text
+    // USER_FUNCTION_NAME = OLD_INTRINSIC_CANONICAL_SPELLING
+    // UNQUALIFIED_USER_CALL -> USER FUNCTION
+    // ```
+    let declaracao_homonima = Sujeito::novo(
         "issue522_declaracao_homonima",
         r#"
 pacote main;
 carinho afirmar(valor: bombom) -> bombom { mimo valor + 1; }
 carinho principal() -> bombom { mimo afirmar(41); }
 "#,
-    );
-    let build = compilar_nativo(
-        &dir,
-        &declaracao_homonima,
         &runtime_lib,
-        "declaracao-homonima",
     );
-    assert!(!build.status.success());
-    assert!(
-        String::from_utf8_lossy(&build.stderr).contains(
-            "declaração callable 'afirmar' é a grafia canônica da superfície intrínseca Pinker"
-        ),
-        "{}",
-        String::from_utf8_lossy(&build.stderr)
+    assert_eq!(
+        declaracao_homonima.paridade("declaracao-homonima"),
+        Observacao {
+            codigo: Some(42),
+            stdout: String::new(),
+            falha: None,
+        }
     );
 
     let usuario = Sujeito::novo(

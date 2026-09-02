@@ -18,7 +18,7 @@ use std::time::Duration;
 // @pinker-nav:layer evidencia
 // @pinker-nav:summary Prova adulta D10 de patterns recursivos de leque: AST/IR recursivas, identidade nominal, aridade, escopo e materialização tardia de bindings, exaustividade/senao, duas famílias independentes, profundidade pequena, scrutinee único e paridade interpretador-nativo sob envelope.
 const POSITIVE_SOURCE: &str = r#"
-pacote main; trazer mapa.definir; trazer mapa.obter;
+pacote main; trazer mapa; trazer mapa.definir; trazer mapa.obter;
 
 leque Interno { Numero(bombom), Texto(verso) }
 leque Externo { Valor(Interno), Fim }
@@ -67,7 +67,7 @@ carinho principal() -> bombom {
         senao { falar("senao"); }
     }
 
-    nova mapa: mapa<bombom, Externo> = mapa_criar();
+    nova mapa: mapa<bombom, Externo> = mapa.criar();
     definir(mapa, 1, Externo.Valor(Interno.Numero(6)));
     encaixe obter(mapa, 1) {
         caso Externo.Valor(Interno.Numero(n)) { falar(n); }

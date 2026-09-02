@@ -36,7 +36,7 @@ fn error(source: &str) -> String {
 }
 
 fn wrapped(body: &str) -> String {
-    format!("pacote main; trazer lista; carinho principal() -> bombom {{ {body} mimo 0; }}")
+    format!("pacote main; trazer lista; trazer mapa; carinho principal() -> bombom {{ {body} mimo 0; }}")
 }
 
 #[test]
@@ -122,7 +122,7 @@ fn tipos_sem_representacao_nao_entram_por_analogia() {
     for (ty, value) in [
         ("verso", r#""texto""#),
         ("lista<bombom>", "lista.criar()"),
-        ("mapa<verso,bombom>", "mapa_criar()"),
+        ("mapa<verso,bombom>", "mapa.criar()"),
     ] {
         let diagnostic = error(&wrapped(&format!(
             "nova x: {ty} = {value}; sussurro(\"nop {{x}}\"; entrada x: registrador = x);"

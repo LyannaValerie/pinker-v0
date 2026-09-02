@@ -265,6 +265,11 @@ pub fn lower_program(program: &ProgramCfgIR) -> Result<BackendTextProgram, Pinke
                                 callee,
                                 args,
                                 ret_type,
+                                // #532: o backend textual não despacha
+                                // intrínseca por nome — ele emite a chamada
+                                // pelo símbolo —, então não há decisão de
+                                // identidade a consumir aqui.
+                                identidade: _,
                             } => Ok(BackendTextInstruction::Call {
                                 dest: *dest,
                                 callee: callee.clone(),
@@ -637,13 +642,18 @@ fn map_selected_instr(i: &SelectedInstr) -> Result<BackendTextInstruction, Pinke
             callee,
             args,
             ret_type,
+            identidade: _,
         } => Ok(BackendTextInstruction::Call {
             dest: Some(*dest),
             callee: callee.clone(),
             args: args.clone(),
             ret_type: *ret_type,
         }),
-        SelectedInstr::CallVoid { callee, args } => Ok(BackendTextInstruction::Call {
+        SelectedInstr::CallVoid {
+            callee,
+            args,
+            identidade: _,
+        } => Ok(BackendTextInstruction::Call {
             dest: None,
             callee: callee.clone(),
             args: args.clone(),

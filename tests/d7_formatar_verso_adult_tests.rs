@@ -264,7 +264,9 @@ fn compact(source: &str) -> String {
 
 fn formatar_lowering_block(source: &str) -> &str {
     source
-        .split_once("if callee == \"formatar_verso\" {")
+        // #532: o desvio do pack passou a exigir identidade de builtin antes da
+        // grafia. A fronteira que este gate lê é a mesma; só o guarda mudou.
+        .split_once("if identidade.dispatches_as_builtin() && callee == \"formatar_verso\" {")
         .expect("fronteira D7 no backend")
         .1
         .split_once("// Intrínsecas de aridade variável usam wrappers por")

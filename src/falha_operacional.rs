@@ -220,7 +220,7 @@ impl CargaResultado {
 ///
 /// A variante nomeia a operação, não a intrínseca: o nome público continua
 /// declarado uma única vez, em [`SUPERFICIES_FALIVEIS`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum OperacaoFalivel {
     /// Lê um arquivo inteiro a partir de um caminho.
     LerArquivoPorCaminho,

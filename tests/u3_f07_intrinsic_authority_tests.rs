@@ -1,4 +1,22 @@
 //! U3 / F-07 — autoridade explícita da superfície pública de intrínsecas.
+//!
+//! #532 — a política mudou de lugar, não de dono.
+//!
+//! A F-07 recusava a declaração homônima de uma grafia canônica porque a grafia
+//! ERA a chave de despacho a jusante: aceitar a declaração trocaria uma recusa
+//! explícita por sombreamento silencioso. A #532 removeu a chave textual — o
+//! despacho passou a consultar `CalleeIdentity`, que só a resolução de um
+//! `trazer` produz —, e com isso a reserva perdeu a função que a justificava.
+//!
+//! ```text
+//! ANTES:  CANONICAL_SPELLING == DISPATCH_KEY -> DECLARAÇÃO RECUSADA
+//! DEPOIS: CANONICAL_SPELLING != DISPATCH_KEY -> DECLARAÇÃO ACEITA E VENCE
+//! ```
+//!
+//! O que a F-07 protegia continua provado, pelo caminho oposto: a chamada não
+//! qualificada alcança a função do USUÁRIO, e a referência modular continua
+//! alcançando a intrínseca. A recusa que sobrevive é a colisão REAL — o arquivo
+//! que traz o membro e declara o homônimo.
 
 mod common;
 
@@ -60,23 +78,10 @@ fn rejection_at_declaration(code: &str, name: &str) -> String {
                 "diagnóstico precisa apontar a declaração"
             );
             assert!(msg.contains(name), "{msg}");
-            // Depois da #505 há duas causas de recusa, e elas NÃO são
-            // intercambiáveis: um `||` aqui aceitaria a mensagem errada para o
-            // caso errado. A causa é escolhida pelo próprio arquivo — se ele
-            // traz o membro homônimo, a recusa é a do import; senão, é a da
-            // grafia canônica reservada.
-            let traz_o_membro = code.contains(&format!("trazer ambiente.{name};"))
-                || code.contains(&format!("trazer arquivo.{name};"))
-                || code.contains(&format!("trazer texto.{name};"));
-            if traz_o_membro {
-                assert!(msg.contains("colide com o membro"), "{msg}");
-            } else {
-                assert!(
-                    msg.contains("é a grafia canônica da superfície intrínseca Pinker"),
-                    "{msg}"
-                );
-                assert!(msg.contains("não pode ser redeclarada"), "{msg}");
-            }
+            // #532: sobrou UMA causa de recusa — o arquivo traz o membro e
+            // declara o homônimo. A recusa por grafia canônica reservada saiu
+            // junto com a chave de despacho textual que a justificava.
+            assert!(msg.contains("colide com o membro"), "{msg}");
             assert!(!msg.contains("pinker_"), "{msg}");
             assert!(!msg.contains("runtime"), "{msg}");
             msg
@@ -85,6 +90,24 @@ fn rejection_at_declaration(code: &str, name: &str) -> String {
     }
 }
 
+/// #532 — a declaração homônima é aceita, e a chamada não qualificada alcança
+/// a função do usuário nos dois entrypoints semânticos.
+fn acceptance_at_declaration(code: &str, name: &str, esperado: u64) {
+    let program = common::parse(code)
+        .unwrap_or_else(|erro| panic!("{name}: programa deveria parsear: {erro}"));
+    semantic::check_program(&program)
+        .unwrap_or_else(|erro| panic!("{name}: declaração homônima deveria ser aceita: {erro}"));
+    SemanticChecker::new()
+        .check_program(&program)
+        .unwrap_or_else(|erro| panic!("{name}: entrypoint direto divergiu: {erro}"));
+    assert_eq!(
+        run_code(code),
+        Ok(Some(RuntimeValue::Int(esperado))),
+        "{name}: a chamada não qualificada precisa alcançar a função do usuário"
+    );
+}
+
+#[allow(dead_code)]
 fn direct_rejection_at_declaration(code: &str, name: &str) -> String {
     let program = common::parse(code).expect("programa sintaticamente válido");
     let declaration_span = program
@@ -126,25 +149,23 @@ fn verdict_via_direct_entrypoint(code: &str) -> Result<(), String> {
 }
 
 #[test]
-fn t_a1_direct_checker_rejects_historical_builtin_homonym() {
-    let source = declaration("tamanho_verso", "verso", "mimo 777;", false);
-    direct_rejection_at_declaration(&source, "tamanho_verso");
+fn t_a1_direct_checker_accepts_historical_builtin_homonym() {
+    let source = declaration("tamanho_verso", "bombom", "mimo valor + 1;", true);
+    acceptance_at_declaration(&source, "tamanho_verso", 8);
 }
 
 #[test]
-fn t_a2_direct_checker_rejects_modern_intrinsic_homonym() {
-    let source = declaration("ler_arquivo_resultado", "verso", "mimo 777;", false);
-    direct_rejection_at_declaration(&source, "ler_arquivo_resultado");
+fn t_a2_direct_checker_accepts_modern_intrinsic_homonym() {
+    let source = declaration("ler_arquivo_resultado", "bombom", "mimo valor + 1;", true);
+    acceptance_at_declaration(&source, "ler_arquivo_resultado", 8);
 }
 
 #[test]
-fn t_a3_t_a4_direct_checker_rejects_uncalled_and_called_before_dispatch() {
+fn t_a3_t_a4_direct_checker_accepts_uncalled_and_called_alike() {
     let uncalled = declaration("tamanho_verso", "bombom", "mimo valor;", false);
     let called = declaration("tamanho_verso", "bombom", "mimo valor;", true);
-    assert_eq!(
-        direct_rejection_at_declaration(&uncalled, "tamanho_verso"),
-        direct_rejection_at_declaration(&called, "tamanho_verso")
-    );
+    acceptance_at_declaration(&uncalled, "tamanho_verso", 0);
+    acceptance_at_declaration(&called, "tamanho_verso", 7);
 }
 
 #[test]
@@ -163,8 +184,8 @@ carinho principal() -> bombom { mimo minha_funcao_normal(41); }
 #[test]
 fn t_a6_free_and_direct_entrypoints_have_equivalent_f07_verdicts() {
     let cases = [
-        declaration("tamanho_verso", "verso", "mimo 777;", false),
-        declaration("ler_arquivo_resultado", "verso", "mimo 777;", true),
+        declaration("tamanho_verso", "bombom", "mimo valor;", false),
+        declaration("ler_arquivo_resultado", "bombom", "mimo valor;", true),
         "pacote main; carinho comum(valor: bombom) -> bombom { mimo valor; } carinho principal() -> bombom { mimo comum(7); }".to_string(),
         "pacote main; trazer texto.tamanho; carinho principal() -> bombom { mimo tamanho(\"rosa\"); }".to_string(),
     ];
@@ -177,26 +198,33 @@ fn t_a6_free_and_direct_entrypoints_have_equivalent_f07_verdicts() {
     }
 }
 
+/// #532: a assinatura da declaração deixou de importar para o veredito — o que
+/// mudou é que agora ela é aceita nas duas formas, e não recusada nas duas.
+/// A declaração cuja assinatura DIVERGE da intrínseca é a prova mais direta:
+/// se alguma camada ainda despachasse pelo texto, ela seria checada contra a
+/// assinatura da intrínseca e o programa nem chegaria a executar.
 #[test]
-fn t1_t2_historical_matching_and_incompatible_reject_the_declaration() {
-    let matching = declaration("tamanho_verso", "verso", "mimo 777;", true);
+fn t1_t2_historical_matching_and_incompatible_accept_the_declaration() {
     let incompatible = declaration("tamanho_verso", "bombom", "mimo valor;", true);
-    let matching_error = rejection_at_declaration(&matching, "tamanho_verso");
-    let incompatible_error = rejection_at_declaration(&incompatible, "tamanho_verso");
-    assert_eq!(matching_error, incompatible_error);
-    assert!(!incompatible_error.contains("tipo inválido no argumento"));
+    acceptance_at_declaration(&incompatible, "tamanho_verso", 7);
+
+    let matching = "pacote main;\ncarinho tamanho_verso(valor: verso) -> bombom { mimo 777; }\ncarinho principal() -> bombom { mimo tamanho_verso(\"x\"); }\n";
+    acceptance_at_declaration(matching, "tamanho_verso", 777);
 }
 
+/// #532: as quatro classes de identidade — histórica, falível, JSON e SHA-256 —
+/// receberam a MESMA liberação. Nenhuma delas tem tratamento próprio: a reserva
+/// caiu para a classe inteira, e não caso a caso.
 #[test]
-fn t3_t6_modern_json_sha_and_table_driven_classes_are_rejected() {
+fn t3_t6_modern_json_sha_and_table_driven_classes_are_accepted() {
     for name in [
         "ler_arquivo_resultado",
         "ler_json_resultado",
         "sha256_arquivo",
         "tipo_de_entrada",
     ] {
-        let source = declaration(name, "verso", "mimo 777;", false);
-        rejection_at_declaration(&source, name);
+        let source = declaration(name, "bombom", "mimo valor + 1;", true);
+        acceptance_at_declaration(&source, name, 8);
     }
 }
 
@@ -211,13 +239,11 @@ carinho principal() -> bombom { mimo minha_funcao_normal(41); }
 }
 
 #[test]
-fn t8_t9_uncalled_and_called_homonyms_fail_before_call_analysis() {
+fn t8_t9_uncalled_and_called_homonyms_are_accepted_alike() {
     let uncalled = declaration("tamanho_verso", "bombom", "mimo valor;", false);
     let called = declaration("tamanho_verso", "bombom", "mimo valor;", true);
-    assert_eq!(
-        rejection_at_declaration(&uncalled, "tamanho_verso"),
-        rejection_at_declaration(&called, "tamanho_verso")
-    );
+    acceptance_at_declaration(&uncalled, "tamanho_verso", 0);
+    acceptance_at_declaration(&called, "tamanho_verso", 7);
 }
 
 #[test]
@@ -228,9 +254,11 @@ trazer arquivo.ler_bombom;
 carinho ler_bombom(valor: verso) -> bombom { mimo 7; }
 carinho principal() -> bombom { mimo 0; }
 "#;
+    // A colisão do import continua sendo recusa: este arquivo TRAZ o membro.
     rejection_at_declaration(alias, "ler_bombom");
-    let canonical = declaration("ler_arquivo", "verso", "mimo 7;", false);
-    rejection_at_declaration(&canonical, "ler_arquivo");
+    // #532: a grafia canônica sozinha não colide com nada — ninguém a trouxe.
+    let canonical = declaration("ler_arquivo", "bombom", "mimo valor + 1;", true);
+    acceptance_at_declaration(&canonical, "ler_arquivo", 8);
 
     let inactive_alias = r#"
 pacote main;
@@ -287,6 +315,9 @@ fn t14_t20_imported_callable_and_import_order_receive_the_same_policy() {
     )
     .expect("módulo neutro");
 
+    // #532: importar de um módulo uma função cuja grafia é a de uma intrínseca
+    // deixou de ser recusado, e o veredito continua independente da ordem dos
+    // imports. A chamada alcança a função do MÓDULO.
     for (label, imports) in [
         (
             "homonimo-antes",
@@ -300,21 +331,22 @@ fn t14_t20_imported_callable_and_import_order_receive_the_same_policy() {
         let root = dir.path().join(format!("{label}.pink"));
         fs::write(
             &root,
-            format!("pacote main;\n{imports}\ncarinho principal() -> bombom {{ mimo 0; }}"),
+            format!(
+                "pacote main;\n{imports}\ncarinho principal() -> bombom {{ mimo tamanho_verso(42); }}"
+            ),
         )
         .expect("raiz");
         let output = Command::new(env!("CARGO_BIN_EXE_pink"))
-            .arg("--check")
+            .arg("--run")
             .arg(&root)
             .logical_case(label)
             .output()
-            .expect("checagem modular");
-        assert!(!output.status.success(), "{label} foi aceito");
-        let diagnostic = String::from_utf8_lossy(&output.stderr);
-        assert!(diagnostic.contains("tamanho_verso"), "{diagnostic}");
-        assert!(
-            diagnostic.contains("superfície intrínseca Pinker"),
-            "{diagnostic}"
+            .expect("execução modular");
+        assert_eq!(
+            output.status.code(),
+            Some(42),
+            "{label}: {}",
+            String::from_utf8_lossy(&output.stderr)
         );
     }
 }
@@ -374,13 +406,16 @@ fn t16_valid_builtin_interpreter_and_native_remain_in_parity() {
     assert_eq!(interpreted.status.code(), native.status.code());
 }
 
+/// #532: a recusa que sobrevive — homônimo do membro que o próprio arquivo traz
+/// — continua acontecendo ANTES de qualquer artefato nativo, e o diagnóstico
+/// continua falando a língua da fonte, sem vazar símbolo de runtime.
 #[test]
 fn t17_t18_rejected_homonym_never_produces_native_artifact_and_diagnostic_is_public() {
     let dir = NativeArtifactDir::create().expect("sandbox de rejeição nativa");
     let source = dir.path().join("rejeitado.pink");
     fs::write(
         &source,
-        declaration("tamanho_verso", "verso", "mimo 777;", true),
+        "pacote main;\ntrazer texto.tamanho;\ncarinho tamanho(valor: verso) -> bombom { mimo 777; }\ncarinho principal() -> bombom { mimo 0; }\n",
     )
     .expect("fonte");
     let out_dir = dir.path().join("native");
@@ -395,9 +430,14 @@ fn t17_t18_rejected_homonym_never_produces_native_artifact_and_diagnostic_is_pub
         .expect("build rejeitado");
     assert!(!build.status.success());
     let diagnostic = String::from_utf8_lossy(&build.stderr);
-    assert!(diagnostic.contains("tamanho_verso"), "{diagnostic}");
+    assert!(diagnostic.contains("tamanho"), "{diagnostic}");
+    // A CLI decide pela autoridade de colisão de import; o caminho de
+    // biblioteca decide pela política de declaração. As duas dizem a mesma
+    // coisa — o arquivo traz o membro e declara o homônimo — e nenhuma vaza
+    // símbolo de runtime.
     assert!(
-        diagnostic.contains("superfície intrínseca Pinker"),
+        diagnostic.contains("colisão de nome no import")
+            || diagnostic.contains("colide com o membro"),
         "{diagnostic}"
     );
     assert!(!diagnostic.contains("pinker_verso_tamanho"), "{diagnostic}");
@@ -407,12 +447,22 @@ fn t17_t18_rejected_homonym_never_produces_native_artifact_and_diagnostic_is_pub
 
 #[test]
 fn t19_source_order_cannot_change_the_verdict() {
-    let homonym = "carinho tamanho_verso(valor: bombom) -> bombom { mimo valor; }";
-    let principal = "carinho principal() -> bombom { mimo 0; }";
+    let homonym = "carinho tamanho_verso(valor: bombom) -> bombom { mimo valor + 1; }";
+    let principal = "carinho principal() -> bombom { mimo tamanho_verso(41); }";
     for source in [
         format!("pacote main;\n{homonym}\n{principal}"),
         format!("pacote main;\n{principal}\n{homonym}"),
     ] {
-        rejection_at_declaration(&source, "tamanho_verso");
+        acceptance_at_declaration(&source, "tamanho_verso", 42);
+    }
+
+    // A recusa que sobrevive também não depende da ordem do texto.
+    let import = "trazer texto.tamanho;";
+    let colide = "carinho tamanho(valor: verso) -> bombom { mimo 7; }";
+    for source in [
+        format!("pacote main;\n{import}\n{colide}\ncarinho principal() -> bombom {{ mimo 0; }}"),
+        format!("pacote main;\n{import}\ncarinho principal() -> bombom {{ mimo 0; }}\n{colide}"),
+    ] {
+        rejection_at_declaration(&source, "tamanho");
     }
 }

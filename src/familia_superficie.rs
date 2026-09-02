@@ -459,6 +459,12 @@ pub const EXPORTACOES: &[Exportacao] = &[
         IdentidadeCanonica::PorGrafia("lista_verso_tirar_ultimo"),
     ),
     // ----- módulo `mapa` -----
+    // #532: `criar` é a criação genérica de mapa, gêmea estrutural de
+    // `lista.criar`. Ela era a última grafia builtin chamável sem import, e o
+    // par `(mapa, criar)` não é escolha lexical nova: é a mesma tradução
+    // `<familia>_<membro> -> familia.membro` que a #505 já aplicou aos outros
+    // 29 membros deste módulo e ao `lista_criar` de mesma natureza.
+    exportar(MAPA, "criar", IdentidadeCanonica::PorGrafia("mapa_criar")),
     exportar(
         MAPA,
         "definir",
@@ -742,6 +748,26 @@ pub const EXPORTACOES: &[Exportacao] = &[
 /// A família é built-in importável?
 pub fn familia_conhecida(familia: &str) -> bool {
     FAMILIAS.contains(&familia)
+}
+
+/// #532 — autoridade ÚNICA da precedência `REAL_MODULE_X > BUILTIN_FAMILY_X`.
+///
+/// A pergunta "quem governa este nome de import" tinha duas respostas: a forma
+/// seletiva cedia a vez ao módulo real e a forma inteira não, o que fazia
+/// `trazer texto;` ignorar um `texto.pink` que `trazer texto.X;` enxergava. A
+/// precedência é da IDENTIDADE do nome, não da forma sintática que o escreveu.
+///
+/// ```text
+/// FAMILY_GOVERNS(x) = KNOWN_FAMILY(x) && !REAL_MODULE_EXISTS(x)
+/// ```
+///
+/// `modulo_real_existe` é um veredito observado — disco na CLI, grafo na
+/// resolução —, não uma segunda política: esta autoridade não procura arquivo e
+/// não sabe procurar. G-517-1 continua valendo por construção: ausência de
+/// `<familia>.pink` é o caso comum de uma família legítima, e não um módulo
+/// faltando.
+pub fn familia_governa(familia: &str, modulo_real_existe: bool) -> bool {
+    familia_conhecida(familia) && !modulo_real_existe
 }
 
 /// Exportação de `(família, membro)`, se existir.

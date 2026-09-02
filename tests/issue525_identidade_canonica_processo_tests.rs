@@ -146,7 +146,10 @@ fn nenhuma_grafia_publica_desaparece() {
     // históricas + 9 falíveis + 11 acessores JSON + 1 SHA-256 + 3 acessores de
     // processo, sem interseção. Sem ele, «nenhuma grafia desaparece» não
     // detecta um desaparecimento arbitrário — só a perda de unicidade.
-    assert_eq!(spellings.len(), 154);
+    //
+    // A #532 acrescentou uma única entrada histórica: `mapa_criar`, que era a
+    // última grafia builtin chamável sem import e passou a ser `mapa.criar`.
+    assert_eq!(spellings.len(), 155);
     let unicas: BTreeSet<_> = spellings.iter().map(|entry| entry.spelling).collect();
     assert_eq!(
         unicas.len(),
@@ -279,29 +282,38 @@ fn politica_de_conflito_vale_para_as_seis_grafias() {
     }
 }
 
-/// As seis grafias continuam reservadas para declaração.
+/// As seis grafias deixaram de ser reservadas — e continuam endereçando a
+/// mesma identidade.
 ///
-/// A #505 removeu a superfície GLOBAL, não a reserva: as seis continuam sendo
-/// a chave pela qual `semantic`, `ir`, `interpreter` e `backend_s` despacham a
-/// intrínseca depois da canonicalização. Aceitar a declaração sem reservar a
-/// grafia trocaria esta recusa explícita por sombreamento silencioso.
+/// A #505 removeu a superfície GLOBAL e manteve a reserva textual, porque as
+/// seis ainda eram a chave pela qual `semantic`, `ir`, `interpreter` e
+/// `backend_s` despachavam a intrínseca depois da canonicalização. A #532
+/// removeu a CAUSA: o despacho passou a consultar `CalleeIdentity`, que só a
+/// resolução de um `trazer` produz. Sem chave de despacho textual, a reserva
+/// perdeu a função — e a unificação de identidade da #525 continua intacta.
+///
+/// ```text
+/// USER_FUNCTION_NAME = OLD_INTRINSIC_CANONICAL_SPELLING -> ACEITO
+/// ALIAS_IDENTITY_UNIFICATION -> PRESERVADA
+/// ```
 #[test]
-fn redeclarar_qualquer_uma_das_seis_grafias_continua_recusado() {
+fn redeclarar_qualquer_uma_das_seis_grafias_e_aceito_sem_mover_a_identidade() {
     for (alias, adulta) in PARES {
         for spelling in [alias, adulta] {
             let fonte = format!(
                 "pacote main;\n\
-                 carinho {spelling}() -> bombom {{ mimo 0; }}\n\
-                 carinho principal() -> bombom {{ mimo 0; }}\n"
+                 carinho {spelling}() -> bombom {{ mimo 7; }}\n\
+                 carinho principal() -> bombom {{ mimo {spelling}(); }}\n"
             );
             let ast = common::parse(&fonte).expect("parse");
-            let erro = semantic::check_program(&ast)
-                .expect_err("redeclaração de intrínseca deve falhar")
-                .to_string();
-            assert!(
-                erro.contains("superfície intrínseca Pinker"),
-                "{spelling}: {erro}"
+            semantic::check_program(&ast).unwrap_or_else(|erro| panic!("{spelling}: {erro}"));
+            assert_eq!(
+                executar(&fonte, &[]),
+                7,
+                "{spelling}: a chamada não qualificada precisa alcançar a função do usuário"
             );
+            // A declaração do usuário não move a identidade da autoridade.
+            assert_eq!(identidade(alias), identidade(adulta));
         }
     }
 }

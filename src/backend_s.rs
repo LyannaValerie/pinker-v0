@@ -854,6 +854,7 @@ fn extract_external_callconv_program(
                         callee,
                         args,
                         ret_type,
+                        identidade,
                     } => {
                         if !is_external_call_ret_type(ret_type) {
                             return Err(err(
@@ -864,7 +865,14 @@ fn extract_external_callconv_program(
                         // dois braços são valores trivialmente puros. Braços
                         // com chamadas, alocações ou outros efeitos já foram
                         // separados em blocos lazy antes da seleção.
-                        if callee == "__ternario" {
+                        //
+                        // #532: os dois desvios por grafia abaixo acontecem
+                        // ANTES de `resolver_rota_de_chamada` e fazem
+                        // `continue`, então o portão de identidade daquela
+                        // autoridade não os alcança. Eles precisam do portão
+                        // aqui, ou a grafia volta a ser autoridade executiva
+                        // neste emissor — e só neste.
+                        if identidade.dispatches_as_builtin() && callee == "__ternario" {
                             if args.len() != 3 {
                                 return Err(err(
                                     "subset externo montável (Fase 214) exige `__ternario` com 3 argumentos",
@@ -909,7 +917,7 @@ fn extract_external_callconv_program(
                         // um pack contíguo e passamos modelo/count/entries à
                         // autoridade única do runtime, independentemente da
                         // quantidade de argumentos.
-                        if callee == "formatar_verso" {
+                        if identidade.dispatches_as_builtin() && callee == "formatar_verso" {
                             if args.len() < 2 {
                                 return Err(err(
                                     "subset externo montável exige ao menos uma substituição em formatar_verso",
@@ -971,9 +979,12 @@ fn extract_external_callconv_program(
                         }
                         // Intrínsecas de aridade variável usam wrappers por
                         // aridade no runtime (Fases 219/B8 e 221/B10).
-                        let call_target = match resolver_rota_de_chamada(callee, args.len(), || {
-                            selected.functions.iter().any(|f| &f.name == callee)
-                        }) {
+                        let call_target = match resolver_rota_de_chamada(
+                            *identidade,
+                            callee,
+                            args.len(),
+                            || selected.functions.iter().any(|f| &f.name == callee),
+                        ) {
                             RotaDeChamada::Runtime(simbolo) => simbolo,
                             RotaDeChamada::FuncaoPinker(simbolo) => simbolo,
                             RotaDeChamada::AridadeForaDoRecorte => {
@@ -1252,10 +1263,17 @@ fn extract_external_callconv_program(
                     }
                     // Call sem destino (intrínsecas de efeito, Fase 216/B5):
                     // mesma ABI do call comum, sem o movq de retorno.
-                    SelectedInstr::CallVoid { callee, args } => {
-                        let call_target = match resolver_rota_de_chamada(callee, args.len(), || {
-                            selected.functions.iter().any(|f| &f.name == callee)
-                        }) {
+                    SelectedInstr::CallVoid {
+                        callee,
+                        args,
+                        identidade,
+                    } => {
+                        let call_target = match resolver_rota_de_chamada(
+                            *identidade,
+                            callee,
+                            args.len(),
+                            || selected.functions.iter().any(|f| &f.name == callee),
+                        ) {
                             RotaDeChamada::Runtime(simbolo) => simbolo,
                             RotaDeChamada::FuncaoPinker(simbolo) => simbolo,
                             RotaDeChamada::AridadeForaDoRecorte => {
@@ -3776,18 +3794,30 @@ enum RotaDeChamada {
 /// intrínseca não reconhecem o callee, preservando a avaliação preguiçosa dos
 /// sítios produtivos.
 fn resolver_rota_de_chamada(
+    identidade: crate::intrinsic_authority::CalleeIdentity,
     callee: &str,
     argc: usize,
     funcao_pinker_declarada: impl FnOnce() -> bool,
 ) -> RotaDeChamada {
-    if is_arity_runtime_intrinsic(callee) {
-        return match runtime_intrinsic_symbol_por_aridade(callee, argc) {
-            Some(simbolo) => RotaDeChamada::Runtime(simbolo),
-            None => RotaDeChamada::AridadeForaDoRecorte,
-        };
-    }
-    if let Some(simbolo) = runtime_intrinsic_symbol(callee) {
-        return RotaDeChamada::Runtime(simbolo.to_string());
+    // #532 — o backend nativo consome a MESMA decisão que o interpretador.
+    //
+    // ```text
+    // CALL_IS_INTRINSIC <- RESOLVED_IDENTITY, NOT SPELLING
+    // ```
+    //
+    // Sem este portão, uma função do usuário chamada `tamanho_verso` seria
+    // roteada para `pinker_verso_tamanho` aqui — mesmo com o interpretador já
+    // corrigido —, e a paridade interpretador × nativo passaria a mentir.
+    if identidade.dispatches_as_builtin() {
+        if is_arity_runtime_intrinsic(callee) {
+            return match runtime_intrinsic_symbol_por_aridade(callee, argc) {
+                Some(simbolo) => RotaDeChamada::Runtime(simbolo),
+                None => RotaDeChamada::AridadeForaDoRecorte,
+            };
+        }
+        if let Some(simbolo) = runtime_intrinsic_symbol(callee) {
+            return RotaDeChamada::Runtime(simbolo.to_string());
+        }
     }
     if funcao_pinker_declarada() {
         RotaDeChamada::FuncaoPinker(callee.to_string())
@@ -4604,6 +4634,7 @@ mod tests_proveniencia_de_ponteiro {
                     callee: "fabricar".to_string(),
                     args: Vec::new(),
                     ret_type,
+                    identidade: crate::intrinsic_authority::CalleeIdentity::User,
                 },
             ),
             (
@@ -4680,6 +4711,9 @@ mod tests_proveniencia_de_ponteiro {
                 callee: "alocar".to_string(),
                 args: Vec::new(),
                 ret_type: TypeIR::U64,
+                identidade: crate::intrinsic_authority::callee_identity_da_grafia_canonica(
+                    "alocar",
+                ),
             }],
             &[],
             &[],
@@ -4726,6 +4760,7 @@ mod tests_proveniencia_de_ponteiro {
                     callee: "fabricar".to_string(),
                     args: Vec::new(),
                     ret_type: PONTEIRO,
+                    identidade: crate::intrinsic_authority::CalleeIdentity::User,
                 },
                 cast(1, OperandIR::Temp(TempIR(0)), OUTRO_PONTEIRO),
             ],
@@ -4864,6 +4899,7 @@ mod tests_proveniencia_de_ponteiro {
         assert!(selected_call_shape(&SelectedInstr::CallVoid {
             callee: "falar".to_string(),
             args: Vec::new(),
+            identidade: crate::intrinsic_authority::CalleeIdentity::User,
         })
         .is_none());
         assert!(selected_call_shape(&cast(0, OperandIR::Int(1), PONTEIRO)).is_none());
@@ -4879,8 +4915,25 @@ mod tests_proveniencia_de_ponteiro {
 mod tests_selecao_de_rota_nativa {
     use super::*;
 
+    /// #532: o unitário passou a nomear a identidade que a resolução entrega.
+    /// A rota de builtin exige identidade de builtin; a de função Pinker, não.
     fn rota(callee: &str, argc: usize, declarada: bool) -> RotaDeChamada {
-        resolver_rota_de_chamada(callee, argc, || declarada)
+        resolver_rota_de_chamada(
+            crate::intrinsic_authority::callee_identity_da_grafia_canonica(callee),
+            callee,
+            argc,
+            || declarada,
+        )
+    }
+
+    /// A mesma pergunta feita para um callee de USUÁRIO.
+    fn rota_de_usuario(callee: &str, argc: usize, declarada: bool) -> RotaDeChamada {
+        resolver_rota_de_chamada(
+            crate::intrinsic_authority::CalleeIdentity::User,
+            callee,
+            argc,
+            || declarada,
+        )
     }
 
     /// As três identidades que permanecem intencionalmente fora do subset nativo.
@@ -4926,6 +4979,44 @@ mod tests_selecao_de_rota_nativa {
                 rota("afirmar", argc, false),
                 RotaDeChamada::AridadeForaDoRecorte,
                 "afirmar/{argc} deve ser recusada"
+            );
+        }
+    }
+
+    /// #532 — a rota nativa é escolhida pela IDENTIDADE, não pela grafia.
+    ///
+    /// A mesma grafia, com identidade de usuário, tem de sair pela rota da
+    /// função Pinker; com identidade de intrínseca, pela rota de runtime. É o
+    /// par que distingue "a tabela mudou" de "o portão existe".
+    #[test]
+    fn a_mesma_grafia_muda_de_rota_quando_a_identidade_muda() {
+        for (callee, argc, simbolo) in [
+            ("tamanho_verso", 1, "pinker_verso_tamanho"),
+            ("ler_arquivo", 1, "pinker_arquivo_ler_bombom"),
+            ("afirmar", 1, "pinker_afirmar_1"),
+        ] {
+            assert_eq!(
+                rota(callee, argc, true),
+                RotaDeChamada::Runtime(simbolo.to_string()),
+                "{callee} com identidade de intrínseca deve ir ao runtime"
+            );
+            assert_eq!(
+                rota_de_usuario(callee, argc, true),
+                RotaDeChamada::FuncaoPinker(callee.to_string()),
+                "{callee} com identidade de usuário não pode ser capturado pelo runtime"
+            );
+        }
+    }
+
+    /// Sem função Pinker declarada, o callee de usuário não vira intrínseca por
+    /// acidente: ele é desconhecido, e o backend recusa.
+    #[test]
+    fn callee_de_usuario_nao_declarado_nao_cai_na_tabela_de_runtime() {
+        for callee in ["tamanho_verso", "ler_arquivo", "afirmar"] {
+            assert_eq!(
+                rota_de_usuario(callee, 1, false),
+                RotaDeChamada::CalleeDesconhecido,
+                "{callee}"
             );
         }
     }

@@ -1,21 +1,21 @@
 pacote demo;
 
-trazer mapa.definir, obter, remover, tamanho, tem;
+trazer mapa.criar, definir, obter, remover, tamanho, tem;
 
 carinho principal() -> bombom {
-    nova vb: mapa<verso,bombom> = mapa_criar();
+    nova vb: mapa<verso,bombom> = criar();
     definir(vb, "idade", 42);
     nova idade: bombom = obter(vb, "idade");
 
-    nova vv: mapa<verso,verso> = mapa_criar();
+    nova vv: mapa<verso,verso> = criar();
     definir(vv, "nome", "pinker");
     nova tem_nome: logica = tem(vv, "nome");
 
-    nova bb: mapa<bombom,bombom> = mapa_criar();
+    nova bb: mapa<bombom,bombom> = criar();
     definir(bb, 7, 35);
     nova soma: bombom = obter(bb, 7) + tamanho(bb);
 
-    nova bv: mapa<bombom,verso> = mapa_criar();
+    nova bv: mapa<bombom,verso> = criar();
     definir(bv, 1, "ok");
     remover(bv, 1);
     nova vazio: bombom = tamanho(bv);

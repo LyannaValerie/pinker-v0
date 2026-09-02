@@ -56,24 +56,25 @@ pub fn validar_namespace_pinker_owned(name: &str, span: Span) -> Result<(), Pink
 /// No arquivo que traz o membro, a colisão é real e continua recusada.
 ///
 /// **Grafia canônica** (`tamanho_verso`, `ler_arquivo`, `mapa_verso_verso_criar`)
-/// continua reservada, e não por inércia histórica: ela deixou de ser
-/// chamável, mas continua sendo a CHAVE DE DESPACHO que `semantic`, `ir`,
-/// `interpreter` e `backend_s` usam depois da canonicalização. Aceitar a
-/// declaração sem reservar a grafia trocaria uma recusa explícita por
-/// sombreamento silencioso: as camadas a jusante despachariam a intrínseca
-/// para uma chamada que o usuário escreveu esperando a própria função.
+/// esteve reservada, e não por inércia histórica: ela deixara de ser chamável,
+/// mas continuava sendo a CHAVE DE DESPACHO que `semantic`, `ir`, `interpreter`
+/// e `backend_s` usavam depois da canonicalização. Aceitar a declaração sem
+/// reservar a grafia trocaria uma recusa explícita por sombreamento silencioso.
+///
+/// A #532 removeu a causa em vez do sintoma: a decisão "esta chamada é
+/// intrínseca" passou a vir de `CalleeIdentity`, produzida só pela resolução de
+/// um `trazer`. A grafia canônica deixou de ser chave de despacho e, com isso,
+/// deixou de precisar de reserva textual. O que sobrou é a colisão REAL — o
+/// arquivo que traz o membro e declara o homônimo:
 ///
 /// ```text
-/// MEMBER_SPELLING   -> LIVRE, SALVO IMPORT NESTA UNIDADE
-/// CANONICAL_SPELLING -> RESERVADA ENQUANTO FOR CHAVE DE DESPACHO
+/// MEMBER_SPELLING    -> LIVRE, SALVO IMPORT NESTA UNIDADE
+/// CANONICAL_SPELLING -> LIVRE; A IDENTIDADE NÃO DISPUTA MAIS O NOME
 /// ```
 fn active_intrinsic_declaration_conflict(
     program: &Program,
     name: &str,
 ) -> Option<crate::intrinsic_authority::PublicIntrinsicSpelling> {
-    if let Some(canonica) = crate::intrinsic_authority::canonical_public_intrinsic_spelling(name) {
-        return Some(canonica);
-    }
     program.imports.iter().find_map(|import| {
         let module = import.module.as_str();
         if !crate::familia_superficie::familia_conhecida(module) {
@@ -110,8 +111,10 @@ fn validate_intrinsic_declaration_conflicts(program: &Program) -> Result<(), Pin
                         function.name, family, function.name
                     )
                 }
+                // #532: a única causa restante é o import desta unidade. A
+                // grafia canônica sozinha não gera mais conflito.
                 _ => format!(
-                    "declaração callable '{}' é a grafia canônica da superfície intrínseca Pinker e não pode ser redeclarada pelo usuário; a superfície pública desse nome é um membro de módulo",
+                    "declaração callable '{}' colide com um membro trazido por este arquivo; remova o import ou renomeie a declaração",
                     function.name
                 ),
             };
@@ -924,22 +927,27 @@ impl SemanticChecker {
         }
     }
 
+    /// #532 — a criação genérica é reconhecida pela IDENTIDADE do callee.
+    ///
+    /// `lista.criar` e `mapa.criar` chegam aqui como identidade resolvida; uma
+    /// função do usuário com a mesma grafia é `Ident` e nunca satisfaz esta
+    /// pergunta.
+    fn expr_is_intrinsic_call_without_args(expr: &Expr, canonica: &str) -> bool {
+        let ExprKind::Call(callee, args) = &expr.kind else {
+            return false;
+        };
+        let ExprKind::Intrinsic(identity) = &callee.kind else {
+            return false;
+        };
+        identity.canonical_public_spelling() == canonica && args.is_empty()
+    }
+
     fn expr_is_generic_list_create(expr: &Expr) -> bool {
-        if let ExprKind::Call(callee, args) = &expr.kind {
-            if let ExprKind::Ident(name) = &callee.kind {
-                return name == "lista_criar" && args.is_empty();
-            }
-        }
-        false
+        Self::expr_is_intrinsic_call_without_args(expr, "lista_criar")
     }
 
     fn expr_is_generic_map_create(expr: &Expr) -> bool {
-        if let ExprKind::Call(callee, args) = &expr.kind {
-            if let ExprKind::Ident(name) = &callee.kind {
-                return name == "mapa_criar" && args.is_empty();
-            }
-        }
-        false
+        Self::expr_is_intrinsic_call_without_args(expr, "mapa_criar")
     }
 
     fn is_map_type(ty: &Type) -> bool {
@@ -1388,6 +1396,24 @@ impl SemanticChecker {
         }
         if !self.nome_sem_identidade(base) {
             return None;
+        }
+        // #532: quando existe módulo real homônimo da família, ele governa o
+        // nome — e os itens dele entram COMO GRAFIA CRUA, não pela forma
+        // qualificada. Mandar o leitor escrever `trazer <base>;` seria mandá-lo
+        // repetir o que já escreveu: a autoridade de import consumiu esse
+        // `trazer` como import de módulo, então o nome chega aqui sem
+        // identidade e a dica de família mentiria o remédio.
+        //
+        // A entidade canônica `base.campo` é o que prova qual das duas leituras
+        // está em jogo, e ela existe no programa projetado.
+        let canonico = format!("{base}.{campo}");
+        if self.funcs.contains_key(&canonico) {
+            return Some(PinkerError::Semantic {
+                msg: format!(
+                    "'{base}' é um módulo Pinker, não uma família built-in; os itens de '{base}' entram com a própria grafia — escreva '{campo}(...)'"
+                ),
+                span,
+            });
         }
         Some(PinkerError::Semantic {
             msg: crate::familia_superficie::familia_nao_importada(base, campo),
@@ -3584,6 +3610,18 @@ impl SemanticChecker {
             ExprKind::IntLit(_) => Ok(Type::Bombom(expr.span)),
             ExprKind::BoolLit(_) => Ok(Type::Logica(expr.span)),
             ExprKind::StringLit(_) => Ok(Type::Verso(expr.span)),
+            // #532: intrínseca resolvida fora de posição de chamada. A
+            // superfície modular não expõe a intrínseca como VALOR, e a recusa
+            // é a mesma que a grafia canônica sempre produziu — sem consultar
+            // `resolve_var`, que depois desta Issue poderia encontrar uma
+            // função do usuário homônima e deixá-la capturar a referência.
+            ExprKind::Intrinsic(identity) => Err(PinkerError::Semantic {
+                msg: format!(
+                    "identificador '{}' não declarado",
+                    identity.canonical_public_spelling()
+                ),
+                span: expr.span,
+            }),
             ExprKind::Ident(name) => {
                 // Fase 243: nome sintético de literal `carinho` (Fase 225) —
                 // resolve como criação de closure (materializa captura por
@@ -4639,7 +4677,27 @@ impl SemanticChecker {
             );
         }
 
-        let ExprKind::Ident(name) = &callee.kind else {
+        // #532 — CANONICALIZATION_BOUNDARY do lado do consumidor.
+        //
+        // `nome_fonte` é o texto que o usuário escreveu (ou o nome sintético que
+        // o compilador materializou); `identidade_do_callee` é a decisão que a
+        // resolução já tomou. As duas coisas eram uma só, e por isso a cadeia
+        // de intrínsecas abaixo respondia por uma função do usuário homônima.
+        let identidade_do_callee = match &callee.kind {
+            ExprKind::Intrinsic(identity) => {
+                crate::intrinsic_authority::CalleeIdentity::Intrinsic(*identity)
+            }
+            ExprKind::Ident(name) => {
+                crate::intrinsic_authority::callee_identity_de_ident(name.as_str())
+            }
+            _ => crate::intrinsic_authority::CalleeIdentity::User,
+        };
+        let grafia_do_callee = match &callee.kind {
+            ExprKind::Intrinsic(identity) => Some(identity.canonical_public_spelling().to_string()),
+            ExprKind::Ident(name) => Some(name.clone()),
+            _ => None,
+        };
+        let Some(name) = grafia_do_callee.as_ref() else {
             let callee_ty = self.check_value_expr(
                 callee,
                 "resultado sem retorno não pode ocupar a posição de chamada",
@@ -4769,6 +4827,24 @@ impl SemanticChecker {
             return self.resolve_type_or_error(&ret);
         }
 
+        // #532 — daqui para baixo começa a cadeia de intrínsecas, e ela só é
+        // atravessada por um callee cuja IDENTIDADE diz que ele é builtin.
+        //
+        // ```text
+        // CALL_IS_INTRINSIC <- RESOLVED_IDENTITY, NOT SPELLING
+        // ```
+        //
+        // Antes, a cadeia era atravessada por qualquer chamada, e a primeira
+        // comparação textual que casasse decidia. Era isso que obrigava a
+        // reservar as grafias canônicas contra declaração do usuário: sem a
+        // reserva, `carinho tamanho_verso(...)` seria aceito e depois sombreado
+        // aqui em silêncio. Com a decisão vindo da identidade, o callee de
+        // usuário vai direto para a resolução de função de usuário.
+        if identidade_do_callee.is_user() {
+            let arg_refs: Vec<&Expr> = args.iter().collect();
+            return self.check_named_function_call(expr_span, callee.span, name, &arg_refs);
+        }
+
         // Fase 246: superfície pública de memória explícita. O tamanho é
         // sempre expresso em bytes (`u64`) e o ponteiro devolvido é `seta<u8>`.
         if name == "alocar" {
@@ -4849,8 +4925,15 @@ impl SemanticChecker {
                 "resultado de função sem retorno não pode ser usado como mapa",
             )?;
             if let Some(mono_name) = Self::generic_map_monomorphic_callee(&map_ty, name) {
+                // #532: a monomorfização troca a grafia DENTRO da identidade
+                // intrínseca. Reemitir um `Ident` aqui devolveria a chamada ao
+                // namespace do usuário, e ela voltaria a poder ser capturada
+                // por uma função homônima.
                 let mono_callee = Expr {
-                    kind: ExprKind::Ident(mono_name.to_string()),
+                    kind: ExprKind::Intrinsic(
+                        crate::intrinsic_authority::intrinsic_from_public_spelling(mono_name)
+                            .expect("forma monomórfica de mapa é grafia pública registrada"),
+                    ),
                     span: callee.span,
                 };
                 return self.check_call_expr(expr_span, &mono_callee, args);

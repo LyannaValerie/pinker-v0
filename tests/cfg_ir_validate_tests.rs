@@ -234,6 +234,7 @@ fn falha_call_nulo_com_destino_temporario() {
                 callee: "log".to_string(),
                 args: vec![],
                 ret_type: TypeIR::Nulo,
+                identidade: pinker_v0::intrinsic_authority::CalleeIdentity::User,
             }],
             terminator: TerminatorIR::Return(Some(OperandIR::Int(0))),
         }],

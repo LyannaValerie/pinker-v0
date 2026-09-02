@@ -147,6 +147,8 @@ pub enum InstructionCfgIR {
         callee: String,
         args: Vec<OperandIR>,
         ret_type: TypeIR,
+        /// #532 — a decisão de identidade viaja com a chamada até o backend.
+        identidade: crate::intrinsic_authority::CalleeIdentity,
     },
     // Fase 242: chamada indireta — `callee` é um operando (valor callable),
     // não um nome de símbolo. `ret_type` nunca é `Nulo` (tipo função público
@@ -939,6 +941,8 @@ impl FunctionLowerer {
                         .instructions
                         .push(InstructionCfgIR::Call {
                             dest: Some(tag),
+                            identidade:
+                                crate::intrinsic_authority::CalleeIdentity::CompilerInternal,
                             callee: "__pinker_internal_leque_tag".to_string(),
                             args: vec![value.clone()],
                             ret_type: TypeIR::Bombom,
@@ -972,6 +976,10 @@ impl FunctionLowerer {
                         .instructions
                         .push(InstructionCfgIR::Call {
                             dest: Some(extracted),
+                            identidade:
+                                crate::intrinsic_authority::callee_identity_da_grafia_canonica(
+                                    &payload.extract_intrinsic,
+                                ),
                             callee: payload.extract_intrinsic.clone(),
                             args: vec![
                                 value.clone(),
@@ -1132,6 +1140,7 @@ impl FunctionLowerer {
                 callee,
                 args,
                 ret_type,
+                identidade,
             } if *ret_type == TypeIR::Nulo => {
                 let lowered_args =
                     args.iter()
@@ -1144,6 +1153,7 @@ impl FunctionLowerer {
                     .instructions
                     .push(InstructionCfgIR::Call {
                         dest: None,
+                        identidade: *identidade,
                         callee: callee.clone(),
                         args: lowered_args.0,
                         ret_type: *ret_type,
@@ -1308,6 +1318,7 @@ impl FunctionLowerer {
                 callee,
                 args,
                 ret_type,
+                identidade,
             } => {
                 if callee == "__ternario"
                     && (args.len() != 3
@@ -1347,6 +1358,7 @@ impl FunctionLowerer {
                     .instructions
                     .push(InstructionCfgIR::Call {
                         dest: Some(dest),
+                        identidade: *identidade,
                         callee: callee.clone(),
                         args: lowered_args.0,
                         ret_type: *ret_type,
@@ -2286,6 +2298,9 @@ fn render_instruction(inst: &InstructionCfgIR) -> String {
             callee,
             args,
             ret_type,
+            // #532: a renderização textual da CFG IR não muda; a identidade é
+            // interna.
+            identidade: _,
         } => {
             let call = format!(
                 "call {}({}) -> {}",

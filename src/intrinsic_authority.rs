@@ -14,7 +14,7 @@ use std::collections::BTreeMap;
 ///
 /// As variantes classificam autoridades já existentes; não há uma variante
 /// por intrínseca.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum IntrinsicIdentity {
     Historical(&'static str),
     Fallible(OperacaoFalivel),
@@ -38,6 +38,140 @@ impl IntrinsicIdentity {
                     .intrinseca
             }
         }
+    }
+}
+
+/// #532 — quem é o callee de um call site, decidido UMA vez.
+///
+/// A grafia canônica de uma intrínseca é texto de diagnóstico e de sintaxe. Ela
+/// era também a autoridade executiva: `semantic`, `ir`, `interpreter` e
+/// `backend_s` perguntavam, cada um por conta própria, "este nome está na minha
+/// tabela de intrínsecas?", e a resposta valia mesmo quando o nome era de uma
+/// função do usuário.
+///
+/// ```text
+/// SYMBOL_NAME        != SYMBOL_IDENTITY
+/// TEXTUAL_SPELLING   != INTRINSIC_IDENTITY
+/// ```
+///
+/// Esta é a decisão que a resolução produz e que todas as camadas a jusante
+/// consomem em vez de reconstruir. Ela não é derivável do texto do usuário: só
+/// a canonicalização de um import — `trazer M;` ou `trazer M.x;` — pode
+/// produzir [`CalleeIdentity::Intrinsic`], e nada no programa do usuário pode
+/// produzir [`CalleeIdentity::CompilerInternal`].
+///
+/// A grafia canônica continua viajando DENTRO da identidade, e é ela que
+/// escolhe QUAL intrínseca é. O que ela deixou de fazer é decidir SE a chamada
+/// é intrínseca — e é essa segunda pergunta que competia com o usuário.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum CalleeIdentity {
+    /// Função declarada por alguma unidade-fonte. Nenhuma tabela de intrínseca
+    /// responde por ela.
+    #[default]
+    User,
+    /// Intrínseca resolvida pela autoridade a partir de `(módulo, membro)`.
+    Intrinsic(IntrinsicIdentity),
+    /// Operação materializada pelo próprio compilador (`__pinker_internal_*`,
+    /// `__ternario`). Não tem grafia de usuário possível — `native_symbol`
+    /// recusa o namespace na declaração —, então não disputa nome com ninguém.
+    CompilerInternal,
+}
+
+impl CalleeIdentity {
+    /// A chamada é de função do usuário?
+    pub fn is_user(self) -> bool {
+        matches!(self, Self::User)
+    }
+
+    /// A chamada pode ser atendida pelas tabelas de builtin das camadas a
+    /// jusante?
+    ///
+    /// É o único predicado que `interpreter`, `backend_s` e os validadores
+    /// precisam para não capturar função de usuário.
+    pub fn dispatches_as_builtin(self) -> bool {
+        !self.is_user()
+    }
+
+    /// Grafia canônica da intrínseca, quando há uma.
+    ///
+    /// Serve para ESCOLHER entre intrínsecas, nunca para descobrir que a
+    /// chamada é intrínseca.
+    pub fn canonical_spelling(self) -> Option<&'static str> {
+        match self {
+            Self::Intrinsic(identity) => Some(identity.canonical_public_spelling()),
+            Self::User | Self::CompilerInternal => None,
+        }
+    }
+}
+
+/// Identidade de um callee escrito como identificador simples.
+///
+/// Um identificador de fonte é do USUÁRIO. A única exceção é a identidade que o
+/// próprio compilador materializa (`__pinker_internal_*`, `__ternario`, ...):
+/// `native_symbol` recusa esse namespace na fronteira léxica, então nenhum
+/// programa pode produzi-lo, e as camadas a jusante continuam podendo atendê-lo
+/// pelas suas tabelas internas.
+///
+/// A pergunta é de `native_symbol::is_compiler_generated`, e NÃO de
+/// `starts_with("__")`: `__usuario` é nome de usuário legal.
+pub fn callee_identity_de_ident(name: &str) -> CalleeIdentity {
+    if crate::native_symbol::is_compiler_generated(name) {
+        CalleeIdentity::CompilerInternal
+    } else {
+        CalleeIdentity::User
+    }
+}
+
+/// Identidade de uma grafia que a canonicalização já resolveu como intrínseca.
+///
+/// Ponto único em que uma grafia canônica vira [`CalleeIdentity::Intrinsic`].
+/// Quem chama já provou que a grafia veio de um import resolvido, nunca do
+/// texto cru do usuário.
+pub fn callee_identity_da_grafia_canonica(spelling: &str) -> CalleeIdentity {
+    match intrinsic_from_public_spelling(spelling) {
+        Some(identity) => CalleeIdentity::Intrinsic(identity),
+        // Grafia interna do compilador (`__pinker_internal_*`, `__ternario`) e
+        // formas monomórficas que a IR materializa fora da superfície pública.
+        None => CalleeIdentity::CompilerInternal,
+    }
+}
+
+/// #532 — tabela consultada pela identidade do callee, não só pela grafia.
+///
+/// Os validadores de IR, CFG, seleção e máquina mantêm cada um a sua tabela de
+/// assinaturas, e todas misturavam num mapa só as funções do programa e as
+/// intrínsecas, endereçadas pela mesma chave textual. Com a grafia canônica
+/// liberada para o usuário, esse mapa passa a poder ter duas respostas para a
+/// mesma chave, e quem escolhe é a identidade já decidida.
+///
+/// A tabela não decide nada: ela apenas obedece à decisão que recebe.
+#[derive(Debug, Default)]
+pub struct TabelaPorIdentidade<T> {
+    /// Assinaturas das funções declaradas pelo programa.
+    pub usuario: std::collections::HashMap<String, T>,
+    /// Assinaturas das intrínsecas e das operações internas do compilador.
+    pub intrinsecas: std::collections::HashMap<String, T>,
+}
+
+impl<T> TabelaPorIdentidade<T> {
+    /// Assinatura do callee segundo a identidade que a resolução decidiu.
+    ///
+    /// Callee de usuário só enxerga o programa. Callee builtin consulta a
+    /// tabela de intrínsecas e, se ela não responder, recai no programa — é por
+    /// aí que as identidades geradas pelo compilador (`__gen_*`, `__impl_*`)
+    /// continuam encontrando a própria assinatura.
+    pub fn resolver(&self, identidade: CalleeIdentity, callee: &str) -> Option<&T> {
+        if identidade.is_user() {
+            return self.usuario.get(callee);
+        }
+        self.intrinsecas
+            .get(callee)
+            .or_else(|| self.usuario.get(callee))
+    }
+
+    /// A grafia existe em alguma das duas tabelas?
+    pub fn contem_grafia(&self, callee: &str) -> bool {
+        self.intrinsecas.contains_key(callee) || self.usuario.contains_key(callee)
     }
 }
 
@@ -159,6 +293,7 @@ pub const HISTORICAL_PUBLIC_SPELLINGS: &[&str] = &[
     "mapa_bombom_verso_remover",
     "mapa_bombom_verso_tamanho",
     "mapa_bombom_verso_tem",
+    "mapa_criar",
     "mapa_definir",
     "mapa_obter",
     "mapa_remover",
@@ -337,17 +472,19 @@ fn family_identity(identity: IdentidadeCanonica) -> IntrinsicIdentity {
 /// procurar função de usuário, e que esta autoridade de intrínsecas públicas
 /// não possui.
 ///
-/// A política da PR #507 cobre a superfície pública; ela não cobre toda grafia
-/// builtin. `mapa_criar` é a criação genérica de mapa: o checador a despacha
-/// pelo nome, mas ela não é redeclarável-rejeitável como intrínseca pública.
+/// **Vazia desde a #532.** `mapa_criar` era a última entrada: criação genérica
+/// de mapa chamável sem import enquanto classificada como não-pública. Ela
+/// passou a ser `mapa.criar`, pela mesma tradução que `lista_criar` ->
+/// `lista.criar` já tinha recebido na #505, e com isso
+/// `GLOBAL_CALLABLE_BUILTIN_EXCEPTIONS = 0`.
 ///
-/// Quem consome esta lista é a resolução modular, que precisa distinguir
-/// "grafia builtin" de "entidade declarada por alguma unidade". Sem isso, um
-/// módulo que declare `mapa_criar` faria a raiz perder a chamada builtin.
-/// O teste de deriva em `tests/issue_514_module_composition_tests.rs` recusa
-/// qualquer grafia builtin de `src/semantic.rs` que esta autoridade não
-/// reconheça.
-const GRAFIAS_BUILTIN_NAO_PUBLICAS: &[&str] = &["mapa_criar"];
+/// A lista permanece como fronteira declarada, não como lugar de despejo: quem
+/// consome é a resolução modular, que precisa distinguir "grafia builtin" de
+/// "entidade declarada por alguma unidade". O teste de deriva em
+/// `tests/issue_514_module_composition_tests.rs` recusa qualquer grafia builtin
+/// de `src/semantic.rs` que esta autoridade não reconheça — é ele que impede a
+/// lista de voltar a crescer em silêncio.
+const GRAFIAS_BUILTIN_NAO_PUBLICAS: &[&str] = &[];
 
 /// A grafia é resolvida como chamada builtin pela autoridade semântica?
 ///
@@ -522,13 +659,13 @@ mod tests {
 
     #[test]
     fn authority_is_complete_nonempty_and_classified() {
-        assert_eq!(HISTORICAL_PUBLIC_SPELLINGS.len(), 130);
+        assert_eq!(HISTORICAL_PUBLIC_SPELLINGS.len(), 131);
         let spellings = all_canonical_intrinsic_spellings();
-        // 130 históricas + 9 falíveis + 11 acessores JSON + 1 SHA-256 +
+        // 131 históricas + 9 falíveis + 11 acessores JSON + 1 SHA-256 +
         // 3 acessores de processo, sem interseção entre as cinco listas.
         // Membro de módulo não entra: ele é endereçado por par, não por
         // grafia.
-        assert_eq!(spellings.len(), 154);
+        assert_eq!(spellings.len(), 155);
         assert!(spellings.iter().all(|entry| !entry.spelling.is_empty()));
         assert!(spellings.iter().all(|entry| {
             matches!(

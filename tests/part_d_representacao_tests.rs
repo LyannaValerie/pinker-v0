@@ -14,7 +14,7 @@ use pinker_v0::{
 use std::process::Command;
 
 const PROBE_EXATO: &str = r#"
-pacote main; trazer lista; trazer processo;
+pacote main; trazer lista; trazer mapa; trazer processo;
 
 apelido Saida = SaidaProcesso;
 apelido Res = Resultado<SaidaProcesso, verso>;
@@ -36,7 +36,7 @@ carinho observar(valor: Res) -> bombom {
 
 carinho principal() -> bombom {
     nova muda argumentos: lista<verso> = lista.criar();
-    nova muda ambiente: mapa<verso,verso> = mapa_criar();
+    nova muda ambiente: mapa<verso,verso> = mapa.criar();
     nova resultado: Resultado<SaidaProcesso, verso> = atravessar(
         processo.executar_estruturado(
             "/bin/true", argumentos, "", "", ambiente, LimiteTempo.SemLimite
@@ -144,7 +144,7 @@ fn identidade_reservada_independe_da_ordem_e_categoria_da_declaracao() {
     ];
     let uso = r#"carinho principal() -> bombom {
         nova muda a: lista<verso> = lista.criar();
-        nova muda e: mapa<verso,verso> = mapa_criar();
+        nova muda e: mapa<verso,verso> = mapa.criar();
         processo.executar_estruturado("/bin/true", a, "", "", e, LimiteTempo.SemLimite);
         mimo 0;
     }"#;
@@ -152,8 +152,12 @@ fn identidade_reservada_independe_da_ordem_e_categoria_da_declaracao() {
         for categoria in categorias {
             let declaracao = categoria.replace("{n}", nome);
             for fonte in [
-                format!("pacote main; trazer lista; trazer processo;\n{declaracao}\n{uso}"),
-                format!("pacote main; trazer lista; trazer processo;\n{uso}\n{declaracao}"),
+                format!(
+                    "pacote main; trazer lista; trazer mapa; trazer processo;\n{declaracao}\n{uso}"
+                ),
+                format!(
+                    "pacote main; trazer lista; trazer mapa; trazer processo;\n{uso}\n{declaracao}"
+                ),
             ] {
                 let erro = common::parse(&fonte).expect_err("identidade deveria ser reservada");
                 assert!(

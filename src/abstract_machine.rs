@@ -172,10 +172,16 @@ pub enum MachineInstr {
     Call {
         callee: String,
         argc: usize,
+        /// #532 — a identidade decidida na resolução chega até o despacho do
+        /// interpretador. `callee` continua sendo a grafia; ela não decide mais
+        /// se a chamada é intrínseca.
+        identidade: crate::intrinsic_authority::CalleeIdentity,
     },
     CallVoid {
         callee: String,
         argc: usize,
+        /// #532 — idem para a chamada sem retorno.
+        identidade: crate::intrinsic_authority::CalleeIdentity,
     },
     // Fase 242: empilha o handle callable (descritor estático) da função
     // top-level nomeada.
@@ -537,7 +543,11 @@ fn lower_instr(inst: &SelectedInstr, code: &mut Vec<MachineInstr>) -> Result<(),
             code.push(MachineInstr::StoreSlot(temp_name(*dest)));
         }
         SelectedInstr::Call {
-            dest, callee, args, ..
+            dest,
+            callee,
+            args,
+            identidade,
+            ..
         } => {
             for arg in args {
                 emit_load(arg, code);
@@ -545,16 +555,22 @@ fn lower_instr(inst: &SelectedInstr, code: &mut Vec<MachineInstr>) -> Result<(),
             code.push(MachineInstr::Call {
                 callee: callee.clone(),
                 argc: args.len(),
+                identidade: *identidade,
             });
             code.push(MachineInstr::StoreSlot(temp_name(*dest)));
         }
-        SelectedInstr::CallVoid { callee, args } => {
+        SelectedInstr::CallVoid {
+            callee,
+            args,
+            identidade,
+        } => {
             for arg in args {
                 emit_load(arg, code);
             }
             code.push(MachineInstr::CallVoid {
                 callee: callee.clone(),
                 argc: args.len(),
+                identidade: *identidade,
             });
         }
         SelectedInstr::CallIndirect {
@@ -1075,14 +1091,14 @@ fn render_instr(i: &MachineInstr) -> String {
         MachineInstr::CmpGe { ty } => {
             with_comment(format!("cmp_ge<{}>", ty.name()), "compara maior ou igual")
         }
-        MachineInstr::Call { callee, argc } => with_comment(
+        MachineInstr::Call { callee, argc, .. } => with_comment(
             format!("call {}, {}", callee, argc),
             &format!(
                 "chama {} com {} argumento(s) e empilha o retorno",
                 callee, argc
             ),
         ),
-        MachineInstr::CallVoid { callee, argc } => with_comment(
+        MachineInstr::CallVoid { callee, argc, .. } => with_comment(
             format!("call_void {}, {}", callee, argc),
             &format!("chama {} com {} argumento(s) sem retorno", callee, argc),
         ),

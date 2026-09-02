@@ -515,6 +515,19 @@ fn render_expr(expr: &Expr, indent: usize, out: &mut String, label: &str) {
                 &format!("{} Ident({}) {}", label, name, format_span(expr.span)),
             );
         }
+        // #532: a impressão mostra a grafia canônica, não a identidade interna.
+        ExprKind::Intrinsic(identity) => {
+            line(
+                out,
+                indent,
+                &format!(
+                    "{} Ident({}) {}",
+                    label,
+                    identity.canonical_public_spelling(),
+                    format_span(expr.span)
+                ),
+            );
+        }
         ExprKind::IntLit(value) => {
             line(
                 out,

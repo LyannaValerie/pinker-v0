@@ -86,9 +86,10 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
         global_consts.insert(konst.name.clone(), konst.ty);
     }
 
-    let mut function_sigs = HashMap::new();
+    let mut sigs_usuario = HashMap::new();
+    let mut sigs_intrinsecas = HashMap::new();
     for function in &program.functions {
-        function_sigs.insert(
+        sigs_usuario.insert(
             function.name.clone(),
             FunctionSigCfg {
                 ret_type: function.ret_type,
@@ -96,392 +97,392 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
             },
         );
     }
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "ouvir".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
             params: vec![],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "ouvir_verso".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,
             params: vec![],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "ouvir_verso_ou".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,
             params: vec![TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "aleatorio_criar".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
             params: vec![TypeIR::Bombom],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "aleatorio_proximo".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
             params: vec![TypeIR::Bombom],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "lista_bombom_criar".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::ListBombom,
             params: vec![],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "alocar".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Pointer { is_volatile: false },
             params: vec![TypeIR::U64],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "liberar".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Nulo,
             params: vec![TypeIR::Pointer { is_volatile: false }],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "lista_bombom_anexar".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Nulo,
             params: vec![TypeIR::ListBombom, TypeIR::Bombom],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "lista_bombom_obter".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
             params: vec![TypeIR::ListBombom, TypeIR::Bombom],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "lista_bombom_tamanho".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
             params: vec![TypeIR::ListBombom],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "lista_bombom_definir".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Nulo,
             params: vec![TypeIR::ListBombom, TypeIR::Bombom, TypeIR::Bombom],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "lista_bombom_tirar_ultimo".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
             params: vec![TypeIR::ListBombom],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "lista_verso_criar".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::ListVerso,
             params: vec![],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "lista_verso_anexar".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Nulo,
             params: vec![TypeIR::ListVerso, TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "lista_verso_obter".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,
             params: vec![TypeIR::ListVerso, TypeIR::Bombom],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "lista_verso_tamanho".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
             params: vec![TypeIR::ListVerso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "lista_verso_definir".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Nulo,
             params: vec![TypeIR::ListVerso, TypeIR::Bombom, TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "lista_verso_tirar_ultimo".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,
             params: vec![TypeIR::ListVerso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_verso_bombom_criar".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::MapVersoBombom,
             params: vec![],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_verso_bombom_definir".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Nulo,
             params: vec![TypeIR::MapVersoBombom, TypeIR::Verso, TypeIR::Bombom],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_verso_bombom_obter".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
             params: vec![TypeIR::MapVersoBombom, TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_verso_bombom_tem".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Logica,
             params: vec![TypeIR::MapVersoBombom, TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_verso_bombom_tamanho".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
             params: vec![TypeIR::MapVersoBombom],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "__pinker_internal_mapa_verso_bombom_iterador_criar".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
             params: vec![TypeIR::MapVersoBombom],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "__pinker_internal_mapa_verso_bombom_iterador_proxima_chave".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,
             params: vec![TypeIR::Bombom],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_verso_verso_criar".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::MapVersoVerso,
             params: vec![],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_verso_verso_definir".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Nulo,
             params: vec![TypeIR::MapVersoVerso, TypeIR::Verso, TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_verso_verso_obter".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,
             params: vec![TypeIR::MapVersoVerso, TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_verso_verso_tem".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Logica,
             params: vec![TypeIR::MapVersoVerso, TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_verso_verso_tamanho".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
             params: vec![TypeIR::MapVersoVerso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_verso_verso_remover".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Nulo,
             params: vec![TypeIR::MapVersoVerso, TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "__pinker_internal_mapa_verso_verso_iterador_criar".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
             params: vec![TypeIR::MapVersoVerso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "__pinker_internal_mapa_verso_verso_iterador_proxima_chave".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,
             params: vec![TypeIR::Bombom],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_bombom_bombom_criar".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::MapBombomBombom,
             params: vec![],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_bombom_bombom_definir".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Nulo,
             params: vec![TypeIR::MapBombomBombom, TypeIR::Bombom, TypeIR::Bombom],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_bombom_bombom_obter".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
             params: vec![TypeIR::MapBombomBombom, TypeIR::Bombom],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_bombom_bombom_tem".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Logica,
             params: vec![TypeIR::MapBombomBombom, TypeIR::Bombom],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_bombom_bombom_tamanho".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
             params: vec![TypeIR::MapBombomBombom],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_bombom_bombom_remover".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Nulo,
             params: vec![TypeIR::MapBombomBombom, TypeIR::Bombom],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "__pinker_internal_mapa_bombom_bombom_iterador_criar".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
             params: vec![TypeIR::MapBombomBombom],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "__pinker_internal_mapa_bombom_bombom_iterador_proxima_chave".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
             params: vec![TypeIR::Bombom],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_bombom_verso_criar".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::MapBombomVerso,
             params: vec![],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_bombom_verso_definir".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Nulo,
             params: vec![TypeIR::MapBombomVerso, TypeIR::Bombom, TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_bombom_verso_obter".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,
             params: vec![TypeIR::MapBombomVerso, TypeIR::Bombom],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_bombom_verso_tem".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Logica,
             params: vec![TypeIR::MapBombomVerso, TypeIR::Bombom],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_bombom_verso_tamanho".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
             params: vec![TypeIR::MapBombomVerso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_bombom_verso_remover".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Nulo,
             params: vec![TypeIR::MapBombomVerso, TypeIR::Bombom],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "__pinker_internal_mapa_bombom_verso_iterador_criar".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
             params: vec![TypeIR::MapBombomVerso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "__pinker_internal_mapa_bombom_verso_iterador_proxima_chave".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
             params: vec![TypeIR::Bombom],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "__pinker_internal_leque_criar_0".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
             params: vec![TypeIR::Bombom],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "__pinker_internal_leque_anexar_b".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
             params: vec![TypeIR::Bombom, TypeIR::Bombom],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "__pinker_internal_leque_anexar_v".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
             params: vec![TypeIR::Bombom, TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "__pinker_internal_leque_tag".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
             params: vec![TypeIR::Bombom],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "__pinker_internal_leque_carga_b".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
             params: vec![TypeIR::Bombom, TypeIR::Bombom, TypeIR::Bombom],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "__pinker_internal_leque_carga_v".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,
@@ -490,42 +491,42 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
     );
     // D1: cargas de lista, mesmo caminho de uma palavra com a categoria
     // operacional preservada.
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         crate::enum_payload::ANEXAR_LISTA_BOMBOM.to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
             params: vec![TypeIR::Bombom, TypeIR::ListBombom],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         crate::enum_payload::ANEXAR_LISTA_VERSO.to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
             params: vec![TypeIR::Bombom, TypeIR::ListVerso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         crate::enum_payload::CARGA_LISTA_BOMBOM.to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::ListBombom,
             params: vec![TypeIR::Bombom, TypeIR::Bombom, TypeIR::Bombom],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         crate::enum_payload::CARGA_LISTA_VERSO.to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::ListVerso,
             params: vec![TypeIR::Bombom, TypeIR::Bombom, TypeIR::Bombom],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         crate::enum_payload::ANEXAR_SAIDA_PROCESSO.to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
             params: vec![TypeIR::Bombom, TypeIR::OpaqueWordHandle],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         crate::enum_payload::CARGA_SAIDA_PROCESSO.to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::OpaqueWordHandle,
@@ -534,189 +535,189 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
     );
     // Não há assinatura chamável de união: tag e extração são instruções CFG
     // tipadas (`UnionTag`/`UnionExtract`), nunca `Call`.
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "argumento".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,
             params: vec![TypeIR::Bombom],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "argumento_ou".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,
             params: vec![TypeIR::Bombom, TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "tem_chave".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Logica,
             params: vec![TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "tem_argumento_nomeado".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Logica,
             params: vec![TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "pedir_argumento".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,
             params: vec![TypeIR::Verso, TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "argumento_nomeado_ou".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,
             params: vec![TypeIR::Verso, TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "tem_flag".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Logica,
             params: vec![TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "ambiente_ou".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,
             params: vec![TypeIR::Verso, TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "buscar_contexto".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,
             params: vec![TypeIR::Verso, TypeIR::Verso, TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "argumento_nomeado_ou_ambiente_ou".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,
             params: vec![TypeIR::Verso, TypeIR::Verso, TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "caminho_existe".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Logica,
             params: vec![TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "e_arquivo".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Logica,
             params: vec![TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "e_diretorio".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Logica,
             params: vec![TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "juntar_caminho".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,
             params: vec![TypeIR::Verso, TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "tamanho_arquivo".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
             params: vec![TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "e_vazio".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Logica,
             params: vec![TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "criar_diretorio".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Nulo,
             params: vec![TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "remover_arquivo".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Nulo,
             params: vec![TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "remover_diretorio".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Nulo,
             params: vec![TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "diretorio_atual".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,
             params: vec![],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "quantos_argumentos".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
             params: vec![],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "tem_argumento".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Logica,
             params: vec![TypeIR::Bombom],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "sair".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Nulo,
             params: vec![TypeIR::Bombom],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "abrir".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
             params: vec![TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "ler_arquivo".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
             params: vec![TypeIR::Bombom],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "ler_verso_arquivo".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,
             params: vec![TypeIR::Bombom],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "ler_arquivo_verso".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,
@@ -726,7 +727,7 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
     // Parte B: as superfícies falíveis devolvem um leque com carga, que na IR é
     // o handle de uma palavra — logo `bombom`, como qualquer outro leque.
     for superficie in crate::falha_operacional::SUPERFICIES_FALIVEIS {
-        function_sigs.insert(
+        sigs_intrinsecas.insert(
             superficie.intrinseca.to_string(),
             FunctionSigCfg {
                 ret_type: TypeIR::Bombom,
@@ -741,19 +742,19 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
     for nome in crate::valor_json::ACESSORES {
         let (ret_type, params) = crate::valor_json::assinatura_ir(nome)
             .expect("acessor JSON sem assinatura na autoridade");
-        function_sigs.insert(nome.to_string(), FunctionSigCfg { ret_type, params });
+        sigs_intrinsecas.insert(nome.to_string(), FunctionSigCfg { ret_type, params });
     }
     for nome in crate::sha256::ACESSORES {
         let (ret_type, params) = crate::sha256::assinatura_ir(nome)
             .expect("acessor SHA-256 sem assinatura na autoridade");
-        function_sigs.insert(nome.to_string(), FunctionSigCfg { ret_type, params });
+        sigs_intrinsecas.insert(nome.to_string(), FunctionSigCfg { ret_type, params });
     }
     for (nome, retorno) in [
         (crate::saida_processo::ACESSOR_CODIGO, TypeIR::Bombom),
         (crate::saida_processo::ACESSOR_SAIDA, TypeIR::Verso),
         (crate::saida_processo::ACESSOR_ERRO, TypeIR::Verso),
     ] {
-        function_sigs.insert(
+        sigs_intrinsecas.insert(
             nome.to_string(),
             FunctionSigCfg {
                 ret_type: retorno,
@@ -761,147 +762,147 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
             },
         );
     }
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "arquivo_ou".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,
             params: vec![TypeIR::Verso, TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "fechar".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Nulo,
             params: vec![TypeIR::Bombom],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "criar_arquivo".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
             params: vec![TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "abrir_anexo".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
             params: vec![TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "escrever".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Nulo,
             params: vec![TypeIR::Bombom, TypeIR::Bombom],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "escrever_verso".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Nulo,
             params: vec![TypeIR::Bombom, TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "truncar_arquivo".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Nulo,
             params: vec![TypeIR::Bombom],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "anexar_verso".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Nulo,
             params: vec![TypeIR::Bombom, TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "juntar_verso".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,
             params: vec![TypeIR::Verso, TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "tamanho_verso".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
             params: vec![TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "indice_verso".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,
             params: vec![TypeIR::Verso, TypeIR::Bombom],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "fatiar_verso".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,
             params: vec![TypeIR::Verso, TypeIR::Bombom, TypeIR::Bombom],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "contem_verso".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Logica,
             params: vec![TypeIR::Verso, TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "comeca_com".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Logica,
             params: vec![TypeIR::Verso, TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "termina_com".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Logica,
             params: vec![TypeIR::Verso, TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "igual_verso".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Logica,
             params: vec![TypeIR::Verso, TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "vazio_verso".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Logica,
             params: vec![TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "aparar_verso".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,
             params: vec![TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "minusculo_verso".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,
             params: vec![TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "maiusculo_verso".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,
             params: vec![TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "indice_verso_em".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
@@ -909,14 +910,14 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
         },
     );
     // Fase 140
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "buscar_verso".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
             params: vec![TypeIR::Verso, TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "nao_vazio_verso".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Logica,
@@ -924,14 +925,14 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
         },
     );
     // Fase 137
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "dividir_verso_em".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,
             params: vec![TypeIR::Verso, TypeIR::Verso, TypeIR::Bombom],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "dividir_verso_contar".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
@@ -939,7 +940,7 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
         },
     );
     // Fase 138
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "substituir_verso".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,
@@ -947,14 +948,14 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
         },
     );
     // Fase 139
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "juntar_verso_com".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,
             params: vec![TypeIR::Verso, TypeIR::Verso, TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "formatar_verso".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,
@@ -962,28 +963,28 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
         },
     );
     // Fase 158
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "ler_linha_csv_bombom".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::ListBombom,
             params: vec![TypeIR::Verso, TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "emitir_linha_csv_bombom".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,
             params: vec![TypeIR::ListBombom, TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "ler_json_plano_bombom".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::MapVersoBombom,
             params: vec![TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "emitir_json_plano_bombom".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,
@@ -991,14 +992,14 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
         },
     );
     // Fase 160
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "tempo_unix".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
             params: vec![],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "formatar_tempo_unix".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,
@@ -1006,7 +1007,7 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
         },
     );
     // Fase 161
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "executar_processo".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
@@ -1014,7 +1015,7 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
         },
     );
     // Fase 165
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "executar_com_entrada".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
@@ -1022,7 +1023,7 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
         },
     );
     // Fase 166
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "pipeline_minimo".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
@@ -1030,7 +1031,7 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
         },
     );
     // Fase 163
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "capturar_stdout".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,
@@ -1038,77 +1039,77 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
         },
     );
     // Fase 164
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "capturar_stderr".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,
             params: vec![TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "afirmar".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Nulo,
             params: vec![TypeIR::Logica],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "dormir".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Nulo,
             params: vec![TypeIR::Bombom],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "copiar_arquivo".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Nulo,
             params: vec![TypeIR::Verso, TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "renomear_arquivo".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Nulo,
             params: vec![TypeIR::Verso, TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "verso_para_bombom".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
             params: vec![TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "bombom_para_verso".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Verso,
             params: vec![TypeIR::Bombom],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "aleatorio_entre".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
             params: vec![TypeIR::Bombom, TypeIR::Bombom, TypeIR::Bombom],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_verso_bombom_remover".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Nulo,
             params: vec![TypeIR::MapVersoBombom, TypeIR::Verso],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "lista_bombom_inserir".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Nulo,
             params: vec![TypeIR::ListBombom, TypeIR::Bombom, TypeIR::Bombom],
         },
     );
-    function_sigs.insert(
+    sigs_intrinsecas.insert(
         "lista_verso_inserir".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Nulo,
@@ -1116,6 +1117,12 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
         },
     );
 
+    // #532: a escolha entre a assinatura da intrínseca e a da função homônima
+    // do usuário é feita pela identidade do callee, não pela chave textual.
+    let function_sigs = crate::intrinsic_authority::TabelaPorIdentidade {
+        usuario: sigs_usuario,
+        intrinsecas: sigs_intrinsecas,
+    };
     for function in &program.functions {
         validate_function(function, &global_consts, &function_sigs)?;
     }
@@ -1126,7 +1133,7 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
 fn validate_function(
     function: &crate::cfg_ir::FunctionCfgIR,
     global_consts: &HashMap<String, TypeIR>,
-    function_sigs: &HashMap<String, FunctionSigCfg>,
+    function_sigs: &crate::intrinsic_authority::TabelaPorIdentidade<FunctionSigCfg>,
 ) -> Result<(), PinkerError> {
     if function.blocks.is_empty() {
         return Err(cfg_error_ctx(
@@ -1334,7 +1341,7 @@ fn validate_block(
     labels: &HashSet<String>,
     slot_types: &HashMap<String, TypeIR>,
     global_consts: &HashMap<String, TypeIR>,
-    function_sigs: &HashMap<String, FunctionSigCfg>,
+    function_sigs: &crate::intrinsic_authority::TabelaPorIdentidade<FunctionSigCfg>,
 ) -> Result<(), PinkerError> {
     let mut temp_types: HashMap<TempIR, TypeIR> = HashMap::new();
 
@@ -1737,8 +1744,12 @@ fn validate_block(
                 callee,
                 args,
                 ret_type,
+                identidade,
             } => {
-                if callee == "__ternario" {
+                // #532: as relaxações por nome desta validação valem para a
+                // intrínseca, não para uma função do usuário homônima.
+                let builtin = identidade.dispatches_as_builtin();
+                if builtin && callee == "__ternario" {
                     if args.len() != 3 {
                         return Err(cfg_error(
                             "aridade inválida em call __ternario",
@@ -1848,13 +1859,13 @@ fn validate_block(
                     }
                     continue;
                 }
-                let sig = function_sigs.get(callee).ok_or_else(|| {
+                let sig = function_sigs.resolver(*identidade, callee).ok_or_else(|| {
                     cfg_error(
                         &format!("call para função inexistente '{}'", callee),
                         function.span,
                     )
                 })?;
-                if callee == "formatar_verso" {
+                if builtin && callee == "formatar_verso" {
                     if args.len() < 2 {
                         return Err(cfg_error(
                             "aridade inválida em call da CFG IR",
@@ -1917,17 +1928,19 @@ fn validate_block(
                     continue;
                 }
                 if sig.params.len() != args.len() {
-                    if (callee == "executar_processo"
-                        || callee == "executar_com_entrada"
-                        || callee == "capturar_stdout"
-                        || callee == "capturar_stderr")
+                    if builtin
+                        && (callee == "executar_processo"
+                            || callee == "executar_com_entrada"
+                            || callee == "capturar_stdout"
+                            || callee == "capturar_stderr")
                         && ((callee == "executar_com_entrada"
                             && (args.len() == 2 || args.len() == 3))
                             || (callee != "executar_com_entrada"
                                 && (args.len() == 1 || args.len() == 2)))
                     {
                         // aceita a camada 1 conservadora de argv explícito sem abrir argv geral
-                    } else if callee == "afirmar" && (args.len() == 1 || args.len() == 2) {
+                    } else if builtin && callee == "afirmar" && (args.len() == 1 || args.len() == 2)
+                    {
                         // aceita afirmar com 1 ou 2 argumentos
                     } else {
                         return Err(cfg_error(
@@ -1936,31 +1949,35 @@ fn validate_block(
                         ));
                     }
                 }
-                if callee == "executar_processo" && !(args.len() == 1 || args.len() == 2) {
+                if builtin && callee == "executar_processo" && !(args.len() == 1 || args.len() == 2)
+                {
                     return Err(cfg_error(
                         "aridade inválida em call da CFG IR",
                         function.span,
                     ));
                 }
-                if callee == "executar_com_entrada" && !(args.len() == 2 || args.len() == 3) {
+                if builtin
+                    && callee == "executar_com_entrada"
+                    && !(args.len() == 2 || args.len() == 3)
+                {
                     return Err(cfg_error(
                         "aridade inválida em call da CFG IR",
                         function.span,
                     ));
                 }
-                if callee == "capturar_stdout" && !(args.len() == 1 || args.len() == 2) {
+                if builtin && callee == "capturar_stdout" && !(args.len() == 1 || args.len() == 2) {
                     return Err(cfg_error(
                         "aridade inválida em call da CFG IR",
                         function.span,
                     ));
                 }
-                if callee == "capturar_stderr" && !(args.len() == 1 || args.len() == 2) {
+                if builtin && callee == "capturar_stderr" && !(args.len() == 1 || args.len() == 2) {
                     return Err(cfg_error(
                         "aridade inválida em call da CFG IR",
                         function.span,
                     ));
                 }
-                if callee == "afirmar" && !(args.len() == 1 || args.len() == 2) {
+                if builtin && callee == "afirmar" && !(args.len() == 1 || args.len() == 2) {
                     return Err(cfg_error(
                         "aridade inválida em call da CFG IR",
                         function.span,
@@ -2252,7 +2269,7 @@ fn validate_block(
                 function_name,
                 captures,
             } => {
-                if !function_sigs.contains_key(function_name) {
+                if !function_sigs.contem_grafia(function_name) {
                     return Err(cfg_error(
                         &format!("make_closure para função inexistente '{}'", function_name),
                         function.span,
