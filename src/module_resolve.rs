@@ -158,12 +158,16 @@ fn nao_e_entidade_de_unidade(name: &str) -> bool {
 /// runtime sem criar entidade nova.
 ///
 /// `__trait_default_check_*` pertence, depois que a recomposição o endereça
-/// pelo trato canônico: o corpo default tem uma declaração só, a do trato, e
-/// duas unidades que implementem a MESMA relação canônica copiam o MESMO corpo.
-/// Nome igual prova entidade igual, e a conferência estrutural mantém a prova
-/// fechada. Sem isto, duas unidades que sobrescrevem a mesma relação emitiriam
-/// duas funções homônimas e a duplicata seria recusada por choque de nome de
-/// função sintética, no lugar da autoridade de contratos de trato.
+/// pelo trato canônico. O que prova a igualdade é a origem, não a impressão:
+/// o nome é `(trato canônico, alvo canônico, método)`, o corpo default tem uma
+/// declaração só — a do trato —, e desde a #517 ele é resolvido no ambiente da
+/// unidade que DECLAROU o trato, nunca no de quem hospeda o `impl`. Logo nome
+/// igual implica mesma declaração e mesmo corpo, e as duas cópias são a mesma
+/// entidade. A conferência estrutural que este caminho aplica em seguida é de
+/// assinatura, não de corpo: ela é rede de segurança, não a prova. Sem esta
+/// entrada, duas unidades que sobrescrevem a mesma relação emitiriam duas
+/// funções homônimas e a duplicata seria recusada por choque de nome de função
+/// sintética, no lugar da autoridade de contratos de trato.
 ///
 /// `__impl_*` NÃO pertence a este conjunto. Ele codifica apenas
 /// `(trato, alvo, método)`; dois corpos genuinamente distintos da mesma relação

@@ -508,6 +508,49 @@ fn n8_impl_sem_import_continua_recusado() {
     assert_eq!(codigo(&saida), 1, "{}", stdout(&saida));
 }
 
+/// N9 — trato e `impl` em unidades DIFERENTES, ambas não-raiz: o corpo default
+/// inválido continua recusado, e o diagnóstico nomeia a unidade que DECLAROU o
+/// trato, não a que hospeda o `impl`.
+///
+/// Na baseline este programa passava em `--check`. O caso é o que separa "o
+/// corpo foi validado" de "o corpo foi validado contra o trato certo": quem
+/// escreveu o `impl` é `m566h1`, quem deve o corpo é `m566h2`.
+///
+/// A asserção é sobre a IDENTIDADE no diagnóstico. O trecho de fonte renderizado
+/// para um corpo default copiado de outra unidade ainda sai da unidade errada —
+/// defeito preexistente de atribuição de `SourceId` na leitura best-effort de
+/// import, observável de forma idêntica na baseline quando o `impl` mora na
+/// raiz. Não é regressão desta Task e não é corrigido aqui; está reportado como
+/// finding.
+#[test]
+fn n9_trato_e_impl_em_unidades_distintas_recusam_pelo_trato_declarante() {
+    let c = caso(
+        "n9_566",
+        "pacote main;\ntrazer m566h1.usar;\n\ncarinho principal() -> bombom { mimo usar(); }\n",
+        &[
+            (
+                "m566h2",
+                "pacote m566h2;\n\ntrato Marca {\n    carinho marcar(valor: bombom) -> bombom { mimo \"ruim\"; }\n}\n".to_string(),
+            ),
+            (
+                "m566h1",
+                "pacote m566h1;\ntrazer m566h2.Marca;\n\nimpl Marca para bombom {\n    carinho marcar(valor: bombom) -> bombom { mimo valor + 5; }\n}\n\ncarinho usar() -> bombom { nova x: bombom = 1; mimo x.marcar(); }\n".to_string(),
+            ),
+        ],
+    );
+    let saida = checar(&c, "566-n9");
+    assert_eq!(codigo(&saida), 1, "{}", stdout(&saida));
+    diagnostico_de_default(&saida, "m566h2.Marca");
+
+    let execucao = executar(&c, "566-n9-run");
+    assert_eq!(
+        codigo(&execucao),
+        1,
+        "programa inválido não pode executar; saiu: {}",
+        stdout(&execucao)
+    );
+}
+
 // ---------------------------------------------------------------------------
 // Ordem
 // ---------------------------------------------------------------------------
