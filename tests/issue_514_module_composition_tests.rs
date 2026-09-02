@@ -1150,7 +1150,10 @@ fn revisao_n5_impl_duplicado_em_modulo_continua_recusado() {
         1,
         "duplicata sobreviveu dentro do módulo: {erro}"
     );
-    assert!(erro.contains("já implementado"), "{erro}");
+    // #572: a duplicata é recusada pela cardinalidade da relação nominal,
+    // não pela colisão de um método explícito.
+    assert!(erro.contains("impl do trato"), "{erro}");
+    assert!(erro.contains("já declarado"), "{erro}");
 }
 
 /// Revisão adversarial N7 — arquivo que importa a si mesmo.

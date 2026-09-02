@@ -484,7 +484,7 @@ fn n7_impl_duplicado_e_recusado_pela_autoridade_de_contratos() {
     assert_eq!(codigo(&saida), 1, "{}", stdout(&saida));
     let texto = stderr(&saida);
     assert!(
-        texto.contains("já implementado"),
+        texto.contains("impl do trato 'm566t.Marca' para tipo 'bombom' já declarado"),
         "a duplicata precisa ser recusada como duplicata de `impl`; veio: {texto}"
     );
     assert!(

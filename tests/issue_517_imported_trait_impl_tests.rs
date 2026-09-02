@@ -848,7 +848,7 @@ fn n5_impl_duplicado_de_trato_importado_continua_recusado() {
     let erro = stderr(&saida);
     assert_eq!(codigo(&saida), 1, "{erro}");
     assert!(
-        erro.contains("método 'marcar' do trato 'm517_a.Marca' para tipo 'bombom' já implementado"),
+        erro.contains("impl do trato 'm517_a.Marca' para tipo 'bombom' já declarado"),
         "{erro}"
     );
 }

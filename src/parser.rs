@@ -693,10 +693,16 @@ impl Parser {
         self.register_predeclared_plain_enums();
 
         let mut items = Vec::new();
+        // Uma entrada por bloco `impl` escrito, na ordem da fonte. A vista
+        // fundida abaixo existe só para materializar default; a cardinalidade
+        // da relação nominal é decidida pela autoridade semântica, e ela
+        // precisa ver cada declaração com o span que o autor escreveu.
+        let mut declared_impls: Vec<ImplDecl> = Vec::new();
         let mut impl_relations: Vec<PendingImplRelation> = Vec::new();
         while self.peek().is_some() {
             if self.match_token(TokenKind::KwImpl) {
                 let parsed = self.parse_impl_block()?;
+                declared_impls.push(parsed.relation.clone());
                 if let Some(existing) = impl_relations.iter_mut().find(|pending| {
                     pending.relation.trait_name == parsed.relation.trait_name
                         && Self::impl_type_key(&pending.relation.target_ty)
@@ -872,10 +878,7 @@ impl Parser {
             package,
             freestanding,
             imports,
-            impls: impl_relations
-                .into_iter()
-                .map(|pending| pending.relation)
-                .collect(),
+            impls: declared_impls,
             items,
         })
     }
