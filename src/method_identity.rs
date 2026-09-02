@@ -8,7 +8,7 @@
 // @pinker-nav:start tratos.metodos.identidade
 // @pinker-nav:domain tratos
 // @pinker-nav:layer identidade
-// @pinker-nav:summary Identidade estruturada de método parametrizada pela identidade resolvida do alvo, compartilhada pela autoridade semântica e pela visão derivada da IR; também centraliza o codec injetivo dos nomes provisórios `__impl_*` e `__trait_default_check_*` — mesma gramática, prefixos distintos —, que preservam spellings para transporte e renderização mas nunca decidem coerência ou despacho.
+// @pinker-nav:summary Identidade estruturada de método parametrizada pela identidade resolvida do alvo, compartilhada pela autoridade semântica e pela visão derivada da IR; também centraliza o codec injetivo dos nomes provisórios `__impl_*` e `__trait_default_check_*` — mesma gramática, prefixos distintos —, que preservam spellings para transporte e renderização mas nunca decidem coerência ou despacho, e a forma única que reconhece os dois como o mesmo corpo sintético de `trato`, para que a canonização e a materialização modular não precisem perguntar pelo prefixo literal.
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct MethodIdentity<T> {
@@ -27,13 +27,17 @@ impl<T> MethodIdentity<T> {
     }
 }
 
+/// Prefixo do método de `impl` materializado pelo parser.
+pub const IMPL_PREFIX: &str = "__impl_";
+
 pub fn render_provisional_function_name(
     trait_name: &str,
     target_spelling: &str,
     method_name: &str,
 ) -> String {
     format!(
-        "__impl_{}_{}_{}_{}_{}",
+        "{}{}_{}_{}_{}_{}",
+        IMPL_PREFIX,
         trait_name.len(),
         trait_name,
         target_spelling.len(),
@@ -70,7 +74,48 @@ pub fn parse_trait_default_check_function_name(name: &str) -> Option<(String, St
 }
 
 pub fn parse_provisional_function_name(name: &str) -> Option<(String, String, String)> {
-    parse_com_prefixo(name, "__impl_")
+    parse_com_prefixo(name, IMPL_PREFIX)
+}
+
+/// Corpo sintético materializado pela maquinaria de `trato`.
+///
+/// São duas formas do MESMO fato — um corpo que o parser copiou para dentro de
+/// um `impl` — sob o mesmo codec e prefixos distintos: `__impl_*` quando o
+/// corpo é o método selecionado, `__trait_default_check_*` quando um override
+/// venceu e o corpo default continua devendo checagem. O prefixo decide apenas
+/// se a função entra em `method_index`/vtable; a identidade e a obrigação de
+/// materializá-la para validar são as mesmas.
+///
+/// Quem trata as duas formas como uma só não pode perguntar pelo prefixo
+/// literal: era exatamente essa pergunta que fazia a checagem do default
+/// desaparecer em unidade não-raiz e o nome dela colidir entre unidades.
+pub fn parse_synthetic_trait_body_name(
+    name: &str,
+) -> Option<(&'static str, String, String, String)> {
+    for prefixo in [IMPL_PREFIX, TRAIT_DEFAULT_CHECK_PREFIX] {
+        if let Some((trait_name, target_spelling, method_name)) = parse_com_prefixo(name, prefixo) {
+            return Some((prefixo, trait_name, target_spelling, method_name));
+        }
+    }
+    None
+}
+
+/// Recompõe um corpo sintético sob o mesmo prefixo com que ele foi lido.
+pub fn render_synthetic_trait_body_name(
+    prefixo: &str,
+    trait_name: &str,
+    target_spelling: &str,
+    method_name: &str,
+) -> String {
+    format!(
+        "{}{}_{}_{}_{}_{}",
+        prefixo,
+        trait_name.len(),
+        trait_name,
+        target_spelling.len(),
+        target_spelling,
+        method_name
+    )
 }
 
 fn parse_com_prefixo(name: &str, prefixo: &str) -> Option<(String, String, String)> {
@@ -115,6 +160,30 @@ mod tests {
                 "Meu_Tipo".to_string(),
                 "meu_metodo".to_string()
             ))
+        );
+    }
+
+    #[test]
+    fn corpo_sintetico_reconhece_as_duas_formas_e_preserva_o_prefixo() {
+        for prefixo in [IMPL_PREFIX, TRAIT_DEFAULT_CHECK_PREFIX] {
+            let rendered = render_synthetic_trait_body_name(prefixo, "a.Marca", "bombom", "marcar");
+            assert_eq!(
+                parse_synthetic_trait_body_name(&rendered),
+                Some((
+                    prefixo,
+                    "a.Marca".to_string(),
+                    "bombom".to_string(),
+                    "marcar".to_string()
+                ))
+            );
+        }
+    }
+
+    #[test]
+    fn tratos_homonimos_de_unidades_distintas_nao_compartilham_checagem_de_default() {
+        assert_ne!(
+            render_trait_default_check_function_name("a.Marca", "bombom", "marcar"),
+            render_trait_default_check_function_name("b.Marca", "bombom", "marcar")
         );
     }
 }
