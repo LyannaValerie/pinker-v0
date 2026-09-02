@@ -216,10 +216,14 @@ pub enum SelectedInstr {
         callee: String,
         args: Vec<OperandIR>,
         ret_type: TypeIR,
+        /// #532 — a decisão de identidade continua viajando até o backend.
+        identidade: crate::intrinsic_authority::CalleeIdentity,
     },
     CallVoid {
         callee: String,
         args: Vec<OperandIR>,
+        /// #532 — idem para a chamada sem retorno.
+        identidade: crate::intrinsic_authority::CalleeIdentity,
     },
     // Fase 242: chamada indireta selecionada — `callee` é um operando
     // (valor callable), não um símbolo. Sempre produz valor.
@@ -643,16 +647,19 @@ fn select_instruction(inst: &InstructionCfgIR) -> Result<SelectedInstr, PinkerEr
             callee,
             args,
             ret_type,
+            identidade,
         } => match (dest, ret_type) {
             (Some(dest), _) => Ok(SelectedInstr::Call {
                 dest: *dest,
                 callee: callee.clone(),
                 args: args.clone(),
                 ret_type: *ret_type,
+                identidade: *identidade,
             }),
             (None, TypeIR::Nulo) => Ok(SelectedInstr::CallVoid {
                 callee: callee.clone(),
                 args: args.clone(),
+                identidade: *identidade,
             }),
             (None, _) => Err(PinkerError::Ir {
                 msg: "instruction selection encontrou call com retorno sem destino".to_string(),
@@ -1043,6 +1050,8 @@ fn render_instr(inst: &SelectedInstr) -> String {
             callee,
             args,
             ret_type,
+            // #532: a renderização textual da seleção não muda.
+            identidade: _,
         } => format!(
             "call {}, {}({}), {}",
             render_temp(*dest),
@@ -1053,7 +1062,11 @@ fn render_instr(inst: &SelectedInstr) -> String {
                 .join(", "),
             ret_type.name()
         ),
-        SelectedInstr::CallVoid { callee, args } => format!(
+        SelectedInstr::CallVoid {
+            callee,
+            args,
+            identidade: _,
+        } => format!(
             "call_void {}({})",
             callee,
             args.iter()

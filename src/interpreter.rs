@@ -2146,9 +2146,17 @@ fn exec_instr(
                 |a, b| a >= b,
             )?));
         }
-        MachineInstr::Call { callee, argc } => {
+        MachineInstr::Call {
+            callee,
+            argc,
+            identidade,
+        } => {
             let args = pop_args(stack, *argc)?;
+            // #532: só a IDENTIDADE abre a tabela de intrínsecas. Uma função do
+            // usuário com grafia canônica chega aqui como `CalleeIdentity::User`
+            // e vai direto para a chamada Pinker comum.
             let result = match try_call_intrinsic(
+                *identidade,
                 callee,
                 &args,
                 public_memory_state,
@@ -2171,9 +2179,14 @@ fn exec_instr(
             };
             stack.push(value);
         }
-        MachineInstr::CallVoid { callee, argc } => {
+        MachineInstr::CallVoid {
+            callee,
+            argc,
+            identidade,
+        } => {
             let args = pop_args(stack, *argc)?;
             let result = match try_call_intrinsic(
+                *identidade,
                 callee,
                 &args,
                 public_memory_state,
@@ -3387,7 +3400,23 @@ fn public_memory_free(
     ))
 }
 
+/// #532 — porta única do despacho intrínseco do interpretador.
+///
+/// ```text
+/// CALL_IS_INTRINSIC <- RESOLVED_IDENTITY, NOT SPELLING
+/// ```
+///
+/// A tabela abaixo continua endereçada pela grafia canônica — é ela que escolhe
+/// QUAL intrínseca —, mas o portão é a identidade. Antes, qualquer callee cuja
+/// grafia casasse era atendido aqui, e por isso a grafia canônica precisava ser
+/// reservada contra declaração do usuário.
+// A identidade entrou como primeiro parâmetro justamente para ser lida antes de
+// qualquer estado: ela decide SE a tabela abaixo responde. Agrupar os cinco
+// estados de runtime numa struct só para caber no limite moveria a fronteira de
+// ownership do interpretador sem melhorar nada aqui.
+#[allow(clippy::too_many_arguments)]
 fn try_call_intrinsic(
+    identidade: crate::intrinsic_authority::CalleeIdentity,
     callee: &str,
     args: &[RuntimeValue],
     public_memory_state: &mut PublicMemoryState,
@@ -3396,6 +3425,9 @@ fn try_call_intrinsic(
     map_state: &mut RuntimeMapState,
     random_state: &mut RuntimeRandomState,
 ) -> Result<IntrinsicCall, PinkerError> {
+    if identidade.is_user() {
+        return Ok(IntrinsicCall::NotIntrinsic);
+    }
     if let Some(result) = try_call_map_intrinsic_authority(callee, args, map_state) {
         return result;
     }
@@ -9012,6 +9044,7 @@ mod part_d_saida_processo_runtime_tests {
         let resultado = novo_leque(&mut mapas, crate::falha_operacional::TAG_OK);
 
         let anexado = valor(try_call_intrinsic(
+            crate::intrinsic_authority::CalleeIdentity::CompilerInternal,
             crate::enum_payload::ANEXAR_SAIDA_PROCESSO,
             &[
                 RuntimeValue::Int(resultado),
@@ -9026,6 +9059,7 @@ mod part_d_saida_processo_runtime_tests {
         assert_eq!(anexado, RuntimeValue::Int(resultado));
 
         let carga = valor(try_call_intrinsic(
+            crate::intrinsic_authority::CalleeIdentity::CompilerInternal,
             crate::enum_payload::CARGA_SAIDA_PROCESSO,
             &[
                 RuntimeValue::Int(resultado),
@@ -9053,6 +9087,7 @@ mod part_d_saida_processo_runtime_tests {
         ] {
             assert_eq!(
                 valor(try_call_intrinsic(
+                    crate::intrinsic_authority::callee_identity_da_grafia_canonica(acessor),
                     acessor,
                     std::slice::from_ref(&carga),
                     &mut memoria_publica,

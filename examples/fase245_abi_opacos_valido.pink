@@ -58,19 +58,19 @@ carinho principal() -> bombom {
     anexar(lc, Cor.Rosa);
     falar(lista.tamanho(f_lista_cor(lc)));
 
-    nova mvb: mapa<verso,bombom> = mapa_criar();
+    nova mvb: mapa<verso,bombom> = mapa.criar();
     definir(mvb, "rosa", 1);
     falar(mapa.tamanho(f_mapa_vb(mvb)));
 
-    nova mvv: mapa<verso,verso> = mapa_criar();
+    nova mvv: mapa<verso,verso> = mapa.criar();
     definir(mvv, "rosa", "pink");
     falar(mapa.tamanho(f_mapa_vv(mvv)));
 
-    nova mbb: mapa<bombom,bombom> = mapa_criar();
+    nova mbb: mapa<bombom,bombom> = mapa.criar();
     definir(mbb, 1, 2);
     falar(mapa.tamanho(f_mapa_bb(mbb)));
 
-    nova mbv: mapa<bombom,verso> = mapa_criar();
+    nova mbv: mapa<bombom,verso> = mapa.criar();
     definir(mbv, 1, "rosa");
     falar(mapa.tamanho(f_mapa_bv(mbv)));
 

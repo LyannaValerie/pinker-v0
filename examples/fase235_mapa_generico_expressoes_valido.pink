@@ -1,34 +1,34 @@
 pacote demo;
 
-trazer mapa.definir, obter, remover, tamanho, tem;
+trazer mapa.criar, definir, obter, remover, tamanho, tem;
 trazer texto.igual;
 
 carinho mapa_idades() -> mapa<verso,bombom> {
-    nova m: mapa<verso,bombom> = mapa_criar();
+    nova m: mapa<verso,bombom> = criar();
     definir(m, "idade", 42);
     mimo m;
 }
 
 carinho mapa_nomes() -> mapa<verso,verso> {
-    nova m: mapa<verso,verso> = mapa_criar();
+    nova m: mapa<verso,verso> = criar();
     definir(m, "nome", "pinker");
     mimo m;
 }
 
 carinho mapa_pontos() -> mapa<bombom,bombom> {
-    nova m: mapa<bombom,bombom> = mapa_criar();
+    nova m: mapa<bombom,bombom> = criar();
     definir(m, 7, 35);
     mimo m;
 }
 
 carinho mapa_rotulos() -> mapa<bombom,verso> {
-    nova m: mapa<bombom,verso> = mapa_criar();
+    nova m: mapa<bombom,verso> = criar();
     definir(m, 1, "ok");
     mimo m;
 }
 
 carinho mapa_vazio() -> mapa<verso,bombom> {
-    nova m: mapa<verso,bombom> = mapa_criar();
+    nova m: mapa<verso,bombom> = criar();
     mimo m;
 }
 

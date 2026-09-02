@@ -3833,6 +3833,16 @@ fn contexto_de_import_com_pilha(
     // built-in ficam de fora de propósito: essa forma nunca carregou módulo,
     // nem antes da Parte G.
     for modulo in Parser::modulos_trazidos_inteiros(tokens) {
+        // #532: quando a família governa o nome, `trazer <familia>;` não
+        // corresponde a arquivo nenhum — G-517-1, ausência legítima. Quando
+        // existe `<nome>.pink`, o módulo real vence e a forma inteira traz os
+        // itens dele, exatamente como a seletiva já fazia.
+        if pinker_v0::familia_superficie::familia_governa(
+            modulo.as_str(),
+            modulo_real_existe(base_dir, &modulo),
+        ) {
+            continue;
+        }
         let Some(programa) = ler_modulo_best_effort(base_dir, &modulo, visitando) else {
             import_incompleto = true;
             continue;
@@ -3884,7 +3894,7 @@ fn contexto_de_import_com_pilha(
     }
 
     ContextoDeImport {
-        modulos_reais: Parser::familias_seletivas_candidatas(tokens)
+        modulos_reais: Parser::familias_candidatas(tokens)
             .into_iter()
             .filter(|module| modulo_real_existe(base_dir, module))
             .collect(),
@@ -4027,9 +4037,10 @@ fn load_module_program(
         // arquivo raiz e um módulo que a usasse levaria "módulo 'arquivo' não
         // encontrado" — que é o comportamento histórico, mas historicamente
         // `trazer arquivo;` num módulo não tinha o que oferecer.
-        if pinker_v0::familia_superficie::familia_conhecida(import.module.as_str())
-            && !(import.symbol.is_some() && modulo_real_existe(base_dir, &import.module))
-        {
+        if pinker_v0::familia_superficie::familia_governa(
+            import.module.as_str(),
+            modulo_real_existe(base_dir, &import.module),
+        ) {
             continue;
         }
         load_module_program(
@@ -4119,9 +4130,10 @@ fn carregar_e_projetar(
         // Parte; só a forma seletiva tinha semântica de módulo, e é só ela que
         // precisa consultar o disco. Isso mantém intacto o invariante de que a
         // superfície aprovada não procura `<familia>.pink`.
-        if pinker_v0::familia_superficie::familia_conhecida(import.module.as_str())
-            && !(import.symbol.is_some() && modulo_real_existe(&base_dir, &import.module))
-        {
+        if pinker_v0::familia_superficie::familia_governa(
+            import.module.as_str(),
+            modulo_real_existe(&base_dir, &import.module),
+        ) {
             if let Some(symbol) = &import.symbol {
                 // Colisão com item de topo é decidida pela autoridade semântica
                 // — a mesma que o caminho de biblioteca atravessa. Repetir a
@@ -4247,8 +4259,10 @@ fn carregar_e_projetar(
         }
         let mut unidade = unit.to_program();
         unidade.imports.retain(|import| {
-            pinker_v0::familia_superficie::familia_conhecida(import.module.as_str())
-                && !(import.symbol.is_some() && modulo_real_existe(&base_dir, &import.module))
+            pinker_v0::familia_superficie::familia_governa(
+                import.module.as_str(),
+                modulo_real_existe(&base_dir, &import.module),
+            )
         });
         semantic::check_module_unit(&unidade)?;
     }

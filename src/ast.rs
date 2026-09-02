@@ -1353,6 +1353,15 @@ impl Expr {
                 writer.field_str("name", name);
                 writer.end_object();
             }
+            // #532: identidade é interna; a superfície continua sendo a grafia
+            // canônica que o usuário pode ler. Nada de ID sintético na saída.
+            ExprKind::Intrinsic(identity) => {
+                writer.begin_object();
+                writer.field_str("node", "IdentExpr");
+                writer.field_span("span", self.span);
+                writer.field_str("name", identity.canonical_public_spelling());
+                writer.end_object();
+            }
             ExprKind::IntLit(value) => {
                 writer.begin_object();
                 writer.field_str("node", "IntLit");
@@ -1386,12 +1395,36 @@ pub enum ExprKind {
     Call(Box<Expr>, Vec<Expr>),
     InternalMapIterCreate(Box<Expr>),
     InternalMapIterNextKey(Box<Expr>),
-    FieldAccess { base: Box<Expr>, field: String },
-    Index { base: Box<Expr>, index: Box<Expr> },
-    Cast { expr: Box<Expr>, target: Type },
-    SizeOfType { target: Type },
-    AlignOfType { target: Type },
+    FieldAccess {
+        base: Box<Expr>,
+        field: String,
+    },
+    Index {
+        base: Box<Expr>,
+        index: Box<Expr>,
+    },
+    Cast {
+        expr: Box<Expr>,
+        target: Type,
+    },
+    SizeOfType {
+        target: Type,
+    },
+    AlignOfType {
+        target: Type,
+    },
     Ident(String),
+    /// #532 — callee que a canonicalização já resolveu como intrínseca.
+    ///
+    /// Nasce apenas no CANONICALIZATION_BOUNDARY do parser, a partir de um
+    /// `trazer` resolvido, e é o que separa `INTRINSIC_IDENTITY` de
+    /// `TEXTUAL_SPELLING`: uma função do usuário com a mesma grafia continua
+    /// sendo `Ident` e nunca vira este nó. Nenhuma camada a jusante reconstrói
+    /// a decisão pelo texto.
+    ///
+    /// Externamente ele se apresenta como a grafia canônica — impressão, AST
+    /// JSON e diagnósticos não vazam identidade sintética.
+    Intrinsic(crate::intrinsic_authority::IntrinsicIdentity),
     IntLit(u64),
     BoolLit(bool),
     StringLit(String),
@@ -1942,6 +1975,10 @@ fn scan_expr_free_idents(
 ) {
     match &expr.kind {
         ExprKind::Ident(name) => note_free_ident(name, bound, free, seen),
+        // #532: intrínseca resolvida não é identificador livre — ela não
+        // pertence ao namespace de nomes de nenhuma unidade e por isso nunca
+        // é capturada por closure.
+        ExprKind::Intrinsic(_) => {}
         ExprKind::Binary(lhs, _, rhs) => {
             scan_expr_free_idents(lhs, bound, free, seen, include_direct_callees);
             scan_expr_free_idents(rhs, bound, free, seen, include_direct_callees);
@@ -1950,7 +1987,9 @@ fn scan_expr_free_idents(
             scan_expr_free_idents(operand, bound, free, seen, include_direct_callees)
         }
         ExprKind::Call(callee, args) => {
-            if include_direct_callees || !matches!(callee.kind, ExprKind::Ident(_)) {
+            if include_direct_callees
+                || !matches!(callee.kind, ExprKind::Ident(_) | ExprKind::Intrinsic(_))
+            {
                 scan_expr_free_idents(callee, bound, free, seen, include_direct_callees);
             }
             for arg in args {

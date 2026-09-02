@@ -431,8 +431,12 @@ fn chamado_do_programa(fonte: &str) -> String {
         );
     };
     match &callee.kind {
+        // #532: a canonicalização passou a produzir identidade em vez de um
+        // `Ident`. A grafia canônica continua sendo o observável deste gate —
+        // agora lida de dentro da identidade.
+        ExprKind::Intrinsic(identidade) => identidade.canonical_public_spelling().to_string(),
         ExprKind::Ident(nome) => nome.clone(),
-        outro => panic!("chamado deveria ser um identificador simples: {outro:?}"),
+        outro => panic!("chamado deveria ser identificador ou identidade: {outro:?}"),
     }
 }
 

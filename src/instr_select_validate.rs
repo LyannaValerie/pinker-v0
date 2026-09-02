@@ -50,249 +50,256 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
         globals.insert(g.name.clone());
     }
 
-    let mut sigs = HashMap::new();
+    let mut sigs_usuario = HashMap::new();
+    let mut sigs_intrinsecas = HashMap::new();
     for f in &program.functions {
-        sigs.insert(f.name.clone(), f.ret_type);
+        sigs_usuario.insert(f.name.clone(), f.ret_type);
     }
-    sigs.insert("ouvir".to_string(), TypeIR::Bombom);
-    sigs.insert("ouvir_verso".to_string(), TypeIR::Verso);
-    sigs.insert("ouvir_verso_ou".to_string(), TypeIR::Verso);
-    sigs.insert("aleatorio_criar".to_string(), TypeIR::Bombom);
-    sigs.insert("aleatorio_proximo".to_string(), TypeIR::Bombom);
-    sigs.insert("alocar".to_string(), TypeIR::Pointer { is_volatile: false });
-    sigs.insert("liberar".to_string(), TypeIR::Nulo);
-    sigs.insert("lista_bombom_criar".to_string(), TypeIR::ListBombom);
-    sigs.insert("lista_bombom_anexar".to_string(), TypeIR::Nulo);
-    sigs.insert("lista_bombom_obter".to_string(), TypeIR::Bombom);
-    sigs.insert("lista_bombom_tamanho".to_string(), TypeIR::Bombom);
-    sigs.insert("lista_bombom_definir".to_string(), TypeIR::Nulo);
-    sigs.insert("lista_bombom_tirar_ultimo".to_string(), TypeIR::Bombom);
-    sigs.insert("lista_verso_criar".to_string(), TypeIR::ListVerso);
-    sigs.insert("lista_verso_anexar".to_string(), TypeIR::Nulo);
-    sigs.insert("lista_verso_obter".to_string(), TypeIR::Verso);
-    sigs.insert("lista_verso_tamanho".to_string(), TypeIR::Bombom);
-    sigs.insert("lista_verso_definir".to_string(), TypeIR::Nulo);
-    sigs.insert("lista_verso_tirar_ultimo".to_string(), TypeIR::Verso);
-    sigs.insert(
+    sigs_intrinsecas.insert("ouvir".to_string(), TypeIR::Bombom);
+    sigs_intrinsecas.insert("ouvir_verso".to_string(), TypeIR::Verso);
+    sigs_intrinsecas.insert("ouvir_verso_ou".to_string(), TypeIR::Verso);
+    sigs_intrinsecas.insert("aleatorio_criar".to_string(), TypeIR::Bombom);
+    sigs_intrinsecas.insert("aleatorio_proximo".to_string(), TypeIR::Bombom);
+    sigs_intrinsecas.insert("alocar".to_string(), TypeIR::Pointer { is_volatile: false });
+    sigs_intrinsecas.insert("liberar".to_string(), TypeIR::Nulo);
+    sigs_intrinsecas.insert("lista_bombom_criar".to_string(), TypeIR::ListBombom);
+    sigs_intrinsecas.insert("lista_bombom_anexar".to_string(), TypeIR::Nulo);
+    sigs_intrinsecas.insert("lista_bombom_obter".to_string(), TypeIR::Bombom);
+    sigs_intrinsecas.insert("lista_bombom_tamanho".to_string(), TypeIR::Bombom);
+    sigs_intrinsecas.insert("lista_bombom_definir".to_string(), TypeIR::Nulo);
+    sigs_intrinsecas.insert("lista_bombom_tirar_ultimo".to_string(), TypeIR::Bombom);
+    sigs_intrinsecas.insert("lista_verso_criar".to_string(), TypeIR::ListVerso);
+    sigs_intrinsecas.insert("lista_verso_anexar".to_string(), TypeIR::Nulo);
+    sigs_intrinsecas.insert("lista_verso_obter".to_string(), TypeIR::Verso);
+    sigs_intrinsecas.insert("lista_verso_tamanho".to_string(), TypeIR::Bombom);
+    sigs_intrinsecas.insert("lista_verso_definir".to_string(), TypeIR::Nulo);
+    sigs_intrinsecas.insert("lista_verso_tirar_ultimo".to_string(), TypeIR::Verso);
+    sigs_intrinsecas.insert(
         "mapa_verso_bombom_criar".to_string(),
         TypeIR::MapVersoBombom,
     );
-    sigs.insert("mapa_verso_bombom_definir".to_string(), TypeIR::Nulo);
-    sigs.insert("mapa_verso_bombom_obter".to_string(), TypeIR::Bombom);
-    sigs.insert("mapa_verso_bombom_tem".to_string(), TypeIR::Logica);
-    sigs.insert("mapa_verso_bombom_tamanho".to_string(), TypeIR::Bombom);
-    sigs.insert(
+    sigs_intrinsecas.insert("mapa_verso_bombom_definir".to_string(), TypeIR::Nulo);
+    sigs_intrinsecas.insert("mapa_verso_bombom_obter".to_string(), TypeIR::Bombom);
+    sigs_intrinsecas.insert("mapa_verso_bombom_tem".to_string(), TypeIR::Logica);
+    sigs_intrinsecas.insert("mapa_verso_bombom_tamanho".to_string(), TypeIR::Bombom);
+    sigs_intrinsecas.insert(
         "__pinker_internal_mapa_verso_bombom_iterador_criar".to_string(),
         TypeIR::Bombom,
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "__pinker_internal_mapa_verso_bombom_iterador_proxima_chave".to_string(),
         TypeIR::Verso,
     );
-    sigs.insert("mapa_verso_verso_criar".to_string(), TypeIR::MapVersoVerso);
-    sigs.insert("mapa_verso_verso_definir".to_string(), TypeIR::Nulo);
-    sigs.insert("mapa_verso_verso_obter".to_string(), TypeIR::Verso);
-    sigs.insert("mapa_verso_verso_tem".to_string(), TypeIR::Logica);
-    sigs.insert("mapa_verso_verso_tamanho".to_string(), TypeIR::Bombom);
-    sigs.insert("mapa_verso_verso_remover".to_string(), TypeIR::Nulo);
-    sigs.insert(
+    sigs_intrinsecas.insert("mapa_verso_verso_criar".to_string(), TypeIR::MapVersoVerso);
+    sigs_intrinsecas.insert("mapa_verso_verso_definir".to_string(), TypeIR::Nulo);
+    sigs_intrinsecas.insert("mapa_verso_verso_obter".to_string(), TypeIR::Verso);
+    sigs_intrinsecas.insert("mapa_verso_verso_tem".to_string(), TypeIR::Logica);
+    sigs_intrinsecas.insert("mapa_verso_verso_tamanho".to_string(), TypeIR::Bombom);
+    sigs_intrinsecas.insert("mapa_verso_verso_remover".to_string(), TypeIR::Nulo);
+    sigs_intrinsecas.insert(
         "__pinker_internal_mapa_verso_verso_iterador_criar".to_string(),
         TypeIR::Bombom,
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "__pinker_internal_mapa_verso_verso_iterador_proxima_chave".to_string(),
         TypeIR::Verso,
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_bombom_bombom_criar".to_string(),
         TypeIR::MapBombomBombom,
     );
-    sigs.insert("mapa_bombom_bombom_definir".to_string(), TypeIR::Nulo);
-    sigs.insert("mapa_bombom_bombom_obter".to_string(), TypeIR::Bombom);
-    sigs.insert("mapa_bombom_bombom_tem".to_string(), TypeIR::Logica);
-    sigs.insert("mapa_bombom_bombom_tamanho".to_string(), TypeIR::Bombom);
-    sigs.insert("mapa_bombom_bombom_remover".to_string(), TypeIR::Nulo);
-    sigs.insert(
+    sigs_intrinsecas.insert("mapa_bombom_bombom_definir".to_string(), TypeIR::Nulo);
+    sigs_intrinsecas.insert("mapa_bombom_bombom_obter".to_string(), TypeIR::Bombom);
+    sigs_intrinsecas.insert("mapa_bombom_bombom_tem".to_string(), TypeIR::Logica);
+    sigs_intrinsecas.insert("mapa_bombom_bombom_tamanho".to_string(), TypeIR::Bombom);
+    sigs_intrinsecas.insert("mapa_bombom_bombom_remover".to_string(), TypeIR::Nulo);
+    sigs_intrinsecas.insert(
         "__pinker_internal_mapa_bombom_bombom_iterador_criar".to_string(),
         TypeIR::Bombom,
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "__pinker_internal_mapa_bombom_bombom_iterador_proxima_chave".to_string(),
         TypeIR::Bombom,
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_bombom_verso_criar".to_string(),
         TypeIR::MapBombomVerso,
     );
-    sigs.insert("mapa_bombom_verso_definir".to_string(), TypeIR::Nulo);
-    sigs.insert("mapa_bombom_verso_obter".to_string(), TypeIR::Verso);
-    sigs.insert("mapa_bombom_verso_tem".to_string(), TypeIR::Logica);
-    sigs.insert("mapa_bombom_verso_tamanho".to_string(), TypeIR::Bombom);
-    sigs.insert("mapa_bombom_verso_remover".to_string(), TypeIR::Nulo);
-    sigs.insert(
+    sigs_intrinsecas.insert("mapa_bombom_verso_definir".to_string(), TypeIR::Nulo);
+    sigs_intrinsecas.insert("mapa_bombom_verso_obter".to_string(), TypeIR::Verso);
+    sigs_intrinsecas.insert("mapa_bombom_verso_tem".to_string(), TypeIR::Logica);
+    sigs_intrinsecas.insert("mapa_bombom_verso_tamanho".to_string(), TypeIR::Bombom);
+    sigs_intrinsecas.insert("mapa_bombom_verso_remover".to_string(), TypeIR::Nulo);
+    sigs_intrinsecas.insert(
         "__pinker_internal_mapa_bombom_verso_iterador_criar".to_string(),
         TypeIR::Bombom,
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "__pinker_internal_mapa_bombom_verso_iterador_proxima_chave".to_string(),
         TypeIR::Bombom,
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "__pinker_internal_leque_criar_0".to_string(),
         TypeIR::Bombom,
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "__pinker_internal_leque_anexar_b".to_string(),
         TypeIR::Bombom,
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "__pinker_internal_leque_anexar_v".to_string(),
         TypeIR::Bombom,
     );
-    sigs.insert("__pinker_internal_leque_tag".to_string(), TypeIR::Bombom);
-    sigs.insert(
+    sigs_intrinsecas.insert("__pinker_internal_leque_tag".to_string(), TypeIR::Bombom);
+    sigs_intrinsecas.insert(
         "__pinker_internal_leque_carga_b".to_string(),
         TypeIR::Bombom,
     );
-    sigs.insert("__pinker_internal_leque_carga_v".to_string(), TypeIR::Verso);
+    sigs_intrinsecas.insert("__pinker_internal_leque_carga_v".to_string(), TypeIR::Verso);
     // D1: cargas de lista reutilizam o caminho de uma palavra.
-    sigs.insert(
+    sigs_intrinsecas.insert(
         crate::enum_payload::ANEXAR_LISTA_BOMBOM.to_string(),
         TypeIR::Bombom,
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         crate::enum_payload::ANEXAR_LISTA_VERSO.to_string(),
         TypeIR::Bombom,
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         crate::enum_payload::CARGA_LISTA_BOMBOM.to_string(),
         TypeIR::ListBombom,
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         crate::enum_payload::CARGA_LISTA_VERSO.to_string(),
         TypeIR::ListVerso,
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         crate::enum_payload::ANEXAR_SAIDA_PROCESSO.to_string(),
         TypeIR::Bombom,
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         crate::enum_payload::CARGA_SAIDA_PROCESSO.to_string(),
         TypeIR::OpaqueWordHandle,
     );
     // União não tem intrínseca chamável: `UnionTag`/`UnionExtract` são
     // operações internas tipadas da seleção.
-    sigs.insert("argumento".to_string(), TypeIR::Verso);
-    sigs.insert("argumento_ou".to_string(), TypeIR::Verso);
-    sigs.insert("tem_chave".to_string(), TypeIR::Logica);
-    sigs.insert("tem_argumento_nomeado".to_string(), TypeIR::Logica);
-    sigs.insert("pedir_argumento".to_string(), TypeIR::Verso);
-    sigs.insert("argumento_nomeado_ou".to_string(), TypeIR::Verso);
-    sigs.insert("tem_flag".to_string(), TypeIR::Logica);
-    sigs.insert("ambiente_ou".to_string(), TypeIR::Verso);
-    sigs.insert("buscar_contexto".to_string(), TypeIR::Verso);
-    sigs.insert(
+    sigs_intrinsecas.insert("argumento".to_string(), TypeIR::Verso);
+    sigs_intrinsecas.insert("argumento_ou".to_string(), TypeIR::Verso);
+    sigs_intrinsecas.insert("tem_chave".to_string(), TypeIR::Logica);
+    sigs_intrinsecas.insert("tem_argumento_nomeado".to_string(), TypeIR::Logica);
+    sigs_intrinsecas.insert("pedir_argumento".to_string(), TypeIR::Verso);
+    sigs_intrinsecas.insert("argumento_nomeado_ou".to_string(), TypeIR::Verso);
+    sigs_intrinsecas.insert("tem_flag".to_string(), TypeIR::Logica);
+    sigs_intrinsecas.insert("ambiente_ou".to_string(), TypeIR::Verso);
+    sigs_intrinsecas.insert("buscar_contexto".to_string(), TypeIR::Verso);
+    sigs_intrinsecas.insert(
         "argumento_nomeado_ou_ambiente_ou".to_string(),
         TypeIR::Verso,
     );
-    sigs.insert("caminho_existe".to_string(), TypeIR::Logica);
-    sigs.insert("e_arquivo".to_string(), TypeIR::Logica);
-    sigs.insert("e_diretorio".to_string(), TypeIR::Logica);
-    sigs.insert("juntar_caminho".to_string(), TypeIR::Verso);
-    sigs.insert("tamanho_arquivo".to_string(), TypeIR::Bombom);
-    sigs.insert("e_vazio".to_string(), TypeIR::Logica);
-    sigs.insert("criar_diretorio".to_string(), TypeIR::Nulo);
-    sigs.insert("remover_arquivo".to_string(), TypeIR::Nulo);
-    sigs.insert("remover_diretorio".to_string(), TypeIR::Nulo);
-    sigs.insert("diretorio_atual".to_string(), TypeIR::Verso);
-    sigs.insert("quantos_argumentos".to_string(), TypeIR::Bombom);
-    sigs.insert("tem_argumento".to_string(), TypeIR::Logica);
-    sigs.insert("sair".to_string(), TypeIR::Nulo);
-    sigs.insert("abrir".to_string(), TypeIR::Bombom);
-    sigs.insert("ler_arquivo".to_string(), TypeIR::Bombom);
-    sigs.insert("ler_verso_arquivo".to_string(), TypeIR::Verso);
-    sigs.insert("ler_arquivo_verso".to_string(), TypeIR::Verso);
+    sigs_intrinsecas.insert("caminho_existe".to_string(), TypeIR::Logica);
+    sigs_intrinsecas.insert("e_arquivo".to_string(), TypeIR::Logica);
+    sigs_intrinsecas.insert("e_diretorio".to_string(), TypeIR::Logica);
+    sigs_intrinsecas.insert("juntar_caminho".to_string(), TypeIR::Verso);
+    sigs_intrinsecas.insert("tamanho_arquivo".to_string(), TypeIR::Bombom);
+    sigs_intrinsecas.insert("e_vazio".to_string(), TypeIR::Logica);
+    sigs_intrinsecas.insert("criar_diretorio".to_string(), TypeIR::Nulo);
+    sigs_intrinsecas.insert("remover_arquivo".to_string(), TypeIR::Nulo);
+    sigs_intrinsecas.insert("remover_diretorio".to_string(), TypeIR::Nulo);
+    sigs_intrinsecas.insert("diretorio_atual".to_string(), TypeIR::Verso);
+    sigs_intrinsecas.insert("quantos_argumentos".to_string(), TypeIR::Bombom);
+    sigs_intrinsecas.insert("tem_argumento".to_string(), TypeIR::Logica);
+    sigs_intrinsecas.insert("sair".to_string(), TypeIR::Nulo);
+    sigs_intrinsecas.insert("abrir".to_string(), TypeIR::Bombom);
+    sigs_intrinsecas.insert("ler_arquivo".to_string(), TypeIR::Bombom);
+    sigs_intrinsecas.insert("ler_verso_arquivo".to_string(), TypeIR::Verso);
+    sigs_intrinsecas.insert("ler_arquivo_verso".to_string(), TypeIR::Verso);
     // Parte B: leque com carga é handle de uma palavra na seleção.
     for nome in crate::falha_operacional::nomes() {
-        sigs.insert(nome.to_string(), TypeIR::Bombom);
+        sigs_intrinsecas.insert(nome.to_string(), TypeIR::Bombom);
     }
     for nome in crate::valor_json::ACESSORES {
         let (retorno, _) = crate::valor_json::assinatura_ir(nome)
             .expect("acessor JSON sem assinatura na autoridade");
-        sigs.insert(nome.to_string(), retorno);
+        sigs_intrinsecas.insert(nome.to_string(), retorno);
     }
     for nome in crate::sha256::ACESSORES {
         let (retorno, _) = crate::sha256::assinatura_ir(nome)
             .expect("acessor SHA-256 sem assinatura na autoridade");
-        sigs.insert(nome.to_string(), retorno);
+        sigs_intrinsecas.insert(nome.to_string(), retorno);
     }
-    sigs.insert(
+    sigs_intrinsecas.insert(
         crate::saida_processo::ACESSOR_CODIGO.to_string(),
         TypeIR::Bombom,
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         crate::saida_processo::ACESSOR_SAIDA.to_string(),
         TypeIR::Verso,
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         crate::saida_processo::ACESSOR_ERRO.to_string(),
         TypeIR::Verso,
     );
-    sigs.insert("arquivo_ou".to_string(), TypeIR::Verso);
-    sigs.insert("fechar".to_string(), TypeIR::Nulo);
-    sigs.insert("criar_arquivo".to_string(), TypeIR::Bombom);
-    sigs.insert("abrir_anexo".to_string(), TypeIR::Bombom);
-    sigs.insert("escrever".to_string(), TypeIR::Nulo);
-    sigs.insert("escrever_verso".to_string(), TypeIR::Nulo);
-    sigs.insert("truncar_arquivo".to_string(), TypeIR::Nulo);
-    sigs.insert("anexar_verso".to_string(), TypeIR::Nulo);
-    sigs.insert("juntar_verso".to_string(), TypeIR::Verso);
-    sigs.insert("tamanho_verso".to_string(), TypeIR::Bombom);
-    sigs.insert("indice_verso".to_string(), TypeIR::Verso);
-    sigs.insert("fatiar_verso".to_string(), TypeIR::Verso);
-    sigs.insert("contem_verso".to_string(), TypeIR::Logica);
-    sigs.insert("comeca_com".to_string(), TypeIR::Logica);
-    sigs.insert("termina_com".to_string(), TypeIR::Logica);
-    sigs.insert("igual_verso".to_string(), TypeIR::Logica);
-    sigs.insert("vazio_verso".to_string(), TypeIR::Logica);
-    sigs.insert("aparar_verso".to_string(), TypeIR::Verso);
-    sigs.insert("minusculo_verso".to_string(), TypeIR::Verso);
-    sigs.insert("maiusculo_verso".to_string(), TypeIR::Verso);
-    sigs.insert("indice_verso_em".to_string(), TypeIR::Bombom);
+    sigs_intrinsecas.insert("arquivo_ou".to_string(), TypeIR::Verso);
+    sigs_intrinsecas.insert("fechar".to_string(), TypeIR::Nulo);
+    sigs_intrinsecas.insert("criar_arquivo".to_string(), TypeIR::Bombom);
+    sigs_intrinsecas.insert("abrir_anexo".to_string(), TypeIR::Bombom);
+    sigs_intrinsecas.insert("escrever".to_string(), TypeIR::Nulo);
+    sigs_intrinsecas.insert("escrever_verso".to_string(), TypeIR::Nulo);
+    sigs_intrinsecas.insert("truncar_arquivo".to_string(), TypeIR::Nulo);
+    sigs_intrinsecas.insert("anexar_verso".to_string(), TypeIR::Nulo);
+    sigs_intrinsecas.insert("juntar_verso".to_string(), TypeIR::Verso);
+    sigs_intrinsecas.insert("tamanho_verso".to_string(), TypeIR::Bombom);
+    sigs_intrinsecas.insert("indice_verso".to_string(), TypeIR::Verso);
+    sigs_intrinsecas.insert("fatiar_verso".to_string(), TypeIR::Verso);
+    sigs_intrinsecas.insert("contem_verso".to_string(), TypeIR::Logica);
+    sigs_intrinsecas.insert("comeca_com".to_string(), TypeIR::Logica);
+    sigs_intrinsecas.insert("termina_com".to_string(), TypeIR::Logica);
+    sigs_intrinsecas.insert("igual_verso".to_string(), TypeIR::Logica);
+    sigs_intrinsecas.insert("vazio_verso".to_string(), TypeIR::Logica);
+    sigs_intrinsecas.insert("aparar_verso".to_string(), TypeIR::Verso);
+    sigs_intrinsecas.insert("minusculo_verso".to_string(), TypeIR::Verso);
+    sigs_intrinsecas.insert("maiusculo_verso".to_string(), TypeIR::Verso);
+    sigs_intrinsecas.insert("indice_verso_em".to_string(), TypeIR::Bombom);
     // Fase 140
-    sigs.insert("buscar_verso".to_string(), TypeIR::Bombom);
-    sigs.insert("nao_vazio_verso".to_string(), TypeIR::Logica);
+    sigs_intrinsecas.insert("buscar_verso".to_string(), TypeIR::Bombom);
+    sigs_intrinsecas.insert("nao_vazio_verso".to_string(), TypeIR::Logica);
     // Fase 137
-    sigs.insert("dividir_verso_em".to_string(), TypeIR::Verso);
-    sigs.insert("dividir_verso_contar".to_string(), TypeIR::Bombom);
+    sigs_intrinsecas.insert("dividir_verso_em".to_string(), TypeIR::Verso);
+    sigs_intrinsecas.insert("dividir_verso_contar".to_string(), TypeIR::Bombom);
     // Fase 138
-    sigs.insert("substituir_verso".to_string(), TypeIR::Verso);
+    sigs_intrinsecas.insert("substituir_verso".to_string(), TypeIR::Verso);
     // Fase 139
-    sigs.insert("juntar_verso_com".to_string(), TypeIR::Verso);
-    sigs.insert("formatar_verso".to_string(), TypeIR::Verso);
+    sigs_intrinsecas.insert("juntar_verso_com".to_string(), TypeIR::Verso);
+    sigs_intrinsecas.insert("formatar_verso".to_string(), TypeIR::Verso);
     // Fase 158
-    sigs.insert("ler_linha_csv_bombom".to_string(), TypeIR::ListBombom);
-    sigs.insert("emitir_linha_csv_bombom".to_string(), TypeIR::Verso);
-    sigs.insert("ler_json_plano_bombom".to_string(), TypeIR::MapVersoBombom);
-    sigs.insert("emitir_json_plano_bombom".to_string(), TypeIR::Verso);
-    sigs.insert("tempo_unix".to_string(), TypeIR::Bombom);
-    sigs.insert("formatar_tempo_unix".to_string(), TypeIR::Verso);
-    sigs.insert("executar_processo".to_string(), TypeIR::Bombom);
-    sigs.insert("executar_com_entrada".to_string(), TypeIR::Bombom);
-    sigs.insert("pipeline_minimo".to_string(), TypeIR::Bombom);
-    sigs.insert("capturar_stdout".to_string(), TypeIR::Verso);
-    sigs.insert("capturar_stderr".to_string(), TypeIR::Verso);
-    sigs.insert("afirmar".to_string(), TypeIR::Nulo);
-    sigs.insert("dormir".to_string(), TypeIR::Nulo);
-    sigs.insert("copiar_arquivo".to_string(), TypeIR::Nulo);
-    sigs.insert("renomear_arquivo".to_string(), TypeIR::Nulo);
-    sigs.insert("verso_para_bombom".to_string(), TypeIR::Bombom);
-    sigs.insert("bombom_para_verso".to_string(), TypeIR::Verso);
-    sigs.insert("aleatorio_entre".to_string(), TypeIR::Bombom);
-    sigs.insert("mapa_verso_bombom_remover".to_string(), TypeIR::Nulo);
-    sigs.insert("lista_bombom_inserir".to_string(), TypeIR::Nulo);
-    sigs.insert("lista_verso_inserir".to_string(), TypeIR::Nulo);
+    sigs_intrinsecas.insert("ler_linha_csv_bombom".to_string(), TypeIR::ListBombom);
+    sigs_intrinsecas.insert("emitir_linha_csv_bombom".to_string(), TypeIR::Verso);
+    sigs_intrinsecas.insert("ler_json_plano_bombom".to_string(), TypeIR::MapVersoBombom);
+    sigs_intrinsecas.insert("emitir_json_plano_bombom".to_string(), TypeIR::Verso);
+    sigs_intrinsecas.insert("tempo_unix".to_string(), TypeIR::Bombom);
+    sigs_intrinsecas.insert("formatar_tempo_unix".to_string(), TypeIR::Verso);
+    sigs_intrinsecas.insert("executar_processo".to_string(), TypeIR::Bombom);
+    sigs_intrinsecas.insert("executar_com_entrada".to_string(), TypeIR::Bombom);
+    sigs_intrinsecas.insert("pipeline_minimo".to_string(), TypeIR::Bombom);
+    sigs_intrinsecas.insert("capturar_stdout".to_string(), TypeIR::Verso);
+    sigs_intrinsecas.insert("capturar_stderr".to_string(), TypeIR::Verso);
+    sigs_intrinsecas.insert("afirmar".to_string(), TypeIR::Nulo);
+    sigs_intrinsecas.insert("dormir".to_string(), TypeIR::Nulo);
+    sigs_intrinsecas.insert("copiar_arquivo".to_string(), TypeIR::Nulo);
+    sigs_intrinsecas.insert("renomear_arquivo".to_string(), TypeIR::Nulo);
+    sigs_intrinsecas.insert("verso_para_bombom".to_string(), TypeIR::Bombom);
+    sigs_intrinsecas.insert("bombom_para_verso".to_string(), TypeIR::Verso);
+    sigs_intrinsecas.insert("aleatorio_entre".to_string(), TypeIR::Bombom);
+    sigs_intrinsecas.insert("mapa_verso_bombom_remover".to_string(), TypeIR::Nulo);
+    sigs_intrinsecas.insert("lista_bombom_inserir".to_string(), TypeIR::Nulo);
+    sigs_intrinsecas.insert("lista_verso_inserir".to_string(), TypeIR::Nulo);
 
+    // #532: a assinatura consultada depende da identidade decidida na
+    // resolução, não da chave textual compartilhada.
+    let sigs = crate::intrinsic_authority::TabelaPorIdentidade {
+        usuario: sigs_usuario,
+        intrinsecas: sigs_intrinsecas,
+    };
     for f in &program.functions {
         if f.blocks.is_empty() {
             return Err(err("selected function sem blocos"));
@@ -479,14 +486,16 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
                         callee,
                         args,
                         ret_type,
+                        identidade,
                     } => {
                         for a in args {
                             check_operand(a, &slots, &temps, &globals)?;
                         }
-                        if callee != "__ternario"
-                            && !generic_map_intrinsic_ret_matches(callee, *ret_type)
+                        if !(identidade.dispatches_as_builtin()
+                            && (callee == "__ternario"
+                                || generic_map_intrinsic_ret_matches(callee, *ret_type)))
                         {
-                            let Some(sig) = sigs.get(callee) else {
+                            let Some(sig) = sigs.resolver(*identidade, callee) else {
                                 return Err(err("selected call para função inexistente"));
                             };
                             if !sig.is_compatible_with(*ret_type) {
@@ -618,14 +627,19 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
                             }
                         }
                     }
-                    SelectedInstr::CallVoid { callee, args } => {
+                    SelectedInstr::CallVoid {
+                        callee,
+                        args,
+                        identidade,
+                    } => {
                         for a in args {
                             check_operand(a, &slots, &temps, &globals)?;
                         }
-                        if generic_map_intrinsic_void(callee) {
+                        if identidade.dispatches_as_builtin() && generic_map_intrinsic_void(callee)
+                        {
                             continue;
                         }
-                        let Some(sig) = sigs.get(callee) else {
+                        let Some(sig) = sigs.resolver(*identidade, callee) else {
                             return Err(err("selected call_void para função inexistente"));
                         };
                         if !sig.is_compatible_with(TypeIR::Nulo) {
@@ -637,7 +651,7 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
                         function_name,
                         captures,
                     } => {
-                        if !sigs.contains_key(function_name) {
+                        if !sigs.contem_grafia(function_name) {
                             return Err(err("selected make_closure para função inexistente"));
                         }
                         for capture in captures {

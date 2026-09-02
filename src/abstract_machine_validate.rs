@@ -73,7 +73,8 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
         globals.insert(g.name.clone(), infer_operand_type(&g.value));
     }
 
-    let mut sigs = HashMap::new();
+    let mut sigs_usuario = HashMap::new();
+    let mut sigs_intrinsecas = HashMap::new();
     for f in &program.functions {
         let param_types = f
             .params
@@ -86,56 +87,56 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
                     .unwrap_or(StackValueType::Unknown)
             })
             .collect::<Vec<_>>();
-        sigs.insert(f.name.clone(), (f.ret_type, param_types));
+        sigs_usuario.insert(f.name.clone(), (f.ret_type, param_types));
     }
-    sigs.insert("ouvir".to_string(), (TypeIR::Bombom, vec![]));
-    sigs.insert("ouvir_verso".to_string(), (TypeIR::Verso, vec![]));
-    sigs.insert(
+    sigs_intrinsecas.insert("ouvir".to_string(), (TypeIR::Bombom, vec![]));
+    sigs_intrinsecas.insert("ouvir_verso".to_string(), (TypeIR::Verso, vec![]));
+    sigs_intrinsecas.insert(
         "ouvir_verso_ou".to_string(),
         (TypeIR::Verso, vec![StackValueType::Verso]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "aleatorio_criar".to_string(),
         (TypeIR::Bombom, vec![StackValueType::Bombom]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "aleatorio_proximo".to_string(),
         (TypeIR::Bombom, vec![StackValueType::Bombom]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "alocar".to_string(),
         (
             TypeIR::Pointer { is_volatile: false },
             vec![StackValueType::Bombom],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "liberar".to_string(),
         (TypeIR::Nulo, vec![StackValueType::Unknown]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "lista_bombom_criar".to_string(),
         (TypeIR::ListBombom, vec![]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "lista_bombom_anexar".to_string(),
         (
             TypeIR::Nulo,
             vec![StackValueType::Unknown, StackValueType::Bombom],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "lista_bombom_obter".to_string(),
         (
             TypeIR::Bombom,
             vec![StackValueType::Unknown, StackValueType::Bombom],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "lista_bombom_tamanho".to_string(),
         (TypeIR::Bombom, vec![StackValueType::Unknown]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "lista_bombom_definir".to_string(),
         (
             TypeIR::Nulo,
@@ -146,30 +147,30 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
             ],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "lista_bombom_tirar_ultimo".to_string(),
         (TypeIR::Bombom, vec![StackValueType::Unknown]),
     );
-    sigs.insert("lista_verso_criar".to_string(), (TypeIR::ListVerso, vec![]));
-    sigs.insert(
+    sigs_intrinsecas.insert("lista_verso_criar".to_string(), (TypeIR::ListVerso, vec![]));
+    sigs_intrinsecas.insert(
         "lista_verso_anexar".to_string(),
         (
             TypeIR::Nulo,
             vec![StackValueType::Unknown, StackValueType::Verso],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "lista_verso_obter".to_string(),
         (
             TypeIR::Verso,
             vec![StackValueType::Unknown, StackValueType::Bombom],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "lista_verso_tamanho".to_string(),
         (TypeIR::Bombom, vec![StackValueType::Unknown]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "lista_verso_definir".to_string(),
         (
             TypeIR::Nulo,
@@ -180,15 +181,15 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
             ],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "lista_verso_tirar_ultimo".to_string(),
         (TypeIR::Verso, vec![StackValueType::Unknown]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_verso_bombom_criar".to_string(),
         (TypeIR::MapVersoBombom, vec![]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_verso_bombom_definir".to_string(),
         (
             TypeIR::Nulo,
@@ -199,37 +200,37 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
             ],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_verso_bombom_obter".to_string(),
         (
             TypeIR::Bombom,
             vec![StackValueType::Unknown, StackValueType::Verso],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_verso_bombom_tem".to_string(),
         (
             TypeIR::Logica,
             vec![StackValueType::Unknown, StackValueType::Verso],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_verso_bombom_tamanho".to_string(),
         (TypeIR::Bombom, vec![StackValueType::Unknown]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "__pinker_internal_mapa_verso_bombom_iterador_criar".to_string(),
         (TypeIR::Bombom, vec![StackValueType::Unknown]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "__pinker_internal_mapa_verso_bombom_iterador_proxima_chave".to_string(),
         (TypeIR::Verso, vec![StackValueType::Bombom]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_verso_verso_criar".to_string(),
         (TypeIR::MapVersoVerso, vec![]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_verso_verso_definir".to_string(),
         (
             TypeIR::Nulo,
@@ -240,44 +241,44 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
             ],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_verso_verso_obter".to_string(),
         (
             TypeIR::Verso,
             vec![StackValueType::Unknown, StackValueType::Verso],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_verso_verso_tem".to_string(),
         (
             TypeIR::Logica,
             vec![StackValueType::Unknown, StackValueType::Verso],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_verso_verso_tamanho".to_string(),
         (TypeIR::Bombom, vec![StackValueType::Unknown]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_verso_verso_remover".to_string(),
         (
             TypeIR::Nulo,
             vec![StackValueType::Unknown, StackValueType::Verso],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "__pinker_internal_mapa_verso_verso_iterador_criar".to_string(),
         (TypeIR::Bombom, vec![StackValueType::Unknown]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "__pinker_internal_mapa_verso_verso_iterador_proxima_chave".to_string(),
         (TypeIR::Verso, vec![StackValueType::Bombom]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_bombom_bombom_criar".to_string(),
         (TypeIR::MapBombomBombom, vec![]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_bombom_bombom_definir".to_string(),
         (
             TypeIR::Nulo,
@@ -288,44 +289,44 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
             ],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_bombom_bombom_obter".to_string(),
         (
             TypeIR::Bombom,
             vec![StackValueType::Unknown, StackValueType::Bombom],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_bombom_bombom_tem".to_string(),
         (
             TypeIR::Logica,
             vec![StackValueType::Unknown, StackValueType::Bombom],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_bombom_bombom_tamanho".to_string(),
         (TypeIR::Bombom, vec![StackValueType::Unknown]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_bombom_bombom_remover".to_string(),
         (
             TypeIR::Nulo,
             vec![StackValueType::Unknown, StackValueType::Bombom],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "__pinker_internal_mapa_bombom_bombom_iterador_criar".to_string(),
         (TypeIR::Bombom, vec![StackValueType::Unknown]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "__pinker_internal_mapa_bombom_bombom_iterador_proxima_chave".to_string(),
         (TypeIR::Bombom, vec![StackValueType::Bombom]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_bombom_verso_criar".to_string(),
         (TypeIR::MapBombomVerso, vec![]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_bombom_verso_definir".to_string(),
         (
             TypeIR::Nulo,
@@ -336,62 +337,62 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
             ],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_bombom_verso_obter".to_string(),
         (
             TypeIR::Verso,
             vec![StackValueType::Unknown, StackValueType::Bombom],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_bombom_verso_tem".to_string(),
         (
             TypeIR::Logica,
             vec![StackValueType::Unknown, StackValueType::Bombom],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_bombom_verso_tamanho".to_string(),
         (TypeIR::Bombom, vec![StackValueType::Unknown]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_bombom_verso_remover".to_string(),
         (
             TypeIR::Nulo,
             vec![StackValueType::Unknown, StackValueType::Bombom],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "__pinker_internal_mapa_bombom_verso_iterador_criar".to_string(),
         (TypeIR::Bombom, vec![StackValueType::Unknown]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "__pinker_internal_mapa_bombom_verso_iterador_proxima_chave".to_string(),
         (TypeIR::Bombom, vec![StackValueType::Bombom]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "__pinker_internal_leque_criar_0".to_string(),
         (TypeIR::Bombom, vec![StackValueType::Bombom]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "__pinker_internal_leque_anexar_b".to_string(),
         (
             TypeIR::Bombom,
             vec![StackValueType::Bombom, StackValueType::Bombom],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "__pinker_internal_leque_anexar_v".to_string(),
         (
             TypeIR::Bombom,
             vec![StackValueType::Bombom, StackValueType::Verso],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "__pinker_internal_leque_tag".to_string(),
         (TypeIR::Bombom, vec![StackValueType::Bombom]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "__pinker_internal_leque_carga_b".to_string(),
         (
             TypeIR::Bombom,
@@ -405,21 +406,21 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
     // D1: cargas de lista. O handle é uma palavra na pilha, como as demais
     // cargas; a categoria operacional é o que impede `lista<verso>` de ser
     // aceita pelo caminho de `verso`.
-    sigs.insert(
+    sigs_intrinsecas.insert(
         crate::enum_payload::ANEXAR_LISTA_BOMBOM.to_string(),
         (
             TypeIR::Bombom,
             vec![StackValueType::Bombom, StackValueType::ListBombom],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         crate::enum_payload::ANEXAR_LISTA_VERSO.to_string(),
         (
             TypeIR::Bombom,
             vec![StackValueType::Bombom, StackValueType::ListVerso],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         crate::enum_payload::CARGA_LISTA_BOMBOM.to_string(),
         (
             TypeIR::ListBombom,
@@ -430,7 +431,7 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
             ],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         crate::enum_payload::CARGA_LISTA_VERSO.to_string(),
         (
             TypeIR::ListVerso,
@@ -441,14 +442,14 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
             ],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         crate::enum_payload::ANEXAR_SAIDA_PROCESSO.to_string(),
         (
             TypeIR::Bombom,
             vec![StackValueType::Bombom, StackValueType::Unknown],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         crate::enum_payload::CARGA_SAIDA_PROCESSO.to_string(),
         (
             TypeIR::OpaqueWordHandle,
@@ -459,7 +460,7 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
             ],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "__pinker_internal_leque_carga_v".to_string(),
         (
             TypeIR::Verso,
@@ -472,51 +473,51 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
     );
     // União não possui assinatura chamável na máquina: `union_tag` e
     // `union_extract` são instruções internas tipadas.
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "argumento".to_string(),
         (TypeIR::Verso, vec![StackValueType::Bombom]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "argumento_ou".to_string(),
         (
             TypeIR::Verso,
             vec![StackValueType::Bombom, StackValueType::Verso],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "tem_chave".to_string(),
         (TypeIR::Logica, vec![StackValueType::Verso]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "tem_argumento_nomeado".to_string(),
         (TypeIR::Logica, vec![StackValueType::Verso]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "pedir_argumento".to_string(),
         (
             TypeIR::Verso,
             vec![StackValueType::Verso, StackValueType::Verso],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "argumento_nomeado_ou".to_string(),
         (
             TypeIR::Verso,
             vec![StackValueType::Verso, StackValueType::Verso],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "tem_flag".to_string(),
         (TypeIR::Logica, vec![StackValueType::Verso]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "ambiente_ou".to_string(),
         (
             TypeIR::Verso,
             vec![StackValueType::Verso, StackValueType::Verso],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "buscar_contexto".to_string(),
         (
             TypeIR::Verso,
@@ -527,7 +528,7 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
             ],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "argumento_nomeado_ou_ambiente_ou".to_string(),
         (
             TypeIR::Verso,
@@ -538,74 +539,74 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
             ],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "caminho_existe".to_string(),
         (TypeIR::Logica, vec![StackValueType::Verso]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "e_arquivo".to_string(),
         (TypeIR::Logica, vec![StackValueType::Verso]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "e_diretorio".to_string(),
         (TypeIR::Logica, vec![StackValueType::Verso]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "juntar_caminho".to_string(),
         (
             TypeIR::Verso,
             vec![StackValueType::Verso, StackValueType::Verso],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "tamanho_arquivo".to_string(),
         (TypeIR::Bombom, vec![StackValueType::Verso]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "e_vazio".to_string(),
         (TypeIR::Logica, vec![StackValueType::Verso]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "criar_diretorio".to_string(),
         (TypeIR::Nulo, vec![StackValueType::Verso]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "remover_arquivo".to_string(),
         (TypeIR::Nulo, vec![StackValueType::Verso]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "remover_diretorio".to_string(),
         (TypeIR::Nulo, vec![StackValueType::Verso]),
     );
-    sigs.insert("diretorio_atual".to_string(), (TypeIR::Verso, vec![]));
-    sigs.insert("quantos_argumentos".to_string(), (TypeIR::Bombom, vec![]));
-    sigs.insert(
+    sigs_intrinsecas.insert("diretorio_atual".to_string(), (TypeIR::Verso, vec![]));
+    sigs_intrinsecas.insert("quantos_argumentos".to_string(), (TypeIR::Bombom, vec![]));
+    sigs_intrinsecas.insert(
         "tem_argumento".to_string(),
         (TypeIR::Logica, vec![StackValueType::Bombom]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "sair".to_string(),
         (TypeIR::Nulo, vec![StackValueType::Bombom]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "abrir".to_string(),
         (TypeIR::Bombom, vec![StackValueType::Verso]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "ler_arquivo".to_string(),
         (TypeIR::Bombom, vec![StackValueType::Bombom]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "ler_verso_arquivo".to_string(),
         (TypeIR::Verso, vec![StackValueType::Bombom]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "ler_arquivo_verso".to_string(),
         (TypeIR::Verso, vec![StackValueType::Verso]),
     );
     // Parte B: leque com carga é handle de uma palavra na máquina de pilha.
     for superficie in crate::falha_operacional::SUPERFICIES_FALIVEIS {
-        sigs.insert(
+        sigs_intrinsecas.insert(
             superficie.intrinseca.to_string(),
             (
                 TypeIR::Bombom,
@@ -620,7 +621,7 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
     for nome in crate::valor_json::ACESSORES {
         let (retorno, params) = crate::valor_json::assinatura_ir(nome)
             .expect("acessor JSON sem assinatura na autoridade");
-        sigs.insert(
+        sigs_intrinsecas.insert(
             nome.to_string(),
             (retorno, params.into_iter().map(type_to_stack).collect()),
         );
@@ -628,7 +629,7 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
     for nome in crate::sha256::ACESSORES {
         let (retorno, params) = crate::sha256::assinatura_ir(nome)
             .expect("acessor SHA-256 sem assinatura na autoridade");
-        sigs.insert(
+        sigs_intrinsecas.insert(
             nome.to_string(),
             (retorno, params.into_iter().map(type_to_stack).collect()),
         );
@@ -647,71 +648,71 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
             (TypeIR::Verso, StackValueType::Verso),
         ),
     ] {
-        sigs.insert(nome.to_string(), (retorno.0, vec![StackValueType::Unknown]));
+        sigs_intrinsecas.insert(nome.to_string(), (retorno.0, vec![StackValueType::Unknown]));
     }
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "arquivo_ou".to_string(),
         (
             TypeIR::Verso,
             vec![StackValueType::Verso, StackValueType::Verso],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "fechar".to_string(),
         (TypeIR::Nulo, vec![StackValueType::Bombom]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "criar_arquivo".to_string(),
         (TypeIR::Bombom, vec![StackValueType::Verso]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "abrir_anexo".to_string(),
         (TypeIR::Bombom, vec![StackValueType::Verso]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "escrever".to_string(),
         (
             TypeIR::Nulo,
             vec![StackValueType::Bombom, StackValueType::Bombom],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "escrever_verso".to_string(),
         (
             TypeIR::Nulo,
             vec![StackValueType::Bombom, StackValueType::Verso],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "truncar_arquivo".to_string(),
         (TypeIR::Nulo, vec![StackValueType::Bombom]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "anexar_verso".to_string(),
         (
             TypeIR::Nulo,
             vec![StackValueType::Bombom, StackValueType::Verso],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "juntar_verso".to_string(),
         (
             TypeIR::Verso,
             vec![StackValueType::Verso, StackValueType::Verso],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "tamanho_verso".to_string(),
         (TypeIR::Bombom, vec![StackValueType::Verso]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "indice_verso".to_string(),
         (
             TypeIR::Verso,
             vec![StackValueType::Verso, StackValueType::Bombom],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "fatiar_verso".to_string(),
         (
             TypeIR::Verso,
@@ -722,51 +723,51 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
             ],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "contem_verso".to_string(),
         (
             TypeIR::Logica,
             vec![StackValueType::Verso, StackValueType::Verso],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "comeca_com".to_string(),
         (
             TypeIR::Logica,
             vec![StackValueType::Verso, StackValueType::Verso],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "termina_com".to_string(),
         (
             TypeIR::Logica,
             vec![StackValueType::Verso, StackValueType::Verso],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "igual_verso".to_string(),
         (
             TypeIR::Logica,
             vec![StackValueType::Verso, StackValueType::Verso],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "vazio_verso".to_string(),
         (TypeIR::Logica, vec![StackValueType::Verso]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "aparar_verso".to_string(),
         (TypeIR::Verso, vec![StackValueType::Verso]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "minusculo_verso".to_string(),
         (TypeIR::Verso, vec![StackValueType::Verso]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "maiusculo_verso".to_string(),
         (TypeIR::Verso, vec![StackValueType::Verso]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "indice_verso_em".to_string(),
         (
             TypeIR::Bombom,
@@ -774,19 +775,19 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
         ),
     );
     // Fase 140
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "buscar_verso".to_string(),
         (
             TypeIR::Bombom,
             vec![StackValueType::Verso, StackValueType::Verso],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "nao_vazio_verso".to_string(),
         (TypeIR::Logica, vec![StackValueType::Verso]),
     );
     // Fase 137
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "dividir_verso_em".to_string(),
         (
             TypeIR::Verso,
@@ -797,7 +798,7 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
             ],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "dividir_verso_contar".to_string(),
         (
             TypeIR::Bombom,
@@ -805,7 +806,7 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
         ),
     );
     // Fase 138
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "substituir_verso".to_string(),
         (
             TypeIR::Verso,
@@ -817,7 +818,7 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
         ),
     );
     // Fase 139
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "juntar_verso_com".to_string(),
         (
             TypeIR::Verso,
@@ -828,47 +829,47 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
             ],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "formatar_verso".to_string(),
         (TypeIR::Verso, vec![StackValueType::Verso]),
     );
     // Fase 158
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "ler_linha_csv_bombom".to_string(),
         (
             TypeIR::ListBombom,
             vec![StackValueType::Verso, StackValueType::Verso],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "emitir_linha_csv_bombom".to_string(),
         (
             TypeIR::Verso,
             vec![StackValueType::ListBombom, StackValueType::Verso],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "ler_json_plano_bombom".to_string(),
         (TypeIR::MapVersoBombom, vec![StackValueType::Verso]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "emitir_json_plano_bombom".to_string(),
         (TypeIR::Verso, vec![StackValueType::Unknown]),
     );
     // Fase 160
-    sigs.insert("tempo_unix".to_string(), (TypeIR::Bombom, vec![]));
-    sigs.insert(
+    sigs_intrinsecas.insert("tempo_unix".to_string(), (TypeIR::Bombom, vec![]));
+    sigs_intrinsecas.insert(
         "formatar_tempo_unix".to_string(),
         (TypeIR::Verso, vec![StackValueType::Bombom]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "executar_processo".to_string(),
         (
             TypeIR::Bombom,
             vec![StackValueType::Verso, StackValueType::Verso],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "executar_com_entrada".to_string(),
         (
             TypeIR::Bombom,
@@ -879,52 +880,52 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
             ],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "pipeline_minimo".to_string(),
         (
             TypeIR::Bombom,
             vec![StackValueType::Verso, StackValueType::Verso],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "capturar_stdout".to_string(),
         (TypeIR::Verso, vec![StackValueType::Verso]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "capturar_stderr".to_string(),
         (TypeIR::Verso, vec![StackValueType::Verso]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "afirmar".to_string(),
         (TypeIR::Nulo, vec![StackValueType::Logica]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "dormir".to_string(),
         (TypeIR::Nulo, vec![StackValueType::Bombom]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "copiar_arquivo".to_string(),
         (
             TypeIR::Nulo,
             vec![StackValueType::Verso, StackValueType::Verso],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "renomear_arquivo".to_string(),
         (
             TypeIR::Nulo,
             vec![StackValueType::Verso, StackValueType::Verso],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "verso_para_bombom".to_string(),
         (TypeIR::Bombom, vec![StackValueType::Verso]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "bombom_para_verso".to_string(),
         (TypeIR::Verso, vec![StackValueType::Bombom]),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "aleatorio_entre".to_string(),
         (
             TypeIR::Bombom,
@@ -935,14 +936,14 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
             ],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "mapa_verso_bombom_remover".to_string(),
         (
             TypeIR::Nulo,
             vec![StackValueType::Unknown, StackValueType::Verso],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "lista_bombom_inserir".to_string(),
         (
             TypeIR::Nulo,
@@ -953,7 +954,7 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
             ],
         ),
     );
-    sigs.insert(
+    sigs_intrinsecas.insert(
         "lista_verso_inserir".to_string(),
         (
             TypeIR::Nulo,
@@ -965,6 +966,13 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
         ),
     );
 
+    // #532: duas tabelas, escolhidas pela identidade do callee. Antes eram um
+    // mapa só, e a entrada da intrínseca sobrescrevia a da função homônima do
+    // usuário.
+    let sigs = crate::intrinsic_authority::TabelaPorIdentidade {
+        usuario: sigs_usuario,
+        intrinsecas: sigs_intrinsecas,
+    };
     for f in &program.functions {
         validate_function(f, &globals, &sigs)?;
     }
@@ -975,7 +983,7 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
 fn validate_function(
     f: &MachineFunction,
     globals: &HashMap<String, StackValueType>,
-    sigs: &HashMap<String, (TypeIR, Vec<StackValueType>)>,
+    sigs: &crate::intrinsic_authority::TabelaPorIdentidade<(TypeIR, Vec<StackValueType>)>,
 ) -> Result<(), PinkerError> {
     if f.blocks.is_empty() {
         return Err(err("função da máquina sem blocos"));
@@ -1040,8 +1048,12 @@ fn validate_function(
                         ));
                     }
                 }
-                MachineInstr::Call { callee, argc } => {
-                    if callee == "__ternario" {
+                MachineInstr::Call {
+                    callee,
+                    argc,
+                    identidade,
+                } => {
+                    if identidade.dispatches_as_builtin() && callee == "__ternario" {
                         if *argc != 3 {
                             return Err(err_ctx(
                                 f,
@@ -1051,7 +1063,9 @@ fn validate_function(
                         }
                         continue;
                     }
-                    if let Some(expected) = generic_map_intrinsic_arity(callee, true) {
+                    if let Some(expected) = generic_map_intrinsic_arity(callee, true)
+                        .filter(|_| identidade.dispatches_as_builtin())
+                    {
                         if *argc != expected {
                             return Err(err_ctx(
                                 f,
@@ -1061,7 +1075,7 @@ fn validate_function(
                         }
                         continue;
                     }
-                    if let Some((ret, param_types)) = sigs.get(callee) {
+                    if let Some((ret, param_types)) = sigs.resolver(*identidade, callee) {
                         if *ret == TypeIR::Nulo {
                             return Err(err_ctx(
                                 f,
@@ -1069,7 +1083,7 @@ fn validate_function(
                                 "call com retorno para função nulo",
                             ));
                         }
-                        if callee == "formatar_verso" {
+                        if identidade.dispatches_as_builtin() && callee == "formatar_verso" {
                             if *argc < 2 {
                                 return Err(err_ctx(
                                     f,
@@ -1079,7 +1093,7 @@ fn validate_function(
                             }
                             continue;
                         }
-                        if callee == "executar_processo" {
+                        if identidade.dispatches_as_builtin() && callee == "executar_processo" {
                             if !(*argc == 1 || *argc == 2) {
                                 return Err(err_ctx(
                                     f,
@@ -1089,7 +1103,7 @@ fn validate_function(
                             }
                             continue;
                         }
-                        if callee == "executar_com_entrada" {
+                        if identidade.dispatches_as_builtin() && callee == "executar_com_entrada" {
                             if !(*argc == 2 || *argc == 3) {
                                 return Err(err_ctx(
                                     f,
@@ -1099,7 +1113,7 @@ fn validate_function(
                             }
                             continue;
                         }
-                        if callee == "capturar_stdout" {
+                        if identidade.dispatches_as_builtin() && callee == "capturar_stdout" {
                             if !(*argc == 1 || *argc == 2) {
                                 return Err(err_ctx(
                                     f,
@@ -1109,7 +1123,7 @@ fn validate_function(
                             }
                             continue;
                         }
-                        if callee == "capturar_stderr" {
+                        if identidade.dispatches_as_builtin() && callee == "capturar_stderr" {
                             if !(*argc == 1 || *argc == 2) {
                                 return Err(err_ctx(
                                     f,
@@ -1119,7 +1133,7 @@ fn validate_function(
                             }
                             continue;
                         }
-                        if callee == "afirmar" {
+                        if identidade.dispatches_as_builtin() && callee == "afirmar" {
                             if !(*argc == 1 || *argc == 2) {
                                 return Err(err_ctx(
                                     f,
@@ -1136,8 +1150,14 @@ fn validate_function(
                         return Err(err_ctx(f, Some(&b.label), "call para função inexistente"));
                     }
                 }
-                MachineInstr::CallVoid { callee, argc } => {
-                    if let Some(expected) = generic_map_intrinsic_arity(callee, false) {
+                MachineInstr::CallVoid {
+                    callee,
+                    argc,
+                    identidade,
+                } => {
+                    if let Some(expected) = generic_map_intrinsic_arity(callee, false)
+                        .filter(|_| identidade.dispatches_as_builtin())
+                    {
                         if *argc != expected {
                             return Err(err_ctx(
                                 f,
@@ -1147,7 +1167,7 @@ fn validate_function(
                         }
                         continue;
                     }
-                    if let Some((ret, param_types)) = sigs.get(callee) {
+                    if let Some((ret, param_types)) = sigs.resolver(*identidade, callee) {
                         if *ret != TypeIR::Nulo {
                             return Err(err_ctx(
                                 f,
@@ -1155,7 +1175,7 @@ fn validate_function(
                                 "call_void para função com retorno",
                             ));
                         }
-                        if callee == "formatar_verso" {
+                        if identidade.dispatches_as_builtin() && callee == "formatar_verso" {
                             if *argc < 2 {
                                 return Err(err_ctx(
                                     f,
@@ -1165,7 +1185,7 @@ fn validate_function(
                             }
                             continue;
                         }
-                        if callee == "afirmar" {
+                        if identidade.dispatches_as_builtin() && callee == "afirmar" {
                             if !(*argc == 1 || *argc == 2) {
                                 return Err(err_ctx(
                                     f,
@@ -1312,7 +1332,7 @@ fn validate_function(
 fn validate_stack_discipline(
     f: &MachineFunction,
     globals: &HashMap<String, StackValueType>,
-    sigs: &HashMap<String, (TypeIR, Vec<StackValueType>)>,
+    sigs: &crate::intrinsic_authority::TabelaPorIdentidade<(TypeIR, Vec<StackValueType>)>,
 ) -> Result<(), PinkerError> {
     let mut label_to_block = HashMap::new();
     for b in &f.blocks {
@@ -1380,7 +1400,7 @@ fn apply_instr_effect(
     stack: &mut Vec<StackValueType>,
     slot_types: &mut HashMap<String, StackValueType>,
     globals: &HashMap<String, StackValueType>,
-    sigs: &HashMap<String, (TypeIR, Vec<StackValueType>)>,
+    sigs: &crate::intrinsic_authority::TabelaPorIdentidade<(TypeIR, Vec<StackValueType>)>,
 ) -> Result<(), PinkerError> {
     match i {
         MachineInstr::PushInt(_) => stack.push(StackValueType::Bombom),
@@ -1673,7 +1693,11 @@ fn apply_instr_effect(
             }
             stack.push(out_ty);
         }
-        MachineInstr::Call { callee, argc } => {
+        MachineInstr::Call {
+            callee,
+            argc,
+            identidade,
+        } => {
             let args = pop_typed(
                 f,
                 label,
@@ -1685,18 +1709,18 @@ fn apply_instr_effect(
                     callee, argc, callee
                 )),
             )?;
-            if callee == "__ternario" {
+            if identidade.dispatches_as_builtin() && callee == "__ternario" {
                 stack.push(args[1]);
                 return Ok(());
             }
-            if callee == "formatar_verso" {
+            if identidade.dispatches_as_builtin() && callee == "formatar_verso" {
                 ensure_formatar_verso_stack_args(f, label, &args, *argc, false)?;
                 stack.push(StackValueType::Verso);
                 return Ok(());
             }
-            if callee == "afirmar" && *argc == 2 {
+            if identidade.dispatches_as_builtin() && callee == "afirmar" && *argc == 2 {
                 let ret = sigs
-                    .get(callee)
+                    .resolver(*identidade, callee)
                     .map(|(ret, _)| *ret)
                     .unwrap_or(TypeIR::Bombom);
                 stack.push(type_to_stack(ret));
@@ -1706,7 +1730,7 @@ fn apply_instr_effect(
                 stack.push(ret);
                 return Ok(());
             }
-            if let Some((_ret, param_types)) = sigs.get(callee) {
+            if let Some((_ret, param_types)) = sigs.resolver(*identidade, callee) {
                 for (arg, expected) in args.iter().zip(param_types.iter().rev()) {
                     ensure_compatible(
                         f,
@@ -1722,12 +1746,16 @@ fn apply_instr_effect(
                 }
             }
             let ret = sigs
-                .get(callee)
+                .resolver(*identidade, callee)
                 .map(|(ret, _)| *ret)
                 .unwrap_or(TypeIR::Bombom);
             stack.push(type_to_stack(ret));
         }
-        MachineInstr::CallVoid { callee, argc } => {
+        MachineInstr::CallVoid {
+            callee,
+            argc,
+            identidade,
+        } => {
             let args = pop_typed(
                 f,
                 label,
@@ -1739,17 +1767,19 @@ fn apply_instr_effect(
                     callee, argc, callee
                 )),
             )?;
-            if callee == "formatar_verso" {
+            if identidade.dispatches_as_builtin() && callee == "formatar_verso" {
                 ensure_formatar_verso_stack_args(f, label, &args, *argc, true)?;
                 return Ok(());
             }
-            if callee == "afirmar" && *argc == 2 {
+            if identidade.dispatches_as_builtin() && callee == "afirmar" && *argc == 2 {
                 return Ok(());
             }
-            if generic_map_intrinsic_arity(callee, false).is_some() {
+            if identidade.dispatches_as_builtin()
+                && generic_map_intrinsic_arity(callee, false).is_some()
+            {
                 return Ok(());
             }
-            if let Some((_ret, param_types)) = sigs.get(callee) {
+            if let Some((_ret, param_types)) = sigs.resolver(*identidade, callee) {
                 for (arg, expected) in args.iter().zip(param_types.iter().rev()) {
                     ensure_compatible(
                         f,
@@ -1960,7 +1990,7 @@ fn apply_terminator_effect(
     label: &str,
     term: &MachineTerminator,
     stack: &mut Vec<StackValueType>,
-    _sigs: &HashMap<String, (TypeIR, Vec<StackValueType>)>,
+    _sigs: &crate::intrinsic_authority::TabelaPorIdentidade<(TypeIR, Vec<StackValueType>)>,
 ) -> Result<Vec<String>, PinkerError> {
     match term {
         MachineTerminator::Jmp(target) => Ok(vec![target.clone()]),

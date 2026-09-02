@@ -183,9 +183,12 @@ fn e_superficie_global(name: &str) -> bool {
 
 /// Import que a superfície de famílias built-in atende e o carregador não
 /// resolve como arquivo. A precedência é a mesma que o carregador aplica.
-fn e_import_de_familia(unit_imports_module: &str, tem_simbolo: bool, existe_modulo: bool) -> bool {
-    crate::familia_superficie::familia_conhecida(unit_imports_module)
-        && !(tem_simbolo && existe_modulo)
+///
+/// #532: a forma sintática deixou de participar da resposta. `tem_simbolo`
+/// respondia junto com a existência do módulo, e era isso que fazia a forma
+/// inteira ignorar um módulo real que a seletiva respeitava.
+fn e_import_de_familia(unit_imports_module: &str, existe_modulo: bool) -> bool {
+    crate::familia_superficie::familia_governa(unit_imports_module, existe_modulo)
 }
 
 /// Monta um ambiente por unidade do grafo.
@@ -274,11 +277,7 @@ fn ambiente_da_unidade(
     let mut grafias_importadas: HashMap<String, Span> = HashMap::new();
     for import in &unit.imports {
         let existe_modulo = graph.module(import.module.as_str()).is_some();
-        if e_import_de_familia(
-            import.module.as_str(),
-            import.symbol.is_some(),
-            existe_modulo,
-        ) {
+        if e_import_de_familia(import.module.as_str(), existe_modulo) {
             // Import de família não vira ligação de módulo, mas a forma
             // seletiva declara uma grafia na superfície da unidade — e essa
             // grafia disputa espaço com as demais exatamente como qualquer
@@ -941,6 +940,10 @@ impl<'a> Resolvedor<'a> {
                     }
                 }
             }
+            // #532: intrínseca já resolvida não é nome de unidade nenhuma, e
+            // por isso não é canonicalizada nem capturável por declaração
+            // homônima de qualquer unidade do grafo.
+            ExprKind::Intrinsic(_) => {}
             ExprKind::Binary(lhs, _, rhs) => {
                 self.resolver_expr(lhs)?;
                 self.resolver_expr(rhs)?;
@@ -1326,7 +1329,6 @@ pub fn projetar_programa(graph: &ModuleGraph) -> Result<Program, PinkerError> {
             .filter(|import| {
                 e_import_de_familia(
                     import.module.as_str(),
-                    import.symbol.is_some(),
                     graph.module(import.module.as_str()).is_some(),
                 )
             })
@@ -1769,6 +1771,8 @@ fn referencias_de_padrao(pattern: &EnumPattern, out: &mut Vec<String>) {
 fn referencias_de_expr(expr: &Expr, out: &mut Vec<String>) {
     match &expr.kind {
         ExprKind::Ident(name) => out.push(name.clone()),
+        // #532: identidade intrínseca não é referência a nome.
+        ExprKind::Intrinsic(_) => {}
         ExprKind::Binary(lhs, _, rhs) => {
             referencias_de_expr(lhs, out);
             referencias_de_expr(rhs, out);
