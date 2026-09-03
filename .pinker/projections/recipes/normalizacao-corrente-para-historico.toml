@@ -1,4 +1,4 @@
-schema = 2
+schema = 3
 id = "normalizacao-corrente-para-historico"
 
 [reconstruction]
