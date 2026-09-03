@@ -546,6 +546,10 @@ fn rule_json(rule: &Rule) -> String {
                 "\"expect_file\":{}",
                 option_json(expect_file.as_deref())
             ));
+            // Campo aditivo: como `expect_domain` e `expect_layer`, sai `null`
+            // quando ausente. Por isso não move `PROJECTION_CLI_SCHEMA` — o
+            // relatório continua sendo a mesma forma, com um campo opcional a
+            // mais que o modelo passou a ter.
             fields.push(format!("\"to_file\":{}", option_json(to_file.as_deref())));
             fields.push(format!(
                 "\"expect_domain\":{}",

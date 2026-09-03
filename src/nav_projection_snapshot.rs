@@ -2525,10 +2525,16 @@ impl Reconstruction {
 ///
 /// A relocação de caminho (`to_file`) acontece **dentro** da fase de override,
 /// na mesma regra atômica que restaura `hash` e `summary`, e não como uma etapa
-/// própria. Duas consequências valem por contrato: as exclusões por arquivo
-/// enxergam o caminho **corrente**, porque precisam casar com o catálogo de
-/// hoje, e nenhuma ordem textual entre restaurar caminho e restaurar conteúdo
-/// pode existir, porque não há duas operações para ordenar.
+/// própria. Não existe ordem entre relocar e restaurar conteúdo porque não há
+/// duas operações para ordenar.
+///
+/// A consequência sobre as exclusões por arquivo é **de escopo**, e a distinção
+/// importa: dentro de um mesmo conjunto de regras, `exclude-file` e
+/// `exclude-file-prefix` correm antes e portanto casam com o caminho corrente.
+/// Um escopo posterior — o snapshot que aplica uma receita, por exemplo — já
+/// recebe o estado com o caminho histórico e casa contra ele. Cada escopo
+/// enxerga a saída do anterior, que é a mesma regra de composição que vale para
+/// `hash` e `summary`.
 pub fn reconstruct(
     base: &[CodeRegion],
     snapshot: &ProjectionSnapshot,
