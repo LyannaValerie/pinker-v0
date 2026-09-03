@@ -52,8 +52,17 @@ pub const RECIPE_SCHEMA_V1: u64 = 1;
 /// levou o snapshot ao schema 3 — a reconstrução real restaura `summary`.
 pub const RECIPE_SCHEMA_V2: u64 = 2;
 
+/// Terceira versão: acompanha o schema 5 de snapshot e aceita `to_file` em
+/// `override-region` — a relocação de uma região estável entre arquivos.
+///
+/// A receita é o único escopo onde uma normalização nova pode nascer sem tocar
+/// byte de snapshot `FROZEN`, e relocação é exatamente uma normalização
+/// corrente-para-histórico: por isso a capacidade precisa existir aqui, e não só
+/// no snapshot.
+pub const RECIPE_SCHEMA_V3: u64 = 3;
+
 /// Versão máxima aceita do formato de receita.
-pub const RECIPE_SCHEMA: u64 = RECIPE_SCHEMA_V2;
+pub const RECIPE_SCHEMA: u64 = RECIPE_SCHEMA_V3;
 
 /// Diretório repo-relativo canônico das receitas.
 pub const RECIPES_DIR: &str = ".pinker/projections/recipes/";
@@ -147,7 +156,7 @@ pub fn parse_recipe(text: &str) -> Result<Recipe, HarnessFailure> {
             })
         }
     };
-    if !(RECIPE_SCHEMA_V1..=RECIPE_SCHEMA_V2).contains(&schema) {
+    if !(RECIPE_SCHEMA_V1..=RECIPE_SCHEMA_V3).contains(&schema) {
         return Err(HarnessFailure::SchemaUnknown {
             authority: SchemaAuthority::Recipe,
             found: schema,

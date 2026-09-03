@@ -76,13 +76,30 @@ pub const SNAPSHOT_SCHEMA_V3: u64 = 3;
 /// apagar uma única região do catálogo derrubava toda a cadeia congelada.
 pub const SNAPSHOT_SCHEMA_V4: u64 = 4;
 
+/// Quinta versão: acrescenta `to_file` a `override-region`, a restauração do
+/// caminho de uma região estável que mudou de arquivo no catálogo corrente.
+///
+/// Até aqui `file` só podia ser **conferido** (`expect_file`) ou **afirmado por
+/// inteiro** (`materialize-region`, que exige que a região não exista mais).
+/// Faltava o caso em que a região continua existindo, com a mesma chave
+/// estável, e apenas mudou de arquivo: a organização física do repositório
+/// evolui, e a projeção congelada precisa continuar dizendo onde a região
+/// estava. Sem esta capacidade, mover um arquivo cartografado derrubava toda a
+/// cadeia congelada sem remédio representável — a única saída seria editar
+/// snapshot `FROZEN`, que é byte-imutável.
+///
+/// A relocação é restauração de campo, não identidade: a seleção continua sendo
+/// exclusivamente pela chave estável, e `expect_file` é a origem declarada,
+/// obrigatória, que impede a regra de aceitar um arquivo corrente qualquer.
+pub const SNAPSHOT_SCHEMA_V5: u64 = 5;
+
 /// Versão máxima aceita do formato de snapshot, e a versão em que artefatos
 /// novos nascem.
 ///
 /// Versão aceita e versão do acervo são coisas distintas: os snapshots já
 /// materializados continuam exatamente na versão em que foram congelados, e
 /// nenhum deles é reescrito por causa de um bump.
-pub const SNAPSHOT_SCHEMA: u64 = SNAPSHOT_SCHEMA_V4;
+pub const SNAPSHOT_SCHEMA: u64 = SNAPSHOT_SCHEMA_V5;
 
 /// Schema do relatório de verificação, distinto do schema do artefato TOML.
 pub const SNAPSHOT_REPORT_SCHEMA: u64 = 1;
@@ -120,8 +137,8 @@ impl SchemaAuthority {
     /// Versões que este formato suporta, em texto.
     pub fn supported_versions(&self) -> &'static str {
         match self {
-            SchemaAuthority::Snapshot => "1, 2, 3 ou 4",
-            SchemaAuthority::Recipe => "1 ou 2",
+            SchemaAuthority::Snapshot => "1, 2, 3, 4 ou 5",
+            SchemaAuthority::Recipe => "1, 2 ou 3",
         }
     }
 
@@ -129,9 +146,9 @@ impl SchemaAuthority {
     pub fn supports(&self, schema: u64) -> bool {
         match self {
             SchemaAuthority::Snapshot => {
-                (SNAPSHOT_SCHEMA_V1..=SNAPSHOT_SCHEMA_V4).contains(&schema)
+                (SNAPSHOT_SCHEMA_V1..=SNAPSHOT_SCHEMA_V5).contains(&schema)
             }
-            SchemaAuthority::Recipe => (1..=2).contains(&schema),
+            SchemaAuthority::Recipe => (1..=3).contains(&schema),
         }
     }
 
@@ -234,9 +251,16 @@ pub enum Rule {
     },
     /// Restauração atômica de uma única região, selecionada por `key`.
     ///
-    /// Restaura `hash`, `summary`, ou os dois — e nada além disso. Cada par
-    /// `from`/`to` é individualmente opcional, mas ao menos um par completo
-    /// precisa existir, e meio par é inválido.
+    /// Restaura `hash`, `summary`, `file`, ou qualquer combinação deles — e
+    /// nada além disso. Cada par `from`/`to` é individualmente opcional, mas ao
+    /// menos um par completo precisa existir, e meio par é inválido.
+    ///
+    /// A relocação usa `expect_file` como origem declarada e `to_file` como
+    /// destino histórico: o par é `expect_file`/`to_file` em vez de
+    /// `from_file`/`to_file` porque `expect_file` já era, desde o schema 1, a
+    /// única forma de dizer "o arquivo corrente desta região é exatamente
+    /// este". Duplicá-la sob outro nome criaria duas guardas para o mesmo campo
+    /// e uma pergunta sem resposta sobre qual delas manda.
     ///
     /// "Atômica" no sentido lógico da regra: **todas** as precondições — as
     /// expectativas de identidade e todos os `from` declarados — são validadas
@@ -252,6 +276,8 @@ pub enum Rule {
         from_summary: Option<String>,
         to_summary: Option<String>,
         expect_file: Option<String>,
+        /// Caminho histórico restaurado. Exige `expect_file` como origem.
+        to_file: Option<String>,
         expect_domain: Option<String>,
         expect_layer: Option<String>,
     },
@@ -318,6 +344,7 @@ impl Rule {
     /// | `exclude-file` | 2 | 1 |
     /// | `exclude-key-prefix` | 2 | 1 |
     /// | `override-region` | 3 | 2 |
+    /// | `override-region` com `to_file` | 5 | 3 |
     /// | `materialize-region` | 4 | — |
     ///
     /// `materialize-region` não existe na autoridade de receita em versão
@@ -334,6 +361,18 @@ impl Rule {
             (Rule::ExcludeFile { .. }, SchemaAuthority::Recipe) => 1,
             (Rule::ExcludeKeyPrefix { .. }, SchemaAuthority::Snapshot) => SNAPSHOT_SCHEMA_V2,
             (Rule::ExcludeKeyPrefix { .. }, SchemaAuthority::Recipe) => 1,
+            (
+                Rule::OverrideRegion {
+                    to_file: Some(_), ..
+                },
+                SchemaAuthority::Snapshot,
+            ) => SNAPSHOT_SCHEMA_V5,
+            (
+                Rule::OverrideRegion {
+                    to_file: Some(_), ..
+                },
+                SchemaAuthority::Recipe,
+            ) => 3,
             (Rule::OverrideRegion { .. }, SchemaAuthority::Snapshot) => SNAPSHOT_SCHEMA_V3,
             (Rule::OverrideRegion { .. }, SchemaAuthority::Recipe) => 2,
             (Rule::MaterializeRegion { .. }, _) => SNAPSHOT_SCHEMA_V4,
@@ -1480,6 +1519,7 @@ const RULE_KEYS_BY_OP: [(&str, &[&str]); 7] = [
             "from_summary",
             "to_summary",
             "expect_file",
+            "to_file",
             "expect_domain",
             "expect_layer",
         ],
@@ -1504,7 +1544,7 @@ fn allowed_keys_for_op(op: &str) -> Option<&'static [&'static str]> {
         .map(|(_, campos)| *campos)
 }
 
-const RULE_KEYS: [&str; 20] = [
+const RULE_KEYS: [&str; 21] = [
     "op",
     "key",
     "from",
@@ -1514,6 +1554,7 @@ const RULE_KEYS: [&str; 20] = [
     "from_summary",
     "to_summary",
     "expect_file",
+    "to_file",
     "expect_domain",
     "expect_layer",
     "prefix",
@@ -1767,7 +1808,7 @@ fn build(raw: RawDocument) -> Result<ProjectionSnapshot, HarnessFailure> {
             })
         }
     };
-    if !(SNAPSHOT_SCHEMA_V1..=SNAPSHOT_SCHEMA_V4).contains(&schema) {
+    if !(SNAPSHOT_SCHEMA_V1..=SNAPSHOT_SCHEMA_V5).contains(&schema) {
         return Err(HarnessFailure::SchemaUnknown {
             authority: SchemaAuthority::Snapshot,
             found: schema,
@@ -2122,7 +2163,19 @@ pub(crate) fn build_rule(table: &Table, index: usize) -> Result<Rule, HarnessFai
                     msg: "'from_summary' e 'to_summary' precisam vir juntos".to_string(),
                 });
             }
-            if from_hash.is_none() && from_summary.is_none() {
+            let expect_file = optional_text(table, "expect_file", &scope)?;
+            let to_file = optional_text(table, "to_file", &scope)?;
+
+            // `expect_file` é a origem declarada da relocação. Sem ela, `to_file`
+            // seria mutação de caminho sem precondição — exatamente o meio par
+            // que os outros dois campos já recusam.
+            if to_file.is_some() && expect_file.is_none() {
+                return Err(HarnessFailure::OverrideRegionPairInvalid {
+                    key,
+                    msg: "'to_file' exige 'expect_file' como origem declarada".to_string(),
+                });
+            }
+            if from_hash.is_none() && from_summary.is_none() && to_file.is_none() {
                 return Err(HarnessFailure::OverrideRegionPairInvalid {
                     key,
                     msg: "ao menos um par completo é obrigatório".to_string(),
@@ -2134,9 +2187,11 @@ pub(crate) fn build_rule(table: &Table, index: usize) -> Result<Rule, HarnessFai
             if let Some(valor) = &to_hash {
                 validate_hash(valor, &format!("{}to_hash", scope))?;
             }
-            let expect_file = optional_text(table, "expect_file", &scope)?;
             if let Some(file) = &expect_file {
                 validate_relative_path(file, &format!("{}expect_file", scope))?;
+            }
+            if let Some(file) = &to_file {
+                validate_relative_path(file, &format!("{}to_file", scope))?;
             }
             Ok(Rule::OverrideRegion {
                 key,
@@ -2145,6 +2200,7 @@ pub(crate) fn build_rule(table: &Table, index: usize) -> Result<Rule, HarnessFai
                 from_summary,
                 to_summary,
                 expect_file,
+                to_file,
                 expect_domain: optional_text(table, "expect_domain", &scope)?,
                 expect_layer: optional_text(table, "expect_layer", &scope)?,
             })
@@ -2310,6 +2366,7 @@ pub(crate) fn render_rule_body(rule: &Rule) -> String {
             from_summary,
             to_summary,
             expect_file,
+            to_file,
             expect_domain,
             expect_layer,
         } => {
@@ -2328,6 +2385,9 @@ pub(crate) fn render_rule_body(rule: &Rule) -> String {
             }
             if let Some(valor) = expect_file {
                 out.push_str(&format!("expect_file = {}\n", toml_escape(valor)));
+            }
+            if let Some(valor) = to_file {
+                out.push_str(&format!("to_file = {}\n", toml_escape(valor)));
             }
             if let Some(valor) = expect_domain {
                 out.push_str(&format!("expect_domain = {}\n", toml_escape(valor)));
@@ -2601,6 +2661,7 @@ pub fn apply_rules(
                 from_summary,
                 to_summary,
                 expect_file,
+                to_file,
                 expect_domain,
                 expect_layer,
             } => {
@@ -2689,6 +2750,9 @@ pub fn apply_rules(
                 }
                 if let Some(valor) = to_summary {
                     region.summary.clone_from(valor);
+                }
+                if let Some(valor) = to_file {
+                    region.file.clone_from(valor);
                 }
                 ledger.push(RuleConsumption {
                     op: rule.op(),

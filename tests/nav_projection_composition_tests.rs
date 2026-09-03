@@ -1066,11 +1066,11 @@ fn receita_com_schema_desconhecido_e_rejeitada() {
                 "a mensagem não identifica a autoridade: {msg}"
             );
             assert!(
-                msg.contains("aceita 1 ou 2"),
+                msg.contains("aceita 1, 2 ou 3"),
                 "a mensagem não diz o que a receita aceita: {msg}"
             );
             assert!(
-                !msg.contains("1, 2 ou 3"),
+                !msg.contains("1, 2, 3, 4 ou 5"),
                 "a mensagem de receita citou o conjunto de snapshot: {msg}"
             );
         }
@@ -1086,16 +1086,16 @@ fn o_diagnostico_de_schema_e_separado_por_autoridade() {
     let msg = de_snapshot.to_string();
     assert!(msg.contains("desconhecido para snapshot"), "{msg}");
     assert!(
-        msg.contains("aceita 1, 2, 3 ou 4"),
-        "snapshot aceita as quatro versões e a mensagem precisa dizer isso: {msg}"
+        msg.contains("aceita 1, 2, 3, 4 ou 5"),
+        "snapshot aceita as cinco versões e a mensagem precisa dizer isso: {msg}"
     );
 
     let de_receita = parse_recipe(&RECEITA_V1.replace("schema = 1", "schema = 9"))
         .expect_err("schema 9 é inválido para receita");
     assert_eq!(de_receita.code(), "E-RECEITA-SCHEMA");
-    assert!(de_receita.to_string().contains("aceita 1 ou 2"));
+    assert!(de_receita.to_string().contains("aceita 1, 2 ou 3"));
     assert!(
-        !de_receita.to_string().contains("1, 2, 3 ou 4"),
+        !de_receita.to_string().contains("1, 2, 3, 4 ou 5"),
         "a receita citou o conjunto do snapshot"
     );
 
@@ -1407,6 +1407,7 @@ fn override_region(
         from_summary: from_summary.map(str::to_string),
         to_summary: to_summary.map(str::to_string),
         expect_file: None,
+        to_file: None,
         expect_domain: None,
         expect_layer: None,
     }
@@ -1705,6 +1706,7 @@ fn expectativa_de_identidade_protege_antes_da_mutacao() {
                 from_summary: None,
                 to_summary: None,
                 expect_file: Some("src/outro.rs".to_string()),
+                to_file: None,
                 expect_domain: None,
                 expect_layer: None,
             },
@@ -1718,6 +1720,7 @@ fn expectativa_de_identidade_protege_antes_da_mutacao() {
                 from_summary: None,
                 to_summary: None,
                 expect_file: None,
+                to_file: None,
                 expect_domain: Some("outro".to_string()),
                 expect_layer: None,
             },
@@ -1731,6 +1734,7 @@ fn expectativa_de_identidade_protege_antes_da_mutacao() {
                 from_summary: None,
                 to_summary: None,
                 expect_file: None,
+                to_file: None,
                 expect_domain: None,
                 expect_layer: Some("outra".to_string()),
             },
@@ -1850,6 +1854,7 @@ fn override_region_com_seletor_sem_correspondencia_falha() {
         from_summary: None,
         to_summary: None,
         expect_file: None,
+        to_file: None,
         expect_domain: None,
         expect_layer: None,
     };

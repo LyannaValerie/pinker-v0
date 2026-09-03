@@ -365,10 +365,21 @@ fn predecessor_e_base_snapshot_sao_relacoes_distintas() {
 /// para agradar a implementação.
 const VERSAO_DO_ACERVO: u64 = 3;
 
+/// A versão em que `onda-pink-agente-d` foi congelado, quando precisou de
+/// `materialize-region`.
+///
+/// É um literal, e não `SNAPSHOT_SCHEMA`, exatamente pelo motivo que o
+/// comentário acima já dá: a versão de emissão avança com a capacidade do
+/// formato, e o artefato congelado não a acompanha. Amarrar a expectativa à
+/// versão de emissão transformaria todo bump futuro numa exigência de reescrever
+/// um snapshot `FROZEN`.
+const VERSAO_CONGELADA_DO_AGENTE_D: u64 = 4;
+
 /// A versão do acervo precisa continuar dentro do que o formato aceita. Falha em
 /// tempo de compilação: um bump que abandonasse a versão congelada quebraria a
 /// leitura dos treze artefatos, e isso não é assunto para descobrir em runtime.
 const _: () = assert!(VERSAO_DO_ACERVO <= SNAPSHOT_SCHEMA);
+const _: () = assert!(VERSAO_CONGELADA_DO_AGENTE_D <= SNAPSHOT_SCHEMA);
 
 /// O acervo conserva a versão em que cada witness foi congelado. A única
 /// evolução autorizada é a do snapshot que usa uma capacidade nova: hoje,
@@ -380,14 +391,14 @@ fn o_acervo_preserva_a_versao_congelada_de_cada_witness() {
     let mut encontrados = 0;
     for (caminho, modelo) in carrega_snapshots() {
         assert!(
-            modelo.schema == VERSAO_DO_ACERVO || modelo.schema == SNAPSHOT_SCHEMA,
+            modelo.schema == VERSAO_DO_ACERVO || modelo.schema == VERSAO_CONGELADA_DO_AGENTE_D,
             "{} está em schema {}, que não é nem a versão do acervo nem a de emissão",
             caminho.display(),
             modelo.schema
         );
         if do_acervo.contains(modelo.id.as_str()) {
             let esperado = if modelo.id == "onda-pink-agente-d" {
-                SNAPSHOT_SCHEMA
+                VERSAO_CONGELADA_DO_AGENTE_D
             } else {
                 VERSAO_DO_ACERVO
             };
