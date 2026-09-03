@@ -529,26 +529,35 @@ fn override_explicito_nao_reabre_a_captura_do_corpo_default() {
     assert_eq!(codigo(&saida), 11, "{}", stderr(&saida));
 }
 
-/// Limitação corrente registrada: o parser materializa o default na unidade do
-/// `impl`, mas os templates de closure sintética vivem na unidade que fez o
-/// parse. Um default importado que declare closure falha FECHADO, com
-/// diagnóstico próprio — nunca em silêncio e nunca ligado à unidade errada.
+/// A limitação que a #517 registrou aqui — default importado com closure
+/// sintética falhando fechado porque o template ficava na unidade que fez o
+/// parse — foi fechada pela #567.
+///
+/// O caso continua sendo o mesmo, e a asserção ficou mais forte: em vez de
+/// exigir a recusa, ele exige que o corpo default componha E que a closure
+/// alcance o auxiliar da unidade que DECLAROU o trato, com a raiz declarando um
+/// homônimo dele. `10 + 7 = 17` é a origem; `10 + 500 = 510` seria a captura
+/// pelo importador, e nenhuma mensagem a denunciaria.
+///
+/// A matriz completa da composição vive em
+/// `tests/issue_567_imported_trait_default_closure_tests.rs`; este caso
+/// permanece aqui como regressão da superfície da #517.
 #[test]
-fn default_importado_com_closure_sintetica_falha_fechado() {
+fn default_importado_com_closure_sintetica_compoe_pela_origem() {
     let c = caso(
         "cd4_517",
-        "pacote main;\ntrazer m517_cl.ComClosure;\n\nimpl ComClosure para bombom {}\n\ncarinho principal() -> bombom {\n    nova x: bombom = 10;\n    mimo x.calcular();\n}\n",
+        "pacote main;\ntrazer m517_cl.ComClosure;\n\ncarinho apoio_cl() -> bombom { mimo 500; }\n\nimpl ComClosure para bombom {}\n\ncarinho principal() -> bombom {\n    nova x: bombom = 10;\n    mimo x.calcular();\n}\n",
         &[(
             "m517_cl",
             "pacote m517_cl;\n\ncarinho apoio_cl() -> bombom { mimo 7; }\n\ntrato ComClosure {\n    carinho calcular(valor: bombom) -> bombom {\n        nova f: carinho() -> bombom = carinho () -> bombom { mimo apoio_cl(); };\n        mimo valor + f();\n    }\n}\n",
         )],
     );
-    let saida = checar(&c, "cd4-517-closure");
-    let erro = stderr(&saida);
-    assert_eq!(codigo(&saida), 1, "{erro}");
-    assert!(
-        erro.contains("closure sintética") && erro.contains("do default não foi encontrada"),
-        "{erro}"
+    let saida = executar(&c, "cd4-517-closure");
+    assert_eq!(
+        codigo(&saida),
+        17,
+        "a closure do default tem de alcançar m517_cl.apoio_cl (7), nunca o homônimo da raiz (500): {}",
+        stderr(&saida)
     );
 }
 
