@@ -97,174 +97,23 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
             },
         );
     }
-    sigs_intrinsecas.insert(
-        "ouvir".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Bombom,
-            params: vec![],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "ouvir_verso".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Verso,
-            params: vec![],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "ouvir_verso_ou".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Verso,
-            params: vec![TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "aleatorio_criar".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::Bombom],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "aleatorio_proximo".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::Bombom],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "lista_bombom_criar".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::ListBombom,
-            params: vec![],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "alocar".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Pointer { is_volatile: false },
-            params: vec![TypeIR::U64],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "liberar".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Nulo,
-            params: vec![TypeIR::Pointer { is_volatile: false }],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "lista_bombom_anexar".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Nulo,
-            params: vec![TypeIR::ListBombom, TypeIR::Bombom],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "lista_bombom_obter".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::ListBombom, TypeIR::Bombom],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "lista_bombom_tamanho".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::ListBombom],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "lista_bombom_definir".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Nulo,
-            params: vec![TypeIR::ListBombom, TypeIR::Bombom, TypeIR::Bombom],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "lista_bombom_tirar_ultimo".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::ListBombom],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "lista_verso_criar".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::ListVerso,
-            params: vec![],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "lista_verso_anexar".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Nulo,
-            params: vec![TypeIR::ListVerso, TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "lista_verso_obter".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Verso,
-            params: vec![TypeIR::ListVerso, TypeIR::Bombom],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "lista_verso_tamanho".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::ListVerso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "lista_verso_definir".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Nulo,
-            params: vec![TypeIR::ListVerso, TypeIR::Bombom, TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "lista_verso_tirar_ultimo".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Verso,
-            params: vec![TypeIR::ListVerso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "mapa_verso_bombom_criar".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::MapVersoBombom,
-            params: vec![],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "mapa_verso_bombom_definir".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Nulo,
-            params: vec![TypeIR::MapVersoBombom, TypeIR::Verso, TypeIR::Bombom],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "mapa_verso_bombom_obter".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::MapVersoBombom, TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "mapa_verso_bombom_tem".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Logica,
-            params: vec![TypeIR::MapVersoBombom, TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "mapa_verso_bombom_tamanho".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::MapVersoBombom],
-        },
-    );
+    // #442/C1 — assinaturas históricas vindas do registry declarativo.
+    //
+    // Esta tabela era uma das sete enumerações independentes do mesmo fato.
+    // Agora ela é consumidora: a autoridade responde retorno e parâmetros, e o
+    // validador só decide o que fazer com eles.
+    for entrada in crate::intrinsics::registry::HISTORICAL {
+        let Some((ret_type, params)) = entrada.assinatura_ir() else {
+            continue;
+        };
+        sigs_intrinsecas.insert(
+            entrada.spelling.to_string(),
+            FunctionSigCfg {
+                ret_type,
+                params: params.to_vec(),
+            },
+        );
+    }
     sigs_intrinsecas.insert(
         "__pinker_internal_mapa_verso_bombom_iterador_criar".to_string(),
         FunctionSigCfg {
@@ -277,48 +126,6 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
         FunctionSigCfg {
             ret_type: TypeIR::Verso,
             params: vec![TypeIR::Bombom],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "mapa_verso_verso_criar".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::MapVersoVerso,
-            params: vec![],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "mapa_verso_verso_definir".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Nulo,
-            params: vec![TypeIR::MapVersoVerso, TypeIR::Verso, TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "mapa_verso_verso_obter".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Verso,
-            params: vec![TypeIR::MapVersoVerso, TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "mapa_verso_verso_tem".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Logica,
-            params: vec![TypeIR::MapVersoVerso, TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "mapa_verso_verso_tamanho".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::MapVersoVerso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "mapa_verso_verso_remover".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Nulo,
-            params: vec![TypeIR::MapVersoVerso, TypeIR::Verso],
         },
     );
     sigs_intrinsecas.insert(
@@ -336,48 +143,6 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
         },
     );
     sigs_intrinsecas.insert(
-        "mapa_bombom_bombom_criar".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::MapBombomBombom,
-            params: vec![],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "mapa_bombom_bombom_definir".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Nulo,
-            params: vec![TypeIR::MapBombomBombom, TypeIR::Bombom, TypeIR::Bombom],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "mapa_bombom_bombom_obter".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::MapBombomBombom, TypeIR::Bombom],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "mapa_bombom_bombom_tem".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Logica,
-            params: vec![TypeIR::MapBombomBombom, TypeIR::Bombom],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "mapa_bombom_bombom_tamanho".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::MapBombomBombom],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "mapa_bombom_bombom_remover".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Nulo,
-            params: vec![TypeIR::MapBombomBombom, TypeIR::Bombom],
-        },
-    );
-    sigs_intrinsecas.insert(
         "__pinker_internal_mapa_bombom_bombom_iterador_criar".to_string(),
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
@@ -389,48 +154,6 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
         FunctionSigCfg {
             ret_type: TypeIR::Bombom,
             params: vec![TypeIR::Bombom],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "mapa_bombom_verso_criar".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::MapBombomVerso,
-            params: vec![],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "mapa_bombom_verso_definir".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Nulo,
-            params: vec![TypeIR::MapBombomVerso, TypeIR::Bombom, TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "mapa_bombom_verso_obter".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Verso,
-            params: vec![TypeIR::MapBombomVerso, TypeIR::Bombom],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "mapa_bombom_verso_tem".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Logica,
-            params: vec![TypeIR::MapBombomVerso, TypeIR::Bombom],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "mapa_bombom_verso_tamanho".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::MapBombomVerso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "mapa_bombom_verso_remover".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Nulo,
-            params: vec![TypeIR::MapBombomVerso, TypeIR::Bombom],
         },
     );
     sigs_intrinsecas.insert(
@@ -535,195 +258,6 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
     );
     // Não há assinatura chamável de união: tag e extração são instruções CFG
     // tipadas (`UnionTag`/`UnionExtract`), nunca `Call`.
-    sigs_intrinsecas.insert(
-        "argumento".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Verso,
-            params: vec![TypeIR::Bombom],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "argumento_ou".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Verso,
-            params: vec![TypeIR::Bombom, TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "tem_chave".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Logica,
-            params: vec![TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "tem_argumento_nomeado".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Logica,
-            params: vec![TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "pedir_argumento".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Verso,
-            params: vec![TypeIR::Verso, TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "argumento_nomeado_ou".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Verso,
-            params: vec![TypeIR::Verso, TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "tem_flag".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Logica,
-            params: vec![TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "ambiente_ou".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Verso,
-            params: vec![TypeIR::Verso, TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "buscar_contexto".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Verso,
-            params: vec![TypeIR::Verso, TypeIR::Verso, TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "argumento_nomeado_ou_ambiente_ou".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Verso,
-            params: vec![TypeIR::Verso, TypeIR::Verso, TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "caminho_existe".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Logica,
-            params: vec![TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "e_arquivo".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Logica,
-            params: vec![TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "e_diretorio".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Logica,
-            params: vec![TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "juntar_caminho".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Verso,
-            params: vec![TypeIR::Verso, TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "tamanho_arquivo".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "e_vazio".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Logica,
-            params: vec![TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "criar_diretorio".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Nulo,
-            params: vec![TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "remover_arquivo".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Nulo,
-            params: vec![TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "remover_diretorio".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Nulo,
-            params: vec![TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "diretorio_atual".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Verso,
-            params: vec![],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "quantos_argumentos".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Bombom,
-            params: vec![],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "tem_argumento".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Logica,
-            params: vec![TypeIR::Bombom],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "sair".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Nulo,
-            params: vec![TypeIR::Bombom],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "abrir".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "ler_arquivo".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::Bombom],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "ler_verso_arquivo".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Verso,
-            params: vec![TypeIR::Bombom],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "ler_arquivo_verso".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Verso,
-            params: vec![TypeIR::Verso],
-        },
-    );
     // Parte B: as superfícies falíveis devolvem um leque com carga, que na IR é
     // o handle de uma palavra — logo `bombom`, como qualquer outro leque.
     for superficie in crate::falha_operacional::SUPERFICIES_FALIVEIS {
@@ -762,360 +296,17 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
             },
         );
     }
-    sigs_intrinsecas.insert(
-        "arquivo_ou".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Verso,
-            params: vec![TypeIR::Verso, TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "fechar".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Nulo,
-            params: vec![TypeIR::Bombom],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "criar_arquivo".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "abrir_anexo".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "escrever".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Nulo,
-            params: vec![TypeIR::Bombom, TypeIR::Bombom],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "escrever_verso".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Nulo,
-            params: vec![TypeIR::Bombom, TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "truncar_arquivo".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Nulo,
-            params: vec![TypeIR::Bombom],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "anexar_verso".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Nulo,
-            params: vec![TypeIR::Bombom, TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "juntar_verso".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Verso,
-            params: vec![TypeIR::Verso, TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "tamanho_verso".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "indice_verso".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Verso,
-            params: vec![TypeIR::Verso, TypeIR::Bombom],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "fatiar_verso".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Verso,
-            params: vec![TypeIR::Verso, TypeIR::Bombom, TypeIR::Bombom],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "contem_verso".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Logica,
-            params: vec![TypeIR::Verso, TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "comeca_com".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Logica,
-            params: vec![TypeIR::Verso, TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "termina_com".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Logica,
-            params: vec![TypeIR::Verso, TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "igual_verso".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Logica,
-            params: vec![TypeIR::Verso, TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "vazio_verso".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Logica,
-            params: vec![TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "aparar_verso".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Verso,
-            params: vec![TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "minusculo_verso".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Verso,
-            params: vec![TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "maiusculo_verso".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Verso,
-            params: vec![TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "indice_verso_em".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::Verso, TypeIR::Verso],
-        },
-    );
     // Fase 140
-    sigs_intrinsecas.insert(
-        "buscar_verso".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::Verso, TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "nao_vazio_verso".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Logica,
-            params: vec![TypeIR::Verso],
-        },
-    );
     // Fase 137
-    sigs_intrinsecas.insert(
-        "dividir_verso_em".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Verso,
-            params: vec![TypeIR::Verso, TypeIR::Verso, TypeIR::Bombom],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "dividir_verso_contar".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::Verso, TypeIR::Verso],
-        },
-    );
     // Fase 138
-    sigs_intrinsecas.insert(
-        "substituir_verso".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Verso,
-            params: vec![TypeIR::Verso, TypeIR::Verso, TypeIR::Verso],
-        },
-    );
     // Fase 139
-    sigs_intrinsecas.insert(
-        "juntar_verso_com".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Verso,
-            params: vec![TypeIR::Verso, TypeIR::Verso, TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "formatar_verso".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Verso,
-            params: vec![TypeIR::Verso],
-        },
-    );
     // Fase 158
-    sigs_intrinsecas.insert(
-        "ler_linha_csv_bombom".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::ListBombom,
-            params: vec![TypeIR::Verso, TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "emitir_linha_csv_bombom".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Verso,
-            params: vec![TypeIR::ListBombom, TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "ler_json_plano_bombom".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::MapVersoBombom,
-            params: vec![TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "emitir_json_plano_bombom".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Verso,
-            params: vec![TypeIR::MapVersoBombom],
-        },
-    );
     // Fase 160
-    sigs_intrinsecas.insert(
-        "tempo_unix".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Bombom,
-            params: vec![],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "formatar_tempo_unix".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Verso,
-            params: vec![TypeIR::Bombom],
-        },
-    );
     // Fase 161
-    sigs_intrinsecas.insert(
-        "executar_processo".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::Verso, TypeIR::Verso],
-        },
-    );
     // Fase 165
-    sigs_intrinsecas.insert(
-        "executar_com_entrada".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::Verso, TypeIR::Verso, TypeIR::Verso],
-        },
-    );
     // Fase 166
-    sigs_intrinsecas.insert(
-        "pipeline_minimo".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::Verso, TypeIR::Verso],
-        },
-    );
     // Fase 163
-    sigs_intrinsecas.insert(
-        "capturar_stdout".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Verso,
-            params: vec![TypeIR::Verso],
-        },
-    );
     // Fase 164
-    sigs_intrinsecas.insert(
-        "capturar_stderr".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Verso,
-            params: vec![TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "afirmar".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Nulo,
-            params: vec![TypeIR::Logica],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "dormir".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Nulo,
-            params: vec![TypeIR::Bombom],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "copiar_arquivo".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Nulo,
-            params: vec![TypeIR::Verso, TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "renomear_arquivo".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Nulo,
-            params: vec![TypeIR::Verso, TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "verso_para_bombom".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "bombom_para_verso".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Verso,
-            params: vec![TypeIR::Bombom],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "aleatorio_entre".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::Bombom, TypeIR::Bombom, TypeIR::Bombom],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "mapa_verso_bombom_remover".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Nulo,
-            params: vec![TypeIR::MapVersoBombom, TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "lista_bombom_inserir".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Nulo,
-            params: vec![TypeIR::ListBombom, TypeIR::Bombom, TypeIR::Bombom],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "lista_verso_inserir".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Nulo,
-            params: vec![TypeIR::ListVerso, TypeIR::Bombom, TypeIR::Verso],
-        },
-    );
 
     // #532: a escolha entre a assinatura da intrínseca e a da função homônima
     // do usuário é feita pela identidade do callee, não pela chave textual.
@@ -1865,8 +1056,10 @@ fn validate_block(
                         function.span,
                     )
                 })?;
+                // #442/C1 — a aridade mínima da variádica é declarada pelo registry.
                 if builtin && callee == "formatar_verso" {
-                    if args.len() < 2 {
+                    if args.len() < crate::intrinsics::registry::aridade_minima(callee).unwrap_or(0)
+                    {
                         return Err(cfg_error(
                             "aridade inválida em call da CFG IR",
                             function.span,
@@ -1927,57 +1120,18 @@ fn validate_block(
                     }
                     continue;
                 }
-                if sig.params.len() != args.len() {
-                    if builtin
-                        && (callee == "executar_processo"
-                            || callee == "executar_com_entrada"
-                            || callee == "capturar_stdout"
-                            || callee == "capturar_stderr")
-                        && ((callee == "executar_com_entrada"
-                            && (args.len() == 2 || args.len() == 3))
-                            || (callee != "executar_com_entrada"
-                                && (args.len() == 1 || args.len() == 2)))
-                    {
-                        // aceita a camada 1 conservadora de argv explícito sem abrir argv geral
-                    } else if builtin && callee == "afirmar" && (args.len() == 1 || args.len() == 2)
-                    {
-                        // aceita afirmar com 1 ou 2 argumentos
-                    } else {
-                        return Err(cfg_error(
-                            "aridade inválida em call da CFG IR",
-                            function.span,
-                        ));
-                    }
+                // #442/C1 — o recorte de aridade que relaxa a assinatura fixa é
+                // declarado pelo registry, e não redecidido aqui.
+                let no_recorte =
+                    builtin && crate::intrinsics::registry::aridade_no_recorte(callee, args.len());
+                if sig.params.len() != args.len() && !no_recorte {
+                    return Err(cfg_error(
+                        "aridade inválida em call da CFG IR",
+                        function.span,
+                    ));
                 }
-                if builtin && callee == "executar_processo" && !(args.len() == 1 || args.len() == 2)
+                if builtin && crate::intrinsics::registry::roteia_por_aridade(callee) && !no_recorte
                 {
-                    return Err(cfg_error(
-                        "aridade inválida em call da CFG IR",
-                        function.span,
-                    ));
-                }
-                if builtin
-                    && callee == "executar_com_entrada"
-                    && !(args.len() == 2 || args.len() == 3)
-                {
-                    return Err(cfg_error(
-                        "aridade inválida em call da CFG IR",
-                        function.span,
-                    ));
-                }
-                if builtin && callee == "capturar_stdout" && !(args.len() == 1 || args.len() == 2) {
-                    return Err(cfg_error(
-                        "aridade inválida em call da CFG IR",
-                        function.span,
-                    ));
-                }
-                if builtin && callee == "capturar_stderr" && !(args.len() == 1 || args.len() == 2) {
-                    return Err(cfg_error(
-                        "aridade inválida em call da CFG IR",
-                        function.span,
-                    ));
-                }
-                if builtin && callee == "afirmar" && !(args.len() == 1 || args.len() == 2) {
                     return Err(cfg_error(
                         "aridade inválida em call da CFG IR",
                         function.span,

@@ -199,143 +199,17 @@ pub enum DeclarationConflictPolicy {
     DeclarationIsRejected,
 }
 
-/// Lacuna histórica: estas identidades ainda não possuem registry estrutural
-/// anterior a U3. A lista é a autoridade canônica da superfície histórica;
-/// semantic/interpreter/backend permanecem consumidores de fase até trabalho
-/// posterior explicitamente autorizado.
-pub const HISTORICAL_PUBLIC_SPELLINGS: &[&str] = &[
-    "abrir",
-    "abrir_anexo",
-    "afirmar",
-    "aleatorio_criar",
-    "aleatorio_entre",
-    "aleatorio_proximo",
-    "alocar",
-    "ambiente_ou",
-    "anexar_verso",
-    "aparar_verso",
-    "argumento",
-    "argumento_nomeado_ou",
-    "argumento_nomeado_ou_ambiente_ou",
-    "argumento_ou",
-    "arquivo_ou",
-    "bombom_para_verso",
-    "buscar_contexto",
-    "buscar_verso",
-    "caminho_existe",
-    "capturar_stderr",
-    "capturar_stdout",
-    "comeca_com",
-    "contem_verso",
-    "copiar_arquivo",
-    "criar_arquivo",
-    "criar_diretorio",
-    "diretorio_atual",
-    "dividir_verso_contar",
-    "dividir_verso_em",
-    "dormir",
-    "e_arquivo",
-    "e_diretorio",
-    "e_vazio",
-    "emitir_json_plano_bombom",
-    "emitir_linha_csv_bombom",
-    "escrever",
-    "escrever_verso",
-    "executar_com_entrada",
-    "executar_processo",
-    "fatiar_verso",
-    "fechar",
-    "formatar_tempo_unix",
-    "formatar_verso",
-    "igual_verso",
-    "indice_verso",
-    "indice_verso_em",
-    "juntar_caminho",
-    "juntar_verso",
-    "juntar_verso_com",
-    "ler_arquivo",
-    "ler_arquivo_verso",
-    "ler_json_plano_bombom",
-    "ler_linha_csv_bombom",
-    "ler_verso_arquivo",
-    "liberar",
-    "lista_anexar",
-    "lista_bombom_anexar",
-    "lista_bombom_criar",
-    "lista_bombom_definir",
-    "lista_bombom_inserir",
-    "lista_bombom_obter",
-    "lista_bombom_tamanho",
-    "lista_bombom_tirar_ultimo",
-    "lista_criar",
-    "lista_definir",
-    "lista_inserir",
-    "lista_obter",
-    "lista_tamanho",
-    "lista_tirar_ultimo",
-    "lista_verso_anexar",
-    "lista_verso_criar",
-    "lista_verso_definir",
-    "lista_verso_inserir",
-    "lista_verso_obter",
-    "lista_verso_tamanho",
-    "lista_verso_tirar_ultimo",
-    "maiusculo_verso",
-    "mapa_bombom_bombom_criar",
-    "mapa_bombom_bombom_definir",
-    "mapa_bombom_bombom_obter",
-    "mapa_bombom_bombom_remover",
-    "mapa_bombom_bombom_tamanho",
-    "mapa_bombom_bombom_tem",
-    "mapa_bombom_verso_criar",
-    "mapa_bombom_verso_definir",
-    "mapa_bombom_verso_obter",
-    "mapa_bombom_verso_remover",
-    "mapa_bombom_verso_tamanho",
-    "mapa_bombom_verso_tem",
-    "mapa_criar",
-    "mapa_definir",
-    "mapa_obter",
-    "mapa_remover",
-    "mapa_tamanho",
-    "mapa_tem",
-    "mapa_verso_bombom_criar",
-    "mapa_verso_bombom_definir",
-    "mapa_verso_bombom_obter",
-    "mapa_verso_bombom_remover",
-    "mapa_verso_bombom_tamanho",
-    "mapa_verso_bombom_tem",
-    "mapa_verso_verso_criar",
-    "mapa_verso_verso_definir",
-    "mapa_verso_verso_obter",
-    "mapa_verso_verso_remover",
-    "mapa_verso_verso_tamanho",
-    "mapa_verso_verso_tem",
-    "minusculo_verso",
-    "nao_vazio_verso",
-    "ouvir",
-    "ouvir_verso",
-    "ouvir_verso_ou",
-    "pedir_argumento",
-    "pipeline_minimo",
-    "quantos_argumentos",
-    "remover_arquivo",
-    "remover_diretorio",
-    "renomear_arquivo",
-    "sair",
-    "substituir_verso",
-    "tamanho_arquivo",
-    "tamanho_verso",
-    "tem_argumento",
-    "tem_argumento_nomeado",
-    "tem_chave",
-    "tem_flag",
-    "tempo_unix",
-    "termina_com",
-    "truncar_arquivo",
-    "vazio_verso",
-    "verso_para_bombom",
-];
+/// Grafias da superfície histórica, em ordem estável.
+///
+/// A lista literal que morava aqui era a chave de sete tabelas de fase que a
+/// repetiam. Desde a consolidação C1 ela é a chave de
+/// [`crate::intrinsics::registry`], que declara também aridade, contrato de
+/// parâmetros, contrato de retorno e roteamento de runtime. Esta autoridade
+/// continua dona da IDENTIDADE — o que a grafia significa e qual alias colapsa
+/// em qual grafia adulta —, e consome a enumeração em vez de manter a sua.
+fn historical_public_spellings() -> impl Iterator<Item = &'static str> + Clone {
+    crate::intrinsics::registry::grafias()
+}
 
 /// Grafias históricas que são **alias público** de uma grafia adulta, não
 /// identidade semântica própria.
@@ -364,7 +238,7 @@ pub const HISTORICAL_PUBLIC_SPELLINGS: &[&str] = &[
 ///
 /// Cada entrada é `(alias, grafia adulta)`. A grafia adulta nunca é ela mesma
 /// um alias, e ambas as grafias precisam existir em
-/// [`HISTORICAL_PUBLIC_SPELLINGS`] — as duas condições são verificadas por
+/// [`crate::intrinsics::registry`] — as duas condições são verificadas por
 /// teste, para que uma quarta equivalência não entre por descuido.
 pub const HISTORICAL_CANONICAL_ALIASES: &[(&str, &str)] = &[
     ("argumento_nomeado_ou", "pedir_argumento"),
@@ -437,9 +311,7 @@ pub fn canonical_public_intrinsic_spelling(spelling: &str) -> Option<PublicIntri
             origin: PublicIntrinsicOrigin::ProcessAccessor,
         });
     }
-    HISTORICAL_PUBLIC_SPELLINGS
-        .iter()
-        .copied()
+    historical_public_spellings()
         .find(|candidate| *candidate == spelling)
         .map(|spelling| PublicIntrinsicSpelling {
             spelling,
@@ -582,13 +454,13 @@ pub fn declaration_conflict_policy(
 /// só é o que fazia `acaso.criar` e `arquivo.criar` colidirem.
 fn canonical_authority_entries() -> Vec<PublicIntrinsicSpelling> {
     let mut entries = Vec::new();
-    entries.extend(HISTORICAL_PUBLIC_SPELLINGS.iter().copied().map(|spelling| {
-        PublicIntrinsicSpelling {
+    entries.extend(
+        historical_public_spellings().map(|spelling| PublicIntrinsicSpelling {
             spelling,
             identity: historical_identity(spelling),
             origin: PublicIntrinsicOrigin::Historical,
-        }
-    }));
+        }),
+    );
     entries.extend(
         SUPERFICIES_FALIVEIS
             .iter()
@@ -659,7 +531,7 @@ mod tests {
 
     #[test]
     fn authority_is_complete_nonempty_and_classified() {
-        assert_eq!(HISTORICAL_PUBLIC_SPELLINGS.len(), 131);
+        assert_eq!(historical_public_spellings().count(), 131);
         let spellings = all_canonical_intrinsic_spellings();
         // 131 históricas + 9 falíveis + 11 acessores JSON + 1 SHA-256 +
         // 3 acessores de processo, sem interseção entre as cinco listas.
@@ -685,11 +557,11 @@ mod tests {
         let mut seen = BTreeMap::new();
         for (alias, canonical) in HISTORICAL_CANONICAL_ALIASES {
             assert!(
-                HISTORICAL_PUBLIC_SPELLINGS.contains(alias),
+                historical_public_spellings().any(|grafia| grafia == *alias),
                 "alias fora da superfície histórica pública: {alias}"
             );
             assert!(
-                HISTORICAL_PUBLIC_SPELLINGS.contains(canonical),
+                historical_public_spellings().any(|grafia| grafia == *canonical),
                 "grafia adulta fora da superfície histórica pública: {canonical}"
             );
             assert_ne!(alias, canonical, "alias não pode apontar para si mesmo");
@@ -719,7 +591,7 @@ mod tests {
         );
 
         let mut historical_identities = BTreeMap::new();
-        for spelling in HISTORICAL_PUBLIC_SPELLINGS.iter().copied() {
+        for spelling in historical_public_spellings() {
             let identity = historical_identity(spelling);
             let IntrinsicIdentity::Historical(canonical) = identity else {
                 panic!("grafia histórica {spelling} produziu identidade não histórica");
@@ -750,7 +622,7 @@ mod tests {
         );
         assert_eq!(
             historical_identities.len(),
-            HISTORICAL_PUBLIC_SPELLINGS.len() - HISTORICAL_CANONICAL_ALIASES.len()
+            historical_public_spellings().count() - HISTORICAL_CANONICAL_ALIASES.len()
         );
     }
 
@@ -777,9 +649,7 @@ mod tests {
 
     #[test]
     fn measured_representatives_and_ordinary_control_are_separated() {
-        for spelling in HISTORICAL_PUBLIC_SPELLINGS
-            .iter()
-            .copied()
+        for spelling in historical_public_spellings()
             .chain(
                 SUPERFICIES_FALIVEIS
                     .iter()
