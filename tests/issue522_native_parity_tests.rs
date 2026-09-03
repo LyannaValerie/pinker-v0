@@ -508,6 +508,13 @@ carinho principal() -> bombom { mimo afirmar_usuario(41); }
 
 #[test]
 fn autoridade_mapeia_cinco_gaps_e_preserva_as_tres_exclusoes() {
+    // #442/C1 — o mapeamento deixou de ser um `match` textual em `backend_s.rs`
+    // e passou a ser fato declarado no registry das intrínsecas históricas. O
+    // oráculo continua o mesmo — cada gap tem símbolo e o símbolo existe no
+    // runtime; as três exclusões de stdin continuam fora —, mas passou a ler a
+    // autoridade em vez do texto da fase que a consome.
+    use pinker_v0::intrinsics::registry;
+
     let backend = include_str!("../src/backend_s.rs");
     let runtime = include_str!("../runtime/pinker_rt/src/lib.rs");
 
@@ -517,8 +524,9 @@ fn autoridade_mapeia_cinco_gaps_e_preserva_as_tres_exclusoes() {
         ("ler_linha_csv_bombom", "pinker_ler_linha_csv_bombom"),
         ("sair", "pinker_sair"),
     ] {
-        assert!(
-            backend.contains(&format!("\"{intrinseca}\" => Some(\"{simbolo}\")")),
+        assert_eq!(
+            registry::simbolo_runtime(intrinseca),
+            Some(simbolo),
             "mapeamento ausente: {intrinseca} -> {simbolo}"
         );
         assert!(
@@ -526,11 +534,24 @@ fn autoridade_mapeia_cinco_gaps_e_preserva_as_tres_exclusoes() {
             "símbolo ausente no runtime: {simbolo}"
         );
     }
-    assert!(backend.contains("(\"afirmar\", 1 | 2)"));
+    assert!(registry::roteia_por_aridade("afirmar"));
+    for argc in [1usize, 2] {
+        assert_eq!(
+            registry::simbolo_runtime_por_aridade("afirmar", argc),
+            Some(format!("pinker_afirmar_{argc}"))
+        );
+    }
+    assert_eq!(registry::simbolo_runtime_por_aridade("afirmar", 3), None);
     for simbolo in ["pinker_afirmar_1", "pinker_afirmar_2"] {
         assert!(runtime.contains(&format!("fn {simbolo}(")));
     }
     for excluida in ["ouvir", "ouvir_verso", "ouvir_verso_ou"] {
+        assert_eq!(
+            registry::simbolo_runtime(excluida),
+            None,
+            "{excluida} entrou no mapeamento nativo"
+        );
+        assert!(!registry::roteia_por_aridade(excluida));
         assert!(
             !backend.contains(&format!("\"{excluida}\" => Some(")),
             "{excluida} entrou no mapeamento nativo"

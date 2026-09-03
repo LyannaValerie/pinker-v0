@@ -945,7 +945,7 @@ fn revisao_n1_autoridade_de_builtin_cobre_as_grafias_da_semantica() {
     assert!(
         ausentes.is_empty(),
         "grafias builtin de src/semantic.rs que a autoridade de intrínsecas não reconhece: {ausentes:?}. \
-         Registre-as em intrinsic_authority, ou um módulo que as declare voltará a capturá-las."
+         Registre-as em intrinsics::registry, ou um módulo que as declare voltará a capturá-las."
     );
 }
 

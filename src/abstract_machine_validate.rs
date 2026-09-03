@@ -89,135 +89,34 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
             .collect::<Vec<_>>();
         sigs_usuario.insert(f.name.clone(), (f.ret_type, param_types));
     }
-    sigs_intrinsecas.insert("ouvir".to_string(), (TypeIR::Bombom, vec![]));
-    sigs_intrinsecas.insert("ouvir_verso".to_string(), (TypeIR::Verso, vec![]));
-    sigs_intrinsecas.insert(
-        "ouvir_verso_ou".to_string(),
-        (TypeIR::Verso, vec![StackValueType::Verso]),
-    );
-    sigs_intrinsecas.insert(
-        "aleatorio_criar".to_string(),
-        (TypeIR::Bombom, vec![StackValueType::Bombom]),
-    );
-    sigs_intrinsecas.insert(
-        "aleatorio_proximo".to_string(),
-        (TypeIR::Bombom, vec![StackValueType::Bombom]),
-    );
-    sigs_intrinsecas.insert(
-        "alocar".to_string(),
-        (
-            TypeIR::Pointer { is_volatile: false },
-            vec![StackValueType::Bombom],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "liberar".to_string(),
-        (TypeIR::Nulo, vec![StackValueType::Unknown]),
-    );
-    sigs_intrinsecas.insert(
-        "lista_bombom_criar".to_string(),
-        (TypeIR::ListBombom, vec![]),
-    );
-    sigs_intrinsecas.insert(
-        "lista_bombom_anexar".to_string(),
-        (
-            TypeIR::Nulo,
-            vec![StackValueType::Unknown, StackValueType::Bombom],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "lista_bombom_obter".to_string(),
-        (
-            TypeIR::Bombom,
-            vec![StackValueType::Unknown, StackValueType::Bombom],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "lista_bombom_tamanho".to_string(),
-        (TypeIR::Bombom, vec![StackValueType::Unknown]),
-    );
-    sigs_intrinsecas.insert(
-        "lista_bombom_definir".to_string(),
-        (
-            TypeIR::Nulo,
-            vec![
-                StackValueType::Unknown,
-                StackValueType::Bombom,
-                StackValueType::Bombom,
-            ],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "lista_bombom_tirar_ultimo".to_string(),
-        (TypeIR::Bombom, vec![StackValueType::Unknown]),
-    );
-    sigs_intrinsecas.insert("lista_verso_criar".to_string(), (TypeIR::ListVerso, vec![]));
-    sigs_intrinsecas.insert(
-        "lista_verso_anexar".to_string(),
-        (
-            TypeIR::Nulo,
-            vec![StackValueType::Unknown, StackValueType::Verso],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "lista_verso_obter".to_string(),
-        (
-            TypeIR::Verso,
-            vec![StackValueType::Unknown, StackValueType::Bombom],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "lista_verso_tamanho".to_string(),
-        (TypeIR::Bombom, vec![StackValueType::Unknown]),
-    );
-    sigs_intrinsecas.insert(
-        "lista_verso_definir".to_string(),
-        (
-            TypeIR::Nulo,
-            vec![
-                StackValueType::Unknown,
-                StackValueType::Bombom,
-                StackValueType::Verso,
-            ],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "lista_verso_tirar_ultimo".to_string(),
-        (TypeIR::Verso, vec![StackValueType::Unknown]),
-    );
-    sigs_intrinsecas.insert(
-        "mapa_verso_bombom_criar".to_string(),
-        (TypeIR::MapVersoBombom, vec![]),
-    );
-    sigs_intrinsecas.insert(
-        "mapa_verso_bombom_definir".to_string(),
-        (
-            TypeIR::Nulo,
-            vec![
-                StackValueType::Unknown,
-                StackValueType::Verso,
-                StackValueType::Bombom,
-            ],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "mapa_verso_bombom_obter".to_string(),
-        (
-            TypeIR::Bombom,
-            vec![StackValueType::Unknown, StackValueType::Verso],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "mapa_verso_bombom_tem".to_string(),
-        (
-            TypeIR::Logica,
-            vec![StackValueType::Unknown, StackValueType::Verso],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "mapa_verso_bombom_tamanho".to_string(),
-        (TypeIR::Bombom, vec![StackValueType::Unknown]),
-    );
+    // #442/C1 — assinaturas históricas vindas do registry declarativo.
+    //
+    // Esta tabela era uma das sete enumerações independentes do mesmo fato.
+    // Agora ela é consumidora: a autoridade responde retorno e parâmetros, e o
+    // validador só decide o que fazer com eles.
+    //
+    // Os parâmetros de pilha derivam de `type_to_stack`, exceto nas posições
+    // que o registry declara relaxadas — dez handles de lista que esta tabela
+    // sempre aceitou como `Unknown`. O desvio continua idêntico; o que mudou é
+    // que ele passou a estar declarado num lugar só, em vez de espalhado.
+    for entrada in crate::intrinsics::registry::HISTORICAL {
+        let Some((ret_type, params)) = entrada.assinatura_ir() else {
+            continue;
+        };
+        let relaxados = entrada.machine_relaxed_params();
+        let param_types = params
+            .iter()
+            .enumerate()
+            .map(|(posicao, ty)| {
+                if relaxados.contains(&posicao) {
+                    StackValueType::Unknown
+                } else {
+                    type_to_stack(*ty)
+                }
+            })
+            .collect();
+        sigs_intrinsecas.insert(entrada.spelling.to_string(), (ret_type, param_types));
+    }
     sigs_intrinsecas.insert(
         "__pinker_internal_mapa_verso_bombom_iterador_criar".to_string(),
         (TypeIR::Bombom, vec![StackValueType::Unknown]),
@@ -225,46 +124,6 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
     sigs_intrinsecas.insert(
         "__pinker_internal_mapa_verso_bombom_iterador_proxima_chave".to_string(),
         (TypeIR::Verso, vec![StackValueType::Bombom]),
-    );
-    sigs_intrinsecas.insert(
-        "mapa_verso_verso_criar".to_string(),
-        (TypeIR::MapVersoVerso, vec![]),
-    );
-    sigs_intrinsecas.insert(
-        "mapa_verso_verso_definir".to_string(),
-        (
-            TypeIR::Nulo,
-            vec![
-                StackValueType::Unknown,
-                StackValueType::Verso,
-                StackValueType::Verso,
-            ],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "mapa_verso_verso_obter".to_string(),
-        (
-            TypeIR::Verso,
-            vec![StackValueType::Unknown, StackValueType::Verso],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "mapa_verso_verso_tem".to_string(),
-        (
-            TypeIR::Logica,
-            vec![StackValueType::Unknown, StackValueType::Verso],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "mapa_verso_verso_tamanho".to_string(),
-        (TypeIR::Bombom, vec![StackValueType::Unknown]),
-    );
-    sigs_intrinsecas.insert(
-        "mapa_verso_verso_remover".to_string(),
-        (
-            TypeIR::Nulo,
-            vec![StackValueType::Unknown, StackValueType::Verso],
-        ),
     );
     sigs_intrinsecas.insert(
         "__pinker_internal_mapa_verso_verso_iterador_criar".to_string(),
@@ -275,92 +134,12 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
         (TypeIR::Verso, vec![StackValueType::Bombom]),
     );
     sigs_intrinsecas.insert(
-        "mapa_bombom_bombom_criar".to_string(),
-        (TypeIR::MapBombomBombom, vec![]),
-    );
-    sigs_intrinsecas.insert(
-        "mapa_bombom_bombom_definir".to_string(),
-        (
-            TypeIR::Nulo,
-            vec![
-                StackValueType::Unknown,
-                StackValueType::Bombom,
-                StackValueType::Bombom,
-            ],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "mapa_bombom_bombom_obter".to_string(),
-        (
-            TypeIR::Bombom,
-            vec![StackValueType::Unknown, StackValueType::Bombom],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "mapa_bombom_bombom_tem".to_string(),
-        (
-            TypeIR::Logica,
-            vec![StackValueType::Unknown, StackValueType::Bombom],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "mapa_bombom_bombom_tamanho".to_string(),
-        (TypeIR::Bombom, vec![StackValueType::Unknown]),
-    );
-    sigs_intrinsecas.insert(
-        "mapa_bombom_bombom_remover".to_string(),
-        (
-            TypeIR::Nulo,
-            vec![StackValueType::Unknown, StackValueType::Bombom],
-        ),
-    );
-    sigs_intrinsecas.insert(
         "__pinker_internal_mapa_bombom_bombom_iterador_criar".to_string(),
         (TypeIR::Bombom, vec![StackValueType::Unknown]),
     );
     sigs_intrinsecas.insert(
         "__pinker_internal_mapa_bombom_bombom_iterador_proxima_chave".to_string(),
         (TypeIR::Bombom, vec![StackValueType::Bombom]),
-    );
-    sigs_intrinsecas.insert(
-        "mapa_bombom_verso_criar".to_string(),
-        (TypeIR::MapBombomVerso, vec![]),
-    );
-    sigs_intrinsecas.insert(
-        "mapa_bombom_verso_definir".to_string(),
-        (
-            TypeIR::Nulo,
-            vec![
-                StackValueType::Unknown,
-                StackValueType::Bombom,
-                StackValueType::Verso,
-            ],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "mapa_bombom_verso_obter".to_string(),
-        (
-            TypeIR::Verso,
-            vec![StackValueType::Unknown, StackValueType::Bombom],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "mapa_bombom_verso_tem".to_string(),
-        (
-            TypeIR::Logica,
-            vec![StackValueType::Unknown, StackValueType::Bombom],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "mapa_bombom_verso_tamanho".to_string(),
-        (TypeIR::Bombom, vec![StackValueType::Unknown]),
-    );
-    sigs_intrinsecas.insert(
-        "mapa_bombom_verso_remover".to_string(),
-        (
-            TypeIR::Nulo,
-            vec![StackValueType::Unknown, StackValueType::Bombom],
-        ),
     );
     sigs_intrinsecas.insert(
         "__pinker_internal_mapa_bombom_verso_iterador_criar".to_string(),
@@ -473,137 +252,6 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
     );
     // União não possui assinatura chamável na máquina: `union_tag` e
     // `union_extract` são instruções internas tipadas.
-    sigs_intrinsecas.insert(
-        "argumento".to_string(),
-        (TypeIR::Verso, vec![StackValueType::Bombom]),
-    );
-    sigs_intrinsecas.insert(
-        "argumento_ou".to_string(),
-        (
-            TypeIR::Verso,
-            vec![StackValueType::Bombom, StackValueType::Verso],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "tem_chave".to_string(),
-        (TypeIR::Logica, vec![StackValueType::Verso]),
-    );
-    sigs_intrinsecas.insert(
-        "tem_argumento_nomeado".to_string(),
-        (TypeIR::Logica, vec![StackValueType::Verso]),
-    );
-    sigs_intrinsecas.insert(
-        "pedir_argumento".to_string(),
-        (
-            TypeIR::Verso,
-            vec![StackValueType::Verso, StackValueType::Verso],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "argumento_nomeado_ou".to_string(),
-        (
-            TypeIR::Verso,
-            vec![StackValueType::Verso, StackValueType::Verso],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "tem_flag".to_string(),
-        (TypeIR::Logica, vec![StackValueType::Verso]),
-    );
-    sigs_intrinsecas.insert(
-        "ambiente_ou".to_string(),
-        (
-            TypeIR::Verso,
-            vec![StackValueType::Verso, StackValueType::Verso],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "buscar_contexto".to_string(),
-        (
-            TypeIR::Verso,
-            vec![
-                StackValueType::Verso,
-                StackValueType::Verso,
-                StackValueType::Verso,
-            ],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "argumento_nomeado_ou_ambiente_ou".to_string(),
-        (
-            TypeIR::Verso,
-            vec![
-                StackValueType::Verso,
-                StackValueType::Verso,
-                StackValueType::Verso,
-            ],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "caminho_existe".to_string(),
-        (TypeIR::Logica, vec![StackValueType::Verso]),
-    );
-    sigs_intrinsecas.insert(
-        "e_arquivo".to_string(),
-        (TypeIR::Logica, vec![StackValueType::Verso]),
-    );
-    sigs_intrinsecas.insert(
-        "e_diretorio".to_string(),
-        (TypeIR::Logica, vec![StackValueType::Verso]),
-    );
-    sigs_intrinsecas.insert(
-        "juntar_caminho".to_string(),
-        (
-            TypeIR::Verso,
-            vec![StackValueType::Verso, StackValueType::Verso],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "tamanho_arquivo".to_string(),
-        (TypeIR::Bombom, vec![StackValueType::Verso]),
-    );
-    sigs_intrinsecas.insert(
-        "e_vazio".to_string(),
-        (TypeIR::Logica, vec![StackValueType::Verso]),
-    );
-    sigs_intrinsecas.insert(
-        "criar_diretorio".to_string(),
-        (TypeIR::Nulo, vec![StackValueType::Verso]),
-    );
-    sigs_intrinsecas.insert(
-        "remover_arquivo".to_string(),
-        (TypeIR::Nulo, vec![StackValueType::Verso]),
-    );
-    sigs_intrinsecas.insert(
-        "remover_diretorio".to_string(),
-        (TypeIR::Nulo, vec![StackValueType::Verso]),
-    );
-    sigs_intrinsecas.insert("diretorio_atual".to_string(), (TypeIR::Verso, vec![]));
-    sigs_intrinsecas.insert("quantos_argumentos".to_string(), (TypeIR::Bombom, vec![]));
-    sigs_intrinsecas.insert(
-        "tem_argumento".to_string(),
-        (TypeIR::Logica, vec![StackValueType::Bombom]),
-    );
-    sigs_intrinsecas.insert(
-        "sair".to_string(),
-        (TypeIR::Nulo, vec![StackValueType::Bombom]),
-    );
-    sigs_intrinsecas.insert(
-        "abrir".to_string(),
-        (TypeIR::Bombom, vec![StackValueType::Verso]),
-    );
-    sigs_intrinsecas.insert(
-        "ler_arquivo".to_string(),
-        (TypeIR::Bombom, vec![StackValueType::Bombom]),
-    );
-    sigs_intrinsecas.insert(
-        "ler_verso_arquivo".to_string(),
-        (TypeIR::Verso, vec![StackValueType::Bombom]),
-    );
-    sigs_intrinsecas.insert(
-        "ler_arquivo_verso".to_string(),
-        (TypeIR::Verso, vec![StackValueType::Verso]),
-    );
     // Parte B: leque com carga é handle de uma palavra na máquina de pilha.
     for superficie in crate::falha_operacional::SUPERFICIES_FALIVEIS {
         sigs_intrinsecas.insert(
@@ -650,321 +298,12 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
     ] {
         sigs_intrinsecas.insert(nome.to_string(), (retorno.0, vec![StackValueType::Unknown]));
     }
-    sigs_intrinsecas.insert(
-        "arquivo_ou".to_string(),
-        (
-            TypeIR::Verso,
-            vec![StackValueType::Verso, StackValueType::Verso],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "fechar".to_string(),
-        (TypeIR::Nulo, vec![StackValueType::Bombom]),
-    );
-    sigs_intrinsecas.insert(
-        "criar_arquivo".to_string(),
-        (TypeIR::Bombom, vec![StackValueType::Verso]),
-    );
-    sigs_intrinsecas.insert(
-        "abrir_anexo".to_string(),
-        (TypeIR::Bombom, vec![StackValueType::Verso]),
-    );
-    sigs_intrinsecas.insert(
-        "escrever".to_string(),
-        (
-            TypeIR::Nulo,
-            vec![StackValueType::Bombom, StackValueType::Bombom],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "escrever_verso".to_string(),
-        (
-            TypeIR::Nulo,
-            vec![StackValueType::Bombom, StackValueType::Verso],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "truncar_arquivo".to_string(),
-        (TypeIR::Nulo, vec![StackValueType::Bombom]),
-    );
-    sigs_intrinsecas.insert(
-        "anexar_verso".to_string(),
-        (
-            TypeIR::Nulo,
-            vec![StackValueType::Bombom, StackValueType::Verso],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "juntar_verso".to_string(),
-        (
-            TypeIR::Verso,
-            vec![StackValueType::Verso, StackValueType::Verso],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "tamanho_verso".to_string(),
-        (TypeIR::Bombom, vec![StackValueType::Verso]),
-    );
-    sigs_intrinsecas.insert(
-        "indice_verso".to_string(),
-        (
-            TypeIR::Verso,
-            vec![StackValueType::Verso, StackValueType::Bombom],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "fatiar_verso".to_string(),
-        (
-            TypeIR::Verso,
-            vec![
-                StackValueType::Verso,
-                StackValueType::Bombom,
-                StackValueType::Bombom,
-            ],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "contem_verso".to_string(),
-        (
-            TypeIR::Logica,
-            vec![StackValueType::Verso, StackValueType::Verso],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "comeca_com".to_string(),
-        (
-            TypeIR::Logica,
-            vec![StackValueType::Verso, StackValueType::Verso],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "termina_com".to_string(),
-        (
-            TypeIR::Logica,
-            vec![StackValueType::Verso, StackValueType::Verso],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "igual_verso".to_string(),
-        (
-            TypeIR::Logica,
-            vec![StackValueType::Verso, StackValueType::Verso],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "vazio_verso".to_string(),
-        (TypeIR::Logica, vec![StackValueType::Verso]),
-    );
-    sigs_intrinsecas.insert(
-        "aparar_verso".to_string(),
-        (TypeIR::Verso, vec![StackValueType::Verso]),
-    );
-    sigs_intrinsecas.insert(
-        "minusculo_verso".to_string(),
-        (TypeIR::Verso, vec![StackValueType::Verso]),
-    );
-    sigs_intrinsecas.insert(
-        "maiusculo_verso".to_string(),
-        (TypeIR::Verso, vec![StackValueType::Verso]),
-    );
-    sigs_intrinsecas.insert(
-        "indice_verso_em".to_string(),
-        (
-            TypeIR::Bombom,
-            vec![StackValueType::Verso, StackValueType::Verso],
-        ),
-    );
     // Fase 140
-    sigs_intrinsecas.insert(
-        "buscar_verso".to_string(),
-        (
-            TypeIR::Bombom,
-            vec![StackValueType::Verso, StackValueType::Verso],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "nao_vazio_verso".to_string(),
-        (TypeIR::Logica, vec![StackValueType::Verso]),
-    );
     // Fase 137
-    sigs_intrinsecas.insert(
-        "dividir_verso_em".to_string(),
-        (
-            TypeIR::Verso,
-            vec![
-                StackValueType::Verso,
-                StackValueType::Verso,
-                StackValueType::Bombom,
-            ],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "dividir_verso_contar".to_string(),
-        (
-            TypeIR::Bombom,
-            vec![StackValueType::Verso, StackValueType::Verso],
-        ),
-    );
     // Fase 138
-    sigs_intrinsecas.insert(
-        "substituir_verso".to_string(),
-        (
-            TypeIR::Verso,
-            vec![
-                StackValueType::Verso,
-                StackValueType::Verso,
-                StackValueType::Verso,
-            ],
-        ),
-    );
     // Fase 139
-    sigs_intrinsecas.insert(
-        "juntar_verso_com".to_string(),
-        (
-            TypeIR::Verso,
-            vec![
-                StackValueType::Verso,
-                StackValueType::Verso,
-                StackValueType::Verso,
-            ],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "formatar_verso".to_string(),
-        (TypeIR::Verso, vec![StackValueType::Verso]),
-    );
     // Fase 158
-    sigs_intrinsecas.insert(
-        "ler_linha_csv_bombom".to_string(),
-        (
-            TypeIR::ListBombom,
-            vec![StackValueType::Verso, StackValueType::Verso],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "emitir_linha_csv_bombom".to_string(),
-        (
-            TypeIR::Verso,
-            vec![StackValueType::ListBombom, StackValueType::Verso],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "ler_json_plano_bombom".to_string(),
-        (TypeIR::MapVersoBombom, vec![StackValueType::Verso]),
-    );
-    sigs_intrinsecas.insert(
-        "emitir_json_plano_bombom".to_string(),
-        (TypeIR::Verso, vec![StackValueType::Unknown]),
-    );
     // Fase 160
-    sigs_intrinsecas.insert("tempo_unix".to_string(), (TypeIR::Bombom, vec![]));
-    sigs_intrinsecas.insert(
-        "formatar_tempo_unix".to_string(),
-        (TypeIR::Verso, vec![StackValueType::Bombom]),
-    );
-    sigs_intrinsecas.insert(
-        "executar_processo".to_string(),
-        (
-            TypeIR::Bombom,
-            vec![StackValueType::Verso, StackValueType::Verso],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "executar_com_entrada".to_string(),
-        (
-            TypeIR::Bombom,
-            vec![
-                StackValueType::Verso,
-                StackValueType::Verso,
-                StackValueType::Verso,
-            ],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "pipeline_minimo".to_string(),
-        (
-            TypeIR::Bombom,
-            vec![StackValueType::Verso, StackValueType::Verso],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "capturar_stdout".to_string(),
-        (TypeIR::Verso, vec![StackValueType::Verso]),
-    );
-    sigs_intrinsecas.insert(
-        "capturar_stderr".to_string(),
-        (TypeIR::Verso, vec![StackValueType::Verso]),
-    );
-    sigs_intrinsecas.insert(
-        "afirmar".to_string(),
-        (TypeIR::Nulo, vec![StackValueType::Logica]),
-    );
-    sigs_intrinsecas.insert(
-        "dormir".to_string(),
-        (TypeIR::Nulo, vec![StackValueType::Bombom]),
-    );
-    sigs_intrinsecas.insert(
-        "copiar_arquivo".to_string(),
-        (
-            TypeIR::Nulo,
-            vec![StackValueType::Verso, StackValueType::Verso],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "renomear_arquivo".to_string(),
-        (
-            TypeIR::Nulo,
-            vec![StackValueType::Verso, StackValueType::Verso],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "verso_para_bombom".to_string(),
-        (TypeIR::Bombom, vec![StackValueType::Verso]),
-    );
-    sigs_intrinsecas.insert(
-        "bombom_para_verso".to_string(),
-        (TypeIR::Verso, vec![StackValueType::Bombom]),
-    );
-    sigs_intrinsecas.insert(
-        "aleatorio_entre".to_string(),
-        (
-            TypeIR::Bombom,
-            vec![
-                StackValueType::Bombom,
-                StackValueType::Bombom,
-                StackValueType::Bombom,
-            ],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "mapa_verso_bombom_remover".to_string(),
-        (
-            TypeIR::Nulo,
-            vec![StackValueType::Unknown, StackValueType::Verso],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "lista_bombom_inserir".to_string(),
-        (
-            TypeIR::Nulo,
-            vec![
-                StackValueType::ListBombom,
-                StackValueType::Bombom,
-                StackValueType::Bombom,
-            ],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "lista_verso_inserir".to_string(),
-        (
-            TypeIR::Nulo,
-            vec![
-                StackValueType::ListVerso,
-                StackValueType::Bombom,
-                StackValueType::Verso,
-            ],
-        ),
-    );
 
     // #532: duas tabelas, escolhidas pela identidade do callee. Antes eram um
     // mapa só, e a entrada da intrínseca sobrescrevia a da função homônima do
@@ -1084,7 +423,10 @@ fn validate_function(
                             ));
                         }
                         if identidade.dispatches_as_builtin() && callee == "formatar_verso" {
-                            if *argc < 2 {
+                            // #442/C1 — mínimo da variádica declarado pelo registry.
+                            if *argc
+                                < crate::intrinsics::registry::aridade_minima(callee).unwrap_or(0)
+                            {
                                 return Err(err_ctx(
                                     f,
                                     Some(&b.label),
@@ -1093,55 +435,20 @@ fn validate_function(
                             }
                             continue;
                         }
-                        if identidade.dispatches_as_builtin() && callee == "executar_processo" {
-                            if !(*argc == 1 || *argc == 2) {
-                                return Err(err_ctx(
-                                    f,
-                                    Some(&b.label),
-                                    "call com aridade inválida",
-                                ));
+                        // #442/C1 — o recorte de aridade é declarado pelo registry.
+                        if identidade.dispatches_as_builtin() {
+                            if let Some(aridades) =
+                                crate::intrinsics::registry::aridades_aceitas(callee)
+                            {
+                                if !aridades.contains(argc) {
+                                    return Err(err_ctx(
+                                        f,
+                                        Some(&b.label),
+                                        "call com aridade inválida",
+                                    ));
+                                }
+                                continue;
                             }
-                            continue;
-                        }
-                        if identidade.dispatches_as_builtin() && callee == "executar_com_entrada" {
-                            if !(*argc == 2 || *argc == 3) {
-                                return Err(err_ctx(
-                                    f,
-                                    Some(&b.label),
-                                    "call com aridade inválida",
-                                ));
-                            }
-                            continue;
-                        }
-                        if identidade.dispatches_as_builtin() && callee == "capturar_stdout" {
-                            if !(*argc == 1 || *argc == 2) {
-                                return Err(err_ctx(
-                                    f,
-                                    Some(&b.label),
-                                    "call com aridade inválida",
-                                ));
-                            }
-                            continue;
-                        }
-                        if identidade.dispatches_as_builtin() && callee == "capturar_stderr" {
-                            if !(*argc == 1 || *argc == 2) {
-                                return Err(err_ctx(
-                                    f,
-                                    Some(&b.label),
-                                    "call com aridade inválida",
-                                ));
-                            }
-                            continue;
-                        }
-                        if identidade.dispatches_as_builtin() && callee == "afirmar" {
-                            if !(*argc == 1 || *argc == 2) {
-                                return Err(err_ctx(
-                                    f,
-                                    Some(&b.label),
-                                    "call com aridade inválida",
-                                ));
-                            }
-                            continue;
                         }
                         if *argc != param_types.len() {
                             return Err(err_ctx(f, Some(&b.label), "call com aridade inválida"));
@@ -1176,7 +483,10 @@ fn validate_function(
                             ));
                         }
                         if identidade.dispatches_as_builtin() && callee == "formatar_verso" {
-                            if *argc < 2 {
+                            // #442/C1 — mínimo da variádica declarado pelo registry.
+                            if *argc
+                                < crate::intrinsics::registry::aridade_minima(callee).unwrap_or(0)
+                            {
                                 return Err(err_ctx(
                                     f,
                                     Some(&b.label),
@@ -1185,15 +495,20 @@ fn validate_function(
                             }
                             continue;
                         }
-                        if identidade.dispatches_as_builtin() && callee == "afirmar" {
-                            if !(*argc == 1 || *argc == 2) {
-                                return Err(err_ctx(
-                                    f,
-                                    Some(&b.label),
-                                    "call_void com aridade inválida",
-                                ));
+                        // #442/C1 — o recorte de aridade é declarado pelo registry.
+                        if identidade.dispatches_as_builtin() {
+                            if let Some(aridades) =
+                                crate::intrinsics::registry::aridades_aceitas(callee)
+                            {
+                                if !aridades.contains(argc) {
+                                    return Err(err_ctx(
+                                        f,
+                                        Some(&b.label),
+                                        "call_void com aridade inválida",
+                                    ));
+                                }
+                                continue;
                             }
-                            continue;
                         }
                         if *argc != param_types.len() {
                             return Err(err_ctx(

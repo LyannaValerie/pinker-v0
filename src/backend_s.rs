@@ -3741,33 +3741,20 @@ fn is_external_call_ret_type(ty: &TypeIR) -> bool {
 // @pinker-nav:start backend-s.runtime.intrinsecas-por-aridade
 // @pinker-nav:domain runtime
 // @pinker-nav:layer backend-s
-// @pinker-nav:summary Autoridade de seleção de rota do subset externo montável. `runtime_intrinsic_symbol_por_aridade` resolve as intrínsecas cujo símbolo varia por número de argumentos: as superfícies de `falha_operacional` casam pela aridade exata, e o recorte nominal cobre `afirmar` (1|2, mensagem opcional), `executar_processo`, `capturar_stdout` e `capturar_stderr` (1|2) e `executar_com_entrada` (2|3). `is_arity_runtime_intrinsic` decide a elegibilidade pelo mesmo conjunto. `resolver_rota_de_chamada` compõe a precedência final — aridade, depois nome, depois função Pinker declarada — devolvendo `RotaDeChamada` e distinguindo aridade fora do recorte de callee desconhecido. `formatar_verso` não participa: D7 usa `pinker_formatar_verso_pack` para qualquer count representável.
+// @pinker-nav:summary Seleção de rota do subset externo montável. `runtime_intrinsic_symbol_por_aridade` resolve as intrínsecas cujo símbolo varia por número de argumentos: as superfícies de `falha_operacional` casam pela aridade exata e o recorte histórico — prefixo e aridades aceitas — vem do registry declarativo, que `is_arity_runtime_intrinsic` consulta pelo mesmo caminho. `resolver_rota_de_chamada` compõe a precedência final — aridade, depois nome, depois função Pinker declarada — devolvendo `RotaDeChamada` e distinguindo aridade fora do recorte de callee desconhecido. `formatar_verso` não participa: D7 usa `pinker_formatar_verso_pack` para qualquer count representável.
 /// Intrínsecas de aridade variável (Fases 219/B8 e 221/B10): o símbolo do
 /// runtime é escolhido pela quantidade de argumentos no call site.
 fn runtime_intrinsic_symbol_por_aridade(callee: &str, argc: usize) -> Option<String> {
     if let Some(superficie) = crate::falha_operacional::superficie(callee) {
         return (argc == superficie.aridade()).then(|| superficie.simbolo_runtime.to_string());
     }
-    match (callee, argc) {
-        ("afirmar", 1 | 2) => Some(format!("pinker_afirmar_{}", argc)),
-        ("executar_processo", 1 | 2) => Some(format!("pinker_processo_executar_{}", argc)),
-        ("capturar_stdout", 1 | 2) => Some(format!("pinker_processo_capturar_stdout_{}", argc)),
-        ("capturar_stderr", 1 | 2) => Some(format!("pinker_processo_capturar_stderr_{}", argc)),
-        ("executar_com_entrada", 2 | 3) => Some(format!("pinker_processo_com_entrada_{}", argc)),
-        _ => None,
-    }
+    // #442/C1 — prefixo e recorte de aridade vêm do registry declarativo.
+    crate::intrinsics::registry::simbolo_runtime_por_aridade(callee, argc)
 }
 
 fn is_arity_runtime_intrinsic(callee: &str) -> bool {
     crate::falha_operacional::superficie(callee).is_some()
-        || matches!(
-            callee,
-            "afirmar"
-                | "executar_processo"
-                | "capturar_stdout"
-                | "capturar_stderr"
-                | "executar_com_entrada"
-        )
+        || crate::intrinsics::registry::roteia_por_aridade(callee)
 }
 
 /// Rota de destino de um call site do subset externo montável.
@@ -3831,7 +3818,7 @@ fn resolver_rota_de_chamada(
 // @pinker-nav:start backend-s.runtime.simbolos-intrinsecas
 // @pinker-nav:domain runtime
 // @pinker-nav:layer backend-s
-// @pinker-nav:summary `runtime_intrinsic_symbol`: catálogo estático extenso que mapeia nomes de intrínsecas Pinker para símbolos `pinker_*` do runtime nativo (texto/`verso`, listas, mapas por chave `verso`/`bombom`, iteradores internos, arquivo/caminho, tempo, acaso, ambiente e leques). Uma única palavra de 8 bytes por elemento faz `lista<bombom>` e `lista<verso>` compartilharem os mesmos símbolos. Funções Pinker comuns não são intrínsecas (retornam `None` → símbolo direto). Mapear um símbolo **não** prova paridade completa da implementação nativa; o runtime não foi cartografado nesta onda. Região única — sem uma âncora por intrínseca.
+// @pinker-nav:summary `runtime_intrinsic_symbol`: rota do call site para o símbolo `pinker_*` do runtime nativo. As famílias com autoridade própria respondem primeiro — JSON, SHA-256 e, desde a consolidação C1, o registry declarativo das grafias históricas —, e o `match` local guarda apenas o que não é superfície histórica: acessores de `saida_processo` e as identidades que o próprio compilador materializa. Uma única palavra de 8 bytes por elemento faz `lista<bombom>` e `lista<verso>` compartilharem os mesmos símbolos. Funções Pinker comuns não são intrínsecas (retornam `None` → símbolo direto). Mapear um símbolo **não** prova paridade completa da implementação nativa; o runtime não foi cartografado nesta onda. Região única — sem uma âncora por intrínseca.
 /// Intrínsecas com implementação no runtime nativo (Fases 215/B4 e 216/B5).
 /// O símbolo devolvido é resolvido no link com `libpinker_rt.a`.
 ///
@@ -3850,76 +3837,23 @@ fn runtime_intrinsic_symbol(callee: &str) -> Option<&'static str> {
     if let Some(simbolo) = crate::sha256::simbolo_runtime(callee) {
         return Some(simbolo);
     }
+    // #442/C1 — o símbolo fixo da grafia histórica vem do registry declarativo,
+    // pela mesma disciplina que `valor_json` e `sha256` já seguiam.
+    if let Some(simbolo) = crate::intrinsics::registry::simbolo_runtime(callee) {
+        return Some(simbolo);
+    }
     match callee {
-        "alocar" => Some("pinker_publico_alocar"),
-        "liberar" => Some("pinker_publico_liberar"),
-        "juntar_verso" => Some("pinker_verso_juntar"),
-        "tamanho_verso" => Some("pinker_verso_tamanho"),
-        "igual_verso" => Some("pinker_verso_igual"),
-        // Família texto completa (Fase 219/B8).
-        "indice_verso" => Some("pinker_verso_indice"),
-        "fatiar_verso" => Some("pinker_verso_fatiar"),
-        "contem_verso" => Some("pinker_verso_contem"),
-        "comeca_com" => Some("pinker_verso_comeca_com"),
-        "termina_com" => Some("pinker_verso_termina_com"),
-        "vazio_verso" => Some("pinker_verso_vazio"),
-        "nao_vazio_verso" => Some("pinker_verso_nao_vazio"),
-        "aparar_verso" => Some("pinker_verso_aparar"),
-        "minusculo_verso" => Some("pinker_verso_minusculo"),
-        "maiusculo_verso" => Some("pinker_verso_maiusculo"),
-        "indice_verso_em" => Some("pinker_verso_indice_em"),
-        "buscar_verso" => Some("pinker_verso_buscar"),
-        "dividir_verso_em" => Some("pinker_verso_dividir_em"),
-        "dividir_verso_contar" => Some("pinker_verso_dividir_contar"),
-        "substituir_verso" => Some("pinker_verso_substituir"),
-        "juntar_verso_com" => Some("pinker_verso_juntar_com"),
-        "verso_para_bombom" => Some("pinker_verso_para_bombom"),
-        "bombom_para_verso" => Some("pinker_bombom_para_verso"),
-        "lista_bombom_criar" | "lista_verso_criar" => Some("pinker_lista_criar"),
-        "lista_bombom_anexar" | "lista_verso_anexar" => Some("pinker_lista_anexar"),
-        "lista_bombom_obter" | "lista_verso_obter" => Some("pinker_lista_obter"),
-        "lista_bombom_tamanho" | "lista_verso_tamanho" => Some("pinker_lista_tamanho"),
-        "lista_bombom_definir" | "lista_verso_definir" => Some("pinker_lista_definir"),
-        "lista_bombom_tirar_ultimo" | "lista_verso_tirar_ultimo" => {
-            Some("pinker_lista_tirar_ultimo")
-        }
-        "lista_bombom_inserir" | "lista_verso_inserir" => Some("pinker_lista_inserir"),
-        "emitir_linha_csv_bombom" => Some("pinker_emitir_linha_csv_bombom"),
-        "ler_linha_csv_bombom" => Some("pinker_ler_linha_csv_bombom"),
-        // Mapas (Fase 217/B6): chave `verso` compara por conteúdo, chave
-        // `bombom` por valor; os 4 tipos compartilham as demais operações.
-        "mapa_verso_bombom_criar" | "mapa_verso_verso_criar" => {
-            Some("pinker_mapa_criar_chave_verso")
-        }
-        "mapa_bombom_bombom_criar" | "mapa_bombom_verso_criar" => {
-            Some("pinker_mapa_criar_chave_bombom")
-        }
+        // #442/C1 — as grafias históricas foram para o registry declarativo,
+        // consultado logo acima. O que resta aqui não é superfície histórica:
+        // acessores de processo e identidades que o próprio compilador
+        // materializa.
+        // Mapas (Fase 217/B6): chave `verso` compara por conteúdo,
         "__pinker_internal_mapa_criar_chave_verso" => Some("pinker_mapa_criar_chave_verso"),
         "__pinker_internal_mapa_criar_chave_bombom" => Some("pinker_mapa_criar_chave_bombom"),
-        "mapa_verso_bombom_definir"
-        | "mapa_verso_verso_definir"
-        | "mapa_bombom_bombom_definir"
-        | "mapa_bombom_verso_definir" => Some("pinker_mapa_definir"),
         "__pinker_internal_mapa_definir" => Some("pinker_mapa_definir"),
-        "mapa_verso_bombom_obter"
-        | "mapa_verso_verso_obter"
-        | "mapa_bombom_bombom_obter"
-        | "mapa_bombom_verso_obter" => Some("pinker_mapa_obter"),
         "__pinker_internal_mapa_obter" => Some("pinker_mapa_obter"),
-        "mapa_verso_bombom_tem"
-        | "mapa_verso_verso_tem"
-        | "mapa_bombom_bombom_tem"
-        | "mapa_bombom_verso_tem" => Some("pinker_mapa_tem"),
         "__pinker_internal_mapa_tem" => Some("pinker_mapa_tem"),
-        "mapa_verso_bombom_tamanho"
-        | "mapa_verso_verso_tamanho"
-        | "mapa_bombom_bombom_tamanho"
-        | "mapa_bombom_verso_tamanho" => Some("pinker_mapa_tamanho"),
         "__pinker_internal_mapa_tamanho" => Some("pinker_mapa_tamanho"),
-        "mapa_verso_bombom_remover"
-        | "mapa_verso_verso_remover"
-        | "mapa_bombom_bombom_remover"
-        | "mapa_bombom_verso_remover" => Some("pinker_mapa_remover"),
         "__pinker_internal_mapa_remover" => Some("pinker_mapa_remover"),
         "__pinker_internal_mapa_verso_bombom_iterador_criar"
         | "__pinker_internal_mapa_verso_verso_iterador_criar"
@@ -3938,54 +3872,10 @@ fn runtime_intrinsic_symbol(callee: &str) -> Option<&'static str> {
         | "__pinker_internal_mapa_iterador_proxima_chave_verso" => {
             Some("pinker_mapa_iterador_proxima")
         }
-        // Arquivo, caminho, tempo e acaso (Fase 220/B9).
-        "abrir" => Some("pinker_arquivo_abrir"),
-        "criar_arquivo" => Some("pinker_arquivo_criar"),
-        "abrir_anexo" => Some("pinker_arquivo_abrir_anexo"),
-        "fechar" => Some("pinker_arquivo_fechar"),
-        "ler_arquivo" => Some("pinker_arquivo_ler_bombom"),
-        "ler_verso_arquivo" => Some("pinker_arquivo_ler_verso"),
-        "escrever" => Some("pinker_arquivo_escrever_bombom"),
-        "escrever_verso" => Some("pinker_arquivo_escrever_verso"),
-        "truncar_arquivo" => Some("pinker_arquivo_truncar"),
-        "anexar_verso" => Some("pinker_arquivo_anexar_verso"),
-        "ler_arquivo_verso" => Some("pinker_arquivo_ler_caminho_verso"),
+        // Arquivo, caminho,
         "processo_codigo" => Some("pinker_saida_processo_codigo"),
         "processo_saida" => Some("pinker_saida_processo_stdout"),
         "processo_erro" => Some("pinker_saida_processo_stderr"),
-        "arquivo_ou" => Some("pinker_arquivo_ou"),
-        "copiar_arquivo" => Some("pinker_arquivo_copiar"),
-        "renomear_arquivo" => Some("pinker_arquivo_renomear"),
-        "caminho_existe" => Some("pinker_caminho_existe"),
-        "e_arquivo" => Some("pinker_caminho_e_arquivo"),
-        "e_diretorio" => Some("pinker_caminho_e_diretorio"),
-        "juntar_caminho" => Some("pinker_caminho_juntar"),
-        "tamanho_arquivo" => Some("pinker_caminho_tamanho_arquivo"),
-        "e_vazio" => Some("pinker_caminho_e_vazio"),
-        "criar_diretorio" => Some("pinker_caminho_criar_diretorio"),
-        "remover_arquivo" => Some("pinker_caminho_remover_arquivo"),
-        "remover_diretorio" => Some("pinker_caminho_remover_diretorio"),
-        "diretorio_atual" => Some("pinker_caminho_diretorio_atual"),
-        "tempo_unix" => Some("pinker_tempo_unix"),
-        "formatar_tempo_unix" => Some("pinker_formatar_tempo_unix"),
-        "dormir" => Some("pinker_dormir"),
-        "aleatorio_criar" => Some("pinker_aleatorio_criar"),
-        "aleatorio_proximo" => Some("pinker_aleatorio_proximo"),
-        "aleatorio_entre" => Some("pinker_aleatorio_entre"),
-        // Ambiente (Fase 221/B10) — argv/env capturados por pinker_rt_iniciar.
-        "quantos_argumentos" => Some("pinker_ambiente_quantos_argumentos"),
-        "argumento" => Some("pinker_ambiente_argumento"),
-        "argumento_ou" => Some("pinker_ambiente_argumento_ou"),
-        "tem_argumento" => Some("pinker_ambiente_tem_argumento"),
-        "tem_chave" | "tem_argumento_nomeado" => Some("pinker_ambiente_tem_chave"),
-        "pedir_argumento" | "argumento_nomeado_ou" => Some("pinker_ambiente_pedir_argumento"),
-        "tem_flag" => Some("pinker_ambiente_tem_flag"),
-        "ambiente_ou" => Some("pinker_ambiente_ou"),
-        "buscar_contexto" | "argumento_nomeado_ou_ambiente_ou" => {
-            Some("pinker_ambiente_buscar_contexto")
-        }
-        "pipeline_minimo" => Some("pinker_processo_pipeline"),
-        "sair" => Some("pinker_sair"),
         // Leques com carga (Fase 218/B7): anexar e carga não distinguem
         // bombom/verso no runtime — toda carga é uma palavra de 8 bytes.
         "__pinker_internal_leque_criar_0" => Some("pinker_leque_criar_0"),

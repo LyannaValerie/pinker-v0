@@ -2516,119 +2516,48 @@ impl LoweringContext {
         // @pinker-nav:start ir.lowering.assinaturas-intrinsecos
         // @pinker-nav:domain lowering
         // @pinker-nav:layer ir
-        // @pinker-nav:summary Segunda metade de `from_program`: catálogo centralizado de assinaturas das intrínsecas embutidas e internas (E/S, texto/verso, listas, mapas, CSV/JSON, tempo, ambiente, acaso, arquivo, caminho, processo) — cada `function_sigs.insert` registra o tipo de retorno usado depois para tipar chamadas no lowering de expressões. Encerra montando o `LoweringContext`. Não valida os corpos das intrínsecas; apenas declara contratos de retorno.
-        function_sigs.insert(
-            "ouvir".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
-        );
-        function_sigs.insert(
-            "ouvir_verso".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
-        );
-        function_sigs.insert(
-            "ouvir_verso_ou".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
-        );
-        function_sigs.insert(
-            "aleatorio_criar".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
-        );
-        function_sigs.insert(
-            "aleatorio_proximo".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
-        );
-        function_sigs.insert(
-            "lista_bombom_criar".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::ListBombom)?,
-        );
-        function_sigs.insert(
-            "lista_bombom_anexar".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
-        );
-        function_sigs.insert(
-            "lista_bombom_obter".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
-        );
-        function_sigs.insert(
-            "lista_bombom_tamanho".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
-        );
-        function_sigs.insert(
-            "lista_bombom_definir".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
-        );
-        function_sigs.insert(
-            "lista_bombom_tirar_ultimo".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
-        );
-        function_sigs.insert(
-            "lista_verso_criar".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::ListVerso)?,
-        );
-        function_sigs.insert(
-            "lista_verso_anexar".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
-        );
-        function_sigs.insert(
-            "lista_verso_obter".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
-        );
-        function_sigs.insert(
-            "lista_verso_tamanho".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
-        );
-        function_sigs.insert(
-            "lista_verso_definir".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
-        );
-        function_sigs.insert(
-            "lista_verso_tirar_ultimo".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
-        );
-        function_sigs.insert(
-            "mapa_verso_bombom_criar".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::MapVersoBombom)?,
-        );
-        function_sigs.insert(
-            "mapa_verso_bombom_definir".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
-        );
-        function_sigs.insert(
-            "mapa_verso_bombom_obter".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
-        );
-        function_sigs.insert(
-            "mapa_verso_bombom_tem".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Logica)?,
-        );
-        function_sigs.insert(
-            "mapa_verso_bombom_tamanho".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
-        );
-        function_sigs.insert(
-            "mapa_verso_verso_criar".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::MapVersoVerso)?,
-        );
-        function_sigs.insert(
-            "mapa_verso_verso_definir".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
-        );
-        function_sigs.insert(
-            "mapa_verso_verso_obter".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
-        );
-        function_sigs.insert(
-            "mapa_verso_verso_tem".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Logica)?,
-        );
-        function_sigs.insert(
-            "mapa_verso_verso_tamanho".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
-        );
-        function_sigs.insert(
-            "mapa_verso_verso_remover".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
-        );
+        // @pinker-nav:summary Segunda metade de `from_program`: assinaturas das intrínsecas que o lowering precisa tipar. As grafias históricas vêm do registry declarativo de `intrinsics::registry`, e as famílias falível, JSON, SHA-256 e acessores de processo vêm de suas próprias autoridades; o que continua declarado aqui são as identidades que o próprio compilador materializa. Encerra montando o `LoweringContext`. Não valida os corpos das intrínsecas; apenas declara contratos de retorno.
+        // #442/C1 — as assinaturas históricas vêm do registry declarativo.
+        //
+        // Mesma disciplina já aplicada a `falha_operacional`, `valor_json`,
+        // `sha256` e aos acessores de processo: a fase consulta a autoridade em
+        // vez de manter a sua cópia da tabela.
+        for entrada in crate::intrinsics::registry::HISTORICAL {
+            let Some((retorno, _)) = entrada.assinatura_ir() else {
+                continue;
+            };
+            let sig = match retorno {
+                // `alocar` devolve `seta<u8>`: a identidade do apontado é
+                // explícita, porque `TypeIR::Pointer` não a determina.
+                TypeIR::Pointer { is_volatile } => {
+                    let pointee = intern_representation_identity(&mut resolved_types, TypeIR::U8)
+                        .map_err(|msg| PinkerError::Ir {
+                        msg,
+                        span: Span::new(Position::new(1, 1), Position::new(1, 1)),
+                    })?;
+                    let ret_type = TypeIR::Pointer { is_volatile };
+                    let ret_resolved = resolved_types
+                        .intern(
+                            "ptr:0:u8".to_string(),
+                            ret_type,
+                            ResolvedTypeParts {
+                                pointee: Some(pointee),
+                                ..ResolvedTypeParts::default()
+                            },
+                        )
+                        .map_err(|msg| PinkerError::Ir {
+                            msg,
+                            span: Span::new(Position::new(1, 1), Position::new(1, 1)),
+                        })?;
+                    FunctionSigIR {
+                        ret_type,
+                        ret_resolved,
+                    }
+                }
+                outro => builtin_sig(&mut resolved_types, outro)?,
+            };
+            function_sigs.insert(entrada.spelling.to_string(), sig);
+        }
         function_sigs.insert(
             "__pinker_internal_mapa_verso_verso_iterador_criar".to_string(),
             builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
@@ -2638,60 +2567,12 @@ impl LoweringContext {
             builtin_sig(&mut resolved_types, TypeIR::Verso)?,
         );
         function_sigs.insert(
-            "mapa_bombom_bombom_criar".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::MapBombomBombom)?,
-        );
-        function_sigs.insert(
-            "mapa_bombom_bombom_definir".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
-        );
-        function_sigs.insert(
-            "mapa_bombom_bombom_obter".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
-        );
-        function_sigs.insert(
-            "mapa_bombom_bombom_tem".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Logica)?,
-        );
-        function_sigs.insert(
-            "mapa_bombom_bombom_tamanho".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
-        );
-        function_sigs.insert(
-            "mapa_bombom_bombom_remover".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
-        );
-        function_sigs.insert(
             "__pinker_internal_mapa_bombom_bombom_iterador_criar".to_string(),
             builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
         );
         function_sigs.insert(
             "__pinker_internal_mapa_bombom_bombom_iterador_proxima_chave".to_string(),
             builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
-        );
-        function_sigs.insert(
-            "mapa_bombom_verso_criar".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::MapBombomVerso)?,
-        );
-        function_sigs.insert(
-            "mapa_bombom_verso_definir".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
-        );
-        function_sigs.insert(
-            "mapa_bombom_verso_obter".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
-        );
-        function_sigs.insert(
-            "mapa_bombom_verso_tem".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Logica)?,
-        );
-        function_sigs.insert(
-            "mapa_bombom_verso_tamanho".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
-        );
-        function_sigs.insert(
-            "mapa_bombom_verso_remover".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
         );
         function_sigs.insert(
             "__pinker_internal_mapa_bombom_verso_iterador_criar".to_string(),
@@ -2759,114 +2640,6 @@ impl LoweringContext {
         // As uniões não registram intrínsecas chamáveis: tag e extração são
         // `ValueIR::UnionTag`/`ValueIR::UnionExtract`, nós tipados criados pelo
         // lowering de `Stmt::UnionMatch`.
-        function_sigs.insert(
-            "argumento".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
-        );
-        function_sigs.insert(
-            "argumento_ou".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
-        );
-        function_sigs.insert(
-            "tem_chave".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Logica)?,
-        );
-        function_sigs.insert(
-            "tem_argumento_nomeado".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Logica)?,
-        );
-        function_sigs.insert(
-            "pedir_argumento".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
-        );
-        function_sigs.insert(
-            "argumento_nomeado_ou".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
-        );
-        function_sigs.insert(
-            "tem_flag".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Logica)?,
-        );
-        function_sigs.insert(
-            "ambiente_ou".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
-        );
-        function_sigs.insert(
-            "buscar_contexto".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
-        );
-        function_sigs.insert(
-            "argumento_nomeado_ou_ambiente_ou".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
-        );
-        function_sigs.insert(
-            "caminho_existe".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Logica)?,
-        );
-        function_sigs.insert(
-            "e_arquivo".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Logica)?,
-        );
-        function_sigs.insert(
-            "e_diretorio".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Logica)?,
-        );
-        function_sigs.insert(
-            "juntar_caminho".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
-        );
-        function_sigs.insert(
-            "tamanho_arquivo".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
-        );
-        function_sigs.insert(
-            "e_vazio".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Logica)?,
-        );
-        function_sigs.insert(
-            "criar_diretorio".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
-        );
-        function_sigs.insert(
-            "remover_arquivo".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
-        );
-        function_sigs.insert(
-            "remover_diretorio".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
-        );
-        function_sigs.insert(
-            "diretorio_atual".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
-        );
-        function_sigs.insert(
-            "quantos_argumentos".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
-        );
-        function_sigs.insert(
-            "tem_argumento".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Logica)?,
-        );
-        function_sigs.insert(
-            "sair".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
-        );
-        function_sigs.insert(
-            "abrir".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
-        );
-        function_sigs.insert(
-            "ler_arquivo".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
-        );
-        function_sigs.insert(
-            "ler_verso_arquivo".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
-        );
-        function_sigs.insert(
-            "ler_arquivo_verso".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
-        );
         // Parte B: leque com carga é handle de uma palavra na IR.
         for nome in crate::falha_operacional::nomes() {
             function_sigs.insert(
@@ -2917,246 +2690,17 @@ impl LoweringContext {
                 builtin_sig(&mut resolved_types, TypeIR::Verso)?,
             );
         }
-        function_sigs.insert(
-            "arquivo_ou".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
-        );
-        function_sigs.insert(
-            "fechar".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
-        );
-        function_sigs.insert(
-            "criar_arquivo".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
-        );
-        function_sigs.insert(
-            "abrir_anexo".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
-        );
-        function_sigs.insert(
-            "escrever".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
-        );
-        function_sigs.insert(
-            "escrever_verso".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
-        );
-        function_sigs.insert(
-            "truncar_arquivo".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
-        );
-        function_sigs.insert(
-            "anexar_verso".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
-        );
-        function_sigs.insert(
-            "juntar_verso".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
-        );
-        function_sigs.insert(
-            "tamanho_verso".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
-        );
-        function_sigs.insert(
-            "indice_verso".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
-        );
-        function_sigs.insert(
-            "fatiar_verso".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
-        );
-        function_sigs.insert(
-            "contem_verso".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Logica)?,
-        );
-        function_sigs.insert(
-            "comeca_com".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Logica)?,
-        );
-        function_sigs.insert(
-            "termina_com".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Logica)?,
-        );
-        function_sigs.insert(
-            "igual_verso".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Logica)?,
-        );
-        function_sigs.insert(
-            "vazio_verso".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Logica)?,
-        );
-        function_sigs.insert(
-            "aparar_verso".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
-        );
-        function_sigs.insert(
-            "minusculo_verso".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
-        );
-        function_sigs.insert(
-            "maiusculo_verso".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
-        );
-        function_sigs.insert(
-            "indice_verso_em".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
-        );
         // Fase 140
-        function_sigs.insert(
-            "buscar_verso".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
-        );
-        function_sigs.insert(
-            "nao_vazio_verso".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Logica)?,
-        );
         // Fase 137
-        function_sigs.insert(
-            "dividir_verso_em".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
-        );
-        function_sigs.insert(
-            "dividir_verso_contar".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
-        );
         // Fase 138
-        function_sigs.insert(
-            "substituir_verso".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
-        );
         // Fase 139
-        function_sigs.insert(
-            "juntar_verso_com".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
-        );
-        function_sigs.insert(
-            "formatar_verso".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
-        );
         // Fase 158
-        function_sigs.insert(
-            "ler_linha_csv_bombom".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::ListBombom)?,
-        );
-        function_sigs.insert(
-            "emitir_linha_csv_bombom".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
-        );
-        function_sigs.insert(
-            "ler_json_plano_bombom".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::MapVersoBombom)?,
-        );
-        function_sigs.insert(
-            "emitir_json_plano_bombom".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
-        );
         // Fase 160
-        function_sigs.insert(
-            "tempo_unix".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
-        );
-        function_sigs.insert(
-            "formatar_tempo_unix".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
-        );
         // Fase 161
-        function_sigs.insert(
-            "executar_processo".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
-        );
         // Fase 165
-        function_sigs.insert(
-            "executar_com_entrada".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
-        );
         // Fase 166
-        function_sigs.insert(
-            "pipeline_minimo".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
-        );
         // Fase 163
-        function_sigs.insert(
-            "capturar_stdout".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
-        );
         // Fase 164
-        function_sigs.insert(
-            "capturar_stderr".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
-        );
-        function_sigs.insert(
-            "afirmar".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
-        );
-        function_sigs.insert(
-            "dormir".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
-        );
-        function_sigs.insert(
-            "copiar_arquivo".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
-        );
-        function_sigs.insert(
-            "renomear_arquivo".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
-        );
-        function_sigs.insert(
-            "verso_para_bombom".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
-        );
-        function_sigs.insert(
-            "bombom_para_verso".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
-        );
-        function_sigs.insert(
-            "aleatorio_entre".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
-        );
-        function_sigs.insert(
-            "mapa_verso_bombom_remover".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
-        );
-        function_sigs.insert(
-            "lista_bombom_inserir".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
-        );
-        function_sigs.insert(
-            "lista_verso_inserir".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
-        );
-        function_sigs.insert("alocar".to_string(), {
-            // `alocar` devolve `seta<u8>`: a identidade do apontado é
-            // explícita, porque `TypeIR::Pointer` não a determina.
-            let pointee =
-                intern_representation_identity(&mut resolved_types, TypeIR::U8).map_err(|msg| {
-                    PinkerError::Ir {
-                        msg,
-                        span: Span::new(Position::new(1, 1), Position::new(1, 1)),
-                    }
-                })?;
-            let ret_type = TypeIR::Pointer { is_volatile: false };
-            let ret_resolved = resolved_types
-                .intern(
-                    "ptr:0:u8".to_string(),
-                    ret_type,
-                    ResolvedTypeParts {
-                        pointee: Some(pointee),
-                        ..ResolvedTypeParts::default()
-                    },
-                )
-                .map_err(|msg| PinkerError::Ir {
-                    msg,
-                    span: Span::new(Position::new(1, 1), Position::new(1, 1)),
-                })?;
-            FunctionSigIR {
-                ret_type,
-                ret_resolved,
-            }
-        });
-        function_sigs.insert(
-            "liberar".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Nulo)?,
-        );
 
         let mut context = Self {
             module_name,
