@@ -18,7 +18,7 @@ use std::fs;
 // @pinker-nav:start evidencia.tratos.identidade-resolvida-u2-f05
 // @pinker-nav:domain tratos
 // @pinker-nav:layer evidencia
-// @pinker-nav:summary Matriz U2/F-05 sobre o pipeline real: aliases simples, em cadeia e equivalentes despacham pela mesma identidade resolvida; duplicatas equivalentes falham nas duas ordens sem vazar codecs internos; métodos distintos podem completar blocos equivalentes, tratos e tipos estruturais distintos permanecem independentes, receivers trocados são rejeitados, especializações #476 seguem injetivas, módulos são decididos após montagem, e o caso aceito cobre despacho direto/vtable, paridade entre interpretador e ELF nativo e símbolos locais.
+// @pinker-nav:summary Matriz U2/F-05 sobre o pipeline real: aliases simples, em cadeia e equivalentes despacham pela mesma identidade resolvida; duplicatas equivalentes falham nas duas ordens sem vazar codecs internos; blocos canonicamente equivalentes são a MESMA relação e a segunda declaração é recusada mesmo quando materializa outro método (#572), enquanto tratos e tipos estruturais distintos permanecem independentes, receivers trocados são rejeitados, especializações #476 seguem injetivas, módulos são decididos após montagem, e o caso aceito cobre despacho direto/vtable, paridade entre interpretador e ELF nativo e símbolos locais.
 
 fn run_code(code: &str) -> Result<Option<RuntimeValue>, String> {
     let program = common::parse(code).map_err(|error| error.to_string())?;
@@ -143,7 +143,9 @@ fn t6_t7_t14_t16_conflito_equivalente_e_explicito_nas_duas_ordens() {
     for reverse in [false, true] {
         let source = alias_conflict(reverse);
         let error = rejected(&source);
-        assert!(error.contains("método 'valor' do trato 'T'"), "{error}");
+        // #572: a relação nominal é a autoridade da duplicata; a identidade
+        // citada continua sendo a canônica, e não a grafia escrita.
+        assert!(error.contains("impl do trato 'T'"), "{error}");
         assert!(error.contains("'Numero'"), "{error}");
         assert!(error.contains("'bombom'"), "{error}");
         assert!(error.contains("resolvem para 'bombom'"), "{error}");
@@ -171,9 +173,31 @@ impl T para bombom { carinho valor(item: bombom) -> bombom { mimo 2; } }
 carinho principal() -> bombom { mimo 0; }
 "#;
     let error = rejected(code);
-    assert!(error.contains("método 'valor' do trato 'T'"), "{error}");
-    assert!(error.contains("já implementado"), "{error}");
+    assert!(error.contains("impl do trato 'T'"), "{error}");
+    assert!(error.contains("já declarado"), "{error}");
     assert!(!error.contains("__impl_"), "{error}");
+
+    // A repetição do MESMO método dentro de um único bloco continua sendo
+    // endereçada pela autoridade de método, com a mensagem dela.
+    let mesmo_metodo_no_mesmo_bloco = r#"
+pacote main;
+trato T { carinho valor(item: si) -> bombom; }
+impl T para bombom {
+    carinho valor(item: bombom) -> bombom { mimo 1; }
+    carinho valor(item: bombom) -> bombom { mimo 2; }
+}
+carinho principal() -> bombom { mimo 0; }
+"#;
+    let erro_de_metodo = rejected(mesmo_metodo_no_mesmo_bloco);
+    assert!(
+        erro_de_metodo.contains("método 'valor' do trato 'T'"),
+        "{erro_de_metodo}"
+    );
+    assert!(
+        erro_de_metodo.contains("já implementado"),
+        "{erro_de_metodo}"
+    );
+    assert!(!erro_de_metodo.contains("__impl_"), "{erro_de_metodo}");
 
     let structural = r#"
 pacote main;
@@ -210,8 +234,16 @@ carinho principal() -> bombom { mimo 0; }
     assert!(!parser_error.contains("__impl_"), "{parser_error}");
 }
 
+/// #572 — dois blocos canonicamente equivalentes são a MESMA relação, mesmo
+/// quando cada um materializa um método diferente.
+///
+/// Antes da #572 a política aceitava métodos distintos completando blocos
+/// equivalentes. O contrato adulto diz que a relação nominal existe pela
+/// declaração, então a segunda declaração é duplicata. O símbolo morto que este
+/// caso protegia só podia nascer de duas declarações equivalentes convivendo;
+/// com a recusa, nenhuma emissão acontece.
 #[test]
-fn t10_metodos_distintos_em_blocos_alias_equivalentes_completam_o_contrato() {
+fn t10_blocos_alias_equivalentes_sao_a_mesma_relacao_e_um_unico_default() {
     let code = r#"
 pacote main;
 apelido Numero = bombom;
@@ -228,23 +260,22 @@ impl T para Numero {
 }
 carinho principal() -> bombom { mimo 2.primeiro() + 7.segundo() + 0.padrao(); }
 "#;
-    assert_eq!(run_code(code), Ok(Some(RuntimeValue::Int(42))));
+    let error = rejected(code);
+    assert!(error.contains("impl do trato 'T'"), "{error}");
+    assert!(error.contains("resolvem para 'bombom'"), "{error}");
+    assert!(!error.contains("__impl_"), "{error}");
 
-    let program = common::parse(code).expect("parse T10");
-    semantic::check_program(&program).expect("semântica T10");
-    let lowered = ir::lower_program(&program).expect("IR T10");
-    let defaults = lowered
-        .functions
-        .iter()
-        .filter(|function| {
-            function.name.starts_with("__impl_") && function.name.ends_with("_padrao")
-        })
-        .count();
-    assert_eq!(
-        defaults, 1,
-        "default equivalente não pode gerar símbolo morto"
+    // O símbolo morto que este caso protegia nascia justamente de duas
+    // declarações equivalentes convivendo. Elas deixaram de conviver: o
+    // programa é recusado antes de qualquer emissão, então nenhum corpo
+    // default equivalente chega ao backend.
+    assert!(
+        common::render_backend_s(code).is_err(),
+        "relação duplicada não pode chegar ao backend"
     );
 
+    // Um único bloco escrito pela grafia do apelido continua despachando pela
+    // identidade resolvida, e o override explícito continua vencendo o default.
     let explicit_override = r#"
 pacote main;
 apelido Numero = bombom;
@@ -252,10 +283,8 @@ trato T {
     carinho primeiro(item: si) -> bombom;
     carinho padrao(item: si) -> bombom { mimo 1; }
 }
-impl T para bombom {
-    carinho primeiro(item: bombom) -> bombom { mimo item; }
-}
 impl T para Numero {
+    carinho primeiro(item: Numero) -> bombom { mimo item; }
     carinho padrao(item: Numero) -> bombom { mimo 42; }
 }
 carinho principal() -> bombom { mimo 0.padrao(); }
@@ -371,6 +400,9 @@ carinho principal() -> bombom { mimo 21.dobrar(); }
 
 #[test]
 fn source_order_e_import_order_nao_mudam_o_veredito() {
+    // Apelido em cadeia: `B` e `A` resolvem para `bombom`, então os dois blocos
+    // são a MESMA relação. O veredito não pode depender de onde os apelidos
+    // foram escritos nem de qual bloco veio primeiro (#572).
     let before = r#"
 pacote main;
 apelido A = bombom;
@@ -397,11 +429,34 @@ apelido B = A;
 apelido A = bombom;
 carinho principal() -> bombom { mimo 2.primeiro() + 7.segundo() + 0.padrao(); }
 "#;
-    assert_eq!(run_code(before), Ok(Some(RuntimeValue::Int(42))));
-    assert_eq!(
-        run_code(after_and_inverted),
-        Ok(Some(RuntimeValue::Int(42)))
-    );
+    for (nome, fonte) in [
+        ("ordem direta", before),
+        ("ordem invertida", after_and_inverted),
+    ] {
+        let error = rejected(fonte);
+        assert!(error.contains("impl do trato 'T'"), "{nome}: {error}");
+        assert!(error.contains("resolvem para 'bombom'"), "{nome}: {error}");
+        assert!(!error.contains("__impl_"), "{nome}: {error}");
+    }
+
+    // Uma única relação, escrita pelas duas grafias equivalentes no receiver,
+    // continua válida e continua despachando pela identidade resolvida.
+    let relacao_unica = r#"
+pacote main;
+apelido A = bombom;
+apelido B = A;
+trato T {
+    carinho primeiro(item: si) -> bombom;
+    carinho segundo(item: si) -> bombom;
+    carinho padrao(item: si) -> bombom { mimo 3; }
+}
+impl T para A {
+    carinho primeiro(item: A) -> bombom { mimo item + 10; }
+    carinho segundo(item: B) -> bombom { mimo item + 20; }
+}
+carinho principal() -> bombom { mimo 2.primeiro() + 7.segundo() + 0.padrao(); }
+"#;
+    assert_eq!(run_code(relacao_unica), Ok(Some(RuntimeValue::Int(42))));
 
     let dir = NativeArtifactDir::create().expect("sandbox de ordem de imports");
     fs::write(

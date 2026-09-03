@@ -3,7 +3,7 @@ id = "normalizacao-corrente-para-historico"
 
 [reconstruction]
 expected_overrides = 166
-expected_exclusions = 122
+expected_exclusions = 123
 
 [[rules]]
 op = "exclude-key"
@@ -263,6 +263,11 @@ expected_matches = 1
 [[rules]]
 op = "exclude-key"
 key = "evidencia.tratos.identidade-resolvida-u2-f05"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.tratos.relacao-de-impl-duplicada"
 expected_matches = 1
 
 [[rules]]
@@ -1952,7 +1957,7 @@ expect_layer = "parser"
 [[rules]]
 op = "override-region"
 key = "parser.programa.estrutura"
-from_hash = "fnv1a64:72d742a6c8b33541"
+from_hash = "fnv1a64:4cfe761e3e8caf63"
 to_hash = "fnv1a64:c8ac56b28a5a6113"
 from_summary = "Ponto de entrada do parser: constrói o `Program` reconhecendo `pacote`, `trazer` (imports) e a marca freestanding, e despacha os itens de topo via `parse_item`. Desde a #533 a declaração `trazer` aceita vários membros de UM módulo (`trazer M.a, b, c;`) e desaçucara ali mesmo para as unidades `Import` de sempre, na ordem textual, sem que nada a jusante conheça multi-import; a leitura da declaração é `ler_declaracao_trazer`, a mesma que os prepasses de import usam, e o caminho de cursor só produz o diagnóstico das formas recusadas (`M.a, b,;`, `M.a, N.b;`, `M, a;`). Dois prepasses estreitos de autoridade precedem qualquer resolução, ambos sobre tokens e sem resolver tipos: um detecta templates genéricos de usuário antes de registrar o `Resultado<T,E>` builtin, tornando USER_WINS independente da ordem textual; outro colhe as identidades de topo do arquivo (`coletar_nomes_de_topo`), que é o que dá à superfície por família a mesma independência de ordem. A redeclaração continua formando com a produção runtime a conjunção inválida da Parte B1."
 to_summary = "Ponto de entrada do parser: constrói o `Program` reconhecendo `pacote`, `trazer` (imports) e a marca freestanding, e despacha os itens de topo (funções, structs, leques, tratos, impl, aliases, constantes) via `parse_item`. Predeclara os leques genéricos da biblioteca padrão (Fase 241, `Resultado<T,E>`) antes do laço de itens e suprime o predeclarado quando o usuário declara o mesmo nome."
@@ -2143,7 +2148,7 @@ expect_layer = "semantic"
 [[rules]]
 op = "override-region"
 key = "semantic.programa.duas-passagens"
-from_hash = "fnv1a64:d9410570871ea14f"
+from_hash = "fnv1a64:c98f288e1d56334b"
 to_hash = "fnv1a64:ed421619927ac329"
 expect_file = "src/semantic.rs"
 expect_domain = "programa"
@@ -2161,9 +2166,9 @@ expect_layer = "semantic"
 [[rules]]
 op = "override-region"
 key = "semantic.tratos.contratos"
-from_hash = "fnv1a64:d1e296d3d99db7be"
+from_hash = "fnv1a64:0d37fab84643910b"
 to_hash = "fnv1a64:da684f6016d99d13"
-from_summary = "Autoridade semântica de métodos e contratos de tratos: depois da coleta completa, resolve integralmente o tipo-alvo declarado transportado em `ImplFunctionFacts`, deriva sua chave por `union_canon`, registra `MethodIdentity(trato, tipo resolvido, método)` e compara separadamente o receiver resolvido; `method_index` é somente a visão derivada para chamadas não qualificadas. A validação agrupa blocos pela mesma identidade resolvida e preserva a política vigente: métodos distintos podem completar a mesma relação, mas o mesmo método não pode coexistir duas vezes."
+from_summary = "Autoridade semântica de relações, métodos e contratos de tratos. `validate_impl_relations` vem primeiro e é a única autoridade de cardinalidade da relação nominal: cada `ImplDecl` de `program.impls` vira a identidade `(trato canônico, alvo canônico)` — o mesmo `union_canon` que a identidade de método usa — e a segunda declaração da mesma identidade é recusada, sem olhar quantos métodos explícitos cada bloco materializou; bloco vazio continua sendo declaração da relação. Depois, `register_impl_methods` resolve integralmente o tipo-alvo declarado transportado em `ImplFunctionFacts`, deriva sua chave por `union_canon`, registra `MethodIdentity(trato, tipo resolvido, método)` e compara separadamente o receiver resolvido; `method_index` é somente a visão derivada para chamadas não qualificadas, e a recusa de método repetido continua endereçando repetição dentro do mesmo bloco. Por último, `validate_impl_contracts` agrupa os métodos já materializados pela identidade resolvida e cobra cobertura do contrato do trato: ausência de método requerido é erro de cobertura, nunca duplicata."
 to_summary = "Contratos de tratos e implementações: agrupa os métodos `__impl_*` por (trato, tipo-alvo) e exige cobertura exata do trato (sem método estranho, sem duplicata, sem faltante), garante que todo trato tenha método compatível declarado no topo e confere aridade e tipos de parâmetros/retorno entre a assinatura do trato e a função."
 expect_file = "src/semantic.rs"
 expect_domain = "tratos"

@@ -206,8 +206,16 @@ fn impl_vazio_com_required_e_sem_default_e_diagnosticado() {
     assert!(recusa(code).contains("não implementa método 'requerido'"));
 }
 
+/// #572 — dois blocos da mesma relação são duplicata, e não uma relação
+/// completada em partes.
+///
+/// A política anterior aceitava métodos distintos completando a mesma relação
+/// e mantinha um único default materializado. A relação nominal passa a
+/// existir pela declaração: a segunda é recusada. O que a materialização
+/// garantia — um único corpo default por relação — continua verdadeiro na
+/// única relação legítima que sobra.
 #[test]
-fn blocos_impl_da_mesma_relacao_materializam_um_unico_default() {
+fn blocos_impl_da_mesma_relacao_sao_relacao_duplicada() {
     let code = r#"
         pacote main;
         trato A {
@@ -223,8 +231,25 @@ fn blocos_impl_da_mesma_relacao_materializam_um_unico_default() {
         }
         carinho principal() -> bombom { mimo 0.padrao(); }
     "#;
-    assert!(common::parse_and_check(code).is_ok());
-    let program = common::parse(code).expect("parse");
+    let erro = recusa(code);
+    assert!(erro.contains("impl do trato 'A'"), "{erro}");
+    assert!(erro.contains("já declarado"), "{erro}");
+
+    let relacao_unica = r#"
+        pacote main;
+        trato A {
+            carinho primeiro(item: si) -> bombom;
+            carinho segundo(item: si) -> bombom;
+            carinho padrao(item: si) -> bombom { mimo 3; }
+        }
+        impl A para bombom {
+            carinho primeiro(item: bombom) -> bombom { mimo item; }
+            carinho segundo(item: bombom) -> bombom { mimo item; }
+        }
+        carinho principal() -> bombom { mimo 0.padrao(); }
+    "#;
+    assert!(common::parse_and_check(relacao_unica).is_ok());
+    let program = common::parse(relacao_unica).expect("parse");
     let defaults = program
         .items
         .iter()

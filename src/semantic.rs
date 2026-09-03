@@ -1634,6 +1634,10 @@ impl SemanticChecker {
             }
         }
 
+        // A relação nominal é decidida antes de qualquer método ser
+        // materializado: cardinalidade da declaração primeiro, cobertura do
+        // contrato depois.
+        self.validate_impl_relations(program)?;
         self.register_impl_methods(program)?;
         self.validate_impl_contracts(program)?;
         self.validate_trait_contracts()?;
@@ -1676,7 +1680,75 @@ impl SemanticChecker {
     // @pinker-nav:start semantic.tratos.contratos
     // @pinker-nav:domain tratos
     // @pinker-nav:layer semantic
-    // @pinker-nav:summary Autoridade semântica de métodos e contratos de tratos: depois da coleta completa, resolve integralmente o tipo-alvo declarado transportado em `ImplFunctionFacts`, deriva sua chave por `union_canon`, registra `MethodIdentity(trato, tipo resolvido, método)` e compara separadamente o receiver resolvido; `method_index` é somente a visão derivada para chamadas não qualificadas. A validação agrupa blocos pela mesma identidade resolvida e preserva a política vigente: métodos distintos podem completar a mesma relação, mas o mesmo método não pode coexistir duas vezes.
+    // @pinker-nav:summary Autoridade semântica de relações, métodos e contratos de tratos. `validate_impl_relations` vem primeiro e é a única autoridade de cardinalidade da relação nominal: cada `ImplDecl` de `program.impls` vira a identidade `(trato canônico, alvo canônico)` — o mesmo `union_canon` que a identidade de método usa — e a segunda declaração da mesma identidade é recusada, sem olhar quantos métodos explícitos cada bloco materializou; bloco vazio continua sendo declaração da relação. Depois, `register_impl_methods` resolve integralmente o tipo-alvo declarado transportado em `ImplFunctionFacts`, deriva sua chave por `union_canon`, registra `MethodIdentity(trato, tipo resolvido, método)` e compara separadamente o receiver resolvido; `method_index` é somente a visão derivada para chamadas não qualificadas, e a recusa de método repetido continua endereçando repetição dentro do mesmo bloco. Por último, `validate_impl_contracts` agrupa os métodos já materializados pela identidade resolvida e cobra cobertura do contrato do trato: ausência de método requerido é erro de cobertura, nunca duplicata.
+    /// Cardinalidade da relação nominal de `impl`, antes de qualquer
+    /// materialização de método.
+    ///
+    /// A relação existe porque a declaração existe: `impl T para X {}` é a
+    /// mesma relação que `impl T para X { ... }`, e duas declarações da mesma
+    /// identidade canônica `(trato, alvo)` são uma duplicata mesmo quando uma
+    /// delas não escreve método algum. Derivar isto da contagem de métodos
+    /// materializados era o que fazia um bloco sem método explícito
+    /// desaparecer da coerência.
+    ///
+    /// A identidade vem das autoridades canônicas já existentes: o
+    /// `trait_name` que a resolução modular canonizou e a chave de
+    /// `union_canon` do alvo resolvido. Nome sintético (`__impl_*`,
+    /// `__trait_default_check_*`) é transporte e não participa desta decisão.
+    fn validate_impl_relations(&self, program: &Program) -> Result<(), PinkerError> {
+        // (trato canônico, alvo canônico) -> (grafia resolvida, grafia
+        // declarada, span da primeira declaração)
+        let mut declared: BTreeMap<(String, String), (String, String, Span)> = BTreeMap::new();
+        for impl_decl in &program.impls {
+            let declared_spelling = Self::type_key(&impl_decl.target_ty);
+            let resolved = self.resolve_type_or_error(&impl_decl.target_ty)?;
+            let canonical = union_canon::canonical_type_key(&resolved);
+            if union_canon::is_poisoned_key(&canonical) {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "identidade resolvida do alvo '{}' do impl '{}' foi perdida",
+                        declared_spelling, impl_decl.trait_name
+                    ),
+                    span: impl_decl.target_ty.span(),
+                });
+            }
+            let resolved_display = Self::type_key(&resolved);
+            match declared.entry((impl_decl.trait_name.clone(), canonical)) {
+                std::collections::btree_map::Entry::Vacant(slot) => {
+                    slot.insert((resolved_display, declared_spelling, impl_decl.span));
+                }
+                std::collections::btree_map::Entry::Occupied(slot) => {
+                    let (previous_resolved, previous_spelling, previous_span) = slot.get();
+                    if previous_spelling == &declared_spelling {
+                        return Err(PinkerError::Semantic {
+                            msg: format!(
+                                "impl do trato '{}' para tipo '{}' já declarado; outra declaração em {}",
+                                impl_decl.trait_name, declared_spelling, previous_span
+                            ),
+                            span: impl_decl.span,
+                        });
+                    }
+                    let equivalence = format!(
+                        "'{}' e '{}' resolvem para '{}'",
+                        declared_spelling, previous_spelling, previous_resolved
+                    );
+                    return Err(PinkerError::Semantic {
+                        msg: format!(
+                            "impl do trato '{}' para tipo '{}' conflita com impl para '{}'; {} (outra declaração em {})",
+                            impl_decl.trait_name,
+                            declared_spelling,
+                            previous_spelling,
+                            equivalence,
+                            previous_span
+                        ),
+                        span: impl_decl.span,
+                    });
+                }
+            }
+        }
+        Ok(())
+    }
+
     fn register_impl_methods(&mut self, program: &Program) -> Result<(), PinkerError> {
         let mut candidates: BTreeMap<MethodIdentity<String>, Vec<ImplMethodMeta>> = BTreeMap::new();
         for item in &program.items {
