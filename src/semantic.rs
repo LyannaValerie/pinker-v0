@@ -17,6 +17,7 @@ use crate::error::PinkerError;
 use crate::ir::TypeIR;
 use crate::layout;
 use crate::method_identity::{self, MethodIdentity};
+use crate::module_resolve::NivelDeDespacho;
 use crate::source_map::SourceId;
 use crate::token::{Position, Span};
 use crate::union_canon;
@@ -248,7 +249,16 @@ pub struct SemanticChecker {
     /// nomeia o trato, então o despacho não é alcançado pela resolução nominal
     /// canônica; é aqui que ele passa a respeitar o ambiente de quem escreveu a
     /// chamada.
-    traits_visiveis_por_fonte: HashMap<SourceId, HashSet<String>>,
+    traits_visiveis_por_fonte: HashMap<SourceId, crate::module_resolve::TratosNoDespacho>,
+    /// #577 — unidade que DECLAROU cada relação `(trato canônico, alvo
+    /// canônico)`, pelo `SourceId` do próprio bloco `impl`.
+    ///
+    /// O span do bloco é do arquivo que o escreveu: ele não é corpo copiado, e
+    /// portanto responde pela origem da relação sem depender de proveniência de
+    /// corpo default. É o que permite ao nível subordinado do despacho admitir
+    /// exatamente as relações das unidades importadas, e não toda relação do
+    /// trato.
+    fontes_das_relacoes: HashMap<(String, String), SourceId>,
     /// Unidades-fonte que são módulo, por `SourceId`.
     ///
     /// Depois da resolução nominal canônica, TODA referência legítima de um
@@ -273,7 +283,7 @@ impl SemanticChecker {
     ///
     /// Recebe, por unidade-fonte, os tratos que aquela unidade autorizou.
     pub fn com_visibilidade_de_tratos(
-        traits_visiveis_por_fonte: HashMap<SourceId, HashSet<String>>,
+        traits_visiveis_por_fonte: HashMap<SourceId, crate::module_resolve::TratosNoDespacho>,
         fontes_de_modulo: HashSet<SourceId>,
     ) -> Self {
         Self {
@@ -295,19 +305,23 @@ impl SemanticChecker {
             && self.fontes_de_modulo.contains(&span.source)
     }
 
-    /// Um trato é visível no ponto em que a chamada foi escrita?
+    /// Por qual nível um trato alcança o ponto em que a chamada foi escrita?
     ///
     /// Sem índice não há composição modular e nada é filtrado. Span sintético
     /// não reivindica fonte e também não é filtrado: restringir por ausência
     /// de alegação recusaria o que o compilador ele mesmo materializou.
-    fn trato_visivel_em(&self, span: Span, trait_name: &str) -> bool {
-        if self.traits_visiveis_por_fonte.is_empty() {
-            return true;
-        }
-        match self.traits_visiveis_por_fonte.get(&span.source) {
-            Some(visiveis) => visiveis.contains(trait_name),
-            None => true,
-        }
+    fn nivel_de_despacho(
+        &self,
+        span: Span,
+        trait_name: &str,
+        fonte_da_relacao: Option<SourceId>,
+    ) -> Option<NivelDeDespacho> {
+        crate::module_resolve::nivel_de_despacho(
+            &self.traits_visiveis_por_fonte,
+            span,
+            trait_name,
+            fonte_da_relacao,
+        )
     }
 }
 
@@ -321,6 +335,7 @@ impl SemanticChecker {
             enums: HashMap::new(),
             traits: HashMap::new(),
             impl_methods: Vec::new(),
+            fontes_das_relacoes: HashMap::new(),
             method_index: HashMap::new(),
             scopes: Vec::new(),
             current_func_name: None,
@@ -1695,10 +1710,11 @@ impl SemanticChecker {
     /// `trait_name` que a resolução modular canonizou e a chave de
     /// `union_canon` do alvo resolvido. Nome sintético (`__impl_*`,
     /// `__trait_default_check_*`) é transporte e não participa desta decisão.
-    fn validate_impl_relations(&self, program: &Program) -> Result<(), PinkerError> {
+    fn validate_impl_relations(&mut self, program: &Program) -> Result<(), PinkerError> {
         // (trato canônico, alvo canônico) -> (grafia resolvida, grafia
         // declarada, span da primeira declaração)
         let mut declared: BTreeMap<(String, String), (String, String, Span)> = BTreeMap::new();
+        let mut origens: HashMap<(String, String), SourceId> = HashMap::new();
         for impl_decl in &program.impls {
             let declared_spelling = Self::type_key(&impl_decl.target_ty);
             let resolved = self.resolve_type_or_error(&impl_decl.target_ty)?;
@@ -1715,6 +1731,13 @@ impl SemanticChecker {
             let resolved_display = Self::type_key(&resolved);
             match declared.entry((impl_decl.trait_name.clone(), canonical)) {
                 std::collections::btree_map::Entry::Vacant(slot) => {
+                    // #577: a mesma identidade que decide cardinalidade decide
+                    // origem. Uma segunda declaração nunca chega aqui, então a
+                    // relação tem exatamente uma unidade declarante.
+                    origens.insert(
+                        (impl_decl.trait_name.clone(), slot.key().1.clone()),
+                        impl_decl.span.source,
+                    );
                     slot.insert((resolved_display, declared_spelling, impl_decl.span));
                 }
                 std::collections::btree_map::Entry::Occupied(slot) => {
@@ -1746,6 +1769,7 @@ impl SemanticChecker {
                 }
             }
         }
+        self.fontes_das_relacoes = origens;
         Ok(())
     }
 
@@ -4449,22 +4473,47 @@ impl SemanticChecker {
             .cloned()
             .unwrap_or_default();
         // MODULE_IMPORTER_NON_INTERFERENCE para despacho de método: só entram
-        // os candidatos cujo trato a unidade que escreveu a chamada autorizou.
-        // Um trato declarado na raiz deixa de fornecer método default ao corpo
-        // de um módulo que nunca o importou.
-        let candidates: Vec<String> = candidates
+        // os candidatos cujo trato alcança a unidade que escreveu a chamada. Um
+        // trato declarado na raiz deixa de fornecer método default ao corpo de
+        // um módulo que nunca o importou.
+        //
+        // #577: alcançar tem dois níveis. O trato que a unidade declarou ou
+        // importou é autoridade dela; o que ela só alcança porque importou quem
+        // implementa é dependência semântica transportada. Resolver pelo nível
+        // mais forte que produzir candidato é o que deixa a raiz consumir a
+        // superfície do implementador sem que essa dependência dispute com o
+        // que a própria raiz autorizou — inclusive com um homônimo dela.
+        let candidates: Vec<(NivelDeDespacho, String)> = candidates
             .into_iter()
-            .filter(|function_name| {
+            .filter_map(|function_name| {
                 match self
                     .impl_methods
                     .iter()
-                    .find(|meta| &meta.function_name == function_name)
+                    .find(|meta| meta.function_name == function_name)
                 {
-                    Some(meta) => self.trato_visivel_em(span, &meta.identity.trait_name),
-                    None => true,
+                    Some(meta) => {
+                        let fonte = self
+                            .fontes_das_relacoes
+                            .get(&(
+                                meta.identity.trait_name.clone(),
+                                meta.identity.target.clone(),
+                            ))
+                            .copied();
+                        self.nivel_de_despacho(span, &meta.identity.trait_name, fonte)
+                            .map(|nivel| (nivel, function_name))
+                    }
+                    None => Some((NivelDeDespacho::Proprio, function_name)),
                 }
             })
             .collect();
+        let candidates: Vec<String> = match candidates.iter().map(|(nivel, _)| *nivel).min() {
+            Some(mais_forte) => candidates
+                .into_iter()
+                .filter(|(nivel, _)| *nivel == mais_forte)
+                .map(|(_, function_name)| function_name)
+                .collect(),
+            None => Vec::new(),
+        };
 
         match candidates.as_slice() {
             [function_name] => Ok(function_name.clone()),
@@ -9368,7 +9417,7 @@ pub fn check_program(program: &Program) -> Result<(), PinkerError> {
 /// no despacho de método.
 pub fn check_program_composto(
     program: &Program,
-    traits_visiveis_por_fonte: HashMap<SourceId, HashSet<String>>,
+    traits_visiveis_por_fonte: HashMap<SourceId, crate::module_resolve::TratosNoDespacho>,
     fontes_de_modulo: HashSet<SourceId>,
 ) -> Result<(), PinkerError> {
     SemanticChecker::com_visibilidade_de_tratos(traits_visiveis_por_fonte, fontes_de_modulo)

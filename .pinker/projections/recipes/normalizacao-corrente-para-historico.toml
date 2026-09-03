@@ -2,8 +2,8 @@ schema = 2
 id = "normalizacao-corrente-para-historico"
 
 [reconstruction]
-expected_overrides = 166
-expected_exclusions = 124
+expected_overrides = 167
+expected_exclusions = 125
 
 [[rules]]
 op = "exclude-key"
@@ -193,6 +193,11 @@ expected_matches = 1
 [[rules]]
 op = "exclude-key"
 key = "evidencia.modulos.impl-sobre-trato-importado"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.modulos.impl-transitivo-pela-unidade-importada"
 expected_matches = 1
 
 [[rules]]
@@ -735,8 +740,17 @@ expect_layer = "evidencia"
 
 [[rules]]
 op = "override-hash"
+key = "ir.lowering.contexto-declaracoes"
+from = "fnv1a64:1ecf44dce3feb0ae"
+to = "fnv1a64:56184077c78a03b4"
+expect_file = "src/ir.rs"
+expect_domain = "lowering"
+expect_layer = "ir"
+
+[[rules]]
+op = "override-hash"
 key = "ir.lowering.programa-orquestracao"
-from = "fnv1a64:2c6636c77d58cd05"
+from = "fnv1a64:b5a21a35f9c4b68f"
 to = "fnv1a64:4e1d3b50087502d1"
 expect_file = "src/ir.rs"
 expect_domain = "lowering"
@@ -1706,7 +1720,7 @@ expect_layer = "interpreter"
 [[rules]]
 op = "override-region"
 key = "ir.lowering.assinaturas-intrinsecos"
-from_hash = "fnv1a64:e2989b6fe9e85f58"
+from_hash = "fnv1a64:2c8283ffcfb16d74"
 to_hash = "fnv1a64:4c474d5f9416a278"
 expect_file = "src/ir.rs"
 expect_domain = "lowering"
@@ -1735,7 +1749,7 @@ expect_layer = "ir"
 [[rules]]
 op = "override-region"
 key = "ir.lowering.funcoes-blocos"
-from_hash = "fnv1a64:5706f6abf992a352"
+from_hash = "fnv1a64:92c66160768a5d30"
 to_hash = "fnv1a64:cb1a742852669151"
 expect_file = "src/ir.rs"
 expect_domain = "lowering"
@@ -2093,7 +2107,7 @@ expect_layer = "select"
 [[rules]]
 op = "override-region"
 key = "semantic.chamadas.despacho"
-from_hash = "fnv1a64:b3701f3483deb254"
+from_hash = "fnv1a64:ce33544fcdc873c6"
 to_hash = "fnv1a64:786f0d551629e7a5"
 from_summary = "Despacho de chamadas: resolução de método de impl (direta e qualificada por trato, com detecção de ambiguidade), restringida aos tratos que a unidade-fonte da chamada autorizou — uma chamada de método não nomeia o trato, então sem esse filtro um trato da raiz forneceria método default ao corpo de um módulo que nunca o importou, seleção monomórfica das intrínsecas genéricas de mapa, checagem de chamada nomeada (aridade e tipos de argumento) e o grande despachante `check_call_expr` — construção de variante de leque, desugaring de `encaixe`, intrínsecas genéricas de lista/mapa, texto/verso, CSV/JSON, tempo e processo, caindo para a chamada de função declarada."
 to_summary = "Despacho de chamadas: resolução de método de impl (direta e qualificada por trato, com detecção de ambiguidade), seleção monomórfica das intrínsecas genéricas de mapa, checagem de chamada nomeada (aridade e tipos de argumento) e o grande despachante `check_call_expr` — construção de variante de leque, desugaring de `encaixe`, intrínsecas genéricas de lista/mapa, texto/verso, CSV/JSON, tempo e processo, caindo para a chamada de função declarada."
@@ -2173,7 +2187,7 @@ expect_layer = "semantic"
 [[rules]]
 op = "override-region"
 key = "semantic.tratos.contratos"
-from_hash = "fnv1a64:0d37fab84643910b"
+from_hash = "fnv1a64:a0078d462f5dc3f4"
 to_hash = "fnv1a64:da684f6016d99d13"
 from_summary = "Autoridade semântica de relações, métodos e contratos de tratos. `validate_impl_relations` vem primeiro e é a única autoridade de cardinalidade da relação nominal: cada `ImplDecl` de `program.impls` vira a identidade `(trato canônico, alvo canônico)` — o mesmo `union_canon` que a identidade de método usa — e a segunda declaração da mesma identidade é recusada, sem olhar quantos métodos explícitos cada bloco materializou; bloco vazio continua sendo declaração da relação. Depois, `register_impl_methods` resolve integralmente o tipo-alvo declarado transportado em `ImplFunctionFacts`, deriva sua chave por `union_canon`, registra `MethodIdentity(trato, tipo resolvido, método)` e compara separadamente o receiver resolvido; `method_index` é somente a visão derivada para chamadas não qualificadas, e a recusa de método repetido continua endereçando repetição dentro do mesmo bloco. Por último, `validate_impl_contracts` agrupa os métodos já materializados pela identidade resolvida e cobra cobertura do contrato do trato: ausência de método requerido é erro de cobertura, nunca duplicata."
 to_summary = "Contratos de tratos e implementações: agrupa os métodos `__impl_*` por (trato, tipo-alvo) e exige cobertura exata do trato (sem método estranho, sem duplicata, sem faltante), garante que todo trato tenha método compatível declarado no topo e confere aridade e tipos de parâmetros/retorno entre a assinatura do trato e a função."

@@ -19,6 +19,7 @@ use crate::ast::{
 use crate::error::PinkerError;
 use crate::layout;
 use crate::method_identity::{self, MethodIdentity};
+use crate::module_resolve::NivelDeDespacho;
 use crate::source_map::SourceId;
 use crate::token::{Position, Span};
 use crate::union_canon;
@@ -1721,6 +1722,10 @@ struct LoweringContext {
     // Visão derivada da decisão semântica: a mesma identidade estruturada usa
     // aqui o `ResolvedTypeId` já internado, nunca o spelling do `__impl_*`.
     impl_methods: BTreeMap<MethodIdentity<ResolvedTypeId>, String>,
+    /// #577 — unidade que DECLAROU cada relação `(trato canônico, alvo
+    /// resolvido)`, pelo `SourceId` do próprio bloco `impl`. Mesma pergunta que
+    /// a autoridade semântica responde, na identidade de alvo desta camada.
+    fontes_das_relacoes: BTreeMap<(String, ResolvedTypeId), SourceId>,
     /// Tratos que cada unidade-fonte pode enxergar, por `SourceId`.
     ///
     /// Vazio quando não houve composição modular, e nesse caso nada é
@@ -1729,7 +1734,7 @@ struct LoweringContext {
     /// quem escreveu a chamada, o lowering aceitaria um método que a autoridade
     /// semântica já tinha recusado — e, com duas candidatas, falharia depois de
     /// `--check` ter dito que o programa era válido.
-    traits_visiveis_por_fonte: HashMap<SourceId, HashSet<String>>,
+    traits_visiveis_por_fonte: HashMap<SourceId, crate::module_resolve::TratosNoDespacho>,
     // Defaults redundantes produzidos provisoriamente para spellings
     // alias-equivalentes não são funções aceitas e não chegam à IR emitida.
     ignored_impl_functions: HashSet<String>,
@@ -2124,7 +2129,7 @@ pub fn lower_program(program: &Program) -> Result<ProgramIR, PinkerError> {
 /// despacho não qualificado de método.
 pub fn lower_program_composto(
     program: &Program,
-    traits_visiveis_por_fonte: HashMap<SourceId, HashSet<String>>,
+    traits_visiveis_por_fonte: HashMap<SourceId, crate::module_resolve::TratosNoDespacho>,
 ) -> Result<ProgramIR, PinkerError> {
     let context = LoweringContext::from_program_composto(program, traits_visiveis_por_fonte)?;
     let mut consts = Vec::new();
@@ -2256,7 +2261,7 @@ impl LoweringContext {
     // @pinker-nav:summary Primeira metade de `from_program`: coleta os fatos globais que todos os corpos consomem — nome do módulo, aliases de tipo (com leques registrados como alias para `bombom`), structs e seus campos/offsets de layout, variantes de leque com índices e cargas, e as assinaturas das funções e tipos das constantes declaradas no programa. Prepara o contexto; não reexecuta a checagem semântica.
     fn from_program_composto(
         program: &Program,
-        traits_visiveis_por_fonte: HashMap<SourceId, HashSet<String>>,
+        traits_visiveis_por_fonte: HashMap<SourceId, crate::module_resolve::TratosNoDespacho>,
     ) -> Result<Self, PinkerError> {
         let module_name = program
             .package
@@ -3167,6 +3172,7 @@ impl LoweringContext {
             enum_decl_names,
             traits,
             impl_methods: BTreeMap::new(),
+            fontes_das_relacoes: BTreeMap::new(),
             traits_visiveis_por_fonte,
             ignored_impl_functions: HashSet::new(),
             function_ret_trait_names,
@@ -3188,21 +3194,34 @@ impl LoweringContext {
     // @pinker-nav:domain tratos
     // @pinker-nav:layer lowering
     // @pinker-nav:summary Visão derivada de métodos aceita pela semântica: percorre funções provisórias, resolve integralmente o tipo-alvo declarado transportado em `ImplFunctionFacts` para `ResolvedTypeId` e indexa `MethodIdentity(trato, identidade resolvida, método)` até o símbolo transportado; chamadas e vtables consultam somente essa visão, sem decodificar spelling para decidir identidade.
-    /// Um trato é visível no ponto em que a chamada foi escrita?
+    /// Por qual nível um trato alcança o ponto em que a chamada foi escrita?
     ///
     /// Índice vazio significa "não há composição a restringir". Span sintético
     /// não reivindica fonte e também não é filtrado.
-    fn trato_visivel_em(&self, span: Span, trait_name: &str) -> bool {
-        if self.traits_visiveis_por_fonte.is_empty() {
-            return true;
-        }
-        match self.traits_visiveis_por_fonte.get(&span.source) {
-            Some(visiveis) => visiveis.contains(trait_name),
-            None => true,
-        }
+    fn nivel_de_despacho(
+        &self,
+        span: Span,
+        trait_name: &str,
+        fonte_da_relacao: Option<SourceId>,
+    ) -> Option<NivelDeDespacho> {
+        crate::module_resolve::nivel_de_despacho(
+            &self.traits_visiveis_por_fonte,
+            span,
+            trait_name,
+            fonte_da_relacao,
+        )
     }
 
     fn register_impl_methods(&mut self, program: &Program) -> Result<(), PinkerError> {
+        // #577: a origem da relação vem do bloco `impl`, não do método. O span
+        // do bloco é do arquivo que o escreveu; o do método pode ser corpo
+        // default copiado de outra unidade.
+        for impl_decl in &program.impls {
+            let target = self.resolved_identity(&impl_decl.target_ty)?;
+            self.fontes_das_relacoes
+                .entry((impl_decl.trait_name.clone(), target))
+                .or_insert(impl_decl.span.source);
+        }
         let mut candidates: BTreeMap<MethodIdentity<ResolvedTypeId>, Vec<&FunctionDecl>> =
             BTreeMap::new();
         for item in &program.items {
@@ -4276,20 +4295,35 @@ impl<'a> FunctionLowerer<'a> {
         span: Span,
     ) -> Result<Option<String>, PinkerError> {
         let receiver_identity = receiver.identity(self.context, span)?;
-        let candidates: Vec<String> = self
+        // Mesmo ambiente, e mesma precedência de níveis, que a autoridade
+        // semântica aplicou. Sem esta metade, `--check` e o lowering
+        // discordariam sobre o mesmo programa.
+        let candidates: Vec<(NivelDeDespacho, String)> = self
             .context
             .impl_methods
             .iter()
             .filter(|(identity, _function_name)| {
-                identity.target == receiver_identity
-                    && identity.method_name == method_name
-                    // Mesmo ambiente que a autoridade semântica aplicou. Sem
-                    // esta metade, `--check` e o lowering discordariam sobre o
-                    // mesmo programa.
-                    && self.context.trato_visivel_em(span, &identity.trait_name)
+                identity.target == receiver_identity && identity.method_name == method_name
             })
-            .map(|(_identity, function_name)| function_name.clone())
+            .filter_map(|(identity, function_name)| {
+                let fonte = self
+                    .context
+                    .fontes_das_relacoes
+                    .get(&(identity.trait_name.clone(), identity.target))
+                    .copied();
+                self.context
+                    .nivel_de_despacho(span, &identity.trait_name, fonte)
+                    .map(|nivel| (nivel, function_name.clone()))
+            })
             .collect();
+        let candidates: Vec<String> = match candidates.iter().map(|(nivel, _)| *nivel).min() {
+            Some(mais_forte) => candidates
+                .into_iter()
+                .filter(|(nivel, _)| *nivel == mais_forte)
+                .map(|(_, function_name)| function_name)
+                .collect(),
+            None => Vec::new(),
+        };
         match candidates.as_slice() {
             [function_name] => Ok(Some(function_name.clone())),
             _ => Ok(None),
