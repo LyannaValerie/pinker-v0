@@ -186,6 +186,11 @@ fn p2_raiz_nao_nomeia_o_trato_como_tipo_de_objeto() {
     );
     let saida = checar(&c, "577-p2-tipo");
     assert_eq!(codigo(&saida), 1, "{}", stdout(&saida));
+    assert!(
+        stderr(&saida).contains("trato 'Marca' não declarado"),
+        "a recusa precisa ser a do nome ausente, não outra falha qualquer; veio: {}",
+        stderr(&saida)
+    );
 }
 
 /// P3 — a raiz não ganha autoridade de `impl` sobre o trato que não importou.
@@ -401,6 +406,12 @@ fn p10_override_invalido_em_b_continua_diagnosticado() {
         "corpo que contradiz o contrato não pode passar por morar fora da raiz: {}",
         stdout(&saida)
     );
+    assert!(
+        stderr(&saida).contains("retorno incompatível")
+            && stderr(&saida).contains(&simbolo_de_impl("m577o.Marca", "bombom", "padrao")),
+        "a recusa precisa ser a do corpo, sob a identidade canônica da origem; veio: {}",
+        stderr(&saida)
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -491,6 +502,84 @@ fn p13_unidade_nao_importada_continua_fora_do_despacho() {
     assert!(
         stderr(&saida).contains("método 'padrao' não implementado para tipo 'bombom'"),
         "a raiz não importou quem implementa; veio: {}",
+        stderr(&saida)
+    );
+}
+
+/// P13, e a fronteira exata do alcance: o que a unidade importada transporta são
+/// as relações QUE ELA DECLAROU, não todas as relações do trato dela.
+///
+/// `ma577` declara o trato; `md577` o importa e declara `impl Marca para u64`;
+/// `mi577` o importa, declara `impl Marca para bombom` e importa um símbolo
+/// qualquer de `md577`. A raiz importa só `mi577.usar`: ela alcança a relação
+/// sobre `bombom`, que `mi577` declarou, e continua sem alcançar a relação sobre
+/// `u64`, que quem declarou foi uma unidade que a raiz nunca pediu.
+#[test]
+fn p13_alcance_e_da_relacao_da_unidade_importada_nao_do_trato() {
+    let modulos = vec![
+        (
+            "ma577",
+            "pacote ma577;\n\ntrato Marca {\n    carinho padrao(valor: si) -> bombom { mimo 21; }\n}\n".to_string(),
+        ),
+        (
+            "md577",
+            "pacote md577;\ntrazer ma577.Marca;\n\nimpl Marca para u64 {\n    carinho padrao(valor: u64) -> bombom { mimo 64; }\n}\n\ncarinho dd() -> bombom { mimo 1; }\n".to_string(),
+        ),
+        (
+            "mi577",
+            "pacote mi577;\ntrazer ma577.Marca;\ntrazer md577.dd;\n\nimpl Marca para bombom {}\n\ncarinho usar() -> bombom {\n    nova x: bombom = 10;\n    mimo x.padrao() + dd();\n}\n".to_string(),
+        ),
+    ];
+    let vaza = caso(
+        "p13d_577",
+        "pacote main;\ntrazer mi577.usar;\n\ncarinho principal() -> bombom {\n    nova z: u64 = 5;\n    mimo z.padrao() + usar();\n}\n",
+        &modulos,
+    );
+    let recusa = checar(&vaza, "577-p13-relacao-alheia");
+    assert_eq!(codigo(&recusa), 1, "{}", stdout(&recusa));
+    assert!(
+        stderr(&recusa).contains("método 'padrao' não implementado para tipo 'u64'"),
+        "a relação de md577 não é da superfície que a raiz importou; veio: {}",
+        stderr(&recusa)
+    );
+
+    // Controle pareado, na mesma composição: a relação que `mi577` DECLAROU
+    // continua alcançando a raiz. Sem ele a recusa acima poderia ser apenas o
+    // alcance inteiro tendo desaparecido.
+    let compoe = caso(
+        "p13dc_577",
+        "pacote main;\ntrazer mi577.usar;\n\ncarinho principal() -> bombom {\n    nova y: bombom = 30;\n    mimo y.padrao() + usar();\n}\n",
+        &modulos,
+    );
+    let saida = executar(&compoe, "577-p13-relacao-propria");
+    assert_eq!(codigo(&saida), 43, "{}", stderr(&saida));
+}
+
+/// A mesma fronteira quando quem declara a outra relação é a PRÓPRIA unidade
+/// que declarou o trato: a raiz importa só o implementador e continua sem
+/// alcançar o que a unidade do trato implementou por conta própria.
+#[test]
+fn p13_relacao_da_unidade_do_trato_nao_alcanca_quem_so_importou_o_implementador() {
+    let modulos = vec![
+        (
+            "ma6577",
+            "pacote ma6577;\n\ntrato Marca {\n    carinho padrao(valor: si) -> bombom { mimo 21; }\n}\n\nimpl Marca para u64 {\n    carinho padrao(valor: u64) -> bombom { mimo 64; }\n}\n".to_string(),
+        ),
+        (
+            "mb6577",
+            "pacote mb6577;\ntrazer ma6577.Marca;\n\nimpl Marca para bombom {}\n\ncarinho usar() -> bombom {\n    nova x: bombom = 10;\n    mimo x.padrao();\n}\n".to_string(),
+        ),
+    ];
+    let c = caso(
+        "p13e_577",
+        "pacote main;\ntrazer mb6577.usar;\n\ncarinho principal() -> bombom {\n    nova z: u64 = 5;\n    mimo z.padrao() + usar();\n}\n",
+        &modulos,
+    );
+    let saida = checar(&c, "577-p13-relacao-da-origem");
+    assert_eq!(codigo(&saida), 1, "{}", stdout(&saida));
+    assert!(
+        stderr(&saida).contains("método 'padrao' não implementado para tipo 'u64'"),
+        "importar o implementador não é importar o declarante; veio: {}",
         stderr(&saida)
     );
 }

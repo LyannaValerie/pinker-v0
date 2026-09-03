@@ -1722,6 +1722,10 @@ struct LoweringContext {
     // Visão derivada da decisão semântica: a mesma identidade estruturada usa
     // aqui o `ResolvedTypeId` já internado, nunca o spelling do `__impl_*`.
     impl_methods: BTreeMap<MethodIdentity<ResolvedTypeId>, String>,
+    /// #577 — unidade que DECLAROU cada relação `(trato canônico, alvo
+    /// resolvido)`, pelo `SourceId` do próprio bloco `impl`. Mesma pergunta que
+    /// a autoridade semântica responde, na identidade de alvo desta camada.
+    fontes_das_relacoes: BTreeMap<(String, ResolvedTypeId), SourceId>,
     /// Tratos que cada unidade-fonte pode enxergar, por `SourceId`.
     ///
     /// Vazio quando não houve composição modular, e nesse caso nada é
@@ -3168,6 +3172,7 @@ impl LoweringContext {
             enum_decl_names,
             traits,
             impl_methods: BTreeMap::new(),
+            fontes_das_relacoes: BTreeMap::new(),
             traits_visiveis_por_fonte,
             ignored_impl_functions: HashSet::new(),
             function_ret_trait_names,
@@ -3193,11 +3198,30 @@ impl LoweringContext {
     ///
     /// Índice vazio significa "não há composição a restringir". Span sintético
     /// não reivindica fonte e também não é filtrado.
-    fn nivel_de_despacho(&self, span: Span, trait_name: &str) -> Option<NivelDeDespacho> {
-        crate::module_resolve::nivel_de_despacho(&self.traits_visiveis_por_fonte, span, trait_name)
+    fn nivel_de_despacho(
+        &self,
+        span: Span,
+        trait_name: &str,
+        fonte_da_relacao: Option<SourceId>,
+    ) -> Option<NivelDeDespacho> {
+        crate::module_resolve::nivel_de_despacho(
+            &self.traits_visiveis_por_fonte,
+            span,
+            trait_name,
+            fonte_da_relacao,
+        )
     }
 
     fn register_impl_methods(&mut self, program: &Program) -> Result<(), PinkerError> {
+        // #577: a origem da relação vem do bloco `impl`, não do método. O span
+        // do bloco é do arquivo que o escreveu; o do método pode ser corpo
+        // default copiado de outra unidade.
+        for impl_decl in &program.impls {
+            let target = self.resolved_identity(&impl_decl.target_ty)?;
+            self.fontes_das_relacoes
+                .entry((impl_decl.trait_name.clone(), target))
+                .or_insert(impl_decl.span.source);
+        }
         let mut candidates: BTreeMap<MethodIdentity<ResolvedTypeId>, Vec<&FunctionDecl>> =
             BTreeMap::new();
         for item in &program.items {
@@ -4282,8 +4306,13 @@ impl<'a> FunctionLowerer<'a> {
                 identity.target == receiver_identity && identity.method_name == method_name
             })
             .filter_map(|(identity, function_name)| {
+                let fonte = self
+                    .context
+                    .fontes_das_relacoes
+                    .get(&(identity.trait_name.clone(), identity.target))
+                    .copied();
                 self.context
-                    .nivel_de_despacho(span, &identity.trait_name)
+                    .nivel_de_despacho(span, &identity.trait_name, fonte)
                     .map(|nivel| (nivel, function_name.clone()))
             })
             .collect();
