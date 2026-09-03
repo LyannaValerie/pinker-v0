@@ -1877,7 +1877,7 @@ fn referencias_de_expr(expr: &Expr, out: &mut Vec<String>) {
 // @pinker-nav:start modulos.visibilidade.tratos
 // @pinker-nav:domain modulos
 // @pinker-nav:layer compilador
-// @pinker-nav:summary tratos_visiveis_por_fonte deriva, do grafo já resolvido, o conjunto de tratos que cada unidade-fonte pode enxergar — os que ela declara mais os que seus imports autorizam — indexado por SourceId. Despacho de método não passa por identificador livre e portanto não é alcançado pela resolução nominal; sem esta visão, um trato declarado na raiz continuaria fornecendo método default ao corpo de um módulo que nunca o importou. O índice é vazio quando não há composição, e nesse caso nada é filtrado.
+// @pinker-nav:summary tratos_visiveis_por_fonte deriva, do grafo já resolvido, os tratos que o despacho de cada unidade-fonte pode atravessar, indexado por SourceId e em dois níveis de força. O nível próprio são os tratos que a unidade declara mais os que seus imports autorizam por nome; o subordinado (#577) são os tratos que as unidades importadas IMPLEMENTAM, para que importar o implementador não obrigue a redeclarar a dependência interna que o torna válido — sem virar reexport, porque nenhuma ligação nasce daqui e só as relações declaradas pela unidade importada entram. nivel_de_despacho responde por qual dos dois um trato alcança quem escreveu o span, e o consumidor resolve pelo nível mais forte que produzir candidato, de modo que o trato próprio nunca perca para um alcançado por importação. Despacho de método não passa por identificador livre e portanto não é alcançado pela resolução nominal; sem esta visão, um trato declarado na raiz continuaria fornecendo método default ao corpo de um módulo que nunca o importou. O índice é vazio quando não há composição, e nesse caso nada é filtrado.
 /// Tratos visíveis a cada unidade-fonte, por `SourceId`.
 ///
 /// Um `x.metodo()` não menciona o trato: o despacho é por (tipo do receiver,
@@ -1886,8 +1886,8 @@ fn referencias_de_expr(expr: &Expr, out: &mut Vec<String>) {
 /// reescrever. Sem restringir o despacho ao ambiente de quem escreveu a
 /// chamada, `MODULE_IMPORTER_NON_INTERFERENCE` valeria para função, constante,
 /// alias, ninho e leque, e falharia exatamente em trato.
-pub fn tratos_visiveis_por_fonte(graph: &ModuleGraph) -> HashMap<SourceId, HashSet<String>> {
-    let mut por_fonte: HashMap<SourceId, HashSet<String>> = HashMap::new();
+pub fn tratos_visiveis_por_fonte(graph: &ModuleGraph) -> HashMap<SourceId, TratosNoDespacho> {
+    let mut por_fonte: HashMap<SourceId, TratosNoDespacho> = HashMap::new();
     if !graph.has_modules() {
         // Sem composição não há a quem restringir, e um índice vazio é o sinal
         // de que o despacho segue exatamente como sempre seguiu.
@@ -1904,8 +1904,25 @@ pub fn tratos_visiveis_por_fonte(graph: &ModuleGraph) -> HashMap<SourceId, HashS
             .collect()
     };
 
+    // #577 — a identidade canônica de cada trato que a unidade IMPLEMENTA.
+    //
+    // A relação de `impl` já é fato de programa: `projetar_programa` a
+    // materializa venha de onde vier, porque `impl` é relação e não nome. O que
+    // faltava era o despacho de quem consome a unidade poder atravessá-la sem
+    // reimportar a dependência interna que a torna válida. A grafia do trato
+    // não participa: aqui só circula o nome canônico da unidade declarante.
+    let tratos_implementados = |unit: &ModuleUnit| -> HashSet<String> {
+        unit.impls
+            .iter()
+            .map(|impl_decl| impl_decl.trait_name.clone())
+            .collect()
+    };
+
     for unit in graph.units() {
-        let mut visiveis = tratos_da_unidade(unit);
+        let mut tratos = TratosNoDespacho {
+            autorizados: tratos_da_unidade(unit),
+            por_unidade_importada: HashSet::new(),
+        };
         for import in &unit.imports {
             let Some(origem) = graph.module(import.module.as_str()) else {
                 continue;
@@ -1917,16 +1934,80 @@ pub fn tratos_visiveis_por_fonte(graph: &ModuleGraph) -> HashMap<SourceId, HashS
                 Some(symbol) => {
                     let canonical = origem.canonical(symbol);
                     if da_origem.contains(&canonical) {
-                        visiveis.insert(canonical);
+                        tratos.autorizados.insert(canonical);
                     }
                 }
-                None => visiveis.extend(da_origem),
+                None => tratos.autorizados.extend(da_origem),
             }
+            // #577 — importar a unidade, em qualquer das duas formas, é passar
+            // a poder consumir a superfície que os `impl` DELA tornam válida.
+            //
+            // Entra no nível subordinado, nunca no da própria unidade: nomear o
+            // trato, escrever `impl` sobre ele ou qualificá-lo continua
+            // exigindo import próprio, porque `ModuleEnvironment` não recebe
+            // ligação nenhuma daqui. E entram só as relações que a unidade
+            // importada DECLAROU, nunca as que ela por sua vez importou — sem
+            // isso o alcance transitivo viraria reexport.
+            tratos
+                .por_unidade_importada
+                .extend(tratos_implementados(origem));
         }
-        por_fonte.insert(unit.source_id, visiveis);
+        por_fonte.insert(unit.source_id, tratos);
     }
 
     por_fonte
+}
+
+/// Tratos que o despacho de uma unidade-fonte pode atravessar, em dois níveis.
+///
+/// A separação existe porque as duas origens não têm a mesma força. O que a
+/// unidade declarou ou importou por nome é autoridade dela. O que ela alcança
+/// só porque importou quem implementa é dependência semântica transportada:
+/// serve para não obrigar o importador a redeclarar as dependências internas do
+/// implementador, e por isso jamais compete com a autoridade própria.
+#[derive(Debug, Clone, Default)]
+pub struct TratosNoDespacho {
+    /// Tratos declarados pela unidade ou trazidos por import explícito dela.
+    autorizados: HashSet<String>,
+    /// #577 — tratos implementados por unidades que esta unidade importou.
+    por_unidade_importada: HashSet<String>,
+}
+
+impl TratosNoDespacho {
+    fn nivel(&self, trait_name: &str) -> Option<NivelDeDespacho> {
+        if self.autorizados.contains(trait_name) {
+            Some(NivelDeDespacho::Proprio)
+        } else if self.por_unidade_importada.contains(trait_name) {
+            Some(NivelDeDespacho::PorUnidadeImportada)
+        } else {
+            None
+        }
+    }
+}
+
+/// Força da origem de um candidato de despacho. `Proprio` precede.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum NivelDeDespacho {
+    Proprio,
+    PorUnidadeImportada,
+}
+
+/// Nível pelo qual `trait_name` alcança quem escreveu `span`, se alcançar.
+///
+/// Índice vazio, ou fonte ausente dele, significa "sem composição a restringir":
+/// o despacho segue exatamente como sempre seguiu, no nível próprio.
+pub fn nivel_de_despacho(
+    por_fonte: &HashMap<SourceId, TratosNoDespacho>,
+    span: Span,
+    trait_name: &str,
+) -> Option<NivelDeDespacho> {
+    if por_fonte.is_empty() {
+        return Some(NivelDeDespacho::Proprio);
+    }
+    match por_fonte.get(&span.source) {
+        Some(tratos) => tratos.nivel(trait_name),
+        None => Some(NivelDeDespacho::Proprio),
+    }
 }
 // @pinker-nav:end modulos.visibilidade.tratos
 

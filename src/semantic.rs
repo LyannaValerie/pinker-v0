@@ -17,6 +17,7 @@ use crate::error::PinkerError;
 use crate::ir::TypeIR;
 use crate::layout;
 use crate::method_identity::{self, MethodIdentity};
+use crate::module_resolve::NivelDeDespacho;
 use crate::source_map::SourceId;
 use crate::token::{Position, Span};
 use crate::union_canon;
@@ -248,7 +249,7 @@ pub struct SemanticChecker {
     /// nomeia o trato, então o despacho não é alcançado pela resolução nominal
     /// canônica; é aqui que ele passa a respeitar o ambiente de quem escreveu a
     /// chamada.
-    traits_visiveis_por_fonte: HashMap<SourceId, HashSet<String>>,
+    traits_visiveis_por_fonte: HashMap<SourceId, crate::module_resolve::TratosNoDespacho>,
     /// Unidades-fonte que são módulo, por `SourceId`.
     ///
     /// Depois da resolução nominal canônica, TODA referência legítima de um
@@ -273,7 +274,7 @@ impl SemanticChecker {
     ///
     /// Recebe, por unidade-fonte, os tratos que aquela unidade autorizou.
     pub fn com_visibilidade_de_tratos(
-        traits_visiveis_por_fonte: HashMap<SourceId, HashSet<String>>,
+        traits_visiveis_por_fonte: HashMap<SourceId, crate::module_resolve::TratosNoDespacho>,
         fontes_de_modulo: HashSet<SourceId>,
     ) -> Self {
         Self {
@@ -295,19 +296,13 @@ impl SemanticChecker {
             && self.fontes_de_modulo.contains(&span.source)
     }
 
-    /// Um trato é visível no ponto em que a chamada foi escrita?
+    /// Por qual nível um trato alcança o ponto em que a chamada foi escrita?
     ///
     /// Sem índice não há composição modular e nada é filtrado. Span sintético
     /// não reivindica fonte e também não é filtrado: restringir por ausência
     /// de alegação recusaria o que o compilador ele mesmo materializou.
-    fn trato_visivel_em(&self, span: Span, trait_name: &str) -> bool {
-        if self.traits_visiveis_por_fonte.is_empty() {
-            return true;
-        }
-        match self.traits_visiveis_por_fonte.get(&span.source) {
-            Some(visiveis) => visiveis.contains(trait_name),
-            None => true,
-        }
+    fn nivel_de_despacho(&self, span: Span, trait_name: &str) -> Option<NivelDeDespacho> {
+        crate::module_resolve::nivel_de_despacho(&self.traits_visiveis_por_fonte, span, trait_name)
     }
 }
 
@@ -4449,22 +4444,39 @@ impl SemanticChecker {
             .cloned()
             .unwrap_or_default();
         // MODULE_IMPORTER_NON_INTERFERENCE para despacho de método: só entram
-        // os candidatos cujo trato a unidade que escreveu a chamada autorizou.
-        // Um trato declarado na raiz deixa de fornecer método default ao corpo
-        // de um módulo que nunca o importou.
-        let candidates: Vec<String> = candidates
+        // os candidatos cujo trato alcança a unidade que escreveu a chamada. Um
+        // trato declarado na raiz deixa de fornecer método default ao corpo de
+        // um módulo que nunca o importou.
+        //
+        // #577: alcançar tem dois níveis. O trato que a unidade declarou ou
+        // importou é autoridade dela; o que ela só alcança porque importou quem
+        // implementa é dependência semântica transportada. Resolver pelo nível
+        // mais forte que produzir candidato é o que deixa a raiz consumir a
+        // superfície do implementador sem que essa dependência dispute com o
+        // que a própria raiz autorizou — inclusive com um homônimo dela.
+        let candidates: Vec<(NivelDeDespacho, String)> = candidates
             .into_iter()
-            .filter(|function_name| {
+            .filter_map(|function_name| {
                 match self
                     .impl_methods
                     .iter()
-                    .find(|meta| &meta.function_name == function_name)
+                    .find(|meta| meta.function_name == function_name)
                 {
-                    Some(meta) => self.trato_visivel_em(span, &meta.identity.trait_name),
-                    None => true,
+                    Some(meta) => self
+                        .nivel_de_despacho(span, &meta.identity.trait_name)
+                        .map(|nivel| (nivel, function_name)),
+                    None => Some((NivelDeDespacho::Proprio, function_name)),
                 }
             })
             .collect();
+        let candidates: Vec<String> = match candidates.iter().map(|(nivel, _)| *nivel).min() {
+            Some(mais_forte) => candidates
+                .into_iter()
+                .filter(|(nivel, _)| *nivel == mais_forte)
+                .map(|(_, function_name)| function_name)
+                .collect(),
+            None => Vec::new(),
+        };
 
         match candidates.as_slice() {
             [function_name] => Ok(function_name.clone()),
@@ -9368,7 +9380,7 @@ pub fn check_program(program: &Program) -> Result<(), PinkerError> {
 /// no despacho de método.
 pub fn check_program_composto(
     program: &Program,
-    traits_visiveis_por_fonte: HashMap<SourceId, HashSet<String>>,
+    traits_visiveis_por_fonte: HashMap<SourceId, crate::module_resolve::TratosNoDespacho>,
     fontes_de_modulo: HashSet<SourceId>,
 ) -> Result<(), PinkerError> {
     SemanticChecker::com_visibilidade_de_tratos(traits_visiveis_por_fonte, fontes_de_modulo)

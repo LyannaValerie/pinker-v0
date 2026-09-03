@@ -2,8 +2,8 @@ schema = 2
 id = "normalizacao-corrente-para-historico"
 
 [reconstruction]
-expected_overrides = 166
-expected_exclusions = 124
+expected_overrides = 167
+expected_exclusions = 125
 
 [[rules]]
 op = "exclude-key"
@@ -193,6 +193,11 @@ expected_matches = 1
 [[rules]]
 op = "exclude-key"
 key = "evidencia.modulos.impl-sobre-trato-importado"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.modulos.impl-transitivo-pela-unidade-importada"
 expected_matches = 1
 
 [[rules]]
@@ -735,8 +740,17 @@ expect_layer = "evidencia"
 
 [[rules]]
 op = "override-hash"
+key = "ir.lowering.contexto-declaracoes"
+from = "fnv1a64:1ecf44dce3feb0ae"
+to = "fnv1a64:56184077c78a03b4"
+expect_file = "src/ir.rs"
+expect_domain = "lowering"
+expect_layer = "ir"
+
+[[rules]]
+op = "override-hash"
 key = "ir.lowering.programa-orquestracao"
-from = "fnv1a64:2c6636c77d58cd05"
+from = "fnv1a64:b5a21a35f9c4b68f"
 to = "fnv1a64:4e1d3b50087502d1"
 expect_file = "src/ir.rs"
 expect_domain = "lowering"
@@ -1735,7 +1749,7 @@ expect_layer = "ir"
 [[rules]]
 op = "override-region"
 key = "ir.lowering.funcoes-blocos"
-from_hash = "fnv1a64:5706f6abf992a352"
+from_hash = "fnv1a64:7d391c0a30e97337"
 to_hash = "fnv1a64:cb1a742852669151"
 expect_file = "src/ir.rs"
 expect_domain = "lowering"
@@ -2093,7 +2107,7 @@ expect_layer = "select"
 [[rules]]
 op = "override-region"
 key = "semantic.chamadas.despacho"
-from_hash = "fnv1a64:b3701f3483deb254"
+from_hash = "fnv1a64:3b23f3ba814eeea4"
 to_hash = "fnv1a64:786f0d551629e7a5"
 from_summary = "Despacho de chamadas: resolução de método de impl (direta e qualificada por trato, com detecção de ambiguidade), restringida aos tratos que a unidade-fonte da chamada autorizou — uma chamada de método não nomeia o trato, então sem esse filtro um trato da raiz forneceria método default ao corpo de um módulo que nunca o importou, seleção monomórfica das intrínsecas genéricas de mapa, checagem de chamada nomeada (aridade e tipos de argumento) e o grande despachante `check_call_expr` — construção de variante de leque, desugaring de `encaixe`, intrínsecas genéricas de lista/mapa, texto/verso, CSV/JSON, tempo e processo, caindo para a chamada de função declarada."
 to_summary = "Despacho de chamadas: resolução de método de impl (direta e qualificada por trato, com detecção de ambiguidade), seleção monomórfica das intrínsecas genéricas de mapa, checagem de chamada nomeada (aridade e tipos de argumento) e o grande despachante `check_call_expr` — construção de variante de leque, desugaring de `encaixe`, intrínsecas genéricas de lista/mapa, texto/verso, CSV/JSON, tempo e processo, caindo para a chamada de função declarada."
