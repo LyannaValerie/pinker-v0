@@ -2522,6 +2522,13 @@ impl Reconstruction {
 /// impossível excluir o que acabou de ser declarado, ou aplicar override sobre
 /// uma região que só passa a existir ali — as duas sequências que não têm
 /// significado. Nenhuma delas precisa de código de exceção.
+///
+/// A relocação de caminho (`to_file`) acontece **dentro** da fase de override,
+/// na mesma regra atômica que restaura `hash` e `summary`, e não como uma etapa
+/// própria. Duas consequências valem por contrato: as exclusões por arquivo
+/// enxergam o caminho **corrente**, porque precisam casar com o catálogo de
+/// hoje, e nenhuma ordem textual entre restaurar caminho e restaurar conteúdo
+/// pode existir, porque não há duas operações para ordenar.
 pub fn reconstruct(
     base: &[CodeRegion],
     snapshot: &ProjectionSnapshot,

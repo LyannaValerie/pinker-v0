@@ -449,13 +449,11 @@ fn relocacao_compoe_com_hash_e_summary_na_mesma_regra() {
 #[test]
 fn a_ordem_textual_das_regras_nao_muda_o_resultado() {
     let relocar = regra_relocacao(CHAVE, ARQUIVO_CORRENTE, ARQUIVO_HISTORICO);
-    let outra = format!(
-        "\n[[rules]]\n\
+    let outra = "\n[[rules]]\n\
          op = \"override-region\"\n\
          key = \"outro.assunto.regiao\"\n\
          from_hash = \"fnv1a64:00000000000000c3\"\n\
-         to_hash = \"fnv1a64:00000000000000c3\"\n"
-    );
+         to_hash = \"fnv1a64:00000000000000c3\"\n";
     let direta = reconstruir(
         &receita(&format!("{relocar}{outra}"), 2),
         0,
