@@ -273,6 +273,24 @@ pub struct ContextoDeImport {
     /// aqui — a grafia registrada é a que o importador escreveu, e quem a
     /// canoniza é `module_resolve`, pelo ambiente que a unidade autorizou.
     pub tratos_importados: HashMap<String, TraitDecl>,
+    /// #567: closures sintéticas das unidades que declararam os tratos acima.
+    ///
+    /// `MATERIALIZED_DEFAULT = MUST_NOT_LOSE_SYNTHETIC_DEPENDENCIES`. Um corpo
+    /// default não é só a árvore do método: quando ele contém uma closure, o
+    /// parser da unidade declarante já a levantou para uma função sintética de
+    /// topo, e o corpo passou a citá-la pelo nome. Entregar o corpo sem essas
+    /// funções entrega uma referência sem referente, e a materialização do
+    /// default falha fechada na unidade que fez o `impl`.
+    ///
+    /// A autoridade é a mesma de `tratos_importados` — a de import, que já leu
+    /// a unidade declarante —, e não uma segunda política de módulo dentro do
+    /// parser. As chaves são os nomes anônimos canônicos, que já codificam
+    /// integralmente a proveniência da unidade de origem: duas origens
+    /// distintas nunca ocupam a mesma entrada.
+    ///
+    /// Isto é um POOL de templates, não materialização: só as closures que um
+    /// default efetivamente materializado alcança são copiadas para o programa.
+    pub closures_de_default_importadas: HashMap<String, FunctionDecl>,
     /// #517: algum módulo importado por esta unidade não pôde ser lido pelo
     /// prepass — ausente, ilegível, com erro de sintaxe ou em ciclo.
     ///
@@ -418,9 +436,29 @@ impl Parser {
         Ok(())
     }
 
+    /// Copia, para ESTA materialização do default, as closures sintéticas que o
+    /// corpo dele cita.
+    ///
+    /// Uma cópia por materialização é obrigatória, não estilo: a captura de uma
+    /// closure é resolvida UMA vez por nome, no primeiro ponto de criação
+    /// (`resolve_closure_value`), e o receiver do default muda de tipo a cada
+    /// alvo. Duas relações compartilhando um nome compartilhariam a captura da
+    /// primeira.
+    ///
+    /// O nome novo é cunhado pela unidade que materializa, e é transporte —
+    /// nunca autoridade. Ele PRECISA ser dela: o codec anônimo é o par
+    /// `(proveniência, índice local)`, e um índice local só é injetivo dentro da
+    /// unidade que o conta. Emprestar a proveniência da origem e contar o índice
+    /// no importador faria duas unidades diferentes cunharem o mesmo nome para
+    /// materializações diferentes.
+    ///
+    /// Quem responde pela origem é `default_body_trait`, gravado aqui: o corpo
+    /// da cópia continua sendo o corpo da unidade declarante, e a resolução
+    /// modular o resolve contra o ambiente dela.
     fn clone_trait_default_closures(
         &mut self,
         function: &mut FunctionDecl,
+        trait_spelling: &str,
         templates: &HashMap<String, FunctionDecl>,
         consumed_templates: &mut HashSet<String>,
         cloned_functions: &mut Vec<FunctionDecl>,
@@ -441,7 +479,8 @@ impl Parser {
             self.synthetic_counter += 1;
             replacements.insert(
                 old_name.clone(),
-                anonymous_identity::anonymous_callable_name(
+                anonymous_identity::materialized_default_closure_name(
+                    old_name,
                     &self.generic_origin,
                     self.synthetic_counter,
                 ),
@@ -459,6 +498,7 @@ impl Parser {
                 .expect("every collected closure receives a fresh name")
                 .clone();
             cloned.name.clone_from(&new_name);
+            cloned.default_body_trait = Some(trait_spelling.to_string());
             cloned.body = Self::substitute_function_param_block(&cloned.body, &replacements);
             if self.capturing_anon_functions.contains(&old_name) {
                 self.capturing_anon_functions.insert(new_name);
@@ -1436,12 +1476,21 @@ impl Parser {
         impl_relations: &[PendingImplRelation],
     ) -> Result<Vec<FunctionDecl>, PinkerError> {
         let mut defaults = Vec::new();
-        let closure_templates: HashMap<String, FunctionDecl> = self
+        // #567: o default pode ter sido escrito em OUTRA unidade, e as closures
+        // dele moram lá. A unidade local continua sendo a primeira autoridade —
+        // um template local nunca é substituído por um importado —, e as chaves
+        // codificam a proveniência, então as duas fontes não disputam entrada.
+        let mut closure_templates: HashMap<String, FunctionDecl> = self
             .pending_functions
             .iter()
             .filter(|function| function.name.starts_with("__anon_carinho_"))
             .map(|function| (function.name.clone(), function.clone()))
             .collect();
+        for (nome, template) in &self.contexto_de_import.closures_de_default_importadas {
+            closure_templates
+                .entry(nome.clone())
+                .or_insert_with(|| template.clone());
+        }
         let mut consumed_closure_templates = HashSet::new();
         let mut cloned_closures = Vec::new();
         for pending in impl_relations {
@@ -1492,6 +1541,11 @@ impl Parser {
                         target_ty: target_ty.clone(),
                         generated_default: true,
                     }),
+                    // O hospedeiro já declara a origem pelo próprio nome
+                    // sintético (`__impl_*` / `__trait_default_check_*`), que a
+                    // recomposição canoniza. Só as dependências dele precisam
+                    // do fato explícito.
+                    default_body_trait: None,
                     type_params: Vec::new(),
                     params,
                     ret_type: method.ret_type.clone(),
@@ -1500,6 +1554,7 @@ impl Parser {
                 };
                 self.clone_trait_default_closures(
                     &mut function,
+                    trait_name,
                     &closure_templates,
                     &mut consumed_closure_templates,
                     &mut cloned_closures,
@@ -2619,6 +2674,7 @@ impl Parser {
         let function = FunctionDecl {
             name: name.clone(),
             impl_facts: None,
+            default_body_trait: None,
             type_params: Vec::new(),
             params,
             ret_type,
@@ -2839,6 +2895,7 @@ impl Parser {
         Ok(FunctionDecl {
             name,
             impl_facts: None,
+            default_body_trait: None,
             type_params,
             params,
             ret_type,
@@ -5124,6 +5181,7 @@ impl Parser {
             out.push(FunctionDecl {
                 name: mono_name,
                 impl_facts: None,
+                default_body_trait: template.default_body_trait.clone(),
                 type_params: Vec::new(),
                 params: template
                     .params
@@ -5180,6 +5238,7 @@ impl Parser {
             out.push(FunctionDecl {
                 name: mono_name,
                 impl_facts: None,
+                default_body_trait: template.default_body_trait.clone(),
                 type_params: Vec::new(),
                 params: template
                     .params

@@ -393,7 +393,7 @@ fn ambiente_da_unidade(
 // @pinker-nav:start modulos.resolucao.nominal-canonica
 // @pinker-nav:domain modulos
 // @pinker-nav:layer compilador
-// @pinker-nav:summary resolver_grafo reescreve declarações e referências de cada unidade para o nome canônico da unidade de origem, usando exclusivamente o ambiente que aquela unidade autorizou: a raiz preserva a grafia e o módulo qualifica pela própria chave, de modo que dois módulos independentes possam declarar o mesmo nome interno sem colidir e nenhuma referência de módulo possa ser satisfeita por disponibilidade acidental na raiz ou em irmão. Nomes possuídos pelo compilador, intrínsecas públicas, formas qualificadas de família, locais, parâmetros, bindings de padrão e parâmetros de tipo não são reescritos. Referência livre não autorizada que exista em outra unidade é recusada com o span e a fonte de quem a escreveu, em vez de religada em silêncio. Desde a #517 o CORPO default de um trato importado é resolvido contra o ambiente da unidade que DECLAROU o trato, e não contra o do importador: o parser copia esse corpo para a unidade que fez o `impl`, e como a raiz preserva grafia, resolvê-lo ali deixaria um homônimo da raiz capturar em silêncio o auxiliar do módulo. Só o corpo troca de ambiente; os tipos, inclusive o alvo do `impl`, continuam sendo da unidade que escreveu o `impl`.
+// @pinker-nav:summary resolver_grafo reescreve declarações e referências de cada unidade para o nome canônico da unidade de origem, usando exclusivamente o ambiente que aquela unidade autorizou: a raiz preserva a grafia e o módulo qualifica pela própria chave, de modo que dois módulos independentes possam declarar o mesmo nome interno sem colidir e nenhuma referência de módulo possa ser satisfeita por disponibilidade acidental na raiz ou em irmão. Nomes possuídos pelo compilador, intrínsecas públicas, formas qualificadas de família, locais, parâmetros, bindings de padrão e parâmetros de tipo não são reescritos. Referência livre não autorizada que exista em outra unidade é recusada com o span e a fonte de quem a escreveu, em vez de religada em silêncio. Desde a #517 o CORPO default de um trato importado é resolvido contra o ambiente da unidade que DECLAROU o trato, e não contra o do importador: o parser copia esse corpo para a unidade que fez o `impl`, e como a raiz preserva grafia, resolvê-lo ali deixaria um homônimo da raiz capturar em silêncio o auxiliar do módulo. Só o corpo troca de ambiente; os tipos, inclusive o alvo do `impl`, continuam sendo da unidade que escreveu o `impl`. Desde a #567 a mesma troca vale para as closures sintéticas que esse corpo cita, que são reconhecidas pelo fato `default_body_trait` e não pelo nome: o nome anônimo é cunhado por quem materializa — tem de ser, porque o índice local do codec só é injetivo ali — e portanto não poderia responder pela origem.
 struct Resolvedor<'a> {
     unit_key: ModuleKey,
     env: &'a ModuleEnvironment,
@@ -438,11 +438,23 @@ struct OrigemDosTratos<'a> {
 
 /// A função carrega o corpo default de um trato, copiado pelo parser?
 ///
-/// Duas formas, um só fato: o default materializado como o próprio método do
-/// `impl` (quando nenhum override venceu) e o default materializado só para
-/// checagem (quando um override venceu). O método escrito pelo usuário no
-/// `impl` NÃO entra: o corpo dele foi escrito na unidade que fez o `impl`.
+/// Três formas, um só fato: o default materializado como o próprio método do
+/// `impl` (quando nenhum override venceu), o default materializado só para
+/// checagem (quando um override venceu) e — #567 — as closures sintéticas que
+/// esses corpos citam. O método escrito pelo usuário no `impl` NÃO entra: o
+/// corpo dele foi escrito na unidade que fez o `impl`.
+///
+/// A closure responde pelo fato explícito que a materialização gravou, não pelo
+/// nome. O nome anônimo é cunhado pela unidade que materializa — ele tem de
+/// ser, porque o índice local do codec só é injetivo ali — e portanto não pode
+/// ser a autoridade sobre a origem. O corpo, esse, continua sendo o da unidade
+/// declarante, e é contra o ambiente DELA que ele significa: sem isto, um
+/// auxiliar homônimo do importador capturaria em silêncio a referência que a
+/// origem escreveu.
 fn corpo_default_de_trato(function: &FunctionDecl) -> Option<String> {
+    if let Some(trait_name) = &function.default_body_trait {
+        return Some(trait_name.clone());
+    }
     if let Some((trait_name, _, _)) =
         crate::method_identity::parse_trait_default_check_function_name(&function.name)
     {
@@ -1217,7 +1229,7 @@ pub fn resolver_grafo(graph: &ModuleGraph) -> Result<ModuleGraph, PinkerError> {
 // @pinker-nav:start modulos.projecao.execucao
 // @pinker-nav:domain modulos
 // @pinker-nav:layer compilador
-// @pinker-nav:summary projetar_programa achata o grafo já resolvido num Program único para lowering: a raiz inteira e, de cada módulo, o fecho alcançável a partir da superfície que o importador pediu, mais as relações de `impl` e os corpos sintéticos de `trato` — o método e a checagem do corpo default vencido por override — de toda unidade carregada. Materializar o fecho — e não só o símbolo pedido — é o que preserva as dependências internas da entidade importada sem torná-las visíveis ao importador, porque visibilidade já foi decidida pelo ambiente. Manter as relações de `impl` de toda unidade é o que impede que uma obrigação induzida pela unidade desapareça na projeção. Identidades geradas endereçadas por conteúdo entram uma vez só, então símbolo de runtime não é duplicado; a projeção acontece depois da resolução, então nada volta a depender de grafia.
+// @pinker-nav:summary projetar_programa achata o grafo já resolvido num Program único para lowering: a raiz inteira e, de cada módulo, o fecho alcançável a partir da superfície que o importador pediu, mais as relações de `impl` e os corpos sintéticos de `trato` — o método e a checagem do corpo default vencido por override — de toda unidade carregada. Materializar o fecho — e não só o símbolo pedido — é o que preserva as dependências internas da entidade importada sem torná-las visíveis ao importador, porque visibilidade já foi decidida pelo ambiente. Manter as relações de `impl` de toda unidade é o que impede que uma obrigação induzida pela unidade desapareça na projeção. Identidades geradas endereçadas por conteúdo entram uma vez só, então símbolo de runtime não é duplicado; a projeção acontece depois da resolução, então nada volta a depender de grafia. O fecho segue também as closures sintéticas que um corpo sintético de trato cita (#567): o que a origem escreveu dentro delas só é alcançado uma indireção abaixo do método, e sem esse degrau o corpo materializado chegaria íntegro com a dependência que ele usa faltando. Pela mesma razão a DECLARAÇÃO do trato não alcança essas closures: ela é contrato, não código, e o molde que ninguém chama levaria ao programa os identificadores livres do corpo default ainda soltos.
 /// Achata o grafo resolvido num `Program` para lowering.
 ///
 /// Duas decisões separadas, que a composição anterior confundia:
@@ -1571,11 +1583,21 @@ fn fecho_alcancavel(graph: &ModuleGraph) -> HashSet<String> {
         // precisa vir junto. Vale para a checagem do default exatamente como
         // vale para o método — os dois são corpo copiado pelo parser, e um
         // corpo que sobrevive sem suas dependências não é validável.
+        //
+        // #567: a closure que um desses corpos cita é a MESMA coisa, um degrau
+        // adiante. O corpo default a levantou para o topo na unidade de origem,
+        // então o que a origem escreveu dentro dela — o auxiliar do módulo, a
+        // constante, o tipo — só é alcançado por aqui. Sem este degrau o corpo
+        // materializado chega íntegro e a dependência que ele realmente usa
+        // fica para trás: `mo.ajudante` deixa de existir no programa por ter
+        // sido citado uma indireção abaixo do método.
         for item in &unit.items {
-            let Some(nome) = importable_item_name(item) else {
+            let Item::Function(function) = item else {
                 continue;
             };
-            if crate::method_identity::parse_synthetic_trait_body_name(nome).is_none() {
+            let e_corpo_sintetico =
+                crate::method_identity::parse_synthetic_trait_body_name(&function.name).is_some();
+            if !e_corpo_sintetico && function.default_body_trait.is_none() {
                 continue;
             }
             for referenciado in referencias_do_item(item) {
@@ -1657,9 +1679,26 @@ fn referencias_do_item(item: &Item) -> Vec<String> {
                 if let Some(ret) = &method.ret_type {
                     out.extend(referencias_de_tipo(ret));
                 }
-                if let Some(body) = &method.body {
-                    referencias_de_bloco(body, &mut out);
-                }
+                let Some(body) = &method.body else {
+                    continue;
+                };
+                // #567: a declaração do trato é contrato, não código. O corpo
+                // default dela nunca é baixado — o que é baixado é a cópia que
+                // cada `impl` materializa, e essa cópia traz a SUA closure.
+                //
+                // `SYNTHETIC_DEPENDENCIES ACCOMPANY ONLY THE MATERIALIZED
+                // DEFAULT`: alcançar a closure pela declaração materializaria
+                // um template que ninguém chama, com os identificadores livres
+                // do corpo default ainda soltos — e o programa seria recusado
+                // por um nome não declarado dentro de uma função que só existe
+                // como molde. Os demais nomes do corpo continuam alcançando,
+                // porque a cópia materializada os cita igual.
+                let mut do_corpo = Vec::new();
+                referencias_de_bloco(body, &mut do_corpo);
+                do_corpo.retain(|nome| {
+                    !nome.starts_with(crate::anonymous_identity::ANONYMOUS_CALLABLE_PREFIX)
+                });
+                out.extend(do_corpo);
             }
         }
     }

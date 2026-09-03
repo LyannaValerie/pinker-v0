@@ -3761,7 +3761,7 @@ impl Drop for DiretorioIntermediario {
 // @pinker-nav:start cli.modulos.importacao
 // @pinker-nav:domain modulos
 // @pinker-nav:layer cli
-// @pinker-nav:summary parse_program_from_source tokeniza e parseia uma string de fonte já vinculada ao SourceId da unidade, entregando ao parser o contexto de import resolvido antes do parse. base_dir_de devolve o diretório de resolução dos `.pink`; contexto_de_import responde, ANTES do parse, as perguntas que o parser não pode responder sozinho: quais nomes de `trazer X.y;` são módulo Pinker real (via modulo_real_existe), que identidades de topo os `trazer <modulo>;` deste arquivo trazem, que tratos os imports explícitos autorizam como alvo de `impl` (#517) e se alguma dessas leituras falhou (import_incompleto). As três últimas saem de uma leitura só por módulo em contexto_de_import_com_pilha, best-effort, sem diagnóstico próprio e DIRETA — só os itens do próprio módulo entram, então nenhum reexport implícito nasce daí. A leitura de cada módulo monta o contexto DELE pela mesma conta, porque ler o vizinho com contexto vazio era ler um arquivo diferente do que o carregador lê em seguida; a pilha `visitando` é o análogo de `loading` e para em ciclo sem contribuir. Ausência de `<módulo>.pink` na forma seletiva é classificada como o carregador a classifica: família built-in não corresponde a arquivo e a ausência é legítima; módulo que não existe é erro dele. Quando uma leitura falha ou o módulo pedido não existe, o parser não converte a própria cegueira em recusa: import_incompleto suspende a recusa de `impl` sobre trato não visto, e o carregador produz o erro real do módulo — ausente, ilegível ou em ciclo — com o span e a fonte certos. load_module_program registra a fonte do módulo no SourceMap antes de parseá-lo, detecta ciclo comparando com a pilha `loading`, recursa nos imports do módulo — pulando ali a mesma família built-in que o programa raiz pula — e só então insere a unidade no ModuleGraph, de modo que a ordem de inserção já seja ordem de dependência. carregar_e_projetar é o ponto de entrada: monta o grafo sem descartar nada da unidade, valida cada import da raiz pela superfície que o importador passa a enxergar (colisão com item local, colisão entre imports, import duplicado, símbolo inexistente) SEM materializar item algum, roda a validação modular local de cada unidade com os imports de família que ela escreveu, resolve o grafo para identidades canônicas e só então o projeta num Program único. Import de família built-in continua sem virar item e sobrevive na projeção para a autoridade semântica validá-lo.
+// @pinker-nav:summary parse_program_from_source tokeniza e parseia uma string de fonte já vinculada ao SourceId da unidade, entregando ao parser o contexto de import resolvido antes do parse. base_dir_de devolve o diretório de resolução dos `.pink`; contexto_de_import responde, ANTES do parse, as perguntas que o parser não pode responder sozinho: quais nomes de `trazer X.y;` são módulo Pinker real (via modulo_real_existe), que identidades de topo os `trazer <modulo>;` deste arquivo trazem, que tratos os imports explícitos autorizam como alvo de `impl` (#517), quais closures sintéticas os corpos default desses tratos citam (#567) e se alguma dessas leituras falhou (import_incompleto). As três últimas saem de uma leitura só por módulo em contexto_de_import_com_pilha, best-effort, sem diagnóstico próprio e DIRETA — só os itens do próprio módulo entram, então nenhum reexport implícito nasce daí. A leitura de cada módulo monta o contexto DELE pela mesma conta, porque ler o vizinho com contexto vazio era ler um arquivo diferente do que o carregador lê em seguida; a pilha `visitando` é o análogo de `loading` e para em ciclo sem contribuir. Ausência de `<módulo>.pink` na forma seletiva é classificada como o carregador a classifica: família built-in não corresponde a arquivo e a ausência é legítima; módulo que não existe é erro dele. Quando uma leitura falha ou o módulo pedido não existe, o parser não converte a própria cegueira em recusa: import_incompleto suspende a recusa de `impl` sobre trato não visto, e o carregador produz o erro real do módulo — ausente, ilegível ou em ciclo — com o span e a fonte certos. load_module_program registra a fonte do módulo no SourceMap antes de parseá-lo, detecta ciclo comparando com a pilha `loading`, recursa nos imports do módulo — pulando ali a mesma família built-in que o programa raiz pula — e só então insere a unidade no ModuleGraph, de modo que a ordem de inserção já seja ordem de dependência. carregar_e_projetar é o ponto de entrada: monta o grafo sem descartar nada da unidade, valida cada import da raiz pela superfície que o importador passa a enxergar (colisão com item local, colisão entre imports, import duplicado, símbolo inexistente) SEM materializar item algum, roda a validação modular local de cada unidade com os imports de família que ela escreveu, resolve o grafo para identidades canônicas e só então o projeta num Program único. Import de família built-in continua sem virar item e sobrevive na projeção para a autoridade semântica validá-lo. colher_closures_de_default acompanha o trato trazido, na mesma leitura que o produziu: um corpo default que contém closure cita uma função sintética que o parser da unidade declarante levantou para o topo, e entregar o corpo sem ela entrega uma referência sem referente. É um pool de templates — quem materializa é o parser da unidade que fez o `impl`, e só o que o corpo alcança entra no programa.
 fn parse_program_from_source(
     source: &str,
     base_dir: &Path,
@@ -3827,6 +3827,7 @@ fn contexto_de_import_com_pilha(
 ) -> ContextoDeImport {
     let mut nomes_importados = HashSet::new();
     let mut tratos_importados: HashMap<String, ast::TraitDecl> = HashMap::new();
+    let mut closures_de_default_importadas: HashMap<String, ast::FunctionDecl> = HashMap::new();
     let mut import_incompleto = false;
 
     // `trazer <modulo>;` traz os itens de topo do próprio módulo. Famílias
@@ -3854,8 +3855,15 @@ fn contexto_de_import_com_pilha(
                 .filter_map(importable_item_name)
                 .map(ToOwned::to_owned),
         );
+        let mut trouxe_trato = false;
         for trait_decl in tratos_do_programa(&programa) {
             tratos_importados.insert(trait_decl.name.clone(), trait_decl.clone());
+            trouxe_trato = true;
+        }
+        // O pool acompanha o trato trazido: sem trato não há default a
+        // materializar aqui, e nada a acompanhar.
+        if trouxe_trato {
+            colher_closures_de_default(&programa, &mut closures_de_default_importadas);
         }
     }
 
@@ -3886,10 +3894,17 @@ fn contexto_de_import_com_pilha(
             import_incompleto = true;
             continue;
         };
+        let mut pediu_trato = false;
         for trait_decl in tratos_do_programa(&programa) {
             if membros.iter().any(|membro| *membro == trait_decl.name) {
                 tratos_importados.insert(trait_decl.name.clone(), trait_decl.clone());
+                pediu_trato = true;
             }
+        }
+        // O pool acompanha o trato pedido, não o módulo inteiro: sem trato
+        // importado desta unidade não há default a materializar aqui.
+        if pediu_trato {
+            colher_closures_de_default(&programa, &mut closures_de_default_importadas);
         }
     }
 
@@ -3900,6 +3915,7 @@ fn contexto_de_import_com_pilha(
             .collect(),
         nomes_importados,
         tratos_importados,
+        closures_de_default_importadas,
         import_incompleto,
     }
 }
@@ -3909,6 +3925,41 @@ fn tratos_do_programa(programa: &ast::Program) -> impl Iterator<Item = &ast::Tra
         ast::Item::Trait(trait_decl) => Some(trait_decl),
         _ => None,
     })
+}
+
+/// #567 — `MATERIALIZED_DEFAULT MUST_NOT_LOSE_SYNTHETIC_DEPENDENCIES`.
+///
+/// O corpo default de um trato é entregue ao importador como árvore; quando ele
+/// contém uma closure, essa árvore cita uma função sintética que o parser da
+/// unidade declarante levantou para o topo. Entregar o trato sem essas funções
+/// entrega uma referência sem referente.
+///
+/// Vem da MESMA leitura que já produziu o trato — a autoridade de import, dona
+/// da resolução de módulos —, e não de uma segunda política dentro do parser.
+/// As chaves são os nomes anônimos canônicos: eles já codificam integralmente a
+/// proveniência da unidade, então dois módulos nunca disputam a mesma entrada e
+/// nenhuma grafia participa.
+///
+/// É um pool, não materialização: quem decide o que entra no programa é a
+/// materialização do default, e ela copia apenas o que o corpo alcança.
+fn colher_closures_de_default(
+    programa: &ast::Program,
+    destino: &mut HashMap<String, ast::FunctionDecl>,
+) {
+    for item in &programa.items {
+        let ast::Item::Function(function) = item else {
+            continue;
+        };
+        if !function
+            .name
+            .starts_with(pinker_v0::anonymous_identity::ANONYMOUS_CALLABLE_PREFIX)
+        {
+            continue;
+        }
+        destino
+            .entry(function.name.clone())
+            .or_insert_with(|| function.clone());
+    }
 }
 
 /// Leitura DIRETA de um módulo vizinho, sem diagnóstico próprio.

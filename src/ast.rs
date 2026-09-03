@@ -4,7 +4,7 @@ use std::collections::HashSet;
 // @pinker-nav:start ast.programa.estrutura
 // @pinker-nav:domain programa
 // @pinker-nav:layer ast
-// @pinker-nav:summary Estrutura de topo do programa na AST: pacote, imports e itens (funções, structs, enums, tratos/impl, aliases e constantes), cada declaração com seu span e serialização JSON.
+// @pinker-nav:summary Estrutura de topo do programa na AST: pacote, imports e itens (funções, structs, enums, tratos/impl, aliases e constantes), cada declaração com seu span e serialização JSON. `FunctionDecl` transporta dois fatos que o nome não pode responder: `impl_facts`, do método de `impl`, e — desde a #567 — `default_body_trait`, que marca a função sintética como dependência do corpo default de um trato e nomeia a grafia dele. O corpo dessa dependência pertence à unidade que DECLAROU o trato, e é o fato, não o nome sintético, que diz isso à resolução modular.
 #[derive(Debug, Clone)]
 pub struct Program {
     pub package: Option<PackageDecl>,
@@ -305,6 +305,19 @@ pub struct FunctionDecl {
     /// Fatos de transporte de um método impl. `None` para funções comuns e
     /// funções privadas criadas apenas para checar um default sobrescrito.
     pub impl_facts: Option<ImplFunctionFacts>,
+    /// #567: esta função sintética é dependência do corpo default de um trato.
+    ///
+    /// Guarda a GRAFIA do trato como a unidade que materializou o default a
+    /// escreveu — transporte, nunca identidade. Quem a canoniza é a resolução
+    /// modular, pelo mesmo ambiente que autorizou o `impl`.
+    ///
+    /// O fato existe porque o nome sintético não pode responder por ele: a
+    /// closure é cunhada pela unidade que materializa, mas o CORPO dela
+    /// pertence à unidade que DECLAROU o trato, e é contra aquele ambiente que
+    /// ele precisa ser resolvido. Sem este fato o corpo copiado passaria a
+    /// significar o que o importador diz, e um homônimo do importador
+    /// capturaria em silêncio o auxiliar que a origem usa.
+    pub default_body_trait: Option<String>,
     pub type_params: Vec<String>,
     pub params: Vec<Param>,
     pub ret_type: Option<Type>,
