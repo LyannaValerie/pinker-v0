@@ -18,8 +18,10 @@ use crate::ast::{
 };
 use crate::error::PinkerError;
 use crate::layout;
+use crate::method_dispatch::{
+    self, DispatchCandidate, DispatchRelation, MethodSelection, RepresentativeSelection,
+};
 use crate::method_identity::{self, MethodIdentity};
-use crate::module_resolve::NivelDeDespacho;
 use crate::source_map::SourceId;
 use crate::token::{Position, Span};
 use crate::union_canon;
@@ -2737,25 +2739,7 @@ impl LoweringContext {
     // @pinker-nav:start ir.lowering.metodos-identidade
     // @pinker-nav:domain tratos
     // @pinker-nav:layer lowering
-    // @pinker-nav:summary Visão derivada de métodos aceita pela semântica: percorre funções provisórias, resolve integralmente o tipo-alvo declarado transportado em `ImplFunctionFacts` para `ResolvedTypeId` e indexa `MethodIdentity(trato, identidade resolvida, método)` até o símbolo transportado; chamadas e vtables consultam somente essa visão, sem decodificar spelling para decidir identidade.
-    /// Por qual nível um trato alcança o ponto em que a chamada foi escrita?
-    ///
-    /// Índice vazio significa "não há composição a restringir". Span sintético
-    /// não reivindica fonte e também não é filtrado.
-    fn nivel_de_despacho(
-        &self,
-        span: Span,
-        trait_name: &str,
-        fonte_da_relacao: Option<SourceId>,
-    ) -> Option<NivelDeDespacho> {
-        crate::module_resolve::nivel_de_despacho(
-            &self.traits_visiveis_por_fonte,
-            span,
-            trait_name,
-            fonte_da_relacao,
-        )
-    }
-
+    // @pinker-nav:summary Visão derivada de métodos aceita pela semântica: percorre funções provisórias, resolve integralmente o tipo-alvo declarado transportado em `ImplFunctionFacts` para `ResolvedTypeId` e indexa `MethodIdentity(trato, identidade resolvida, método)` até o símbolo transportado; chamadas e vtables consultam somente essa visão, sem decodificar spelling para decidir identidade; qual função materializada representa a identidade é dito por `method_dispatch`, e aqui fica só a mensagem do lowering.
     fn register_impl_methods(&mut self, program: &Program) -> Result<(), PinkerError> {
         // #577: a origem da relação vem do bloco `impl`, não do método. O span
         // do bloco é do arquivo que o escreveu; o do método pode ser corpo
@@ -2793,31 +2777,37 @@ impl LoweringContext {
         }
 
         for (identity, mut candidates) in candidates {
-            candidates.sort_by(|left, right| left.name.cmp(&right.name));
-            let explicit = candidates
-                .iter()
-                .copied()
-                .filter(|candidate| {
-                    !candidate
+            // A escolha do representante é de `method_dispatch`; aqui só sobra
+            // a mensagem do lowering, que é da fase.
+            let escolhido = match method_dispatch::select_representative(
+                &mut candidates,
+                |candidate| candidate.name.as_str(),
+                |candidate| {
+                    candidate
                         .impl_facts
                         .as_ref()
                         .expect("método provisório carrega fatos do impl")
                         .generated_default
-                })
-                .collect::<Vec<_>>();
-            if explicit.len() > 1 {
-                return Err(PinkerError::Ir {
-                    msg: format!(
-                        "lowering recebeu identidade de método duplicada para '{}.{}' (símbolos '{}' e '{}')",
-                        identity.trait_name,
-                        identity.method_name,
-                        explicit[0].name,
-                        explicit[1].name
-                    ),
-                    span: explicit[1].span,
-                });
-            }
-            let selected = explicit.first().copied().unwrap_or(candidates[0]);
+                },
+            ) {
+                RepresentativeSelection::Selected(index) => index,
+                RepresentativeSelection::ExplicitConflict {
+                    previous,
+                    conflicting,
+                } => {
+                    return Err(PinkerError::Ir {
+                        msg: format!(
+                            "lowering recebeu identidade de método duplicada para '{}.{}' (símbolos '{}' e '{}')",
+                            identity.trait_name,
+                            identity.method_name,
+                            candidates[previous].name,
+                            candidates[conflicting].name
+                        ),
+                        span: candidates[conflicting].span,
+                    });
+                }
+            };
+            let selected = candidates[escolhido];
             for candidate in candidates {
                 if candidate.name != selected.name
                     && candidate
@@ -3368,7 +3358,7 @@ impl<'a> FunctionLowerer<'a> {
     // @pinker-nav:start ir.lowering.funcoes-blocos
     // @pinker-nav:domain lowering
     // @pinker-nav:layer ir
-    // @pinker-nav:summary Configuração do `FunctionLowerer` e lowering de funções/blocos estruturados: aloca parâmetros e preserva metadados nominais/estruturais de callables, ponteiros crus e pointees de ponteiros de dados em aliases, retornos, ternários, chamadas por expressão e capturas de closure. Inclui resolvedores de método de `impl` direto e qualificado por trato; preserva a estrutura aninhada, sem ainda dividir o fluxo em CFG.
+    // @pinker-nav:summary Configuração do `FunctionLowerer` e lowering de funções/blocos estruturados: aloca parâmetros e preserva metadados nominais/estruturais de callables, ponteiros crus e pointees de ponteiros de dados em aliases, retornos, ternários, chamadas por expressão e capturas de closure. Inclui resolvedores de método de `impl` direto e qualificado por trato; o direto só constrói candidatos da visão derivada e delega o veredito a `method_dispatch`, a mesma autoridade que a semântica consulta, e o qualificado nomeia o trato e continua sendo consulta de identidade; preserva a estrutura aninhada, sem ainda dividir o fluxo em CFG.
     fn new(context: &'a LoweringContext) -> Self {
         Self {
             context,
@@ -3839,38 +3829,35 @@ impl<'a> FunctionLowerer<'a> {
         span: Span,
     ) -> Result<Option<String>, PinkerError> {
         let receiver_identity = receiver.identity(self.context, span)?;
-        // Mesmo ambiente, e mesma precedência de níveis, que a autoridade
-        // semântica aplicou. Sem esta metade, `--check` e o lowering
-        // discordariam sobre o mesmo programa.
-        let candidates: Vec<(NivelDeDespacho, String)> = self
+        // Esta fase só constrói candidatos a partir da sua visão derivada e
+        // nomeia a relação de cada um. Quem alcança, quem precede e quem vence
+        // é `method_dispatch`, a mesma autoridade que a semântica consultou;
+        // sem isso, `--check` e o lowering discordariam sobre o mesmo programa.
+        let candidates = self
             .context
             .impl_methods
             .iter()
             .filter(|(identity, _function_name)| {
                 identity.target == receiver_identity && identity.method_name == method_name
             })
-            .filter_map(|(identity, function_name)| {
-                let fonte = self
-                    .context
-                    .fontes_das_relacoes
-                    .get(&(identity.trait_name.clone(), identity.target))
-                    .copied();
-                self.context
-                    .nivel_de_despacho(span, &identity.trait_name, fonte)
-                    .map(|nivel| (nivel, function_name.clone()))
-            })
-            .collect();
-        let candidates: Vec<String> = match candidates.iter().map(|(nivel, _)| *nivel).min() {
-            Some(mais_forte) => candidates
-                .into_iter()
-                .filter(|(nivel, _)| *nivel == mais_forte)
-                .map(|(_, function_name)| function_name)
-                .collect(),
-            None => Vec::new(),
-        };
-        match candidates.as_slice() {
-            [function_name] => Ok(Some(function_name.clone())),
-            _ => Ok(None),
+            .map(|(identity, function_name)| DispatchCandidate {
+                function_name: function_name.clone(),
+                relation: Some(DispatchRelation {
+                    trait_name: identity.trait_name.clone(),
+                    fonte_da_relacao: self
+                        .context
+                        .fontes_das_relacoes
+                        .get(&(identity.trait_name.clone(), identity.target))
+                        .copied(),
+                }),
+            });
+        match method_dispatch::select_impl_method(
+            &self.context.traits_visiveis_por_fonte,
+            span,
+            candidates,
+        ) {
+            MethodSelection::Winner(function_name) => Ok(Some(function_name)),
+            MethodSelection::NoMatch | MethodSelection::Ambiguous => Ok(None),
         }
     }
 

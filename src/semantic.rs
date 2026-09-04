@@ -16,8 +16,10 @@ use crate::ast::*;
 use crate::error::PinkerError;
 use crate::ir::TypeIR;
 use crate::layout;
+use crate::method_dispatch::{
+    self, DispatchCandidate, DispatchRelation, MethodSelection, RepresentativeSelection,
+};
 use crate::method_identity::{self, MethodIdentity};
-use crate::module_resolve::NivelDeDespacho;
 use crate::source_map::SourceId;
 use crate::token::{Position, Span};
 use crate::union_canon;
@@ -306,25 +308,6 @@ impl SemanticChecker {
         !crate::native_symbol::is_compiler_generated(name)
             && !name.contains('.')
             && self.fontes_de_modulo.contains(&span.source)
-    }
-
-    /// Por qual nível um trato alcança o ponto em que a chamada foi escrita?
-    ///
-    /// Sem índice não há composição modular e nada é filtrado. Span sintético
-    /// não reivindica fonte e também não é filtrado: restringir por ausência
-    /// de alegação recusaria o que o compilador ele mesmo materializou.
-    fn nivel_de_despacho(
-        &self,
-        span: Span,
-        trait_name: &str,
-        fonte_da_relacao: Option<SourceId>,
-    ) -> Option<NivelDeDespacho> {
-        crate::module_resolve::nivel_de_despacho(
-            &self.traits_visiveis_por_fonte,
-            span,
-            trait_name,
-            fonte_da_relacao,
-        )
     }
 }
 
@@ -1723,7 +1706,7 @@ impl SemanticChecker {
     // @pinker-nav:start semantic.tratos.contratos
     // @pinker-nav:domain tratos
     // @pinker-nav:layer semantic
-    // @pinker-nav:summary Autoridade semântica de relações, métodos e contratos de tratos. `validate_impl_relations` vem primeiro e é a única autoridade de cardinalidade da relação nominal: cada `ImplDecl` de `program.impls` vira a identidade `(trato canônico, alvo canônico)` — o mesmo `union_canon` que a identidade de método usa — e a segunda declaração da mesma identidade é recusada, sem olhar quantos métodos explícitos cada bloco materializou; bloco vazio continua sendo declaração da relação. Depois, `register_impl_methods` resolve integralmente o tipo-alvo declarado transportado em `ImplFunctionFacts`, deriva sua chave por `union_canon`, registra `MethodIdentity(trato, tipo resolvido, método)` e compara separadamente o receiver resolvido; `method_index` é somente a visão derivada para chamadas não qualificadas, e a recusa de método repetido continua endereçando repetição dentro do mesmo bloco. Por último, `validate_impl_contracts` agrupa os métodos já materializados pela identidade resolvida e cobra cobertura do contrato do trato: ausência de método requerido é erro de cobertura, nunca duplicata.
+    // @pinker-nav:summary Autoridade semântica de relações, métodos e contratos de tratos. `validate_impl_relations` vem primeiro e é a única autoridade de cardinalidade da relação nominal: cada `ImplDecl` de `program.impls` vira a identidade `(trato canônico, alvo canônico)` — o mesmo `union_canon` que a identidade de método usa — e a segunda declaração da mesma identidade é recusada, sem olhar quantos métodos explícitos cada bloco materializou; bloco vazio continua sendo declaração da relação. Depois, `register_impl_methods` resolve integralmente o tipo-alvo declarado transportado em `ImplFunctionFacts`, deriva sua chave por `union_canon`, registra `MethodIdentity(trato, tipo resolvido, método)` e compara separadamente o receiver resolvido; `method_index` é somente a visão derivada para chamadas não qualificadas, e a recusa de método repetido continua endereçando repetição dentro do mesmo bloco. Qual das funções já materializadas representa a identidade — override explícito vence default, ordem total do símbolo desempata — é dito por `method_dispatch`, a mesma autoridade que o lowering consulta; aqui fica só a mensagem, que é da fase. Por último, `validate_impl_contracts` agrupa os métodos já materializados pela identidade resolvida e cobra cobertura do contrato do trato: ausência de método requerido é erro de cobertura, nunca duplicata.
     /// Cardinalidade da relação nominal de `impl`, antes de qualquer
     /// materialização de método.
     ///
@@ -1850,16 +1833,21 @@ impl SemanticChecker {
         }
 
         for (identity, mut candidates) in candidates {
-            candidates.sort_by(|left, right| left.function_name.cmp(&right.function_name));
-            let explicit = candidates
-                .iter()
-                .filter(|candidate| !candidate.is_generated_default)
-                .collect::<Vec<_>>();
-            if explicit.len() > 1 {
-                let previous = explicit[0];
-                let conflicting = explicit[1];
-                if previous.target_spelling == conflicting.target_spelling {
-                    return Err(PinkerError::Semantic {
+            let selecao = method_dispatch::select_representative(
+                &mut candidates,
+                |candidate| &candidate.function_name,
+                |candidate| candidate.is_generated_default,
+            );
+            let escolhido = match selecao {
+                RepresentativeSelection::Selected(index) => index,
+                RepresentativeSelection::ExplicitConflict {
+                    previous,
+                    conflicting,
+                } => {
+                    let previous = &candidates[previous];
+                    let conflicting = &candidates[conflicting];
+                    if previous.target_spelling == conflicting.target_spelling {
+                        return Err(PinkerError::Semantic {
                         msg: format!(
                             "método '{}' do trato '{}' para tipo '{}' já implementado; outra implementação já declarada em {}",
                             identity.method_name,
@@ -1869,14 +1857,14 @@ impl SemanticChecker {
                         ),
                         span: conflicting.span,
                     });
-                }
-                let equivalence = format!(
-                    "'{}' e '{}' resolvem para '{}'",
-                    conflicting.target_spelling,
-                    previous.target_spelling,
-                    conflicting.resolved_target_display
-                );
-                return Err(PinkerError::Semantic {
+                    }
+                    let equivalence = format!(
+                        "'{}' e '{}' resolvem para '{}'",
+                        conflicting.target_spelling,
+                        previous.target_spelling,
+                        conflicting.resolved_target_display
+                    );
+                    return Err(PinkerError::Semantic {
                     msg: format!(
                         "método '{}' do trato '{}' para tipo '{}' conflita com implementação para '{}'; {} (outra declaração em {})",
                         identity.method_name,
@@ -1888,16 +1876,13 @@ impl SemanticChecker {
                     ),
                     span: conflicting.span,
                 });
-            }
+                }
+            };
 
-            // Um override explícito vence defaults materializados da mesma
-            // relação resolvida. Sem override, escolhemos pelo símbolo
-            // provisório (ordem total), nunca pela ordem de fonte/import.
-            let selected = explicit
-                .first()
-                .copied()
-                .unwrap_or_else(|| &candidates[0])
-                .clone();
+            // A escolha do representante — override explícito vence default
+            // materializado, ordem total do símbolo desempata — é de
+            // `method_dispatch`; aqui só sobra a mensagem, que é da fase.
+            let selected = candidates[escolhido].clone();
             self.method_index
                 .entry((identity.target.clone(), identity.method_name.clone()))
                 .or_default()
@@ -4406,7 +4391,7 @@ impl SemanticChecker {
     // @pinker-nav:start semantic.chamadas.despacho
     // @pinker-nav:domain chamadas
     // @pinker-nav:layer semantic
-    // @pinker-nav:summary Despacho de chamadas: resolução de método de impl (direta e qualificada por trato, com detecção de ambiguidade), restringida aos tratos que a unidade-fonte da chamada autorizou — uma chamada de método não nomeia o trato, então sem esse filtro um trato da raiz forneceria método default ao corpo de um módulo que nunca o importou, seleção monomórfica das intrínsecas genéricas de mapa, checagem de chamada nomeada (aridade e tipos de argumento) e o despachante `check_call_expr` — construção de variante de leque, desugaring de `encaixe`, a checagem genérica das grafias históricas de contrato declarado, dirigida por `intrinsics::registry`, e os contratos próprios que sobram (aridade variável, formas genéricas de lista/mapa e restrições que não cabem em `(params, ret)`), caindo para a chamada de função declarada.
+    // @pinker-nav:summary Despacho de chamadas: resolução de método de impl (direta e qualificada por trato), restringida aos tratos que a unidade-fonte da chamada autorizou — uma chamada de método não nomeia o trato, então sem esse filtro um trato da raiz forneceria método default ao corpo de um módulo que nunca o importou. Quem alcança, quem precede e quem vence entre os candidatos não é decidido aqui: esta camada só constrói candidatos a partir de `method_index` e traduz o veredito de `method_dispatch`, a autoridade única que o lowering consulta com a mesma regra; a chamada qualificada nomeia o trato e continua sendo resolução de identidade, sem candidatos a comparar. Também: seleção monomórfica das intrínsecas genéricas de mapa, checagem de chamada nomeada (aridade e tipos de argumento) e o despachante `check_call_expr` — construção de variante de leque, desugaring de `encaixe`, a checagem genérica das grafias históricas de contrato declarado, dirigida por `intrinsics::registry`, e os contratos próprios que sobram (aridade variável, formas genéricas de lista/mapa e restrições que não cabem em `(params, ret)`), caindo para a chamada de função declarada.
     fn check_trait_object_method_call(
         &mut self,
         expr_span: Span,
@@ -4500,59 +4485,42 @@ impl SemanticChecker {
             .get(&(resolved_key, method_name.to_string()))
             .cloned()
             .unwrap_or_default();
-        // MODULE_IMPORTER_NON_INTERFERENCE para despacho de método: só entram
-        // os candidatos cujo trato alcança a unidade que escreveu a chamada. Um
-        // trato declarado na raiz deixa de fornecer método default ao corpo de
-        // um módulo que nunca o importou.
-        //
-        // #577: alcançar tem dois níveis. O trato que a unidade declarou ou
-        // importou é autoridade dela; o que ela só alcança porque importou quem
-        // implementa é dependência semântica transportada. Resolver pelo nível
-        // mais forte que produzir candidato é o que deixa a raiz consumir a
-        // superfície do implementador sem que essa dependência dispute com o
-        // que a própria raiz autorizou — inclusive com um homônimo dela.
-        let candidates: Vec<(NivelDeDespacho, String)> = candidates
-            .into_iter()
-            .filter_map(|function_name| {
-                match self
-                    .impl_methods
-                    .iter()
-                    .find(|meta| meta.function_name == function_name)
-                {
-                    Some(meta) => {
-                        let fonte = self
-                            .fontes_das_relacoes
-                            .get(&(
-                                meta.identity.trait_name.clone(),
-                                meta.identity.target.clone(),
-                            ))
-                            .copied();
-                        self.nivel_de_despacho(span, &meta.identity.trait_name, fonte)
-                            .map(|nivel| (nivel, function_name))
-                    }
-                    None => Some((NivelDeDespacho::Proprio, function_name)),
-                }
-            })
-            .collect();
-        let candidates: Vec<String> = match candidates.iter().map(|(nivel, _)| *nivel).min() {
-            Some(mais_forte) => candidates
-                .into_iter()
-                .filter(|(nivel, _)| *nivel == mais_forte)
-                .map(|(_, function_name)| function_name)
-                .collect(),
-            None => Vec::new(),
-        };
+        // Esta fase só constrói candidatos a partir do seu próprio índice e
+        // nomeia a relação de cada um. Quem alcança, quem precede e quem vence
+        // é `method_dispatch`, a autoridade única — o lowering resolve a mesma
+        // chamada pela mesma regra, e por isso não pode discordar daqui.
+        let candidates = candidates.into_iter().map(|function_name| {
+            let relation = self
+                .impl_methods
+                .iter()
+                .find(|meta| meta.function_name == function_name)
+                .map(|meta| DispatchRelation {
+                    trait_name: meta.identity.trait_name.clone(),
+                    fonte_da_relacao: self
+                        .fontes_das_relacoes
+                        .get(&(
+                            meta.identity.trait_name.clone(),
+                            meta.identity.target.clone(),
+                        ))
+                        .copied(),
+                });
+            DispatchCandidate {
+                function_name,
+                relation,
+            }
+        });
 
-        match candidates.as_slice() {
-            [function_name] => Ok(function_name.clone()),
-            [] => Err(PinkerError::Semantic {
+        match method_dispatch::select_impl_method(&self.traits_visiveis_por_fonte, span, candidates)
+        {
+            MethodSelection::Winner(function_name) => Ok(function_name),
+            MethodSelection::NoMatch => Err(PinkerError::Semantic {
                 msg: format!(
                     "método '{}' não implementado para tipo '{}'",
                     method_name, direct_key
                 ),
                 span,
             }),
-            _ => Err(PinkerError::Semantic {
+            MethodSelection::Ambiguous => Err(PinkerError::Semantic {
                 msg: format!(
                     "método '{}' para tipo '{}' é ambíguo; use 'Trato.{}(valor, ...)'",
                     method_name, direct_key, method_name
