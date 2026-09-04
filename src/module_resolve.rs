@@ -43,8 +43,8 @@ use std::collections::{HashMap, HashSet};
 
 use crate::ast::{
     AssignTarget, Block, ConstDecl, ElseBlock, EnumDecl, EnumPattern, Expr, ExprKind, FunctionDecl,
-    IfStmt, ImplDecl, Item, Param, Program, Stmt, StructDecl, TraitDecl, TraitMethodSig, Type,
-    TypeAliasDecl,
+    IfStmt, ImplDecl, Item, Param, Program, Stmt, StructDecl, TraitDecl, TraitDefaultBodyRole,
+    TraitMethodSig, Type, TypeAliasDecl,
 };
 use crate::error::PinkerError;
 use crate::module_graph::{ModuleGraph, ModuleId, ModuleKey, ModuleUnit};
@@ -157,27 +157,61 @@ fn nao_e_entidade_de_unidade(name: &str) -> bool {
 /// entidades iguais, e materializar as duas cópias duplicaria símbolo de
 /// runtime sem criar entidade nova.
 ///
-/// `__trait_default_check_*` pertence, depois que a recomposição o endereça
-/// pelo trato canônico. O que prova a igualdade é a origem, não a impressão:
-/// o nome é `(trato canônico, alvo canônico, método)`, o corpo default tem uma
-/// declaração só — a do trato —, e desde a #517 ele é resolvido no ambiente da
-/// unidade que DECLAROU o trato, nunca no de quem hospeda o `impl`. Logo nome
-/// igual implica mesma declaração e mesmo corpo, e as duas cópias são a mesma
-/// entidade. A conferência estrutural que este caminho aplica em seguida é de
-/// assinatura, não de corpo: ela é rede de segurança, não a prova. Sem esta
-/// entrada, duas unidades que sobrescrevem a mesma relação emitiriam duas
-/// funções homônimas e a duplicata seria recusada por choque de nome de função
-/// sintética, no lugar da autoridade de contratos de trato.
+/// O corpo default materializado só para checagem pertence, depois que a
+/// recomposição o endereça pelo trato canônico. O que prova a igualdade é a
+/// origem, não a impressão: o nome é `(trato canônico, alvo canônico, método)`,
+/// o corpo default tem uma declaração só — a do trato —, e desde a #517 ele é
+/// resolvido no ambiente da unidade que DECLAROU o trato, nunca no de quem
+/// hospeda o `impl`. Logo nome igual implica mesma declaração e mesmo corpo, e
+/// as duas cópias são a mesma entidade. A conferência estrutural que este
+/// caminho aplica em seguida é de assinatura, não de corpo: ela é rede de
+/// segurança, não a prova. Sem esta entrada, duas unidades que sobrescrevem a
+/// mesma relação emitiriam duas funções homônimas e a duplicata seria recusada
+/// por choque de nome de função sintética, no lugar da autoridade de contratos
+/// de trato.
 ///
-/// `__impl_*` NÃO pertence a este conjunto. Ele codifica apenas
+/// #592: quem responde é o papel `CheckOnly` do fato adulto, não o prefixo
+/// `__trait_default_check_*`. O prefixo continua sendo a forma com que o
+/// símbolo viaja; a razão pela qual esta entidade pode ser deduplicada é o
+/// papel dela, e é o papel que precisa ser lido.
+///
+/// O default SELECIONADO não pertence a este conjunto. Seu nome codifica apenas
 /// `(trato, alvo, método)`; dois corpos genuinamente distintos da mesma relação
 /// produzem o mesmo nome. Deduplicá-lo descartaria uma implementação em
 /// silêncio, exatamente onde a autoridade de contratos de trato precisa ver as
 /// duas para recusar a duplicata.
-fn e_identidade_endereçada_por_conteudo(name: &str) -> bool {
-    name.starts_with("__gen_")
+fn e_identidade_endereçada_por_conteudo(item: &Item, name: &str) -> bool {
+    if name.starts_with("__gen_")
         || name.starts_with(crate::anonymous_identity::ANONYMOUS_CALLABLE_PREFIX)
-        || name.starts_with(crate::method_identity::TRAIT_DEFAULT_CHECK_PREFIX)
+    {
+        return true;
+    }
+    matches!(
+        item,
+        Item::Function(function)
+            if matches!(
+                &function.trait_default_body,
+                Some(fato) if fato.role == TraitDefaultBodyRole::CheckOnly
+            )
+    )
+}
+
+/// A função existe porque uma relação de `impl` a materializou, e não porque
+/// alguém a nomeou.
+///
+/// Cobre o método explícito do bloco, o default selecionado e a checagem do
+/// default vencido por override. A dependência sintética de um corpo default
+/// (#567) NÃO entra: ela é alcançada por referência, a partir do corpo que a
+/// cita.
+fn e_corpo_de_relacao_de_trato(item: &Item) -> bool {
+    let Item::Function(function) = item else {
+        return false;
+    };
+    function.impl_facts.is_some()
+        || matches!(
+            &function.trait_default_body,
+            Some(fato) if fato.role == TraitDefaultBodyRole::CheckOnly
+        )
 }
 
 /// Superfície global aprovada: intrínseca pública ou forma qualificada de
@@ -393,7 +427,7 @@ fn ambiente_da_unidade(
 // @pinker-nav:start modulos.resolucao.nominal-canonica
 // @pinker-nav:domain modulos
 // @pinker-nav:layer compilador
-// @pinker-nav:summary resolver_grafo reescreve declarações e referências de cada unidade para o nome canônico da unidade de origem, usando exclusivamente o ambiente que aquela unidade autorizou: a raiz preserva a grafia e o módulo qualifica pela própria chave, de modo que dois módulos independentes possam declarar o mesmo nome interno sem colidir e nenhuma referência de módulo possa ser satisfeita por disponibilidade acidental na raiz ou em irmão. Nomes possuídos pelo compilador, intrínsecas públicas, formas qualificadas de família, locais, parâmetros, bindings de padrão e parâmetros de tipo não são reescritos. Referência livre não autorizada que exista em outra unidade é recusada com o span e a fonte de quem a escreveu, em vez de religada em silêncio. Desde a #517 o CORPO default de um trato importado é resolvido contra o ambiente da unidade que DECLAROU o trato, e não contra o do importador: o parser copia esse corpo para a unidade que fez o `impl`, e como a raiz preserva grafia, resolvê-lo ali deixaria um homônimo da raiz capturar em silêncio o auxiliar do módulo. Só o corpo troca de ambiente; os tipos, inclusive o alvo do `impl`, continuam sendo da unidade que escreveu o `impl`. Desde a #567 a mesma troca vale para as closures sintéticas que esse corpo cita, que são reconhecidas pelo fato `default_body_trait` e não pelo nome: o nome anônimo é cunhado por quem materializa — tem de ser, porque o índice local do codec só é injetivo ali — e portanto não poderia responder pela origem.
+// @pinker-nav:summary resolver_grafo reescreve declarações e referências de cada unidade para o nome canônico da unidade de origem, usando exclusivamente o ambiente que aquela unidade autorizou: a raiz preserva a grafia e o módulo qualifica pela própria chave, de modo que dois módulos independentes possam declarar o mesmo nome interno sem colidir e nenhuma referência de módulo possa ser satisfeita por disponibilidade acidental na raiz ou em irmão. Nomes possuídos pelo compilador, intrínsecas públicas, formas qualificadas de família, locais, parâmetros, bindings de padrão e parâmetros de tipo não são reescritos. Referência livre não autorizada que exista em outra unidade é recusada com o span e a fonte de quem a escreveu, em vez de religada em silêncio. Desde a #517 o CORPO default de um trato importado é resolvido contra o ambiente da unidade que DECLAROU o trato, e não contra o do importador: o parser copia esse corpo para a unidade que fez o `impl`, e como a raiz preserva grafia, resolvê-lo ali deixaria um homônimo da raiz capturar em silêncio o auxiliar do módulo. Só o corpo troca de ambiente; os tipos, inclusive o alvo do `impl`, continuam sendo da unidade que escreveu o `impl`. Desde a #567 a mesma troca vale para as closures sintéticas que esse corpo cita, e desde a #592 as três formas — default selecionado, default só para checagem e dependência sintética — são reconhecidas pelo mesmo fato adulto `trait_default_body`, nunca pelo prefixo do nome: o nome sintético é cunhado por quem materializa — no caso da closure tem de ser, porque o índice local do codec só é injetivo ali — e portanto não poderia responder pela origem.
 struct Resolvedor<'a> {
     unit_key: ModuleKey,
     env: &'a ModuleEnvironment,
@@ -444,28 +478,21 @@ struct OrigemDosTratos<'a> {
 /// esses corpos citam. O método escrito pelo usuário no `impl` NÃO entra: o
 /// corpo dele foi escrito na unidade que fez o `impl`.
 ///
-/// A closure responde pelo fato explícito que a materialização gravou, não pelo
-/// nome. O nome anônimo é cunhado pela unidade que materializa — ele tem de
-/// ser, porque o índice local do codec só é injetivo ali — e portanto não pode
-/// ser a autoridade sobre a origem. O corpo, esse, continua sendo o da unidade
-/// declarante, e é contra o ambiente DELA que ele significa: sem isto, um
-/// auxiliar homônimo do importador capturaria em silêncio a referência que a
-/// origem escreveu.
-fn corpo_default_de_trato(function: &FunctionDecl) -> Option<String> {
-    if let Some(trait_name) = &function.default_body_trait {
-        return Some(trait_name.clone());
-    }
-    if let Some((trait_name, _, _)) =
-        crate::method_identity::parse_trait_default_check_function_name(&function.name)
-    {
-        return Some(trait_name);
-    }
-    let facts = function.impl_facts.as_ref()?;
-    if !facts.generated_default {
-        return None;
-    }
-    crate::method_identity::parse_provisional_function_name(&function.name)
-        .map(|(trait_name, _, _)| trait_name)
+/// #592: as três respondem pelo fato explícito que a materialização gravou,
+/// nunca pelo nome. O nome sintético é cunhado pela unidade que materializa —
+/// no caso da closure ele tem de ser, porque o índice local do codec só é
+/// injetivo ali — e portanto não pode ser a autoridade sobre a origem. O corpo,
+/// esse, continua sendo o da unidade declarante, e é contra o ambiente DELA que
+/// ele significa: sem isto, um auxiliar homônimo do importador capturaria em
+/// silêncio a referência que a origem escreveu.
+fn corpo_default_de_trato(function: &FunctionDecl) -> Option<&str> {
+    Some(
+        function
+            .trait_default_body
+            .as_ref()?
+            .trait_spelling
+            .as_str(),
+    )
 }
 
 impl<'a> Resolvedor<'a> {
@@ -500,7 +527,7 @@ impl<'a> Resolvedor<'a> {
         function: &FunctionDecl,
     ) -> Option<(ModuleKey, &'a ModuleEnvironment)> {
         let trait_spelling = corpo_default_de_trato(function)?;
-        let canonical = canonizar_grafia(&trait_spelling, self.env);
+        let canonical = canonizar_grafia(trait_spelling, self.env);
         let id = *self.origem_dos_tratos.tratos.get(&canonical)?;
         let chave = self.origem_dos_tratos.chaves.get(&id)?;
         if *chave == self.unit_key {
@@ -1277,12 +1304,10 @@ pub fn projetar_programa(graph: &ModuleGraph) -> Result<Program, PinkerError> {
             // Corpo sintético de `trato` — o método do `impl` e a checagem do
             // corpo default vencido por override — não é alcançado por
             // referência: ninguém o nomeia. Ele existe porque a relação de
-            // `impl` existe, e a relação entra sempre. Perguntar só por
-            // `__impl_*` aqui era o que fazia a unidade física que hospeda o
+            // `impl` existe, e a relação entra sempre. Perguntar só pelo método
+            // selecionado aqui era o que fazia a unidade física que hospeda o
             // `impl` decidir se o corpo default recebia validação semântica.
-            let e_corpo_sintetico_de_trato =
-                crate::method_identity::parse_synthetic_trait_body_name(nome).is_some();
-            if !e_corpo_sintetico_de_trato && !alcancaveis.contains(nome) {
+            if !e_corpo_de_relacao_de_trato(item) && !alcancaveis.contains(nome) {
                 continue;
             }
             // Identidade reservada do runtime é materializada pelo parser em
@@ -1299,7 +1324,7 @@ pub fn projetar_programa(graph: &ModuleGraph) -> Result<Program, PinkerError> {
                 }
                 continue;
             }
-            if e_identidade_endereçada_por_conteudo(nome) {
+            if e_identidade_endereçada_por_conteudo(item, nome) {
                 let impressao = impressao_estrutural(item, &apelidos);
                 match gerados_emitidos.get(nome) {
                     Some((primeira, anterior)) => {
@@ -1332,7 +1357,7 @@ pub fn projetar_programa(graph: &ModuleGraph) -> Result<Program, PinkerError> {
                 }
                 continue;
             }
-            if e_identidade_endereçada_por_conteudo(nome) {
+            if e_identidade_endereçada_por_conteudo(item, nome) {
                 let impressao = impressao_estrutural(item, &apelidos);
                 match gerados_emitidos.get(nome) {
                     Some((primeira, anterior)) => {
@@ -1595,9 +1620,7 @@ fn fecho_alcancavel(graph: &ModuleGraph) -> HashSet<String> {
             let Item::Function(function) = item else {
                 continue;
             };
-            let e_corpo_sintetico =
-                crate::method_identity::parse_synthetic_trait_body_name(&function.name).is_some();
-            if !e_corpo_sintetico && function.default_body_trait.is_none() {
+            if function.impl_facts.is_none() && function.trait_default_body.is_none() {
                 continue;
             }
             for referenciado in referencias_do_item(item) {

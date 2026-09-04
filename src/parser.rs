@@ -452,9 +452,9 @@ impl Parser {
     /// no importador faria duas unidades diferentes cunharem o mesmo nome para
     /// materializações diferentes.
     ///
-    /// Quem responde pela origem é `default_body_trait`, gravado aqui: o corpo
-    /// da cópia continua sendo o corpo da unidade declarante, e a resolução
-    /// modular o resolve contra o ambiente dela.
+    /// Quem responde pela origem é `trait_default_body`, gravado aqui com o
+    /// papel `Dependency`: o corpo da cópia continua sendo o corpo da unidade
+    /// declarante, e a resolução modular o resolve contra o ambiente dela.
     fn clone_trait_default_closures(
         &mut self,
         function: &mut FunctionDecl,
@@ -498,7 +498,10 @@ impl Parser {
                 .expect("every collected closure receives a fresh name")
                 .clone();
             cloned.name.clone_from(&new_name);
-            cloned.default_body_trait = Some(trait_spelling.to_string());
+            cloned.trait_default_body = Some(TraitDefaultBody {
+                role: TraitDefaultBodyRole::Dependency,
+                trait_spelling: trait_spelling.to_string(),
+            });
             cloned.body = Self::substitute_function_param_block(&cloned.body, &replacements);
             if self.capturing_anon_functions.contains(&old_name) {
                 self.capturing_anon_functions.insert(new_name);
@@ -1453,7 +1456,6 @@ impl Parser {
             }
             function.impl_facts = Some(ImplFunctionFacts {
                 target_ty: target_ty.clone(),
-                generated_default: false,
             });
             explicit_method_names.insert(function.name.clone());
             function.name = Self::impl_function_name(&trait_name, &target_ty, &function.name);
@@ -1539,13 +1541,21 @@ impl Parser {
                     name,
                     impl_facts: is_generated_impl_default.then(|| ImplFunctionFacts {
                         target_ty: target_ty.clone(),
-                        generated_default: true,
                     }),
-                    // O hospedeiro já declara a origem pelo próprio nome
-                    // sintético (`__impl_*` / `__trait_default_check_*`), que a
-                    // recomposição canoniza. Só as dependências dele precisam
-                    // do fato explícito.
-                    default_body_trait: None,
+                    // #592: o fato é gravado aqui, no ponto que materializa o
+                    // corpo, e com o papel que a materialização já conhece. O
+                    // prefixo do nome sintético continua dizendo se a função
+                    // entra em `method_index`/vtable, mas nenhuma fase precisa
+                    // decodificá-lo para saber que este corpo veio de um
+                    // default nem de qual trato.
+                    trait_default_body: Some(TraitDefaultBody {
+                        role: if is_generated_impl_default {
+                            TraitDefaultBodyRole::SelectedAsImpl
+                        } else {
+                            TraitDefaultBodyRole::CheckOnly
+                        },
+                        trait_spelling: trait_name.clone(),
+                    }),
                     type_params: Vec::new(),
                     params,
                     ret_type: method.ret_type.clone(),
@@ -2674,7 +2684,7 @@ impl Parser {
         let function = FunctionDecl {
             name: name.clone(),
             impl_facts: None,
-            default_body_trait: None,
+            trait_default_body: None,
             type_params: Vec::new(),
             params,
             ret_type,
@@ -2895,7 +2905,7 @@ impl Parser {
         Ok(FunctionDecl {
             name,
             impl_facts: None,
-            default_body_trait: None,
+            trait_default_body: None,
             type_params,
             params,
             ret_type,
@@ -5183,7 +5193,7 @@ impl Parser {
             out.push(FunctionDecl {
                 name: mono_name,
                 impl_facts: None,
-                default_body_trait: template.default_body_trait.clone(),
+                trait_default_body: template.trait_default_body.clone(),
                 type_params: Vec::new(),
                 params: template
                     .params
@@ -5240,7 +5250,7 @@ impl Parser {
             out.push(FunctionDecl {
                 name: mono_name,
                 impl_facts: None,
-                default_body_trait: template.default_body_trait.clone(),
+                trait_default_body: template.trait_default_body.clone(),
                 type_params: Vec::new(),
                 params: template
                     .params

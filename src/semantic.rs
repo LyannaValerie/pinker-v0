@@ -1827,7 +1827,7 @@ impl SemanticChecker {
                     target_spelling,
                     resolved_target_display,
                     function_name: function.name.clone(),
-                    is_generated_default: impl_facts.generated_default,
+                    is_generated_default: function.e_default_selecionado(),
                     span: function.span,
                 });
         }
