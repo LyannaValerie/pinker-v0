@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 pub mod native_process;
+pub mod rust_source;
 #[allow(unused_imports)]
 pub use native_process::{ControlledCommand, NativeArtifactDir};
 

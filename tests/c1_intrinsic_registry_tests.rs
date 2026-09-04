@@ -5,6 +5,9 @@
 //! independentemente por sete camadas. Estes testes provam que a enumeração
 //! passou a ser única e que reintroduzir uma cópia local é detectável.
 
+mod common;
+
+use common::rust_source::codigo_executavel;
 use pinker_v0::intrinsics::identity::{
     intrinsic_from_public_spelling, CalleeIdentity, IntrinsicIdentity, HISTORICAL_CANONICAL_ALIASES,
 };
@@ -307,95 +310,6 @@ fn a_familia_fisica_das_intrinsecas_esta_fechada() {
     );
 }
 
-/// Remove comentários e literais de texto, para que a varredura veja só código.
-///
-/// Sem isto o oráculo mente nos dois sentidos: um comentário interposto
-/// (`pub mod /* compat */ antigo`) esconderia o stub, e um comentário que
-/// mencione `mod antigo` acusaria stub onde não há.
-fn codigo_sem_comentarios_nem_textos(fonte: &str) -> String {
-    let bytes: Vec<char> = fonte.chars().collect();
-    let mut saida = String::with_capacity(fonte.len());
-    let mut i = 0;
-    let mut profundidade_de_bloco = 0usize;
-    while i < bytes.len() {
-        let dois: String = bytes[i..(i + 2).min(bytes.len())].iter().collect();
-        if profundidade_de_bloco > 0 {
-            if dois == "/*" {
-                profundidade_de_bloco += 1;
-                i += 2;
-            } else if dois == "*/" {
-                profundidade_de_bloco -= 1;
-                i += 2;
-            } else {
-                i += 1;
-            }
-            saida.push(' ');
-            continue;
-        }
-        if dois == "/*" {
-            profundidade_de_bloco = 1;
-            i += 2;
-            saida.push(' ');
-            continue;
-        }
-        if dois == "//" {
-            while i < bytes.len() && bytes[i] != '\n' {
-                i += 1;
-            }
-            saida.push(' ');
-            continue;
-        }
-        // Literal de texto cru: `r"..."`, `r#"..."#`, com o mesmo número de `#`.
-        if bytes[i] == 'r' {
-            let mut cerquilhas = 0;
-            while i + 1 + cerquilhas < bytes.len() && bytes[i + 1 + cerquilhas] == '#' {
-                cerquilhas += 1;
-            }
-            if bytes.get(i + 1 + cerquilhas) == Some(&'"') {
-                let fecho: String = std::iter::once('"')
-                    .chain(std::iter::repeat('#').take(cerquilhas))
-                    .collect();
-                i += 2 + cerquilhas;
-                while i < bytes.len() {
-                    let janela: String = bytes[i..(i + fecho.len()).min(bytes.len())]
-                        .iter()
-                        .collect();
-                    if janela == fecho {
-                        i += fecho.len();
-                        break;
-                    }
-                    i += 1;
-                }
-                saida.push(' ');
-                continue;
-            }
-        }
-        if bytes[i] == '"' {
-            i += 1;
-            while i < bytes.len() && bytes[i] != '"' {
-                i += if bytes[i] == '\\' { 2 } else { 1 };
-            }
-            i += 1;
-            saida.push(' ');
-            continue;
-        }
-        // Literal de caractere: `'x'` ou `'\x'`. Um tempo de vida (`'a`) não fecha
-        // aspa e segue como código — apagá-lo esconderia o identificador seguinte.
-        if bytes[i] == '\'' {
-            let escapado = bytes.get(i + 1) == Some(&'\\');
-            let fim = if escapado { i + 3 } else { i + 2 };
-            if bytes.get(fim) == Some(&'\'') {
-                i = fim + 1;
-                saida.push(' ');
-                continue;
-            }
-        }
-        saida.push(bytes[i]);
-        i += 1;
-    }
-    saida
-}
-
 /// Pares `(palavra-chave, identificador)` do código, ignorando espaço e pontuação.
 ///
 /// A varredura é sintática de propósito: `mod x;`, `pub mod x {`, `use ... as x;`,
@@ -422,7 +336,7 @@ fn nenhum_stub_de_compatibilidade_preserva_o_caminho_antigo() {
         if !caminho.starts_with("src/") {
             continue;
         }
-        let pares = pares_de_identificadores(&codigo_sem_comentarios_nem_textos(&texto));
+        let pares = pares_de_identificadores(&codigo_executavel(&texto));
         for modulo in ["intrinsic_authority", "familia_superficie"] {
             let par = |chave: &str| (chave.to_string(), modulo.to_string());
             assert!(
