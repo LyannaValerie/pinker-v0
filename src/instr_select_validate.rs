@@ -177,7 +177,7 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
 
     // #532: a assinatura consultada depende da identidade decidida na
     // resolução, não da chave textual compartilhada.
-    let sigs = crate::intrinsic_authority::TabelaPorIdentidade {
+    let sigs = crate::intrinsics::identity::TabelaPorIdentidade {
         usuario: sigs_usuario,
         intrinsecas: sigs_intrinsecas,
     };

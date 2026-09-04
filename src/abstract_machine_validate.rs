@@ -308,7 +308,7 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
     // #532: duas tabelas, escolhidas pela identidade do callee. Antes eram um
     // mapa só, e a entrada da intrínseca sobrescrevia a da função homônima do
     // usuário.
-    let sigs = crate::intrinsic_authority::TabelaPorIdentidade {
+    let sigs = crate::intrinsics::identity::TabelaPorIdentidade {
         usuario: sigs_usuario,
         intrinsecas: sigs_intrinsecas,
     };
@@ -322,7 +322,7 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
 fn validate_function(
     f: &MachineFunction,
     globals: &HashMap<String, StackValueType>,
-    sigs: &crate::intrinsic_authority::TabelaPorIdentidade<(TypeIR, Vec<StackValueType>)>,
+    sigs: &crate::intrinsics::identity::TabelaPorIdentidade<(TypeIR, Vec<StackValueType>)>,
 ) -> Result<(), PinkerError> {
     if f.blocks.is_empty() {
         return Err(err("função da máquina sem blocos"));
@@ -647,7 +647,7 @@ fn validate_function(
 fn validate_stack_discipline(
     f: &MachineFunction,
     globals: &HashMap<String, StackValueType>,
-    sigs: &crate::intrinsic_authority::TabelaPorIdentidade<(TypeIR, Vec<StackValueType>)>,
+    sigs: &crate::intrinsics::identity::TabelaPorIdentidade<(TypeIR, Vec<StackValueType>)>,
 ) -> Result<(), PinkerError> {
     let mut label_to_block = HashMap::new();
     for b in &f.blocks {
@@ -715,7 +715,7 @@ fn apply_instr_effect(
     stack: &mut Vec<StackValueType>,
     slot_types: &mut HashMap<String, StackValueType>,
     globals: &HashMap<String, StackValueType>,
-    sigs: &crate::intrinsic_authority::TabelaPorIdentidade<(TypeIR, Vec<StackValueType>)>,
+    sigs: &crate::intrinsics::identity::TabelaPorIdentidade<(TypeIR, Vec<StackValueType>)>,
 ) -> Result<(), PinkerError> {
     match i {
         MachineInstr::PushInt(_) => stack.push(StackValueType::Bombom),
@@ -1305,7 +1305,7 @@ fn apply_terminator_effect(
     label: &str,
     term: &MachineTerminator,
     stack: &mut Vec<StackValueType>,
-    _sigs: &crate::intrinsic_authority::TabelaPorIdentidade<(TypeIR, Vec<StackValueType>)>,
+    _sigs: &crate::intrinsics::identity::TabelaPorIdentidade<(TypeIR, Vec<StackValueType>)>,
 ) -> Result<Vec<String>, PinkerError> {
     match term {
         MachineTerminator::Jmp(target) => Ok(vec![target.clone()]),

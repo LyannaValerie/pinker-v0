@@ -16,9 +16,9 @@
 //!
 //! # O que esta tabela NÃO decide
 //!
-//! Identidade continua em [`crate::intrinsic_authority`]: quem responde SE uma
+//! Identidade continua em [`crate::intrinsics::identity`]: quem responde SE uma
 //! chamada é intrínseca é a `CalleeIdentity`, nunca o texto. Superfície pública
-//! `(módulo, membro)` continua em [`crate::familia_superficie`]. E os
+//! `(módulo, membro)` continua em [`crate::intrinsics::public_surface`]. E os
 //! **corpos** continuam com seus donos: o interpretador hospeda a execução e o
 //! `pinker_rt` implementa o símbolo nativo.
 //!
@@ -1621,7 +1621,7 @@ pub fn simbolo_runtime_por_aridade(spelling: &str, argc: usize) -> Option<String
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::intrinsic_authority::{
+    use crate::intrinsics::identity::{
         intrinsic_from_public_spelling, IntrinsicIdentity, HISTORICAL_CANONICAL_ALIASES,
     };
     use std::collections::BTreeSet;

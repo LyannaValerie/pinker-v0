@@ -905,7 +905,7 @@ fn revisao_n1_declaracao_de_grafia_builtin_na_raiz_nao_quebra_o_modulo() {
 /// Revisão adversarial N1 — guarda de deriva.
 ///
 /// A resolução modular distingue "grafia builtin" de "entidade declarada por
-/// alguma unidade" consultando `intrinsic_authority::e_grafia_builtin_chamavel`.
+/// alguma unidade" consultando `identity::e_grafia_builtin_chamavel`.
 /// Se a autoridade semântica ganhar uma grafia builtin nova sem registrá-la
 /// ali, um módulo que a declare volta a capturá-la — silenciosamente. Este
 /// teste lê a própria fonte para que a lacuna apareça como falha, não como
@@ -935,7 +935,7 @@ fn revisao_n1_autoridade_de_builtin_cobre_as_grafias_da_semantica() {
         {
             continue;
         }
-        if !pinker_v0::intrinsic_authority::e_grafia_builtin_chamavel(grafia)
+        if !pinker_v0::intrinsics::identity::e_grafia_builtin_chamavel(grafia)
             && !ausentes.iter().any(|ja| ja == grafia)
         {
             ausentes.push(grafia.to_string());

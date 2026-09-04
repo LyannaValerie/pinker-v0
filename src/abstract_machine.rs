@@ -175,13 +175,13 @@ pub enum MachineInstr {
         /// #532 — a identidade decidida na resolução chega até o despacho do
         /// interpretador. `callee` continua sendo a grafia; ela não decide mais
         /// se a chamada é intrínseca.
-        identidade: crate::intrinsic_authority::CalleeIdentity,
+        identidade: crate::intrinsics::identity::CalleeIdentity,
     },
     CallVoid {
         callee: String,
         argc: usize,
         /// #532 — idem para a chamada sem retorno.
-        identidade: crate::intrinsic_authority::CalleeIdentity,
+        identidade: crate::intrinsics::identity::CalleeIdentity,
     },
     // Fase 242: empilha o handle callable (descritor estático) da função
     // top-level nomeada.

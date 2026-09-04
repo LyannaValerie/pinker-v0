@@ -3781,7 +3781,7 @@ enum RotaDeChamada {
 /// intrínseca não reconhecem o callee, preservando a avaliação preguiçosa dos
 /// sítios produtivos.
 fn resolver_rota_de_chamada(
-    identidade: crate::intrinsic_authority::CalleeIdentity,
+    identidade: crate::intrinsics::identity::CalleeIdentity,
     callee: &str,
     argc: usize,
     funcao_pinker_declarada: impl FnOnce() -> bool,
@@ -4524,7 +4524,7 @@ mod tests_proveniencia_de_ponteiro {
                     callee: "fabricar".to_string(),
                     args: Vec::new(),
                     ret_type,
-                    identidade: crate::intrinsic_authority::CalleeIdentity::User,
+                    identidade: crate::intrinsics::identity::CalleeIdentity::User,
                 },
             ),
             (
@@ -4601,7 +4601,7 @@ mod tests_proveniencia_de_ponteiro {
                 callee: "alocar".to_string(),
                 args: Vec::new(),
                 ret_type: TypeIR::U64,
-                identidade: crate::intrinsic_authority::callee_identity_da_grafia_canonica(
+                identidade: crate::intrinsics::identity::callee_identity_da_grafia_canonica(
                     "alocar",
                 ),
             }],
@@ -4650,7 +4650,7 @@ mod tests_proveniencia_de_ponteiro {
                     callee: "fabricar".to_string(),
                     args: Vec::new(),
                     ret_type: PONTEIRO,
-                    identidade: crate::intrinsic_authority::CalleeIdentity::User,
+                    identidade: crate::intrinsics::identity::CalleeIdentity::User,
                 },
                 cast(1, OperandIR::Temp(TempIR(0)), OUTRO_PONTEIRO),
             ],
@@ -4789,7 +4789,7 @@ mod tests_proveniencia_de_ponteiro {
         assert!(selected_call_shape(&SelectedInstr::CallVoid {
             callee: "falar".to_string(),
             args: Vec::new(),
-            identidade: crate::intrinsic_authority::CalleeIdentity::User,
+            identidade: crate::intrinsics::identity::CalleeIdentity::User,
         })
         .is_none());
         assert!(selected_call_shape(&cast(0, OperandIR::Int(1), PONTEIRO)).is_none());
@@ -4809,7 +4809,7 @@ mod tests_selecao_de_rota_nativa {
     /// A rota de builtin exige identidade de builtin; a de função Pinker, não.
     fn rota(callee: &str, argc: usize, declarada: bool) -> RotaDeChamada {
         resolver_rota_de_chamada(
-            crate::intrinsic_authority::callee_identity_da_grafia_canonica(callee),
+            crate::intrinsics::identity::callee_identity_da_grafia_canonica(callee),
             callee,
             argc,
             || declarada,
@@ -4819,7 +4819,7 @@ mod tests_selecao_de_rota_nativa {
     /// A mesma pergunta feita para um callee de USUÁRIO.
     fn rota_de_usuario(callee: &str, argc: usize, declarada: bool) -> RotaDeChamada {
         resolver_rota_de_chamada(
-            crate::intrinsic_authority::CalleeIdentity::User,
+            crate::intrinsics::identity::CalleeIdentity::User,
             callee,
             argc,
             || declarada,

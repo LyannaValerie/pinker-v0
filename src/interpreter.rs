@@ -3416,7 +3416,7 @@ fn public_memory_free(
 // ownership do interpretador sem melhorar nada aqui.
 #[allow(clippy::too_many_arguments)]
 fn try_call_intrinsic(
-    identidade: crate::intrinsic_authority::CalleeIdentity,
+    identidade: crate::intrinsics::identity::CalleeIdentity,
     callee: &str,
     args: &[RuntimeValue],
     public_memory_state: &mut PublicMemoryState,
@@ -9044,7 +9044,7 @@ mod part_d_saida_processo_runtime_tests {
         let resultado = novo_leque(&mut mapas, crate::falha_operacional::TAG_OK);
 
         let anexado = valor(try_call_intrinsic(
-            crate::intrinsic_authority::CalleeIdentity::CompilerInternal,
+            crate::intrinsics::identity::CalleeIdentity::CompilerInternal,
             crate::enum_payload::ANEXAR_SAIDA_PROCESSO,
             &[
                 RuntimeValue::Int(resultado),
@@ -9059,7 +9059,7 @@ mod part_d_saida_processo_runtime_tests {
         assert_eq!(anexado, RuntimeValue::Int(resultado));
 
         let carga = valor(try_call_intrinsic(
-            crate::intrinsic_authority::CalleeIdentity::CompilerInternal,
+            crate::intrinsics::identity::CalleeIdentity::CompilerInternal,
             crate::enum_payload::CARGA_SAIDA_PROCESSO,
             &[
                 RuntimeValue::Int(resultado),
@@ -9087,7 +9087,7 @@ mod part_d_saida_processo_runtime_tests {
         ] {
             assert_eq!(
                 valor(try_call_intrinsic(
-                    crate::intrinsic_authority::callee_identity_da_grafia_canonica(acessor),
+                    crate::intrinsics::identity::callee_identity_da_grafia_canonica(acessor),
                     acessor,
                     std::slice::from_ref(&carga),
                     &mut memoria_publica,

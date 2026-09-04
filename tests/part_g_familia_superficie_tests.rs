@@ -3,7 +3,7 @@ mod common;
 use common::{parse, parse_and_check, ControlledCommand as Command, NativeArtifactDir};
 use pinker_v0::ast::{ExprKind, Item, Stmt};
 use pinker_v0::falha_operacional::OperacaoFalivel;
-use pinker_v0::familia_superficie::{self, Exportacao, IdentidadeCanonica, EXPORTACOES};
+use pinker_v0::intrinsics::public_surface::{self, Exportacao, IdentidadeCanonica, EXPORTACOES};
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
 use std::fs;
@@ -99,7 +99,7 @@ impl Grafia {
 /// Emite uma chamada na grafia pedida. A identidade canônica vem da autoridade.
 fn chamada_na_grafia(grafia: Grafia, familia: &str, membro: &str, args: &str) -> String {
     assert!(
-        familia_superficie::resolver(familia, membro).is_some(),
+        public_surface::resolver(familia, membro).is_some(),
         "membro aprovado no registro: {familia}.{membro}"
     );
     match grafia {
@@ -110,8 +110,7 @@ fn chamada_na_grafia(grafia: Grafia, familia: &str, membro: &str, args: &str) ->
 
 /// A chamada na grafia global histórica, que a #505 tornou irrecebível.
 fn chamada_legada(familia: &str, membro: &str, args: &str) -> String {
-    let canonica =
-        familia_superficie::resolver(familia, membro).expect("membro aprovado no registro");
+    let canonica = public_surface::resolver(familia, membro).expect("membro aprovado no registro");
     format!("{canonica}({args})")
 }
 
@@ -151,16 +150,16 @@ fn cabecalho(grafia: Grafia, usados: &[(&str, &str)]) -> String {
 #[test]
 fn as_familias_da_491_continuam_com_a_superficie_aprovada() {
     assert_eq!(
-        familia_superficie::membros_da_familia("arquivo").len(),
+        public_surface::membros_da_familia("arquivo").len(),
         15,
         "arquivo perdeu `sha256`, que a taxonomia da #505 levou para `integridade`"
     );
-    assert_eq!(familia_superficie::membros_da_familia("caminho").len(), 13);
+    assert_eq!(public_surface::membros_da_familia("caminho").len(), 13);
     assert_eq!(
-        familia_superficie::resolver("integridade", "sha256_arquivo"),
+        public_surface::resolver("integridade", "sha256_arquivo"),
         Some("sha256_arquivo")
     );
-    assert_eq!(familia_superficie::resolver("arquivo", "sha256"), None);
+    assert_eq!(public_surface::resolver("arquivo", "sha256"), None);
 
     // Toda família exportadora é importável. O inverso passou a valer também:
     // depois da #505 não existe módulo declarado sem membro.
@@ -170,11 +169,11 @@ fn as_familias_da_491_continuam_com_a_superficie_aprovada() {
         .collect();
     for familia in &com_membros {
         assert!(
-            familia_superficie::familia_conhecida(familia),
+            public_surface::familia_conhecida(familia),
             "família exportadora '{familia}' precisa ser importável"
         );
     }
-    let importaveis: BTreeSet<&str> = familia_superficie::FAMILIAS.iter().copied().collect();
+    let importaveis: BTreeSet<&str> = public_surface::FAMILIAS.iter().copied().collect();
     assert_eq!(
         com_membros, importaveis,
         "depois da #505 módulo importável e módulo com membros são o mesmo conjunto"
@@ -231,7 +230,7 @@ fn o_registro_espelha_a_matriz_aprovada_pela_founder() {
     assert_eq!(MATRIZ_APROVADA.len(), 29);
     for (familia, membro, canonica) in MATRIZ_APROVADA {
         assert_eq!(
-            familia_superficie::resolver(familia, membro),
+            public_surface::resolver(familia, membro),
             Some(*canonica),
             "{familia}.{membro} deveria resolver para '{canonica}'"
         );
@@ -285,19 +284,16 @@ fn as_sete_decisoes_explicitas_da_founder_estao_aplicadas() {
         ("truncar_arquivo", "arquivo", "truncar"),
     ] {
         assert_eq!(
-            familia_superficie::resolver(familia, membro),
+            public_surface::resolver(familia, membro),
             Some(canonica),
             "decisão da Founder: {canonica} -> {familia}.{membro}"
         );
     }
     // `caminho.vazio` foi explicitamente proibido como alias adicional.
-    assert_eq!(familia_superficie::resolver("caminho", "vazio"), None);
+    assert_eq!(public_surface::resolver("caminho", "vazio"), None);
     // E `e_vazio` NÃO foi reexportado por `arquivo` nesta fase.
-    assert_eq!(
-        familia_superficie::resolver("arquivo", "arquivo_vazio"),
-        None
-    );
-    assert_eq!(familia_superficie::resolver("arquivo", "e_vazio"), None);
+    assert_eq!(public_surface::resolver("arquivo", "arquivo_vazio"), None);
+    assert_eq!(public_surface::resolver("arquivo", "e_vazio"), None);
 }
 
 /// R6: Pinker não resolve por tipo, então dois membros da mesma família nunca
@@ -359,11 +355,11 @@ fn superficie_falivel_e_endereçada_pela_operacao() {
             .find(|exportacao| exportacao.identidade == IdentidadeCanonica::Falivel(operacao))
             .expect("exportação da operação");
         assert_eq!(
-            familia_superficie::resolver(exportacao.familia, exportacao.membro()),
+            public_surface::resolver(exportacao.familia, exportacao.membro()),
             Some(superficie.intrinseca),
             "o registro precisa resolver para o nome que a autoridade declara"
         );
-        assert!(familia_superficie::membro_e_falivel(
+        assert!(public_surface::membro_e_falivel(
             exportacao.familia,
             exportacao.membro()
         ));
@@ -381,7 +377,7 @@ fn superficie_falivel_e_endereçada_pela_operacao() {
 #[test]
 fn registro_nao_declara_semantica_de_runtime() {
     let fonte = fs::read_to_string(
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/familia_superficie.rs"),
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/intrinsics/public_surface.rs"),
     )
     .expect("registro legível");
     assert!(
@@ -398,12 +394,12 @@ fn registro_nao_declara_semantica_de_runtime() {
 
 #[test]
 fn familia_desconhecida_nao_resolve_nem_lista_membros() {
-    assert!(!familia_superficie::familia_conhecida("colecao"));
-    assert_eq!(familia_superficie::resolver("colecao", "abrir"), None);
-    assert!(familia_superficie::membros_da_familia("colecao").is_empty());
+    assert!(!public_surface::familia_conhecida("colecao"));
+    assert_eq!(public_surface::resolver("colecao", "abrir"), None);
+    assert!(public_surface::membros_da_familia("colecao").is_empty());
     // Membro real de outra família não vaza entre famílias.
-    assert_eq!(familia_superficie::resolver("caminho", "abrir"), None);
-    assert_eq!(familia_superficie::resolver("arquivo", "e_arquivo"), None);
+    assert_eq!(public_surface::resolver("caminho", "abrir"), None);
+    assert_eq!(public_surface::resolver("arquivo", "e_arquivo"), None);
 }
 
 // ---------------------------------------------------------------------------
@@ -509,7 +505,7 @@ fn a_grafia_legada_da_matriz_deixou_de_ser_chamavel() {
 fn as_tres_grafias_canonicalizam_para_a_mesma_identidade() {
     for chamada in MATRIZ_CANONICALIZACAO {
         let canonica =
-            familia_superficie::resolver(chamada.familia, chamada.membro).expect("membro aprovado");
+            public_surface::resolver(chamada.familia, chamada.membro).expect("membro aprovado");
         for grafia in Grafia::TODAS {
             let fonte = fonte_de_uma_chamada(grafia, chamada);
             let chamado = chamado_do_programa(&fonte);
@@ -545,7 +541,7 @@ fn palavras(texto: &str) -> BTreeSet<&str> {
 fn familia_e_membro_nao_sobrevivem_a_ast() {
     for chamada in MATRIZ_CANONICALIZACAO {
         let canonica =
-            familia_superficie::resolver(chamada.familia, chamada.membro).expect("membro aprovado");
+            public_surface::resolver(chamada.familia, chamada.membro).expect("membro aprovado");
         for grafia in [Grafia::Qualificada, Grafia::Seletiva] {
             let fonte = fonte_de_uma_chamada(grafia, chamada);
             let programa = parse(&fonte).expect("programa válido");
@@ -666,8 +662,8 @@ fn nenhuma_camada_a_jusante_decide_pela_grafia_de_membro() {
 #[test]
 fn a_grafia_de_membro_existe_em_exatamente_uma_camada() {
     let raiz = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let registro =
-        fs::read_to_string(raiz.join("src/familia_superficie.rs")).expect("registro legível");
+    let registro = fs::read_to_string(raiz.join("src/intrinsics/public_surface.rs"))
+        .expect("registro legível");
     let proprias: Vec<&str> = EXPORTACOES
         .iter()
         .map(Exportacao::membro)
@@ -795,7 +791,7 @@ fn familia_desconhecida_continua_recusada_pela_semantica() {
 /// inclusive as que não exportam membro nenhum nesta fase.
 #[test]
 fn import_de_familia_inteira_continua_aceito_para_todas() {
-    for familia in pinker_v0::familia_superficie::FAMILIAS {
+    for familia in pinker_v0::intrinsics::public_surface::FAMILIAS {
         let fonte = format!(
             "pacote main;
              trazer {familia};

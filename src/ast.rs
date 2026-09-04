@@ -1437,7 +1437,7 @@ pub enum ExprKind {
     ///
     /// Externamente ele se apresenta como a grafia canônica — impressão, AST
     /// JSON e diagnósticos não vazam identidade sintética.
-    Intrinsic(crate::intrinsic_authority::IntrinsicIdentity),
+    Intrinsic(crate::intrinsics::identity::IntrinsicIdentity),
     IntLit(u64),
     BoolLit(bool),
     StringLit(String),

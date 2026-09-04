@@ -581,7 +581,7 @@ fn grafias_alias_deixaram_de_ser_chamaveis() {
         assert!(msg.contains("não está no escopo"), "{alias}: {msg}");
         // E não por ter sumido: a autoridade continua sabendo quem ela é.
         assert!(
-            pinker_v0::intrinsic_authority::canonical_public_intrinsic_spelling(alias).is_some(),
+            pinker_v0::intrinsics::identity::canonical_public_intrinsic_spelling(alias).is_some(),
             "{alias} saiu da autoridade em vez de sair da superfície"
         );
     }

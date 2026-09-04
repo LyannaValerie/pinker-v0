@@ -183,12 +183,12 @@ fn e_identidade_endereçada_por_conteudo(name: &str) -> bool {
 /// Superfície global aprovada: intrínseca pública ou forma qualificada de
 /// família. Nenhuma das duas pertence a uma unidade-fonte.
 fn e_superficie_global(name: &str) -> bool {
-    if crate::intrinsic_authority::e_grafia_builtin_chamavel(name) {
+    if crate::intrinsics::identity::e_grafia_builtin_chamavel(name) {
         return true;
     }
     match name.split_once('.') {
         Some((familia, membro)) => {
-            crate::familia_superficie::forma_qualificada_valida(familia, membro)
+            crate::intrinsics::public_surface::forma_qualificada_valida(familia, membro)
         }
         None => false,
     }
@@ -201,7 +201,7 @@ fn e_superficie_global(name: &str) -> bool {
 /// respondia junto com a existência do módulo, e era isso que fazia a forma
 /// inteira ignorar um módulo real que a seletiva respeitava.
 fn e_import_de_familia(unit_imports_module: &str, existe_modulo: bool) -> bool {
-    crate::familia_superficie::familia_governa(unit_imports_module, existe_modulo)
+    crate::intrinsics::public_surface::familia_governa(unit_imports_module, existe_modulo)
 }
 
 /// Monta um ambiente por unidade do grafo.

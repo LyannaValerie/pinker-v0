@@ -238,7 +238,7 @@ fn merge_span(a: Span, b: Span) -> Span {
 /// precisa chegar **antes** da canonicalização, que é irreversível.
 ///
 /// Nenhuma delas é política: são fatos. A política de módulo continua inteira
-/// em `main.rs`, e a de família em `familia_superficie` e `semantic`.
+/// em `main.rs`, e a de família em `intrinsics::public_surface` e `semantic`.
 /// #533: uma declaração `trazer` já lida do fluxo de tokens.
 ///
 /// Guarda ÍNDICES, não lexemas: quem lê decide o que extrair, e o leitor não
@@ -3575,7 +3575,7 @@ impl Parser {
     // @pinker-nav:start parser.importacoes.superficie-familia
     // @pinker-nav:domain importacoes
     // @pinker-nav:layer parser
-    // @pinker-nav:summary Resolução da superfície modular dentro do parser, e as autoridades de precedência que a governam: `nomes_de_topo`, censo de tokens em profundidade zero com as identidades que a Pinker resolve independentemente da ordem textual, e `escopos_locais`, pilha de escopos léxicos reais. O módulo é FALLBACK e o último a responder: cede a identidade de topo em todo o arquivo e cede a ligação local onde ela está visível. Depois da #505 o que ele NÃO faz mais é ceder ao global: `recusar_intrinseca_sem_import` recusa, no próprio CANONICALIZATION_BOUNDARY, qualquer grafia pública chamada sem import — canônica ou de membro —, e é isso que torna `GLOBAL_PUBLIC_INTRINSIC = 0` uma propriedade do parser em vez de uma lista. A recusa cede a `identidade_lexical_existente`, então declaração do próprio arquivo continua vencendo. A ligação `(módulo, membro) -> identidade` não mora aqui; vem inteira de `familia_superficie`. A #533 acrescentou `ler_declaracao_trazer` como autoridade sintática ÚNICA da declaração: os quatro varredores de token desta região (`familias_seletivas_candidatas`, `modulos_trazidos_inteiros`, `membros_trazidos_seletivamente`, `coletar_nomes_de_topo`) e o laço de import do parser leem por ela, de modo que `ALL_IMPORT_PREPASSES_SEE_THE_SAME_MEMBERS` seja construção e não coincidência — o censo de identidades de topo passou a registrar TODOS os membros da lista, não só o primeiro. `membros_trazidos_seletivamente` é da #517 e devolve `(módulo, membros)` cru, sem decidir o que é família nem o que é módulo real: quem decide continua sendo a autoridade de import.
+    // @pinker-nav:summary Resolução da superfície modular dentro do parser, e as autoridades de precedência que a governam: `nomes_de_topo`, censo de tokens em profundidade zero com as identidades que a Pinker resolve independentemente da ordem textual, e `escopos_locais`, pilha de escopos léxicos reais. O módulo é FALLBACK e o último a responder: cede a identidade de topo em todo o arquivo e cede a ligação local onde ela está visível. Depois da #505 o que ele NÃO faz mais é ceder ao global: `recusar_intrinseca_sem_import` recusa, no próprio CANONICALIZATION_BOUNDARY, qualquer grafia pública chamada sem import — canônica ou de membro —, e é isso que torna `GLOBAL_PUBLIC_INTRINSIC = 0` uma propriedade do parser em vez de uma lista. A recusa cede a `identidade_lexical_existente`, então declaração do próprio arquivo continua vencendo. A ligação `(módulo, membro) -> identidade` não mora aqui; vem inteira de `intrinsics::public_surface`. A #533 acrescentou `ler_declaracao_trazer` como autoridade sintática ÚNICA da declaração: os quatro varredores de token desta região (`familias_seletivas_candidatas`, `modulos_trazidos_inteiros`, `membros_trazidos_seletivamente`, `coletar_nomes_de_topo`) e o laço de import do parser leem por ela, de modo que `ALL_IMPORT_PREPASSES_SEE_THE_SAME_MEMBERS` seja construção e não coincidência — o censo de identidades de topo passou a registrar TODOS os membros da lista, não só o primeiro. `membros_trazidos_seletivamente` é da #517 e devolve `(módulo, membros)` cru, sem decidir o que é família nem o que é módulo real: quem decide continua sendo a autoridade de import.
 
     /// #533: autoridade sintática ÚNICA da declaração `trazer`.
     ///
@@ -3709,7 +3709,7 @@ impl Parser {
                 continue;
             };
             let modulo = &tokens[declaracao.modulo].lexeme;
-            if !crate::familia_superficie::familia_conhecida(modulo.as_str()) {
+            if !crate::intrinsics::public_surface::familia_conhecida(modulo.as_str()) {
                 continue;
             }
             if !candidatos.contains(modulo) {
@@ -3734,7 +3734,7 @@ impl Parser {
     /// aprovado.
     fn seletivo_de_familia(&self, modulo: &str, membro: &str) -> bool {
         self.familia_governa(modulo)
-            && crate::familia_superficie::resolver(modulo, membro).is_some()
+            && crate::intrinsics::public_surface::resolver(modulo, membro).is_some()
     }
 
     /// #532 — a família governa este nome NESTE arquivo?
@@ -3743,7 +3743,7 @@ impl Parser {
     /// existência do módulo real vem de `modulos_reais`, colhido pela mesma
     /// conta para a forma inteira e para a seletiva.
     fn familia_governa(&self, modulo: &str) -> bool {
-        crate::familia_superficie::familia_governa(
+        crate::intrinsics::public_surface::familia_governa(
             modulo,
             self.contexto_de_import.modulos_reais.contains(modulo),
         )
@@ -3754,7 +3754,7 @@ impl Parser {
     /// #532 — nome de família built-in NÃO é filtrado aqui.
     ///
     /// Esta é uma leitura sintática: ela diz quem foi escrito na forma inteira,
-    /// não quem governa o nome. Quem decide é `familia_superficie::
+    /// não quem governa o nome. Quem decide é `public_surface::
     /// familia_governa`, no chamador que possui o veredito de existência do
     /// módulo real. Filtrar família aqui era decidir a precedência sem os dois
     /// fatos — e é o que fazia `trazer texto;` não enxergar `texto.pink`.
@@ -3856,7 +3856,8 @@ impl Parser {
                 if !self.seletivo_de_familia(module, membro) {
                     return;
                 }
-                if let Some(canonica) = crate::familia_superficie::resolver(module, membro) {
+                if let Some(canonica) = crate::intrinsics::public_surface::resolver(module, membro)
+                {
                     self.membros_familia_importados
                         .insert(membro.to_string(), canonica);
                 }
@@ -4063,13 +4064,13 @@ impl Parser {
             // produz só depois de provar que o identificador não resolve.
             return Ok(None);
         }
-        match crate::familia_superficie::resolver(familia.as_str(), field) {
+        match crate::intrinsics::public_surface::resolver(familia.as_str(), field) {
             Some(canonica) => Ok(Some(canonica)),
             // Família importada e não sombreada: membro inexistente é erro
             // determinístico aqui, e nunca queda silenciosa para um global
             // homônimo.
             None => Err(PinkerError::Parse {
-                msg: crate::familia_superficie::membro_inexistente(familia.as_str(), field),
+                msg: crate::intrinsics::public_surface::membro_inexistente(familia.as_str(), field),
                 span: base.span,
             }),
         }
@@ -4105,8 +4106,8 @@ impl Parser {
         {
             return Ok(());
         }
-        let canonica = crate::intrinsic_authority::canonical_public_intrinsic_spelling(name);
-        let modulos = crate::familia_superficie::modulos_que_exportam(name);
+        let canonica = crate::intrinsics::identity::canonical_public_intrinsic_spelling(name);
+        let modulos = crate::intrinsics::public_surface::modulos_que_exportam(name);
         if canonica.is_none() && modulos.is_empty() {
             return Ok(());
         }
@@ -4119,8 +4120,9 @@ impl Parser {
             .map(|modulo| format!("'trazer {modulo}.{name};'"))
             .collect();
         if canonica.is_some() {
-            if let Some((modulo, membro)) = crate::familia_superficie::par_da_grafia_canonica(name)
-                .filter(|(_, membro)| *membro != name)
+            if let Some((modulo, membro)) =
+                crate::intrinsics::public_surface::par_da_grafia_canonica(name)
+                    .filter(|(_, membro)| *membro != name)
             {
                 caminhos.push(format!(
                     "'{name}' é a grafia canônica de '{modulo}.{membro}': escreva 'trazer {modulo}.{membro};' e chame '{membro}(...)', ou 'trazer {modulo};' e chame '{modulo}.{membro}(...)'"
@@ -7517,7 +7519,7 @@ impl Parser {
     /// pudesse disputar.
     fn callee_intrinseco(grafia: &str) -> ExprKind {
         ExprKind::Intrinsic(
-            crate::intrinsic_authority::intrinsic_from_public_spelling(grafia)
+            crate::intrinsics::identity::intrinsic_from_public_spelling(grafia)
                 .expect("grafia intrínseca materializada pelo parser é pública"),
         )
     }
@@ -7529,8 +7531,8 @@ impl Parser {
         let ExprKind::Ident(name) = &expr.kind else {
             return expr;
         };
-        match crate::intrinsic_authority::callee_identity_da_grafia_canonica(name.as_str()) {
-            crate::intrinsic_authority::CalleeIdentity::Intrinsic(identity) => Expr {
+        match crate::intrinsics::identity::callee_identity_da_grafia_canonica(name.as_str()) {
+            crate::intrinsics::identity::CalleeIdentity::Intrinsic(identity) => Expr {
                 kind: ExprKind::Intrinsic(identity),
                 span: expr.span,
             },

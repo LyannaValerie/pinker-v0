@@ -398,7 +398,7 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
     // #532: a assinatura consultada por uma chamada depende da identidade que
     // a resolução decidiu, e não da chave textual que os dois namespaces
     // passaram a poder compartilhar.
-    let funcs = crate::intrinsic_authority::TabelaPorIdentidade {
+    let funcs = crate::intrinsics::identity::TabelaPorIdentidade {
         usuario: sigs_usuario,
         intrinsecas,
     };
@@ -594,7 +594,7 @@ fn validate_enum_pattern(
 fn validate_function(
     function: &FunctionIR,
     consts: &HashMap<String, TypeIR>,
-    funcs: &crate::intrinsic_authority::TabelaPorIdentidade<FunctionSig>,
+    funcs: &crate::intrinsics::identity::TabelaPorIdentidade<FunctionSig>,
 ) -> Result<(), PinkerError> {
     if function.entry.label != "entry" {
         return Err(ir_validation_error_ctx(
@@ -661,7 +661,7 @@ fn validate_block(
     function: &FunctionIR,
     slots: &HashMap<String, TypeIR>,
     consts: &HashMap<String, TypeIR>,
-    funcs: &crate::intrinsic_authority::TabelaPorIdentidade<FunctionSig>,
+    funcs: &crate::intrinsics::identity::TabelaPorIdentidade<FunctionSig>,
 ) -> Result<(), PinkerError> {
     if block.label.trim().is_empty() {
         return Err(ir_validation_error_ctx(
@@ -1526,7 +1526,7 @@ fn infer_value_type(
     value: &ValueIR,
     slots: &HashMap<String, TypeIR>,
     consts: &HashMap<String, TypeIR>,
-    funcs: &crate::intrinsic_authority::TabelaPorIdentidade<FunctionSig>,
+    funcs: &crate::intrinsics::identity::TabelaPorIdentidade<FunctionSig>,
     span: Span,
 ) -> Result<TypeIR, PinkerError> {
     match value {

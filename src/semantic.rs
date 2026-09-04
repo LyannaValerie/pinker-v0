@@ -75,16 +75,16 @@ pub fn validar_namespace_pinker_owned(name: &str, span: Span) -> Result<(), Pink
 fn active_intrinsic_declaration_conflict(
     program: &Program,
     name: &str,
-) -> Option<crate::intrinsic_authority::PublicIntrinsicSpelling> {
+) -> Option<crate::intrinsics::identity::PublicIntrinsicSpelling> {
     program.imports.iter().find_map(|import| {
         let module = import.module.as_str();
-        if !crate::familia_superficie::familia_conhecida(module) {
+        if !crate::intrinsics::public_surface::familia_conhecida(module) {
             return None;
         }
         match import.symbol.as_deref() {
             // Forma seletiva: liga a grafia do membro neste arquivo.
             Some(symbol) if symbol == name => {
-                crate::intrinsic_authority::family_public_intrinsic_spelling(module, name)
+                crate::intrinsics::identity::family_public_intrinsic_spelling(module, name)
             }
             _ => None,
         }
@@ -99,14 +99,14 @@ fn validate_intrinsic_declaration_conflicts(program: &Program) -> Result<(), Pin
         let Some(spelling) = active_intrinsic_declaration_conflict(program, &function.name) else {
             continue;
         };
-        if crate::intrinsic_authority::declaration_conflict_policy(spelling)
-            == crate::intrinsic_authority::DeclarationConflictPolicy::DeclarationIsRejected
+        if crate::intrinsics::identity::declaration_conflict_policy(spelling)
+            == crate::intrinsics::identity::DeclarationConflictPolicy::DeclarationIsRejected
         {
             // Duas recusas com causas diferentes precisam de mensagens
             // diferentes: uma diz que a grafia é da linguagem, a outra diz que
             // foi o import deste arquivo que criou a disputa.
             let msg = match spelling.origin {
-                crate::intrinsic_authority::PublicIntrinsicOrigin::FamilyAlias { family } => {
+                crate::intrinsics::identity::PublicIntrinsicOrigin::FamilyAlias { family } => {
                     format!(
                         "declaração callable '{}' colide com o membro '{}.{}' que este arquivo traz; remova o import ou renomeie a declaração",
                         function.name, family, function.name
@@ -131,7 +131,7 @@ fn validate_intrinsic_declaration_conflicts(program: &Program) -> Result<(), Pin
 // @pinker-nav:start semantic.importacoes.familias
 // @pinker-nav:domain importacoes
 // @pinker-nav:layer semantic
-// @pinker-nav:summary Validação semântica de `trazer` sobre os módulos built-in, e dono único da política de colisão de import. A lista de módulos e a superfície que cada um exporta não moram aqui: são consultadas em `familia_superficie`, a autoridade única que o parser também consulta ao canonicalizar. Esta camada decide o que é decisão de import — módulo desconhecido, membro inexistente na forma seletiva e colisão do membro seletivo com item de topo (`validate_family_import_collision`, atravessada tanto pela CLI quanto pelo caminho de biblioteca). A mensagem de membro inexistente vem da própria autoridade. Depois da #505 a colisão de DECLARAÇÃO tem duas causas distintas e mensagens próprias: grafia canônica, reservada porque continua sendo a chave de despacho a jusante, e membro que esta unidade traz. Identidade homônima trazida por `trazer <modulo>;` não é recusada aqui nem em lugar nenhum: ela vence o módulo em silêncio, no parser.
+// @pinker-nav:summary Validação semântica de `trazer` sobre os módulos built-in, e dono único da política de colisão de import. A lista de módulos e a superfície que cada um exporta não moram aqui: são consultadas em `intrinsics::public_surface`, a autoridade única que o parser também consulta ao canonicalizar. Esta camada decide o que é decisão de import — módulo desconhecido, membro inexistente na forma seletiva e colisão do membro seletivo com item de topo (`validate_family_import_collision`, atravessada tanto pela CLI quanto pelo caminho de biblioteca). A mensagem de membro inexistente vem da própria autoridade. Depois da #505 a colisão de DECLARAÇÃO tem duas causas distintas e mensagens próprias: grafia canônica, reservada porque continua sendo a chave de despacho a jusante, e membro que esta unidade traz. Identidade homônima trazida por `trazer <modulo>;` não é recusada aqui nem em lugar nenhum: ela vence o módulo em silêncio, no parser.
 /// Parte G: o membro trazido seletivamente colide com um item de topo?
 ///
 /// A regra existia só em `main.rs`, o que deixava o caminho de biblioteca
@@ -147,7 +147,7 @@ pub fn validate_family_import_collision(
     let Some(symbol) = import.symbol.as_deref() else {
         return Ok(());
     };
-    if !crate::familia_superficie::familia_conhecida(import.module.as_str()) {
+    if !crate::intrinsics::public_surface::familia_conhecida(import.module.as_str()) {
         return Ok(());
     }
     let colide = items.iter().any(|item| match item {
@@ -171,12 +171,12 @@ pub fn validate_family_import_collision(
 }
 
 pub fn validate_builtin_family_import(import: &ImportDecl) -> Result<(), PinkerError> {
-    if !crate::familia_superficie::familia_conhecida(import.module.as_str()) {
+    if !crate::intrinsics::public_surface::familia_conhecida(import.module.as_str()) {
         return Err(PinkerError::Semantic {
             msg: format!(
                 "família '{}' não é reconhecida como família importável; famílias disponíveis nesta fase: {}",
                 import.module,
-                crate::familia_superficie::familias_disponiveis()
+                crate::intrinsics::public_surface::familias_disponiveis()
             ),
             span: import.span,
         });
@@ -188,9 +188,12 @@ pub fn validate_builtin_family_import(import: &ImportDecl) -> Result<(), PinkerE
     // recusa agora é um membro que a família não exporta. A família sem
     // exportações continua importável inteira e continua sem membro nenhum a
     // selecionar, e é isso que a mensagem diz.
-    if !crate::familia_superficie::import_seletivo_valido(import.module.as_str(), symbol) {
+    if !crate::intrinsics::public_surface::import_seletivo_valido(import.module.as_str(), symbol) {
         return Err(PinkerError::Semantic {
-            msg: crate::familia_superficie::membro_inexistente(import.module.as_str(), symbol),
+            msg: crate::intrinsics::public_surface::membro_inexistente(
+                import.module.as_str(),
+                symbol,
+            ),
             span: import.span,
         });
     }
@@ -1431,7 +1434,7 @@ impl SemanticChecker {
         campo: &str,
         span: Span,
     ) -> Option<PinkerError> {
-        if !crate::familia_superficie::forma_qualificada_valida(base, campo) {
+        if !crate::intrinsics::public_surface::forma_qualificada_valida(base, campo) {
             return None;
         }
         if !self.nome_sem_identidade(base) {
@@ -1456,7 +1459,7 @@ impl SemanticChecker {
             });
         }
         Some(PinkerError::Semantic {
-            msg: crate::familia_superficie::familia_nao_importada(base, campo),
+            msg: crate::intrinsics::public_surface::familia_nao_importada(base, campo),
             span,
         })
     }
@@ -4831,12 +4834,12 @@ impl SemanticChecker {
         // de intrínsecas abaixo respondia por uma função do usuário homônima.
         let identidade_do_callee = match &callee.kind {
             ExprKind::Intrinsic(identity) => {
-                crate::intrinsic_authority::CalleeIdentity::Intrinsic(*identity)
+                crate::intrinsics::identity::CalleeIdentity::Intrinsic(*identity)
             }
             ExprKind::Ident(name) => {
-                crate::intrinsic_authority::callee_identity_de_ident(name.as_str())
+                crate::intrinsics::identity::callee_identity_de_ident(name.as_str())
             }
-            _ => crate::intrinsic_authority::CalleeIdentity::User,
+            _ => crate::intrinsics::identity::CalleeIdentity::User,
         };
         let grafia_do_callee = match &callee.kind {
             ExprKind::Intrinsic(identity) => Some(identity.canonical_public_spelling().to_string()),
@@ -5077,7 +5080,7 @@ impl SemanticChecker {
                 // por uma função homônima.
                 let mono_callee = Expr {
                     kind: ExprKind::Intrinsic(
-                        crate::intrinsic_authority::intrinsic_from_public_spelling(mono_name)
+                        crate::intrinsics::identity::intrinsic_from_public_spelling(mono_name)
                             .expect("forma monomórfica de mapa é grafia pública registrada"),
                     ),
                     span: callee.span,

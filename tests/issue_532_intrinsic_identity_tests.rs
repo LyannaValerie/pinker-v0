@@ -11,8 +11,8 @@ mod common;
 
 use common::{ControlledCommand as Command, NativeArtifactDir};
 use pinker_v0::ast::{Expr, ExprKind, Item, Stmt};
-use pinker_v0::familia_superficie;
-use pinker_v0::intrinsic_authority;
+use pinker_v0::intrinsics::identity;
+use pinker_v0::intrinsics::public_surface;
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -295,7 +295,7 @@ fn i1_p5_interpretador_e_nativo_concordam_no_homonimo() {
 /// como nome de função do usuário.
 #[test]
 fn censo_de_reservas_textuais_para_funcao_do_usuario_e_zero() {
-    let grafias = intrinsic_authority::all_canonical_intrinsic_spellings();
+    let grafias = identity::all_canonical_intrinsic_spellings();
     assert!(
         grafias.len() >= 155,
         "a autoridade encolheu inesperadamente: {}",
@@ -512,13 +512,13 @@ fn i2_p5_diagnostico_usa_o_span_da_fonte_e_nao_vaza_identidade_interna() {
 #[test]
 fn i3_mapa_criar_virou_membro_publico_e_deixou_de_ser_chamavel_sem_import() {
     assert_eq!(
-        intrinsic_authority::public_intrinsic_member("mapa", "criar").map(|m| m.identity),
-        intrinsic_authority::intrinsic_from_public_spelling("mapa_criar"),
+        identity::public_intrinsic_member("mapa", "criar").map(|m| m.identity),
+        identity::intrinsic_from_public_spelling("mapa_criar"),
         "mapa.criar precisa endereçar a mesma identidade que a grafia canônica"
     );
 
     // Simetria com o gêmeo estrutural.
-    assert!(intrinsic_authority::public_intrinsic_member("lista", "criar").is_some());
+    assert!(identity::public_intrinsic_member("lista", "criar").is_some());
 
     let sem_import = caso(
         "i3_sem_import",
@@ -832,23 +832,21 @@ fn n8_sem_reexport_implicito() {
 /// autoridade de intrínsecas conhece, e nenhum par `(módulo, membro)` se repete.
 #[test]
 fn censo_estrutural_dos_quinze_modulos_nao_tem_caso_especial() {
-    assert_eq!(familia_superficie::FAMILIAS.len(), 15);
+    assert_eq!(public_surface::FAMILIAS.len(), 15);
 
-    let membros = intrinsic_authority::all_public_intrinsic_members();
+    let membros = identity::all_public_intrinsic_members();
     let mut vistos: BTreeSet<(&str, &str)> = BTreeSet::new();
     let mut com_membro: BTreeSet<&str> = BTreeSet::new();
     for membro in &membros {
         assert!(
-            familia_superficie::familia_conhecida(membro.module),
+            public_surface::familia_conhecida(membro.module),
             "membro fora da taxonomia: {}.{}",
             membro.module,
             membro.member
         );
         assert!(
-            intrinsic_authority::intrinsic_from_public_spelling(
-                membro.identity.canonical_public_spelling()
-            )
-            .is_some(),
+            identity::intrinsic_from_public_spelling(membro.identity.canonical_public_spelling())
+                .is_some(),
             "identidade de {}.{} não é endereçável pela autoridade",
             membro.module,
             membro.member
@@ -861,7 +859,7 @@ fn censo_estrutural_dos_quinze_modulos_nao_tem_caso_especial() {
         );
         com_membro.insert(membro.module);
     }
-    let sem_membro: Vec<&&str> = familia_superficie::FAMILIAS
+    let sem_membro: Vec<&&str> = public_surface::FAMILIAS
         .iter()
         .filter(|familia| !com_membro.contains(**familia))
         .collect();
@@ -871,7 +869,7 @@ fn censo_estrutural_dos_quinze_modulos_nao_tem_caso_especial() {
     // exceções ficou vazia com a #532.
     for grafia in ["mapa_criar", "lista_criar"] {
         assert!(
-            intrinsic_authority::canonical_public_intrinsic_spelling(grafia).is_some(),
+            identity::canonical_public_intrinsic_spelling(grafia).is_some(),
             "{grafia} precisa pertencer à superfície pública"
         );
     }

@@ -11,7 +11,7 @@ use crate::falha_operacional::{self, OperacaoFalivel};
 // @pinker-nav:start familia.superficie.registro
 // @pinker-nav:domain importacoes
 // @pinker-nav:layer semantica
-// @pinker-nav:summary Autoridade única da superfície pública de intrínsecas: `FAMILIAS` fixa os quinze módulos built-in importáveis, `EXPORTACOES` liga cada par `(módulo, membro)` à identidade executiva que já existe, e `resolver` é o único lugar onde essa ligação é consultada — pelo parser, que canonicaliza a chamada antes de qualquer camada a jusante, e pela semântica, que diagnostica o import. Depois da #505 este registro não é mais um subconjunto da superfície pública: ele **é** a superfície pública, e toda intrínseca pública pertence a exatamente um módulo. O registro declara apenas ligação: assinatura, aridade, modelo de falha, política de follow e símbolo de runtime continuam sendo ditos por `semantic`, `falha_operacional` e `backend_s`, e nenhum deles é repetido aqui. A identidade é endereçada por `OperacaoFalivel` na superfície falível e pela grafia canônica no resto, e quem traduz grafia canônica em identidade é `intrinsic_authority`.
+// @pinker-nav:summary Autoridade única da superfície pública de intrínsecas: `FAMILIAS` fixa os quinze módulos built-in importáveis, `EXPORTACOES` liga cada par `(módulo, membro)` à identidade executiva que já existe, e `resolver` é o único lugar onde essa ligação é consultada — pelo parser, que canonicaliza a chamada antes de qualquer camada a jusante, e pela semântica, que diagnostica o import. Depois da #505 este registro não é mais um subconjunto da superfície pública: ele **é** a superfície pública, e toda intrínseca pública pertence a exatamente um módulo. O registro declara apenas ligação: assinatura, aridade, modelo de falha, política de follow e símbolo de runtime continuam sendo ditos por `semantic`, `falha_operacional` e `backend_s`, e nenhum deles é repetido aqui. A identidade é endereçada por `OperacaoFalivel` na superfície falível e pela grafia canônica no resto, e quem traduz grafia canônica em identidade é `intrinsics::identity`.
 
 /// Módulos built-in que `trazer` aceita.
 ///
@@ -62,7 +62,7 @@ pub enum IdentidadeCanonica {
     ///
     /// Cobre toda superfície cuja identidade é o próprio texto — histórica,
     /// acessor JSON, acessor SHA-256 e acessor de processo. Quem traduz a
-    /// grafia canônica na identidade real é `intrinsic_authority`, autoridade
+    /// grafia canônica na identidade real é `intrinsics::identity`, autoridade
     /// única dessa relação; este registro apenas a endereça. Endereçar por
     /// texto continua sendo a dívida que a #477 deve resolver.
     PorGrafia(&'static str),

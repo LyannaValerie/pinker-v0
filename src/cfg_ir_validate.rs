@@ -310,7 +310,7 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
 
     // #532: a escolha entre a assinatura da intrínseca e a da função homônima
     // do usuário é feita pela identidade do callee, não pela chave textual.
-    let function_sigs = crate::intrinsic_authority::TabelaPorIdentidade {
+    let function_sigs = crate::intrinsics::identity::TabelaPorIdentidade {
         usuario: sigs_usuario,
         intrinsecas: sigs_intrinsecas,
     };
@@ -324,7 +324,7 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
 fn validate_function(
     function: &crate::cfg_ir::FunctionCfgIR,
     global_consts: &HashMap<String, TypeIR>,
-    function_sigs: &crate::intrinsic_authority::TabelaPorIdentidade<FunctionSigCfg>,
+    function_sigs: &crate::intrinsics::identity::TabelaPorIdentidade<FunctionSigCfg>,
 ) -> Result<(), PinkerError> {
     if function.blocks.is_empty() {
         return Err(cfg_error_ctx(
@@ -532,7 +532,7 @@ fn validate_block(
     labels: &HashSet<String>,
     slot_types: &HashMap<String, TypeIR>,
     global_consts: &HashMap<String, TypeIR>,
-    function_sigs: &crate::intrinsic_authority::TabelaPorIdentidade<FunctionSigCfg>,
+    function_sigs: &crate::intrinsics::identity::TabelaPorIdentidade<FunctionSigCfg>,
 ) -> Result<(), PinkerError> {
     let mut temp_types: HashMap<TempIR, TypeIR> = HashMap::new();
 
