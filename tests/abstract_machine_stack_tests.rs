@@ -116,7 +116,7 @@ fn stack_underflow_call() {
                     MachineInstr::Call {
                         callee: "soma".to_string(),
                         argc: 2,
-                        identidade: pinker_v0::intrinsic_authority::CalleeIdentity::User,
+                        identidade: pinker_v0::intrinsics::identity::CalleeIdentity::User,
                     },
                 ],
                 MachineTerminator::Ret,
@@ -164,7 +164,7 @@ fn stack_call_aridade_invalida() {
                     MachineInstr::Call {
                         callee: "soma".to_string(),
                         argc: 1,
-                        identidade: pinker_v0::intrinsic_authority::CalleeIdentity::User,
+                        identidade: pinker_v0::intrinsics::identity::CalleeIdentity::User,
                     },
                 ],
                 MachineTerminator::Ret,
@@ -200,7 +200,7 @@ fn stack_call_void_aridade_invalida() {
                     MachineInstr::CallVoid {
                         callee: "log".to_string(),
                         argc: 0,
-                        identidade: pinker_v0::intrinsic_authority::CalleeIdentity::User,
+                        identidade: pinker_v0::intrinsics::identity::CalleeIdentity::User,
                     },
                     MachineInstr::PushInt(0),
                 ],
@@ -235,7 +235,7 @@ fn stack_underflow_call_void() {
                 vec![MachineInstr::CallVoid {
                     callee: "log".to_string(),
                     argc: 1,
-                    identidade: pinker_v0::intrinsic_authority::CalleeIdentity::User,
+                    identidade: pinker_v0::intrinsics::identity::CalleeIdentity::User,
                 }],
                 MachineTerminator::Ret,
             )]),
@@ -635,7 +635,7 @@ fn stack_call_tipo_argumento_incompativel() {
                         MachineInstr::Call {
                             callee: "usa_int".to_string(),
                             argc: 1,
-                            identidade: pinker_v0::intrinsic_authority::CalleeIdentity::User,
+                            identidade: pinker_v0::intrinsics::identity::CalleeIdentity::User,
                         },
                     ],
                     MachineTerminator::Ret,
@@ -680,7 +680,7 @@ fn stack_call_void_tipo_argumento_incompativel() {
                         MachineInstr::CallVoid {
                             callee: "usa_logica".to_string(),
                             argc: 1,
-                            identidade: pinker_v0::intrinsic_authority::CalleeIdentity::User,
+                            identidade: pinker_v0::intrinsics::identity::CalleeIdentity::User,
                         },
                         MachineInstr::PushInt(0),
                     ],

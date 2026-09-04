@@ -1288,7 +1288,7 @@ fn run_falha_funcao_inexistente() {
                 code: vec![MachineInstr::Call {
                     callee: "nao_existe".to_string(),
                     argc: 0,
-                    identidade: pinker_v0::intrinsic_authority::CalleeIdentity::User,
+                    identidade: pinker_v0::intrinsics::identity::CalleeIdentity::User,
                 }],
                 terminator: MachineTerminator::Ret,
             }],
@@ -1854,7 +1854,7 @@ fn run_falha_call_retorna_void() {
                     code: vec![MachineInstr::Call {
                         callee: "aux".to_string(),
                         argc: 0,
-                        identidade: pinker_v0::intrinsic_authority::CalleeIdentity::User,
+                        identidade: pinker_v0::intrinsics::identity::CalleeIdentity::User,
                     }],
                     terminator: MachineTerminator::Ret,
                 }],
@@ -1905,7 +1905,7 @@ fn run_falha_call_void_retorna_valor() {
                     code: vec![MachineInstr::CallVoid {
                         callee: "aux".to_string(),
                         argc: 0,
-                        identidade: pinker_v0::intrinsic_authority::CalleeIdentity::User,
+                        identidade: pinker_v0::intrinsics::identity::CalleeIdentity::User,
                     }],
                     terminator: MachineTerminator::RetVoid,
                 }],
@@ -1953,7 +1953,7 @@ fn run_falha_aridade_invalida() {
                         MachineInstr::Call {
                             callee: "aux".to_string(),
                             argc: 1,
-                            identidade: pinker_v0::intrinsic_authority::CalleeIdentity::User,
+                            identidade: pinker_v0::intrinsics::identity::CalleeIdentity::User,
                         },
                     ],
                     terminator: MachineTerminator::Ret,

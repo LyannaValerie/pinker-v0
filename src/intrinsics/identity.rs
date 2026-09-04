@@ -7,7 +7,7 @@
 //! de fase.
 
 use crate::falha_operacional::{OperacaoFalivel, SUPERFICIES_FALIVEIS};
-use crate::familia_superficie::{IdentidadeCanonica, EXPORTACOES};
+use crate::intrinsics::public_surface::{IdentidadeCanonica, EXPORTACOES};
 use std::collections::BTreeMap;
 
 /// Identidade de linguagem de uma intrínseca, sem promover ABI a identidade.

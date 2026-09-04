@@ -351,7 +351,7 @@ pub enum ValueIR {
         /// camadas a jusante faziam por conta própria, comparando a grafia com
         /// as próprias tabelas, e que respondia "sim" para uma função do
         /// usuário homônima.
-        identidade: crate::intrinsic_authority::CalleeIdentity,
+        identidade: crate::intrinsics::identity::CalleeIdentity,
     },
     // Fase 242: referência a função top-level como valor (materializa o
     // descritor callable {code_ptr, env_ptr}; env_ptr nulo/estático aqui).
@@ -4339,7 +4339,7 @@ impl<'a> FunctionLowerer<'a> {
                 label: "entry".to_string(),
                 instructions: vec![InstructionIR::Return {
                     value: Some(ValueIR::Call {
-                        identidade: crate::intrinsic_authority::CalleeIdentity::User,
+                        identidade: crate::intrinsics::identity::CalleeIdentity::User,
                         callee: name.to_string(),
                         args: call_args,
                         ret_type,
@@ -5200,7 +5200,7 @@ impl<'a> FunctionLowerer<'a> {
                 return Ok(InstructionIR::Let {
                     slot: binding.slot,
                     value: ValueIR::Call {
-                        identidade: crate::intrinsic_authority::callee_identity_da_grafia_canonica(
+                        identidade: crate::intrinsics::identity::callee_identity_da_grafia_canonica(
                             callee,
                         ),
                         callee: callee.to_string(),
@@ -5245,7 +5245,7 @@ impl<'a> FunctionLowerer<'a> {
                 return Ok(InstructionIR::Let {
                     slot: binding.slot,
                     value: ValueIR::Call {
-                        identidade: crate::intrinsic_authority::callee_identity_da_grafia_canonica(
+                        identidade: crate::intrinsics::identity::callee_identity_da_grafia_canonica(
                             callee,
                         ),
                         callee: callee.to_string(),
@@ -5491,7 +5491,7 @@ impl<'a> FunctionLowerer<'a> {
                 let map = self.lower_value(map)?;
                 Ok(TypedValueIR {
                     value: ValueIR::Call {
-                        identidade: crate::intrinsic_authority::CalleeIdentity::CompilerInternal,
+                        identidade: crate::intrinsics::identity::CalleeIdentity::CompilerInternal,
                         callee: "__pinker_internal_mapa_verso_bombom_iterador_criar".to_string(),
                         args: vec![map.value],
                         ret_type: TypeIR::Bombom,
@@ -5505,7 +5505,7 @@ impl<'a> FunctionLowerer<'a> {
                 let iterator = self.lower_value(iterator)?;
                 Ok(TypedValueIR {
                     value: ValueIR::Call {
-                        identidade: crate::intrinsic_authority::CalleeIdentity::CompilerInternal,
+                        identidade: crate::intrinsics::identity::CalleeIdentity::CompilerInternal,
                         callee: "__pinker_internal_mapa_verso_bombom_iterador_proxima_chave"
                             .to_string(),
                         args: vec![iterator.value],
@@ -5774,7 +5774,7 @@ impl<'a> FunctionLowerer<'a> {
                             }
                             let mut chain = ValueIR::Call {
                                 identidade:
-                                    crate::intrinsic_authority::CalleeIdentity::CompilerInternal,
+                                    crate::intrinsics::identity::CalleeIdentity::CompilerInternal,
                                 callee: "__pinker_internal_leque_criar_0".to_string(),
                                 args: vec![ValueIR::Int(discriminant)],
                                 ret_type: TypeIR::Bombom,
@@ -5812,7 +5812,7 @@ impl<'a> FunctionLowerer<'a> {
                                 let anexar = payload_ty.shape.anexar_intrinsic();
                                 chain = ValueIR::Call {
                                     identidade:
-                                        crate::intrinsic_authority::callee_identity_da_grafia_canonica(
+                                        crate::intrinsics::identity::callee_identity_da_grafia_canonica(
                                             anexar,
                                         ),
                                     callee: anexar.to_string(),
@@ -5867,7 +5867,7 @@ impl<'a> FunctionLowerer<'a> {
                                 return Ok(TypedValueIR {
                                     value: ValueIR::Call {
                                         identidade:
-                                            crate::intrinsic_authority::CalleeIdentity::User,
+                                            crate::intrinsics::identity::CalleeIdentity::User,
                                         callee: function_name.clone(),
                                         args: ir_args,
                                         ret_type,
@@ -5942,7 +5942,7 @@ impl<'a> FunctionLowerer<'a> {
                         })?;
                     return Ok(TypedValueIR {
                         value: ValueIR::Call {
-                            identidade: crate::intrinsic_authority::CalleeIdentity::User,
+                            identidade: crate::intrinsics::identity::CalleeIdentity::User,
                             callee: function_name.clone(),
                             args: ir_args,
                             ret_type,
@@ -5963,12 +5963,12 @@ impl<'a> FunctionLowerer<'a> {
                 // builtin é `identidade_do_callee`.
                 let identidade_do_callee = match &callee.kind {
                     ExprKind::Intrinsic(identity) => {
-                        crate::intrinsic_authority::CalleeIdentity::Intrinsic(*identity)
+                        crate::intrinsics::identity::CalleeIdentity::Intrinsic(*identity)
                     }
                     ExprKind::Ident(name) => {
-                        crate::intrinsic_authority::callee_identity_de_ident(name.as_str())
+                        crate::intrinsics::identity::callee_identity_de_ident(name.as_str())
                     }
-                    _ => crate::intrinsic_authority::CalleeIdentity::User,
+                    _ => crate::intrinsics::identity::CalleeIdentity::User,
                 };
                 let grafia_do_callee = match &callee.kind {
                     ExprKind::Intrinsic(identity) => {
@@ -6144,7 +6144,7 @@ impl<'a> FunctionLowerer<'a> {
                     return Ok(TypedValueIR {
                         value: ValueIR::Call {
                             identidade:
-                                crate::intrinsic_authority::callee_identity_da_grafia_canonica(
+                                crate::intrinsics::identity::callee_identity_da_grafia_canonica(
                                     &mono_name,
                                 ),
                             callee: mono_name,
@@ -6198,7 +6198,7 @@ impl<'a> FunctionLowerer<'a> {
                         return Ok(TypedValueIR {
                             value: ValueIR::Call {
                                 identidade:
-                                    crate::intrinsic_authority::callee_identity_da_grafia_canonica(
+                                    crate::intrinsics::identity::callee_identity_da_grafia_canonica(
                                         mono_name,
                                     ),
                                 callee: mono_name.to_string(),
@@ -6241,7 +6241,7 @@ impl<'a> FunctionLowerer<'a> {
                         return Ok(TypedValueIR {
                             value: ValueIR::Call {
                                 identidade:
-                                    crate::intrinsic_authority::CalleeIdentity::CompilerInternal,
+                                    crate::intrinsics::identity::CalleeIdentity::CompilerInternal,
                                 callee: format!("__pinker_internal_{name}"),
                                 args: ir_args,
                                 ret_type,
@@ -6294,7 +6294,7 @@ impl<'a> FunctionLowerer<'a> {
                         if idx > 0 && typed.ty != TypeIR::Verso {
                             ir_args.push(ValueIR::Call {
                                 identidade:
-                                    crate::intrinsic_authority::callee_identity_da_grafia_canonica(
+                                    crate::intrinsics::identity::callee_identity_da_grafia_canonica(
                                         "bombom_para_verso",
                                     ),
                                 callee: "bombom_para_verso".to_string(),
@@ -6451,7 +6451,7 @@ impl<'a> FunctionLowerer<'a> {
                             return Ok(TypedValueIR {
                                 value: ValueIR::Call {
                                     identidade:
-                                        crate::intrinsic_authority::CalleeIdentity::CompilerInternal,
+                                        crate::intrinsics::identity::CalleeIdentity::CompilerInternal,
                                     callee: "__pinker_internal_leque_criar_0".to_string(),
                                     args: vec![ValueIR::Int(*discriminant)],
                                     ret_type: TypeIR::Bombom,

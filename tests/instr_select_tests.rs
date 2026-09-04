@@ -217,7 +217,7 @@ fn falha_clara_para_call_sem_destino() {
                     callee: "f".to_string(),
                     args: vec![],
                     ret_type: pinker_v0::ir::TypeIR::Bombom,
-                    identidade: pinker_v0::intrinsic_authority::CalleeIdentity::User,
+                    identidade: pinker_v0::intrinsics::identity::CalleeIdentity::User,
                 }],
                 terminator: pinker_v0::cfg_ir::TerminatorIR::Return(Some(
                     pinker_v0::cfg_ir::OperandIR::Int(0),

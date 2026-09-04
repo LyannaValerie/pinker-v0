@@ -217,13 +217,13 @@ pub enum SelectedInstr {
         args: Vec<OperandIR>,
         ret_type: TypeIR,
         /// #532 — a decisão de identidade continua viajando até o backend.
-        identidade: crate::intrinsic_authority::CalleeIdentity,
+        identidade: crate::intrinsics::identity::CalleeIdentity,
     },
     CallVoid {
         callee: String,
         args: Vec<OperandIR>,
         /// #532 — idem para a chamada sem retorno.
-        identidade: crate::intrinsic_authority::CalleeIdentity,
+        identidade: crate::intrinsics::identity::CalleeIdentity,
     },
     // Fase 242: chamada indireta selecionada — `callee` é um operando
     // (valor callable), não um símbolo. Sempre produz valor.

@@ -148,7 +148,7 @@ pub enum InstructionCfgIR {
         args: Vec<OperandIR>,
         ret_type: TypeIR,
         /// #532 — a decisão de identidade viaja com a chamada até o backend.
-        identidade: crate::intrinsic_authority::CalleeIdentity,
+        identidade: crate::intrinsics::identity::CalleeIdentity,
     },
     // Fase 242: chamada indireta — `callee` é um operando (valor callable),
     // não um nome de símbolo. `ret_type` nunca é `Nulo` (tipo função público
@@ -942,7 +942,7 @@ impl FunctionLowerer {
                         .push(InstructionCfgIR::Call {
                             dest: Some(tag),
                             identidade:
-                                crate::intrinsic_authority::CalleeIdentity::CompilerInternal,
+                                crate::intrinsics::identity::CalleeIdentity::CompilerInternal,
                             callee: "__pinker_internal_leque_tag".to_string(),
                             args: vec![value.clone()],
                             ret_type: TypeIR::Bombom,
@@ -977,7 +977,7 @@ impl FunctionLowerer {
                         .push(InstructionCfgIR::Call {
                             dest: Some(extracted),
                             identidade:
-                                crate::intrinsic_authority::callee_identity_da_grafia_canonica(
+                                crate::intrinsics::identity::callee_identity_da_grafia_canonica(
                                     &payload.extract_intrinsic,
                                 ),
                             callee: payload.extract_intrinsic.clone(),

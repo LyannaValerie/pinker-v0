@@ -1,7 +1,7 @@
 //! Gates estruturais da TOTAL_INTRINSIC_MODULE_MIGRATION (Issue #505).
 //!
 //! Este arquivo é a autoridade de teste da migração. Ele não repete o que
-//! `intrinsic_authority` já prova sobre si mesma: prova as invariantes que
+//! `intrinsics::identity` já prova sobre si mesma: prova as invariantes que
 //! atravessam autoridades — que a enumeração central enxerga toda a superfície
 //! pública, que cada identidade pública tem exatamente um módulo importável, e
 //! que nenhuma grafia pública sobrevive como global.
@@ -16,12 +16,12 @@
 mod common;
 
 use common::parse;
-use pinker_v0::familia_superficie::{self, FAMILIAS};
-use pinker_v0::intrinsic_authority::{
+use pinker_v0::intrinsics::identity::{
     all_canonical_intrinsic_spellings, all_public_intrinsic_members,
     canonical_public_intrinsic_spelling, public_intrinsic_member, IntrinsicIdentity,
     PublicIntrinsicOrigin,
 };
+use pinker_v0::intrinsics::public_surface::{self, FAMILIAS};
 use pinker_v0::saida_processo::ACESSORES as ACESSORES_DE_PROCESSO;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -775,8 +775,8 @@ fn import_seletivo_resolve_a_identidade_do_modulo_pedido() {
         ("arquivo", "criar_arquivo"),
         ("lista", "lista_criar"),
     ] {
-        let resolvida = familia_superficie::resolver(modulo, "criar")
-            .unwrap_or_else(|| panic!("{modulo}.criar"));
+        let resolvida =
+            public_surface::resolver(modulo, "criar").unwrap_or_else(|| panic!("{modulo}.criar"));
         assert_eq!(
             resolvida, esperado,
             "{modulo}.criar precisa resolver para a identidade do próprio módulo"

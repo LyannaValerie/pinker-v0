@@ -3838,7 +3838,7 @@ fn contexto_de_import_com_pilha(
         // corresponde a arquivo nenhum — G-517-1, ausência legítima. Quando
         // existe `<nome>.pink`, o módulo real vence e a forma inteira traz os
         // itens dele, exatamente como a seletiva já fazia.
-        if pinker_v0::familia_superficie::familia_governa(
+        if pinker_v0::intrinsics::public_surface::familia_governa(
             modulo.as_str(),
             modulo_real_existe(base_dir, &modulo),
         ) {
@@ -3885,7 +3885,7 @@ fn contexto_de_import_com_pilha(
             // superfície vazia com cara de completa, e `impl` sobre um trato
             // desse módulo era recusado ANTES de o carregador dizer "módulo não
             // encontrado" — o erro autoritativo e o span do import sumiam.
-            if !pinker_v0::familia_superficie::familia_conhecida(modulo.as_str()) {
+            if !pinker_v0::intrinsics::public_surface::familia_conhecida(modulo.as_str()) {
                 import_incompleto = true;
             }
             continue;
@@ -4088,7 +4088,7 @@ fn load_module_program(
         // arquivo raiz e um módulo que a usasse levaria "módulo 'arquivo' não
         // encontrado" — que é o comportamento histórico, mas historicamente
         // `trazer arquivo;` num módulo não tinha o que oferecer.
-        if pinker_v0::familia_superficie::familia_governa(
+        if pinker_v0::intrinsics::public_surface::familia_governa(
             import.module.as_str(),
             modulo_real_existe(base_dir, &import.module),
         ) {
@@ -4181,7 +4181,7 @@ fn carregar_e_projetar(
         // Parte; só a forma seletiva tinha semântica de módulo, e é só ela que
         // precisa consultar o disco. Isso mantém intacto o invariante de que a
         // superfície aprovada não procura `<familia>.pink`.
-        if pinker_v0::familia_superficie::familia_governa(
+        if pinker_v0::intrinsics::public_surface::familia_governa(
             import.module.as_str(),
             modulo_real_existe(&base_dir, &import.module),
         ) {
@@ -4310,7 +4310,7 @@ fn carregar_e_projetar(
         }
         let mut unidade = unit.to_program();
         unidade.imports.retain(|import| {
-            pinker_v0::familia_superficie::familia_governa(
+            pinker_v0::intrinsics::public_surface::familia_governa(
                 import.module.as_str(),
                 modulo_real_existe(&base_dir, &import.module),
             )

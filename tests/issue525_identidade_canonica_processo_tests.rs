@@ -18,7 +18,7 @@
 
 mod common;
 
-use pinker_v0::intrinsic_authority::{
+use pinker_v0::intrinsics::identity::{
     all_canonical_intrinsic_spellings, canonical_alias_target, canonical_public_intrinsic_spelling,
     declaration_conflict_policy, intrinsic_from_public_spelling, DeclarationConflictPolicy,
     IntrinsicIdentity, PublicIntrinsicOrigin, HISTORICAL_CANONICAL_ALIASES,
@@ -361,7 +361,7 @@ fn o_alias_legado_nao_e_chamavel_mas_continua_endereçando_a_identidade_adulta()
     for (alias, adulta) in PARES {
         assert_eq!(identidade(alias), identidade(adulta));
         assert!(
-            pinker_v0::familia_superficie::modulos_que_exportam(alias).is_empty(),
+            pinker_v0::intrinsics::public_surface::modulos_que_exportam(alias).is_empty(),
             "{alias} não pode voltar como membro de módulo"
         );
         let fonte =
