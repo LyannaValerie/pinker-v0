@@ -396,6 +396,9 @@ fn controlled_run(
     let mut sandbox = ExecutionSandbox::create(&git_head, repo_root)?;
     command.env("TMPDIR", sandbox.path());
     command.env("PINKER_EXECUTION_DIR", sandbox.path());
+    // PINKER_DIAG_580 (diagnóstico temporário): registro compartilhado das
+    // medições. O processo medido não recebe nada — nem variável de ambiente.
+    let diag580_destino = diag580_file(sandbox.path());
 
     let started_unix_ms = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -487,6 +490,7 @@ fn controlled_run(
     if !running_marker_failed {
         lifecycle_probe.record(LifecycleEvent::SandboxRunning);
     }
+    let mut diag580 = Diag580::new(guest_pid);
     let mut secondary_errors = Vec::new();
     let mut primary_reason = None;
     if let Some(error) = running_marker_error {
@@ -507,6 +511,7 @@ fn controlled_run(
     }
 
     let status = loop {
+        diag580.sample();
         let watchdog_exit = match watchdog.is_alive() {
             Ok(alive) => !alive,
             Err(error) => {
@@ -672,6 +677,31 @@ fn controlled_run(
     }
     let tree_shutdown_proven = status.is_some() && launcher_reaped && watchdog_reaped;
     let primary_reason = primary_reason.unwrap_or(TerminationReason::LauncherFailure);
+
+    // PINKER_DIAG_580 (diagnóstico temporário): emitido em TODA execução, verde
+    // ou vermelha, porque ausência de abort não é refutação — a distribuição de
+    // VmPeak do guest no runner é o dado que falta.
+    diag580_registrar(
+        diag580_destino.as_deref(),
+        &diag580.line(
+            logical_case,
+            &policy,
+            Diag580Capture {
+                stdout: &stdout,
+                stderr: &stderr,
+                limit: if capture {
+                    stdout_limit.max(stderr_limit)
+                } else {
+                    0
+                },
+                truncou: stdout_overflow.load(Ordering::SeqCst)
+                    || stderr_overflow.load(Ordering::SeqCst),
+            },
+            status,
+            primary_reason,
+            duration,
+        ),
+    );
 
     if primary_reason != TerminationReason::GuestExited
         || status.map_or(true, |status| !status.success())
@@ -1387,4 +1417,267 @@ fn sanitize(value: &str) -> String {
             }
         })
         .collect()
+}
+
+// ---------------------------------------------------------------------------
+// PINKER_DIAG_580 — instrumentação diagnóstica temporária da Issue #580.
+//
+//   DIAGNOSTIC_ONLY / MERGE_FORBIDDEN
+//
+// Nada aqui altera semântica, limite de recurso, timeout, watchdog, capture
+// limit ou carga de fixture. O bloco mede, do PROCESSO DE TESTE, observáveis
+// que pertencem ao GUEST, e reporta. Cada observável declara o processo dono:
+//
+//   RLIMIT_AS efetivo  -> lido de /proc/<guest_pid>/limits (limite do GUEST,
+//                         não do processo de teste; `address_space_bytes` do
+//                         relatório existente é a constante da POLÍTICA)
+//   VmPeak / VmHWM     -> lidos de /proc/<guest_pid>/status enquanto o guest
+//                         vive, no laço de espera que já existia com quantum
+//                         de 10 ms; a última amostra COM campo `Vm*` antecede a
+//                         morte e por isso sobrevive ao abort — ver ZUMBI abaixo
+//   job_cgroup_*       -> cgroup do JOB, que o guest herda e não possui: serve
+//                         só para excluir OOM de cgroup, nunca como consumo do
+//                         guest. `memory.current` foi deliberadamente omitido
+//                         por medir a sessão inteira.
+//   bytes de captura   -> Vec do PROCESSO DE TESTE (bounded_reader), NÃO o
+//                         acúmulo interno do runtime dentro do guest
+//
+// O acúmulo INTERNO do runtime dentro do guest (`len`/`capacity` dos dois Vec)
+// NÃO é medido: medi-lo exigiria instrumentar `runtime/pinker_rt`, o que derruba
+// a base de override de snapshots FROZEN e, pior, altera o processo em estudo.
+// `guest_vm_peak_kb` o substitui: como o Vec cresce por dobra, o VmPeak observado
+// identifica a capacidade corrente — POR CANAL, então leia `caso` para saber se
+// há um canal (`-stdout`) ou dois (`-both`) — e a dobra seguinte pede o dobro.
+//
+// Um processo zumbi ainda responde a /proc/<pid>/status, mas já liberou o `mm` e
+// a leitura não traz nenhum campo Vm*. Por isso `amostras_vm` conta separadamente
+// as leituras que de fato trouxeram VmPeak, e os campos de memória saem `null`
+// quando nenhuma trouxe — um zero silencioso seria indistinguível de medição.
+struct Diag580 {
+    guest_pid: u32,
+    guest_start_time: Option<u64>,
+    rlimit_as: Option<(String, String)>,
+    cgroup_path: Option<String>,
+    vm_peak_kb: u64,
+    vm_hwm_kb: u64,
+    vm_size_kb: u64,
+    samples: u64,
+    samples_vm: u64,
+}
+
+impl Diag580 {
+    fn new(guest_pid: u32) -> Self {
+        Self {
+            guest_pid,
+            guest_start_time: process_start_time(guest_pid),
+            rlimit_as: diag580_rlimit_as(guest_pid),
+            cgroup_path: diag580_cgroup_path(guest_pid),
+            vm_peak_kb: 0,
+            vm_hwm_kb: 0,
+            vm_size_kb: 0,
+            samples: 0,
+            samples_vm: 0,
+        }
+    }
+
+    /// Uma leitura pontual por iteração do laço de espera que já existia.
+    /// Roda no processo de teste: não toca memória, escalonamento nem
+    /// descritores do guest.
+    fn sample(&mut self) {
+        // Âncora de identidade: o mesmo rigor que o resto deste harness aplica a
+        // launcher e watchdog. Sem ela, um pid reciclado depois do reap poderia
+        // elevar o máximo e transformar um limite INFERIOR em sobrestimação.
+        if let Some(start_time) = self.guest_start_time {
+            if process_start_time(self.guest_pid) != Some(start_time) {
+                return;
+            }
+        }
+        if self.rlimit_as.is_none() {
+            self.rlimit_as = diag580_rlimit_as(self.guest_pid);
+        }
+        if self.cgroup_path.is_none() {
+            self.cgroup_path = diag580_cgroup_path(self.guest_pid);
+        }
+        let Ok(status) = fs::read_to_string(format!("/proc/{}/status", self.guest_pid)) else {
+            return;
+        };
+        self.samples += 1;
+        let mut vm_lido = false;
+        for line in status.lines() {
+            let Some((chave, valor)) = line.split_once(':') else {
+                continue;
+            };
+            let Some(kb) = valor
+                .split_whitespace()
+                .next()
+                .and_then(|n| n.parse::<u64>().ok())
+            else {
+                continue;
+            };
+            match chave {
+                "VmPeak" => {
+                    self.vm_peak_kb = self.vm_peak_kb.max(kb);
+                    vm_lido = true;
+                }
+                "VmHWM" => self.vm_hwm_kb = self.vm_hwm_kb.max(kb),
+                "VmSize" => self.vm_size_kb = self.vm_size_kb.max(kb),
+                _ => {}
+            }
+        }
+        if vm_lido {
+            self.samples_vm += 1;
+        }
+    }
+
+    /// `null` enquanto nenhuma amostra trouxe campo Vm*: o guest pode ter sido
+    /// observado apenas como zumbi, e ali 0 não é uma medida.
+    fn kb(&self, valor: u64) -> String {
+        if self.samples_vm == 0 {
+            "null".to_string()
+        } else {
+            valor.to_string()
+        }
+    }
+
+    fn line(
+        &self,
+        logical_case: &str,
+        policy: &ResourcePolicy,
+        capture: Diag580Capture<'_>,
+        status: Option<ExitStatus>,
+        reason: TerminationReason,
+        duration: Duration,
+    ) -> String {
+        let (rlimit_soft, rlimit_hard) = self
+            .rlimit_as
+            .clone()
+            .unwrap_or_else(|| ("unknown".to_string(), "unknown".to_string()));
+        format!(
+            "{{\"probe\":\"PINKER_DIAG_580\",\"origem\":\"harness\",\"caso\":\"{}\",\
+\"guest_pid\":{},\"policy_address_space_bytes\":{},\"guest_rlimit_as_soft\":\"{}\",\
+\"guest_rlimit_as_hard\":\"{}\",\"guest_vm_peak_kb\":{},\"guest_vm_hwm_kb\":{},\
+\"guest_vm_size_kb\":{},\"amostras\":{},\"amostras_vm\":{},\
+\"harness_capture_stdout_bytes\":{},\"harness_capture_stderr_bytes\":{},\
+\"harness_capture_limit_bytes\":{},\"harness_capture_truncou\":{},\
+\"status\":\"{}\",\"signal\":{},\"reason\":\"{:?}\",\"duration_ms\":{},\
+\"allocator_failure\":\"{}\",\"job_cgroup\":\"{}\",\"job_cgroup_memory_max\":\"{}\",\
+\"job_cgroup_memory_events\":\"{}\"}}",
+            sanitize(logical_case),
+            self.guest_pid,
+            policy.address_space_bytes,
+            rlimit_soft,
+            rlimit_hard,
+            self.kb(self.vm_peak_kb),
+            self.kb(self.vm_hwm_kb),
+            self.kb(self.vm_size_kb),
+            self.samples,
+            self.samples_vm,
+            capture.stdout.len(),
+            capture.stderr.len(),
+            capture.limit,
+            capture.truncou,
+            status
+                .map(|status| sanitize(&status.to_string()))
+                .unwrap_or_else(|| "unknown".to_string()),
+            status
+                .as_ref()
+                .and_then(exit_signal)
+                .map(|signal| signal.to_string())
+                .unwrap_or_else(|| "null".to_string()),
+            reason,
+            duration.as_millis(),
+            diag580_allocator_failure(capture.stderr),
+            self.cgroup_path.as_deref().unwrap_or("unknown"),
+            self.cgroup_path
+                .as_deref()
+                .and_then(|path| diag580_cgroup_text(path, "memory.max"))
+                .unwrap_or_else(|| "unknown".to_string()),
+            self.cgroup_path
+                .as_deref()
+                .and_then(|path| diag580_cgroup_text(path, "memory.events"))
+                .map(|texto| texto.replace('\n', " "))
+                .unwrap_or_else(|| "unknown".to_string()),
+        )
+    }
+}
+
+/// Captura do PROCESSO DE TESTE. Existe como tipo próprio para que o teto e o
+/// truncamento viajem junto dos bytes: `harness_capture_stdout_bytes` igual ao
+/// teto é indistinguível de medição sem `harness_capture_truncou`.
+struct Diag580Capture<'a> {
+    stdout: &'a [u8],
+    stderr: &'a [u8],
+    limit: usize,
+    truncou: bool,
+}
+
+/// Caminho do registro compartilhado da instrumentação. Fica ao lado de
+/// `target/pinker-exec`, fora do sandbox, para não interferir na varredura de
+/// diretórios de execução nem no veredito de limpeza.
+fn diag580_file(sandbox_dir: &Path) -> Option<PathBuf> {
+    sandbox_dir
+        .parent()
+        .and_then(Path::parent)
+        .map(|target| target.join("pinker-diag-580.jsonl"))
+}
+
+fn diag580_registrar(destino: Option<&Path>, linha: &str) {
+    eprintln!("{linha}");
+    let Some(destino) = destino else {
+        return;
+    };
+    use std::io::Write;
+    if let Ok(mut arquivo) = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(destino)
+    {
+        let _ = arquivo.write_all(format!("{linha}\n").as_bytes());
+    }
+}
+
+/// Limite efetivamente aplicado ao GUEST, lido do próprio guest.
+fn diag580_rlimit_as(guest_pid: u32) -> Option<(String, String)> {
+    let limits = fs::read_to_string(format!("/proc/{guest_pid}/limits")).ok()?;
+    for line in limits.lines() {
+        if !line.starts_with("Max address space") {
+            continue;
+        }
+        let resto = line["Max address space".len()..].trim();
+        let mut campos = resto.split_whitespace();
+        let soft = campos.next()?.to_string();
+        let hard = campos.next()?.to_string();
+        return Some((soft, hard));
+    }
+    None
+}
+
+fn diag580_cgroup_path(guest_pid: u32) -> Option<String> {
+    let texto = fs::read_to_string(format!("/proc/{guest_pid}/cgroup")).ok()?;
+    texto
+        .lines()
+        .find_map(|line| line.strip_prefix("0::").map(str::to_string))
+}
+
+fn diag580_cgroup_text(cgroup: &str, arquivo: &str) -> Option<String> {
+    let base = Path::new("/sys/fs/cgroup").join(cgroup.trim_start_matches('/'));
+    fs::read_to_string(base.join(arquivo))
+        .ok()
+        .map(|texto| texto.trim().to_string())
+}
+
+/// A mensagem do hook de erro de alocação de Rust é recuperada da captura do
+/// harness, que contém o stderr do guest — e, herdado, o do CHILD criado pelo
+/// runtime dentro dele. A atribuição só fecha com o sinal na mesma linha:
+///
+///   allocator_failure != none  E  signal == 6  -> abort do GUEST
+///   allocator_failure != none  E  signal == null -> abort do CHILD
+///     (o contrato transforma isso em Err e o guest sai com código 0)
+fn diag580_allocator_failure(stderr: &[u8]) -> String {
+    let texto = String::from_utf8_lossy(stderr);
+    texto
+        .lines()
+        .find(|line| line.contains("memory allocation of"))
+        .map(|line| sanitize(&line.chars().take(160).collect::<String>()))
+        .unwrap_or_else(|| "none".to_string())
 }

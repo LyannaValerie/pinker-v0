@@ -31,3 +31,69 @@ jobs:
         run: PINKER_EXIGE_NATIVO=1 make ci
         env:
           RUSTDOCFLAGS: "-D warnings"
+
+      # PINKER_DIAG_580 (diagnóstico temporário da Issue #596 / #580).
+      # `cargo test` só mostra a saída de testes que FALHAM; sem este passo a
+      # medição de uma execução verde seria descartada, e ausência de abort não
+      # é refutação. O passo apenas lê e imprime; não altera a suíte.
+      - name: PINKER_DIAG_580 — registro do probe (#596)
+        if: always()
+        run: |
+          if [ ! -f target/pinker-diag-580.jsonl ]; then
+            echo "PINKER_DIAG_580 INSTRUMENTACAO_NAO_DISPAROU: registro ausente."
+            echo "PINKER_DIAG_580 isto NAO e NOT_OBSERVED: nada foi medido."
+            exit 0
+          fi
+          # O log traz as linhas com espaco de enderecamento relevante ou
+          # terminacao anormal; o registro COMPLETO vai como artifact, para que
+          # nenhuma execucao fique fora da contabilidade.
+          python3 - <<'PROBE'
+          import json
+
+          RECORTE_KB = 65536
+
+          registradas = medidas = selecionadas = invalidas = 0
+          selecao = []
+          with open("target/pinker-diag-580.jsonl") as registro:
+              for linha in registro:
+                  registradas += 1
+                  try:
+                      dados = json.loads(linha)
+                      vm = dados["guest_vm_peak_kb"]
+                      relevante = (
+                          (vm is not None and vm >= RECORTE_KB)
+                          or dados["signal"] is not None
+                          or dados["allocator_failure"] != "none"
+                      )
+                  except (ValueError, KeyError, TypeError):
+                      # Uma linha ilegivel e evidencia, nao motivo para o passo
+                      # diagnostico pintar o job de vermelho e se confundir
+                      # com a reproducao de #580.
+                      invalidas += 1
+                      selecao.append(linha.rstrip())
+                      continue
+                  if vm is not None:
+                      medidas += 1
+                  if relevante:
+                      selecionadas += 1
+                      selecao.append(linha.rstrip())
+
+          print(f"PINKER_DIAG_580 execucoes registradas: {registradas}")
+          print(f"PINKER_DIAG_580 execucoes com VmPeak medido: {medidas}")
+          print(f"PINKER_DIAG_580 linhas ilegiveis: {invalidas}")
+          print(f"PINKER_DIAG_580 criterio do recorte: guest_vm_peak_kb >= {RECORTE_KB}"
+                " OU signal != null OU allocator_failure != none")
+          print(f"PINKER_DIAG_580 linhas no recorte: {selecionadas}")
+          print("PINKER_DIAG_580 o recorte mistura classes de politica:"
+                " leia guest_rlimit_as_soft de cada linha antes de comparar.")
+          for linha in selecao:
+              print(linha)
+          PROBE
+
+      - name: PINKER_DIAG_580 — registro completo (#596)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pinker-diag-580
+          path: target/pinker-diag-580.jsonl
+          if-no-files-found: warn
