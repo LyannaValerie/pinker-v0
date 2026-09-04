@@ -2782,13 +2782,7 @@ impl LoweringContext {
             let escolhido = match method_dispatch::select_representative(
                 &mut candidates,
                 |candidate| candidate.name.as_str(),
-                |candidate| {
-                    candidate
-                        .impl_facts
-                        .as_ref()
-                        .expect("método provisório carrega fatos do impl")
-                        .generated_default
-                },
+                |candidate| candidate.e_default_selecionado(),
             ) {
                 RepresentativeSelection::Selected(index) => index,
                 RepresentativeSelection::ExplicitConflict {
@@ -2809,13 +2803,7 @@ impl LoweringContext {
             };
             let selected = candidates[escolhido];
             for candidate in candidates {
-                if candidate.name != selected.name
-                    && candidate
-                        .impl_facts
-                        .as_ref()
-                        .expect("método provisório carrega fatos do impl")
-                        .generated_default
-                {
+                if candidate.name != selected.name && candidate.e_default_selecionado() {
                     self.ignored_impl_functions.insert(candidate.name.clone());
                 }
             }

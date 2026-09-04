@@ -4,7 +4,7 @@ use std::collections::HashSet;
 // @pinker-nav:start ast.programa.estrutura
 // @pinker-nav:domain programa
 // @pinker-nav:layer ast
-// @pinker-nav:summary Estrutura de topo do programa na AST: pacote, imports e itens (funções, structs, enums, tratos/impl, aliases e constantes), cada declaração com seu span e serialização JSON. `FunctionDecl` transporta dois fatos que o nome não pode responder: `impl_facts`, do método de `impl`, e — desde a #567 — `default_body_trait`, que marca a função sintética como dependência do corpo default de um trato e nomeia a grafia dele. O corpo dessa dependência pertence à unidade que DECLAROU o trato, e é o fato, não o nome sintético, que diz isso à resolução modular.
+// @pinker-nav:summary Estrutura de topo do programa na AST: pacote, imports e itens (funções, structs, enums, tratos/impl, aliases e constantes), cada declaração com seu span e serialização JSON. `FunctionDecl` transporta dois fatos que o nome não pode responder: `impl_facts`, que diz de qual alvo de `impl` o método é, e — desde a #592 — `trait_default_body`, fonte única de que a função foi materializada a partir de um corpo default de trato, com o papel operacional (`SelectedAsImpl`, `CheckOnly`, `Dependency`) e a grafia do trato declarante. O corpo materializado pertence à unidade que DECLAROU o trato, e é o fato, não o prefixo do nome sintético, que diz isso à resolução modular; a distinção de papel existe porque só o primeiro entra em `method_index`/vtable, só o segundo é endereçado por conteúdo, e o terceiro nem é método.
 #[derive(Debug, Clone)]
 pub struct Program {
     pub package: Option<PackageDecl>,
@@ -295,8 +295,47 @@ impl StructField {
 pub struct ImplFunctionFacts {
     /// Alvo escrito no cabeçalho `impl`, preservado sem resolução pelo parser.
     pub target_ty: Type,
-    /// O corpo veio do default do trato, não de método explícito no bloco.
-    pub generated_default: bool,
+}
+
+/// Papel operacional de um corpo materializado a partir de um default de trato.
+///
+/// Os três papéis são o MESMO fato — o parser copiou um corpo default para
+/// dentro de uma materialização — e diferem apenas em quais fases posteriores
+/// os enxergam. Um `bool` achataria essa diferença: só o primeiro entra em
+/// `method_index`/vtable, só o segundo é endereçado por conteúdo, e o terceiro
+/// nem é método.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TraitDefaultBodyRole {
+    /// Nenhum override venceu: este corpo É o método do `impl`.
+    SelectedAsImpl,
+    /// Um override explícito venceu. O corpo default continua devendo checagem
+    /// ao contrato, mas não entra em `method_index` nem em vtable.
+    CheckOnly,
+    /// Função sintética que um corpo default cita (#567), materializada junto
+    /// com ele.
+    Dependency,
+}
+
+/// #592/C5: esta função existe porque um corpo default de `trato` foi
+/// materializado.
+///
+/// Fonte única do fato. Antes dele a resposta vinha de três lugares que se
+/// completavam mal — um `bool` que só existia no papel selecionado, uma grafia
+/// que só existia na dependência, e o prefixo do nome sintético, única
+/// portadora do papel de checagem. O nome continua sendo transporte,
+/// identidade provisória e renderização; ele não decide mais origem.
+#[derive(Debug, Clone)]
+pub struct TraitDefaultBody {
+    pub role: TraitDefaultBodyRole,
+    /// GRAFIA do trato declarante, como a unidade que materializou o corpo a
+    /// escreveu — transporte, nunca identidade. Quem a canoniza é a resolução
+    /// modular, pelo mesmo ambiente que autorizou o `impl`.
+    ///
+    /// A origem precisa ser um fato porque o corpo pertence à unidade que
+    /// DECLAROU o trato: é contra o ambiente dela que ele significa. Sem isso
+    /// um homônimo do importador capturaria em silêncio o auxiliar que a
+    /// origem usa.
+    pub trait_spelling: String,
 }
 
 #[derive(Debug, Clone)]
@@ -305,19 +344,10 @@ pub struct FunctionDecl {
     /// Fatos de transporte de um método impl. `None` para funções comuns e
     /// funções privadas criadas apenas para checar um default sobrescrito.
     pub impl_facts: Option<ImplFunctionFacts>,
-    /// #567: esta função sintética é dependência do corpo default de um trato.
-    ///
-    /// Guarda a GRAFIA do trato como a unidade que materializou o default a
-    /// escreveu — transporte, nunca identidade. Quem a canoniza é a resolução
-    /// modular, pelo mesmo ambiente que autorizou o `impl`.
-    ///
-    /// O fato existe porque o nome sintético não pode responder por ele: a
-    /// closure é cunhada pela unidade que materializa, mas o CORPO dela
-    /// pertence à unidade que DECLAROU o trato, e é contra aquele ambiente que
-    /// ele precisa ser resolvido. Sem este fato o corpo copiado passaria a
-    /// significar o que o importador diz, e um homônimo do importador
-    /// capturaria em silêncio o auxiliar que a origem usa.
-    pub default_body_trait: Option<String>,
+    /// #567/#592: esta função foi materializada a partir de um corpo default
+    /// de trato. `None` para tudo o mais, inclusive o método explícito escrito
+    /// no bloco `impl`.
+    pub trait_default_body: Option<TraitDefaultBody>,
     pub type_params: Vec<String>,
     pub params: Vec<Param>,
     pub ret_type: Option<Type>,
@@ -326,6 +356,19 @@ pub struct FunctionDecl {
 }
 
 impl FunctionDecl {
+    /// Este método de `impl` é o corpo default materializado, e não o método
+    /// explícito escrito no bloco?
+    ///
+    /// É a leitura do fato adulto, não uma segunda fonte: quem pergunta pela
+    /// precedência entre explícito e default consulta isto e entrega a resposta
+    /// a `method_dispatch`, que continua sendo dono da regra.
+    pub fn e_default_selecionado(&self) -> bool {
+        matches!(
+            &self.trait_default_body,
+            Some(fato) if fato.role == TraitDefaultBodyRole::SelectedAsImpl
+        )
+    }
+
     fn write_json(&self, writer: &mut JsonWriter<'_>) {
         writer.begin_object();
         writer.field_str("node", "FunctionDecl");

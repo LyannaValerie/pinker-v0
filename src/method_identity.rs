@@ -69,10 +69,6 @@ pub fn render_trait_default_check_function_name(
     )
 }
 
-pub fn parse_trait_default_check_function_name(name: &str) -> Option<(String, String, String)> {
-    parse_com_prefixo(name, TRAIT_DEFAULT_CHECK_PREFIX)
-}
-
 pub fn parse_provisional_function_name(name: &str) -> Option<(String, String, String)> {
     parse_com_prefixo(name, IMPL_PREFIX)
 }
