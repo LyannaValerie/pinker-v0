@@ -1061,8 +1061,7 @@ carinho principal() -> bombom {{
         "TENTAR_OK\n0\nstdout-small\nstderr-small\nPROPAGAR_ERRO\n"
     );
 
-    let parser = fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/parser.rs"))
-        .expect("autoridade do desugaring legível");
+    let parser = common::fonte_de_modulo::parser();
     let inicio = parser
         .find("// @pinker-nav:start parser.resultado.tentar-propagar")
         .expect("início do desugaring");

@@ -850,7 +850,7 @@ fn politica_de_identidade_existe_so_na_autoridade() {
     );
 
     // O parser impõe a política, mas não a redefine: consulta a autoridade.
-    let parser = fs::read_to_string(raiz.join("src/parser.rs")).expect("parser legível");
+    let parser = common::fonte_de_modulo::parser();
     assert!(
         parser.contains("falha_operacional::identidade_produzida_pelo_runtime")
             && parser.contains("falha_operacional::conflito_de_identidade"),
@@ -862,8 +862,7 @@ fn politica_de_identidade_existe_so_na_autoridade() {
 /// pode ter introduzido caminho por operação.
 #[test]
 fn correcao_de_identidade_nao_criou_fluxo_por_operacao() {
-    let raiz = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let fonte = fs::read_to_string(raiz.join("src/parser.rs")).expect("src/parser.rs legível");
+    let fonte = common::fonte_de_modulo::parser();
 
     const INICIO: &str = "// @pinker-nav:start parser.resultado.tentar-propagar";
     const FIM: &str = "// @pinker-nav:end parser.resultado.tentar-propagar";

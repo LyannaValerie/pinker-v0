@@ -549,7 +549,7 @@ fn o_codec_de_nome_sintetico_sobrevive_como_identidade() {
 fn so_o_parser_escreve_o_fato() {
     assert_eq!(
         varredura_de_src(|codigo| codigo.contains("TraitDefaultBody {")),
-        vec!["ast.rs".to_string(), "parser.rs".to_string()],
+        vec!["ast.rs".to_string(), "parser/mod.rs".to_string()],
         "outra camada passou a construir o fato"
     );
 }

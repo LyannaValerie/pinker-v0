@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+pub mod fonte_de_modulo;
 pub mod native_process;
 pub mod rust_source;
 #[allow(unused_imports)]
