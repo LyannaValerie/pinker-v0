@@ -68,33 +68,49 @@ pub(super) struct ResourcePolicy {
 }
 
 impl ResourcePolicy {
-    fn for_program(program: &OsStr) -> Self {
+    /// Autoridade única dos limites: só aqui uma classe vira valores concretos.
+    fn for_class(class: NativeRunClass) -> Self {
+        match class {
+            NativeRunClass::Toolchain => Self {
+                class,
+                timeout: Duration::from_secs(120),
+                address_space_bytes: 4 * 1024 * 1024 * 1024,
+                cpu_seconds: 120,
+            },
+            NativeRunClass::Pipeline => Self {
+                class,
+                timeout: Duration::from_secs(60),
+                address_space_bytes: 4 * 1024 * 1024 * 1024,
+                cpu_seconds: 60,
+            },
+            NativeRunClass::Common => Self {
+                class,
+                timeout: Duration::from_secs(20),
+                address_space_bytes: 1024 * 1024 * 1024,
+                cpu_seconds: 20,
+            },
+        }
+    }
+
+    /// Inferência canônica pela identidade do executável. É o DEFAULT, não a
+    /// única fonte: um executável gerado tem nome arbitrário e por isso o
+    /// chamador precisa poder declarar a intenção explicitamente.
+    fn class_for_program(program: &OsStr) -> NativeRunClass {
         let name = Path::new(program)
             .file_name()
             .and_then(OsStr::to_str)
             .unwrap_or_default();
         if matches!(name, "cc" | "gcc" | "clang" | "cargo" | "rustc" | "git") {
-            return Self {
-                class: NativeRunClass::Toolchain,
-                timeout: Duration::from_secs(120),
-                address_space_bytes: 4 * 1024 * 1024 * 1024,
-                cpu_seconds: 120,
-            };
+            return NativeRunClass::Toolchain;
         }
         if name == "pink" || name.starts_with("pink-") {
-            return Self {
-                class: NativeRunClass::Pipeline,
-                timeout: Duration::from_secs(60),
-                address_space_bytes: 4 * 1024 * 1024 * 1024,
-                cpu_seconds: 60,
-            };
+            return NativeRunClass::Pipeline;
         }
-        Self {
-            class: NativeRunClass::Common,
-            timeout: Duration::from_secs(20),
-            address_space_bytes: 1024 * 1024 * 1024,
-            cpu_seconds: 20,
-        }
+        NativeRunClass::Common
+    }
+
+    fn resolve(program: &OsStr, explicit: Option<NativeRunClass>) -> Self {
+        Self::for_class(explicit.unwrap_or_else(|| Self::class_for_program(program)))
     }
 }
 
@@ -115,6 +131,7 @@ pub struct ControlledCommand {
     startup_failure: Option<StartupFailurePoint>,
     shutdown_failure: Option<ShutdownFailurePoint>,
     lifecycle_probe: LifecycleProbe,
+    resource_class: Option<NativeRunClass>,
 }
 
 impl ControlledCommand {
@@ -137,6 +154,7 @@ impl ControlledCommand {
             startup_failure: None,
             shutdown_failure: None,
             lifecycle_probe: LifecycleProbe::default(),
+            resource_class: None,
         }
     }
 
@@ -198,10 +216,42 @@ impl ControlledCommand {
     }
 
     pub fn timeout_contract_for_test(&self) -> (Duration, Option<Duration>) {
-        (
-            ResourcePolicy::for_program(self.inner.get_program()).timeout,
-            self.timeout_override,
-        )
+        (self.resource_policy().timeout, self.timeout_override)
+    }
+
+    /// Declara que este executável é um guest do pipeline Pinker, e não um
+    /// executável arbitrário. Existe porque o produto de `pink build --nativo`
+    /// tem nome escolhido pelo caso de teste: sem intenção explícita o lado
+    /// nativo da paridade cairia em Common enquanto o lado interpretado, que
+    /// roda `pink --run`, cai em Pipeline. O nome do arquivo nunca é
+    /// autoridade; a intenção é. Os limites continuam pertencendo a
+    /// `ResourcePolicy`, que é quem traduz classe em valores.
+    ///
+    /// É opt-in por desenho, e hoje só a paridade de processos da Parte D o
+    /// declara. As demais suítes que lançam ELF gerado continuam em Common:
+    /// elas não acumulam captura sob pressão de endereçamento, e Common é a
+    /// contenção correta para executável cuja classe ninguém afirmou. Quem
+    /// levar outra suíte ao mesmo regime declara a intenção aqui, e não por
+    /// padrão de nome de arquivo.
+    pub fn pinker_pipeline_guest(&mut self) -> &mut Self {
+        self.resource_class = Some(NativeRunClass::Pipeline);
+        self
+    }
+
+    fn resource_policy(&self) -> ResourcePolicy {
+        ResourcePolicy::resolve(self.inner.get_program(), self.resource_class)
+    }
+
+    /// Contrato de recurso efetivo desta invocação: classe canônica e os
+    /// limites que ela determina, antes de qualquer override de prazo.
+    pub fn resource_contract_for_test(&self) -> (&'static str, u64, u64) {
+        let policy = self.resource_policy();
+        let class = match policy.class {
+            NativeRunClass::Common => "Common",
+            NativeRunClass::Pipeline => "Pipeline",
+            NativeRunClass::Toolchain => "Toolchain",
+        };
+        (class, policy.address_space_bytes, policy.cpu_seconds)
     }
 
     pub fn capture_limit(&mut self, bytes_per_channel: usize) -> &mut Self {
@@ -263,6 +313,7 @@ impl ControlledCommand {
                 startup_failure: self.startup_failure,
                 shutdown_failure: self.shutdown_failure,
                 lifecycle_probe: self.lifecycle_probe.clone(),
+                resource_class: self.resource_class,
             },
         )?;
         if let Some(error) = outcome.compatibility_error() {
@@ -296,6 +347,7 @@ impl ControlledCommand {
                 startup_failure: self.startup_failure,
                 shutdown_failure: self.shutdown_failure,
                 lifecycle_probe: self.lifecycle_probe.clone(),
+                resource_class: self.resource_class,
             },
         )?;
         if let Some(error) = outcome.compatibility_error() {
@@ -327,6 +379,7 @@ impl ControlledCommand {
                 startup_failure: self.startup_failure,
                 shutdown_failure: self.shutdown_failure,
                 lifecycle_probe: self.lifecycle_probe.clone(),
+                resource_class: self.resource_class,
             },
         )
     }
@@ -358,6 +411,7 @@ struct ControlledRunConfig<'a> {
     startup_failure: Option<StartupFailurePoint>,
     shutdown_failure: Option<ShutdownFailurePoint>,
     lifecycle_probe: LifecycleProbe,
+    resource_class: Option<NativeRunClass>,
 }
 
 fn controlled_run(
@@ -373,8 +427,9 @@ fn controlled_run(
         startup_failure,
         shutdown_failure,
         lifecycle_probe,
+        resource_class,
     } = config;
-    let mut policy = ResourcePolicy::for_program(command.get_program());
+    let mut policy = ResourcePolicy::resolve(command.get_program(), resource_class);
     if let Some(timeout) = timeout_override {
         policy.timeout = timeout;
     }

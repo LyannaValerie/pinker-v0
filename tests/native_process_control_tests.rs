@@ -1981,6 +1981,8 @@ fn caminhos_nativos_mapeados_usam_a_autoridade_controlada() {
         "Stdio::null()",
         "Stdio::inherit()",
         "cpu_seconds",
+        "ResourcePolicy::resolve",
+        "pinker_pipeline_guest",
         "watchdog_pid",
         "sandbox.cleanup()?",
         "started.elapsed() >= policy.timeout",
@@ -2860,4 +2862,137 @@ mod varredura_sintetica {
             );
         }
     }
+}
+
+const GIB: u64 = 1024 * 1024 * 1024;
+
+// Paridade de política de recurso entre os dois lados dos testes de processo.
+// O lado interpretado roda `pink --run` e cai em Pipeline pela inferência
+// canônica; o lado nativo é um ELF gerado com nome escolhido pelo caso e
+// cairia em Common. A intenção explícita é o que remove a assimetria, e estes
+// casos fixam que ela não virou heurística de nome nem elevação global.
+
+#[test]
+fn politica_default_de_executavel_arbitrario_permanece_common() {
+    let arbitrario = ControlledCommand::new("/tmp/out-hr5/hr5");
+    assert_eq!(
+        arbitrario.resource_contract_for_test(),
+        ("Common", GIB, 20),
+        "executável arbitrário sem intenção explícita permanece contido em Common"
+    );
+}
+
+#[test]
+fn politica_do_pipeline_pink_permanece_pipeline() {
+    for programa in ["pink", "/qualquer/target/debug/pink", "pink-nav"] {
+        let comando = ControlledCommand::new(programa);
+        assert_eq!(
+            comando.resource_contract_for_test(),
+            ("Pipeline", 4 * GIB, 60),
+            "programa {programa}"
+        );
+    }
+}
+
+#[test]
+fn politica_de_toolchain_permanece_toolchain() {
+    for programa in ["cc", "gcc", "clang", "cargo", "rustc", "git"] {
+        let comando = ControlledCommand::new(programa);
+        assert_eq!(
+            comando.resource_contract_for_test(),
+            ("Toolchain", 4 * GIB, 120),
+            "programa {programa}"
+        );
+    }
+}
+
+#[test]
+fn guest_pinker_gerado_recebe_a_intencao_do_lado_interpretado() {
+    let mut nativo = ControlledCommand::new("/tmp/out-hr5/hr5");
+    nativo.pinker_pipeline_guest();
+    let interpretado = ControlledCommand::new(env!("CARGO_BIN_EXE_pink"));
+    assert_eq!(
+        nativo.resource_contract_for_test(),
+        interpretado.resource_contract_for_test(),
+        "guest nativo e lado interpretado precisam da mesma intenção de recurso"
+    );
+    assert_eq!(
+        nativo.resource_contract_for_test(),
+        ("Pipeline", 4 * GIB, 60)
+    );
+}
+
+#[test]
+fn nome_do_guest_nao_e_autoridade_quando_a_intencao_e_a_mesma() {
+    let contratos = [
+        "/tmp/out-hr5/hr5",
+        "/outro/lugar/out-continuous_both/continuous_both",
+        "/tmp/zzz",
+    ]
+    .map(|caminho| {
+        let mut comando = ControlledCommand::new(caminho);
+        comando.pinker_pipeline_guest();
+        comando.resource_contract_for_test()
+    });
+    assert!(
+        contratos.iter().all(|contrato| *contrato == contratos[0]),
+        "trocar o nome do guest não pode mudar a política: {contratos:?}"
+    );
+    assert_eq!(contratos[0], ("Pipeline", 4 * GIB, 60));
+}
+
+#[test]
+fn sem_intencao_explicita_o_mesmo_nome_continua_common() {
+    for caminho in [
+        "/tmp/out-hr5/hr5",
+        "/outro/lugar/out-continuous_both/continuous_both",
+        "/tmp/zzz",
+    ] {
+        let comando = ControlledCommand::new(caminho);
+        assert_eq!(
+            comando.resource_contract_for_test(),
+            ("Common", GIB, 20),
+            "sem intenção explícita nenhum nome sozinho promove a classe: {caminho}"
+        );
+    }
+}
+
+// A intenção não pode ficar só no contrato inspecionável: o que contém o guest
+// é o RLIMIT_AS que o launcher aplica no filho. Aqui o próprio filho reporta o
+// limite que recebeu, com nome de executável arbitrário nos dois lados.
+#[test]
+fn intencao_explicita_chega_ao_rlimit_do_filho() {
+    let dir = NativeArtifactDir::create().expect("sandbox de execução");
+    let guest = dir.path().join("out-hr5-guest");
+    symlink("/bin/sh", &guest).expect("guest de nome arbitrário");
+
+    let comum = ControlledCommand::new(&guest)
+        .args(["-c", "ulimit -v"])
+        .output()
+        .expect("guest sem intenção explícita");
+    assert!(
+        comum.status.success(),
+        "guest sem intenção falhou: {comum:?}"
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&comum.stdout).trim(),
+        (GIB / 1024).to_string(),
+        "sem intenção explícita o filho recebe o teto de Common"
+    );
+
+    let mut pipeline = ControlledCommand::new(&guest);
+    pipeline.pinker_pipeline_guest();
+    let pipeline = pipeline
+        .args(["-c", "ulimit -v"])
+        .output()
+        .expect("guest com intenção explícita");
+    assert!(
+        pipeline.status.success(),
+        "guest com intenção falhou: {pipeline:?}"
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&pipeline.stdout).trim(),
+        (4 * GIB / 1024).to_string(),
+        "com intenção explícita o filho recebe o mesmo teto do lado interpretado"
+    );
 }

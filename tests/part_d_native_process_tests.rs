@@ -149,6 +149,8 @@ fn compilar(dir: &NativeArtifactDir, nome: &str, codigo: &str) -> ProgramaNativo
     }
 }
 
+const CONTRATO_PIPELINE: (&str, u64, u64) = ("Pipeline", 4 * 1024 * 1024 * 1024, 60);
+
 fn executar(
     programa: &ProgramaNativo,
     nativo: bool,
@@ -158,12 +160,29 @@ fn executar(
     caso: &str,
 ) -> (Output, Duration) {
     let mut comando = if nativo {
-        Command::new(&programa.binario)
+        // O binário gerado tem nome escolhido por este teste, então a
+        // inferência por identidade do executável o classificaria como
+        // executável arbitrário. A intenção é declarada: é o mesmo programa
+        // Pinker que o lado interpretado roda por `pink --run`, e precisa da
+        // mesma classe de recurso.
+        let mut comando = Command::new(&programa.binario);
+        comando.pinker_pipeline_guest();
+        comando
     } else {
         let mut comando = Command::new(env!("CARGO_BIN_EXE_pink"));
         comando.arg("--run").arg(&programa.fonte);
         comando
     };
+    // Oráculo da paridade de recurso: os dois lados executam o MESMO programa
+    // Pinker e por isso precisam da mesma classe. O lado interpretado a obtém
+    // pela identidade de `pink`; o lado nativo, de nome arbitrário, só a obtém
+    // por intenção declarada.
+    assert_eq!(
+        comando.resource_contract_for_test(),
+        CONTRATO_PIPELINE,
+        "lado {} de {caso} sem a intenção de recurso do pipeline",
+        if nativo { "nativo" } else { "interpretado" }
+    );
     for (chave, valor) in ambiente {
         comando.env(chave, valor);
     }
