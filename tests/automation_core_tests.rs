@@ -6,6 +6,11 @@
 //! as fronteiras negativas do recorte: nenhum filesystem, nenhuma escrita,
 //! nenhuma rede, nenhum Git e nenhuma dependência de root absoluto.
 
+// A #605 moveu implementação de `src/main.rs` para `src/pink_cli/`. Os
+// oráculos abaixo leem o binário inteiro, não um arquivo só (#601, OG-1).
+#[path = "common/fonte_de_modulo.rs"]
+mod fonte_de_modulo;
+
 use pinker_v0::automation::{
     check, json_failure, json_report, markdown_report, Allowlist, ChangeKind, Decision, Failure,
     HarnessCause, Observation, ObservedState, Outcome, PlanBuilder, PolicyCause, RelativePath,
@@ -860,7 +865,7 @@ fn o_nucleo_puro_nao_expoe_apply_root_nem_cli() {
             );
         }
     }
-    let cli = include_str!("../src/main.rs");
+    let cli = fonte_de_modulo::pink_cli();
     // O Stage E é o primeiro consumidor real, mas a CLI continua sem montar,
     // observar, autorizar ou aplicar Plan diretamente.
     for proibido in [

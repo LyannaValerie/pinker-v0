@@ -1533,7 +1533,7 @@ fn nenhum_diretorio_intermediario_sobrevive_ao_build() {
 
 #[test]
 fn sensitivity_nenhum_gc_sections_no_link_do_produto() {
-    let fonte = fs::read_to_string("src/main.rs").expect("CLI legível");
+    let fonte = common::fonte_de_modulo::pink_cli();
     assert!(
         !fonte.contains("gc-sections"),
         "--gc-sections não é correção de captura de símbolo"

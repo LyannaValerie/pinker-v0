@@ -7,6 +7,11 @@
 //!
 //! Cada teste monta um repositório sintético sob `TMPDIR` e o remove ao fim.
 
+// A #605 moveu implementação de `src/main.rs` para `src/pink_cli/`. Os
+// oráculos abaixo leem o binário inteiro, não um arquivo só (#601, OG-1).
+#[path = "common/fonte_de_modulo.rs"]
+mod fonte_de_modulo;
+
 use pinker_v0::automation::{
     apply, check, confine, json_apply_report, markdown_apply_report, measure_final_drift, observe,
     observe_target, verify_written, Allowlist, Authorization, ChangeKind, Decision, Failure,
@@ -1118,7 +1123,7 @@ fn o_estagio_de_apply_nao_usa_rede_processos_nem_git() {
 
 #[test]
 fn o_primeiro_consumidor_nao_transfere_apply_para_a_cli() {
-    let cli = include_str!("../src/main.rs");
+    let cli = fonte_de_modulo::pink_cli();
     let lifecycle = include_str!("../src/nav_projection_lifecycle.rs");
 
     // Stage E é o primeiro consumidor real do núcleo. A CLI pode descobrir a

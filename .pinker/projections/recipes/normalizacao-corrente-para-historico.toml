@@ -2,7 +2,7 @@ schema = 3
 id = "normalizacao-corrente-para-historico"
 
 [reconstruction]
-expected_overrides = 180
+expected_overrides = 182
 expected_exclusions = 125
 
 [[rules]]
@@ -633,9 +633,9 @@ expected_matches = 1
 [[rules]]
 op = "override-hash"
 key = "cli.doc.consulta"
-from = "fnv1a64:c4012d311cb61d35"
+from = "fnv1a64:c4263001ca831e1e"
 to = "fnv1a64:b538942c8ee175c8"
-expect_file = "src/main.rs"
+expect_file = "src/pink_cli/doc_cli.rs"
 expect_domain = "doc"
 expect_layer = "cli"
 
@@ -644,7 +644,7 @@ op = "override-hash"
 key = "cli.doc.sincronizacao"
 from = "fnv1a64:498c636af046ee73"
 to = "fnv1a64:60b049063e3eae51"
-expect_file = "src/main.rs"
+expect_file = "src/pink_cli/doc_cli.rs"
 expect_domain = "doc"
 expect_layer = "cli"
 
@@ -1083,14 +1083,27 @@ expect_layer = "cli"
 
 [[rules]]
 op = "override-region"
+key = "cli.doc.consulta"
+expect_file = "src/pink_cli/doc_cli.rs"
+to_file = "src/main.rs"
+
+[[rules]]
+op = "override-region"
 key = "cli.doc.mudancas"
 from_hash = "fnv1a64:11e0eba000b44d75"
 to_hash = "fnv1a64:8366c8b8c939c016"
 from_summary = "CHANGE_LEDGER_RELATIVE_PATH é o caminho canônico do histórico mecânico; write_ledger renderiza os manifestos e grava via write_atomic, ou remove o arquivo quando não há manifestos; run_doc_importar lê, valida e serializa canonicamente um bloco novo e preserva manifestos existentes byte a byte."
 to_summary = "LEDGER_REL é o caminho fixo do histórico mecânico (.pinker/changes/index.jsonl); write_ledger renderiza os manifestos e grava via write_atomic, ou remove o arquivo quando não há manifestos; run_doc_importar lê, valida e serializa canonicamente um bloco novo e, para manifesto existente, preserva o fast path byte a byte ou compara o modelo semântico completo sem reescrever o artefato; mudanças estruturais e manifestos existentes inválidos retornam change::immutable_error."
-expect_file = "src/main.rs"
+expect_file = "src/pink_cli/doc_cli.rs"
+to_file = "src/main.rs"
 expect_domain = "doc"
 expect_layer = "cli"
+
+[[rules]]
+op = "override-region"
+key = "cli.doc.sincronizacao"
+expect_file = "src/pink_cli/doc_cli.rs"
+to_file = "src/main.rs"
 
 [[rules]]
 op = "override-region"
@@ -1099,7 +1112,8 @@ from_hash = "fnv1a64:4ee83781c89da2f1"
 to_hash = "fnv1a64:fdca2dee5d33ab41"
 from_summary = "run_doc_verificar renderiza o modelo somente leitura de doc::verify_repository, preservando diagnósticos estruturais, drift de catálogo, ledger e projeções e os mesmos códigos da CLI sem duplicar a autoridade observacional."
 to_summary = "run_doc_verificar reescaneia docs/ e manifestos, recomputa o catálogo, o ledger e o plano de projeções em memória e compara cada um com o conteúdo em disco (incluindo o baseline_gate por PR), acumulando divergências em `errors`/`manifest_errors`; não escreve em nenhum arquivo — reporta 'ok' ou a lista de divergências e retorna EXIT_OK/EXIT_SOURCE conforme o resultado."
-expect_file = "src/main.rs"
+expect_file = "src/pink_cli/doc_cli.rs"
+to_file = "src/main.rs"
 expect_domain = "doc"
 expect_layer = "cli"
 
@@ -1117,11 +1131,12 @@ expect_layer = "cli"
 [[rules]]
 op = "override-region"
 key = "cli.modulos.importacao"
-from_hash = "fnv1a64:0ad6be42b2025475"
+from_hash = "fnv1a64:2060112134225632"
 to_hash = "fnv1a64:ec330060a090d4c0"
 from_summary = "parse_program_from_source tokeniza e parseia uma string de fonte já vinculada ao SourceId da unidade, entregando ao parser o contexto de import resolvido antes do parse. base_dir_de devolve o diretório de resolução dos `.pink`; contexto_de_import responde, ANTES do parse, as perguntas que o parser não pode responder sozinho: quais nomes de `trazer X.y;` são módulo Pinker real (via modulo_real_existe), que identidades de topo os `trazer <modulo>;` deste arquivo trazem, que tratos os imports explícitos autorizam como alvo de `impl` (#517), quais closures sintéticas os corpos default desses tratos citam (#567) e se alguma dessas leituras falhou (import_incompleto). As três últimas saem de uma leitura só por módulo em contexto_de_import_com_pilha, best-effort, sem diagnóstico próprio e DIRETA — só os itens do próprio módulo entram, então nenhum reexport implícito nasce daí. A leitura de cada módulo monta o contexto DELE pela mesma conta, porque ler o vizinho com contexto vazio era ler um arquivo diferente do que o carregador lê em seguida; a pilha `visitando` é o análogo de `loading` e para em ciclo sem contribuir. Ausência de `<módulo>.pink` na forma seletiva é classificada como o carregador a classifica: família built-in não corresponde a arquivo e a ausência é legítima; módulo que não existe é erro dele. Quando uma leitura falha ou o módulo pedido não existe, o parser não converte a própria cegueira em recusa: import_incompleto suspende a recusa de `impl` sobre trato não visto, e o carregador produz o erro real do módulo — ausente, ilegível ou em ciclo — com o span e a fonte certos. load_module_program registra a fonte do módulo no SourceMap antes de parseá-lo, detecta ciclo comparando com a pilha `loading`, recursa nos imports do módulo — pulando ali a mesma família built-in que o programa raiz pula — e só então insere a unidade no ModuleGraph, de modo que a ordem de inserção já seja ordem de dependência. carregar_e_projetar é o ponto de entrada: monta o grafo sem descartar nada da unidade, valida cada import da raiz pela superfície que o importador passa a enxergar (colisão com item local, colisão entre imports, import duplicado, símbolo inexistente) SEM materializar item algum, roda a validação modular local de cada unidade com os imports de família que ela escreveu, resolve o grafo para identidades canônicas e só então o projeta num Program único. Import de família built-in continua sem virar item e sobrevive na projeção para a autoridade semântica validá-lo. colher_closures_de_default acompanha o trato trazido, na mesma leitura que o produziu: um corpo default que contém closure cita uma função sintética que o parser da unidade declarante levantou para o topo, e entregar o corpo sem ela entrega uma referência sem referente. É um pool de templates — quem materializa é o parser da unidade que fez o `impl`, e só o que o corpo alcança entra no programa."
 to_summary = "parse_program_from_source tokeniza e parseia uma string de fonte (sem resolver imports). importable_item_name e importable_item_clone reconhecem e clonam os itens importáveis Function, Const, Struct, TypeAlias, Enum e Trait; qualified_type_item_clone requalifica com o prefixo `<módulo>.` somente Struct e TypeAlias, não Function, Const, Enum ou Trait. load_module_program lê o arquivo `<módulo>.pink` a partir de `base_dir`, detecta ciclo de módulos comparando com a pilha `loading` e recursa nos imports do módulo carregado antes de inserir o programa em `loaded`. load_program_with_imports é o ponto de entrada: para cada import do programa raiz, pula famílias built-in importáveis, detecta import duplicado pela chave `módulo::símbolo`, carrega o módulo via load_module_program e insere os itens importados (todo o módulo ou um símbolo específico) em `root_program.items`, reportando colisão de nome com itens locais ou com outro import antes de limpar `root_program.imports`."
-expect_file = "src/main.rs"
+expect_file = "src/pink_cli/modules.rs"
+to_file = "src/main.rs"
 expect_domain = "modulos"
 expect_layer = "cli"
 
@@ -1150,11 +1165,12 @@ expect_layer = "cli"
 [[rules]]
 op = "override-region"
 key = "cli.parsing.roteamento"
-from_hash = "fnv1a64:98ae00ccf19b39c5"
+from_hash = "fnv1a64:df8d61e6360c4aa4"
 to_hash = "fnv1a64:7a87c07efc0fa102"
 from_summary = "parse_args resolve ajuda e versão, separa runtime tail e despacha os nove comandos — incluindo doctor e verificar — ou análise, com erros uniformes de uso."
 to_summary = "parse_args reduz argv[0] via program_name, resolve ajuda principal/help COMANDO/COMANDO --help e versão antes do parsing operacional, separa flag_args do runtime_tail e despacha os seis comandos existentes ou o modo de análise; erros de invocação retornam Err(String) para saída uniforme com EXIT_USAGE."
-expect_file = "src/main.rs"
+expect_file = "src/pink_cli/cli_parsing.rs"
+to_file = "src/main.rs"
 expect_domain = "parsing"
 expect_layer = "cli"
 
@@ -1165,7 +1181,8 @@ from_hash = "fnv1a64:255b22252d24aca5"
 to_hash = "fnv1a64:52d92432d1b2f696"
 from_summary = "Parsers estritos dos subcomandos, incluindo estado, doctor e verificar: validam flags, posicionais, duplicatas e requisitos cruzados antes de produzir modelos tipados."
 to_summary = "Parsers de argumentos por subcomando (parse_build_args, parse_editor_args, parse_repl_args, parse_doc_args, parse_nav_args): percorrem `args: &[String]` reconhecendo flags (--out-dir, --nativo, --repo, --corpo, --check, --json, --limite, --help/-h) e o argumento posicional de entrada/subcomando, retornando Result<Config..., String> com a mensagem de uso correspondente em caso de flag desconhecida ou argumento ausente."
-expect_file = "src/main.rs"
+expect_file = "src/pink_cli/cli_parsing.rs"
+to_file = "src/main.rs"
 expect_domain = "parsing"
 expect_layer = "cli"
 
