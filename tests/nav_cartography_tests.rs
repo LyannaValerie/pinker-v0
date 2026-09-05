@@ -1174,12 +1174,13 @@ fn camada_runtime_cartografa_o_runtime_nativo() {
     }
 }
 
-/// A Onda 7 cartografa as superfícies operacionais: `src/main.rs` (camada
+/// A Onda 7 cartografa as superfícies operacionais: o binário `pink` (camada
 /// `cli`, 16 regiões), `src/editor_tui.rs` (camada `editor`, 4 regiões) e
 /// `src/boot.rs` (camada `boot`, 1 região). Verifica as 20 chaves planejadas,
-/// a contagem exata por camada, que toda região `cli` aponta para
-/// `src/main.rs`, toda `editor` para `src/editor_tui.rs` e toda `boot` para
-/// `src/boot.rs` — sem cruzamento entre os três arquivos —, domínios
+/// a contagem exata por camada, o arquivo esperado de cada chave `cli` — o
+/// entrypoint `src/main.rs` ou o irmão de `src/pink_cli/` que a #605 passou a
+/// hospedar —, toda `editor` para `src/editor_tui.rs` e toda `boot` para
+/// `src/boot.rs` — sem cruzamento entre as três superfícies —, domínios
 /// representativos por camada, e que uma amostra de chaves essenciais das
 /// ondas anteriores (0-6E) permanece presente e fora de cli/editor/boot (ou
 /// seja, nenhuma camada preexistente foi reclassificada). Não fixa o total
@@ -1190,23 +1191,26 @@ fn camada_operacional_cartografa_cli_editor_boot() {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/navigation.jsonl");
     let catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
 
+    // A camada `cli` é o binário `pink`, não um arquivo: a decomposição física
+    // da #605 tirou parsing, comandos `doc` e carga de módulos do entrypoint e
+    // os pôs em `src/pink_cli/`, sem mudar chave, domínio nem resumo.
     let expected_cli_keys = [
-        "cli.config.modelos",
-        "cli.ajuda.usage",
-        "cli.parsing.subcomandos",
-        "cli.parsing.roteamento",
-        "cli.execucao.entrada",
-        "cli.nav.consulta",
-        "cli.nav.sincronizacao-verificacao",
-        "cli.doc.consulta",
-        "cli.doc.sincronizacao",
-        "cli.doc.mudancas",
-        "cli.doc.verificacao",
-        "cli.execucao.editor-repl",
-        "cli.analise.pipeline",
-        "cli.build.nativo",
-        "cli.modulos.importacao",
-        "cli.nav.projecao",
+        ("cli.config.modelos", "src/main.rs"),
+        ("cli.ajuda.usage", "src/main.rs"),
+        ("cli.parsing.subcomandos", "src/pink_cli/cli_parsing.rs"),
+        ("cli.parsing.roteamento", "src/pink_cli/cli_parsing.rs"),
+        ("cli.execucao.entrada", "src/main.rs"),
+        ("cli.nav.consulta", "src/main.rs"),
+        ("cli.nav.sincronizacao-verificacao", "src/main.rs"),
+        ("cli.doc.consulta", "src/pink_cli/doc_cli.rs"),
+        ("cli.doc.sincronizacao", "src/pink_cli/doc_cli.rs"),
+        ("cli.doc.mudancas", "src/pink_cli/doc_cli.rs"),
+        ("cli.doc.verificacao", "src/pink_cli/doc_cli.rs"),
+        ("cli.execucao.editor-repl", "src/main.rs"),
+        ("cli.analise.pipeline", "src/main.rs"),
+        ("cli.build.nativo", "src/main.rs"),
+        ("cli.modulos.importacao", "src/pink_cli/modules.rs"),
+        ("cli.nav.projecao", "src/main.rs"),
     ];
     let expected_editor_keys = [
         "editor.estado.modelo",
@@ -1216,13 +1220,13 @@ fn camada_operacional_cartografa_cli_editor_boot() {
     ];
     let expected_boot_keys = ["boot.geracao.fronteira-freestanding"];
 
-    for key in expected_cli_keys {
+    for (key, file) in expected_cli_keys {
         let region = catalog
             .region(key)
             .unwrap_or_else(|| panic!("chave cli ausente no catálogo: {key}"));
         assert_eq!(
-            region.file, "src/main.rs",
-            "chave cli '{key}' deveria apontar para src/main.rs"
+            region.file, file,
+            "chave cli '{key}' deveria apontar para {file}"
         );
     }
     for key in expected_editor_keys {
@@ -1280,8 +1284,10 @@ fn camada_operacional_cartografa_cli_editor_boot() {
     );
 
     assert!(
-        cli_regions.iter().all(|r| r.file == "src/main.rs"),
-        "toda região da camada cli deve apontar para src/main.rs"
+        cli_regions
+            .iter()
+            .all(|r| r.file == "src/main.rs" || r.file.starts_with("src/pink_cli/")),
+        "toda região da camada cli deve apontar para o binário: src/main.rs ou src/pink_cli/"
     );
     assert!(
         editor_regions.iter().all(|r| r.file == "src/editor_tui.rs"),
@@ -1300,16 +1306,16 @@ fn camada_operacional_cartografa_cli_editor_boot() {
         "camada cli não deve cruzar com src/editor_tui.rs/src/boot.rs"
     );
     assert!(
-        editor_regions
-            .iter()
-            .all(|r| r.file != "src/main.rs" && r.file != "src/boot.rs"),
-        "camada editor não deve cruzar com src/main.rs/src/boot.rs"
+        editor_regions.iter().all(|r| r.file != "src/main.rs"
+            && !r.file.starts_with("src/pink_cli/")
+            && r.file != "src/boot.rs"),
+        "camada editor não deve cruzar com o binário/src/boot.rs"
     );
     assert!(
-        boot_regions
-            .iter()
-            .all(|r| r.file != "src/main.rs" && r.file != "src/editor_tui.rs"),
-        "camada boot não deve cruzar com src/main.rs/src/editor_tui.rs"
+        boot_regions.iter().all(|r| r.file != "src/main.rs"
+            && !r.file.starts_with("src/pink_cli/")
+            && r.file != "src/editor_tui.rs"),
+        "camada boot não deve cruzar com o binário/src/editor_tui.rs"
     );
 
     // Domínios representativos por camada (amostra, não exaustivo).

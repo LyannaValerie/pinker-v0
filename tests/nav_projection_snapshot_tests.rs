@@ -12,6 +12,11 @@
 //! prolifera além dos artefatos autorizados. Este estágio segue sem expor
 //! superfície de CLI.
 
+// A #605 moveu implementação de `src/main.rs` para `src/pink_cli/`. Os
+// oráculos abaixo leem o binário inteiro, não um arquivo só (#601, OG-1).
+#[path = "common/fonte_de_modulo.rs"]
+mod fonte_de_modulo;
+
 use pinker_v0::nav::CodeRegion;
 use pinker_v0::nav_projection_recipe::RECIPES_DIR;
 use pinker_v0::nav_projection_snapshot::{
@@ -1125,7 +1130,7 @@ fn o_nucleo_de_snapshot_nao_expoe_lifecycle_mutavel() {
             "superfície mutável exposta antes do estágio devido: {proibido}"
         );
     }
-    let cli = include_str!("../src/main.rs");
+    let cli = fonte_de_modulo::pink_cli();
     // Stage E pode classificar Outcome na borda, mas parsing, renderização,
     // medidas e reconstrução continuam fora do adaptador CLI.
     for proibido in [

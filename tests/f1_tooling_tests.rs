@@ -1,3 +1,8 @@
+// A #605 moveu implementação de `src/main.rs` para `src/pink_cli/`. Os
+// oráculos abaixo leem o binário inteiro, não um arquivo só (#601, OG-1).
+#[path = "common/fonte_de_modulo.rs"]
+mod fonte_de_modulo;
+
 use pinker_v0::doc::DocConfig;
 use pinker_v0::tooling::{self, FreezeImportClassification};
 use std::fs;
@@ -340,7 +345,7 @@ fn preflight_manifesto_invalido_bloqueia_antes_de_ci() {
 
 #[test]
 fn sensitivity_mantem_composicao_em_uma_autoridade() {
-    let main = fs::read_to_string(root().join("src/main.rs")).unwrap();
+    let main = fonte_de_modulo::pink_cli();
     let tooling = fs::read_to_string(root().join("src/tooling.rs")).unwrap();
     assert!(main.contains("tooling::collect_doctor"));
     assert!(main.contains("tooling::collect_impact"));
