@@ -1,0 +1,14 @@
+// L-12 — as duas convenções de índice de `verso` não conversam:
+// `tamanho_verso`, `indice_verso` e `fatiar_verso` contam CODEPOINTS;
+// `indice_verso_em` e `buscar_verso` devolvem offset em BYTES.
+// Em texto não-ASCII isso corrompe silenciosamente (ou estoura a faixa).
+pacote main;
+
+carinho principal() -> bombom {
+    nova texto: verso = "ação=1";
+    falar("tamanho_verso (codepoints):", tamanho_verso(texto));
+    falar("indice_verso_em '=' (bytes):", indice_verso_em(texto, "="));
+    falar("agora usando um índice de bytes onde se espera codepoint:");
+    falar(indice_verso(texto, indice_verso_em(texto, "=")));
+    mimo 0;
+}

@@ -26,4 +26,5 @@ Contrato de entrada:
 | App | Papel | Fluxo |
 |---|---|---|
 | `guardiao_pinker/` | auditor documental/operacional minimo do repositorio | rodar antes de proxima fase do Bloco 20, Eixo A |
+| `concha/` | shell escrita em Pinker; dogfooding da superficie de processo, texto e colecoes | experimento de fronteira: ver `apps/concha/LIMITES.md` |
 

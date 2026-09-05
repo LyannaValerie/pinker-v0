@@ -1,0 +1,9 @@
+// L-05 — não há como criar um processo em segundo plano: `&`, `jobs`, `fg`,
+// `bg` e `wait` do bash não têm superfície na Pinker.
+pacote main;
+
+carinho principal() -> bombom {
+    nova pid: bombom = executar_em_segundo_plano("sleep", "10");
+    falar(pid);
+    mimo 0;
+}

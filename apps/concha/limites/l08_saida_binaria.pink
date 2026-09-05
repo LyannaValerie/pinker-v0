@@ -1,0 +1,18 @@
+// L-08 — a saída do filho tem que ser UTF-8 válido. Um pipeline binário
+// (`head -c 8 /dev/urandom | xxd`) não atravessa a concha.
+pacote main;
+
+apelido Res = Resultado<SaidaProcesso, verso>;
+
+carinho principal() -> bombom {
+    nova muda argv: lista<verso> = lista_verso_criar();
+    lista_verso_anexar(argv, "-c");
+    lista_verso_anexar(argv, "head -c 8 /dev/urandom");
+    nova muda amb: mapa<verso,verso> = mapa_verso_verso_criar();
+    nova r: Res = executar_processo_estruturado("sh", argv, "", "", amb, LimiteTempo.SemLimite);
+    encaixe r {
+        caso Res.Ok(s) { falar("bytes:", tamanho_verso(processo_saida(s))); }
+        caso Res.Erro(e) { falar("ERRO:", e); }
+    }
+    mimo 0;
+}

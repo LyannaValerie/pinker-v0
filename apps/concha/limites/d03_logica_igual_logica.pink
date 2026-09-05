@@ -1,0 +1,19 @@
+// D-03 — DEFEITO DE PARIDADE: `logica == logica` passa na semântica, monta e
+// roda no backend nativo, e derruba o interpretador.
+//
+//   pink --check       -> aceita
+//   pink build --nativo -> monta, executa e imprime
+//   pink --run          -> "operação inteira exige valores inteiros" em cmp_eq
+//
+// Junto com L-18 (o nativo recusa `!`), o par deixa a linguagem sem NENHUMA
+// forma de negar um `logica` que funcione nos dois backends. A concha contorna
+// com um `carinho nao(b: logica)` que usa só `talvez`.
+pacote main;
+
+carinho principal() -> bombom {
+    nova b: logica = falso;
+    talvez b == falso {
+        falar("negado sem operador");
+    }
+    mimo 0;
+}

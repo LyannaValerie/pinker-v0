@@ -1,0 +1,7 @@
+// L-02 — a intrínseca histórica de processo aceita no máximo UM argumento.
+// Um shell precisa repassar argv de tamanho arbitrário.
+pacote main;
+
+carinho principal() -> bombom {
+    mimo executar_processo("ls", "-l", "/tmp");
+}

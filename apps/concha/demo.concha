@@ -1,0 +1,73 @@
+# Roteiro de demonstração da concha.
+# Rode com:  pink --run apps/concha/principal.pink -- --roteiro apps/concha/demo.concha
+
+echo "=== concha $CONCHA — shell escrita em Pinker ==="
+
+# variáveis e expansão
+SAUDACAO=oi
+NOME=Pinker
+echo "$SAUDACAO, $NOME! casa=${HOME}"
+
+# comando externo com argv de verdade (sem passar por outro shell)
+echo "--- externo ---"
+uname -s
+date +%Y-%m-%d
+
+# pipeline de três estágios
+echo "--- pipeline ---"
+seq 1 12 | grep -v 3 | tail -3
+
+# redirecionamento
+echo "--- redirecionamento ---"
+seq 1 4 > /tmp/concha_demo.txt
+echo cinco >> /tmp/concha_demo.txt
+wc -l < /tmp/concha_demo.txt
+cat /tmp/concha_demo.txt | tr '\n' ' '
+
+# substituição de comando
+echo "--- substituicao ---"
+QUANTOS=$(ls apps | wc -l)
+echo "apps/ tem $QUANTOS entradas; hoje é $(date +%A)"
+
+# encadeamento condicional e status
+echo "--- status ---"
+true && echo "true encadeou"
+false || echo "false encadeou"
+false; echo "status guardado: $?"
+
+# glob (ordenado pela concha, porque listar_diretorio não ordena)
+echo "--- glob ---"
+echo apps/concha/limites/l0*.pink
+
+# controle de fluxo
+echo "--- se/entao ---"
+se test -f Cargo.toml
+entao echo "Cargo.toml existe"
+senao echo "sem Cargo.toml"
+fim
+
+echo "--- para/faca ---"
+para arquivo em Cargo.toml README.md naoexiste.txt
+faca
+  se test -f $arquivo
+  entao echo "  $arquivo: presente"
+  senao echo "  $arquivo: ausente"
+  fim
+fim
+
+echo "--- enquanto/faca ---"
+N=0
+enquanto test $N -lt 3
+faca
+  echo "  volta $N"
+  N=$(expr $N + 1)
+fim
+
+# diretório virtual
+echo "--- cd ---"
+cd apps/concha
+pwd
+cd -
+pwd
+
+echo "=== fim da demonstração ==="

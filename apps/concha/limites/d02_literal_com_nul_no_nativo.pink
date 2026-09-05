@@ -1,0 +1,20 @@
+// D-02 — DEFEITO DE BACKEND, não limite de superfície.
+//
+// Um literal `verso` com `\0` atravessa léxico, semântica e interpretador sem
+// reclamação, mas o emissor `.s` escreve o byte NUL cru dentro de
+// `.ascii "..."`, produzindo assembly que o `as` não monta:
+//
+//     .Lpinker_verso_0:
+//       .quad 3
+//       .ascii "a<NUL>b"
+//
+//     Error: no such instruction / invalid character in mnemonic
+//
+// O erro aparece só na montagem, em nome do arquivo `.s`, sem span do fonte
+// Pinker — a Pinker não cospe o motivo, quem cospe é o GNU as.
+pacote main;
+
+carinho principal() -> bombom {
+    falar("a\0b");
+    mimo 0;
+}

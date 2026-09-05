@@ -1,0 +1,11 @@
+// L-13 — `criar_arquivo` não tem gêmea falível: um redirecionamento para um
+// caminho impossível derruba a concha inteira, em vez de virar status != 0.
+// Compare com `ler_arquivo_resultado`, que devolve `Resultado<verso,verso>`.
+pacote main;
+
+carinho principal() -> bombom {
+    nova h: bombom = criar_arquivo("/naoexiste/saida.txt");
+    escrever_verso(h, "nunca chega aqui");
+    fechar(h);
+    mimo 0;
+}
