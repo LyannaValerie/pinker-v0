@@ -2,7 +2,7 @@ schema = 3
 id = "normalizacao-corrente-para-historico"
 
 [reconstruction]
-expected_overrides = 174
+expected_overrides = 180
 expected_exclusions = 125
 
 [[rules]]
@@ -759,9 +759,9 @@ expect_layer = "ir"
 [[rules]]
 op = "override-hash"
 key = "parser.callbacks.instanciacao-estatica"
-from = "fnv1a64:6292c8bbf1715903"
+from = "fnv1a64:5d864fad2972681a"
 to = "fnv1a64:0710ab894b382a6b"
-expect_file = "src/parser.rs"
+expect_file = "src/parser/genericos.rs"
 expect_domain = "callbacks"
 expect_layer = "parser"
 
@@ -770,7 +770,7 @@ op = "override-hash"
 key = "parser.declaracoes.tipos"
 from = "fnv1a64:c467cb67b33644ff"
 to = "fnv1a64:2170891af39bd205"
-expect_file = "src/parser.rs"
+expect_file = "src/parser/mod.rs"
 expect_domain = "declaracoes"
 expect_layer = "parser"
 
@@ -779,7 +779,7 @@ op = "override-hash"
 key = "parser.texto.interpolacao"
 from = "fnv1a64:e52acbcb41a70e21"
 to = "fnv1a64:7b3d8b1505c94523"
-expect_file = "src/parser.rs"
+expect_file = "src/parser/expressoes.rs"
 expect_domain = "texto"
 expect_layer = "parser"
 
@@ -1904,10 +1904,17 @@ expect_layer = "machine"
 
 [[rules]]
 op = "override-region"
+key = "parser.callbacks.instanciacao-estatica"
+expect_file = "src/parser/genericos.rs"
+to_file = "src/parser.rs"
+
+[[rules]]
+op = "override-region"
 key = "parser.callbacks.substituicao-estatica"
-from_hash = "fnv1a64:9163237c6ee6546e"
+from_hash = "fnv1a64:4725ca7208a2fe09"
 to_hash = "fnv1a64:bfadb05ce80674d6"
-expect_file = "src/parser.rs"
+expect_file = "src/parser/genericos.rs"
+to_file = "src/parser.rs"
 expect_domain = "callbacks"
 expect_layer = "parser"
 
@@ -1918,20 +1925,34 @@ from_hash = "fnv1a64:625627b5e9c64ebe"
 to_hash = "fnv1a64:f374c2b2eb1b9d4c"
 from_summary = "Funções anônimas e vínculos de valor-função: reconhece a closure `(params) -> tipo { corpo }`, materializa sua identidade sintética com proveniência canônica da fonte mais índice local e reconhece os `nova f = ...` que ligam nomes a funções, mantendo o escopo de aliases de valor-função e produzindo `ast::Expr`/vínculos locais."
 to_summary = "Funções anônimas e vínculos de valor-função: reconhece a closure `(params) -> tipo { corpo }` e os `nova f = ...` que ligam nomes a funções, mantendo o escopo de aliases de valor-função e produzindo `ast::Expr`/vínculos locais."
-expect_file = "src/parser.rs"
+expect_file = "src/parser/mod.rs"
+to_file = "src/parser.rs"
 expect_domain = "closures"
 expect_layer = "parser"
 
 [[rules]]
 op = "override-region"
 key = "parser.comandos.bloco"
-from_hash = "fnv1a64:9deeb6775bbafc83"
+from_hash = "fnv1a64:226df5306c66c88e"
 to_hash = "fnv1a64:b57c3f39100a2358"
 from_summary = "Blocos e comandos: reconhece `{ ... }`, declarações locais (`nova`/`muda`), atribuições, `mimo` (retorno), `talvez`/`senao`, laços (`sempre`/`repetir`), `quebrar`/`continuar`, `falar` e asm inline, produzindo `ast::Block`/`ast::Stmt`."
 to_summary = "Blocos e comandos: reconhece `{ ... }`, declarações locais (`nova`/`muda`), atribuições, `mimo` (retorno), `talvez`/`senao`, laços (`sempre`/`repetir`), `quebrar`/`continuar`, `falar` e asm inline, produzindo `ast::Block`/`ast::Stmt`."
-expect_file = "src/parser.rs"
+expect_file = "src/parser/comandos.rs"
+to_file = "src/parser.rs"
 expect_domain = "comandos"
 expect_layer = "parser"
+
+[[rules]]
+op = "override-region"
+key = "parser.constantes.declaracao"
+expect_file = "src/parser/mod.rs"
+to_file = "src/parser.rs"
+
+[[rules]]
+op = "override-region"
+key = "parser.declaracoes.tipos"
+expect_file = "src/parser/mod.rs"
+to_file = "src/parser.rs"
 
 [[rules]]
 op = "override-region"
@@ -1940,29 +1961,44 @@ from_hash = "fnv1a64:d61e153377132f99"
 to_hash = "fnv1a64:a57b831878d2376a"
 from_summary = "Parser de `encaixe`: preserva leques como `EnumMatchStmt` com `EnumPattern` recursivo (variantes e bindings) e mantém uniões estruturais no `UnionMatchStmt` vigente; tipo, exaustividade, duplicatas e unreachable patterns pertencem à semântica."
 to_summary = "Desugaring de `encaixe` (pattern matching sobre leques): reconhece os `caso Variante(bind) { ... }` e o `senao`, exige exaustividade e produz uma âncora `nova` seguida de cadeia `talvez`/`senao` comparando tags — nós `ast::Stmt`."
-expect_file = "src/parser.rs"
+expect_file = "src/parser/mod.rs"
+to_file = "src/parser.rs"
 expect_domain = "encaixe"
 expect_layer = "parser"
 
 [[rules]]
 op = "override-region"
 key = "parser.expressoes.postfix"
-from_hash = "fnv1a64:18f2c163eb167462"
+from_hash = "fnv1a64:75be292a04655649"
 to_hash = "fnv1a64:a0e90b7e07211b9b"
 from_summary = "Cadeia postfix de expressão: chamadas, acesso a campo, índice, chamada genérica explícita e sufixo de cast (`virar`), aplicados sobre a expressão base para produzir o `ast::Expr` final."
 to_summary = "Cadeia postfix de expressão: chamadas, acesso a campo, índice, chamada genérica explícita e sufixo de cast (`virar`), aplicados sobre a expressão base para produzir o `ast::Expr` final."
-expect_file = "src/parser.rs"
+expect_file = "src/parser/expressoes.rs"
+to_file = "src/parser.rs"
 expect_domain = "expressoes"
 expect_layer = "parser"
 
 [[rules]]
 op = "override-region"
 key = "parser.expressoes.precedencia"
-from_hash = "fnv1a64:4366b26dd5baf614"
+from_hash = "fnv1a64:ea8edd420f2a615b"
 to_hash = "fnv1a64:06ba8bdd157f5210"
-expect_file = "src/parser.rs"
+expect_file = "src/parser/expressoes.rs"
+to_file = "src/parser.rs"
 expect_domain = "expressoes"
 expect_layer = "parser"
+
+[[rules]]
+op = "override-region"
+key = "parser.expressoes.primarias"
+expect_file = "src/parser/expressoes.rs"
+to_file = "src/parser.rs"
+
+[[rules]]
+op = "override-region"
+key = "parser.fluxo.nucleo"
+expect_file = "src/parser/mod.rs"
+to_file = "src/parser.rs"
 
 [[rules]]
 op = "override-region"
@@ -1971,16 +2007,18 @@ from_hash = "fnv1a64:3150b41ae0cc4cf1"
 to_hash = "fnv1a64:ed8f8585939365d0"
 from_summary = "Declaração de função: reconhece `carinho nome<params-de-tipo>(params) -> tipo { corpo }`, incluindo os parâmetros de tipo genéricos opcionais, e produz o nó `ast::FunctionDecl`."
 to_summary = "Declaração de função: reconhece `carinho nome<params-de-tipo>(params) -> tipo { corpo }`, incluindo os parâmetros de tipo genéricos opcionais, e produz o nó `ast::FunctionDecl`."
-expect_file = "src/parser.rs"
+expect_file = "src/parser/mod.rs"
+to_file = "src/parser.rs"
 expect_domain = "funcoes"
 expect_layer = "parser"
 
 [[rules]]
 op = "override-region"
 key = "parser.genericos.funcoes-instanciacao"
-from_hash = "fnv1a64:3b6e706374d5f405"
+from_hash = "fnv1a64:2ad0b1bf357add02"
 to_hash = "fnv1a64:bebfe84d79c2f4c3"
-expect_file = "src/parser.rs"
+expect_file = "src/parser/genericos.rs"
+to_file = "src/parser.rs"
 expect_domain = "genericos"
 expect_layer = "parser"
 
@@ -1991,16 +2029,18 @@ from_hash = "fnv1a64:ab189d56a3421bf3"
 to_hash = "fnv1a64:51a9ef5a4a910673"
 from_summary = "O parser não codifica identidade: entrega kind, proveniência do template no estágio atual, nome local e argumentos ordenados à autoridade compartilhada `generic_identity`. A presença em `predeclared_generic_enums`, definida pelo prepass de autoridade, distingue o `Resultado` builtin global do template homônimo de fonte raiz ou modular; módulos recebem a chave transportada pelo loader."
 to_summary = "Identidade determinística de especializações: `generic_type_key` codifica qualquer `ast::Type` (primitivos, listas/mapas, arrays, ponteiros, funções, tipos aplicados) numa chave textual estável, e `generic_function_name`/`generic_enum_name` derivam os nomes monomórficos (`__gen_*`) a partir dos argumentos de tipo. Produz chaves e nomes internos; não valida os tipos semanticamente."
-expect_file = "src/parser.rs"
+expect_file = "src/parser/mod.rs"
+to_file = "src/parser.rs"
 expect_domain = "genericos"
 expect_layer = "parser"
 
 [[rules]]
 op = "override-region"
 key = "parser.genericos.leques-instanciacao"
-from_hash = "fnv1a64:77f14225a0f86716"
+from_hash = "fnv1a64:88754539ff0c4231"
 to_hash = "fnv1a64:4f2c13621156dcac"
-expect_file = "src/parser.rs"
+expect_file = "src/parser/genericos.rs"
+to_file = "src/parser.rs"
 expect_domain = "genericos"
 expect_layer = "parser"
 
@@ -2011,27 +2051,30 @@ from_hash = "fnv1a64:2851ac5ab43184ad"
 to_hash = "fnv1a64:9db5cce54d4d0579"
 from_summary = "Materializa um `EnumDecl` concreto a partir de um template de leque genérico e seus argumentos de tipo: confere a aridade (erro `Parse` se divergir), monta a tabela parâmetro-de-tipo → tipo concreto, substitui as cargas das variantes, remove os parâmetros de tipo e nomeia a instância pelo nome monomórfico. Não valida os tipos resultantes nem os anexa ao `Program`. Inclui também a predeclaração da biblioteca padrão (Fase 241): `register_predeclared_generic_enums`/`predeclared_generic_enum_templates` constroem o template sintético `Resultado<T,E> { Ok(T), Erro(E) }` e `item_name` apoia a supressão por declaração do usuário. `registrar_resultado_falivel` materializa a especialização devolvida por uma superfície falível e, com `registrar_redeclaracao_de_identidade`/`registrar_producao_de_identidade`/`verificar_identidade_runtime`, fecha a conjunção da Parte B1: produzir a identidade pelo runtime e redeclarar o nome é inválido, independentemente da ordem no texto."
 to_summary = "Materializa um `EnumDecl` concreto a partir de um template de leque genérico e seus argumentos de tipo: confere a aridade (erro `Parse` se divergir), monta a tabela parâmetro-de-tipo → tipo concreto, substitui as cargas das variantes, remove os parâmetros de tipo e nomeia a instância pelo nome monomórfico. Não valida os tipos resultantes nem os anexa ao `Program`. Inclui também a predeclaração da biblioteca padrão (Fase 241): `register_predeclared_generic_enums`/`predeclared_generic_enum_templates` constroem o template sintético `Resultado<T,E> { Ok(T), Erro(E) }` e `item_name` apoia a supressão por declaração do usuário."
-expect_file = "src/parser.rs"
+expect_file = "src/parser/mod.rs"
+to_file = "src/parser.rs"
 expect_domain = "genericos"
 expect_layer = "parser"
 
 [[rules]]
 op = "override-region"
 key = "parser.genericos.substituicao-ast"
-from_hash = "fnv1a64:33dd70de42adca0a"
+from_hash = "fnv1a64:93088671c06b844b"
 to_hash = "fnv1a64:2cbfde20708dd7f9"
-expect_file = "src/parser.rs"
+expect_file = "src/parser/genericos.rs"
+to_file = "src/parser.rs"
 expect_domain = "genericos"
 expect_layer = "parser"
 
 [[rules]]
 op = "override-region"
 key = "parser.lacos.for-each"
-from_hash = "fnv1a64:f70fec7ecdb33c62"
+from_hash = "fnv1a64:178aadc867a2dba9"
 to_hash = "fnv1a64:a7df5729ec192ed2"
 from_summary = "Desugaring de `para cada X em COL { ... }`: reconhece a forma for-each e a reescreve em laço explícito com cursor/índice e chamadas de iteração conforme o tipo da coleção (listas e mapas, por chave/valor), produzindo `ast::Stmt`."
 to_summary = "Desugaring de `para cada X em COL { ... }`: reconhece a forma for-each e a reescreve em laço explícito com cursor/índice e chamadas de iteração conforme o tipo da coleção (listas e mapas, por chave/valor), produzindo `ast::Stmt`."
-expect_file = "src/parser.rs"
+expect_file = "src/parser/lacos.rs"
+to_file = "src/parser.rs"
 expect_domain = "lacos"
 expect_layer = "parser"
 
@@ -2042,25 +2085,34 @@ from_hash = "fnv1a64:4cfe761e3e8caf63"
 to_hash = "fnv1a64:c8ac56b28a5a6113"
 from_summary = "Ponto de entrada do parser: constrói o `Program` reconhecendo `pacote`, `trazer` (imports) e a marca freestanding, e despacha os itens de topo via `parse_item`. Desde a #533 a declaração `trazer` aceita vários membros de UM módulo (`trazer M.a, b, c;`) e desaçucara ali mesmo para as unidades `Import` de sempre, na ordem textual, sem que nada a jusante conheça multi-import; a leitura da declaração é `ler_declaracao_trazer`, a mesma que os prepasses de import usam, e o caminho de cursor só produz o diagnóstico das formas recusadas (`M.a, b,;`, `M.a, N.b;`, `M, a;`). Dois prepasses estreitos de autoridade precedem qualquer resolução, ambos sobre tokens e sem resolver tipos: um detecta templates genéricos de usuário antes de registrar o `Resultado<T,E>` builtin, tornando USER_WINS independente da ordem textual; outro colhe as identidades de topo do arquivo (`coletar_nomes_de_topo`), que é o que dá à superfície por família a mesma independência de ordem. A redeclaração continua formando com a produção runtime a conjunção inválida da Parte B1."
 to_summary = "Ponto de entrada do parser: constrói o `Program` reconhecendo `pacote`, `trazer` (imports) e a marca freestanding, e despacha os itens de topo (funções, structs, leques, tratos, impl, aliases, constantes) via `parse_item`. Predeclara os leques genéricos da biblioteca padrão (Fase 241, `Resultado<T,E>`) antes do laço de itens e suprime o predeclarado quando o usuário declara o mesmo nome."
-expect_file = "src/parser.rs"
+expect_file = "src/parser/mod.rs"
+to_file = "src/parser.rs"
 expect_domain = "programa"
 expect_layer = "parser"
 
 [[rules]]
 op = "override-region"
 key = "parser.resultado.tentar-propagar"
-from_hash = "fnv1a64:e23add89d8dab6fb"
+from_hash = "fnv1a64:54f6cb65f2d46727"
 to_hash = "fnv1a64:5111f2f6558b0afb"
-expect_file = "src/parser.rs"
+expect_file = "src/parser/resultado.rs"
+to_file = "src/parser.rs"
 expect_domain = "resultado"
 expect_layer = "parser"
+
+[[rules]]
+op = "override-region"
+key = "parser.texto.interpolacao"
+expect_file = "src/parser/expressoes.rs"
+to_file = "src/parser.rs"
 
 [[rules]]
 op = "override-region"
 key = "parser.tipos.gramatica"
 from_hash = "fnv1a64:deca116a915fac7c"
 to_hash = "fnv1a64:5818f3a6f118b062"
-expect_file = "src/parser.rs"
+expect_file = "src/parser/mod.rs"
+to_file = "src/parser.rs"
 expect_domain = "tipos"
 expect_layer = "parser"
 

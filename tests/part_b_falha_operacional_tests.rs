@@ -347,8 +347,7 @@ impl Paridade {
 /// canônica e falha se qualquer nome de superfície falível aparecer nela.
 #[test]
 fn desugaring_de_propagacao_nao_conhece_nenhuma_superficie_falivel() {
-    let raiz = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let fonte = fs::read_to_string(raiz.join("src/parser.rs")).expect("src/parser.rs legível");
+    let fonte = common::fonte_de_modulo::parser();
 
     const INICIO: &str = "// @pinker-nav:start parser.resultado.tentar-propagar";
     const FIM: &str = "// @pinker-nav:end parser.resultado.tentar-propagar";

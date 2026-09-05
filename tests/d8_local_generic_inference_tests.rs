@@ -155,7 +155,7 @@ fn infere_estrutura_aninhada_lista_sem_tabela_nominal() {
         "{ir}"
     );
 
-    let parser = include_str!("../src/parser.rs");
+    let parser = common::fonte_de_modulo::parser();
     for nominal in ["\"id\"", "\"par\"", "\"mesmo\"", "\"primeiro\""] {
         assert!(
             !parser.contains(nominal),
