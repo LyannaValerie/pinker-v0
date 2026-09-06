@@ -210,7 +210,7 @@ fn sensitivity_recusa_offsets_de_byte_crus_e_fronteiras_utf8_invalidas() {
     assert!("Aé日🌸Z".len() > "Aé日🌸Z".chars().count());
     assert_ne!("Aé日🌸Z".char_indices().nth(2).unwrap().0, 2);
 
-    let interpreter_source = include_str!("../src/interpreter.rs");
+    let interpreter_source = common::fonte_de_modulo::interpreter();
     let runtime_source = include_str!("../runtime/pinker_rt/src/lib.rs");
     assert!(interpreter_source.contains("for (byte_offset, _) in texto.char_indices()"));
     assert!(runtime_source.contains("for (byte_offset, _) in texto.char_indices()"));

@@ -398,14 +398,14 @@ fn lowering_de_duas_instanciacoes_compartilha_as_mesmas_operacoes() {
 
 #[test]
 fn sensibilidade_recusa_familias_manuais_para_as_novas_combinacoes() {
-    let interpreter = include_str!("../src/interpreter.rs");
+    let interpreter = common::fonte_de_modulo::interpreter();
     let parser = common::fonte_de_modulo::parser();
     let surfaces = [
         include_str!("../src/ast.rs"),
         parser.as_str(),
         include_str!("../src/semantic.rs"),
         include_str!("../src/ir.rs"),
-        include_str!("../src/interpreter.rs"),
+        interpreter.as_str(),
         include_str!("../src/backend_s.rs"),
     ]
     .join("\n");
@@ -442,7 +442,7 @@ fn sensibilidade_recusa_familias_manuais_para_as_novas_combinacoes() {
         ("parser.rs", parser.as_str()),
         ("semantic.rs", include_str!("../src/semantic.rs")),
         ("ir.rs", include_str!("../src/ir.rs")),
-        ("interpreter.rs", include_str!("../src/interpreter.rs")),
+        ("interpreter.rs", interpreter.as_str()),
         ("backend_s.rs", include_str!("../src/backend_s.rs")),
     ] {
         for candidate in tuple_match_candidates(source) {

@@ -587,7 +587,7 @@ fn familia_e_membro_nao_sobrevivem_a_ast() {
 #[test]
 fn nenhuma_camada_a_jusante_decide_pela_grafia_de_membro() {
     let raiz = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let jusante = [
+    let jusante: Vec<String> = [
         "src/ir.rs",
         "src/cfg_ir.rs",
         "src/ir_validate.rs",
@@ -596,11 +596,14 @@ fn nenhuma_camada_a_jusante_decide_pela_grafia_de_membro() {
         "src/instr_select_validate.rs",
         "src/abstract_machine.rs",
         "src/abstract_machine_validate.rs",
-        "src/interpreter.rs",
         "src/backend_s.rs",
         "src/backend_text.rs",
         "runtime/pinker_rt/src/lib.rs",
-    ];
+    ]
+    .iter()
+    .map(|relativo| (*relativo).to_string())
+    .chain(common::fonte_de_modulo::interpreter_caminhos())
+    .collect();
     let proprias: Vec<&str> = EXPORTACOES
         .iter()
         .map(Exportacao::membro)
@@ -616,7 +619,7 @@ fn nenhuma_camada_a_jusante_decide_pela_grafia_de_membro() {
     );
 
     let mut ofensores = Vec::new();
-    for relativo in jusante {
+    for relativo in &jusante {
         let caminho = raiz.join(relativo);
         if !caminho.is_file() {
             continue;
