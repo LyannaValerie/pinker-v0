@@ -459,10 +459,15 @@ fn so_o_codec_nomeia_os_prefixos_sinteticos_de_trato() {
 /// ```text
 /// method_identity.rs  valor das constantes do codec
 /// native_symbol.rs    forma reservada na fronteira léxica
-/// backend_s.rs        recorte externo: o primeiro parâmetro de um método de
+/// backend_s/external_callconv.rs
+///                     recorte externo: o primeiro parâmetro de um método de
 ///                     `impl` é receiver. Pergunta de IDENTIDADE de método,
 ///                     não de origem de default: não distingue default de
-///                     explícito e não nomeia trato. Fora do escopo de C5.
+///                     explícito e não nomeia trato. Fora do escopo de C5. A
+///                     #615 (unidade BS-1) moveu a extração inteira do
+///                     programa de convenção de chamada externa para o irmão;
+///                     a varredura é recursiva e continua alcançando o mesmo
+///                     código, só que sob o caminho novo.
 /// interpreter.rs      símbolos literais em teste de unidade
 /// ```
 ///
@@ -506,7 +511,7 @@ fn a_grafia_crua_do_prefixo_tem_donos_declarados() {
     assert_eq!(
         donos,
         vec![
-            "backend_s.rs".to_string(),
+            "backend_s/external_callconv.rs".to_string(),
             "interpreter.rs".to_string(),
             "method_identity.rs".to_string(),
             "native_symbol.rs".to_string(),

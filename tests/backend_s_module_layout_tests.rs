@@ -1,5 +1,5 @@
 //! Guardião estrutural da decomposição física do backend montável (#610,
-//! unidade BS-3; #612, unidade BS-2).
+//! unidade BS-3; #612, unidade BS-2; #615, unidade BS-1).
 //!
 //! A #601 mediu que `src/backend_s.rs` é lido por caminho fixo por vários
 //! oráculos e que a primeira unidade do arquivo paga a reescrita desses
@@ -26,6 +26,14 @@
 //! seja a que já era `pub` antes do move, e que o caminho público
 //! `pinker_v0::backend_s::render_program` continue existindo.
 //!
+//! A BS-1 acrescentou a terceira forma: o irmão que ela cria precisa devolver
+//! ao pai a função que ele chama nas duas entradas públicas do caminho
+//! montável, e essa é a primeira visibilidade restrita do módulo. Um `pub(`
+//! sem lista deixaria de ser corte físico e viraria promoção livre, então a
+//! lista autorizada abaixo passou a cobrir também a visibilidade restrita, item
+//! a item: `pub(crate)` continua proibido em qualquer irmão, e qualquer
+//! `pub(super)` além do declarado fica vermelho.
+//!
 //! Ele NÃO congela LOC, não congela a árvore como snapshot ornamental e não
 //! afirma nada sobre o conteúdo dos testes movidos.
 
@@ -43,7 +51,7 @@ use pinker_v0::intrinsics::registry::{self, RuntimeRouting};
 use rust_source::codigo_executavel;
 
 /// As regiões que a decomposição física já moveu, e o irmão onde passam a
-/// morar. Duas da BS-3 (#610), três da BS-2 (#612).
+/// morar. Duas da BS-3 (#610), três da BS-2 (#612), sete da BS-1 (#615).
 const REGIOES_MOVIDAS: &[(&str, &str)] = &[
     ("evidencia.backend-s.proveniencia-de-ponteiro", "tests.rs"),
     ("evidencia.backend-s.selecao-de-rota-nativa", "tests.rs"),
@@ -59,29 +67,47 @@ const REGIOES_MOVIDAS: &[(&str, &str)] = &[
         "backend-s.renderizacao.abi-textual-componentes",
         "render_abi.rs",
     ),
+    ("backend-s.lowering.globais-rodata", "external_callconv.rs"),
+    ("backend-s.lowering.funcoes-frames", "external_callconv.rs"),
+    (
+        "backend-s.lowering.blocos-terminadores",
+        "external_callconv.rs",
+    ),
+    (
+        "backend-s.lowering.operacoes-memoria",
+        "external_callconv.rs",
+    ),
+    ("backend-s.lowering.chamadas-sysv", "external_callconv.rs"),
+    (
+        "backend-s.lowering.objetos-trato-nativos",
+        "external_callconv.rs",
+    ),
+    ("backend-s.lowering.falar-runtime", "external_callconv.rs"),
 ];
 
-/// As treze funções que a BS-2 moveu inteiras. Uma definição, no irmão, e
+/// As funções que a decomposição moveu inteiras, e o irmão onde passam a
+/// morar. Treze da BS-2 (#612), uma da BS-1 (#615). Uma definição, no irmão, e
 /// nenhuma deixada para trás no pai.
-const FUNCOES_MOVIDAS: &[&str] = &[
-    "render_program",
-    "render_instruction",
-    "render_terminator",
-    "render_unary",
-    "render_binop",
-    "render_operand",
-    "render_temp",
-    "render_slot",
-    "join_or_empty",
-    "render_abi_params",
-    "render_abi_return",
-    "render_call_site",
-    "render_abi_call_args",
+const FUNCOES_MOVIDAS: &[(&str, &str)] = &[
+    ("render_program", "render_abi.rs"),
+    ("render_instruction", "render_abi.rs"),
+    ("render_terminator", "render_abi.rs"),
+    ("render_unary", "render_abi.rs"),
+    ("render_binop", "render_abi.rs"),
+    ("render_operand", "render_abi.rs"),
+    ("render_temp", "render_abi.rs"),
+    ("render_slot", "render_abi.rs"),
+    ("join_or_empty", "render_abi.rs"),
+    ("render_abi_params", "render_abi.rs"),
+    ("render_abi_return", "render_abi.rs"),
+    ("render_call_site", "render_abi.rs"),
+    ("render_abi_call_args", "render_abi.rs"),
+    ("extract_external_callconv_program", "external_callconv.rs"),
 ];
 
 /// Irmãos que carregam produção, não teste. São eles que os censos de
 /// autoridade precisam continuar observando depois da BS-2.
-const IRMAOS_DE_PRODUCAO: &[&str] = &["render_abi.rs"];
+const IRMAOS_DE_PRODUCAO: &[&str] = &["external_callconv.rs", "render_abi.rs"];
 
 /// Os itens `pub` que cada irmão pode ter, e por quê. A lista é exaustiva: o
 /// corte físico não promove nada.
@@ -92,6 +118,28 @@ const PUB_AUTORIZADO: &[(&str, &[&str])] = &[
     // BS-2: `render_program` já era `pub` em `src/backend_s.rs` antes do move,
     // e o pai a reexporta para preservar o caminho público.
     ("render_abi.rs", &["pub fn render_program"]),
+    // BS-1: nada público desceu; a função movida era privada ao módulo e
+    // continua sendo, com visibilidade restrita listada logo abaixo.
+    ("external_callconv.rs", &[]),
+];
+
+/// A visibilidade restrita que cada irmão pode ter, e por quê. Também
+/// exaustiva, e por isso separada de [`PUB_AUTORIZADO`]: `pub(super)` não é
+/// superfície pública, mas também não é o privado que o corte tinha antes.
+///
+/// `pub(crate)` não aparece aqui e não pode aparecer: promover um item para o
+/// crate inteiro é mudança de autoridade, não decomposição física.
+const PUB_RESTRITO_AUTORIZADO: &[(&str, &[&str])] = &[
+    ("tests.rs", &[]),
+    ("render_abi.rs", &[]),
+    // BS-1: `extract_external_callconv_program` era privada ao módulo
+    // `backend_s` e é chamada pelas duas entradas públicas que ficaram no pai
+    // (`emit_external_toolchain_subset` e `..._nativo`). `pub(super)` é o
+    // mínimo que devolve ao pai a função que ele já chamava.
+    (
+        "external_callconv.rs",
+        &["pub(super) fn extract_external_callconv_program"],
+    ),
 ];
 
 /// Os dois módulos de teste que viajaram inteiros, sem renomeação.
@@ -100,13 +148,17 @@ const MODULOS_MOVIDOS: &[&str] = &[
     "tests_selecao_de_rota_nativa",
 ];
 
-/// Amostra de regiões que a BS-3 deixou onde estavam. Não é a lista completa
-/// do arquivo: é o controle de que o corte não arrastou vizinhança.
+/// Amostra de regiões que os cortes deixaram onde estavam. Não é a lista
+/// completa do arquivo: é o controle de que o corte não arrastou vizinhança.
+/// As duas primeiras são exatamente as vizinhas imediatas do span da BS-1 —
+/// a que vem antes e a que vem depois —, e são elas que ficariam vermelhas se
+/// o corte tivesse escorregado uma região para qualquer lado.
 const REGIOES_RETIDAS: &[&str] = &[
+    "backend-s.abi.registradores-argumentos",
+    "backend-s.renderizacao.callconv-programa",
     "backend-s.dados.strings-rodata",
     "backend-s.runtime.intrinsecas-por-aridade",
     "backend-s.runtime.simbolos-intrinsecas",
-    "backend-s.lowering.chamadas-sysv",
 ];
 
 fn diretorio_dos_irmaos() -> PathBuf {
@@ -226,7 +278,7 @@ fn cada_regiao_e_cada_modulo_movido_aparece_uma_vez_no_arquivo_certo() {
 
     let codigo = codigo_executavel(&modulo);
     let pai = codigo_executavel(fonte("backend_s.rs"));
-    for nome in FUNCOES_MOVIDAS {
+    for (nome, arquivo) in FUNCOES_MOVIDAS {
         let definicao = format!("fn {nome}(");
         assert_eq!(
             codigo.matches(&definicao).count(),
@@ -239,11 +291,11 @@ fn cada_regiao_e_cada_modulo_movido_aparece_uma_vez_no_arquivo_certo() {
             "a implementação de `{nome}` ficou para trás em src/backend_s.rs"
         );
         assert!(
-            codigo_executavel(fonte("render_abi.rs"))
+            codigo_executavel(fonte(arquivo))
                 .matches(&definicao)
                 .count()
                 == 1,
-            "`{nome}` deveria morar em src/backend_s/render_abi.rs"
+            "`{nome}` deveria morar em src/backend_s/{arquivo}"
         );
     }
     for nome in MODULOS_MOVIDOS {
@@ -275,9 +327,10 @@ fn conferir_regiao_unica(modulo: &str, chave: &str) {
 }
 
 /// A decomposição é física: não promove nada para fora do backend. Cada irmão
-/// tem uma lista exaustiva do que pode ser `pub`, e nada mais — nem
-/// `pub(crate)`, nem `pub(super)`, nem uma segunda reexportação. É a
-/// sensitivity M4 da #610 e da #612.
+/// tem duas listas exaustivas — o que pode ser `pub` e o que pode ter
+/// visibilidade restrita —, e nada mais: nem `pub(crate)`, nem um `pub(super)`
+/// a mais, nem uma segunda reexportação. É a sensitivity M4 da #610, da #612 e
+/// da #615.
 #[test]
 fn a_decomposicao_nao_promoveu_visibilidade() {
     for (nome, fonte) in BACKEND_S_ARQUIVOS {
@@ -289,24 +342,19 @@ fn a_decomposicao_nao_promoveu_visibilidade() {
             !codigo.contains("pub(crate)"),
             "src/backend_s/{nome} promoveu visibilidade a pub(crate)"
         );
-        assert_eq!(
-            codigo.matches("pub(").count(),
-            0,
-            "src/backend_s/{nome} passou a usar visibilidade restrita, que o corte não previa"
-        );
-        let autorizados = PUB_AUTORIZADO
-            .iter()
-            .find(|(arquivo, _)| arquivo == nome)
-            .map(|(_, itens)| *itens)
-            .unwrap_or_else(|| {
-                panic!("src/backend_s/{nome} não declarou quais itens `pub` o corte previa")
-            });
+        let autorizados = itens_autorizados(PUB_AUTORIZADO, nome, "`pub`");
         assert_eq!(
             codigo.matches("pub ").count(),
             autorizados.len(),
             "src/backend_s/{nome} tem mais itens `pub` do que o corte previa"
         );
-        for item in autorizados {
+        let restritos = itens_autorizados(PUB_RESTRITO_AUTORIZADO, nome, "visibilidade restrita");
+        assert_eq!(
+            codigo.matches("pub(").count(),
+            restritos.len(),
+            "src/backend_s/{nome} tem mais visibilidade restrita do que o corte previa"
+        );
+        for item in autorizados.iter().chain(restritos.iter()) {
             assert_eq!(
                 codigo.matches(item).count(),
                 1,
@@ -314,6 +362,22 @@ fn a_decomposicao_nao_promoveu_visibilidade() {
             );
         }
     }
+}
+
+/// A lista exaustiva de um irmão, ou o panic que recusa um irmão não
+/// declarado: um arquivo novo não entra no módulo sem dizer o que expõe.
+fn itens_autorizados(
+    lista: &'static [(&'static str, &'static [&'static str])],
+    nome: &str,
+    classe: &str,
+) -> &'static [&'static str] {
+    lista
+        .iter()
+        .find(|(arquivo, _)| *arquivo == nome)
+        .map(|(_, itens)| *itens)
+        .unwrap_or_else(|| {
+            panic!("src/backend_s/{nome} não declarou que itens de {classe} o corte previa")
+        })
 }
 
 /// `render_program` já era `pub` antes da BS-2, e `pinker_v0::backend_s::
