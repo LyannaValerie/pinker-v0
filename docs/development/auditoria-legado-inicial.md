@@ -477,7 +477,6 @@ seguintes ficam registrados aqui, sem reescrever a análise original.
 
 Documentos da série:
 
-| Janela | Documento |
-|---|---|
-| PRs #1–50 | este |
-| PRs #51–100 | `auditoria-legado-pr51-100.md` |
+A série cobre os PRs #1 a #611 em treze janelas, mais a síntese. O índice
+completo e o veredito consolidado estão em
+`docs/development/auditoria-legado-sintese.md`.
