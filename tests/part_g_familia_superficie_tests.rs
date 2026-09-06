@@ -596,13 +596,16 @@ fn nenhuma_camada_a_jusante_decide_pela_grafia_de_membro() {
         "src/instr_select_validate.rs",
         "src/abstract_machine.rs",
         "src/abstract_machine_validate.rs",
-        "src/backend_s.rs",
         "src/backend_text.rs",
         "runtime/pinker_rt/src/lib.rs",
     ]
     .iter()
     .map(|relativo| (*relativo).to_string())
     .chain(common::fonte_de_modulo::interpreter_caminhos())
+    // A #612 (unidade BS-2) tirou produção de `src/backend_s.rs` para
+    // `src/backend_s/render_abi.rs`. O censo desce no módulo inteiro pelo
+    // mesmo motivo pelo qual já descia no interpretador.
+    .chain(common::fonte_de_modulo::backend_s_caminhos())
     .collect();
     let proprias: Vec<&str> = EXPORTACOES
         .iter()

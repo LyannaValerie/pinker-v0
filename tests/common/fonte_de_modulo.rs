@@ -114,13 +114,19 @@ pub fn interpreter_caminhos() -> Vec<String> {
 /// Arquivos que compõem o módulo `backend_s`, na ordem declarada no pai.
 ///
 /// A decomposição física da #610 (unidade BS-3) tirou de `src/backend_s.rs` os
-/// dois módulos de teste do caminho montável. O pai continua sendo um arquivo —
-/// ele não virou `mod.rs` —, e o irmão mora em `src/backend_s/`, declarado pelo
-/// `mod` do próprio pai. Os oráculos que censuram o arquivo inteiro leem por
-/// aqui; os que cortam no primeiro `#[cfg(test)]` continuam lendo só o pai,
-/// porque é exatamente a produção que eles querem observar.
+/// dois módulos de teste do caminho montável, e a da #612 (unidade BS-2) tirou
+/// a renderização ABI textual. O pai continua sendo um arquivo — ele não virou
+/// `mod.rs` —, e os irmãos moram em `src/backend_s/`, declarados pelos `mod` do
+/// próprio pai. Os oráculos que censuram o arquivo inteiro leem por aqui; os
+/// que querem só a produção leem [`backend_s_producao`], que desce nos irmãos
+/// pelo mesmo caminho — ler só o pai deixou de ser ler a produção quando a
+/// BS-2 mudou produção de arquivo.
 pub const BACKEND_S_ARQUIVOS: &[(&str, &str)] = &[
     ("backend_s.rs", include_str!("../../src/backend_s.rs")),
+    (
+        "render_abi.rs",
+        include_str!("../../src/backend_s/render_abi.rs"),
+    ),
     ("tests.rs", include_str!("../../src/backend_s/tests.rs")),
 ];
 
@@ -131,4 +137,44 @@ pub fn backend_s() -> String {
         .map(|(_, fonte)| *fonte)
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+/// Só a produção do módulo `backend_s`: cada arquivo cortado no primeiro
+/// `#[cfg(test)]`, como os censos de autoridade sempre cortaram, e depois
+/// concatenados.
+///
+/// Antes da BS-2 cortar o pai era cortar o módulo, porque toda a produção
+/// morava nele. Deixou de ser: um censo que continuasse lendo só
+/// `src/backend_s.rs` seguiria verde e pararia de observar `render_abi.rs` —
+/// a falha silenciosa OG-1 do inventário da #601.
+pub fn backend_s_producao() -> String {
+    BACKEND_S_ARQUIVOS
+        .iter()
+        .map(|(_, fonte)| producao(fonte))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// Os mesmos arquivos como caminhos relativos à raiz, para censos que leem do
+/// disco em vez de `include_str!`. Fonte única com [`BACKEND_S_ARQUIVOS`]:
+/// registrar um irmão novo lá já o coloca sob esses censos.
+pub fn backend_s_caminhos() -> Vec<String> {
+    BACKEND_S_ARQUIVOS
+        .iter()
+        .map(|(nome, _)| {
+            if *nome == "backend_s.rs" {
+                "src/backend_s.rs".to_string()
+            } else {
+                format!("src/backend_s/{nome}")
+            }
+        })
+        .collect()
+}
+
+/// A parte produtiva de um arquivo: tudo antes do primeiro `#[cfg(test)]`.
+fn producao(fonte: &str) -> &str {
+    match fonte.find("\n#[cfg(test)]") {
+        Some(corte) => &fonte[..corte],
+        None => fonte,
+    }
 }

@@ -2,7 +2,7 @@ schema = 3
 id = "normalizacao-corrente-para-historico"
 
 [reconstruction]
-expected_overrides = 187
+expected_overrides = 188
 expected_exclusions = 127
 
 [[rules]]
@@ -920,10 +920,17 @@ expect_layer = "backend-s"
 
 [[rules]]
 op = "override-region"
+key = "backend-s.renderizacao.abi-textual-componentes"
+expect_file = "src/backend_s/render_abi.rs"
+to_file = "src/backend_s.rs"
+
+[[rules]]
+op = "override-region"
 key = "backend-s.renderizacao.abi-textual-instrucoes"
 from_hash = "fnv1a64:c921dfcc68e8dd38"
 to_hash = "fnv1a64:36f812f92d5cc74c"
-expect_file = "src/backend_s.rs"
+expect_file = "src/backend_s/render_abi.rs"
+to_file = "src/backend_s.rs"
 expect_domain = "renderizacao"
 expect_layer = "backend-s"
 
@@ -932,7 +939,8 @@ op = "override-region"
 key = "backend-s.renderizacao.abi-textual-programa"
 from_hash = "fnv1a64:e7a6aa7b7cdd1011"
 to_hash = "fnv1a64:12c03f5d9127cecb"
-expect_file = "src/backend_s.rs"
+expect_file = "src/backend_s/render_abi.rs"
+to_file = "src/backend_s.rs"
 expect_domain = "renderizacao"
 expect_layer = "backend-s"
 

@@ -383,7 +383,14 @@ fn sensitivity_recusa_helper_ou_dispatch_novo_por_aridade() {
         "novo helper numérico detectado: {wrappers:?}"
     );
 
-    let combined_sources = format!("{backend}\n{runtime}");
+    // Censo global de sufixos: precisa do módulo `backend_s` inteiro, não só do
+    // pai. A #612 (unidade BS-2) tirou produção de `src/backend_s.rs` para
+    // `src/backend_s/render_abi.rs`, e `render_call_site` — onde um
+    // `pinker_formatar_verso_9` caberia — foi junto. As duas extrações
+    // ancoradas acima continuam lendo o pai porque os blocos que elas recortam
+    // não saíram dele, e a âncora falha ALTO se algum dia saírem.
+    let modulo = common::fonte_de_modulo::backend_s();
+    let combined_sources = format!("{modulo}\n{runtime}");
     let suffixes = formatar_symbol_suffixes(&combined_sources);
     assert!(suffixes.iter().all(|suffix| {
         *suffix == "pack" || suffix.parse::<u32>().is_ok_and(|arity| arity <= 8)

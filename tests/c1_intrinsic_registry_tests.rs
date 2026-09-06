@@ -7,6 +7,7 @@
 
 mod common;
 
+use common::fonte_de_modulo;
 use common::rust_source::codigo_executavel;
 use pinker_v0::intrinsics::identity::{
     intrinsic_from_public_spelling, CalleeIdentity, IntrinsicIdentity, HISTORICAL_CANONICAL_ALIASES,
@@ -37,6 +38,10 @@ const CITACOES_AUTORIZADAS: &[(&str, &str, &[&str])] = &[
         "efeito de pilha das duas operações de aridade não fixa",
         &["afirmar", "formatar_verso"],
     ),
+    // A decomposição física da #612 (unidade BS-2) tirou produção do arquivo
+    // para `src/backend_s/render_abi.rs`. O censo desta linha passou a ser
+    // feito sobre o módulo inteiro — ver `fonte_da_fase` —, porque continuar
+    // lendo só o pai deixaria o irmão fora da autoridade sem ficar vermelho.
     (
         "src/backend_s.rs",
         "empacotamento próprio de `formatar_verso` e a forma de ponteiro de `alocar`",
@@ -53,6 +58,19 @@ fn fonte_sem_testes(caminho: &str) -> String {
     }
 }
 
+/// A fonte que o censo observa para cada fase.
+///
+/// `src/backend_s.rs` é o pai de um módulo decomposto fisicamente: a produção
+/// mora nele e nos irmãos de `src/backend_s/`. As demais fases ainda são um
+/// arquivo só.
+fn fonte_da_fase(caminho: &str) -> String {
+    if caminho == "src/backend_s.rs" {
+        fonte_de_modulo::backend_s_producao()
+    } else {
+        fonte_sem_testes(caminho)
+    }
+}
+
 fn grafias_citadas(fonte: &str) -> BTreeSet<&'static str> {
     registry::grafias()
         .filter(|grafia| fonte.contains(&format!("\"{grafia}\"")))
@@ -62,7 +80,7 @@ fn grafias_citadas(fonte: &str) -> BTreeSet<&'static str> {
 #[test]
 fn nenhuma_fase_de_validacao_reintroduz_enumeracao_historica() {
     for (caminho, motivo, autorizadas) in CITACOES_AUTORIZADAS {
-        let citadas = grafias_citadas(&fonte_sem_testes(caminho));
+        let citadas = grafias_citadas(&fonte_da_fase(caminho));
         let esperadas: BTreeSet<&str> = autorizadas.iter().copied().collect();
         assert_eq!(
             citadas, esperadas,
@@ -73,7 +91,7 @@ fn nenhuma_fase_de_validacao_reintroduz_enumeracao_historica() {
 
 #[test]
 fn nenhuma_fase_reconstroi_a_tabela_de_simbolos_de_runtime() {
-    let backend = fonte_sem_testes("src/backend_s.rs");
+    let backend = fonte_da_fase("src/backend_s.rs");
     for entrada in registry::HISTORICAL {
         if let RuntimeRouting::Symbol(simbolo) = entrada.runtime {
             assert!(
