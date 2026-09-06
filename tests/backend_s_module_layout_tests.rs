@@ -1,5 +1,5 @@
 //! Guardião estrutural da decomposição física do backend montável (#610,
-//! unidade BS-3).
+//! unidade BS-3; #612, unidade BS-2).
 //!
 //! A #601 mediu que `src/backend_s.rs` é lido por caminho fixo por vários
 //! oráculos e que a primeira unidade do arquivo paga a reescrita desses
@@ -14,6 +14,17 @@
 //! três primeiros: se a declaração `mod tests;` subir para o topo do pai, eles
 //! passam a cortar o arquivo inteiro, continuam verdes e param de observar a
 //! produção. Este arquivo fecha esse buraco e nada mais.
+//!
+//! A BS-2 acrescentou a forma seguinte da mesma cegueira, e ela é maior:
+//! `render_abi.rs` é produção, não teste. Ler só o pai deixou de ser ler a
+//! produção, então os três censos passaram a ler
+//! `fonte_de_modulo::backend_s_producao()` — o módulo inteiro, cada arquivo
+//! cortado no seu próprio primeiro `#[cfg(test)]`. O que este guardião
+//! acrescenta é o que aquele repoint não alcança sozinho: que nenhum irmão de
+//! produção esconda produção atrás de um `#[cfg(test)]`, que as funções
+//! movidas existam uma vez só e no arquivo certo, que a única `pub` do irmão
+//! seja a que já era `pub` antes do move, e que o caminho público
+//! `pinker_v0::backend_s::render_program` continue existindo.
 //!
 //! Ele NÃO congela LOC, não congela a árvore como snapshot ornamental e não
 //! afirma nada sobre o conteúdo dos testes movidos.
@@ -31,10 +42,56 @@ use fonte_de_modulo::{backend_s, BACKEND_S_ARQUIVOS};
 use pinker_v0::intrinsics::registry::{self, RuntimeRouting};
 use rust_source::codigo_executavel;
 
-/// As duas regiões que a BS-3 moveu, e o irmão onde passam a morar.
+/// As regiões que a decomposição física já moveu, e o irmão onde passam a
+/// morar. Duas da BS-3 (#610), três da BS-2 (#612).
 const REGIOES_MOVIDAS: &[(&str, &str)] = &[
     ("evidencia.backend-s.proveniencia-de-ponteiro", "tests.rs"),
     ("evidencia.backend-s.selecao-de-rota-nativa", "tests.rs"),
+    (
+        "backend-s.renderizacao.abi-textual-programa",
+        "render_abi.rs",
+    ),
+    (
+        "backend-s.renderizacao.abi-textual-instrucoes",
+        "render_abi.rs",
+    ),
+    (
+        "backend-s.renderizacao.abi-textual-componentes",
+        "render_abi.rs",
+    ),
+];
+
+/// As treze funções que a BS-2 moveu inteiras. Uma definição, no irmão, e
+/// nenhuma deixada para trás no pai.
+const FUNCOES_MOVIDAS: &[&str] = &[
+    "render_program",
+    "render_instruction",
+    "render_terminator",
+    "render_unary",
+    "render_binop",
+    "render_operand",
+    "render_temp",
+    "render_slot",
+    "join_or_empty",
+    "render_abi_params",
+    "render_abi_return",
+    "render_call_site",
+    "render_abi_call_args",
+];
+
+/// Irmãos que carregam produção, não teste. São eles que os censos de
+/// autoridade precisam continuar observando depois da BS-2.
+const IRMAOS_DE_PRODUCAO: &[&str] = &["render_abi.rs"];
+
+/// Os itens `pub` que cada irmão pode ter, e por quê. A lista é exaustiva: o
+/// corte físico não promove nada.
+const PUB_AUTORIZADO: &[(&str, &[&str])] = &[
+    // BS-3: ponte que devolve o pai aos módulos movidos, dentro de um
+    // `mod tests` privado e `#[cfg(test)]`.
+    ("tests.rs", &["pub use super::*;"]),
+    // BS-2: `render_program` já era `pub` em `src/backend_s.rs` antes do move,
+    // e o pai a reexporta para preservar o caminho público.
+    ("render_abi.rs", &["pub fn render_program"]),
 ];
 
 /// Os dois módulos de teste que viajaram inteiros, sem renomeação.
@@ -46,7 +103,7 @@ const MODULOS_MOVIDOS: &[&str] = &[
 /// Amostra de regiões que a BS-3 deixou onde estavam. Não é a lista completa
 /// do arquivo: é o controle de que o corte não arrastou vizinhança.
 const REGIOES_RETIDAS: &[&str] = &[
-    "backend-s.renderizacao.abi-textual-componentes",
+    "backend-s.dados.strings-rodata",
     "backend-s.runtime.intrinsecas-por-aridade",
     "backend-s.runtime.simbolos-intrinsecas",
     "backend-s.lowering.chamadas-sysv",
@@ -120,11 +177,12 @@ fn o_pai_inclui_o_irmao() {
 /// O oráculo desta unidade.
 ///
 /// `tests/c1_intrinsic_registry_tests.rs`, `tests/part_g_familia_superficie_
-/// tests.rs` e `tests/issue497_abi_symbol_isolation_tests.rs` leem
-/// `src/backend_s.rs` cortando no primeiro `#[cfg(test)]`. Antes da BS-3 o
-/// corte caía no fim do arquivo e eles viam a produção inteira. Só continua
-/// assim enquanto a declaração do irmão for a última coisa do pai: subi-la
-/// para o topo deixaria os três verdes e cegos.
+/// tests.rs` e `tests/issue497_abi_symbol_isolation_tests.rs` cortam cada
+/// arquivo do módulo no seu primeiro `#[cfg(test)]`. No pai o corte só cai no
+/// fim do arquivo enquanto a declaração `mod tests;` for a última coisa dele:
+/// subi-la para o topo deixaria os três verdes e cegos para toda a produção
+/// que ficou no pai. A declaração `mod render_abi;` é produção e vive acima do
+/// corte, junto do resto.
 #[test]
 fn o_corte_dos_oraculos_no_primeiro_cfg_test_ainda_ve_a_producao_inteira() {
     let pai = fonte("backend_s.rs");
@@ -168,6 +226,26 @@ fn cada_regiao_e_cada_modulo_movido_aparece_uma_vez_no_arquivo_certo() {
 
     let codigo = codigo_executavel(&modulo);
     let pai = codigo_executavel(fonte("backend_s.rs"));
+    for nome in FUNCOES_MOVIDAS {
+        let definicao = format!("fn {nome}(");
+        assert_eq!(
+            codigo.matches(&definicao).count(),
+            1,
+            "`{definicao}` deveria ter exatamente uma definição no módulo backend_s"
+        );
+        assert_eq!(
+            pai.matches(&definicao).count(),
+            0,
+            "a implementação de `{nome}` ficou para trás em src/backend_s.rs"
+        );
+        assert!(
+            codigo_executavel(fonte("render_abi.rs"))
+                .matches(&definicao)
+                .count()
+                == 1,
+            "`{nome}` deveria morar em src/backend_s/render_abi.rs"
+        );
+    }
     for nome in MODULOS_MOVIDOS {
         let declaracao = format!("mod {nome} {{");
         assert_eq!(
@@ -196,11 +274,10 @@ fn conferir_regiao_unica(modulo: &str, chave: &str) {
     }
 }
 
-/// A decomposição é física: não promove nada para fora do backend. A única
-/// reexportação do irmão é a ponte que devolve o pai aos módulos movidos, que
-/// continuam escritos com `use super::*`; ela vive dentro de um `mod tests`
-/// privado e `#[cfg(test)]`, e por isso não é superfície de crate nenhuma.
-/// É a sensitivity M4 da #610.
+/// A decomposição é física: não promove nada para fora do backend. Cada irmão
+/// tem uma lista exaustiva do que pode ser `pub`, e nada mais — nem
+/// `pub(crate)`, nem `pub(super)`, nem uma segunda reexportação. É a
+/// sensitivity M4 da #610 e da #612.
 #[test]
 fn a_decomposicao_nao_promoveu_visibilidade() {
     for (nome, fonte) in BACKEND_S_ARQUIVOS {
@@ -217,15 +294,82 @@ fn a_decomposicao_nao_promoveu_visibilidade() {
             0,
             "src/backend_s/{nome} passou a usar visibilidade restrita, que o corte não previa"
         );
+        let autorizados = PUB_AUTORIZADO
+            .iter()
+            .find(|(arquivo, _)| arquivo == nome)
+            .map(|(_, itens)| *itens)
+            .unwrap_or_else(|| {
+                panic!("src/backend_s/{nome} não declarou quais itens `pub` o corte previa")
+            });
         assert_eq!(
             codigo.matches("pub ").count(),
-            1,
-            "src/backend_s/{nome} deveria ter exatamente a ponte `pub use super::*;`"
+            autorizados.len(),
+            "src/backend_s/{nome} tem mais itens `pub` do que o corte previa"
         );
+        for item in autorizados {
+            assert_eq!(
+                codigo.matches(item).count(),
+                1,
+                "src/backend_s/{nome} deveria conter `{item}` exatamente uma vez"
+            );
+        }
+    }
+}
+
+/// `render_program` já era `pub` antes da BS-2, e `pinker_v0::backend_s::
+/// render_program` é caminho público da lib. O move desce a definição um nível;
+/// sem a reexportação do pai o caminho sumiria — remoção de API pública
+/// disfarçada de decomposição física. A coerção abaixo é estática: se a
+/// reexportação ou a assinatura mudarem, isto não compila.
+const _CAMINHO_PUBLICO_PRESERVADO: fn(&pinker_v0::backend_text::BackendTextProgram) -> String =
+    pinker_v0::backend_s::render_program;
+
+#[test]
+fn o_pai_reexporta_a_unica_funcao_publica_que_desceu() {
+    let pai = codigo_executavel(fonte("backend_s.rs"));
+    assert_eq!(
+        pai.matches("pub use render_abi::render_program;").count(),
+        1,
+        "src/backend_s.rs deveria reexportar `render_abi::render_program` exatamente uma vez"
+    );
+    assert_eq!(
+        pai.matches("pub fn ").count(),
+        3,
+        "as três entradas públicas que ficaram no pai são `emit_from_selected`, \
+         `emit_external_toolchain_subset` e `emit_external_toolchain_subset_nativo`"
+    );
+}
+
+/// Um irmão de produção que ganhasse um `#[cfg(test)]` esconderia tudo o que
+/// viesse depois dos três censos que cortam ali — a mesma cegueira de subir
+/// `mod tests;` no pai, um arquivo adiante.
+#[test]
+fn irmao_de_producao_nao_esconde_producao_atras_de_cfg_test() {
+    for nome in IRMAOS_DE_PRODUCAO {
         assert_eq!(
-            codigo.matches("pub use super::*;").count(),
-            1,
-            "a única reexportação do irmão deveria ser a ponte para o pai"
+            codigo_executavel(fonte(nome))
+                .matches("#[cfg(test)]")
+                .count(),
+            0,
+            "src/backend_s/{nome} é produção e não pode cortar o censo com um `#[cfg(test)]`"
+        );
+    }
+}
+
+/// O censo de produção do módulo tem que conter a produção de todo arquivo do
+/// módulo. É o que faz um irmão novo entrar automaticamente em C1, na
+/// superfície de família e no isolamento de símbolo de ABI, em vez de nascer
+/// invisível.
+#[test]
+fn o_censo_de_producao_cobre_todo_arquivo_do_modulo() {
+    let producao = fonte_de_modulo::backend_s_producao();
+    for (nome, fonte) in BACKEND_S_ARQUIVOS {
+        let esperada = fonte
+            .split_once("\n#[cfg(test)]")
+            .map_or(*fonte, |(antes, _)| antes);
+        assert!(
+            producao.contains(esperada),
+            "a produção de {nome} ficou fora do censo de produção do módulo"
         );
     }
 }
@@ -241,15 +385,19 @@ fn a_decomposicao_nao_promoveu_visibilidade() {
 /// A fonte é lida crua, como C1 a lê: o braço procurado É um literal de texto,
 /// e `codigo_executavel` apagaria justamente a grafia que decide.
 #[test]
-fn o_irmao_nao_reconstroi_a_tabela_de_simbolos_de_runtime() {
-    let codigo = fonte("tests.rs");
-    for entrada in registry::HISTORICAL {
-        if let RuntimeRouting::Symbol(simbolo) = entrada.runtime {
-            assert!(
-                !codigo.contains(&format!("\"{}\" => Some(\"{simbolo}\")", entrada.spelling)),
-                "{}: símbolo de runtime passou a ser decidido em src/backend_s/tests.rs",
-                entrada.spelling
-            );
+fn nenhum_irmao_reconstroi_a_tabela_de_simbolos_de_runtime() {
+    for (nome, codigo) in BACKEND_S_ARQUIVOS {
+        if *nome == "backend_s.rs" {
+            continue;
+        }
+        for entrada in registry::HISTORICAL {
+            if let RuntimeRouting::Symbol(simbolo) = entrada.runtime {
+                assert!(
+                    !codigo.contains(&format!("\"{}\" => Some(\"{simbolo}\")", entrada.spelling)),
+                    "{}: símbolo de runtime passou a ser decidido em src/backend_s/{nome}",
+                    entrada.spelling
+                );
+            }
         }
     }
 }

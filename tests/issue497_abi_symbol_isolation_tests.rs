@@ -493,7 +493,15 @@ fn pacote_main_continua_legal() {
 #[test]
 fn entrypoint_tem_uma_autoridade_so_no_backend() {
     // Mata a mutação "o mapeamento voltou a ser literal espalhado".
-    for arquivo in ["src/backend_s.rs", "src/backend_text.rs", "src/boot.rs"] {
+    // A #612 (unidade BS-2) tirou produção de `src/backend_s.rs` para
+    // `src/backend_s/render_abi.rs`; o censo desce no módulo inteiro para não
+    // parar de observar o que mudou de arquivo.
+    let arquivos: Vec<String> = ["src/backend_text.rs", "src/boot.rs"]
+        .iter()
+        .map(|relativo| (*relativo).to_string())
+        .chain(common::fonte_de_modulo::backend_s_caminhos())
+        .collect();
+    for arquivo in &arquivos {
         let fonte = fs::read_to_string(arquivo).expect("fonte do backend legível");
         // Só o código produtivo: comentários e módulos de teste não decidem
         // identidade de símbolo.
