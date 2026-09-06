@@ -81,9 +81,14 @@ Arquivos com maior densidade de linhas da era inicial (≥100 linhas antigas):
 | 6,6% | 378 / 5690 | `src/interpreter.rs` |
 
 O padrão é nítido: **o legado não está nas pontas, está no miolo.** O frontend
-(`parser/`) e o backend nativo (`backend_s.rs`, 4462 linhas, **zero** linhas da
-era inicial) são modernos. O que é antigo é a faixa entre eles — IR, CFG,
+(`parser/`) e o backend nativo (`backend_s.rs`, 4462 linhas, **zero** linhas
+desta era) são modernos. O que é antigo é a faixa entre eles — IR, CFG,
 seleção de instruções, máquina abstrata e seus validadores.
+
+> **Errata (ver §10).** "Zero linhas desta era" vale para a era #1–50 e não
+> autoriza a conclusão de que `backend_s.rs` é integralmente moderno:
+> ele tem 490 linhas da era #51–100, e a entrada `--asm-s` delega o lowering
+> a `backend_text`. Detalhe em `auditoria-legado-pr51-100.md`, §3.
 
 E essa faixa **está no caminho quente dos dois produtos**:
 
@@ -449,3 +454,30 @@ awk -v C=$CUT '{tot++; if($2<=C) old++} END{printf "%d/%d (%.2f%%)\n", old, tot,
 # manutenção sobre o caminho morto
 git log origin/main --format='%ad %h %s' --date=short -L 152,403:src/backend_text.rs
 ```
+
+
+---
+
+## 10. Errata e continuidade da série
+
+Este documento abriu uma série. Correções e refinamentos vindos das eras
+seguintes ficam registrados aqui, sem reescrever a análise original.
+
+- **Corte exato.** As contagens acima usam corte às 05:00 UTC de 18/03/2026. O
+  merge do PR #50 foi às 04:10:40 UTC. Com o corte exato, os números são
+  **15.862 linhas no repositório (7,84%)** e **9.484 em `src/` (10,40%)**, em vez
+  de 16.134 e 9.614. A classificação da §3 e o veredito da §6 não mudam.
+- **`backend_s.rs`.** Ver a errata na §2.1 e
+  `docs/development/auditoria-legado-pr51-100.md`, §3.
+- **Causa da explosão de `RuntimeValue` (§5.3).** O arquivo está certo; a
+  atribuição da causa à era #1–50 está incompleta. O formato replicado em três
+  enums de tipo nasce na era #51–100 — ver aquele documento, §6 (achado L-10).
+- **Numeração de achados.** A partir do segundo documento, a série mantém um
+  registro contínuo. Os achados deste documento são L-01 a L-05.
+
+Documentos da série:
+
+| Janela | Documento |
+|---|---|
+| PRs #1–50 | este |
+| PRs #51–100 | `auditoria-legado-pr51-100.md` |
