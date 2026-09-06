@@ -27,7 +27,7 @@
 //! semântica) e carga de união com ponteiro. Sem essas três, **nenhum ponteiro
 //! pode ser carregado de memória**, e a classe `Unclassified` tipada como
 //! ponteiro só existe como unidade — sua evidência está em
-//! `src/backend_s.rs`, módulo `tests_proveniencia_de_ponteiro`.
+//! `src/backend_s/tests.rs`, módulo `tests_proveniencia_de_ponteiro`.
 
 mod common;
 
