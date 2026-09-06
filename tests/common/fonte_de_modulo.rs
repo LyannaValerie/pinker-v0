@@ -114,15 +114,20 @@ pub fn interpreter_caminhos() -> Vec<String> {
 /// Arquivos que compõem o módulo `backend_s`, na ordem declarada no pai.
 ///
 /// A decomposição física da #610 (unidade BS-3) tirou de `src/backend_s.rs` os
-/// dois módulos de teste do caminho montável, e a da #612 (unidade BS-2) tirou
-/// a renderização ABI textual. O pai continua sendo um arquivo — ele não virou
-/// `mod.rs` —, e os irmãos moram em `src/backend_s/`, declarados pelos `mod` do
-/// próprio pai. Os oráculos que censuram o arquivo inteiro leem por aqui; os
-/// que querem só a produção leem [`backend_s_producao`], que desce nos irmãos
-/// pelo mesmo caminho — ler só o pai deixou de ser ler a produção quando a
-/// BS-2 mudou produção de arquivo.
+/// dois módulos de teste do caminho montável, a da #612 (unidade BS-2) tirou a
+/// renderização ABI textual e a da #615 (unidade BS-1) tirou a extração do
+/// programa de convenção de chamada externa. O pai continua sendo um arquivo —
+/// ele não virou `mod.rs` —, e os irmãos moram em `src/backend_s/`, declarados
+/// pelos `mod` do próprio pai. Os oráculos que censuram o arquivo inteiro leem
+/// por aqui; os que querem só a produção leem [`backend_s_producao`], que desce
+/// nos irmãos pelo mesmo caminho — ler só o pai deixou de ser ler a produção
+/// quando a BS-2 mudou produção de arquivo.
 pub const BACKEND_S_ARQUIVOS: &[(&str, &str)] = &[
     ("backend_s.rs", include_str!("../../src/backend_s.rs")),
+    (
+        "external_callconv.rs",
+        include_str!("../../src/backend_s/external_callconv.rs"),
+    ),
     (
         "render_abi.rs",
         include_str!("../../src/backend_s/render_abi.rs"),
@@ -145,8 +150,9 @@ pub fn backend_s() -> String {
 ///
 /// Antes da BS-2 cortar o pai era cortar o módulo, porque toda a produção
 /// morava nele. Deixou de ser: um censo que continuasse lendo só
-/// `src/backend_s.rs` seguiria verde e pararia de observar `render_abi.rs` —
-/// a falha silenciosa OG-1 do inventário da #601.
+/// `src/backend_s.rs` seguiria verde e pararia de observar `render_abi.rs` e,
+/// depois da BS-1, `external_callconv.rs` — a falha silenciosa OG-1 do
+/// inventário da #601.
 pub fn backend_s_producao() -> String {
     BACKEND_S_ARQUIVOS
         .iter()

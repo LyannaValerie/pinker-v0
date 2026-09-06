@@ -352,7 +352,15 @@ fn formatar_symbol_suffixes(source: &str) -> Vec<&str> {
 fn sensitivity_recusa_helper_ou_dispatch_novo_por_aridade() {
     let backend = include_str!("../src/backend_s.rs");
     let runtime = include_str!("../runtime/pinker_rt/src/lib.rs");
-    let lowering = formatar_lowering_block(backend);
+    // A #615 (unidade BS-1) tirou de `src/backend_s.rs` a extração inteira do
+    // programa de convenção de chamada externa, e a fronteira D7 — o desvio de
+    // `formatar_verso` para o pack — foi junto para
+    // `src/backend_s/external_callconv.rs`. A âncora falhou ALTO, como o
+    // comentário abaixo previa, e passou a recortar o módulo inteiro. A
+    // autoridade por aridade continua sendo recortada do pai porque não saiu
+    // dele, e a mesma âncora volta a falhar ALTO se algum dia sair.
+    let modulo = common::fonte_de_modulo::backend_s();
+    let lowering = formatar_lowering_block(&modulo);
     let pack = runtime_pack_block(runtime);
 
     assert_eq!(
@@ -386,10 +394,7 @@ fn sensitivity_recusa_helper_ou_dispatch_novo_por_aridade() {
     // Censo global de sufixos: precisa do módulo `backend_s` inteiro, não só do
     // pai. A #612 (unidade BS-2) tirou produção de `src/backend_s.rs` para
     // `src/backend_s/render_abi.rs`, e `render_call_site` — onde um
-    // `pinker_formatar_verso_9` caberia — foi junto. As duas extrações
-    // ancoradas acima continuam lendo o pai porque os blocos que elas recortam
-    // não saíram dele, e a âncora falha ALTO se algum dia saírem.
-    let modulo = common::fonte_de_modulo::backend_s();
+    // `pinker_formatar_verso_9` caberia — foi junto.
     let combined_sources = format!("{modulo}\n{runtime}");
     let suffixes = formatar_symbol_suffixes(&combined_sources);
     assert!(suffixes.iter().all(|suffix| {
