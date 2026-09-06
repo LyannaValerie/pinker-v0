@@ -168,6 +168,11 @@ fn retain_membership_base(catalog: &mut CodeCatalog) {
                 | "evidencia.leques.carga-lista-matriz-negativa"
                 | "evidencia.leques.carga-lista-matriz-positiva"
                 | "evidencia.semantica.objetos-trato-fase244"
+                // #608: as duas âncoras da decomposição física INT-1 são
+                // posteriores a todas as ondas históricas. `acaso` não entra
+                // aqui: a key é preservada, só seus marcadores mudam de lugar.
+                | "interpreter.intrinsecos.despacho-hospedado"
+                | "interpreter.memoria.estado-enderecavel"
                 | "leque.carga.classificacao"
                 | "project-state.coleta"
                 | "project-state.modelo"
@@ -560,12 +565,16 @@ fn catalogo_real_cartografa_o_guardiao_pinker_da_onda_9() {
     // evidência para o pack adulto de `formatar_verso`. A D8 acrescenta a
     // autoridade de inferência genérica local e sua região de evidência. A
     // #476 acrescenta a autoridade canônica de identidade genérica e sua
-    // região de evidência. Este é o único total vivo desta suíte;
+    // região de evidência. A #608 acrescenta as duas âncoras cartográficas da
+    // decomposição física INT-1 do interpretador
+    // (`interpreter.memoria.estado-enderecavel` e
+    // `interpreter.intrinsecos.despacho-hospedado`), 609 -> 611.
+    // Este é o único total vivo desta suíte;
     // todos os demais são reconstruções históricas e continuam com os literais
     // congelados, porque `project_pre_automation_core` e
     // `project_pre_projection_snapshot_contract` removem as regiões novas antes
     // de qualquer reconstrução.
-    assert_eq!(index.regions.len(), 609);
+    assert_eq!(index.regions.len(), 611);
 
     // Exatamente uma região Pinker, a do Guardião, com metadados congelados.
     let guardiao: Vec<_> = index

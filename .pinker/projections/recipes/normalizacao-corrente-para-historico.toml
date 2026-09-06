@@ -2,8 +2,8 @@ schema = 3
 id = "normalizacao-corrente-para-historico"
 
 [reconstruction]
-expected_overrides = 182
-expected_exclusions = 125
+expected_overrides = 187
+expected_exclusions = 127
 
 [[rules]]
 op = "exclude-key"
@@ -317,7 +317,17 @@ expected_matches = 1
 
 [[rules]]
 op = "exclude-key"
+key = "interpreter.intrinsecos.despacho-hospedado"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
 key = "interpreter.intrinsecos.falha-operacional"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "interpreter.memoria.estado-enderecavel"
 expected_matches = 1
 
 [[rules]]
@@ -1748,27 +1758,60 @@ expect_layer = "interpreter"
 [[rules]]
 op = "override-region"
 key = "interpreter.intrinsecos.acaso"
-from_hash = "fnv1a64:f0281065fd49c115"
+from_hash = "fnv1a64:2a7d6e2717c942bf"
 to_hash = "fnv1a64:7779afc64b4e07ce"
-expect_file = "src/interpreter.rs"
+expect_file = "src/interpreter/hosted_intrinsics.rs"
+to_file = "src/interpreter.rs"
 expect_domain = "intrinsecos"
 expect_layer = "interpreter"
+
+[[rules]]
+op = "override-region"
+key = "interpreter.intrinsecos.conversoes-numero-texto"
+expect_file = "src/interpreter/hosted_intrinsics.rs"
+to_file = "src/interpreter.rs"
 
 [[rules]]
 op = "override-region"
 key = "interpreter.intrinsecos.io-arquivo-texto"
 from_hash = "fnv1a64:f07b9feac0db78c0"
 to_hash = "fnv1a64:41b06b9dbe9462df"
-expect_file = "src/interpreter.rs"
+expect_file = "src/interpreter/hosted_intrinsics.rs"
+to_file = "src/interpreter.rs"
 expect_domain = "intrinsecos"
 expect_layer = "interpreter"
+
+[[rules]]
+op = "override-region"
+key = "interpreter.intrinsecos.leques"
+expect_file = "src/interpreter/hosted_intrinsics.rs"
+to_file = "src/interpreter.rs"
+
+[[rules]]
+op = "override-region"
+key = "interpreter.intrinsecos.listas"
+expect_file = "src/interpreter/hosted_intrinsics.rs"
+to_file = "src/interpreter.rs"
+
+[[rules]]
+op = "override-region"
+key = "interpreter.intrinsecos.mapas-tipados"
+expect_file = "src/interpreter/hosted_intrinsics.rs"
+to_file = "src/interpreter.rs"
+
+[[rules]]
+op = "override-region"
+key = "interpreter.intrinsecos.mapas-verso-bombom"
+expect_file = "src/interpreter/hosted_intrinsics.rs"
+to_file = "src/interpreter.rs"
 
 [[rules]]
 op = "override-region"
 key = "interpreter.intrinsecos.tempo-processos-ambiente"
 from_hash = "fnv1a64:f6c99876509e5fb8"
 to_hash = "fnv1a64:251af980a687effd"
-expect_file = "src/interpreter.rs"
+expect_file = "src/interpreter/hosted_intrinsics.rs"
+to_file = "src/interpreter.rs"
 expect_domain = "intrinsecos"
 expect_layer = "interpreter"
 

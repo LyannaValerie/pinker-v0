@@ -456,8 +456,7 @@ fn nome_publico_de_superficie_falivel_existe_so_na_autoridade() {
     );
 
     // O despacho hospedado precisa resolver pela autoridade, não por nome.
-    let interpretador =
-        fs::read_to_string(raiz.join("src/interpreter.rs")).expect("interpretador legível");
+    let interpretador = common::fonte_de_modulo::interpreter();
     assert!(
         interpretador.contains("falha_operacional::superficie"),
         "o interpretador deixou de resolver a superfície pela autoridade"
