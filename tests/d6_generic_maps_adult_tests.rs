@@ -400,13 +400,14 @@ fn lowering_de_duas_instanciacoes_compartilha_as_mesmas_operacoes() {
 fn sensibilidade_recusa_familias_manuais_para_as_novas_combinacoes() {
     let interpreter = common::fonte_de_modulo::interpreter();
     let parser = common::fonte_de_modulo::parser();
+    let backend_s = common::fonte_de_modulo::backend_s();
     let surfaces = [
         include_str!("../src/ast.rs"),
         parser.as_str(),
         include_str!("../src/semantic.rs"),
         include_str!("../src/ir.rs"),
         interpreter.as_str(),
-        include_str!("../src/backend_s.rs"),
+        backend_s.as_str(),
     ]
     .join("\n");
     for forbidden in [
@@ -443,7 +444,7 @@ fn sensibilidade_recusa_familias_manuais_para_as_novas_combinacoes() {
         ("semantic.rs", include_str!("../src/semantic.rs")),
         ("ir.rs", include_str!("../src/ir.rs")),
         ("interpreter.rs", interpreter.as_str()),
-        ("backend_s.rs", include_str!("../src/backend_s.rs")),
+        ("backend_s.rs", backend_s.as_str()),
     ] {
         for candidate in tuple_match_candidates(source) {
             assert!(

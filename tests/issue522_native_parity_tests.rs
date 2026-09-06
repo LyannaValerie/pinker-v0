@@ -515,7 +515,7 @@ fn autoridade_mapeia_cinco_gaps_e_preserva_as_tres_exclusoes() {
     // autoridade em vez do texto da fase que a consome.
     use pinker_v0::intrinsics::registry;
 
-    let backend = include_str!("../src/backend_s.rs");
+    let backend = common::fonte_de_modulo::backend_s();
     let runtime = include_str!("../runtime/pinker_rt/src/lib.rs");
 
     for (intrinseca, simbolo) in [

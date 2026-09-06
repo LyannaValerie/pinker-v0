@@ -110,3 +110,25 @@ pub fn interpreter_caminhos() -> Vec<String> {
         })
         .collect()
 }
+
+/// Arquivos que compõem o módulo `backend_s`, na ordem declarada no pai.
+///
+/// A decomposição física da #610 (unidade BS-3) tirou de `src/backend_s.rs` os
+/// dois módulos de teste do caminho montável. O pai continua sendo um arquivo —
+/// ele não virou `mod.rs` —, e o irmão mora em `src/backend_s/`, declarado pelo
+/// `mod` do próprio pai. Os oráculos que censuram o arquivo inteiro leem por
+/// aqui; os que cortam no primeiro `#[cfg(test)]` continuam lendo só o pai,
+/// porque é exatamente a produção que eles querem observar.
+pub const BACKEND_S_ARQUIVOS: &[(&str, &str)] = &[
+    ("backend_s.rs", include_str!("../../src/backend_s.rs")),
+    ("tests.rs", include_str!("../../src/backend_s/tests.rs")),
+];
+
+/// Concatena o módulo `backend_s` inteiro, o pai primeiro.
+pub fn backend_s() -> String {
+    BACKEND_S_ARQUIVOS
+        .iter()
+        .map(|(_, fonte)| *fonte)
+        .collect::<Vec<_>>()
+        .join("\n")
+}

@@ -669,15 +669,6 @@ expect_layer = "evidencia"
 
 [[rules]]
 op = "override-hash"
-key = "evidencia.backend-s.proveniencia-de-ponteiro"
-from = "fnv1a64:dc7919db362c15af"
-to = "fnv1a64:e4b41744153e5b66"
-expect_file = "src/backend_s.rs"
-expect_domain = "memoria"
-expect_layer = "evidencia"
-
-[[rules]]
-op = "override-hash"
 key = "evidencia.cfg.validacao-chamada-e-referencias"
 from = "fnv1a64:83ecb44295185986"
 to = "fnv1a64:ef18f6647be7575c"
@@ -1277,6 +1268,16 @@ from_hash = "fnv1a64:b35a144df96d8216"
 to_hash = "fnv1a64:a593d0af72297092"
 expect_file = "tests/interpreter_tests.rs"
 expect_domain = "backend-s"
+expect_layer = "evidencia"
+
+[[rules]]
+op = "override-region"
+key = "evidencia.backend-s.proveniencia-de-ponteiro"
+from_hash = "fnv1a64:dc7919db362c15af"
+to_hash = "fnv1a64:e4b41744153e5b66"
+expect_file = "src/backend_s/tests.rs"
+to_file = "src/backend_s.rs"
+expect_domain = "memoria"
 expect_layer = "evidencia"
 
 [[rules]]
