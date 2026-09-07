@@ -169,7 +169,9 @@ fn dois_explicitos_sao_conflito_em_ordem_canonica() {
 /// A decomposição física da #619 desceu `semantic.chamadas.despacho` — e com
 /// ela a única consulta da semântica a `select_impl_method` — para
 /// `src/semantic/calls.rs`; a da #621 desceu o `impl FunctionLowerer` inteiro —
-/// e com ele a única consulta do lowering — para `src/ir/lowering.rs`. Um censo
+/// e com ele a consulta a `select_impl_method` — para `src/ir/lowering.rs`; e a
+/// da #624 desceu a montagem do contexto — e com ela a consulta a
+/// `select_representative` — para `src/ir/context.rs`. Um censo
 /// que continuasse lendo só `src/semantic.rs` ou só `src/ir.rs` deixaria de
 /// observar exatamente o consumo de C2 que ele existe para vigiar: a falha
 /// silenciosa OG-1 do inventário da #601. Ler o módulo inteiro não afrouxa nada
@@ -240,13 +242,15 @@ fn ninguem_mais_consulta_a_autoridade_de_selecao() {
     assert_eq!(
         consultam,
         vec![
-            // A #621 desceu para o irmão a única consulta do lowering a
-            // `select_impl_method`; a camada continua sendo `ir`, o arquivo é
-            // que mudou. `ir.rs` continua na lista porque `select_representative`
-            // é código executável da região `ir.lowering.metodos-identidade`,
-            // que a IR-1 não move — não por citação em comentário, que
-            // `codigo_executavel` remove antes desta varredura.
-            "ir.rs".to_string(),
+            // A #621 desceu para `ir/lowering.rs` a consulta do lowering a
+            // `select_impl_method` e a #624 desceu para `ir/context.rs` a
+            // consulta a `select_representative`, que é código executável da
+            // região `ir.lowering.metodos-identidade`. A camada continua sendo
+            // `ir` e as duas consultas continuam sendo uma cada; só o arquivo
+            // mudou, e `ir.rs` saiu da lista porque não sobrou nenhuma consulta
+            // nele — nem por citação em comentário, que `codigo_executavel`
+            // remove antes desta varredura.
+            "ir/context.rs".to_string(),
             "ir/lowering.rs".to_string(),
             "method_dispatch.rs".to_string(),
             // A #619 desceu a única consulta da semântica para o irmão; a

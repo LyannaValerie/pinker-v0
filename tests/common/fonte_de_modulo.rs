@@ -217,14 +217,20 @@ pub fn nav_projection_snapshot() -> String {
 /// A decomposição física da #621 (unidade IR-1 do inventário da #601) tirou de
 /// `src/ir.rs` o `impl FunctionLowerer` inteiro — as cinco regiões de lowering
 /// de funções, comandos, expressões, bindings e constantes, incluindo o único
-/// ponto em que o lowering consulta a autoridade de seleção de método
-/// `method_dispatch` (C2, #590/#591). O pai continua sendo um arquivo — ele não
-/// virou `mod.rs` —, e o irmão mora em `src/ir/`, declarado pelo `mod` do
+/// ponto em que o lowering consulta `select_impl_method`. A da #624 (unidade
+/// IR-2) tirou a montagem do contexto e a orquestração do programa — as cinco
+/// regiões `programa-orquestracao`, `contexto-declaracoes`,
+/// `assinaturas-intrinsecos`, `metodos-identidade` e `identidade-resolvida` —,
+/// e com elas desceram a outra consulta a `method_dispatch`
+/// (`select_representative`, C2, #590/#591) e o consumo do registry declarativo
+/// de intrínsecas (C1, #442). O pai continua sendo um arquivo — ele não virou
+/// `mod.rs` —, e os irmãos moram em `src/ir/`, declarados pelos `mod` do
 /// próprio pai. Um oráculo que continuasse lendo só `src/ir.rs` seguiria verde
-/// e pararia de observar o consumo de C2 inteiro: é a mesma falha silenciosa
-/// OG-1 da #601.
+/// e pararia de observar os dois consumos de C2 e o de C1: é a mesma falha
+/// silenciosa OG-1 da #601.
 pub const IR_ARQUIVOS: &[(&str, &str)] = &[
     ("ir.rs", include_str!("../../src/ir.rs")),
+    ("context.rs", include_str!("../../src/ir/context.rs")),
     ("lowering.rs", include_str!("../../src/ir/lowering.rs")),
 ];
 
