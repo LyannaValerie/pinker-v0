@@ -2,7 +2,7 @@ schema = 3
 id = "normalizacao-corrente-para-historico"
 
 [reconstruction]
-expected_overrides = 192
+expected_overrides = 194
 expected_exclusions = 127
 
 [[rules]]
@@ -1873,10 +1873,29 @@ expect_layer = "ir"
 
 [[rules]]
 op = "override-region"
+key = "ir.lowering.bindings-escopos"
+expect_file = "src/ir/lowering.rs"
+to_file = "src/ir.rs"
+expect_domain = "lowering"
+expect_layer = "ir"
+
+[[rules]]
+op = "override-region"
 key = "ir.lowering.comandos-controle"
 from_hash = "fnv1a64:fcdf3558b9db84a6"
 to_hash = "fnv1a64:52b480889073481b"
-expect_file = "src/ir.rs"
+expect_file = "src/ir/lowering.rs"
+to_file = "src/ir.rs"
+expect_domain = "lowering"
+expect_layer = "ir"
+
+[[rules]]
+op = "override-region"
+key = "ir.lowering.constantes"
+from_hash = "fnv1a64:3fba748229861203"
+to_hash = "fnv1a64:35ccc355742a9a4e"
+expect_file = "src/ir/lowering.rs"
+to_file = "src/ir.rs"
 expect_domain = "lowering"
 expect_layer = "ir"
 
@@ -1887,18 +1906,20 @@ from_hash = "fnv1a64:2970c09967916074"
 to_hash = "fnv1a64:6db653d36e8d840b"
 from_summary = "Grande despachante que abaixa expressões AST para `TypedValueIR` (valor, representação e identidade resolvida): literais, bindings/globais, operadores, dereferência, chamadas, métodos, intrínsecas genéricas, construção/leitura de leque, campos, índices, cast, `peso` e `alinhamento`. Operações de lista/mapa que devolvem elemento preservam a identidade exata do container, inclusive leques representados como `bombom`; não executa nem seleciona instruções de máquina."
 to_summary = "Grande despachante que abaixa expressões AST para `TypedValueIR` (valor + `TypeIR` + nome de struct + metadados de ponteiro-para-array): literais, identificadores locais e constantes globais, operadores unários/binários, dereferência, chamadas diretas (com tipo de retorno vindo do catálogo de assinaturas), métodos de `impl` e qualificados, intrínsecas genéricas de lista/mapa direcionadas ao nome monomórfico, construção/leitura de leque (discriminante/handle), acesso a campo e offset de struct, indexação, cast, `peso` e `alinhamento`. Consome informação já validada; não executa a expressão nem seleciona instruções de máquina."
-expect_file = "src/ir.rs"
+expect_file = "src/ir/lowering.rs"
+to_file = "src/ir.rs"
 expect_domain = "lowering"
 expect_layer = "ir"
 
 [[rules]]
 op = "override-region"
 key = "ir.lowering.funcoes-blocos"
-from_hash = "fnv1a64:339707cfab1d9826"
+from_hash = "fnv1a64:76a4d71e34051b6a"
 to_hash = "fnv1a64:cb1a742852669151"
 from_summary = "Configuração do `FunctionLowerer` e lowering de funções/blocos estruturados: aloca parâmetros e preserva metadados nominais/estruturais de callables, ponteiros crus e pointees de ponteiros de dados em aliases, retornos, ternários, chamadas por expressão e capturas de closure. Inclui resolvedores de método de `impl` direto e qualificado por trato; o direto só constrói candidatos da visão derivada e delega o veredito a `method_dispatch`, a mesma autoridade que a semântica consulta, e o qualificado nomeia o trato e continua sendo consulta de identidade; preserva a estrutura aninhada, sem ainda dividir o fluxo em CFG."
 to_summary = "Configuração do `FunctionLowerer` e lowering de funções/blocos estruturados: aloca parâmetros e preserva metadados nominais/estruturais de callables, ponteiros crus e pointees de ponteiros de dados em aliases, retornos, ternários, chamadas por expressão e capturas de closure. Inclui resolvedores de método de `impl` direto e qualificado por trato; preserva a estrutura aninhada, sem ainda dividir o fluxo em CFG."
-expect_file = "src/ir.rs"
+expect_file = "src/ir/lowering.rs"
+to_file = "src/ir.rs"
 expect_domain = "lowering"
 expect_layer = "ir"
 

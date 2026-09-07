@@ -164,24 +164,21 @@ fn dois_explicitos_sao_conflito_em_ordem_canonica() {
 // Fechamento: nenhuma fase mantém regra própria de seleção
 // ---------------------------------------------------------------------------
 
-fn fonte(caminho: &str) -> String {
-    fs::read_to_string(format!("{}/{caminho}", env!("CARGO_MANIFEST_DIR")))
-        .unwrap_or_else(|erro| panic!("ler {caminho}: {erro}"))
-}
-
 /// As duas fases, cada uma como o MÓDULO inteiro e não como um arquivo.
 ///
 /// A decomposição física da #619 desceu `semantic.chamadas.despacho` — e com
 /// ela a única consulta da semântica a `select_impl_method` — para
-/// `src/semantic/calls.rs`. Um censo que continuasse lendo só
-/// `src/semantic.rs` deixaria de observar exatamente o consumo de C2 que ele
-/// existe para vigiar: a falha silenciosa OG-1 do inventário da #601. Ler o
-/// módulo inteiro não afrouxa nada — a soma é a mesma de antes do corte —, e
-/// registrar um irmão novo em `fonte_de_modulo` já o coloca sob este censo.
+/// `src/semantic/calls.rs`; a da #621 desceu o `impl FunctionLowerer` inteiro —
+/// e com ele a única consulta do lowering — para `src/ir/lowering.rs`. Um censo
+/// que continuasse lendo só `src/semantic.rs` ou só `src/ir.rs` deixaria de
+/// observar exatamente o consumo de C2 que ele existe para vigiar: a falha
+/// silenciosa OG-1 do inventário da #601. Ler o módulo inteiro não afrouxa nada
+/// — a soma é a mesma de antes do corte —, e registrar um irmão novo em
+/// `fonte_de_modulo` já o coloca sob este censo.
 fn fases() -> Vec<(&'static str, String)> {
     vec![
         ("src/semantic", fonte_de_modulo::semantic()),
-        ("src/ir.rs", fonte("src/ir.rs")),
+        ("src/ir", fonte_de_modulo::ir()),
     ]
 }
 
@@ -243,7 +240,11 @@ fn ninguem_mais_consulta_a_autoridade_de_selecao() {
     assert_eq!(
         consultam,
         vec![
+            // A #621 desceu a única consulta do lowering para o irmão; a camada
+            // continua sendo `ir`, o arquivo é que mudou. `ir.rs` continua na
+            // lista porque o pai ainda nomeia a autoridade na cartografia.
             "ir.rs".to_string(),
+            "ir/lowering.rs".to_string(),
             "method_dispatch.rs".to_string(),
             // A #619 desceu a única consulta da semântica para o irmão; a
             // camada continua sendo `semantic`, o arquivo é que mudou.
