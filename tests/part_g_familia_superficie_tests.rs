@@ -588,7 +588,6 @@ fn familia_e_membro_nao_sobrevivem_a_ast() {
 fn nenhuma_camada_a_jusante_decide_pela_grafia_de_membro() {
     let raiz = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let jusante: Vec<String> = [
-        "src/ir.rs",
         "src/cfg_ir.rs",
         "src/ir_validate.rs",
         "src/cfg_ir_validate.rs",
@@ -602,6 +601,10 @@ fn nenhuma_camada_a_jusante_decide_pela_grafia_de_membro() {
     .iter()
     .map(|relativo| (*relativo).to_string())
     .chain(common::fonte_de_modulo::interpreter_caminhos())
+    // A #621 (unidade IR-1) tirou produção de `src/ir.rs` para
+    // `src/ir/lowering.rs`. O censo desce no módulo inteiro pelo mesmo motivo
+    // pelo qual já descia no interpretador.
+    .chain(common::fonte_de_modulo::ir_caminhos())
     // A #612 (unidade BS-2) tirou produção de `src/backend_s.rs` para
     // `src/backend_s/render_abi.rs`. O censo desce no módulo inteiro pelo
     // mesmo motivo pelo qual já descia no interpretador.

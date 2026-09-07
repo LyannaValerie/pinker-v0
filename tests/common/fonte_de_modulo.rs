@@ -212,6 +212,47 @@ pub fn nav_projection_snapshot() -> String {
         .join("\n")
 }
 
+/// Arquivos que compõem o módulo `ir`, na ordem declarada no pai.
+///
+/// A decomposição física da #621 (unidade IR-1 do inventário da #601) tirou de
+/// `src/ir.rs` o `impl FunctionLowerer` inteiro — as cinco regiões de lowering
+/// de funções, comandos, expressões, bindings e constantes, incluindo o único
+/// ponto em que o lowering consulta a autoridade de seleção de método
+/// `method_dispatch` (C2, #590/#591). O pai continua sendo um arquivo — ele não
+/// virou `mod.rs` —, e o irmão mora em `src/ir/`, declarado pelo `mod` do
+/// próprio pai. Um oráculo que continuasse lendo só `src/ir.rs` seguiria verde
+/// e pararia de observar o consumo de C2 inteiro: é a mesma falha silenciosa
+/// OG-1 da #601.
+pub const IR_ARQUIVOS: &[(&str, &str)] = &[
+    ("ir.rs", include_str!("../../src/ir.rs")),
+    ("lowering.rs", include_str!("../../src/ir/lowering.rs")),
+];
+
+/// Concatena o módulo `ir` inteiro, o pai primeiro.
+pub fn ir() -> String {
+    IR_ARQUIVOS
+        .iter()
+        .map(|(_, fonte)| *fonte)
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// Os mesmos arquivos como caminhos relativos à raiz, para censos que leem do
+/// disco em vez de `include_str!`. Fonte única com [`IR_ARQUIVOS`]: registrar um
+/// irmão novo lá já o coloca sob esses censos.
+pub fn ir_caminhos() -> Vec<String> {
+    IR_ARQUIVOS
+        .iter()
+        .map(|(nome, _)| {
+            if *nome == "ir.rs" {
+                "src/ir.rs".to_string()
+            } else {
+                format!("src/ir/{nome}")
+            }
+        })
+        .collect()
+}
+
 /// Arquivos que compõem o módulo `semantic`, na ordem declarada no pai.
 ///
 /// A decomposição física da #619 (unidade SEM-1 do inventário da #601) tirou de

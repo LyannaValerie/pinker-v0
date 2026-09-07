@@ -564,12 +564,13 @@ fn so_o_parser_escreve_o_fato() {
 /// regra paralela: nenhuma das duas nomeia o campo, o papel ou o prefixo.
 #[test]
 fn semantic_e_ir_apenas_leem_o_fato() {
-    // `src/semantic` entra como MÓDULO: a #619 desceu o despacho de chamadas
-    // para `src/semantic/calls.rs`, e um censo que continuasse lendo só o pai
-    // deixaria de observar o irmão — a falha silenciosa OG-1 da #601.
+    // As duas entram como MÓDULO: a #619 desceu o despacho de chamadas para
+    // `src/semantic/calls.rs` e a #621 desceu o `impl FunctionLowerer` para
+    // `src/ir/lowering.rs`; um censo que continuasse lendo só os pais deixaria
+    // de observar os irmãos — a falha silenciosa OG-1 da #601.
     for (caminho, modulo) in [
         ("src/semantic", fonte_de_modulo::semantic()),
-        ("src/ir.rs", fonte("src/ir.rs")),
+        ("src/ir", fonte_de_modulo::ir()),
     ] {
         let codigo = codigo_executavel(&modulo);
         assert!(
