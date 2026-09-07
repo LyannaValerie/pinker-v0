@@ -5,6 +5,9 @@
 //! transitiva de congelado sobre candidato, detecção de ciclo no grafo
 //! completo, ordem de aplicação e consumo exato por escopo.
 
+#[path = "common/fonte_de_modulo.rs"]
+mod fonte_de_modulo;
+
 use pinker_v0::nav::CodeRegion;
 use pinker_v0::nav_projection_recipe::{
     parse_recipe, render_recipe, resolve, verify_frozen_dependencies, Library, Recipe, RECIPES_DIR,
@@ -191,7 +194,10 @@ fn namespaces_sao_estruturais_e_nao_ha_base_ambigua() {
 
     // E não existe variante de falha para base ambígua: a ambiguidade não foi
     // introduzida, então não há o que remediar.
-    let fonte = include_str!("../src/nav_projection_snapshot.rs");
+    // A #617 moveu o parser TOML estrito e o módulo de teste para
+    // `src/nav_projection_snapshot/`; este censo lê o módulo inteiro, não um
+    // arquivo só (#601, OG-1).
+    let fonte = fonte_de_modulo::nav_projection_snapshot();
     assert!(!fonte.contains("AmbiguousBase"));
     assert!(!fonte.contains("BASE-AMBIGUA"));
     // `E-SNAP-SELETOR-AMBIGUO` continua existindo e é outro conceito: seletor de

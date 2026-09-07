@@ -1051,7 +1051,15 @@ fn projecao_estavel_e_sensivel_a_cada_campo_medido() {
 // Fronteiras negativas do recorte
 // ---------------------------------------------------------------------------
 
-const FONTE: &str = include_str!("../src/nav_projection_snapshot.rs");
+/// O módulo inteiro, não um arquivo só.
+///
+/// A #617 moveu o parser TOML estrito e o módulo de teste para
+/// `src/nav_projection_snapshot/`. Um oráculo de fronteira negativa que
+/// continuasse lendo só o pai seguiria verde e pararia de observar o parser
+/// inteiro — a falha silenciosa OG-1 do inventário da #601.
+fn fonte() -> String {
+    fonte_de_modulo::nav_projection_snapshot()
+}
 
 #[test]
 fn o_modulo_nao_escreve_nem_le_o_filesystem() {
@@ -1069,7 +1077,7 @@ fn o_modulo_nao_escreve_nem_le_o_filesystem() {
         "temp_dir",
     ] {
         assert!(
-            !FONTE.contains(proibido),
+            !fonte().contains(proibido),
             "o núcleo somente leitura tocou filesystem: {proibido}"
         );
     }
@@ -1089,7 +1097,7 @@ fn o_modulo_nao_usa_rede_processos_nem_git() {
         "https://",
     ] {
         assert!(
-            !FONTE.contains(proibido),
+            !fonte().contains(proibido),
             "o núcleo somente leitura alcançou o mundo externo: {proibido}"
         );
     }
@@ -1108,7 +1116,7 @@ fn o_modulo_nao_depende_de_estado_nao_deterministico() {
         "as *const",
     ] {
         assert!(
-            !FONTE.contains(proibido),
+            !fonte().contains(proibido),
             "o núcleo determinístico admitiu estado instável: {proibido}"
         );
     }
@@ -1126,7 +1134,7 @@ fn o_nucleo_de_snapshot_nao_expoe_lifecycle_mutavel() {
         "pub fn load",
     ] {
         assert!(
-            !FONTE.contains(proibido),
+            !fonte().contains(proibido),
             "superfície mutável exposta antes do estágio devido: {proibido}"
         );
     }
