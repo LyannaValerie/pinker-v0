@@ -11,6 +11,7 @@
 
 mod common;
 
+use common::fonte_de_modulo;
 use common::rust_source::codigo_executavel;
 use common::{ControlledCommand as Command, NativeArtifactDir};
 use pinker_v0::method_dispatch::{
@@ -168,6 +169,22 @@ fn fonte(caminho: &str) -> String {
         .unwrap_or_else(|erro| panic!("ler {caminho}: {erro}"))
 }
 
+/// As duas fases, cada uma como o MÓDULO inteiro e não como um arquivo.
+///
+/// A decomposição física da #619 desceu `semantic.chamadas.despacho` — e com
+/// ela a única consulta da semântica a `select_impl_method` — para
+/// `src/semantic/calls.rs`. Um censo que continuasse lendo só
+/// `src/semantic.rs` deixaria de observar exatamente o consumo de C2 que ele
+/// existe para vigiar: a falha silenciosa OG-1 do inventário da #601. Ler o
+/// módulo inteiro não afrouxa nada — a soma é a mesma de antes do corte —, e
+/// registrar um irmão novo em `fonte_de_modulo` já o coloca sob este censo.
+fn fases() -> Vec<(&'static str, String)> {
+    vec![
+        ("src/semantic", fonte_de_modulo::semantic()),
+        ("src/ir.rs", fonte("src/ir.rs")),
+    ]
+}
+
 /// As duas fases importam a autoridade sem apelido e a consultam exatamente uma
 /// vez por decisão.
 ///
@@ -188,8 +205,8 @@ fn fonte(caminho: &str) -> String {
 /// escapa a qualquer oráculo textual.
 #[test]
 fn as_duas_fases_consomem_a_autoridade_unica() {
-    for caminho in ["src/semantic.rs", "src/ir.rs"] {
-        let codigo = codigo_executavel(&fonte(caminho));
+    for (caminho, modulo) in fases() {
+        let codigo = codigo_executavel(&modulo);
         let importacoes: Vec<String> = codigo
             .split(';')
             .map(|trecho| trecho.split_whitespace().collect::<Vec<_>>().join(" "))
@@ -228,7 +245,10 @@ fn ninguem_mais_consulta_a_autoridade_de_selecao() {
         vec![
             "ir.rs".to_string(),
             "method_dispatch.rs".to_string(),
-            "semantic.rs".to_string()
+            // A #619 desceu a única consulta da semântica para o irmão; a
+            // camada continua sendo `semantic`, o arquivo é que mudou.
+            "semantic.rs".to_string(),
+            "semantic/calls.rs".to_string()
         ],
         "a autoridade de seleção passou a ser consultada por outra camada"
     );
@@ -240,8 +260,8 @@ fn ninguem_mais_consulta_a_autoridade_de_selecao() {
 /// precisa nomear o item — pode voltar a decidir sozinha qual candidato vence.
 #[test]
 fn nenhuma_fase_reintroduz_o_vocabulario_da_precedencia() {
-    for caminho in ["src/semantic.rs", "src/ir.rs"] {
-        let codigo = codigo_executavel(&fonte(caminho));
+    for (caminho, modulo) in fases() {
+        let codigo = codigo_executavel(&modulo);
         // `TratosNoDespacho` fica de fora: a fase TRANSPORTA o índice para a
         // autoridade. Proibido é aplicar o nível, não segurar o índice.
         for termo in [

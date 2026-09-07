@@ -212,6 +212,46 @@ pub fn nav_projection_snapshot() -> String {
         .join("\n")
 }
 
+/// Arquivos que compõem o módulo `semantic`, na ordem declarada no pai.
+///
+/// A decomposição física da #619 (unidade SEM-1 do inventário da #601) tirou de
+/// `src/semantic.rs` a região `semantic.chamadas.despacho` inteira — o despacho
+/// de chamadas, incluindo o único ponto em que a semântica consulta a
+/// autoridade de seleção de método `method_dispatch` (C2, #590/#591). O pai
+/// continua sendo um arquivo — ele não virou `mod.rs` —, e o irmão mora em
+/// `src/semantic/`, declarado pelo `mod` do próprio pai. Um oráculo que
+/// continuasse lendo só `src/semantic.rs` seguiria verde e pararia de observar
+/// o consumo de C2 inteiro: é a mesma falha silenciosa OG-1 da #601.
+pub const SEMANTIC_ARQUIVOS: &[(&str, &str)] = &[
+    ("semantic.rs", include_str!("../../src/semantic.rs")),
+    ("calls.rs", include_str!("../../src/semantic/calls.rs")),
+];
+
+/// Concatena o módulo `semantic` inteiro, o pai primeiro.
+pub fn semantic() -> String {
+    SEMANTIC_ARQUIVOS
+        .iter()
+        .map(|(_, fonte)| *fonte)
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// Os mesmos arquivos como caminhos relativos à raiz, para censos que leem do
+/// disco em vez de `include_str!`. Fonte única com [`SEMANTIC_ARQUIVOS`]:
+/// registrar um irmão novo lá já o coloca sob esses censos.
+pub fn semantic_caminhos() -> Vec<String> {
+    SEMANTIC_ARQUIVOS
+        .iter()
+        .map(|(nome, _)| {
+            if *nome == "semantic.rs" {
+                "src/semantic.rs".to_string()
+            } else {
+                format!("src/semantic/{nome}")
+            }
+        })
+        .collect()
+}
+
 /// A parte produtiva de um arquivo: tudo antes do primeiro `#[cfg(test)]`.
 fn producao(fonte: &str) -> &str {
     match fonte.find("\n#[cfg(test)]") {

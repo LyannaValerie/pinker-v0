@@ -916,9 +916,10 @@ fn revisao_n1_autoridade_de_builtin_cobre_as_grafias_da_semantica() {
     // `trato` é palavra-chave. Qualquer outra grafia precisa ser reconhecida.
     const NAO_CHAMAVEIS: &[&str] = &["si", "trato"];
 
-    let fonte =
-        fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/semantic.rs"))
-            .expect("ler src/semantic.rs");
+    // O módulo inteiro, não o arquivo pai: a #619 (SEM-1) desceu o despacho de
+    // chamadas — onde moram quase todas as grafias abaixo — para
+    // `src/semantic/calls.rs`.
+    let fonte = common::fonte_de_modulo::semantic();
 
     let mut ausentes: Vec<String> = Vec::new();
     for pedaco in fonte.split("name == \"").skip(1) {
@@ -944,7 +945,7 @@ fn revisao_n1_autoridade_de_builtin_cobre_as_grafias_da_semantica() {
 
     assert!(
         ausentes.is_empty(),
-        "grafias builtin de src/semantic.rs que a autoridade de intrínsecas não reconhece: {ausentes:?}. \
+        "grafias builtin do módulo src/semantic que a autoridade de intrínsecas não reconhece: {ausentes:?}. \
          Registre-as em intrinsics::registry, ou um módulo que as declare voltará a capturá-las."
     );
 }

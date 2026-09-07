@@ -401,10 +401,14 @@ fn sensibilidade_recusa_familias_manuais_para_as_novas_combinacoes() {
     let interpreter = common::fonte_de_modulo::interpreter();
     let parser = common::fonte_de_modulo::parser();
     let backend_s = common::fonte_de_modulo::backend_s();
+    // `semantic` entra como módulo desde a #619 (SEM-1): o despacho de
+    // chamadas, dono do adapter monomórfico, desceu para
+    // `src/semantic/calls.rs`.
+    let semantic = common::fonte_de_modulo::semantic();
     let surfaces = [
         include_str!("../src/ast.rs"),
         parser.as_str(),
-        include_str!("../src/semantic.rs"),
+        semantic.as_str(),
         include_str!("../src/ir.rs"),
         interpreter.as_str(),
         backend_s.as_str(),
@@ -441,7 +445,7 @@ fn sensibilidade_recusa_familias_manuais_para_as_novas_combinacoes() {
     for (file, source) in [
         ("ast.rs", include_str!("../src/ast.rs")),
         ("parser.rs", parser.as_str()),
-        ("semantic.rs", include_str!("../src/semantic.rs")),
+        ("semantic.rs", semantic.as_str()),
         ("ir.rs", include_str!("../src/ir.rs")),
         ("interpreter.rs", interpreter.as_str()),
         ("backend_s.rs", backend_s.as_str()),
