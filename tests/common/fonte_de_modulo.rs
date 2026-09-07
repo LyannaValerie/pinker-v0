@@ -177,6 +177,41 @@ pub fn backend_s_caminhos() -> Vec<String> {
         .collect()
 }
 
+/// Arquivos que compõem o módulo `nav_projection_snapshot`, na ordem declarada
+/// no pai.
+///
+/// A decomposição física da #617 (unidades NPS-1 e NPS-2 do inventário da
+/// #601) tirou de `src/nav_projection_snapshot.rs` o parser TOML estrito e o
+/// módulo de teste do núcleo somente leitura. O pai continua sendo um arquivo —
+/// ele não virou `mod.rs` —, e os irmãos moram em
+/// `src/nav_projection_snapshot/`, declarados pelos `mod` do próprio pai. Um
+/// oráculo que continuasse lendo só `src/nav_projection_snapshot.rs` seguiria
+/// verde e pararia de observar o parser inteiro: é a mesma falha silenciosa
+/// OG-1 da #601.
+pub const NAV_PROJECTION_SNAPSHOT_ARQUIVOS: &[(&str, &str)] = &[
+    (
+        "nav_projection_snapshot.rs",
+        include_str!("../../src/nav_projection_snapshot.rs"),
+    ),
+    (
+        "parser.rs",
+        include_str!("../../src/nav_projection_snapshot/parser.rs"),
+    ),
+    (
+        "tests.rs",
+        include_str!("../../src/nav_projection_snapshot/tests.rs"),
+    ),
+];
+
+/// Concatena o módulo `nav_projection_snapshot` inteiro, o pai primeiro.
+pub fn nav_projection_snapshot() -> String {
+    NAV_PROJECTION_SNAPSHOT_ARQUIVOS
+        .iter()
+        .map(|(_, fonte)| *fonte)
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 /// A parte produtiva de um arquivo: tudo antes do primeiro `#[cfg(test)]`.
 fn producao(fonte: &str) -> &str {
     match fonte.find("\n#[cfg(test)]") {
