@@ -381,6 +381,36 @@ fn a_decomposicao_nao_promoveu_visibilidade() {
     }
 }
 
+/// O pai também não promoveu: a decomposição não pode pagar o layout físico com
+/// visibilidade de crate no arquivo que ficou.
+///
+/// O laço acima pula `ir.rs` — ele mede o custo do irmão — e por isso não
+/// observaria um `pub(crate)` novo do lado do pai. Os três que existem são os
+/// mesmos de antes do corte, e nenhum deles é da IR-1: `MapKeyIR::type_ir` e
+/// `MapValueIR::type_ir` na região `ir.modelo.representacao`, e
+/// `is_generic_map_intrinsic` entre elas.
+#[test]
+fn o_pai_tambem_nao_ganhou_visibilidade_de_crate() {
+    let codigo = codigo_executavel(pai());
+    assert_eq!(
+        codigo.matches("pub(crate)").count(),
+        3,
+        "src/ir.rs mudou de quantidade de `pub(crate)`; a #621 não promove visibilidade"
+    );
+    assert_eq!(
+        codigo.matches("pub(crate) fn type_ir(").count(),
+        2,
+        "os dois `type_ir` de chave e valor de mapa deixaram de ser `pub(crate)` do pai"
+    );
+    assert_eq!(
+        codigo
+            .matches("pub(crate) fn is_generic_map_intrinsic(")
+            .count(),
+        1,
+        "`is_generic_map_intrinsic` deixou de ser o terceiro `pub(crate)` do pai"
+    );
+}
+
 /// A lista exaustiva de um irmão, ou o panic que recusa um irmão não
 /// declarado: um arquivo novo não entra no módulo sem dizer o que expõe.
 fn itens_autorizados(

@@ -240,9 +240,12 @@ fn ninguem_mais_consulta_a_autoridade_de_selecao() {
     assert_eq!(
         consultam,
         vec![
-            // A #621 desceu a única consulta do lowering para o irmão; a camada
-            // continua sendo `ir`, o arquivo é que mudou. `ir.rs` continua na
-            // lista porque o pai ainda nomeia a autoridade na cartografia.
+            // A #621 desceu para o irmão a única consulta do lowering a
+            // `select_impl_method`; a camada continua sendo `ir`, o arquivo é
+            // que mudou. `ir.rs` continua na lista porque `select_representative`
+            // é código executável da região `ir.lowering.metodos-identidade`,
+            // que a IR-1 não move — não por citação em comentário, que
+            // `codigo_executavel` remove antes desta varredura.
             "ir.rs".to_string(),
             "ir/lowering.rs".to_string(),
             "method_dispatch.rs".to_string(),
