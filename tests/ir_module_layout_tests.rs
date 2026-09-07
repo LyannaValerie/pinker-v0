@@ -371,7 +371,34 @@ fn cada_regiao_e_cada_definicao_movida_aparece_uma_vez_no_arquivo_certo() {
         let marcador = format!("// @pinker-nav:start {chave}");
         assert!(
             pai().contains(&marcador),
-            "a região {chave} não é da IR-1 e deveria continuar em src/ir.rs"
+            "a região {chave} não é de nenhuma das duas unidades e deveria continuar em src/ir.rs"
+        );
+    }
+
+    // Presença não basta: a lista precisa ser o conjunto EXATO do que ficou. Só
+    // com igualdade uma região arrastada em silêncio — ou uma sobra de uma IR-3
+    // ou IR-4 executada pela metade — fica vermelha aqui, e não apenas na
+    // cartografia. É a mesma disciplina de
+    // `o_conjunto_de_arquivos_do_modulo_e_exatamente_o_que_os_oraculos_leem`.
+    let no_pai: BTreeSet<&str> = regioes_declaradas(pai()).collect();
+    let retidas: BTreeSet<&str> = REGIOES_RETIDAS.iter().copied().collect();
+    assert_eq!(
+        no_pai, retidas,
+        "o conjunto de regiões que ficaram em src/ir.rs divergiu do declarado"
+    );
+    for (nome, _) in IR_ARQUIVOS {
+        if *nome == "ir.rs" {
+            continue;
+        }
+        let no_irmao: BTreeSet<&str> = regioes_declaradas(fonte(nome)).collect();
+        let esperadas: BTreeSet<&str> = REGIOES_MOVIDAS
+            .iter()
+            .filter(|(_, arquivo)| arquivo == nome)
+            .map(|(chave, _)| *chave)
+            .collect();
+        assert_eq!(
+            no_irmao, esperadas,
+            "o conjunto de regiões de src/ir/{nome} divergiu do declarado"
         );
     }
 
@@ -409,6 +436,16 @@ fn cada_regiao_e_cada_definicao_movida_aparece_uma_vez_no_arquivo_certo() {
             "`{definicao}` não é de nenhuma das duas unidades e deveria continuar em src/ir.rs"
         );
     }
+}
+
+/// As chaves de região declaradas por uma fonte, na ordem em que aparecem.
+fn regioes_declaradas(fonte: &'static str) -> impl Iterator<Item = &'static str> {
+    fonte.lines().filter_map(|linha| {
+        linha
+            .trim_start()
+            .strip_prefix("// @pinker-nav:start ")
+            .map(str::trim)
+    })
 }
 
 fn conferir_regiao_unica(modulo: &str, chave: &str) {
