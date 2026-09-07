@@ -15,6 +15,7 @@
 
 mod common;
 
+use common::fonte_de_modulo;
 use common::rust_source::codigo_executavel;
 use common::{ControlledCommand as Command, NativeArtifactDir};
 use pinker_v0::ast::{Item, TraitDefaultBody, TraitDefaultBodyRole};
@@ -563,8 +564,14 @@ fn so_o_parser_escreve_o_fato() {
 /// regra paralela: nenhuma das duas nomeia o campo, o papel ou o prefixo.
 #[test]
 fn semantic_e_ir_apenas_leem_o_fato() {
-    for caminho in ["src/semantic.rs", "src/ir.rs"] {
-        let codigo = codigo_executavel(&fonte(caminho));
+    // `src/semantic` entra como MÓDULO: a #619 desceu o despacho de chamadas
+    // para `src/semantic/calls.rs`, e um censo que continuasse lendo só o pai
+    // deixaria de observar o irmão — a falha silenciosa OG-1 da #601.
+    for (caminho, modulo) in [
+        ("src/semantic", fonte_de_modulo::semantic()),
+        ("src/ir.rs", fonte("src/ir.rs")),
+    ] {
+        let codigo = codigo_executavel(&modulo);
         assert!(
             codigo.contains("e_default_selecionado()"),
             "{caminho} deixou de consumir a leitura do fato adulto"

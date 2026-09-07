@@ -709,10 +709,11 @@ fn ligacao_pendente_do_proprio_statement_cede() {
 #[test]
 fn a_excecao_builtin_nao_publica_e_exatamente_uma_e_tem_nome() {
     const NAO_CHAMAVEIS: &[&str] = &["si", "trato"];
-    let fonte = std::fs::read_to_string(
-        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/semantic.rs"),
-    )
-    .expect("ler src/semantic.rs");
+    // O módulo inteiro, não o arquivo pai: a #619 (SEM-1) desceu o despacho de
+    // chamadas — onde moram quase todas as grafias abaixo — para
+    // `src/semantic/calls.rs`, e ler só o pai deixaria este guarda de
+    // crescimento verde e cego.
+    let fonte = common::fonte_de_modulo::semantic();
 
     let mut excecoes: BTreeSet<String> = BTreeSet::new();
     for pedaco in fonte.split("name == \"").skip(1) {
