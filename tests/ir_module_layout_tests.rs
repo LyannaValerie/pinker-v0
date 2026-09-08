@@ -1,5 +1,5 @@
-//! Guardião estrutural da decomposição física do lowering AST → IR
-//! (#621 e #624, unidades IR-1 e IR-2 do inventário da #601).
+//! Guardião estrutural da decomposição física do módulo `ir`
+//! (#621, #624 e #626 — unidades IR-1, IR-2 e IR-4 do inventário da #601).
 //!
 //! `src/ir.rs` é a autoridade do lowering. A #621 desceu o `impl FunctionLowerer`
 //! inteiro — as cinco regiões `ir.lowering.funcoes-blocos`,
@@ -9,14 +9,15 @@
 //! orquestração do programa — as cinco regiões
 //! `ir.lowering.programa-orquestracao`, `ir.lowering.contexto-declaracoes`,
 //! `ir.lowering.assinaturas-intrinsecos`, `ir.lowering.metodos-identidade` e
-//! `ir.lowering.identidade-resolvida` — para `src/ir/context.rs`. Nenhuma das
-//! duas divide a autoridade: o modelo da IR, as `struct
-//! FunctionLowerer`/`LoweringContext` e todo o estado, a resolução de tipo e de
-//! união (`resolve_type`, `resolve_union_ast_type`, `intern_union`), a
-//! renderização textual e a conversão AST→`TypeIR` continuam no pai, e o pai
-//! continua sendo um arquivo — não virou `mod.rs`.
+//! `ir.lowering.identidade-resolvida` — para `src/ir/context.rs`. A #626 desceu
+//! a renderização textual — a região `ir.renderizacao.textual` — para
+//! `src/ir/render.rs`. Nenhuma das três divide a autoridade: o modelo da IR, as
+//! `struct FunctionLowerer`/`LoweringContext` e todo o estado, a resolução de
+//! tipo e de união (`resolve_type`, `resolve_union_ast_type`, `intern_union`),
+//! a entrada pública `render_program` e a conversão AST→`TypeIR` continuam no
+//! pai, e o pai continua sendo um arquivo — não virou `mod.rs`.
 //!
-//! Este arquivo prova o estado CUMULATIVO das duas unidades, não só o do último
+//! Este arquivo prova o estado CUMULATIVO das três unidades, não só o do último
 //! corte. As formas de cegueira silenciosa que ele fecha:
 //!
 //! 1. um oráculo textual que continuasse lendo só `src/ir.rs` seguiria verde e
@@ -25,22 +26,28 @@
 //!    cegueira cairia justamente sobre C2; o consumo do registry declarativo de
 //!    intrínsecas desceu junto, e com ele C1. Os censos de C2, de C5, da D6 e da
 //!    Parte G leem `fonte_de_modulo::ir()`, e o teste abaixo prova que a lista
-//!    lida por eles é exatamente o que existe no disco;
+//!    lida por eles é exatamente o que existe no disco. Com o terceiro irmão a
+//!    lista deixa de ser um par e o conjunto passa a ser a única forma de
+//!    observá-la;
 //! 2. a implementação podia ficar duplicada, ficar para trás no pai, ou — a
 //!    forma nova que a segunda unidade cria — o corte podia arrastar código que
 //!    não é dele, inclusive código que a IR-1 já tinha movido;
 //! 3. o corte podia promover visibilidade ou mudar a superfície pública do
 //!    módulo. A IR-1 expôs `new`, `lower_function` e `lower_const` como
 //!    `pub(super)`; a IR-2 expôs `resolved_identity`, `intern_resolved_ast`,
-//!    `repr_identity` e `internal_identity` pela mesma razão — são os símbolos
-//!    que o pai ou o outro irmão chamam. `lower_program` e
+//!    `repr_identity` e `internal_identity`; a IR-4 expôs `render_function`,
+//!    `render_value` e `line` — todos pela mesma razão: são os símbolos que o
+//!    pai ou outro irmão chamam. `lower_program` e
 //!    `lower_program_composto` já eram `pub` antes do move e continuam `pub`; o
 //!    pai os reexporta para preservar `pinker_v0::ir::lower_program` e
 //!    `pinker_v0::ir::lower_program_composto`, e essa é a única reexportação
 //!    devida;
 //! 4. o corte podia arrastar a validação da IR ou a fronteira de CFG para um
 //!    irmão. Nenhuma das duas desceu: `src/ir_validate.rs` e `src/cfg_ir.rs`
-//!    continuam donos do que sempre foram.
+//!    continuam donos do que sempre foram;
+//! 5. o corte podia arrastar região ou definição da IR-3, a unidade vizinha que
+//!    nenhuma destas Tasks executa. As duas regiões dela continuam no pai, e o
+//!    conjunto do que ficou é comparado por igualdade, não por presença.
 //!
 //! Ele NÃO congela LOC, não congela a árvore como snapshot ornamental e não
 //! afirma nada sobre a regra de despacho, que é de `src/method_dispatch.rs`.
@@ -71,17 +78,21 @@ const REGIOES_MOVIDAS: &[(&str, &str)] = &[
     ("ir.lowering.assinaturas-intrinsecos", "context.rs"),
     ("ir.lowering.metodos-identidade", "context.rs"),
     ("ir.lowering.identidade-resolvida", "context.rs"),
+    // IR-4 (#626): a renderização textual da IR já construída.
+    ("ir.renderizacao.textual", "render.rs"),
 ];
 
-/// As regiões que os dois cortes deixaram onde estavam. `ir.renderizacao.textual`
-/// é a vizinha imediata do span da IR-2 — a que vem depois — e é ela que ficaria
-/// vermelha se o corte tivesse escorregado uma região para a frente;
-/// `ir.tipos.identidade-resolvida` é a vizinha de trás. As outras duas são as
-/// unidades IR-3 e IR-4 do mesmo inventário, que esta Task não executa.
+/// As regiões que os três cortes deixaram onde estavam.
+///
+/// `ir.modelo.representacao` e `ir.tipos.identidade-resolvida` são a unidade
+/// IR-3 do mesmo inventário, que nenhuma destas Tasks executa: são elas que
+/// ficariam vermelhas se a IR-4 tivesse arrastado a vizinha de trás.
+/// `ir.tipos.conversao-ast` é a vizinha imediata do span da IR-4 — a que vem
+/// depois — e é ela que ficaria vermelha se o corte tivesse escorregado uma
+/// região para a frente.
 const REGIOES_RETIDAS: &[&str] = &[
     "ir.modelo.representacao",
     "ir.tipos.identidade-resolvida",
-    "ir.renderizacao.textual",
     "ir.tipos.conversao-ast",
 ];
 
@@ -148,6 +159,12 @@ const DEFINICOES_MOVIDAS: &[(&str, &str)] = &[
     ("fn resolved_identity(", "context.rs"),
     ("fn seal_declared_signature_identities(", "context.rs"),
     ("fn seal_enum_variant_metadata(", "context.rs"),
+    ("fn line(", "render.rs"),
+    ("fn render_block(", "render.rs"),
+    ("fn render_enum_pattern(", "render.rs"),
+    ("fn render_function(", "render.rs"),
+    ("fn render_instruction(", "render.rs"),
+    ("fn render_value(", "render.rs"),
 ];
 
 /// As definições que os cortes NÃO moveram e que continuam no pai.
@@ -157,20 +174,25 @@ const DEFINICOES_MOVIDAS: &[(&str, &str)] = &[
 /// em nenhuma das cinco regiões da unidade: arrastá-las junto seria mover código
 /// que não é do corte. `builtin_sig` e `builtin_nominal_sig` são os helpers de
 /// assinatura que a região `ir.lowering.assinaturas-intrinsecos` chama; uma cópia
-/// no irmão seria censo local de intrínseca, que é o que C1 proíbe. `line` e
-/// `render_program` ancoram a fronteira com a IR-4, que esta Task não executa.
+/// no irmão seria censo local de intrínseca, que é o que C1 proíbe.
+/// `render_program` é a entrada pública da renderização: ela não está na região
+/// `ir.renderizacao.textual` e fica no pai, delegando ao irmão — é ela que
+/// ancora a fronteira de cima da IR-4. `expected_key_for_representation` e
+/// `intern_representation_identity` ancoram a fronteira de baixo, a da IR-3, que
+/// nenhuma destas Tasks executa.
 const DEFINICOES_RETIDAS: &[&str] = &[
     "fn builtin_nominal_sig(",
     "fn builtin_sig(",
+    "fn expected_key_for_representation(",
+    "fn intern_representation_identity(",
     "fn intern_union(",
-    "fn line(",
     "fn render_program(",
     "fn resolve_type(",
     "fn resolve_union_ast_type(",
 ];
 
 /// Irmãos que carregam produção, não teste.
-const IRMAOS_DE_PRODUCAO: &[&str] = &["context.rs", "lowering.rs"];
+const IRMAOS_DE_PRODUCAO: &[&str] = &["context.rs", "lowering.rs", "render.rs"];
 
 /// Os itens `pub` que cada irmão pode ter, exaustivo.
 ///
@@ -183,15 +205,18 @@ const PUB_AUTORIZADO: &[(&str, &[&str])] = &[
         &["pub fn lower_program(", "pub fn lower_program_composto("],
     ),
     ("lowering.rs", &[]),
+    ("render.rs", &[]),
 ];
 
 /// A visibilidade restrita que cada irmão pode ter, exaustiva.
 ///
-/// É o custo Rust inteiro das duas unidades. Para a IR-1 o inventário da #601
+/// É o custo Rust inteiro das três unidades. Para a IR-1 o inventário da #601
 /// previu `4 pub(super)` e o baseline desmentiu um: as únicas ocorrências de
 /// `resolve_closure` fora do corte eram comentários. Para a IR-2 previu
 /// `4 pub(super)` e os quatro se confirmaram, exatamente os quatro `exports` que
-/// o `unit_costs.json` nomeia. Nenhum `pub(crate)` novo em nenhuma das duas.
+/// o `unit_costs.json` nomeia. Para a IR-4 previu `3 pub(super)` e os três se
+/// confirmaram: `render_function`, `render_value` e `line` são o que
+/// `render_program` chama do pai. Nenhum `pub(crate)` novo em nenhuma das três.
 const PUB_RESTRITO_AUTORIZADO: &[(&str, &[&str])] = &[
     (
         "context.rs",
@@ -208,6 +233,14 @@ const PUB_RESTRITO_AUTORIZADO: &[(&str, &[&str])] = &[
             "pub(super) fn new(",
             "pub(super) fn lower_function(",
             "pub(super) fn lower_const(",
+        ],
+    ),
+    (
+        "render.rs",
+        &[
+            "pub(super) fn render_function(",
+            "pub(super) fn render_value(",
+            "pub(super) fn line(",
         ],
     ),
 ];
@@ -371,13 +404,13 @@ fn cada_regiao_e_cada_definicao_movida_aparece_uma_vez_no_arquivo_certo() {
         let marcador = format!("// @pinker-nav:start {chave}");
         assert!(
             pai().contains(&marcador),
-            "a região {chave} não é de nenhuma das duas unidades e deveria continuar em src/ir.rs"
+            "a região {chave} não é de nenhuma das três unidades e deveria continuar em src/ir.rs"
         );
     }
 
     // Presença não basta: a lista precisa ser o conjunto EXATO do que ficou. Só
     // com igualdade uma região arrastada em silêncio — ou uma sobra de uma IR-3
-    // ou IR-4 executada pela metade — fica vermelha aqui, e não apenas na
+    // executada pela metade — fica vermelha aqui, e não apenas na
     // cartografia. É a mesma disciplina de
     // `o_conjunto_de_arquivos_do_modulo_e_exatamente_o_que_os_oraculos_leem`.
     let no_pai: BTreeSet<&str> = regioes_declaradas(pai()).collect();
@@ -433,7 +466,7 @@ fn cada_regiao_e_cada_definicao_movida_aparece_uma_vez_no_arquivo_certo() {
         assert_eq!(
             codigo_do_pai.matches(definicao).count(),
             1,
-            "`{definicao}` não é de nenhuma das duas unidades e deveria continuar em src/ir.rs"
+            "`{definicao}` não é de nenhuma das três unidades e deveria continuar em src/ir.rs"
         );
     }
 }
@@ -503,7 +536,7 @@ fn a_decomposicao_nao_promoveu_visibilidade() {
 ///
 /// O laço acima pula `ir.rs` — ele mede o custo do irmão — e por isso não
 /// observaria um `pub(crate)` novo do lado do pai. Os três que existem são os
-/// mesmos de antes do corte, e nenhum deles é da IR-1: `MapKeyIR::type_ir` e
+/// mesmos de antes dos três cortes: `MapKeyIR::type_ir` e
 /// `MapValueIR::type_ir` na região `ir.modelo.representacao`, e
 /// `is_generic_map_intrinsic` entre elas.
 #[test]
@@ -512,7 +545,7 @@ fn o_pai_tambem_nao_ganhou_visibilidade_de_crate() {
     assert_eq!(
         codigo.matches("pub(crate)").count(),
         3,
-        "src/ir.rs mudou de quantidade de `pub(crate)`; a #621 não promove visibilidade"
+        "src/ir.rs mudou de quantidade de `pub(crate)`; nenhuma das três unidades promove visibilidade"
     );
     assert_eq!(
         codigo.matches("pub(crate) fn type_ir(").count(),
@@ -567,7 +600,7 @@ fn a_superficie_publica_do_modulo_e_exatamente_a_congelada() {
     let congelados: BTreeSet<&str> = API_PUBLICA_CONGELADA.iter().copied().collect();
     assert_eq!(
         observados, congelados,
-        "a superfície pública de ir mudou; a #621 é decomposição física e não muda API pública"
+        "a superfície pública de ir mudou; as três unidades são decomposição física e não mudam API pública"
     );
 
     // Itens não são a única forma de caminho público: um `pub mod` ou um
@@ -622,16 +655,17 @@ fn irmao_de_producao_nao_esconde_producao_atras_de_cfg_test() {
 
 /// C2 continua com uma dona só, e nenhum dos irmãos virou a segunda.
 ///
-/// Os dois cortes movem o consumo, nunca a regra: `src/method_dispatch.rs`
+/// Os três cortes movem o consumo, nunca a regra: `src/method_dispatch.rs`
 /// continua decidindo alcance, precedência, desempate e representante. A #621
 /// desceu `select_impl_method` para `lowering.rs` e a #624 desceu
 /// `select_representative` para `context.rs`, cada uma dentro da região que a
-/// contém. As duas consultas da fase continuam sendo uma cada, agora em dois
-/// arquivos irmãos, e nenhuma sobrou no pai.
+/// contém; a #626 não desceu consulta nenhuma, porque renderizar texto não
+/// pergunta nada a C2 — e `render.rs` entra aqui justamente para provar que
+/// continua não perguntando. As duas consultas da fase continuam sendo uma
+/// cada, e nenhuma sobrou no pai.
 #[test]
 fn o_modulo_consome_c2_e_nao_cria_uma_segunda_autoridade() {
-    let contexto = codigo_executavel(fonte("context.rs"));
-    let lowering = codigo_executavel(fonte("lowering.rs"));
+    let irmaos = irmaos_de_producao();
     let pai = codigo_executavel(pai());
     let modulo = codigo_executavel(&ir());
 
@@ -642,7 +676,7 @@ fn o_modulo_consome_c2_e_nao_cria_uma_segunda_autoridade() {
         "nivel_de_despacho",
         "PorUnidadeImportada",
     ] {
-        for (nome, codigo) in [("context.rs", &contexto), ("lowering.rs", &lowering)] {
+        for (nome, codigo) in &irmaos {
             assert_eq!(
                 codigo.matches(termo).count(),
                 0,
@@ -656,22 +690,21 @@ fn o_modulo_consome_c2_e_nao_cria_uma_segunda_autoridade() {
         );
     }
 
-    // Uma consulta por decisão, cada uma no irmão que a região levou.
-    let esperado = [
-        ("select_impl_method(", "lowering.rs", &lowering, &contexto),
-        ("select_representative(", "context.rs", &contexto, &lowering),
-    ];
-    for (decisao, dono, codigo_do_dono, codigo_do_outro) in esperado {
-        assert_eq!(
-            codigo_do_dono.matches(decisao).count(),
-            1,
-            "src/ir/{dono} deveria consultar `{decisao}` exatamente uma vez"
-        );
-        assert_eq!(
-            codigo_do_outro.matches(decisao).count(),
-            0,
-            "o outro irmão ganhou uma cópia de `{decisao}`, duplicando a autoridade"
-        );
+    // Uma consulta por decisão, cada uma no irmão que a região levou. Todo
+    // outro irmão — e o pai — fica em zero: é assim que uma cópia nova, em
+    // qualquer arquivo do módulo, fica vermelha.
+    for (decisao, dono) in [
+        ("select_impl_method(", "lowering.rs"),
+        ("select_representative(", "context.rs"),
+    ] {
+        for (nome, codigo) in &irmaos {
+            let esperado = usize::from(nome == &dono);
+            assert_eq!(
+                codigo.matches(decisao).count(),
+                esperado,
+                "src/ir/{nome} deveria consultar `{decisao}` {esperado} vez(es)"
+            );
+        }
         assert_eq!(
             pai.matches(decisao).count(),
             0,
@@ -687,19 +720,28 @@ fn o_modulo_consome_c2_e_nao_cria_uma_segunda_autoridade() {
     }
 }
 
+/// Cada irmão de produção com o seu código executável, para os censos de
+/// autoridade. A lista vem de [`IRMAOS_DE_PRODUCAO`]: um irmão novo entra nos
+/// censos sem que nenhum deles precise ser reescrito.
+fn irmaos_de_producao() -> Vec<(&'static str, String)> {
+    IRMAOS_DE_PRODUCAO
+        .iter()
+        .map(|nome| (*nome, codigo_executavel(fonte(nome))))
+        .collect()
+}
+
 /// C5 continua estruturada e C1 continua com dona única, também nos irmãos.
 ///
 /// `lowering.rs` é o maior pedaço de lowering que existe e `context.rs` é onde
 /// as assinaturas de intrínseca são declaradas: são os dois lugares em que
 /// reconstruir a origem de um corpo default pela grafia do nome sintético, ou
 /// repetir o censo de assinaturas de intrínseca, custaria menos linhas do que
-/// consultar a autoridade.
+/// consultar a autoridade. `render.rs` é o terceiro: renderizar é justamente
+/// onde um nome sintético passa como texto, e imprimir por grafia o que a
+/// autoridade materializou seria reconstrução — C5 é textual e nasceria aqui.
 #[test]
 fn os_irmaos_nao_reconstroem_c5_nem_duplicam_c1() {
-    let irmaos = [
-        ("context.rs", codigo_executavel(fonte("context.rs"))),
-        ("lowering.rs", codigo_executavel(fonte("lowering.rs"))),
-    ];
+    let irmaos = irmaos_de_producao();
     for (nome, codigo) in &irmaos {
         for termo in [
             "__impl_",
@@ -719,19 +761,25 @@ fn os_irmaos_nao_reconstroem_c5_nem_duplicam_c1() {
     // com ela a única leitura do registry declarativo. Ela continua sendo uma
     // leitura só, e continua sendo leitura: os helpers de assinatura
     // (`builtin_sig`, `builtin_nominal_sig`) ficaram no pai, e uma cópia deles
-    // no irmão seria censo local — ver DEFINICOES_RETIDAS.
-    let contexto = codigo_executavel(fonte("context.rs"));
-    let lowering = codigo_executavel(fonte("lowering.rs"));
-    assert_eq!(
-        contexto.matches("intrinsics::registry").count(),
-        1,
-        "src/ir/context.rs deveria consultar o registry declarativo exatamente uma vez"
-    );
-    assert_eq!(
-        lowering.matches("intrinsics::registry").count(),
-        0,
-        "src/ir/lowering.rs passou a manter censo próprio de intrínseca"
-    );
+    // em qualquer irmão seria censo local — ver DEFINICOES_RETIDAS.
+    for (nome, codigo) in &irmaos {
+        let esperado = usize::from(nome == &"context.rs");
+        assert_eq!(
+            codigo.matches("intrinsics::registry").count(),
+            esperado,
+            "src/ir/{nome} deveria consultar o registry declarativo {esperado} vez(es)"
+        );
+        if *nome == "context.rs" {
+            continue;
+        }
+        for termo in ["builtin_sig", "builtin_nominal_sig"] {
+            assert_eq!(
+                codigo.matches(termo).count(),
+                0,
+                "src/ir/{nome} passou a manter censo próprio de intrínseca por `{termo}`"
+            );
+        }
+    }
     assert_eq!(
         codigo_executavel(pai())
             .matches("intrinsics::registry")
@@ -739,13 +787,6 @@ fn os_irmaos_nao_reconstroem_c5_nem_duplicam_c1() {
         0,
         "src/ir.rs voltou a consultar o registry por conta própria"
     );
-    for termo in ["builtin_sig", "builtin_nominal_sig"] {
-        assert_eq!(
-            lowering.matches(termo).count(),
-            0,
-            "src/ir/lowering.rs passou a manter censo próprio de intrínseca por `{termo}`"
-        );
-    }
 }
 
 /// A validação da IR e a fronteira de CFG não desceram com nenhum dos cortes.
@@ -820,4 +861,76 @@ fn o_modulo_continua_orquestrando_o_lowering_na_mesma_ordem() {
         montagem < despacho,
         "o despacho de constantes passou a acontecer antes da montagem do contexto"
     );
+}
+
+/// A renderização continua sendo a mesma cadeia, na mesma direção.
+///
+/// É o observável próprio da IR-4, o que a sensitivity M10 perturba. A entrada
+/// pública `render_program` não é da unidade: ela fica no pai, imprime módulo,
+/// modo e constantes e delega ao irmão — nessa ordem. O irmão desce dali para
+/// blocos, instruções, padrões e valores. Trocar a ordem das fases da entrada,
+/// quebrar um elo da cadeia ou inverter a direção da dependência (mover
+/// `render_program` para o irmão, ou devolver um dos corpos ao pai só para
+/// deixar o import mais bonito) fica vermelho aqui.
+#[test]
+fn a_renderizacao_continua_delegando_do_pai_para_o_irmao() {
+    let pai = codigo_executavel(pai());
+    let render = codigo_executavel(fonte("render.rs"));
+
+    // A entrada pública ficou no pai e é dele que sai a delegação.
+    assert_eq!(
+        pai.matches("fn render_program(").count(),
+        1,
+        "a entrada pública da renderização deveria continuar em src/ir.rs"
+    );
+    assert_eq!(
+        render.matches("fn render_program(").count(),
+        0,
+        "src/ir/render.rs absorveu a entrada pública, que não é da unidade"
+    );
+    assert_eq!(
+        pai.matches("use render::{line, render_function, render_value};")
+            .count(),
+        1,
+        "src/ir.rs deveria importar do irmão exatamente os três símbolos que chama"
+    );
+
+    // As quatro fases da entrada, na ordem em que sempre imprimiram. A busca
+    // começa no corpo de `render_program` porque `consts:` e `functions:`
+    // também são nomes de campo de `ProgramIR`, declarados antes dela.
+    let corpo = {
+        let inicio = fonte("ir.rs")
+            .find("pub fn render_program(")
+            .expect("render_program continua no pai");
+        &fonte("ir.rs")[inicio..]
+    };
+    let mut anterior = 0;
+    for fase in ["module {}", "mode {}", "consts:", "functions:"] {
+        let posicao = corpo
+            .find(fase)
+            .unwrap_or_else(|| panic!("`{fase}` deixou de ser impressa por render_program"));
+        assert!(
+            posicao > anterior,
+            "a fase `{fase}` da renderização mudou de posição na entrada pública"
+        );
+        anterior = posicao;
+    }
+
+    // A cadeia do irmão: cada elo chamado de dentro do próprio irmão, e o pai
+    // sem nenhuma cópia de nenhum deles.
+    for elo in [
+        "render_block(",
+        "render_instruction(",
+        "render_enum_pattern(",
+    ] {
+        assert!(
+            render.matches(elo).count() >= 2,
+            "`{elo}` deveria ser definido e chamado dentro de src/ir/render.rs"
+        );
+        assert_eq!(
+            pai.matches(elo).count(),
+            0,
+            "`{elo}` não é chamado pelo pai e não deveria aparecer em src/ir.rs"
+        );
+    }
 }
