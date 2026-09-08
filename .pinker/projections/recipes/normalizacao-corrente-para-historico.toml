@@ -2,7 +2,7 @@ schema = 3
 id = "normalizacao-corrente-para-historico"
 
 [reconstruction]
-expected_overrides = 194
+expected_overrides = 195
 expected_exclusions = 127
 
 [[rules]]
@@ -2374,20 +2374,22 @@ expect_layer = "semantic"
 [[rules]]
 op = "override-region"
 key = "semantic.expressoes.verificacao"
-from_hash = "fnv1a64:6d4b3d48f1a411fb"
+from_hash = "fnv1a64:48dc305a663f43d6"
 to_hash = "fnv1a64:e44e9bbce88ccd3a"
-expect_file = "src/semantic.rs"
+expect_file = "src/semantic/expressions.rs"
+to_file = "src/semantic.rs"
 expect_domain = "expressoes"
 expect_layer = "semantic"
 
 [[rules]]
 op = "override-region"
 key = "semantic.fluxo.retornos"
-from_hash = "fnv1a64:33f15cbd2f0750c9"
+from_hash = "fnv1a64:1a663fa7987283ca"
 to_hash = "fnv1a64:b5ad0bb16507db91"
 from_summary = "Fluxo e retornos: verificação de ramo `talvez`/`senão` aninhado com escopo próprio, checagem de `mimo` de retorno contra o tipo declarado (presença/ausência de valor, tipo e faixa) e análise superficial de alcançabilidade — um bloco retorna se contém `mimo` direto ou uma seleção exaustiva (`talvez`/`senão` ou `encaixe`) em que todos os braços retornam."
 to_summary = "Fluxo e retornos: verificação de ramo `talvez`/`senão` aninhado com escopo próprio, checagem de `mimo` de retorno contra o tipo declarado (presença/ausência de valor, tipo e faixa) e análise superficial de alcançabilidade — um bloco retorna se contém `mimo` direto ou um `talvez`/`senão` em que ambos os ramos retornam."
-expect_file = "src/semantic.rs"
+expect_file = "src/semantic/expressions.rs"
+to_file = "src/semantic.rs"
 expect_domain = "fluxo"
 expect_layer = "semantic"
 
@@ -2440,6 +2442,16 @@ from_summary = "Autoridade semântica de relações, métodos e contratos de tra
 to_summary = "Contratos de tratos e implementações: agrupa os métodos `__impl_*` por (trato, tipo-alvo) e exige cobertura exata do trato (sem método estranho, sem duplicata, sem faltante), garante que todo trato tenha método compatível declarado no topo e confere aridade e tipos de parâmetros/retorno entre a assinatura do trato e a função."
 expect_file = "src/semantic.rs"
 expect_domain = "tratos"
+expect_layer = "semantic"
+
+[[rules]]
+op = "override-region"
+key = "semantic.unioes.encaixe"
+from_hash = "fnv1a64:76097ac2e772aa08"
+to_hash = "fnv1a64:6466c6ae7996179b"
+expect_file = "src/semantic/expressions.rs"
+to_file = "src/semantic.rs"
+expect_domain = "unioes"
 expect_layer = "semantic"
 
 [[rules]]
