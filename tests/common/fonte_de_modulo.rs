@@ -267,14 +267,21 @@ pub fn ir_caminhos() -> Vec<String> {
 /// A decomposição física da #619 (unidade SEM-1 do inventário da #601) tirou de
 /// `src/semantic.rs` a região `semantic.chamadas.despacho` inteira — o despacho
 /// de chamadas, incluindo o único ponto em que a semântica consulta a
-/// autoridade de seleção de método `method_dispatch` (C2, #590/#591). O pai
-/// continua sendo um arquivo — ele não virou `mod.rs` —, e o irmão mora em
-/// `src/semantic/`, declarado pelo `mod` do próprio pai. Um oráculo que
-/// continuasse lendo só `src/semantic.rs` seguiria verde e pararia de observar
-/// o consumo de C2 inteiro: é a mesma falha silenciosa OG-1 da #601.
+/// autoridade de seleção de método `method_dispatch` (C2, #590/#591). A da #628
+/// (unidade SEM-2) tirou a região `semantic.comandos.verificacao` — a
+/// verificação dos comandos de um bloco, que não atravessa autoridade nenhuma.
+/// O pai continua sendo um arquivo — ele não virou `mod.rs` —, e os irmãos
+/// moram em `src/semantic/`, declarados pelos `mod` do próprio pai. Um oráculo
+/// que continuasse lendo só `src/semantic.rs` seguiria verde e pararia de
+/// observar o consumo de C2 inteiro e a verificação de comandos: é a mesma
+/// falha silenciosa OG-1 da #601.
 pub const SEMANTIC_ARQUIVOS: &[(&str, &str)] = &[
     ("semantic.rs", include_str!("../../src/semantic.rs")),
     ("calls.rs", include_str!("../../src/semantic/calls.rs")),
+    (
+        "statements.rs",
+        include_str!("../../src/semantic/statements.rs"),
+    ),
 ];
 
 /// Concatena o módulo `semantic` inteiro, o pai primeiro.
