@@ -224,16 +224,20 @@ pub fn nav_projection_snapshot() -> String {
 /// e com elas desceram a outra consulta a `method_dispatch`
 /// (`select_representative`, C2, #590/#591) e o consumo do registry declarativo
 /// de intrínsecas (C1, #442). A da #626 (unidade IR-4) tirou a região
-/// `renderizacao.textual` — a forma textual auditável da IR já construída. O pai
-/// continua sendo um arquivo — ele não virou `mod.rs` —, e os irmãos moram em
-/// `src/ir/`, declarados pelos `mod` do próprio pai. Um oráculo que continuasse
-/// lendo só `src/ir.rs` seguiria verde e pararia de observar os dois consumos de
-/// C2, o de C1 e a renderização inteira: é a mesma falha silenciosa OG-1 da
-/// #601.
+/// `renderizacao.textual` — a forma textual auditável da IR já construída. A da
+/// #632 (unidade IR-3) tirou as regiões `modelo.representacao` e
+/// `tipos.identidade-resolvida` — o modelo de dados da IR e a identidade
+/// semântica resolvida de tipos —, e com elas desceram quarenta dos quarenta e
+/// cinco itens públicos do módulo. O pai continua sendo um arquivo — ele não
+/// virou `mod.rs` —, e os irmãos moram em `src/ir/`, declarados pelos `mod` do
+/// próprio pai. Um oráculo que continuasse lendo só `src/ir.rs` seguiria verde e
+/// pararia de observar os dois consumos de C2, o de C1, a renderização inteira e
+/// o modelo da IR: é a mesma falha silenciosa OG-1 da #601.
 pub const IR_ARQUIVOS: &[(&str, &str)] = &[
     ("ir.rs", include_str!("../../src/ir.rs")),
     ("context.rs", include_str!("../../src/ir/context.rs")),
     ("lowering.rs", include_str!("../../src/ir/lowering.rs")),
+    ("model.rs", include_str!("../../src/ir/model.rs")),
     ("render.rs", include_str!("../../src/ir/render.rs")),
 ];
 
