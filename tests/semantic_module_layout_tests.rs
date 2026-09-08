@@ -1,10 +1,14 @@
 //! Guardião estrutural cumulativo da decomposição física da checagem semântica
-//! (#619, unidade SEM-1, e #628, unidade SEM-2, do inventário da #601).
+//! (#619, unidade SEM-1, #628, unidade SEM-2, e #634, unidade SEM-3, do
+//! inventário da #601).
 //!
 //! `src/semantic.rs` é a autoridade da fase semântica. A #619 desce a região
-//! `semantic.chamadas.despacho` inteira para `src/semantic/calls.rs` e a #628
+//! `semantic.chamadas.despacho` inteira para `src/semantic/calls.rs`, a #628
 //! desce a região `semantic.comandos.verificacao` inteira para
-//! `src/semantic/statements.rs`, sem dividir essa autoridade: o estado
+//! `src/semantic/statements.rs` e a #634 desce as três regiões contíguas
+//! `semantic.unioes.encaixe`, `semantic.fluxo.retornos` e
+//! `semantic.expressoes.verificacao` inteiras para
+//! `src/semantic/expressions.rs`, sem dividir essa autoridade: o estado
 //! (`SemanticChecker`), a ordem das duas passagens, os escopos, o sistema de
 //! tipos e as demais famílias continuam no pai, e o pai continua sendo um
 //! arquivo — não virou `mod.rs`.
@@ -28,17 +32,18 @@
 //!    por eles é exatamente o que existe no disco;
 //! 2. a implementação podia ficar duplicada, ou ficar para trás no pai;
 //! 3. o corte podia promover visibilidade ou mudar a superfície pública do
-//!    módulo. `check_call_expr` (SEM-1) e `check_block` (SEM-2) são os únicos
-//!    símbolos que o pai chama e os únicos que passaram de privados a
-//!    `pub(super)`; nenhum item dos cortes era `pub`, então nenhuma
-//!    reexportação é devida e nenhuma pode aparecer;
-//! 4. um corte podia atravessar autoridade que não é da fase. A SEM-2 não
-//!    atravessa nenhuma: `statements.rs` não consulta `method_dispatch` (C2),
-//!    não lê o registry declarativo de intrínsecas (C1), não reconstrói origem
-//!    de default body por grafia (C5), não reabre a conclusão da #600 (C6) e
-//!    não decide a política ainda aberta da #579. O teste abaixo cobra esse
-//!    zero, e cobra que o módulo inteiro continue com uma consulta por
-//!    decisão.
+//!    módulo. `check_call_expr` (SEM-1), `check_block` (SEM-2) e os sete
+//!    símbolos da SEM-3 são os únicos que um chamador de fora do próprio corte
+//!    invoca, e os únicos que passaram de privados a `pub(super)`; nenhum item
+//!    dos cortes era `pub`, então nenhuma reexportação é devida e nenhuma pode
+//!    aparecer;
+//! 4. um corte podia atravessar autoridade que não é da fase. Nem a SEM-2 nem
+//!    a SEM-3 atravessam nenhuma: `statements.rs` e `expressions.rs` não
+//!    consultam `method_dispatch` (C2), não leem o registry declarativo de
+//!    intrínsecas (C1), não reconstroem origem de default body por grafia
+//!    (C5), não reabrem a conclusão da #600 (C6) e não decidem a política
+//!    ainda aberta da #579. O teste abaixo cobra esse zero, e cobra que o
+//!    módulo inteiro continue com uma consulta por decisão.
 //!
 //! Ele NÃO congela LOC, não congela a árvore como snapshot ornamental e não
 //! afirma nada sobre a regra de despacho, que é de `src/method_dispatch.rs`.
@@ -59,18 +64,20 @@ use rust_source::codigo_executavel;
 const REGIOES_MOVIDAS: &[(&str, &str)] = &[
     ("semantic.chamadas.despacho", "calls.rs"),
     ("semantic.comandos.verificacao", "statements.rs"),
+    ("semantic.unioes.encaixe", "expressions.rs"),
+    ("semantic.fluxo.retornos", "expressions.rs"),
+    ("semantic.expressoes.verificacao", "expressions.rs"),
 ];
 
 /// As regiões que os cortes deixaram onde estavam. `semantic.funcoes.verificacao`
-/// e `semantic.unioes.encaixe` são as vizinhas imediatas do span da SEM-2 — a
-/// que vem antes e a que vem depois —, e `semantic.expressoes.verificacao` e
-/// `semantic.modulos.validacao-local` são as da SEM-1: são elas que ficariam
-/// vermelhas se um corte tivesse escorregado uma região para qualquer lado.
+/// é a vizinha imediata anterior do span contíguo da SEM-3 e a anterior da
+/// SEM-2, e `semantic.modulos.validacao-local` é a posterior da SEM-1 e da
+/// SEM-3: são elas que ficariam vermelhas se um corte tivesse escorregado uma
+/// região para qualquer lado.
 ///
-/// A lista também é o que impede a SEM-3 (`expressoes`, `unioes`, `fluxo`) e a
-/// SEM-4 (`tratos`) de virem junto por engano: elas têm de continuar no pai.
+/// A lista também é o que impede a SEM-4 (`tratos`) de vir junto por engano:
+/// ela tem de continuar no pai.
 const REGIOES_RETIDAS: &[&str] = &[
-    "semantic.expressoes.verificacao",
     "semantic.modulos.validacao-local",
     "semantic.identificadores.namespace-produtor-de-simbolo",
     "semantic.importacoes.familias",
@@ -79,8 +86,6 @@ const REGIOES_RETIDAS: &[&str] = &[
     "semantic.programa.duas-passagens",
     "semantic.tratos.contratos",
     "semantic.funcoes.verificacao",
-    "semantic.unioes.encaixe",
-    "semantic.fluxo.retornos",
 ];
 
 /// As definições que os cortes moveram inteiras, e o irmão onde passam a morar.
@@ -93,26 +98,62 @@ const DEFINICOES_MOVIDAS: &[(&str, &str)] = &[
     ("fn check_named_function_call(", "calls.rs"),
     ("fn check_call_expr(", "calls.rs"),
     ("fn check_block(", "statements.rs"),
+    ("fn check_union_match(", "expressions.rs"),
+    ("fn check_if_as_nested_branch(", "expressions.rs"),
+    ("fn check_return_stmt(", "expressions.rs"),
+    ("fn block_returns(", "expressions.rs"),
+    ("fn if_returns(", "expressions.rs"),
+    ("fn enum_match_returns(", "expressions.rs"),
+    ("fn union_match_returns(", "expressions.rs"),
+    ("fn check_value_expr(", "expressions.rs"),
+    ("fn function_result_type(", "expressions.rs"),
+    ("fn check_expr(", "expressions.rs"),
+    ("fn check_pointer_arithmetic(", "expressions.rs"),
 ];
 
 /// Irmãos que carregam produção, não teste.
-const IRMAOS_DE_PRODUCAO: &[&str] = &["calls.rs", "statements.rs"];
+const IRMAOS_DE_PRODUCAO: &[&str] = &["calls.rs", "expressions.rs", "statements.rs"];
 
 /// Os itens `pub` que cada irmão pode ter. A lista é exaustiva e vazia para
 /// todo irmão: nenhum item dos cortes era `pub` antes do move, então nenhum
 /// pode ser depois.
-const PUB_AUTORIZADO: &[(&str, &[&str])] = &[("calls.rs", &[]), ("statements.rs", &[])];
+const PUB_AUTORIZADO: &[(&str, &[&str])] = &[
+    ("calls.rs", &[]),
+    ("expressions.rs", &[]),
+    ("statements.rs", &[]),
+];
 
 /// A visibilidade restrita que cada irmão pode ter, exaustiva.
 ///
-/// É o custo Rust inteiro de cada unidade, medido pelo inventário da #601 como
-/// `1 pub(super)` e nenhum `pub(crate)` em ambas: `check_call_expr` é o único
-/// símbolo da SEM-1 que o pai chama — de `semantic.expressoes.verificacao` —, e
-/// `check_block` é o único símbolo da SEM-2 que o pai chama — das famílias de
-/// funções, de uniões e de fluxo —, e por isso são os únicos que precisam ser
-/// visíveis para ele.
+/// É o custo Rust inteiro de cada unidade, medido pelo inventário da #601 e
+/// reconfirmado contra a main de cada corte, sem nenhum `pub(crate)`:
+/// `check_call_expr` é o único símbolo da SEM-1 chamado de fora do corte — de
+/// `semantic.expressoes.verificacao`, hoje em `expressions.rs` —, `check_block`
+/// é o único da SEM-2 — chamado pelo pai nas famílias de funções e de leques e
+/// pelo irmão de expressões nas de uniões e de fluxo — e os sete da SEM-3 são
+/// os que o pai e os irmãos chamam: `check_union_match`,
+/// `check_if_as_nested_branch` e `check_return_stmt` a partir dos comandos,
+/// `block_returns` a partir da alcançabilidade de retorno das famílias de
+/// funções e de tratos, `check_value_expr` a partir de quase toda a fase,
+/// `function_result_type` a partir do despacho de chamadas e `check_expr` a
+/// partir da expressão-comando. Os outros quatro símbolos da SEM-3
+/// (`if_returns`, `enum_match_returns`, `union_match_returns` e
+/// `check_pointer_arithmetic`) só têm chamador dentro do próprio corte e
+/// continuam privados.
 const PUB_RESTRITO_AUTORIZADO: &[(&str, &[&str])] = &[
     ("calls.rs", &["pub(super) fn check_call_expr("]),
+    (
+        "expressions.rs",
+        &[
+            "pub(super) fn check_union_match(",
+            "pub(super) fn check_if_as_nested_branch(",
+            "pub(super) fn check_return_stmt(",
+            "pub(super) fn block_returns(",
+            "pub(super) fn check_value_expr(",
+            "pub(super) fn function_result_type(",
+            "pub(super) fn check_expr(",
+        ],
+    ),
     ("statements.rs", &["pub(super) fn check_block("]),
 ];
 
@@ -233,7 +274,7 @@ fn cada_regiao_e_cada_definicao_movida_aparece_uma_vez_no_arquivo_certo() {
         let marcador = format!("// @pinker-nav:start {chave}");
         assert!(
             pai().contains(&marcador),
-            "a região {chave} não é da SEM-1 e deveria continuar em src/semantic.rs"
+            "a região {chave} não é de nenhum corte e deveria continuar em src/semantic.rs"
         );
     }
 
@@ -347,8 +388,8 @@ fn a_superficie_publica_do_modulo_e_exatamente_a_congelada() {
     let congelados: BTreeSet<&str> = API_PUBLICA_CONGELADA.iter().copied().collect();
     assert_eq!(
         observados, congelados,
-        "a superfície pública de semantic mudou; a #619 é decomposição física e não muda \
-         API pública"
+        "a superfície pública de semantic mudou; SEM-1, SEM-2 e SEM-3 são decomposição \
+         física e não mudam API pública"
     );
 
     // Itens não são a única forma de caminho público: um `pub mod` ou um
@@ -445,36 +486,43 @@ fn o_irmao_consome_c2_e_nao_cria_uma_segunda_autoridade() {
     }
 }
 
-/// A SEM-2 não atravessa autoridade nenhuma, e o irmão que ela cria tem de
-/// continuar assim.
+/// Nem a SEM-2 nem a SEM-3 atravessam autoridade nenhuma, e os irmãos que elas
+/// criam têm de continuar assim.
 ///
-/// `semantic.comandos.verificacao` não consulta `method_dispatch` (C2), não lê
-/// o registry declarativo de intrínsecas (C1), não reconstrói origem de default
-/// body por grafia (C5), não reabre a conclusão arquitetural da #600 (C6) e não
-/// decide a política de alcance ainda aberta da #579. Um zero medido é o que
-/// separa "não toquei" de "toquei sem perceber": qualquer uma dessas grafias
-/// aparecendo em `statements.rs` seria autoridade nova nascendo num corte que
-/// se declara físico.
+/// `semantic.comandos.verificacao` (SEM-2) e as três regiões da SEM-3 —
+/// `semantic.unioes.encaixe`, `semantic.fluxo.retornos` e
+/// `semantic.expressoes.verificacao` — não consultam `method_dispatch` (C2),
+/// não leem o registry declarativo de intrínsecas (C1), não reconstroem origem
+/// de default body por grafia (C5), não reabrem a conclusão arquitetural da
+/// #600 (C6) e não decidem a política de alcance ainda aberta da #579. Um zero
+/// medido é o que separa "não toquei" de "toquei sem perceber": qualquer uma
+/// dessas grafias aparecendo nesses irmãos seria autoridade nova nascendo num
+/// corte que se declara físico.
+///
+/// `calls.rs` fica de fora desta lista de propósito: é o irmão que consome C2,
+/// e o teste dele é o `o_irmao_consome_c2_e_nao_cria_uma_segunda_autoridade`.
 #[test]
-fn o_irmao_dos_comandos_nao_atravessa_autoridade_nenhuma() {
-    let irmao = codigo_executavel(fonte("statements.rs"));
-    for grafia in [
-        "select_impl_method",
-        "select_representative",
-        "NivelDeDespacho",
-        "nivel_de_despacho",
-        "PorUnidadeImportada",
-        "method_dispatch",
-        "method_index",
-        "intrinsics::",
-        "__impl_",
-    ] {
-        assert_eq!(
-            irmao.matches(grafia).count(),
-            0,
-            "src/semantic/statements.rs passou a usar `{grafia}`; a SEM-2 não atravessa \
-             autoridade nenhuma"
-        );
+fn os_irmaos_sem_autoridade_nao_atravessam_autoridade_nenhuma() {
+    for nome in ["statements.rs", "expressions.rs"] {
+        let irmao = codigo_executavel(fonte(nome));
+        for grafia in [
+            "select_impl_method",
+            "select_representative",
+            "NivelDeDespacho",
+            "nivel_de_despacho",
+            "PorUnidadeImportada",
+            "method_dispatch",
+            "method_index",
+            "intrinsics::",
+            "__impl_",
+        ] {
+            assert_eq!(
+                irmao.matches(grafia).count(),
+                0,
+                "src/semantic/{nome} passou a usar `{grafia}`; o corte não atravessa \
+                 autoridade nenhuma"
+            );
+        }
     }
 }
 
@@ -482,19 +530,34 @@ fn o_irmao_dos_comandos_nao_atravessa_autoridade_nenhuma() {
 /// comandos, e o irmão continua sendo só o corpo — inclusive a própria
 /// recursão, que desceu junto porque é interna à região.
 ///
-/// As sete chamadas do pai são as de sempre: duas na verificação de corpos de
-/// topo, duas no `encaixe` de leque, uma no `encaixe` de união e duas no ramo
-/// `talvez`/`senão`. Se uma delas migrasse para o irmão, ou se o irmão ganhasse
-/// uma oitava, a fronteira que torna `pub(super)` suficiente teria mudado.
+/// As sete chamadas de fora da própria região são as de sempre, e a SEM-3 só
+/// mudou de que arquivo três delas partem: duas na verificação de corpos de
+/// topo e duas no `encaixe` de leque continuam no pai; uma no `encaixe` de
+/// união e duas no ramo `talvez`/`senão` passaram a partir de
+/// `expressions.rs`, porque foram essas regiões que desceram. Se uma delas
+/// migrasse de arquivo, ou se aparecesse uma oitava, a fronteira que torna
+/// `pub(super)` suficiente teria mudado.
 #[test]
 fn o_pai_continua_chamando_a_verificacao_de_comandos() {
     let bruto = pai();
     let codigo_do_pai = codigo_executavel(bruto);
     let irmao = codigo_executavel(fonte("statements.rs"));
+    let expressoes = codigo_executavel(fonte("expressions.rs"));
     assert_eq!(
         codigo_do_pai.matches("self.check_block(").count(),
+        4,
+        "src/semantic.rs deveria chamar `check_block` exatamente quatro vezes"
+    );
+    assert_eq!(
+        expressoes.matches("self.check_block(").count(),
+        3,
+        "src/semantic/expressions.rs deveria chamar `check_block` exatamente três vezes"
+    );
+    assert_eq!(
+        codigo_do_pai.matches("self.check_block(").count()
+            + expressoes.matches("self.check_block(").count(),
         7,
-        "src/semantic.rs deveria chamar `check_block` exatamente sete vezes"
+        "as sete chamadas de fora da região de comandos deixaram de ser sete"
     );
     assert_eq!(
         irmao.matches("self.check_block(").count(),
@@ -522,28 +585,39 @@ fn o_pai_continua_chamando_a_verificacao_de_comandos() {
     );
 }
 
-/// A ordem de fase não mudou: o pai continua sendo quem chama o despacho de
-/// chamadas, de dentro da verificação de expressões, e o irmão continua sendo
-/// só o corpo. É a fronteira que torna `pub(super)` suficiente — e a
-/// sensitivity M9 da #619 perturba exatamente o que este teste ancora.
+/// A ordem de fase não mudou: quem chama o despacho de chamadas continua sendo
+/// a verificação de expressões, e `calls.rs` continua sendo só o corpo. É a
+/// fronteira que torna `pub(super)` suficiente — e a sensitivity M9 da #619
+/// perturba exatamente o que este teste ancora.
+///
+/// A SEM-3 não mudou a fase, mudou o arquivo: a verificação de expressões
+/// desceu para `expressions.rs` e levou a chamada consigo. O pai deixou de
+/// chamar, e é isso que este teste passa a exigir — um `check_call_expr`
+/// reaparecendo no pai seria a chamada duplicada ou a região voltando.
 #[test]
-fn o_pai_continua_chamando_o_despacho_de_chamadas() {
+fn a_verificacao_de_expressoes_continua_chamando_o_despacho_de_chamadas() {
     let pai = codigo_executavel(pai());
+    let expressoes = codigo_executavel(fonte("expressions.rs"));
     assert_eq!(
         pai.matches("self.check_call_expr(").count(),
-        1,
-        "src/semantic.rs deveria chamar `check_call_expr` exatamente uma vez"
+        0,
+        "src/semantic.rs voltou a chamar `check_call_expr`; a chamada desceu com a SEM-3"
     );
-    // A única chamada mora na verificação de expressões, antes do fim da
-    // região que a hospeda: um deslocamento de fase mudaria este vizinho.
-    let chamada = pai
+    assert_eq!(
+        expressoes.matches("self.check_call_expr(").count(),
+        1,
+        "src/semantic/expressions.rs deveria chamar `check_call_expr` exatamente uma vez"
+    );
+    // A única chamada mora na verificação de expressões, depois do início do
+    // despacho que a hospeda: um deslocamento de fase mudaria este vizinho.
+    let chamada = expressoes
         .find("self.check_call_expr(")
-        .expect("chamada presente no pai");
-    let regiao = pai
+        .expect("chamada presente no irmão de expressões");
+    let regiao = expressoes
         .find("ExprKind::Call")
-        .expect("o despacho de expressões continua no pai");
+        .expect("o despacho de expressões mora no irmão");
     assert!(
         regiao < chamada,
-        "a chamada de `check_call_expr` saiu do despacho de expressões do pai"
+        "a chamada de `check_call_expr` saiu do despacho de expressões"
     );
 }
