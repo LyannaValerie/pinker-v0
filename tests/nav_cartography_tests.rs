@@ -1202,7 +1202,8 @@ fn camada_operacional_cartografa_cli_editor_boot() {
 
     // A camada `cli` é o binário `pink`, não um arquivo: a decomposição física
     // da #605 tirou parsing, comandos `doc` e carga de módulos do entrypoint e
-    // os pôs em `src/pink_cli/`, sem mudar chave, domínio nem resumo.
+    // a da #638 tirou análise e build nativo, todos para `src/pink_cli/`, sem
+    // mudar chave, domínio nem resumo.
     let expected_cli_keys = [
         ("cli.config.modelos", "src/main.rs"),
         ("cli.ajuda.usage", "src/main.rs"),
@@ -1216,8 +1217,8 @@ fn camada_operacional_cartografa_cli_editor_boot() {
         ("cli.doc.mudancas", "src/pink_cli/doc_cli.rs"),
         ("cli.doc.verificacao", "src/pink_cli/doc_cli.rs"),
         ("cli.execucao.editor-repl", "src/main.rs"),
-        ("cli.analise.pipeline", "src/main.rs"),
-        ("cli.build.nativo", "src/main.rs"),
+        ("cli.analise.pipeline", "src/pink_cli/analysis_build.rs"),
+        ("cli.build.nativo", "src/pink_cli/analysis_build.rs"),
         ("cli.modulos.importacao", "src/pink_cli/modules.rs"),
         ("cli.nav.projecao", "src/main.rs"),
     ];

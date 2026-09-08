@@ -11,6 +11,7 @@
 
 mod common;
 
+use common::fonte_de_modulo::pink_cli;
 use common::ControlledCommand as Command;
 use pinker_v0::inline_asm::{self, E_ASM_ARTIFACT, E_ASM_SYMBOL_ASSIGN};
 use pinker_v0::{
@@ -247,7 +248,7 @@ fn interpretador_mantem_o_erro_explicito() {
 // @pinker-nav:start evidencia.hotfix.sussurro-artefato
 // @pinker-nav:domain sussurro
 // @pinker-nav:layer evidencia
-// @pinker-nav:summary Evidência do invariante de artefato: o leitor de ELF próprio lê seções e símbolos de um objeto real e recusa entrada malformada sem pânico; `strip_envelope_bodies` remove exatamente os envelopes e preserva o resto linha a linha, mantendo sentinelas e wrappers Intel/AT&T no assembly emitido; `compare_artifact_surfaces` acusa símbolo novo, alias novo, seção nova e mudança de ligação/visibilidade sobre objetos realmente montados, e aprova o par derivado do compilador; `verify_native_artifact` — a mesma função chamada pelo build — aprova um envelope legítimo; um `pink build --nativo` real imprime a linha de verificação e o ELF final não ganha nenhum símbolo definido nem seção em relação ao mesmo programa sem `sussurro`; e um guardião estrutural exige que a região `cli.build.nativo` de `src/main.rs` continue chamando a verificação antes de linkar, de modo que remover o cabo produtivo quebre a suíte. Sob `PINKER_EXIGE_NATIVO=1` a ausência do driver C bloqueia em vez de pular em silêncio.
+// @pinker-nav:summary Evidência do invariante de artefato: o leitor de ELF próprio lê seções e símbolos de um objeto real e recusa entrada malformada sem pânico; `strip_envelope_bodies` remove exatamente os envelopes e preserva o resto linha a linha, mantendo sentinelas e wrappers Intel/AT&T no assembly emitido; `compare_artifact_surfaces` acusa símbolo novo, alias novo, seção nova e mudança de ligação/visibilidade sobre objetos realmente montados, e aprova o par derivado do compilador; `verify_native_artifact` — a mesma função chamada pelo build — aprova um envelope legítimo; um `pink build --nativo` real imprime a linha de verificação e o ELF final não ganha nenhum símbolo definido nem seção em relação ao mesmo programa sem `sussurro`; e um guardião estrutural exige que a região `cli.build.nativo` do binário `pink` continue chamando a verificação antes de linkar, de modo que remover o cabo produtivo quebre a suíte. Sob `PINKER_EXIGE_NATIVO=1` a ausência do driver C bloqueia em vez de pular em silêncio.
 
 /// Monta um `.s` com o driver C e devolve o objeto lido pelo leitor próprio.
 fn montar_e_ler(driver: &str, rotulo: &str, asm: &str) -> elf::ElfObject {
@@ -532,13 +533,14 @@ fn build_nativo_real_verifica_o_artefato_e_o_elf_final_nao_ganha_simbolo() {
 ///
 /// A verificação de artefato só tem valor se rodar no build real. Um teste que
 /// chamasse apenas a função da biblioteca continuaria passando com o cabo
-/// removido de `src/main.rs` — por isso a exigência é sobre a fonte da região
-/// cartografada do build nativo.
+/// removido — por isso a exigência é sobre a fonte da região cartografada do
+/// build nativo. A fonte é o binário `pink` inteiro, não um arquivo: a
+/// decomposição física da #638 tirou `cli.build.nativo` de `src/main.rs` e a
+/// pôs em `src/pink_cli/analysis_build.rs`, e um oráculo preso ao caminho
+/// antigo pararia de observar o cabo.
 #[test]
 fn verificacao_de_artefato_esta_cabeada_no_build_nativo() {
-    let fonte =
-        std::fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/main.rs"))
-            .expect("ler src/main.rs");
+    let fonte = pink_cli();
     let inicio = fonte
         .find("@pinker-nav:start cli.build.nativo")
         .expect("região cli.build.nativo ausente");
