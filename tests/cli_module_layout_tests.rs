@@ -1,5 +1,5 @@
-//! Guardião estrutural da decomposição física do binário `pink` (#605,
-//! unidade MAIN-5+2+3).
+//! Guardião estrutural da decomposição física do binário `pink`, no estado
+//! cumulativo: MAIN-5+2+3 (#605) mais MAIN-4 (#638).
 //!
 //! A #601 registrou que `src/main.rs` não tinha nenhum guardião estrutural por
 //! caminho: perder uma região, duplicá-la, deixá-la no arquivo antigo ou não
@@ -7,10 +7,12 @@
 //! buraco e nada mais.
 //!
 //! Ele NÃO congela LOC, não congela a árvore como snapshot ornamental e não
-//! afirma nada sobre o conteúdo das regiões. Afirma quatro coisas mecânicas:
-//! o conjunto de arquivos de `src/pink_cli/`, o wiring dos `mod` no entrypoint,
-//! a presença única de cada região cartografada, e que a decomposição não
-//! promoveu visibilidade.
+//! afirma nada sobre o conteúdo das regiões. Afirma coisas mecânicas: o
+//! conjunto de arquivos de `src/pink_cli/`, o wiring dos `mod` no entrypoint,
+//! a igualdade de conjunto entre a partição declarada aqui e a camada `cli` do
+//! catálogo, a presença única de cada região, que a decomposição não promoveu
+//! visibilidade, e — desde a MAIN-4 — que o escopo textual do
+//! `macro_rules! try_or_exit` continua o que a #601 mediu.
 
 #[path = "common/fonte_de_modulo.rs"]
 mod fonte_de_modulo;
@@ -22,9 +24,12 @@ use std::fs;
 use std::path::PathBuf;
 
 use fonte_de_modulo::{pink_cli, PINK_CLI_ARQUIVOS};
+use pinker_v0::nav::CodeCatalog;
 use rust_source::codigo_executavel;
 
-/// Regiões que a MAIN-5+2+3 moveu de `src/main.rs` para os irmãos.
+/// Regiões que a decomposição física moveu de `src/main.rs` para os irmãos.
+/// As sete primeiras são da MAIN-5+2+3 (#605); as duas últimas, da MAIN-4
+/// (#638).
 const REGIOES_MOVIDAS: &[(&str, &str)] = &[
     ("cli.parsing.subcomandos", "cli_parsing.rs"),
     ("cli.parsing.roteamento", "cli_parsing.rs"),
@@ -33,11 +38,14 @@ const REGIOES_MOVIDAS: &[(&str, &str)] = &[
     ("cli.doc.mudancas", "doc_cli.rs"),
     ("cli.doc.verificacao", "doc_cli.rs"),
     ("cli.modulos.importacao", "modules.rs"),
+    ("cli.analise.pipeline", "analysis_build.rs"),
+    ("cli.build.nativo", "analysis_build.rs"),
 ];
 
-/// Regiões que a MAIN-5+2+3 deixou onde estavam. `cli.execucao.entrada` é o
-/// `main` e o `macro_rules! try_or_exit`; `cli.analise.pipeline` e
-/// `cli.build.nativo` são a orquestração do pipeline, que não se move.
+/// Regiões que continuam no entrypoint. `cli.execucao.entrada` é o `main` e o
+/// `macro_rules! try_or_exit`, que a #601 mediu como dependência textual da
+/// MAIN-4 e que por isso não viaja com ela; as três `cli.nav.*` são a MAIN-1,
+/// unidade que a #638 proíbe executar.
 const REGIOES_RETIDAS: &[&str] = &[
     "cli.config.modelos",
     "cli.ajuda.usage",
@@ -46,8 +54,15 @@ const REGIOES_RETIDAS: &[&str] = &[
     "cli.nav.consulta",
     "cli.nav.sincronizacao-verificacao",
     "cli.execucao.editor-repl",
-    "cli.analise.pipeline",
-    "cli.build.nativo",
+];
+
+/// As três regiões da MAIN-1. Elas são um subconjunto declarado de
+/// [`REGIOES_RETIDAS`]: arrastá-las junto com a MAIN-4 é o desvio de escopo que
+/// a #638 nomeia, e um `assert` só sobre a lista grande não o nomearia.
+const REGIOES_DA_MAIN_1: &[&str] = &[
+    "cli.nav.projecao",
+    "cli.nav.consulta",
+    "cli.nav.sincronizacao-verificacao",
 ];
 
 /// Símbolos que o move obrigou a expor ao entrypoint, um por dependência real.
@@ -57,9 +72,23 @@ const EXPOSICOES_NECESSARIAS: &[&str] = &[
     "contexto_de_import",
     "load_doc_config",
     "parse_args",
+    "run_analyze",
+    "run_build",
     "run_doc",
     "write_atomic",
 ];
+
+/// Irmão que a MAIN-4 criou e o único que pode usar `try_or_exit!`, porque é o
+/// único declarado abaixo da definição da macro.
+const IRMAO_DA_MAIN_4: &str = "analysis_build.rs";
+
+/// Ocorrências de `try_or_exit!` que a #601 mediu dentro dos spans da MAIN-4.
+/// A conta dela é lexical: das 29, 28 são chamadas e 1 é a menção ao nome da
+/// macro dentro do `@pinker-nav:summary` da própria região `cli.analise.pipeline`
+/// — a mesma sobrecontagem conservadora que a §3 da #601 declara para `path` e
+/// `criar`. As duas contas ficam ancoradas aqui: nenhuma das 29 ficou para trás.
+const CHAMADAS_DE_TRY_OR_EXIT_NA_MAIN_4: usize = 28;
+const OCORRENCIAS_DE_TRY_OR_EXIT_NA_MAIN_4: usize = 29;
 
 fn diretorio_dos_irmaos() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/pink_cli")
@@ -151,7 +180,7 @@ fn cada_regiao_cartografada_aparece_uma_vez_no_arquivo_certo() {
         let marcador = format!("// @pinker-nav:start {chave}");
         assert!(
             fonte("main.rs").contains(&marcador),
-            "a região {chave} não é da MAIN-5+2+3 e deveria continuar em src/main.rs"
+            "a região {chave} não pertence a nenhuma unidade executada e deveria continuar em src/main.rs"
         );
     }
 }
@@ -189,8 +218,8 @@ fn cada_exposicao_necessaria_tem_uma_definicao_so() {
     }
 }
 
-/// A decomposição é física: ela não promove nada para fora do binário, e o
-/// `macro_rules! try_or_exit` continua no entrypoint, junto com quem o usa.
+/// A decomposição é física: ela não promove nada para fora do binário, e
+/// nenhum irmão leva `macro_rules!` consigo — a macro é do entrypoint.
 /// É a sensitivity M3 da #605 — remover uma aresta destas quebra a compilação —
 /// mais o controle de que nenhuma delas virou promoção larga.
 #[test]
@@ -216,7 +245,7 @@ fn a_decomposicao_nao_promoveu_visibilidade() {
         );
         assert!(
             !codigo.contains("macro_rules!"),
-            "src/pink_cli/{nome} levou macro por escopo textual, que a #601 mediu como dependência da MAIN-4"
+            "src/pink_cli/{nome} define macro_rules!, que é do entrypoint e não viaja com nenhuma unidade"
         );
     }
     let exposicoes = codigo_executavel(&pink_cli())
@@ -226,5 +255,156 @@ fn a_decomposicao_nao_promoveu_visibilidade() {
         exposicoes,
         EXPOSICOES_NECESSARIAS.len(),
         "o binário pink expõe ao entrypoint um número de símbolos diferente do justificado pelo move"
+    );
+}
+
+fn catalogo() -> CodeCatalog {
+    let caminho = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/navigation.jsonl");
+    CodeCatalog::load(&caminho).expect("catálogo de código versionado")
+}
+
+/// `DECLARED == REALITY` por igualdade de conjunto, não por presença. Uma lista
+/// conferida só por presença é cega para a região nova que ninguém registrou e
+/// para a região que mudou de arquivo por engano: as duas passariam. A camada
+/// `cli` do catálogo é a realidade; a partição acima é a declaração.
+#[test]
+fn a_particao_declarada_e_exatamente_a_camada_cli_do_catalogo() {
+    let catalogo = catalogo();
+    let real: BTreeSet<(String, String)> = catalogo
+        .regions
+        .iter()
+        .filter(|regiao| regiao.layer.as_deref() == Some("cli"))
+        .map(|regiao| (regiao.key.clone(), regiao.file.clone()))
+        .collect();
+    let declarado: BTreeSet<(String, String)> = REGIOES_MOVIDAS
+        .iter()
+        .map(|(chave, arquivo)| ((*chave).to_string(), format!("src/pink_cli/{arquivo}")))
+        .chain(
+            REGIOES_RETIDAS
+                .iter()
+                .map(|chave| ((*chave).to_string(), "src/main.rs".to_string())),
+        )
+        .collect();
+    assert_eq!(
+        declarado, real,
+        "a partição declarada neste guardião divergiu da camada cli do catálogo"
+    );
+}
+
+/// Escopo de `macro_rules!` é textual, não de item: nenhum `pub(super)` o
+/// alcança. A #601 mediu `try_or_exit!` definido em `src/main.rs` com 29 usos,
+/// todos dentro dos spans da MAIN-4. O move só é legítimo se a definição
+/// continuar única e no entrypoint, se os 29 usos continuarem inteiros num
+/// irmão só, e se o `mod` desse irmão estiver ABAIXO da definição — acima, o
+/// irmão não enxerga a macro e o build para.
+#[test]
+fn o_escopo_textual_de_try_or_exit_e_o_que_a_601_mediu() {
+    let entrypoint = codigo_executavel(fonte("main.rs"));
+
+    assert_eq!(
+        entrypoint.matches("macro_rules! try_or_exit").count(),
+        1,
+        "a definição de try_or_exit! deveria continuar única em src/main.rs"
+    );
+    let definicao = entrypoint
+        .find("macro_rules! try_or_exit")
+        .expect("definição de try_or_exit! no entrypoint");
+    let modulo = IRMAO_DA_MAIN_4.trim_end_matches(".rs");
+    let declaracao = entrypoint
+        .find(&format!("mod {modulo};"))
+        .expect("o entrypoint declara o irmão da MAIN-4");
+    assert!(
+        definicao < declaracao,
+        "`mod {modulo};` precisa vir depois de `macro_rules! try_or_exit`: acima da definição o irmão não enxerga a macro"
+    );
+
+    assert_eq!(
+        entrypoint.matches("try_or_exit!(").count(),
+        0,
+        "nenhum uso de try_or_exit! deveria ter ficado no entrypoint"
+    );
+    let irmao = codigo_executavel(fonte(IRMAO_DA_MAIN_4));
+    assert_eq!(
+        irmao.matches("try_or_exit!(").count(),
+        CHAMADAS_DE_TRY_OR_EXIT_NA_MAIN_4,
+        "src/pink_cli/{IRMAO_DA_MAIN_4} deveria conter as {CHAMADAS_DE_TRY_OR_EXIT_NA_MAIN_4} chamadas da MAIN-4"
+    );
+    assert_eq!(
+        fonte(IRMAO_DA_MAIN_4).matches("try_or_exit!").count(),
+        OCORRENCIAS_DE_TRY_OR_EXIT_NA_MAIN_4,
+        "src/pink_cli/{IRMAO_DA_MAIN_4} deveria conter as {OCORRENCIAS_DE_TRY_OR_EXIT_NA_MAIN_4} ocorrências que a #601 mediu"
+    );
+
+    for (nome, fonte_irmao) in PINK_CLI_ARQUIVOS {
+        if *nome == "main.rs" || *nome == IRMAO_DA_MAIN_4 {
+            continue;
+        }
+        assert_eq!(
+            codigo_executavel(fonte_irmao)
+                .matches("try_or_exit!")
+                .count(),
+            0,
+            "src/pink_cli/{nome} é declarado acima da definição da macro e não pode usá-la"
+        );
+    }
+}
+
+/// A #638 executa a MAIN-4 e proíbe a MAIN-1. As três regiões `cli.nav.*`
+/// continuam no entrypoint e nenhum irmão as recebeu de carona.
+#[test]
+fn a_main_1_nao_foi_arrastada_junto() {
+    for chave in REGIOES_DA_MAIN_1 {
+        assert!(
+            REGIOES_RETIDAS.contains(chave),
+            "{chave} é da MAIN-1 e deveria estar declarada como região retida"
+        );
+        let marcador = format!("// @pinker-nav:start {chave}");
+        assert!(
+            fonte("main.rs").contains(&marcador),
+            "a região {chave} é da MAIN-1 e deveria continuar em src/main.rs"
+        );
+        for (nome, fonte_irmao) in PINK_CLI_ARQUIVOS {
+            if *nome == "main.rs" {
+                continue;
+            }
+            assert!(
+                !fonte_irmao.contains(&marcador),
+                "src/pink_cli/{nome} recebeu {chave}, que é da MAIN-1 e não foi autorizada"
+            );
+        }
+    }
+}
+
+/// O move é físico: ele não transfere autoridade. Quem escolhe o modo de
+/// comando continua sendo o `main` do entrypoint; o irmão só implementa. Um
+/// despacho que migrasse para o filho o tornaria a nova autoridade de pipeline.
+#[test]
+fn o_despacho_de_modo_de_comando_continua_no_entrypoint() {
+    let entrypoint = codigo_executavel(fonte("main.rs"));
+    let binario = codigo_executavel(&pink_cli());
+    for despacho in [
+        "CliCommand::Analyze(config) => run_analyze(config)",
+        "CliCommand::Build(config) => run_build(config)",
+    ] {
+        assert_eq!(
+            entrypoint.matches(despacho).count(),
+            1,
+            "`{despacho}` deveria continuar exatamente uma vez em src/main.rs"
+        );
+        assert_eq!(
+            binario.matches(despacho).count(),
+            1,
+            "`{despacho}` deveria existir uma vez só no binário inteiro"
+        );
+    }
+    assert_eq!(
+        entrypoint.matches("fn main(").count(),
+        1,
+        "o entrypoint deveria continuar dono de `fn main`"
+    );
+    assert_eq!(
+        binario.matches("fn main(").count(),
+        1,
+        "`fn main` deveria existir uma vez só no binário inteiro"
     );
 }
