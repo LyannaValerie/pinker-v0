@@ -278,12 +278,17 @@ pub fn ir_caminhos() -> Vec<String> {
 /// `semantic.unioes.encaixe`, `semantic.fluxo.retornos` e
 /// `semantic.expressoes.verificacao` — o `encaixe` de união, o fluxo e os
 /// retornos e a verificação de expressões, que também não atravessam autoridade
-/// nenhuma e levam consigo a única chamada da fase ao despacho de chamadas.
+/// nenhuma e levam consigo a única chamada da fase ao despacho de chamadas. A
+/// da #636 (unidade SEM-4) tirou a região `semantic.tratos.contratos` — as
+/// relações, os métodos e os contratos de tratos —, e com ela desceu a outra
+/// consulta da fase a `method_dispatch` (`select_representative`, C2,
+/// #590/#591).
 /// O pai continua sendo um arquivo — ele não virou `mod.rs` —, e os irmãos
 /// moram em `src/semantic/`, declarados pelos `mod` do próprio pai. Um oráculo
 /// que continuasse lendo só `src/semantic.rs` seguiria verde e pararia de
-/// observar o consumo de C2 inteiro, a verificação de comandos e a verificação
-/// de expressões: é a mesma falha silenciosa OG-1 da #601.
+/// observar o consumo de C2 inteiro, a verificação de comandos, a verificação
+/// de expressões e os contratos de tratos: é a mesma falha silenciosa OG-1 da
+/// #601.
 pub const SEMANTIC_ARQUIVOS: &[(&str, &str)] = &[
     ("semantic.rs", include_str!("../../src/semantic.rs")),
     ("calls.rs", include_str!("../../src/semantic/calls.rs")),
@@ -295,6 +300,7 @@ pub const SEMANTIC_ARQUIVOS: &[(&str, &str)] = &[
         "statements.rs",
         include_str!("../../src/semantic/statements.rs"),
     ),
+    ("traits.rs", include_str!("../../src/semantic/traits.rs")),
 ];
 
 /// Concatena o módulo `semantic` inteiro, o pai primeiro.

@@ -1,22 +1,28 @@
 //! Guardião estrutural cumulativo da decomposição física da checagem semântica
-//! (#619, unidade SEM-1, #628, unidade SEM-2, e #634, unidade SEM-3, do
-//! inventário da #601).
+//! (#619, unidade SEM-1, #628, unidade SEM-2, #634, unidade SEM-3, e #636,
+//! unidade SEM-4, do inventário da #601).
 //!
 //! `src/semantic.rs` é a autoridade da fase semântica. A #619 desce a região
 //! `semantic.chamadas.despacho` inteira para `src/semantic/calls.rs`, a #628
 //! desce a região `semantic.comandos.verificacao` inteira para
-//! `src/semantic/statements.rs` e a #634 desce as três regiões contíguas
+//! `src/semantic/statements.rs`, a #634 desce as três regiões contíguas
 //! `semantic.unioes.encaixe`, `semantic.fluxo.retornos` e
 //! `semantic.expressoes.verificacao` inteiras para
-//! `src/semantic/expressions.rs`, sem dividir essa autoridade: o estado
-//! (`SemanticChecker`), a ordem das duas passagens, os escopos, o sistema de
-//! tipos e as demais famílias continuam no pai, e o pai continua sendo um
-//! arquivo — não virou `mod.rs`.
+//! `src/semantic/expressions.rs` e a #636 desce a região
+//! `semantic.tratos.contratos` inteira para `src/semantic/traits.rs`, sem
+//! dividir essa autoridade: o estado (`SemanticChecker`), a ordem das duas
+//! passagens, os escopos, o sistema de tipos e as demais famílias continuam no
+//! pai, e o pai continua sendo um arquivo — não virou `mod.rs`.
 //!
 //! O guardião é cumulativo: ele prova o módulo inteiro a cada corte, não apenas
 //! a unidade da vez. As listas abaixo são exaustivas e comparadas por igualdade
 //! de conjunto com o disco, então um irmão novo que ninguém registrasse, ou uma
-//! região que escorregasse de um arquivo para outro, fica vermelho aqui.
+//! região que escorregasse de um arquivo para outro, fica vermelho aqui. Desde
+//! a #636 a exaustividade vale nos dois sentidos: além de provar que cada
+//! chave declarada existe onde diz existir, o guardião prova que o conjunto de
+//! regiões observado no módulo é exatamente a união das declaradas como
+//! movidas e das declaradas como retidas — o finding estrutural que a review
+//! da PR #635 deixou aberto.
 //!
 //! O corte da SEM-1 foi o primeiro de `semantic.rs` e por isso pagou a
 //! reescrita do guardião C2, exatamente como o inventário da #601 previu. Os
@@ -32,18 +38,21 @@
 //!    por eles é exatamente o que existe no disco;
 //! 2. a implementação podia ficar duplicada, ou ficar para trás no pai;
 //! 3. o corte podia promover visibilidade ou mudar a superfície pública do
-//!    módulo. `check_call_expr` (SEM-1), `check_block` (SEM-2) e os sete
-//!    símbolos da SEM-3 são os únicos que um chamador de fora do próprio corte
-//!    invoca, e os únicos que passaram de privados a `pub(super)`; nenhum item
-//!    dos cortes era `pub`, então nenhuma reexportação é devida e nenhuma pode
-//!    aparecer;
+//!    módulo. `check_call_expr` (SEM-1), `check_block` (SEM-2), os sete
+//!    símbolos da SEM-3 e os cinco da SEM-4 são os únicos que um chamador de
+//!    fora do próprio corte invoca, e os únicos que passaram de privados a
+//!    `pub(super)`; nenhum item dos cortes era `pub`, então nenhuma
+//!    reexportação é devida e nenhuma pode aparecer;
 //! 4. um corte podia atravessar autoridade que não é da fase. Nem a SEM-2 nem
 //!    a SEM-3 atravessam nenhuma: `statements.rs` e `expressions.rs` não
 //!    consultam `method_dispatch` (C2), não leem o registry declarativo de
 //!    intrínsecas (C1), não reconstroem origem de default body por grafia
 //!    (C5), não reabrem a conclusão da #600 (C6) e não decidem a política
-//!    ainda aberta da #579. O teste abaixo cobra esse zero, e cobra que o
-//!    módulo inteiro continue com uma consulta por decisão.
+//!    ainda aberta da #579. A SEM-4 atravessa C2 e não a muda: a segunda das
+//!    duas consultas da fase, `select_representative`, desceu com a região que
+//!    sempre a fez, e continua sendo uma só. O teste abaixo cobra o zero dos
+//!    irmãos sem autoridade e cobra que o módulo inteiro continue com uma
+//!    consulta por decisão.
 //!
 //! Ele NÃO congela LOC, não congela a árvore como snapshot ornamental e não
 //! afirma nada sobre a regra de despacho, que é de `src/method_dispatch.rs`.
@@ -53,7 +62,7 @@ mod fonte_de_modulo;
 #[path = "common/rust_source.rs"]
 mod rust_source;
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::PathBuf;
 
@@ -67,6 +76,7 @@ const REGIOES_MOVIDAS: &[(&str, &str)] = &[
     ("semantic.unioes.encaixe", "expressions.rs"),
     ("semantic.fluxo.retornos", "expressions.rs"),
     ("semantic.expressoes.verificacao", "expressions.rs"),
+    ("semantic.tratos.contratos", "traits.rs"),
 ];
 
 /// As regiões que os cortes deixaram onde estavam. `semantic.funcoes.verificacao`
@@ -84,7 +94,6 @@ const REGIOES_RETIDAS: &[&str] = &[
     "semantic.tipos.sistema",
     "semantic.escopos.variaveis",
     "semantic.programa.duas-passagens",
-    "semantic.tratos.contratos",
     "semantic.funcoes.verificacao",
 ];
 
@@ -109,10 +118,22 @@ const DEFINICOES_MOVIDAS: &[(&str, &str)] = &[
     ("fn function_result_type(", "expressions.rs"),
     ("fn check_expr(", "expressions.rs"),
     ("fn check_pointer_arithmetic(", "expressions.rs"),
+    ("fn validate_impl_relations(", "traits.rs"),
+    ("fn register_impl_methods(", "traits.rs"),
+    ("fn validate_impl_contracts(", "traits.rs"),
+    ("fn validate_object_trait_shape(", "traits.rs"),
+    ("fn validate_impl_trait_method_function(", "traits.rs"),
+    ("fn validate_trait_contracts(", "traits.rs"),
+    ("fn validate_trait_method_function(", "traits.rs"),
 ];
 
+/// Os irmãos que consomem a autoridade de seleção de método (C2). É a lista
+/// que o censo de autoridade zero exclui, derivada aqui uma vez: um irmão novo
+/// que não esteja aqui cai automaticamente sob o zero medido.
+const IRMAOS_QUE_CONSOMEM_C2: &[&str] = &["calls.rs", "traits.rs"];
+
 /// Irmãos que carregam produção, não teste.
-const IRMAOS_DE_PRODUCAO: &[&str] = &["calls.rs", "expressions.rs", "statements.rs"];
+const IRMAOS_DE_PRODUCAO: &[&str] = &["calls.rs", "expressions.rs", "statements.rs", "traits.rs"];
 
 /// Os itens `pub` que cada irmão pode ter. A lista é exaustiva e vazia para
 /// todo irmão: nenhum item dos cortes era `pub` antes do move, então nenhum
@@ -121,6 +142,7 @@ const PUB_AUTORIZADO: &[(&str, &[&str])] = &[
     ("calls.rs", &[]),
     ("expressions.rs", &[]),
     ("statements.rs", &[]),
+    ("traits.rs", &[]),
 ];
 
 /// A visibilidade restrita que cada irmão pode ter, exaustiva.
@@ -155,6 +177,16 @@ const PUB_RESTRITO_AUTORIZADO: &[(&str, &[&str])] = &[
         ],
     ),
     ("statements.rs", &["pub(super) fn check_block("]),
+    (
+        "traits.rs",
+        &[
+            "pub(super) fn validate_impl_relations(",
+            "pub(super) fn register_impl_methods(",
+            "pub(super) fn validate_impl_contracts(",
+            "pub(super) fn validate_object_trait_shape(",
+            "pub(super) fn validate_trait_contracts(",
+        ],
+    ),
 ];
 
 /// A superfície pública do módulo, congelada item a item.
@@ -312,6 +344,130 @@ fn conferir_regiao_unica(modulo: &str, chave: &str) {
     }
 }
 
+/// O censo de regiões do módulo é exaustivo nos DOIS sentidos.
+///
+/// Os testes acima provam que cada chave declarada existe, é única e mora no
+/// arquivo declarado. Faltava a prova inversa, que a review da PR #635 deixou
+/// registrada como finding estrutural aberto: que não existe no módulo nenhuma
+/// região que as listas não declarem. Sem ela, um `@pinker-nav:start
+/// semantic.*` novo — ou uma região que escorregasse para um irmão sem
+/// atualizar a declaração — passaria despercebido por um guardião que só sabe
+/// procurar o que já foi declarado.
+///
+/// A coleta observada vem do módulo inteiro lido por `SEMANTIC_ARQUIVOS`, a
+/// mesma fonte dos outros oráculos: não há censo concorrente. O teste fica
+/// vermelho em quatro formas distintas, e a mensagem diz qual:
+///
+/// 1. `UNKNOWN_REGION_MARKER` — marcador no código que nenhuma lista declara;
+/// 2. `MISSING_DECLARED_REGION` — chave declarada que sumiu do código;
+/// 3. `DUPLICATE_REGION_KEY` — a mesma chave em dois lugares, no código ou nas
+///    listas;
+/// 4. `WRONG_REGION_FILE` — chave declarada num arquivo e encontrada noutro.
+///
+/// Igualdade de cardinalidade não bastaria: uma região nova que entrasse ao
+/// mesmo tempo em que outra saísse manteria a contagem e mudaria o conjunto.
+#[test]
+fn o_censo_de_regioes_do_modulo_e_exaustivo_nos_dois_sentidos() {
+    let mut observadas: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    let mut fechamentos: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for (nome, fonte) in SEMANTIC_ARQUIVOS {
+        for linha in fonte.lines() {
+            let linha = linha.trim();
+            for (prefixo, destino) in [
+                ("// @pinker-nav:start ", &mut observadas),
+                ("// @pinker-nav:end ", &mut fechamentos),
+            ] {
+                if let Some(chave) = linha.strip_prefix(prefixo) {
+                    destino
+                        .entry(chave.trim().to_string())
+                        .or_default()
+                        .push((*nome).to_string());
+                }
+            }
+        }
+    }
+
+    // Toda região do módulo pertence à camada do módulo. Uma chave de outra
+    // camada aqui dentro seria autoridade estrangeira morando na fase.
+    for chave in observadas.keys() {
+        assert!(
+            chave.starts_with("semantic."),
+            "UNKNOWN_REGION_MARKER: `{chave}` não é uma região da camada semantic"
+        );
+    }
+
+    // DUPLICATE_REGION_KEY, no código.
+    for (chave, arquivos) in &observadas {
+        assert_eq!(
+            arquivos.len(),
+            1,
+            "DUPLICATE_REGION_KEY: `{chave}` abre em {arquivos:?}"
+        );
+    }
+    for (chave, arquivos) in &fechamentos {
+        assert_eq!(
+            arquivos.len(),
+            1,
+            "DUPLICATE_REGION_KEY: `{chave}` fecha em {arquivos:?}"
+        );
+    }
+
+    // Declaradas: a união exata das movidas e das retidas, sem interseção.
+    let mut declaradas: BTreeMap<String, String> = BTreeMap::new();
+    for (chave, arquivo) in REGIOES_MOVIDAS {
+        assert!(
+            declaradas
+                .insert((*chave).to_string(), (*arquivo).to_string())
+                .is_none(),
+            "DUPLICATE_REGION_KEY: `{chave}` declarada duas vezes"
+        );
+    }
+    for chave in REGIOES_RETIDAS {
+        assert!(
+            declaradas
+                .insert((*chave).to_string(), "semantic.rs".to_string())
+                .is_none(),
+            "DUPLICATE_REGION_KEY: `{chave}` declarada como movida e como retida"
+        );
+    }
+
+    // Igualdade de conjunto, nos dois sentidos e com o nome do que faltou.
+    let observadas_chaves: BTreeSet<&String> = observadas.keys().collect();
+    let declaradas_chaves: BTreeSet<&String> = declaradas.keys().collect();
+    let fantasmas: Vec<&&String> = declaradas_chaves.difference(&observadas_chaves).collect();
+    assert!(
+        fantasmas.is_empty(),
+        "MISSING_DECLARED_REGION: {fantasmas:?} está declarada e não existe no módulo"
+    );
+    let desconhecidas: Vec<&&String> = observadas_chaves.difference(&declaradas_chaves).collect();
+    assert!(
+        desconhecidas.is_empty(),
+        "UNKNOWN_REGION_MARKER: {desconhecidas:?} existe no módulo e nenhuma lista declara"
+    );
+
+    // Abertura e fechamento são o mesmo conjunto, no mesmo arquivo.
+    assert_eq!(
+        observadas_chaves,
+        fechamentos.keys().collect::<BTreeSet<&String>>(),
+        "região aberta sem fechar, ou fechada sem abrir, no módulo semantic"
+    );
+
+    // WRONG_REGION_FILE: cada chave no arquivo declarado, abertura e
+    // fechamento.
+    for (chave, arquivo) in &declaradas {
+        assert_eq!(
+            &observadas[chave][0], arquivo,
+            "WRONG_REGION_FILE: `{chave}` abre em {:?} e a declaração diz {arquivo}",
+            observadas[chave][0]
+        );
+        assert_eq!(
+            &fechamentos[chave][0], arquivo,
+            "WRONG_REGION_FILE: `{chave}` fecha em {:?} e a declaração diz {arquivo}",
+            fechamentos[chave][0]
+        );
+    }
+}
+
 /// A decomposição é física: não promove nada. Cada irmão tem duas listas
 /// exaustivas — o que pode ser `pub` e o que pode ter visibilidade restrita —,
 /// e nada mais. É a sensitivity M4 da #619.
@@ -388,8 +544,8 @@ fn a_superficie_publica_do_modulo_e_exatamente_a_congelada() {
     let congelados: BTreeSet<&str> = API_PUBLICA_CONGELADA.iter().copied().collect();
     assert_eq!(
         observados, congelados,
-        "a superfície pública de semantic mudou; SEM-1, SEM-2 e SEM-3 são decomposição \
-         física e não mudam API pública"
+        "a superfície pública de semantic mudou; SEM-1, SEM-2, SEM-3 e SEM-4 são \
+         decomposição física e não mudam API pública"
     );
 
     // Itens não são a única forma de caminho público: um `pub mod` ou um
@@ -463,17 +619,36 @@ fn o_irmao_consome_c2_e_nao_cria_uma_segunda_autoridade() {
         "src/semantic.rs voltou a consultar `select_impl_method` por conta própria"
     );
     // `select_representative` é da região `semantic.tratos.contratos`, que a
-    // SEM-1 não move: ela continua no pai, e o irmão não pode ganhar uma cópia.
+    // SEM-4 desceu para `traits.rs`: a consulta continua sendo uma só, agora no
+    // outro irmão, e nem o pai nem `calls.rs` podem ganhar uma cópia.
+    let tratos = codigo_executavel(fonte("traits.rs"));
+    assert_eq!(
+        tratos.matches("select_representative(").count(),
+        1,
+        "src/semantic/traits.rs deveria consultar `select_representative` exatamente uma vez"
+    );
     assert_eq!(
         pai.matches("select_representative(").count(),
-        1,
-        "src/semantic.rs deveria continuar consultando `select_representative` uma vez"
+        0,
+        "src/semantic.rs voltou a escolher representante; a consulta desceu com a SEM-4"
     );
     assert_eq!(
         irmao.matches("select_representative(").count(),
         0,
         "src/semantic/calls.rs passou a escolher representante, duplicando a autoridade"
     );
+    // O vocabulário da precedência também não pode nascer no irmão de tratos.
+    for termo in [
+        "NivelDeDespacho",
+        "nivel_de_despacho",
+        "PorUnidadeImportada",
+    ] {
+        assert_eq!(
+            tratos.matches(termo).count(),
+            0,
+            "src/semantic/traits.rs passou a aplicar `{termo}` por conta própria"
+        );
+    }
 
     // O módulo inteiro continua com exatamente uma consulta por decisão: o
     // corte não pôde nem duplicar nem apagar nenhuma delas.
@@ -499,11 +674,23 @@ fn o_irmao_consome_c2_e_nao_cria_uma_segunda_autoridade() {
 /// dessas grafias aparecendo nesses irmãos seria autoridade nova nascendo num
 /// corte que se declara físico.
 ///
-/// `calls.rs` fica de fora desta lista de propósito: é o irmão que consome C2,
-/// e o teste dele é o `o_irmao_consome_c2_e_nao_cria_uma_segunda_autoridade`.
+/// `calls.rs` e `traits.rs` ficam de fora desta lista de propósito: são os dois
+/// irmãos que consomem C2, e o teste deles é o
+/// `o_irmao_consome_c2_e_nao_cria_uma_segunda_autoridade`. A lista é derivada
+/// de `IRMAOS_DE_PRODUCAO` menos `IRMAOS_QUE_CONSOMEM_C2`, então um irmão novo
+/// cai sob o zero medido sem que ninguém precise lembrar de o acrescentar.
 #[test]
 fn os_irmaos_sem_autoridade_nao_atravessam_autoridade_nenhuma() {
-    for nome in ["statements.rs", "expressions.rs"] {
+    let sem_autoridade: Vec<&str> = IRMAOS_DE_PRODUCAO
+        .iter()
+        .copied()
+        .filter(|nome| !IRMAOS_QUE_CONSOMEM_C2.contains(nome))
+        .collect();
+    assert!(
+        !sem_autoridade.is_empty(),
+        "o censo de autoridade zero ficou sem nenhum irmão para observar"
+    );
+    for nome in sem_autoridade {
         let irmao = codigo_executavel(fonte(nome));
         for grafia in [
             "select_impl_method",
