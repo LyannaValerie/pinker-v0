@@ -223,15 +223,18 @@ pub fn nav_projection_snapshot() -> String {
 /// `assinaturas-intrinsecos`, `metodos-identidade` e `identidade-resolvida` —,
 /// e com elas desceram a outra consulta a `method_dispatch`
 /// (`select_representative`, C2, #590/#591) e o consumo do registry declarativo
-/// de intrínsecas (C1, #442). O pai continua sendo um arquivo — ele não virou
-/// `mod.rs` —, e os irmãos moram em `src/ir/`, declarados pelos `mod` do
-/// próprio pai. Um oráculo que continuasse lendo só `src/ir.rs` seguiria verde
-/// e pararia de observar os dois consumos de C2 e o de C1: é a mesma falha
-/// silenciosa OG-1 da #601.
+/// de intrínsecas (C1, #442). A da #626 (unidade IR-4) tirou a região
+/// `renderizacao.textual` — a forma textual auditável da IR já construída. O pai
+/// continua sendo um arquivo — ele não virou `mod.rs` —, e os irmãos moram em
+/// `src/ir/`, declarados pelos `mod` do próprio pai. Um oráculo que continuasse
+/// lendo só `src/ir.rs` seguiria verde e pararia de observar os dois consumos de
+/// C2, o de C1 e a renderização inteira: é a mesma falha silenciosa OG-1 da
+/// #601.
 pub const IR_ARQUIVOS: &[(&str, &str)] = &[
     ("ir.rs", include_str!("../../src/ir.rs")),
     ("context.rs", include_str!("../../src/ir/context.rs")),
     ("lowering.rs", include_str!("../../src/ir/lowering.rs")),
+    ("render.rs", include_str!("../../src/ir/render.rs")),
 ];
 
 /// Concatena o módulo `ir` inteiro, o pai primeiro.

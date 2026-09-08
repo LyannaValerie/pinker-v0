@@ -1950,9 +1950,10 @@ expect_layer = "ir"
 [[rules]]
 op = "override-region"
 key = "ir.renderizacao.textual"
-from_hash = "fnv1a64:1ada1f3a4bfc68b8"
+from_hash = "fnv1a64:700928d8f402b997"
 to_hash = "fnv1a64:4f0f1b3967ac6cf5"
-expect_file = "src/ir.rs"
+expect_file = "src/ir/render.rs"
+to_file = "src/ir.rs"
 expect_domain = "renderizacao"
 expect_layer = "ir"
 
