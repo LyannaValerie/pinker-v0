@@ -80,18 +80,22 @@ pub fn pink_cli() -> String {
 
 /// Arquivos que compõem o módulo `interpreter`, na ordem declarada no pai.
 ///
-/// A decomposição física da #608 (unidade INT-1) tirou de `src/interpreter.rs`
-/// a porta `try_call_intrinsic` inteira. O pai continua sendo um arquivo — ele
-/// não virou `mod.rs` —, e o irmão mora em `src/interpreter/`, declarado pelo
-/// `mod` do próprio pai. Um oráculo que continuasse lendo só
-/// `src/interpreter.rs` seguiria verde e pararia de observar o despacho
-/// hospedado inteiro: é a mesma falha silenciosa OG-1 da #601.
+/// A decomposição física da #608 (unidade INT-1 administrativa) tirou de
+/// `src/interpreter.rs` a porta `try_call_intrinsic` inteira, e a da #642
+/// (campanha INT-TESTS, unidade `#601/INT-1` original) tirou os seis módulos
+/// `#[cfg(test)]` do fim do arquivo, com as duas regiões cartografadas que
+/// dois deles carregam. O pai continua sendo um arquivo — ele não virou
+/// `mod.rs` —, e os irmãos moram em `src/interpreter/`, declarados pelos `mod`
+/// do próprio pai. Um oráculo que continuasse lendo só `src/interpreter.rs`
+/// seguiria verde e pararia de observar o despacho hospedado inteiro e os
+/// módulos de teste: é a mesma falha silenciosa OG-1 da #601.
 pub const INTERPRETER_ARQUIVOS: &[(&str, &str)] = &[
     ("interpreter.rs", include_str!("../../src/interpreter.rs")),
     (
         "hosted_intrinsics.rs",
         include_str!("../../src/interpreter/hosted_intrinsics.rs"),
     ),
+    ("tests.rs", include_str!("../../src/interpreter/tests.rs")),
 ];
 
 /// Concatena o módulo `interpreter` inteiro, o pai primeiro.

@@ -469,7 +469,12 @@ fn so_o_codec_nomeia_os_prefixos_sinteticos_de_trato() {
 ///                     programa de convenção de chamada externa para o irmão;
 ///                     a varredura é recursiva e continua alcançando o mesmo
 ///                     código, só que sob o caminho novo.
-/// interpreter.rs      símbolos literais em teste de unidade
+/// interpreter/tests.rs
+///                     símbolos literais em teste de unidade. A #642 (campanha
+///                     INT-TESTS, unidade `#601/INT-1` do inventário) moveu os
+///                     módulos `#[cfg(test)]` do interpretador para o irmão; a
+///                     varredura é recursiva e continua alcançando os mesmos
+///                     dois literais, só que sob o caminho novo.
 /// ```
 ///
 /// `parser`, `semantic`, `ir` e `module_resolve` ficam de fora: são as fases
@@ -513,7 +518,7 @@ fn a_grafia_crua_do_prefixo_tem_donos_declarados() {
         donos,
         vec![
             "backend_s/external_callconv.rs".to_string(),
-            "interpreter.rs".to_string(),
+            "interpreter/tests.rs".to_string(),
             "method_identity.rs".to_string(),
             "native_symbol.rs".to_string(),
         ],
