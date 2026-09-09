@@ -1,5 +1,5 @@
 //! Guardião estrutural da decomposição física do binário `pink`, no estado
-//! cumulativo: MAIN-5+2+3 (#605) mais MAIN-4 (#638).
+//! cumulativo FINAL: MAIN-5+2+3 (#605) mais MAIN-4 (#638) mais MAIN-1 (#640).
 //!
 //! A #601 registrou que `src/main.rs` não tinha nenhum guardião estrutural por
 //! caminho: perder uma região, duplicá-la, deixá-la no arquivo antigo ou não
@@ -11,8 +11,11 @@
 //! conjunto de arquivos de `src/pink_cli/`, o wiring dos `mod` no entrypoint,
 //! a igualdade de conjunto entre a partição declarada aqui e a camada `cli` do
 //! catálogo, a presença única de cada região, que a decomposição não promoveu
-//! visibilidade, e — desde a MAIN-4 — que o escopo textual do
-//! `macro_rules! try_or_exit` continua o que a #601 mediu.
+//! visibilidade, que o escopo textual do `macro_rules! try_or_exit` continua o
+//! que a #601 mediu — desde a MAIN-4 — e, desde a MAIN-1, que o roteamento de
+//! `nav`, a varredura do catálogo, os códigos de saída e o wiring de
+//! diagnóstico continuam sendo do entrypoint: o irmão implementa os
+//! adaptadores, não vira uma segunda autoridade de navegação ou de projeção.
 
 #[path = "common/fonte_de_modulo.rs"]
 mod fonte_de_modulo;
@@ -28,8 +31,8 @@ use pinker_v0::nav::CodeCatalog;
 use rust_source::codigo_executavel;
 
 /// Regiões que a decomposição física moveu de `src/main.rs` para os irmãos.
-/// As sete primeiras são da MAIN-5+2+3 (#605); as duas últimas, da MAIN-4
-/// (#638).
+/// As sete primeiras são da MAIN-5+2+3 (#605); as duas seguintes, da MAIN-4
+/// (#638); as três últimas, da MAIN-1 (#640), que fecha o inventário.
 const REGIOES_MOVIDAS: &[(&str, &str)] = &[
     ("cli.parsing.subcomandos", "cli_parsing.rs"),
     ("cli.parsing.roteamento", "cli_parsing.rs"),
@@ -40,29 +43,51 @@ const REGIOES_MOVIDAS: &[(&str, &str)] = &[
     ("cli.modulos.importacao", "modules.rs"),
     ("cli.analise.pipeline", "analysis_build.rs"),
     ("cli.build.nativo", "analysis_build.rs"),
+    ("cli.nav.projecao", "nav_cli.rs"),
+    ("cli.nav.consulta", "nav_cli.rs"),
+    ("cli.nav.sincronizacao-verificacao", "nav_cli.rs"),
 ];
 
-/// Regiões que continuam no entrypoint. `cli.execucao.entrada` é o `main` e o
-/// `macro_rules! try_or_exit`, que a #601 mediu como dependência textual da
-/// MAIN-4 e que por isso não viaja com ela; as três `cli.nav.*` são a MAIN-1,
-/// unidade que a #638 proíbe executar.
+/// Regiões que continuam no entrypoint depois da última unidade do inventário.
+/// `cli.execucao.entrada` é o `main`, o roteamento de modo de comando, a
+/// varredura do catálogo e o `macro_rules! try_or_exit`; `cli.config.modelos` e
+/// `cli.ajuda.usage` são o vocabulário do binário, que a §7 da #601 rejeitou
+/// mover por custo de visibilidade desproporcional; `cli.execucao.editor-repl`
+/// não pertence a unidade nenhuma do inventário.
 const REGIOES_RETIDAS: &[&str] = &[
     "cli.config.modelos",
     "cli.ajuda.usage",
     "cli.execucao.entrada",
-    "cli.nav.projecao",
-    "cli.nav.consulta",
-    "cli.nav.sincronizacao-verificacao",
     "cli.execucao.editor-repl",
 ];
 
-/// As três regiões da MAIN-1. Elas são um subconjunto declarado de
-/// [`REGIOES_RETIDAS`]: arrastá-las junto com a MAIN-4 é o desvio de escopo que
-/// a #638 nomeia, e um `assert` só sobre a lista grande não o nomearia.
+/// As três regiões da MAIN-1, a última unidade do inventário da #601. Elas são
+/// um subconjunto declarado de [`REGIOES_MOVIDAS`]: deixá-las para trás no pai,
+/// duplicá-las ou espalhá-las por outro irmão são desvios que um `assert` só
+/// sobre a lista grande não nomearia.
 const REGIOES_DA_MAIN_1: &[&str] = &[
     "cli.nav.projecao",
     "cli.nav.consulta",
     "cli.nav.sincronizacao-verificacao",
+];
+
+/// Irmão que a MAIN-1 criou.
+const IRMAO_DA_MAIN_1: &str = "nav_cli.rs";
+
+/// Os dez símbolos que a #601 mediu como `pub(super)` da MAIN-1 — a lista
+/// `exports` de `unit_costs.json`, nem um a mais. Eles são o cabo entre o
+/// roteamento, que fica no entrypoint, e a implementação, que desceu.
+const SIMBOLOS_DA_MAIN_1: &[&str] = &[
+    "run_nav_projecao",
+    "run_nav_mostrar",
+    "run_nav_buscar",
+    "run_nav_localizar",
+    "run_nav_cobertura_diff",
+    "run_nav_impacto",
+    "run_nav_listar",
+    "run_nav_mapa",
+    "run_nav_sincronizar",
+    "run_nav_verificar",
 ];
 
 /// Símbolos que o move obrigou a expor ao entrypoint, um por dependência real.
@@ -75,6 +100,16 @@ const EXPOSICOES_NECESSARIAS: &[&str] = &[
     "run_analyze",
     "run_build",
     "run_doc",
+    "run_nav_buscar",
+    "run_nav_cobertura_diff",
+    "run_nav_impacto",
+    "run_nav_listar",
+    "run_nav_localizar",
+    "run_nav_mapa",
+    "run_nav_mostrar",
+    "run_nav_projecao",
+    "run_nav_sincronizar",
+    "run_nav_verificar",
     "write_atomic",
 ];
 
@@ -349,27 +384,187 @@ fn o_escopo_textual_de_try_or_exit_e_o_que_a_601_mediu() {
     }
 }
 
-/// A #638 executa a MAIN-4 e proíbe a MAIN-1. As três regiões `cli.nav.*`
-/// continuam no entrypoint e nenhum irmão as recebeu de carona.
+/// A #640 executa a MAIN-1, a última unidade do inventário. As três regiões
+/// `cli.nav.*` moram no irmão dela, não sobraram no pai e não vazaram para
+/// nenhum outro irmão — nem uma cópia, que é o modo silencioso de "mover".
 #[test]
-fn a_main_1_nao_foi_arrastada_junto() {
+fn a_main_1_mora_no_irmao_e_nao_no_entrypoint() {
     for chave in REGIOES_DA_MAIN_1 {
         assert!(
-            REGIOES_RETIDAS.contains(chave),
-            "{chave} é da MAIN-1 e deveria estar declarada como região retida"
+            REGIOES_MOVIDAS
+                .iter()
+                .any(|(movida, arquivo)| movida == chave && *arquivo == IRMAO_DA_MAIN_1),
+            "{chave} é da MAIN-1 e deveria estar declarada como movida para {IRMAO_DA_MAIN_1}"
         );
         let marcador = format!("// @pinker-nav:start {chave}");
         assert!(
-            fonte("main.rs").contains(&marcador),
-            "a região {chave} é da MAIN-1 e deveria continuar em src/main.rs"
+            fonte(IRMAO_DA_MAIN_1).contains(&marcador),
+            "a região {chave} é da MAIN-1 e deveria morar em src/pink_cli/{IRMAO_DA_MAIN_1}"
+        );
+        for (nome, fonte_arquivo) in PINK_CLI_ARQUIVOS {
+            if *nome == IRMAO_DA_MAIN_1 {
+                continue;
+            }
+            assert!(
+                !fonte_arquivo.contains(&marcador),
+                "{nome} ainda contém {chave}: a MAIN-1 ficou duplicada ou foi deixada para trás"
+            );
+        }
+    }
+
+    // A implementação também não pode ter ficado no pai sem os marcadores.
+    let entrypoint = codigo_executavel(fonte("main.rs"));
+    let irmao = codigo_executavel(fonte(IRMAO_DA_MAIN_1));
+    for simbolo in SIMBOLOS_DA_MAIN_1 {
+        let definicao = format!("fn {simbolo}(");
+        assert_eq!(
+            entrypoint.matches(&definicao).count(),
+            0,
+            "`{definicao}` é da MAIN-1 e não deveria continuar definida em src/main.rs"
+        );
+        assert_eq!(
+            irmao.matches(&definicao).count(),
+            1,
+            "`{definicao}` deveria ter exatamente uma definição em src/pink_cli/{IRMAO_DA_MAIN_1}"
+        );
+    }
+    assert_eq!(
+        SIMBOLOS_DA_MAIN_1.len(),
+        irmao.matches("pub(super) fn ").count(),
+        "src/pink_cli/{IRMAO_DA_MAIN_1} expõe ao entrypoint um número de símbolos diferente dos dez que a #601 mediu"
+    );
+}
+
+/// O move é físico e não cria autoridade nova. Quem decide qual `NavSub` roda
+/// continua sendo `run_nav`, no entrypoint; o irmão só implementa o adaptador
+/// de cada uma. Um roteamento que descesse junto tornaria o filho a segunda
+/// autoridade de navegação.
+#[test]
+fn o_roteamento_de_nav_continua_no_entrypoint() {
+    let entrypoint = codigo_executavel(fonte("main.rs"));
+    let binario = codigo_executavel(&pink_cli());
+
+    assert_eq!(
+        entrypoint.matches("fn run_nav(").count(),
+        1,
+        "`run_nav` deveria continuar definido em src/main.rs"
+    );
+    assert_eq!(
+        binario.matches("fn run_nav(").count(),
+        1,
+        "`run_nav` deveria existir uma vez só no binário inteiro"
+    );
+    for despacho in [
+        "NavSub::Mostrar",
+        "NavSub::Buscar",
+        "NavSub::Localizar",
+        "NavSub::CoberturaDiff",
+        "NavSub::Impacto",
+        "NavSub::Listar",
+        "NavSub::Mapa",
+        "NavSub::Sincronizar",
+        "NavSub::Verificar",
+        "NavSub::Projecao",
+    ] {
+        assert_eq!(
+            entrypoint.matches(despacho).count(),
+            1,
+            "`{despacho}` deveria continuar sendo roteado exatamente uma vez em src/main.rs"
+        );
+        assert_eq!(
+            codigo_executavel(fonte(IRMAO_DA_MAIN_1))
+                .matches(despacho)
+                .count(),
+            0,
+            "`{despacho}` desceu para o irmão: o roteamento de nav é do entrypoint"
+        );
+    }
+}
+
+/// Autoridade de navegação e de projeção não se duplica. As autoridades reais
+/// são da biblioteca; o binário só as adapta, e cada porta de entrada continua
+/// tendo um chamador só. A varredura do repositório (`scan_code`) fica no
+/// entrypoint, porque é dela que o `main` depende para os dois lados.
+#[test]
+fn a_autoridade_de_nav_e_projecao_nao_foi_duplicada() {
+    let entrypoint = codigo_executavel(fonte("main.rs"));
+    let irmao = codigo_executavel(fonte(IRMAO_DA_MAIN_1));
+    let binario = codigo_executavel(&pink_cli());
+
+    assert_eq!(
+        entrypoint.matches("fn scan_code(").count(),
+        1,
+        "`scan_code` deveria continuar definido em src/main.rs"
+    );
+    assert_eq!(
+        binario.matches("fn scan_code(").count(),
+        1,
+        "`scan_code` deveria existir uma vez só no binário inteiro"
+    );
+    assert_eq!(
+        entrypoint.matches("nav::CodeIndex::scan_repo(").count(),
+        1,
+        "a varredura do repositório deveria continuar sendo chamada só do entrypoint"
+    );
+    assert_eq!(
+        irmao.matches("nav::CodeIndex::scan_repo(").count(),
+        0,
+        "src/pink_cli/{IRMAO_DA_MAIN_1} passou a varrer o repositório por conta própria"
+    );
+
+    for autoridade in [
+        "nav::verify_repository(",
+        "nav_projection_lifecycle::plan_prepare(",
+        "nav_projection_lifecycle::plan_accept(",
+        "nav_projection_lifecycle::apply_prepare(",
+        "nav_projection_lifecycle::apply_accept(",
+        "symbol_index::locate(",
+        "diff_coverage::analyze(",
+    ] {
+        assert_eq!(
+            binario.matches(autoridade).count(),
+            irmao.matches(autoridade).count(),
+            "`{autoridade}` deveria ser consumida só pelo adaptador da MAIN-1"
+        );
+        assert!(
+            irmao.contains(autoridade),
+            "`{autoridade}` deveria continuar sendo consumida por src/pink_cli/{IRMAO_DA_MAIN_1}"
+        );
+    }
+}
+
+/// Os códigos de saída e o wiring de diagnóstico são o vocabulário do binário:
+/// a §7 da #601 rejeitou mover `cli.config.modelos`, e nenhum irmão pode
+/// redefinir um `EXIT_*` por conta própria. O irmão os usa por `use super::*`,
+/// não os declara.
+#[test]
+fn os_codigos_de_saida_continuam_declarados_uma_vez_no_entrypoint() {
+    let entrypoint = codigo_executavel(fonte("main.rs"));
+    for codigo in [
+        "EXIT_OK",
+        "EXIT_FAILURE",
+        "EXIT_USAGE",
+        "EXIT_CATALOG",
+        "EXIT_NORESULT",
+        "EXIT_SOURCE",
+        "EXIT_HARNESS",
+        "EXIT_POLICY",
+        "EXIT_STALE",
+    ] {
+        let declaracao = format!("const {codigo}: i32 =");
+        assert_eq!(
+            entrypoint.matches(&declaracao).count(),
+            1,
+            "`{declaracao}` deveria continuar declarado exatamente uma vez em src/main.rs"
         );
         for (nome, fonte_irmao) in PINK_CLI_ARQUIVOS {
             if *nome == "main.rs" {
                 continue;
             }
-            assert!(
-                !fonte_irmao.contains(&marcador),
-                "src/pink_cli/{nome} recebeu {chave}, que é da MAIN-1 e não foi autorizada"
+            assert_eq!(
+                codigo_executavel(fonte_irmao).matches(&declaracao).count(),
+                0,
+                "src/pink_cli/{nome} redeclarou `{codigo}`"
             );
         }
     }
@@ -385,6 +580,7 @@ fn o_despacho_de_modo_de_comando_continua_no_entrypoint() {
     for despacho in [
         "CliCommand::Analyze(config) => run_analyze(config)",
         "CliCommand::Build(config) => run_build(config)",
+        "CliCommand::Nav(config) => std::process::exit(run_nav(config))",
     ] {
         assert_eq!(
             entrypoint.matches(despacho).count(),

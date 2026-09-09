@@ -1,5 +1,9 @@
 //! Contrato processual de `pink nav localizar` (#434).
 
+#[path = "common/fonte_de_modulo.rs"]
+mod fonte_de_modulo;
+
+use fonte_de_modulo::pink_cli;
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -531,10 +535,14 @@ fn derivador_nao_contem_io_rede_git_subprocesso_busca_ou_normalizacao() {
     }
     assert!(body.contains("candidate.identity == query || candidate.name == query"));
 
-    let main = include_str!("../src/main.rs");
-    let start = main.find("fn run_nav_localizar(").unwrap();
-    let end = main[start..].find("fn run_nav_listar(").unwrap() + start;
-    let adapter = &main[start..end];
+    // A fonte é o binário `pink` inteiro, não um arquivo: a decomposição
+    // física da #640 tirou `cli.nav.consulta` de `src/main.rs` e a pôs em
+    // `src/pink_cli/nav_cli.rs`, e um oráculo preso ao caminho antigo pararia
+    // de observar o adaptador.
+    let binario = pink_cli();
+    let start = binario.find("fn run_nav_localizar(").unwrap();
+    let end = binario[start..].find("fn run_nav_listar(").unwrap() + start;
+    let adapter = &binario[start..end];
     for forbidden in [
         "sincronizar",
         "write_atomic",

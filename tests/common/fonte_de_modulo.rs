@@ -46,8 +46,10 @@ pub fn parser() -> String {
 /// Arquivos que compõem o binário `pink`, na ordem declarada em `main.rs`.
 ///
 /// A decomposição física da #605 tirou de `src/main.rs` as famílias de parsing
-/// da CLI, dos comandos `doc` e da carga de módulos, e a da #638 tirou a análise
-/// e o build nativo. O entrypoint continua sendo `src/main.rs` — ele é a raiz do
+/// da CLI, dos comandos `doc` e da carga de módulos, a da #638 tirou a análise
+/// e o build nativo, e a da #640 — a última unidade do inventário — tirou os
+/// comandos `nav`: consulta, sincronização/verificação e o adaptador de
+/// projeções. O entrypoint continua sendo `src/main.rs` — ele é a raiz do
 /// crate binário, não virou `mod.rs` —, e os irmãos moram em `src/pink_cli/`,
 /// declarados por `#[path]`. Um oráculo que continuasse lendo só
 /// `src/main.rs` seguiria verde e pararia de observar o que foi para os irmãos:
@@ -60,6 +62,7 @@ pub const PINK_CLI_ARQUIVOS: &[(&str, &str)] = &[
     ),
     ("doc_cli.rs", include_str!("../../src/pink_cli/doc_cli.rs")),
     ("modules.rs", include_str!("../../src/pink_cli/modules.rs")),
+    ("nav_cli.rs", include_str!("../../src/pink_cli/nav_cli.rs")),
     (
         "analysis_build.rs",
         include_str!("../../src/pink_cli/analysis_build.rs"),
