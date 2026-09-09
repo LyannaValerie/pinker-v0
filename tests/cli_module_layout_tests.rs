@@ -32,7 +32,8 @@ use rust_source::codigo_executavel;
 
 /// Regiões que a decomposição física moveu de `src/main.rs` para os irmãos.
 /// As sete primeiras são da MAIN-5+2+3 (#605); as duas seguintes, da MAIN-4
-/// (#638); as três últimas, da MAIN-1 (#640), que fecha o inventário.
+/// (#638); as três últimas, da MAIN-1 (#640), a última unidade MAIN planejada
+/// nesta sequência.
 const REGIOES_MOVIDAS: &[(&str, &str)] = &[
     ("cli.parsing.subcomandos", "cli_parsing.rs"),
     ("cli.parsing.roteamento", "cli_parsing.rs"),
