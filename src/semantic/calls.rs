@@ -24,7 +24,7 @@ impl SemanticChecker {
     // @pinker-nav:start semantic.chamadas.despacho
     // @pinker-nav:domain chamadas
     // @pinker-nav:layer semantic
-    // @pinker-nav:summary Despacho de chamadas: resolução de método de impl (direta e qualificada por trato), restringida aos tratos que a unidade-fonte da chamada autorizou — uma chamada de método não nomeia o trato, então sem esse filtro um trato da raiz forneceria método default ao corpo de um módulo que nunca o importou. Quem alcança, quem precede e quem vence entre os candidatos não é decidido aqui: esta camada só constrói candidatos a partir de `method_index` e traduz o veredito de `method_dispatch`, a autoridade única que o lowering consulta com a mesma regra; a chamada qualificada nomeia o trato e continua sendo resolução de identidade, sem candidatos a comparar. Também: seleção monomórfica das intrínsecas genéricas de mapa, checagem de chamada nomeada (aridade e tipos de argumento) e o despachante `check_call_expr` — construção de variante de leque, desugaring de `encaixe`, a checagem genérica das grafias históricas de contrato declarado, dirigida por `intrinsics::registry`, e os contratos próprios que sobram (aridade variável, formas genéricas de lista/mapa e restrições que não cabem em `(params, ret)`), caindo para a chamada de função declarada.
+    // @pinker-nav:summary Despacho de chamadas: resolução de método de impl (direta e qualificada por trato), restringida aos tratos que a unidade-fonte da chamada autorizou — uma chamada de método não nomeia o trato, então sem esse filtro um trato da raiz forneceria método default ao corpo de um módulo que nunca o importou. Quem alcança, quem precede e quem vence entre os candidatos não é decidido aqui: esta camada só constrói candidatos a partir de `method_index` e traduz o veredito de `method_dispatch`, a autoridade única que o lowering consulta com a mesma regra; a chamada qualificada nomeia o trato e continua sendo resolução de identidade, sem candidatos a comparar, e a correspondência exata dessa identidade é de `method_identity` desde a #647 — aqui sobram o adaptador que resolve o alvo e a mensagem, que é da fase. Também: seleção monomórfica das intrínsecas genéricas de mapa, checagem de chamada nomeada (aridade e tipos de argumento) e o despachante `check_call_expr` — construção de variante de leque, desugaring de `encaixe`, a checagem genérica das grafias históricas de contrato declarado, dirigida por `intrinsics::registry`, e os contratos próprios que sobram (aridade variável, formas genéricas de lista/mapa e restrições que não cabem em `(params, ret)`), caindo para a chamada de função declarada.
     fn check_trait_object_method_call(
         &mut self,
         expr_span: Span,
@@ -172,20 +172,27 @@ impl SemanticChecker {
     ) -> Result<String, PinkerError> {
         let direct_key = Self::type_key(receiver_ty);
         let resolved_key = self.resolved_type_identity(receiver_ty)?;
-        if let Some(meta) = self.impl_methods.iter().find(|meta| {
-            meta.identity.trait_name == trait_name
-                && meta.identity.target == resolved_key
-                && meta.identity.method_name == method_name
-        }) {
-            return Ok(meta.function_name.clone());
+        // #647/U-03A: a correspondência é de `method_identity`, a mesma que o
+        // lowering consulta. Aqui só sobram o adaptador de representação — o
+        // alvo vira identidade resolvida antes da consulta — e a mensagem, que
+        // é da fase.
+        match method_identity::resolve_qualified_impl_method(
+            self.impl_methods
+                .iter()
+                .map(|meta| (&meta.identity, meta.function_name.as_str())),
+            trait_name,
+            &resolved_key,
+            method_name,
+        ) {
+            QualifiedMethodResolution::Resolved(function_name) => Ok(function_name),
+            QualifiedMethodResolution::NoMatch => Err(PinkerError::Semantic {
+                msg: format!(
+                    "método '{}.{}' não implementado para tipo '{}'",
+                    trait_name, method_name, direct_key
+                ),
+                span,
+            }),
         }
-        Err(PinkerError::Semantic {
-            msg: format!(
-                "método '{}.{}' não implementado para tipo '{}'",
-                trait_name, method_name, direct_key
-            ),
-            span,
-        })
     }
 
     fn generic_map_monomorphic_callee(map_ty: &Type, name: &str) -> Option<&'static str> {

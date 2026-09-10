@@ -19,7 +19,7 @@ use crate::layout;
 use crate::method_dispatch::{
     self, DispatchCandidate, DispatchRelation, MethodSelection, RepresentativeSelection,
 };
-use crate::method_identity::{self, MethodIdentity};
+use crate::method_identity::{self, MethodIdentity, QualifiedMethodResolution};
 use crate::source_map::SourceId;
 use crate::token::{Position, Span};
 use crate::union_canon;
