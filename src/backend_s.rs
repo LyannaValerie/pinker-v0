@@ -2234,7 +2234,7 @@ fn resolver_rota_de_chamada(
 // @pinker-nav:start backend-s.runtime.simbolos-intrinsecas
 // @pinker-nav:domain runtime
 // @pinker-nav:layer backend-s
-// @pinker-nav:summary `runtime_intrinsic_symbol`: rota do call site para o símbolo `pinker_*` do runtime nativo. As famílias com autoridade própria respondem primeiro — JSON, SHA-256 e, desde a consolidação C1, o registry declarativo das grafias históricas —, e o `match` local guarda apenas o que não é superfície histórica: acessores de `saida_processo` e as identidades que o próprio compilador materializa. Uma única palavra de 8 bytes por elemento faz `lista<bombom>` e `lista<verso>` compartilharem os mesmos símbolos. Funções Pinker comuns não são intrínsecas (retornam `None` → símbolo direto). Mapear um símbolo **não** prova paridade completa da implementação nativa; o runtime não foi cartografado nesta onda. Região única — sem uma âncora por intrínseca.
+// @pinker-nav:summary `runtime_intrinsic_symbol`: rota do call site para o símbolo `pinker_*` do runtime nativo. As famílias com autoridade própria respondem primeiro — JSON, SHA-256, o registry declarativo das grafias históricas desde C1 e, desde U-01, a autoridade declarativa das operações internas do compilador —, e o `match` local guarda apenas os acessores de `saida_processo`, que ainda não têm autoridade declarativa própria. Uma única palavra de 8 bytes por elemento faz `lista<bombom>` e `lista<verso>` compartilharem os mesmos símbolos. Funções Pinker comuns não são intrínsecas (retornam `None` → símbolo direto). Mapear um símbolo **não** prova paridade completa da implementação nativa; o runtime não foi cartografado nesta onda. Região única — sem uma âncora por intrínseca.
 /// Intrínsecas com implementação no runtime nativo (Fases 215/B4 e 216/B5).
 /// O símbolo devolvido é resolvido no link com `libpinker_rt.a`.
 ///
@@ -2258,58 +2258,20 @@ fn runtime_intrinsic_symbol(callee: &str) -> Option<&'static str> {
     if let Some(simbolo) = crate::intrinsics::registry::simbolo_runtime(callee) {
         return Some(simbolo);
     }
+    // U-01 — o símbolo das operações que o próprio compilador materializa vem
+    // da autoridade declarativa das operações internas, pela mesma disciplina
+    // de `valor_json`, `sha256` e do registry histórico. A consulta é pela
+    // identidade interna; o símbolo `pinker_*` nunca é chave de nada.
+    if let Some(simbolo) = crate::internal_operations::simbolo_runtime(callee) {
+        return Some(simbolo);
+    }
     match callee {
-        // #442/C1 — as grafias históricas foram para o registry declarativo,
-        // consultado logo acima. O que resta aqui não é superfície histórica:
-        // acessores de processo e identidades que o próprio compilador
-        // materializa.
-        // Mapas (Fase 217/B6): chave `verso` compara por conteúdo,
-        "__pinker_internal_mapa_criar_chave_verso" => Some("pinker_mapa_criar_chave_verso"),
-        "__pinker_internal_mapa_criar_chave_bombom" => Some("pinker_mapa_criar_chave_bombom"),
-        "__pinker_internal_mapa_definir" => Some("pinker_mapa_definir"),
-        "__pinker_internal_mapa_obter" => Some("pinker_mapa_obter"),
-        "__pinker_internal_mapa_tem" => Some("pinker_mapa_tem"),
-        "__pinker_internal_mapa_tamanho" => Some("pinker_mapa_tamanho"),
-        "__pinker_internal_mapa_remover" => Some("pinker_mapa_remover"),
-        "__pinker_internal_mapa_verso_bombom_iterador_criar"
-        | "__pinker_internal_mapa_verso_verso_iterador_criar"
-        | "__pinker_internal_mapa_bombom_bombom_iterador_criar"
-        | "__pinker_internal_mapa_bombom_verso_iterador_criar" => {
-            Some("pinker_mapa_iterador_criar")
-        }
-        "__pinker_internal_mapa_iterador_criar" => Some("pinker_mapa_iterador_criar"),
-        "__pinker_internal_mapa_verso_bombom_iterador_proxima_chave"
-        | "__pinker_internal_mapa_verso_verso_iterador_proxima_chave"
-        | "__pinker_internal_mapa_bombom_bombom_iterador_proxima_chave"
-        | "__pinker_internal_mapa_bombom_verso_iterador_proxima_chave" => {
-            Some("pinker_mapa_iterador_proxima")
-        }
-        "__pinker_internal_mapa_iterador_proxima_chave_bombom"
-        | "__pinker_internal_mapa_iterador_proxima_chave_verso" => {
-            Some("pinker_mapa_iterador_proxima")
-        }
+        // O que resta aqui não é superfície histórica nem operação interna:
+        // são os acessores de `saida_processo`.
         // Arquivo, caminho,
         "processo_codigo" => Some("pinker_saida_processo_codigo"),
         "processo_saida" => Some("pinker_saida_processo_stdout"),
         "processo_erro" => Some("pinker_saida_processo_stderr"),
-        // Leques com carga (Fase 218/B7): anexar e carga não distinguem
-        // bombom/verso no runtime — toda carga é uma palavra de 8 bytes.
-        "__pinker_internal_leque_criar_0" => Some("pinker_leque_criar_0"),
-        // D1: handles de lista entram pelos **mesmos** símbolos. O caminho de
-        // carga de uma palavra já transporta qualquer handle opaco sem tocar na
-        // ABI: `pinker_leque_anexar`/`pinker_leque_carga` movem um `u64` e não
-        // interpretam o conteúdo. Nenhum símbolo novo é criado.
-        "__pinker_internal_leque_anexar_b"
-        | "__pinker_internal_leque_anexar_v"
-        | "__pinker_internal_leque_anexar_lista_b"
-        | "__pinker_internal_leque_anexar_lista_v"
-        | "__pinker_internal_leque_anexar_saida_processo" => Some("pinker_leque_anexar"),
-        "__pinker_internal_leque_tag" => Some("pinker_leque_tag"),
-        "__pinker_internal_leque_carga_b"
-        | "__pinker_internal_leque_carga_v"
-        | "__pinker_internal_leque_carga_lista_b"
-        | "__pinker_internal_leque_carga_lista_v"
-        | "__pinker_internal_leque_carga_saida_processo" => Some("pinker_leque_carga"),
         // As uniões não passam por este mapeamento: `union_tag` e
         // `union_extract` são operações internas tipadas, e o símbolo
         // (`pinker_uniao_tag`/`pinker_uniao_payload_b`/`..._v`) é escolhido

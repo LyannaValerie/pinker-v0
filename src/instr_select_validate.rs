@@ -1,42 +1,38 @@
 use crate::cfg_ir::OperandIR;
 use crate::error::PinkerError;
 use crate::instr_select::{SelectedInstr, SelectedProgram, SelectedTerminator};
+use crate::internal_operations::{InternalOperationFamily, InternalResult};
 use crate::ir::TypeIR;
 use crate::token::{Position, Span};
 use std::collections::{HashMap, HashSet};
 
+/// U-01: o retorno declarado da operação genérica de mapa vem da autoridade;
+/// o validador só compara com o `ret_type` do call site.
 fn generic_map_intrinsic_ret_matches(callee: &str, ret_type: TypeIR) -> bool {
-    match callee {
-        "__pinker_internal_mapa_criar_chave_bombom" => matches!(
-            ret_type,
-            TypeIR::Map {
-                key: crate::ir::MapKeyIR::Bombom,
-                ..
-            }
-        ),
-        "__pinker_internal_mapa_criar_chave_verso" => matches!(
-            ret_type,
-            TypeIR::Map {
-                key: crate::ir::MapKeyIR::Verso,
-                ..
-            }
-        ),
-        "__pinker_internal_mapa_obter" => !matches!(ret_type, TypeIR::Nulo),
-        "__pinker_internal_mapa_tem" => ret_type == TypeIR::Logica,
-        "__pinker_internal_mapa_tamanho" | "__pinker_internal_mapa_iterador_criar" => {
-            ret_type == TypeIR::Bombom
+    let Some(operation) = crate::internal_operations::entrada(callee) else {
+        return false;
+    };
+    if operation.family != InternalOperationFamily::MapaGenerica {
+        return false;
+    }
+    match operation.result {
+        InternalResult::Declarado(TypeIR::Nulo) => false,
+        InternalResult::Declarado(declarado) => ret_type == declarado,
+        InternalResult::MapaNovoComChave(chave) => {
+            matches!(ret_type, TypeIR::Map { key, .. } if key == chave)
         }
-        "__pinker_internal_mapa_iterador_proxima_chave_bombom" => ret_type == TypeIR::Bombom,
-        "__pinker_internal_mapa_iterador_proxima_chave_verso" => ret_type == TypeIR::Verso,
-        _ => false,
+        // O valor do mapa recebido não é conhecido nesta camada; a exigência
+        // preservada é exatamente a anterior: a operação produz valor.
+        InternalResult::ValorDoMapaReceptor => !matches!(ret_type, TypeIR::Nulo),
+        InternalResult::TipoDosRamos => false,
     }
 }
 
+/// U-01: a operação genérica de mapa não produz valor?
 fn generic_map_intrinsic_void(callee: &str) -> bool {
-    matches!(
-        callee,
-        "__pinker_internal_mapa_definir" | "__pinker_internal_mapa_remover"
-    )
+    crate::internal_operations::entrada(callee).is_some_and(|operation| {
+        operation.family == InternalOperationFamily::MapaGenerica && !operation.returns_value()
+    })
 }
 
 // @pinker-nav:start select.validacao.invariantes
@@ -66,81 +62,11 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
         };
         sigs_intrinsecas.insert(entrada.spelling.to_string(), ret_type);
     }
-    sigs_intrinsecas.insert(
-        "__pinker_internal_mapa_verso_bombom_iterador_criar".to_string(),
-        TypeIR::Bombom,
-    );
-    sigs_intrinsecas.insert(
-        "__pinker_internal_mapa_verso_bombom_iterador_proxima_chave".to_string(),
-        TypeIR::Verso,
-    );
-    sigs_intrinsecas.insert(
-        "__pinker_internal_mapa_verso_verso_iterador_criar".to_string(),
-        TypeIR::Bombom,
-    );
-    sigs_intrinsecas.insert(
-        "__pinker_internal_mapa_verso_verso_iterador_proxima_chave".to_string(),
-        TypeIR::Verso,
-    );
-    sigs_intrinsecas.insert(
-        "__pinker_internal_mapa_bombom_bombom_iterador_criar".to_string(),
-        TypeIR::Bombom,
-    );
-    sigs_intrinsecas.insert(
-        "__pinker_internal_mapa_bombom_bombom_iterador_proxima_chave".to_string(),
-        TypeIR::Bombom,
-    );
-    sigs_intrinsecas.insert(
-        "__pinker_internal_mapa_bombom_verso_iterador_criar".to_string(),
-        TypeIR::Bombom,
-    );
-    sigs_intrinsecas.insert(
-        "__pinker_internal_mapa_bombom_verso_iterador_proxima_chave".to_string(),
-        TypeIR::Bombom,
-    );
-    sigs_intrinsecas.insert(
-        "__pinker_internal_leque_criar_0".to_string(),
-        TypeIR::Bombom,
-    );
-    sigs_intrinsecas.insert(
-        "__pinker_internal_leque_anexar_b".to_string(),
-        TypeIR::Bombom,
-    );
-    sigs_intrinsecas.insert(
-        "__pinker_internal_leque_anexar_v".to_string(),
-        TypeIR::Bombom,
-    );
-    sigs_intrinsecas.insert("__pinker_internal_leque_tag".to_string(), TypeIR::Bombom);
-    sigs_intrinsecas.insert(
-        "__pinker_internal_leque_carga_b".to_string(),
-        TypeIR::Bombom,
-    );
-    sigs_intrinsecas.insert("__pinker_internal_leque_carga_v".to_string(), TypeIR::Verso);
-    // D1: cargas de lista reutilizam o caminho de uma palavra.
-    sigs_intrinsecas.insert(
-        crate::enum_payload::ANEXAR_LISTA_BOMBOM.to_string(),
-        TypeIR::Bombom,
-    );
-    sigs_intrinsecas.insert(
-        crate::enum_payload::ANEXAR_LISTA_VERSO.to_string(),
-        TypeIR::Bombom,
-    );
-    sigs_intrinsecas.insert(
-        crate::enum_payload::CARGA_LISTA_BOMBOM.to_string(),
-        TypeIR::ListBombom,
-    );
-    sigs_intrinsecas.insert(
-        crate::enum_payload::CARGA_LISTA_VERSO.to_string(),
-        TypeIR::ListVerso,
-    );
-    sigs_intrinsecas.insert(
-        crate::enum_payload::ANEXAR_SAIDA_PROCESSO.to_string(),
-        TypeIR::Bombom,
-    );
-    sigs_intrinsecas.insert(
-        crate::enum_payload::CARGA_SAIDA_PROCESSO.to_string(),
-        TypeIR::OpaqueWordHandle,
-    );
+    // U-01 — só o retorno é necessário nesta camada; o contrato completo vem da
+    // autoridade declarativa das operações internas.
+    for (spelling, ret_type, _params) in crate::internal_operations::assinaturas_declaradas() {
+        sigs_intrinsecas.insert(spelling.to_string(), ret_type);
+    }
     // União não tem intrínseca chamável: `UnionTag`/`UnionExtract` são
     // operações internas tipadas da seleção.
     // Parte B: leque com carga é handle de uma palavra na seleção.
@@ -373,7 +299,7 @@ pub fn validate_program(program: &SelectedProgram) -> Result<(), PinkerError> {
                             check_operand(a, &slots, &temps, &globals)?;
                         }
                         if !(identidade.dispatches_as_builtin()
-                            && (callee == "__ternario"
+                            && (crate::internal_operations::e_ternaria(callee)
                                 || generic_map_intrinsic_ret_matches(callee, *ret_type)))
                         {
                             let Some(sig) = sigs.resolver(*identidade, callee) else {

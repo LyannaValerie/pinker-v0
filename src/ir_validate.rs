@@ -9,6 +9,7 @@
 //! Ponto de entrada: [`validate_program`].
 
 use crate::error::PinkerError;
+use crate::internal_operations::{InternalOperands, InternalResult, MapOperandRole};
 use crate::ir::{
     BinaryOpIR, BlockIR, FunctionIR, InstructionIR, MapKeyIR, ProgramIR, TypeIR, UnaryOpIR, ValueIR,
 };
@@ -200,149 +201,19 @@ pub fn validate_program(program: &ProgramIR) -> Result<(), PinkerError> {
             },
         );
     }
-    intrinsecas.insert(
-        "__pinker_internal_mapa_verso_bombom_iterador_criar".to_string(),
-        FunctionSig {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::MapVersoBombom],
-        },
-    );
-    intrinsecas.insert(
-        "__pinker_internal_mapa_verso_bombom_iterador_proxima_chave".to_string(),
-        FunctionSig {
-            ret_type: TypeIR::Verso,
-            params: vec![TypeIR::Bombom],
-        },
-    );
-    intrinsecas.insert(
-        "__pinker_internal_mapa_verso_verso_iterador_criar".to_string(),
-        FunctionSig {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::MapVersoVerso],
-        },
-    );
-    intrinsecas.insert(
-        "__pinker_internal_mapa_verso_verso_iterador_proxima_chave".to_string(),
-        FunctionSig {
-            ret_type: TypeIR::Verso,
-            params: vec![TypeIR::Bombom],
-        },
-    );
-    intrinsecas.insert(
-        "__pinker_internal_mapa_bombom_bombom_iterador_criar".to_string(),
-        FunctionSig {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::MapBombomBombom],
-        },
-    );
-    intrinsecas.insert(
-        "__pinker_internal_mapa_bombom_bombom_iterador_proxima_chave".to_string(),
-        FunctionSig {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::Bombom],
-        },
-    );
-    intrinsecas.insert(
-        "__pinker_internal_mapa_bombom_verso_iterador_criar".to_string(),
-        FunctionSig {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::MapBombomVerso],
-        },
-    );
-    intrinsecas.insert(
-        "__pinker_internal_mapa_bombom_verso_iterador_proxima_chave".to_string(),
-        FunctionSig {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::Bombom],
-        },
-    );
-    intrinsecas.insert(
-        "__pinker_internal_leque_criar_0".to_string(),
-        FunctionSig {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::Bombom],
-        },
-    );
-    intrinsecas.insert(
-        "__pinker_internal_leque_anexar_b".to_string(),
-        FunctionSig {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::Bombom, TypeIR::Bombom],
-        },
-    );
-    intrinsecas.insert(
-        "__pinker_internal_leque_anexar_v".to_string(),
-        FunctionSig {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::Bombom, TypeIR::Verso],
-        },
-    );
-    intrinsecas.insert(
-        "__pinker_internal_leque_tag".to_string(),
-        FunctionSig {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::Bombom],
-        },
-    );
-    intrinsecas.insert(
-        "__pinker_internal_leque_carga_b".to_string(),
-        FunctionSig {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::Bombom, TypeIR::Bombom, TypeIR::Bombom],
-        },
-    );
-    intrinsecas.insert(
-        "__pinker_internal_leque_carga_v".to_string(),
-        FunctionSig {
-            ret_type: TypeIR::Verso,
-            params: vec![TypeIR::Bombom, TypeIR::Bombom, TypeIR::Bombom],
-        },
-    );
-    // D1: handles de lista como carga. O parâmetro e o retorno são de uma
-    // palavra, exatamente como o caminho `_b`; o que muda é a categoria
-    // operacional exigida, que preserva a identidade do valor.
-    intrinsecas.insert(
-        crate::enum_payload::ANEXAR_LISTA_BOMBOM.to_string(),
-        FunctionSig {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::Bombom, TypeIR::ListBombom],
-        },
-    );
-    intrinsecas.insert(
-        crate::enum_payload::ANEXAR_LISTA_VERSO.to_string(),
-        FunctionSig {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::Bombom, TypeIR::ListVerso],
-        },
-    );
-    intrinsecas.insert(
-        crate::enum_payload::CARGA_LISTA_BOMBOM.to_string(),
-        FunctionSig {
-            ret_type: TypeIR::ListBombom,
-            params: vec![TypeIR::Bombom, TypeIR::Bombom, TypeIR::Bombom],
-        },
-    );
-    intrinsecas.insert(
-        crate::enum_payload::CARGA_LISTA_VERSO.to_string(),
-        FunctionSig {
-            ret_type: TypeIR::ListVerso,
-            params: vec![TypeIR::Bombom, TypeIR::Bombom, TypeIR::Bombom],
-        },
-    );
-    intrinsecas.insert(
-        crate::enum_payload::ANEXAR_SAIDA_PROCESSO.to_string(),
-        FunctionSig {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::Bombom, TypeIR::OpaqueWordHandle],
-        },
-    );
-    intrinsecas.insert(
-        crate::enum_payload::CARGA_SAIDA_PROCESSO.to_string(),
-        FunctionSig {
-            ret_type: TypeIR::OpaqueWordHandle,
-            params: vec![TypeIR::Bombom, TypeIR::Bombom, TypeIR::Bombom],
-        },
-    );
+    // U-01 — as operações internas do compilador com contrato fixo vêm da
+    // autoridade declarativa, pela mesma forma de consumo por laço já usada
+    // acima para o registry histórico. Esta tabela era uma das cinco
+    // enumerações independentes do mesmo fato.
+    for (spelling, ret_type, params) in crate::internal_operations::assinaturas_declaradas() {
+        intrinsecas.insert(
+            spelling.to_string(),
+            FunctionSig {
+                ret_type,
+                params: params.to_vec(),
+            },
+        );
+    }
     // Não há assinatura chamável de união: tag e extração são
     // `ValueIR::UnionTag`/`ValueIR::UnionExtract`, nós tipados da IR.
     // Parte B: as superfícies falíveis devolvem um leque com carga, que na IR é
@@ -1713,8 +1584,8 @@ fn infer_value_type(
         } => {
             // #532: os ramos por nome desta validação pertencem à intrínseca.
             let builtin = identidade.dispatches_as_builtin();
-            if builtin && callee == "__ternario" {
-                if args.len() != 3 {
+            if builtin && crate::internal_operations::e_ternaria(callee) {
+                if Some(args.len()) != crate::internal_operations::aridade(callee.as_str()) {
                     return Err(ir_validation_error("aridade de __ternario inválida", span));
                 }
                 let cond_ty = infer_value_type(&args[0], slots, consts, funcs, span)?;
@@ -1769,126 +1640,122 @@ fn infer_value_type(
                         .then_some(())
                         .ok_or_else(|| ir_validation_error(message, span))
                 };
-                match callee.as_str() {
-                    "__pinker_internal_mapa_criar_chave_bombom" => {
+                // U-01 — aridade, papéis de operando e contrato de resultado vêm
+                // da autoridade declarativa das operações internas. O que
+                // permanece local é o que é da fase: o predicado de comparação
+                // desta camada (`is_compatible_with`) e o texto de cada
+                // diagnóstico.
+                let Some(operation) = crate::internal_operations::entrada(callee.as_str()) else {
+                    return Err(ir_validation_error(
+                        "intrínseca interna de mapa desconhecida",
+                        span,
+                    ));
+                };
+                match operation.result {
+                    InternalResult::MapaNovoComChave(chave) => {
                         ensure(
-                            args.is_empty(),
+                            actual.len() == operation.arity(),
                             "mapa_criar genérico possui aridade inválida",
                         )?;
                         ensure(
-                            matches!(
-                                ret_type,
-                                TypeIR::Map {
-                                    key: MapKeyIR::Bombom,
-                                    ..
-                                }
-                            ),
-                            "mapa_criar bombom possui retorno incompatível",
+                            matches!(ret_type, TypeIR::Map { key, .. } if *key == chave),
+                            match chave {
+                                MapKeyIR::Bombom => "mapa_criar bombom possui retorno incompatível",
+                                MapKeyIR::Verso => "mapa_criar verso possui retorno incompatível",
+                            },
                         )?;
                     }
-                    "__pinker_internal_mapa_criar_chave_verso" => {
-                        ensure(
-                            args.is_empty(),
-                            "mapa_criar genérico possui aridade inválida",
-                        )?;
-                        ensure(
-                            matches!(
-                                ret_type,
-                                TypeIR::Map {
-                                    key: MapKeyIR::Verso,
-                                    ..
-                                }
-                            ),
-                            "mapa_criar verso possui retorno incompatível",
-                        )?;
-                    }
-                    "__pinker_internal_mapa_definir"
-                    | "__pinker_internal_mapa_obter"
-                    | "__pinker_internal_mapa_tem"
-                    | "__pinker_internal_mapa_remover" => {
-                        let expected_arity = if callee.ends_with("_definir") { 3 } else { 2 };
-                        ensure(
-                            actual.len() == expected_arity,
-                            "operação genérica de mapa possui aridade inválida",
-                        )?;
-                        let TypeIR::Map { key, value } = actual[0] else {
-                            return Err(ir_validation_error(
-                                "operação genérica exige mapa no primeiro argumento",
-                                span,
-                            ));
-                        };
-                        let expected_key = match key {
-                            MapKeyIR::Bombom => TypeIR::Bombom,
-                            MapKeyIR::Verso => TypeIR::Verso,
-                        };
-                        ensure(
-                            actual[1].is_compatible_with(expected_key),
-                            "tipo de chave genérica de mapa inválido",
-                        )?;
-                        if callee.ends_with("_definir") {
+                    _ => match operation.operands {
+                        InternalOperands::PapeisDeMapa(papeis)
+                            if papeis.contains(&MapOperandRole::Chave) =>
+                        {
                             ensure(
-                                actual[2].is_compatible_with(value.type_ir()),
-                                "tipo de valor genérico de mapa inválido",
+                                actual.len() == operation.arity(),
+                                "operação genérica de mapa possui aridade inválida",
+                            )?;
+                            let TypeIR::Map { key, value } = actual[0] else {
+                                return Err(ir_validation_error(
+                                    "operação genérica exige mapa no primeiro argumento",
+                                    span,
+                                ));
+                            };
+                            let expected_key = match key {
+                                MapKeyIR::Bombom => TypeIR::Bombom,
+                                MapKeyIR::Verso => TypeIR::Verso,
+                            };
+                            ensure(
+                                actual[1].is_compatible_with(expected_key),
+                                "tipo de chave genérica de mapa inválido",
+                            )?;
+                            if papeis.contains(&MapOperandRole::Valor) {
+                                ensure(
+                                    actual[2].is_compatible_with(value.type_ir()),
+                                    "tipo de valor genérico de mapa inválido",
+                                )?;
+                            }
+                            let expected_ret = match operation.result {
+                                InternalResult::ValorDoMapaReceptor => value.type_ir(),
+                                InternalResult::Declarado(declarado) => declarado,
+                                InternalResult::MapaNovoComChave(_)
+                                | InternalResult::TipoDosRamos => {
+                                    return Err(ir_validation_error(
+                                        "intrínseca interna de mapa desconhecida",
+                                        span,
+                                    ))
+                                }
+                            };
+                            ensure(
+                                ret_type.is_compatible_with(expected_ret),
+                                "retorno de operação genérica de mapa inválido",
                             )?;
                         }
-                        let expected_ret = if callee.ends_with("_obter") {
-                            value.type_ir()
-                        } else if callee.ends_with("_tem") {
-                            TypeIR::Logica
-                        } else {
-                            TypeIR::Nulo
-                        };
-                        ensure(
-                            ret_type.is_compatible_with(expected_ret),
-                            "retorno de operação genérica de mapa inválido",
-                        )?;
-                    }
-                    "__pinker_internal_mapa_tamanho" => {
-                        ensure(
-                            actual.len() == 1 && matches!(actual[0], TypeIR::Map { .. }),
-                            "mapa_tamanho genérico possui argumento inválido",
-                        )?;
-                        ensure(
-                            *ret_type == TypeIR::Bombom,
-                            "mapa_tamanho possui retorno inválido",
-                        )?;
-                    }
-                    "__pinker_internal_mapa_iterador_criar" => {
-                        ensure(
-                            actual.len() == 1 && matches!(actual[0], TypeIR::Map { .. }),
-                            "iterador genérico possui argumento inválido",
-                        )?;
-                        ensure(
-                            *ret_type == TypeIR::Bombom,
-                            "iterador genérico possui retorno inválido",
-                        )?;
-                    }
-                    "__pinker_internal_mapa_iterador_proxima_chave_bombom" => {
-                        ensure(
-                            actual == [TypeIR::Bombom],
-                            "cursor genérico possui argumento inválido",
-                        )?;
-                        ensure(
-                            *ret_type == TypeIR::Bombom,
-                            "cursor bombom possui retorno inválido",
-                        )?;
-                    }
-                    "__pinker_internal_mapa_iterador_proxima_chave_verso" => {
-                        ensure(
-                            actual == [TypeIR::Bombom],
-                            "cursor genérico possui argumento inválido",
-                        )?;
-                        ensure(
-                            *ret_type == TypeIR::Verso,
-                            "cursor verso possui retorno inválido",
-                        )?;
-                    }
-                    _ => {
-                        return Err(ir_validation_error(
-                            "intrínseca interna de mapa desconhecida",
-                            span,
-                        ))
-                    }
+                        // Receptor sem chave: `mapa_tamanho` e
+                        // `mapa_iterador_criar` têm contrato idêntico e
+                        // diferem apenas no texto do diagnóstico, que é da
+                        // fase e não da autoridade.
+                        InternalOperands::PapeisDeMapa(_) => {
+                            let (argumento_invalido, retorno_invalido) = match callee.as_str() {
+                                "__pinker_internal_mapa_tamanho" => (
+                                    "mapa_tamanho genérico possui argumento inválido",
+                                    "mapa_tamanho possui retorno inválido",
+                                ),
+                                _ => (
+                                    "iterador genérico possui argumento inválido",
+                                    "iterador genérico possui retorno inválido",
+                                ),
+                            };
+                            ensure(
+                                actual.len() == operation.arity()
+                                    && matches!(actual[0], TypeIR::Map { .. }),
+                                argumento_invalido,
+                            )?;
+                            ensure(
+                                Some(*ret_type) == operation.declared_ret(),
+                                retorno_invalido,
+                            )?;
+                        }
+                        // Cursor: o contrato já é fixo, e o resultado nomeia o
+                        // diagnóstico.
+                        InternalOperands::Declarados(params) => {
+                            ensure(
+                                actual == params,
+                                "cursor genérico possui argumento inválido",
+                            )?;
+                            ensure(
+                                Some(*ret_type) == operation.declared_ret(),
+                                match operation.declared_ret() {
+                                    Some(TypeIR::Verso) => "cursor verso possui retorno inválido",
+                                    _ => "cursor bombom possui retorno inválido",
+                                },
+                            )?;
+                        }
+                        InternalOperands::Ramificacao => {
+                            return Err(ir_validation_error(
+                                "intrínseca interna de mapa desconhecida",
+                                span,
+                            ))
+                        }
+                    },
                 }
                 return Ok(*ret_type);
             }

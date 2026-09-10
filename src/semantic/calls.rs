@@ -20,6 +20,19 @@
 
 use super::*;
 
+/// U-01 — aridade de uma operação interna do compilador, lida da autoridade
+/// declarativa.
+///
+/// A semântica continua decidindo o que é dela: a CLASSE do operando na
+/// representação `Type` desta fase e o texto de cada diagnóstico. Quantos
+/// operandos a operação tem é fato compartilhado com IR, CFG, seleção e
+/// máquina, e por isso tem um dono só.
+fn aridade_interna(name: &str) -> usize {
+    crate::internal_operations::entrada(name)
+        .expect("operação interna sem contrato declarado na autoridade")
+        .arity()
+}
+
 impl SemanticChecker {
     // @pinker-nav:start semantic.chamadas.despacho
     // @pinker-nav:domain chamadas
@@ -775,7 +788,7 @@ impl SemanticChecker {
         }
 
         if name == "__pinker_internal_mapa_iterador_criar" {
-            if args.len() != 1 {
+            if args.len() != aridade_interna(name) {
                 return Err(PinkerError::Semantic {
                     msg: "iterador interno de mapa exige 1 argumento".to_string(),
                     span: expr_span,
@@ -802,7 +815,7 @@ impl SemanticChecker {
             "__pinker_internal_mapa_iterador_proxima_chave_bombom"
                 | "__pinker_internal_mapa_iterador_proxima_chave_verso"
         ) {
-            if args.len() != 1 {
+            if args.len() != aridade_interna(name) {
                 return Err(PinkerError::Semantic {
                     msg: "avanço de iterador interno de mapa exige 1 argumento".to_string(),
                     span: expr_span,
@@ -833,7 +846,7 @@ impl SemanticChecker {
 
         // Intrínsecas internas do desugaring de `encaixe` (Fases 209–210).
         if name == "__pinker_internal_leque_tag" {
-            if args.len() != 1 {
+            if args.len() != aridade_interna(name) {
                 return Err(PinkerError::Semantic {
                     msg: format!(
                         "intrínseca interna '{}' exige 1 argumento (valor de leque)",
@@ -867,7 +880,7 @@ impl SemanticChecker {
             return Ok(Type::Bombom(expr_span));
         }
         if crate::enum_payload::is_carga_intrinsic(name) {
-            if args.len() != 3 {
+            if args.len() != aridade_interna(name) {
                 return Err(PinkerError::Semantic {
                     msg: format!(
                         "intrínseca interna '{}' exige 3 argumentos (leque, tag, índice)",
@@ -1379,8 +1392,8 @@ impl SemanticChecker {
             return Ok(Type::Verso(expr_span));
         }
 
-        if name == "__ternario" {
-            if args.len() != 3 {
+        if crate::internal_operations::e_ternaria(name) {
+            if args.len() != aridade_interna(name) {
                 return Err(PinkerError::Semantic {
                     msg: format!(
                         "expressão ternária requer exatamente 3 argumentos (condição, valor_verdade, valor_falso), recebido {}",
@@ -1619,7 +1632,7 @@ impl SemanticChecker {
         }
 
         if name == "__pinker_internal_mapa_verso_verso_iterador_criar" {
-            if args.len() != 1 {
+            if args.len() != aridade_interna(name) {
                 return Err(PinkerError::Semantic {
                     msg: "iterador interno de mapa<verso,verso> exige 1 argumento".to_string(),
                     span: expr_span,
@@ -1639,7 +1652,7 @@ impl SemanticChecker {
             return Ok(Type::Bombom(expr_span));
         }
         if name == "__pinker_internal_mapa_verso_verso_iterador_proxima_chave" {
-            if args.len() != 1 {
+            if args.len() != aridade_interna(name) {
                 return Err(PinkerError::Semantic {
                     msg: "iterador interno de mapa<verso,verso> exige 1 argumento".to_string(),
                     span: expr_span,
@@ -1653,7 +1666,7 @@ impl SemanticChecker {
         }
 
         if name == "__pinker_internal_mapa_bombom_bombom_iterador_criar" {
-            if args.len() != 1 {
+            if args.len() != aridade_interna(name) {
                 return Err(PinkerError::Semantic {
                     msg: "iterador interno de mapa<bombom,bombom> exige 1 argumento".to_string(),
                     span: expr_span,
@@ -1673,7 +1686,7 @@ impl SemanticChecker {
             return Ok(Type::Bombom(expr_span));
         }
         if name == "__pinker_internal_mapa_bombom_bombom_iterador_proxima_chave" {
-            if args.len() != 1 {
+            if args.len() != aridade_interna(name) {
                 return Err(PinkerError::Semantic {
                     msg: "iterador interno de mapa<bombom,bombom> exige 1 argumento".to_string(),
                     span: expr_span,
@@ -1687,7 +1700,7 @@ impl SemanticChecker {
         }
 
         if name == "__pinker_internal_mapa_bombom_verso_iterador_criar" {
-            if args.len() != 1 {
+            if args.len() != aridade_interna(name) {
                 return Err(PinkerError::Semantic {
                     msg: "iterador interno de mapa<bombom,verso> exige 1 argumento".to_string(),
                     span: expr_span,
@@ -1707,7 +1720,7 @@ impl SemanticChecker {
             return Ok(Type::Bombom(expr_span));
         }
         if name == "__pinker_internal_mapa_bombom_verso_iterador_proxima_chave" {
-            if args.len() != 1 {
+            if args.len() != aridade_interna(name) {
                 return Err(PinkerError::Semantic {
                     msg: "iterador interno de mapa<bombom,verso> exige 1 argumento".to_string(),
                     span: expr_span,

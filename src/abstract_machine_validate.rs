@@ -12,37 +12,41 @@
 
 use crate::abstract_machine::{MachineFunction, MachineInstr, MachineProgram, MachineTerminator};
 use crate::error::PinkerError;
+use crate::internal_operations::{InternalOperationFamily, InternalResult};
 use crate::ir::TypeIR;
 use crate::token::{Position, Span};
 use std::collections::{HashMap, HashSet, VecDeque};
 
+/// U-01: aridade da operação genérica de mapa, derivada da autoridade
+/// declarativa. `returns_value` continua sendo a pergunta do call site, e a
+/// autoridade responde se a operação produz valor.
 fn generic_map_intrinsic_arity(callee: &str, returns_value: bool) -> Option<usize> {
-    match (callee, returns_value) {
-        ("__pinker_internal_mapa_criar_chave_bombom", true)
-        | ("__pinker_internal_mapa_criar_chave_verso", true) => Some(0),
-        ("__pinker_internal_mapa_obter", true) | ("__pinker_internal_mapa_tem", true) => Some(2),
-        ("__pinker_internal_mapa_tamanho", true)
-        | ("__pinker_internal_mapa_iterador_criar", true)
-        | ("__pinker_internal_mapa_iterador_proxima_chave_bombom", true)
-        | ("__pinker_internal_mapa_iterador_proxima_chave_verso", true) => Some(1),
-        ("__pinker_internal_mapa_definir", false) => Some(3),
-        ("__pinker_internal_mapa_remover", false) => Some(2),
-        _ => None,
+    let operation = crate::internal_operations::entrada(callee)?;
+    if operation.family != InternalOperationFamily::MapaGenerica
+        || operation.returns_value() != returns_value
+    {
+        return None;
     }
+    Some(operation.arity())
 }
 
+/// U-01: classe de pilha do resultado, projetada do contrato declarado.
+///
+/// A projeção é a mesma de [`type_to_stack`] para os contratos fixos; as duas
+/// formas relativas ao mapa recebido não têm tipo de pilha estático e entram
+/// como `Unknown`, exatamente como antes.
 fn generic_map_intrinsic_stack_return(callee: &str) -> Option<StackValueType> {
-    match callee {
-        "__pinker_internal_mapa_criar_chave_bombom"
-        | "__pinker_internal_mapa_criar_chave_verso"
-        | "__pinker_internal_mapa_obter" => Some(StackValueType::Unknown),
-        "__pinker_internal_mapa_tem" => Some(StackValueType::Logica),
-        "__pinker_internal_mapa_tamanho"
-        | "__pinker_internal_mapa_iterador_criar"
-        | "__pinker_internal_mapa_iterador_proxima_chave_bombom" => Some(StackValueType::Bombom),
-        "__pinker_internal_mapa_iterador_proxima_chave_verso" => Some(StackValueType::Verso),
-        _ => None,
+    let operation = crate::internal_operations::entrada(callee)?;
+    if operation.family != InternalOperationFamily::MapaGenerica || !operation.returns_value() {
+        return None;
     }
+    Some(match operation.result {
+        InternalResult::Declarado(ty) => type_to_stack(ty),
+        InternalResult::MapaNovoComChave(_) | InternalResult::ValorDoMapaReceptor => {
+            StackValueType::Unknown
+        }
+        InternalResult::TipoDosRamos => StackValueType::Unknown,
+    })
 }
 
 // Tipo de valor de pilha inferido estaticamente.
@@ -117,139 +121,19 @@ pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
             .collect();
         sigs_intrinsecas.insert(entrada.spelling.to_string(), (ret_type, param_types));
     }
-    sigs_intrinsecas.insert(
-        "__pinker_internal_mapa_verso_bombom_iterador_criar".to_string(),
-        (TypeIR::Bombom, vec![StackValueType::Unknown]),
-    );
-    sigs_intrinsecas.insert(
-        "__pinker_internal_mapa_verso_bombom_iterador_proxima_chave".to_string(),
-        (TypeIR::Verso, vec![StackValueType::Bombom]),
-    );
-    sigs_intrinsecas.insert(
-        "__pinker_internal_mapa_verso_verso_iterador_criar".to_string(),
-        (TypeIR::Bombom, vec![StackValueType::Unknown]),
-    );
-    sigs_intrinsecas.insert(
-        "__pinker_internal_mapa_verso_verso_iterador_proxima_chave".to_string(),
-        (TypeIR::Verso, vec![StackValueType::Bombom]),
-    );
-    sigs_intrinsecas.insert(
-        "__pinker_internal_mapa_bombom_bombom_iterador_criar".to_string(),
-        (TypeIR::Bombom, vec![StackValueType::Unknown]),
-    );
-    sigs_intrinsecas.insert(
-        "__pinker_internal_mapa_bombom_bombom_iterador_proxima_chave".to_string(),
-        (TypeIR::Bombom, vec![StackValueType::Bombom]),
-    );
-    sigs_intrinsecas.insert(
-        "__pinker_internal_mapa_bombom_verso_iterador_criar".to_string(),
-        (TypeIR::Bombom, vec![StackValueType::Unknown]),
-    );
-    sigs_intrinsecas.insert(
-        "__pinker_internal_mapa_bombom_verso_iterador_proxima_chave".to_string(),
-        (TypeIR::Bombom, vec![StackValueType::Bombom]),
-    );
-    sigs_intrinsecas.insert(
-        "__pinker_internal_leque_criar_0".to_string(),
-        (TypeIR::Bombom, vec![StackValueType::Bombom]),
-    );
-    sigs_intrinsecas.insert(
-        "__pinker_internal_leque_anexar_b".to_string(),
-        (
-            TypeIR::Bombom,
-            vec![StackValueType::Bombom, StackValueType::Bombom],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "__pinker_internal_leque_anexar_v".to_string(),
-        (
-            TypeIR::Bombom,
-            vec![StackValueType::Bombom, StackValueType::Verso],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "__pinker_internal_leque_tag".to_string(),
-        (TypeIR::Bombom, vec![StackValueType::Bombom]),
-    );
-    sigs_intrinsecas.insert(
-        "__pinker_internal_leque_carga_b".to_string(),
-        (
-            TypeIR::Bombom,
-            vec![
-                StackValueType::Bombom,
-                StackValueType::Bombom,
-                StackValueType::Bombom,
-            ],
-        ),
-    );
-    // D1: cargas de lista. O handle é uma palavra na pilha, como as demais
-    // cargas; a categoria operacional é o que impede `lista<verso>` de ser
-    // aceita pelo caminho de `verso`.
-    sigs_intrinsecas.insert(
-        crate::enum_payload::ANEXAR_LISTA_BOMBOM.to_string(),
-        (
-            TypeIR::Bombom,
-            vec![StackValueType::Bombom, StackValueType::ListBombom],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        crate::enum_payload::ANEXAR_LISTA_VERSO.to_string(),
-        (
-            TypeIR::Bombom,
-            vec![StackValueType::Bombom, StackValueType::ListVerso],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        crate::enum_payload::CARGA_LISTA_BOMBOM.to_string(),
-        (
-            TypeIR::ListBombom,
-            vec![
-                StackValueType::Bombom,
-                StackValueType::Bombom,
-                StackValueType::Bombom,
-            ],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        crate::enum_payload::CARGA_LISTA_VERSO.to_string(),
-        (
-            TypeIR::ListVerso,
-            vec![
-                StackValueType::Bombom,
-                StackValueType::Bombom,
-                StackValueType::Bombom,
-            ],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        crate::enum_payload::ANEXAR_SAIDA_PROCESSO.to_string(),
-        (
-            TypeIR::Bombom,
-            vec![StackValueType::Bombom, StackValueType::Unknown],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        crate::enum_payload::CARGA_SAIDA_PROCESSO.to_string(),
-        (
-            TypeIR::OpaqueWordHandle,
-            vec![
-                StackValueType::Bombom,
-                StackValueType::Bombom,
-                StackValueType::Bombom,
-            ],
-        ),
-    );
-    sigs_intrinsecas.insert(
-        "__pinker_internal_leque_carga_v".to_string(),
-        (
-            TypeIR::Verso,
-            vec![
-                StackValueType::Bombom,
-                StackValueType::Bombom,
-                StackValueType::Bombom,
-            ],
-        ),
-    );
+    // U-01 — as operações internas com contrato fixo vêm da autoridade
+    // declarativa, pelo mesmo laço já usado acima para o registry histórico.
+    // Os parâmetros de pilha são a projeção de `type_to_stack` sobre os tipos
+    // IR declarados: nenhuma operação interna relaxa posição alguma.
+    for (spelling, ret_type, params) in crate::internal_operations::assinaturas_declaradas() {
+        sigs_intrinsecas.insert(
+            spelling.to_string(),
+            (
+                ret_type,
+                params.iter().copied().map(type_to_stack).collect(),
+            ),
+        );
+    }
     // União não possui assinatura chamável na máquina: `union_tag` e
     // `union_extract` são instruções internas tipadas.
     // Parte B: leque com carga é handle de uma palavra na máquina de pilha.
@@ -392,8 +276,10 @@ fn validate_function(
                     argc,
                     identidade,
                 } => {
-                    if identidade.dispatches_as_builtin() && callee == "__ternario" {
-                        if *argc != 3 {
+                    if identidade.dispatches_as_builtin()
+                        && crate::internal_operations::e_ternaria(callee)
+                    {
+                        if Some(*argc) != crate::internal_operations::aridade(callee) {
                             return Err(err_ctx(
                                 f,
                                 Some(&b.label),
@@ -1024,7 +910,8 @@ fn apply_instr_effect(
                     callee, argc, callee
                 )),
             )?;
-            if identidade.dispatches_as_builtin() && callee == "__ternario" {
+            if identidade.dispatches_as_builtin() && crate::internal_operations::e_ternaria(callee)
+            {
                 stack.push(args[1]);
                 return Ok(());
             }
