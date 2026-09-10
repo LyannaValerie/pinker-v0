@@ -23,17 +23,27 @@
 //!   autoridade vive FORA de `src/intrinsics/`, cuja família a #588 fechou, e
 //!   ao lado das demais autoridades de família — `valor_json`, `sha256`,
 //!   `falha_operacional`, `enum_payload`, `native_symbol`.
-//! - O **símbolo ABI** é uma projeção de backend declarada ao lado da operação,
-//!   pela mesma disciplina de [`crate::valor_json::simbolo_runtime`]. O símbolo
-//!   é consequência da identidade, nunca a identidade: nenhuma consulta desta
-//!   autoridade aceita um símbolo `pinker_*` como chave.
+//! - O **símbolo ABI** NÃO mora aqui. No baseline a relação `operação interna ->
+//!   símbolo do runtime` tinha um decisor só, `backend_s`, e a #651 só autoriza
+//!   consolidar o binding quando várias fases repetem a MESMA relação. Que o
+//!   backend também enumere operações internas não torna o binding uma decisão
+//!   duplicada:
+//!
+//!   ```text
+//!   OPERATION EXISTS
+//!   !=
+//!   THIS OPERATION BINDS TO THIS ABI SYMBOL
+//!   ```
+//!
+//!   Recolher autoridade única para uma tabela nova porque ela caberia bem ali
+//!   é o oposto do que TC-01 autoriza. O símbolo continua com `backend_s`.
 //! - Os **corpos** — interpretador hospedado e `pinker_rt` — continuam com seus
 //!   donos de fase. Esta autoridade é declarativa e não executa nada.
 //! - A relação `(classe concreta de mapa, operação genérica) -> grafia
 //!   monomórfica` **não** mora aqui: é objeto de U-02 e continua onde está.
 //!
 //! O fato que esta autoridade centraliza é o contrato estrutural — existência,
-//! aridade, operandos, resultado e binding nativo — que antes era decidido
+//! aridade, operandos e resultado — que antes era decidido
 //! independentemente por `ir_validate`, `cfg_ir_validate`,
 //! `abstract_machine_validate`, `instr_select_validate`, `ir::context`,
 //! `ir::model` e `backend_s`, cada um com sua própria tabela literal.
@@ -104,9 +114,6 @@ pub struct InternalOperation {
     pub family: InternalOperationFamily,
     pub operands: InternalOperands,
     pub result: InternalResult,
-    /// Projeção de backend: símbolo do runtime nativo que implementa a
-    /// operação. `None` quando o lowering a resolve sem chamada de runtime.
-    pub runtime_symbol: Option<&'static str>,
 }
 
 impl InternalOperation {
@@ -166,14 +173,12 @@ pub const INTERNAL_OPERATIONS: &[InternalOperation] = &[
         family: InternalOperationFamily::MapaGenerica,
         operands: InternalOperands::PapeisDeMapa(&[]),
         result: InternalResult::MapaNovoComChave(MapKeyIR::Bombom),
-        runtime_symbol: Some("pinker_mapa_criar_chave_bombom"),
     },
     InternalOperation {
         spelling: "__pinker_internal_mapa_criar_chave_verso",
         family: InternalOperationFamily::MapaGenerica,
         operands: InternalOperands::PapeisDeMapa(&[]),
         result: InternalResult::MapaNovoComChave(MapKeyIR::Verso),
-        runtime_symbol: Some("pinker_mapa_criar_chave_verso"),
     },
     InternalOperation {
         spelling: "__pinker_internal_mapa_definir",
@@ -184,7 +189,6 @@ pub const INTERNAL_OPERATIONS: &[InternalOperation] = &[
             MapOperandRole::Valor,
         ]),
         result: InternalResult::Declarado(TypeIR::Nulo),
-        runtime_symbol: Some("pinker_mapa_definir"),
     },
     InternalOperation {
         spelling: "__pinker_internal_mapa_obter",
@@ -194,7 +198,6 @@ pub const INTERNAL_OPERATIONS: &[InternalOperation] = &[
             MapOperandRole::Chave,
         ]),
         result: InternalResult::ValorDoMapaReceptor,
-        runtime_symbol: Some("pinker_mapa_obter"),
     },
     InternalOperation {
         spelling: "__pinker_internal_mapa_tem",
@@ -204,7 +207,6 @@ pub const INTERNAL_OPERATIONS: &[InternalOperation] = &[
             MapOperandRole::Chave,
         ]),
         result: InternalResult::Declarado(TypeIR::Logica),
-        runtime_symbol: Some("pinker_mapa_tem"),
     },
     InternalOperation {
         spelling: "__pinker_internal_mapa_remover",
@@ -214,21 +216,18 @@ pub const INTERNAL_OPERATIONS: &[InternalOperation] = &[
             MapOperandRole::Chave,
         ]),
         result: InternalResult::Declarado(TypeIR::Nulo),
-        runtime_symbol: Some("pinker_mapa_remover"),
     },
     InternalOperation {
         spelling: "__pinker_internal_mapa_tamanho",
         family: InternalOperationFamily::MapaGenerica,
         operands: InternalOperands::PapeisDeMapa(&[MapOperandRole::Receptor]),
         result: InternalResult::Declarado(TypeIR::Bombom),
-        runtime_symbol: Some("pinker_mapa_tamanho"),
     },
     InternalOperation {
         spelling: "__pinker_internal_mapa_iterador_criar",
         family: InternalOperationFamily::MapaGenerica,
         operands: InternalOperands::PapeisDeMapa(&[MapOperandRole::Receptor]),
         result: InternalResult::Declarado(TypeIR::Bombom),
-        runtime_symbol: Some("pinker_mapa_iterador_criar"),
     },
     // O cursor já é `bombom`: estas duas são da família genérica porque o
     // desugaring genérico as emite, mas o contrato delas é fixo.
@@ -237,14 +236,12 @@ pub const INTERNAL_OPERATIONS: &[InternalOperation] = &[
         family: InternalOperationFamily::MapaGenerica,
         operands: InternalOperands::Declarados(&[TypeIR::Bombom]),
         result: InternalResult::Declarado(TypeIR::Bombom),
-        runtime_symbol: Some("pinker_mapa_iterador_proxima"),
     },
     InternalOperation {
         spelling: "__pinker_internal_mapa_iterador_proxima_chave_verso",
         family: InternalOperationFamily::MapaGenerica,
         operands: InternalOperands::Declarados(&[TypeIR::Bombom]),
         result: InternalResult::Declarado(TypeIR::Verso),
-        runtime_symbol: Some("pinker_mapa_iterador_proxima"),
     },
     // -- Mapa monomórfico (uma operação por classe concreta) ----------------
     InternalOperation {
@@ -252,56 +249,48 @@ pub const INTERNAL_OPERATIONS: &[InternalOperation] = &[
         family: InternalOperationFamily::MapaMonomorfica,
         operands: InternalOperands::Declarados(&[TypeIR::MapVersoBombom]),
         result: InternalResult::Declarado(TypeIR::Bombom),
-        runtime_symbol: Some("pinker_mapa_iterador_criar"),
     },
     InternalOperation {
         spelling: "__pinker_internal_mapa_verso_bombom_iterador_proxima_chave",
         family: InternalOperationFamily::MapaMonomorfica,
         operands: InternalOperands::Declarados(&[TypeIR::Bombom]),
         result: InternalResult::Declarado(TypeIR::Verso),
-        runtime_symbol: Some("pinker_mapa_iterador_proxima"),
     },
     InternalOperation {
         spelling: "__pinker_internal_mapa_verso_verso_iterador_criar",
         family: InternalOperationFamily::MapaMonomorfica,
         operands: InternalOperands::Declarados(&[TypeIR::MapVersoVerso]),
         result: InternalResult::Declarado(TypeIR::Bombom),
-        runtime_symbol: Some("pinker_mapa_iterador_criar"),
     },
     InternalOperation {
         spelling: "__pinker_internal_mapa_verso_verso_iterador_proxima_chave",
         family: InternalOperationFamily::MapaMonomorfica,
         operands: InternalOperands::Declarados(&[TypeIR::Bombom]),
         result: InternalResult::Declarado(TypeIR::Verso),
-        runtime_symbol: Some("pinker_mapa_iterador_proxima"),
     },
     InternalOperation {
         spelling: "__pinker_internal_mapa_bombom_bombom_iterador_criar",
         family: InternalOperationFamily::MapaMonomorfica,
         operands: InternalOperands::Declarados(&[TypeIR::MapBombomBombom]),
         result: InternalResult::Declarado(TypeIR::Bombom),
-        runtime_symbol: Some("pinker_mapa_iterador_criar"),
     },
     InternalOperation {
         spelling: "__pinker_internal_mapa_bombom_bombom_iterador_proxima_chave",
         family: InternalOperationFamily::MapaMonomorfica,
         operands: InternalOperands::Declarados(&[TypeIR::Bombom]),
         result: InternalResult::Declarado(TypeIR::Bombom),
-        runtime_symbol: Some("pinker_mapa_iterador_proxima"),
     },
     InternalOperation {
         spelling: "__pinker_internal_mapa_bombom_verso_iterador_criar",
         family: InternalOperationFamily::MapaMonomorfica,
         operands: InternalOperands::Declarados(&[TypeIR::MapBombomVerso]),
         result: InternalResult::Declarado(TypeIR::Bombom),
-        runtime_symbol: Some("pinker_mapa_iterador_criar"),
     },
     InternalOperation {
         spelling: "__pinker_internal_mapa_bombom_verso_iterador_proxima_chave",
         family: InternalOperationFamily::MapaMonomorfica,
         operands: InternalOperands::Declarados(&[TypeIR::Bombom]),
         result: InternalResult::Declarado(TypeIR::Bombom),
-        runtime_symbol: Some("pinker_mapa_iterador_proxima"),
     },
     // -- Leque com carga ----------------------------------------------------
     InternalOperation {
@@ -309,14 +298,12 @@ pub const INTERNAL_OPERATIONS: &[InternalOperation] = &[
         family: InternalOperationFamily::Leque,
         operands: InternalOperands::Declarados(&[TypeIR::Bombom]),
         result: InternalResult::Declarado(TypeIR::Bombom),
-        runtime_symbol: Some("pinker_leque_criar_0"),
     },
     InternalOperation {
         spelling: "__pinker_internal_leque_tag",
         family: InternalOperationFamily::Leque,
         operands: InternalOperands::Declarados(&[TypeIR::Bombom]),
         result: InternalResult::Declarado(TypeIR::Bombom),
-        runtime_symbol: Some("pinker_leque_tag"),
     },
     // As cinco formas de anexo e as cinco de carga existem porque o tipo do
     // operando/resultado difere; todas colapsam nos mesmos dois símbolos do
@@ -326,70 +313,60 @@ pub const INTERNAL_OPERATIONS: &[InternalOperation] = &[
         family: InternalOperationFamily::Leque,
         operands: InternalOperands::Declarados(&[TypeIR::Bombom, TypeIR::Bombom]),
         result: InternalResult::Declarado(TypeIR::Bombom),
-        runtime_symbol: Some("pinker_leque_anexar"),
     },
     InternalOperation {
         spelling: crate::enum_payload::ANEXAR_VERSO,
         family: InternalOperationFamily::Leque,
         operands: InternalOperands::Declarados(&[TypeIR::Bombom, TypeIR::Verso]),
         result: InternalResult::Declarado(TypeIR::Bombom),
-        runtime_symbol: Some("pinker_leque_anexar"),
     },
     InternalOperation {
         spelling: crate::enum_payload::ANEXAR_LISTA_BOMBOM,
         family: InternalOperationFamily::Leque,
         operands: InternalOperands::Declarados(&[TypeIR::Bombom, TypeIR::ListBombom]),
         result: InternalResult::Declarado(TypeIR::Bombom),
-        runtime_symbol: Some("pinker_leque_anexar"),
     },
     InternalOperation {
         spelling: crate::enum_payload::ANEXAR_LISTA_VERSO,
         family: InternalOperationFamily::Leque,
         operands: InternalOperands::Declarados(&[TypeIR::Bombom, TypeIR::ListVerso]),
         result: InternalResult::Declarado(TypeIR::Bombom),
-        runtime_symbol: Some("pinker_leque_anexar"),
     },
     InternalOperation {
         spelling: crate::enum_payload::ANEXAR_SAIDA_PROCESSO,
         family: InternalOperationFamily::Leque,
         operands: InternalOperands::Declarados(&[TypeIR::Bombom, TypeIR::OpaqueWordHandle]),
         result: InternalResult::Declarado(TypeIR::Bombom),
-        runtime_symbol: Some("pinker_leque_anexar"),
     },
     InternalOperation {
         spelling: crate::enum_payload::CARGA_IMEDIATO,
         family: InternalOperationFamily::Leque,
         operands: InternalOperands::Declarados(&[TypeIR::Bombom, TypeIR::Bombom, TypeIR::Bombom]),
         result: InternalResult::Declarado(TypeIR::Bombom),
-        runtime_symbol: Some("pinker_leque_carga"),
     },
     InternalOperation {
         spelling: crate::enum_payload::CARGA_VERSO,
         family: InternalOperationFamily::Leque,
         operands: InternalOperands::Declarados(&[TypeIR::Bombom, TypeIR::Bombom, TypeIR::Bombom]),
         result: InternalResult::Declarado(TypeIR::Verso),
-        runtime_symbol: Some("pinker_leque_carga"),
     },
     InternalOperation {
         spelling: crate::enum_payload::CARGA_LISTA_BOMBOM,
         family: InternalOperationFamily::Leque,
         operands: InternalOperands::Declarados(&[TypeIR::Bombom, TypeIR::Bombom, TypeIR::Bombom]),
         result: InternalResult::Declarado(TypeIR::ListBombom),
-        runtime_symbol: Some("pinker_leque_carga"),
     },
     InternalOperation {
         spelling: crate::enum_payload::CARGA_LISTA_VERSO,
         family: InternalOperationFamily::Leque,
         operands: InternalOperands::Declarados(&[TypeIR::Bombom, TypeIR::Bombom, TypeIR::Bombom]),
         result: InternalResult::Declarado(TypeIR::ListVerso),
-        runtime_symbol: Some("pinker_leque_carga"),
     },
     InternalOperation {
         spelling: crate::enum_payload::CARGA_SAIDA_PROCESSO,
         family: InternalOperationFamily::Leque,
         operands: InternalOperands::Declarados(&[TypeIR::Bombom, TypeIR::Bombom, TypeIR::Bombom]),
         result: InternalResult::Declarado(TypeIR::OpaqueWordHandle),
-        runtime_symbol: Some("pinker_leque_carga"),
     },
     // -- Escolha ternária ---------------------------------------------------
     //
@@ -403,7 +380,6 @@ pub const INTERNAL_OPERATIONS: &[InternalOperation] = &[
         result: InternalResult::TipoDosRamos,
         // O lowering materializa a escolha em fluxo de controle; não há
         // chamada de runtime.
-        runtime_symbol: None,
     },
 ];
 
@@ -445,13 +421,6 @@ pub fn aridade(spelling: &str) -> Option<usize> {
 /// Retorno e parâmetros IR da operação, quando o contrato é fixo.
 pub fn assinatura_ir(spelling: &str) -> Option<(TypeIR, &'static [TypeIR])> {
     entrada(spelling).and_then(InternalOperation::assinatura_ir)
-}
-
-/// Símbolo do runtime nativo que implementa a operação.
-///
-/// A consulta é sempre pela identidade interna. O símbolo nunca é chave.
-pub fn simbolo_runtime(spelling: &str) -> Option<&'static str> {
-    entrada(spelling).and_then(|operation| operation.runtime_symbol)
 }
 
 /// Todas as operações com contrato fixo, para as tabelas de assinatura das

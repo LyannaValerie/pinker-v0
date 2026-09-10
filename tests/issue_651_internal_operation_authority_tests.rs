@@ -50,6 +50,11 @@ const PAPEIS_ISENTOS: &[&str] = &[
     "src/internal_operations.rs",
     // Autoridade das grafias de carga de leque e da classificação de carga.
     "src/enum_payload.rs",
+    // BINDING_NATIVO: dono único preexistente da relação `operação interna ->
+    // símbolo do runtime`. A #651 só autorizaria consolidar essa relação se
+    // várias fases a repetissem; o reinventário provou que não repetiam, então
+    // ela ficou onde estava (G651-01).
+    "src/backend_s.rs",
     // Autoridade de identidade: reserva de namespace e classe do callee.
     "src/native_symbol.rs",
     "src/intrinsics/identity.rs",
@@ -464,22 +469,57 @@ fn nenhum_derivador_responde_aridade_sem_perguntar_a_autoridade() {
 // ---------------------------------------------------------------------------
 
 #[test]
+fn a_autoridade_nao_declara_simbolo_abi() {
+    // G651-01 — o binding `operação interna -> símbolo do runtime` tinha um
+    // decisor só no baseline, `backend_s`, e a #651 só autoriza consolidar essa
+    // relação quando várias fases repetem a MESMA relação. Que o backend também
+    // enumere operações internas não torna o binding uma decisão duplicada:
+    //
+    // ```text
+    // OPERATION EXISTS
+    // !=
+    // THIS OPERATION BINDS TO THIS ABI SYMBOL
+    // ```
+    //
+    // O símbolo continua com o dono único preexistente, e esta autoridade não
+    // pode readquiri-lo por conveniência de tabela.
+    let fonte = std::fs::read_to_string(repo().join(AUTHORITY_FILE)).expect("ler autoridade");
+    let corpo = fonte
+        .split("pub const INTERNAL_OPERATIONS")
+        .nth(1)
+        .expect("tabela declarativa presente");
+    assert!(
+        !corpo.contains("\"pinker_"),
+        "a autoridade declarativa voltou a declarar símbolo ABI"
+    );
+    assert!(
+        !fonte.contains("fn simbolo_runtime"),
+        "a autoridade voltou a responder pelo símbolo do runtime"
+    );
+}
+
+#[test]
 fn simbolo_abi_nunca_e_identidade_de_operacao_interna() {
-    for operation in INTERNAL_OPERATIONS {
-        let Some(simbolo) = operation.runtime_symbol else {
-            continue;
-        };
-        assert!(
-            simbolo.starts_with("pinker_"),
-            "símbolo de runtime fora do namespace ABI: {simbolo}"
-        );
+    // O símbolo é projeção do backend. Nenhuma consulta da autoridade pode
+    // aceitá-lo como chave, nem uma grafia interna pode coincidir com ele.
+    for simbolo in [
+        "pinker_mapa_definir",
+        "pinker_leque_anexar",
+        "pinker_leque_carga",
+        "pinker_mapa_iterador_proxima",
+    ] {
         assert!(
             !internal_operations::e_operacao_interna(simbolo),
             "o símbolo ABI '{simbolo}' foi aceito como identidade interna"
         );
-        assert_ne!(
-            operation.spelling, simbolo,
-            "identidade interna colapsou no símbolo ABI"
+        assert_eq!(internal_operations::aridade(simbolo), None);
+        assert!(internal_operations::entrada(simbolo).is_none());
+    }
+    for operation in INTERNAL_OPERATIONS {
+        assert!(
+            !operation.spelling.starts_with("pinker_"),
+            "identidade interna colapsou no namespace ABI: {}",
+            operation.spelling
         );
     }
 }
@@ -637,7 +677,6 @@ fn a_ternaria_esta_na_autoridade_e_nao_e_reconhecida_por_prefixo_textual() {
     assert!(internal_operations::e_ternaria("__ternario"));
     assert!(internal_operations::e_operacao_interna("__ternario"));
     assert_eq!(internal_operations::aridade("__ternario"), Some(3));
-    assert_eq!(internal_operations::simbolo_runtime("__ternario"), None);
     // E que um nome do mesmo formato, mas inexistente, não é aceito.
     assert!(!internal_operations::e_operacao_interna("__ternariox"));
     assert!(!internal_operations::e_operacao_interna(
@@ -658,5 +697,400 @@ fn as_operacoes_sem_valor_sao_exatamente_as_declaradas_como_nulo() {
             "__pinker_internal_mapa_definir",
             "__pinker_internal_mapa_remover",
         ]
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 5. Regras de classe sobre tokens — G651-02
+//
+// As regras acima reconhecem FORMAS. Reconhecer forma é corrida perdida: quem
+// quiser reimplementar o contrato localmente escolhe outra forma. As três
+// regras desta seção fecham CLASSES, e operam sobre o fluxo de tokens do Rust
+// com escopo de bloco balanceado, não sobre janelas de bytes:
+//
+// ```text
+// R-A  uma derivação não decide aridade         (nenhum literal, nenhum padrão de fatia)
+// R-B  uma derivação não busca contrato fora    (só a autoridade responde)
+// R-C  ninguém declara tabela local de grafias  (const/array de grafia interna)
+// ```
+//
+// Nenhuma delas pergunta "esta forma apareceu?". Elas perguntam "esta região
+// contém alguma resposta que não veio da autoridade?", e a resposta é derivada
+// da estrutura léxica, não de substring dentro de raio arbitrário.
+//
+// O que isto NÃO é: prova semântica. Decidir se um trecho de Rust arbitrário
+// responde à mesma pergunta é indecidível por inspeção léxica, e esta suíte não
+// finge o contrário. O que ela garante é que as três classes acima estão
+// fechadas por construção, e o complemento comportamental — LAW-01, as suítes
+// de produto e a sensibilidade M1a–M9 — cobre a divergência de valor.
+// ---------------------------------------------------------------------------
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Tipo {
+    Ident,
+    Texto,
+    Numero,
+    Pontuacao,
+}
+
+#[derive(Clone, Debug)]
+struct Token {
+    tipo: Tipo,
+    texto: String,
+    byte: usize,
+}
+
+/// Tokenizador do subconjunto de Rust que importa aqui.
+///
+/// Comentários somem, literais de texto viram o conteúdo, e os operadores de
+/// dois caracteres viram um token só. Não é um parser: é o suficiente para
+/// escopo de bloco e para distinguir literal de identificador — que é
+/// exatamente o que as janelas de bytes não conseguiam fazer.
+fn tokenizar(fonte: &str) -> Vec<Token> {
+    let bytes = fonte.as_bytes();
+    let mut tokens = Vec::new();
+    let mut i = 0usize;
+    while i < bytes.len() {
+        let c = bytes[i];
+        if !c.is_ascii() {
+            // Texto acentuado dentro de comentário ou identificador não-ASCII:
+            // avança um CARACTERE, nunca um byte, para não fatiar no meio.
+            i += 1;
+            while i < bytes.len() && !fonte.is_char_boundary(i) {
+                i += 1;
+            }
+            continue;
+        }
+        if c.is_ascii_whitespace() {
+            i += 1;
+            continue;
+        }
+        if fonte[i..].starts_with("//") {
+            i = fonte[i..].find('\n').map_or(bytes.len(), |d| i + d);
+            continue;
+        }
+        if fonte[i..].starts_with("/*") {
+            i = fonte[i..].find("*/").map_or(bytes.len(), |d| i + d + 2);
+            continue;
+        }
+        // Literal cru: r"…", r#"…"#, r##"…"##
+        if c == b'r' && fonte[i + 1..].starts_with(['"', '#']) {
+            let mut cerquilhas = 0usize;
+            let mut j = i + 1;
+            while bytes.get(j) == Some(&b'#') {
+                cerquilhas += 1;
+                j += 1;
+            }
+            if bytes.get(j) == Some(&b'"') {
+                let fechamento = format!("\"{}", "#".repeat(cerquilhas));
+                let fim = fonte[j + 1..]
+                    .find(&fechamento)
+                    .map_or(bytes.len(), |d| j + 1 + d);
+                tokens.push(Token {
+                    tipo: Tipo::Texto,
+                    texto: fonte[j + 1..fim].to_string(),
+                    byte: i,
+                });
+                i = fim + fechamento.len();
+                continue;
+            }
+        }
+        if c == b'"' {
+            let mut j = i + 1;
+            while j < bytes.len() {
+                match bytes[j] {
+                    b'\\' => j += 2,
+                    b'"' => break,
+                    _ => j += 1,
+                }
+            }
+            let fim = j.min(bytes.len());
+            tokens.push(Token {
+                tipo: Tipo::Texto,
+                texto: fonte[i + 1..fim].to_string(),
+                byte: i,
+            });
+            i = fim + 1;
+            continue;
+        }
+        if c == b'\'' {
+            // Tempo de vida ou literal de caractere: irrelevante para as regras.
+            let mut j = i + 1;
+            while j < bytes.len() && (bytes[j].is_ascii_alphanumeric() || bytes[j] == b'_') {
+                j += 1;
+            }
+            if bytes.get(j) == Some(&b'\'') {
+                j += 1;
+            }
+            tokens.push(Token {
+                tipo: Tipo::Pontuacao,
+                texto: "'".to_string(),
+                byte: i,
+            });
+            i = j;
+            continue;
+        }
+        if c.is_ascii_digit() {
+            let mut j = i;
+            while j < bytes.len() && (bytes[j].is_ascii_alphanumeric() || bytes[j] == b'_') {
+                j += 1;
+            }
+            tokens.push(Token {
+                tipo: Tipo::Numero,
+                texto: fonte[i..j].to_string(),
+                byte: i,
+            });
+            i = j;
+            continue;
+        }
+        if c.is_ascii_alphabetic() || c == b'_' {
+            let mut j = i;
+            while j < bytes.len() && (bytes[j].is_ascii_alphanumeric() || bytes[j] == b'_') {
+                j += 1;
+            }
+            tokens.push(Token {
+                tipo: Tipo::Ident,
+                texto: fonte[i..j].to_string(),
+                byte: i,
+            });
+            i = j;
+            continue;
+        }
+        let dois = fonte.get(i..i + 2).unwrap_or("");
+        if matches!(
+            dois,
+            "==" | "!=" | "<=" | ">=" | "->" | "=>" | "::" | "&&" | "||"
+        ) {
+            tokens.push(Token {
+                tipo: Tipo::Pontuacao,
+                texto: dois.to_string(),
+                byte: i,
+            });
+            i += 2;
+            continue;
+        }
+        tokens.push(Token {
+            tipo: Tipo::Pontuacao,
+            texto: (c as char).to_string(),
+            byte: i,
+        });
+        i += 1;
+    }
+    tokens
+}
+
+fn e_pontuacao(token: &Token, texto: &str) -> bool {
+    token.tipo == Tipo::Pontuacao && token.texto == texto
+}
+
+/// Fim do bloco balanceado que começa em `abre`.
+fn fim_do_bloco(tokens: &[Token], abre: usize) -> usize {
+    let mut nivel = 0usize;
+    for (indice, token) in tokens.iter().enumerate().skip(abre) {
+        if e_pontuacao(token, "{") {
+            nivel += 1;
+        } else if e_pontuacao(token, "}") {
+            nivel -= 1;
+            if nivel == 0 {
+                return indice;
+            }
+        }
+    }
+    tokens.len() - 1
+}
+
+/// Região de derivação aberta por um marcador da autoridade.
+///
+/// É o bloco que o próprio construto abre — o corpo do `if`, do `for` ou do
+/// `else` de um `let … else`. Sem bloco no mesmo enunciado, a região vai do
+/// marcador até o fim do bloco que o contém, que é o menor escopo honesto.
+fn regiao_de_derivacao(tokens: &[Token], marcador: usize) -> (usize, usize) {
+    let mut parenteses = 0i32;
+    for indice in marcador..tokens.len() {
+        let token = &tokens[indice];
+        if e_pontuacao(token, "(") || e_pontuacao(token, "[") {
+            parenteses += 1;
+        } else if e_pontuacao(token, ")") || e_pontuacao(token, "]") {
+            parenteses -= 1;
+        } else if e_pontuacao(token, "{") {
+            // O primeiro bloco depois do marcador é o corpo que ele abre:
+            // ramo do `if`, corpo do `for`, corpo do fecho.
+            return (indice, fim_do_bloco(tokens, indice));
+        } else if e_pontuacao(token, "}") {
+            // Saiu do bloco que contém o marcador sem abrir nenhum.
+            return (marcador, indice);
+        } else if e_pontuacao(token, ";") && parenteses <= 0 {
+            return (marcador, indice);
+        }
+    }
+    (marcador, tokens.len() - 1)
+}
+
+/// O identificador nomeia a autoridade das operações internas?
+fn e_da_autoridade(tokens: &[Token], indice: usize) -> bool {
+    tokens[indice].texto == "internal_operations"
+        || tokens[indice].texto == "aridade_interna"
+        || (tokens[indice].texto == "arity"
+            && indice >= 2
+            && matches!(
+                tokens[indice - 2].texto.as_str(),
+                "operation" | "entrada" | "internal_operations"
+            ))
+}
+
+/// R-A — uma derivação não decide aridade.
+///
+/// Qualquer literal numérico em comparação, e qualquer padrão de fatia de
+/// comprimento fixo, é resposta que não veio da autoridade. Não importa se o
+/// número está à direita de `!=`, de `<`, de `matches!` ou de um `let [a, b, c]`.
+fn decide_aridade(tokens: &[Token], inicio: usize, fim: usize) -> Option<String> {
+    for indice in inicio..fim {
+        let token = &tokens[indice];
+        if token.tipo == Tipo::Numero
+            && indice > 0
+            && matches!(
+                tokens[indice - 1].texto.as_str(),
+                "==" | "!=" | "<" | ">" | "<=" | ">="
+            )
+        {
+            return Some(format!("literal '{}' em comparação", token.texto));
+        }
+        if e_pontuacao(token, "[")
+            && tokens.get(indice + 1).is_some_and(|t| t.texto == "_")
+            && tokens.get(indice + 2).is_some_and(|t| t.texto == ",")
+        {
+            return Some("padrão de fatia de comprimento fixo".to_string());
+        }
+    }
+    None
+}
+
+/// R-B — uma derivação não busca contrato fora da autoridade.
+///
+/// Dentro da região, uma chamada `crate::outro_modulo::f(…)` é uma segunda
+/// fonte de contrato, esteja a tabela hospedada onde estiver. Fecha a fachada
+/// num arquivo de papel isento sem depender de onde o arquivo mora.
+fn busca_contrato_fora(tokens: &[Token], inicio: usize, fim: usize) -> Option<String> {
+    for indice in inicio..fim.saturating_sub(4) {
+        if tokens[indice].texto != "crate" || !e_pontuacao(&tokens[indice + 1], "::") {
+            continue;
+        }
+        let modulo = &tokens[indice + 2];
+        if modulo.tipo != Tipo::Ident || modulo.texto == "internal_operations" {
+            continue;
+        }
+        // Só chamada importa: constante de outro módulo é transporte.
+        let mut fim_do_caminho = indice + 2;
+        while e_pontuacao(&tokens[fim_do_caminho + 1], "::") {
+            fim_do_caminho += 2;
+        }
+        if e_pontuacao(&tokens[fim_do_caminho + 1], "(") {
+            return Some(format!("chamada a crate::{}::…", modulo.texto));
+        }
+    }
+    None
+}
+
+/// R-C — ninguém declara tabela local de grafias internas.
+///
+/// A exceção é a forma que a própria autoridade consome: `const NOME: &str =
+/// "<grafia>"`, e somente quando a autoridade referencia `NOME`. Array de
+/// grafias, `static`, ou constante que a autoridade não conhece são tabela
+/// local, e não passam.
+fn tabelas_locais_de_grafia(tokens: &[Token], fonte_da_autoridade: &str) -> Vec<String> {
+    let mut achados = Vec::new();
+    for (indice, token) in tokens.iter().enumerate() {
+        if token.tipo != Tipo::Ident || !matches!(token.texto.as_str(), "const" | "static") {
+            continue;
+        }
+        let Some(nome) = tokens.get(indice + 1) else {
+            continue;
+        };
+        let mut fim = indice;
+        while fim < tokens.len() && !e_pontuacao(&tokens[fim], ";") {
+            fim += 1;
+        }
+        let grafias: Vec<&Token> = tokens[indice..fim]
+            .iter()
+            .filter(|t| t.tipo == Tipo::Texto && e_grafia_interna(&t.texto))
+            .collect();
+        if grafias.is_empty() {
+            continue;
+        }
+        let declaracao_de_grafia_unica = grafias.len() == 1
+            && tokens[indice..fim].iter().any(|t| t.texto == "str")
+            && !tokens[indice..fim].iter().any(|t| e_pontuacao(t, "["));
+        if declaracao_de_grafia_unica && fonte_da_autoridade.contains(&nome.texto) {
+            continue;
+        }
+        achados.push(format!(
+            "'{}' declara {} grafia(s) interna(s) fora da autoridade",
+            nome.texto,
+            grafias.len()
+        ));
+    }
+    achados
+}
+
+fn e_grafia_interna(valor: &str) -> bool {
+    (valor.starts_with("__pinker_internal_") && valor.len() > "__pinker_internal_".len())
+        || valor == "__ternario"
+}
+
+#[test]
+fn nenhuma_derivacao_decide_por_conta_propria() {
+    let raiz = repo();
+    let autoridade = std::fs::read_to_string(raiz.join(AUTHORITY_FILE)).expect("ler autoridade");
+    let mut fontes = Vec::new();
+    fontes_rust(&raiz.join("src"), &mut fontes);
+
+    let mut ofensores = Vec::new();
+    for caminho in fontes {
+        let relativo = caminho
+            .strip_prefix(&raiz)
+            .expect("caminho relativo")
+            .to_string_lossy()
+            .into_owned();
+        let fonte = std::fs::read_to_string(&caminho).expect("ler fonte");
+        let tokens = tokenizar(&fonte);
+
+        // R-C vale para a árvore inteira menos a autoridade: uma tabela de
+        // grafias é tabela onde quer que ela more.
+        // `native_symbol` é a autoridade de identidade: a tabela de namespaces
+        // reservados PRECISA nomear `__ternario`, e é dela que
+        // `is_compiler_generated` deriva. Não é tabela de contrato.
+        if relativo != AUTHORITY_FILE && relativo != "src/native_symbol.rs" {
+            for achado in tabelas_locais_de_grafia(&tokens, &autoridade) {
+                ofensores.push(format!("{relativo}: R-C {achado}"));
+            }
+        }
+
+        // R-A e R-B valem nas regiões abertas por um marcador da autoridade:
+        // é lá que a fase já recebeu a resposta e não tem o que decidir.
+        for (indice, token) in tokens.iter().enumerate() {
+            if token.tipo != Tipo::Ident || !e_da_autoridade(&tokens, indice) {
+                continue;
+            }
+            if !tokens
+                .get(indice + 1)
+                .is_some_and(|t| e_pontuacao(t, "::") || e_pontuacao(t, "(") || e_pontuacao(t, "."))
+            {
+                continue;
+            }
+            let (inicio, fim) = regiao_de_derivacao(&tokens, indice);
+            let linha = fonte[..token.byte].matches('\n').count() + 1;
+            if let Some(motivo) = decide_aridade(&tokens, inicio, fim) {
+                ofensores.push(format!("{relativo}:{linha} R-A {motivo}"));
+            }
+            if let Some(motivo) = busca_contrato_fora(&tokens, inicio, fim) {
+                ofensores.push(format!("{relativo}:{linha} R-B {motivo}"));
+            }
+        }
+    }
+    ofensores.sort();
+    ofensores.dedup();
+    assert!(
+        ofensores.is_empty(),
+        "decisão local sobre operação interna reintroduzida: {ofensores:#?}"
     );
 }
