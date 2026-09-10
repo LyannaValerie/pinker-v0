@@ -55,9 +55,11 @@ pub enum QualifiedMethodResolution {
 /// ```
 ///
 /// Cada fase traz o índice das funções materializadas na sua própria
-/// representação de alvo (`T`) e traduz o veredito para a sua superfície. As
-/// duas não podem mais discordar sobre o mesmo programa porque nenhuma delas
-/// ainda decide a correspondência: a comparação acontece aqui, uma vez.
+/// representação de alvo (`T`) e traduz o veredito para a sua superfície.
+/// Nenhuma das duas ainda decide a correspondência: a comparação acontece
+/// aqui, uma vez. O que resta de superfície para divergirem são os
+/// adaptadores — como cada fase resolve o alvo e monta o índice —, não a
+/// regra.
 ///
 /// O primeiro par correspondente vence. Não é desempate: nenhuma fase registra
 /// duas funções para a mesma identidade — `semantic::traits::register_impl_methods`

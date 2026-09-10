@@ -60,6 +60,44 @@ fn corpos_de_funcao(texto: &str) -> Vec<String> {
     corpos
 }
 
+/// Janela, em caracteres, olhada de cada lado de um `==`.
+///
+/// Grande o bastante para alcançar `meta.identity.trait_name` do outro lado do
+/// operador; pequena o bastante para não colar comparações vizinhas.
+const JANELA: usize = 40;
+
+/// Quais componentes da identidade este corpo COMPARA?
+///
+/// Um campo conta como comparado quando aparece ao lado de um `==`, de
+/// qualquer um dos dois lados: `a.trait_name == x` e `x == a.trait_name` são a
+/// mesma decisão escrita ao contrário, e um oráculo que só reconhece uma das
+/// duas grafias aceita a duplicação escrita na outra.
+///
+/// Mencionar o campo não basta: `trait_name: identity.trait_name.clone()`
+/// constrói um candidato de despacho e não decide identidade nenhuma.
+fn componentes_comparados(corpo: &str) -> (bool, bool, bool) {
+    let compacto = corpo.split_whitespace().collect::<Vec<_>>().join(" ");
+    let partes: Vec<&str> = compacto.split("==").collect();
+    let (mut trato, mut alvo, mut metodo) = (false, false, false);
+    for janela in partes.windows(2) {
+        let esquerda: String = janela[0]
+            .chars()
+            .rev()
+            .take(JANELA)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .collect();
+        let direita: String = janela[1].chars().take(JANELA).collect();
+        for lado in [esquerda.as_str(), direita.as_str()] {
+            trato |= lado.contains(".trait_name");
+            alvo |= lado.contains(".target");
+            metodo |= lado.contains(".method_name");
+        }
+    }
+    (trato, alvo, metodo)
+}
+
 /// Uma decisão de identidade qualificada compara as TRÊS componentes contra as
 /// entradas de um índice.
 ///
@@ -67,18 +105,28 @@ fn corpos_de_funcao(texto: &str) -> Vec<String> {
 /// construção de candidatos da chamada NÃO qualificada, que pertence a
 /// `method_dispatch` (#590/#591); `(trato, método)` é a cobrança de cobertura de
 /// contrato do trato. Nenhuma das duas resolve identidade.
+///
 /// Construir a chave e consultar um índice com ela é a mesma decisão por outra
 /// forma; era assim que a IR resolvia antes da #647.
 fn decide_identidade_qualificada(corpo: &str) -> bool {
-    let compara_as_tres = corpo.contains(".trait_name ==")
-        && corpo.contains(".target ==")
-        && corpo.contains(".method_name ==");
+    let (trato, alvo, metodo) = componentes_comparados(corpo);
+    let compara_as_tres = trato && alvo && metodo;
     let consulta_pela_chave = corpo.contains("MethodIdentity::new(")
         && (corpo.contains(".get(")
             || corpo.contains(".find(")
             || corpo.contains(".any(")
             || corpo.contains(".position("));
     compara_as_tres || consulta_pela_chave
+}
+
+/// Primeira linha que declara a função, para nomear o decisor no relatório.
+fn assinatura(corpo: &str) -> String {
+    corpo
+        .lines()
+        .find(|linha| linha.contains("fn "))
+        .unwrap_or("<sem assinatura>")
+        .trim()
+        .to_string()
 }
 
 #[test]
@@ -93,28 +141,32 @@ fn a_regra_de_correspondencia_qualificada_existe_uma_unica_vez_em_src() {
         arquivos.len()
     );
 
+    // Um decisor é uma FUNÇÃO, não um arquivo: duas decisões no mesmo arquivo
+    // continuam sendo duas decisões.
     let mut decisores: Vec<String> = Vec::new();
     for arquivo in &arquivos {
         let texto = fs::read_to_string(arquivo).expect("ler fonte Rust");
+        let relativo = arquivo
+            .strip_prefix(raiz_do_repositorio())
+            .unwrap_or(arquivo)
+            .to_string_lossy()
+            .replace('\\', "/");
         for corpo in corpos_de_funcao(&texto) {
             if decide_identidade_qualificada(&corpo) {
-                let relativo = arquivo
-                    .strip_prefix(raiz_do_repositorio())
-                    .unwrap_or(arquivo)
-                    .to_string_lossy()
-                    .replace('\\', "/");
-                decisores.push(relativo);
+                decisores.push(format!("{relativo}::{}", assinatura(&corpo)));
             }
         }
     }
-    decisores.sort();
-    decisores.dedup();
 
     assert_eq!(
-        decisores,
-        vec![AUTORIDADE.to_string()],
+        decisores.len(),
+        1,
         "a identidade qualificada tem de ser decidida em um único lugar; \
          decisores encontrados: {decisores:?}"
+    );
+    assert!(
+        decisores[0].starts_with(&format!("{AUTORIDADE}::")),
+        "o único decisor tem de ser a autoridade: {decisores:?}"
     );
 }
 
@@ -498,6 +550,130 @@ fn tratos_homonimos_nao_compartilham_identidade_qualificada() {
     assert!(
         erro.contains("método 'tb.Medida.medir' não implementado para tipo 'bombom'"),
         "a mensagem tem de acusar o trato canônico nomeado, não o homônimo: {erro}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// LAW-03, segunda metade do espaço: sítio da chamada em corpo default de trato
+// materializado cross-unit
+// ---------------------------------------------------------------------------
+
+const TR2: &str = "pacote tr2;\ntrato Medida {\n    carinho medir(valor: si) -> bombom;\n}\n";
+const IMPL_M: &str = "pacote impl_m;\ntrazer tr2.Medida;\nimpl Medida para bombom {\n    carinho medir(valor: bombom) -> bombom { mimo 77; }\n}\n";
+const USER: &str = "pacote user;\ntrazer tr.Base;\nimpl Base para bombom { }\ncarinho usar(x: bombom) -> bombom { mimo x.rodar(); }\n";
+const RAIZ_DEF: &str = "pacote main;\ntrazer tr.Base;\ntrazer tr2.Medida;\ntrazer impl_m;\ntrazer user.usar;\ncarinho principal() -> bombom { mimo usar(5); }\n";
+
+/// Os corpos do método default do trato `Base`, nas três formas de chamada.
+const FORMAS_DEFAULT: [(&str, &str); 3] = [
+    ("nao-qualificada", "        mimo valor.medir();\n"),
+    ("qualificada", "        mimo Medida.medir(valor);\n"),
+    (
+        "objeto-de-trato",
+        "        nova obj: trato<Medida> = valor virar trato<Medida>;\n        mimo obj.medir();\n",
+    ),
+];
+
+/// O que a unidade DECLARANTE do trato importa. É o ambiente que decide, por
+/// contrato #517 e pela correção de alcance da U-04 — não o do importador.
+const AMBIENTES_DECLARANTE: [(&str, &str); 4] = [
+    ("trato-nomeado", "trazer tr2.Medida;\n"),
+    ("nenhum", ""),
+    ("unidade-de-impl", "trazer impl_m;\n"),
+    ("ambos", "trazer tr2.Medida;\ntrazer impl_m;\n"),
+];
+
+fn caso_materializado(forma: &str, corpo: &str, ambiente: &str, imports: &str) -> Caso {
+    let declarante = format!(
+        "pacote tr;\n{imports}trato Base {{\n    carinho rodar(valor: si) -> bombom {{\n{corpo}    }}\n}}\n"
+    );
+    caso(
+        &format!("raizdef_{forma}_{ambiente}"),
+        RAIZ_DEF,
+        &[
+            ("tr2", TR2.to_string()),
+            ("impl_m", IMPL_M.to_string()),
+            ("tr", declarante),
+            ("user", USER.to_string()),
+        ],
+    )
+}
+
+/// O corpo default materializado atravessa para uma unidade que não podia
+/// nomear o trato, e o veredito segue o ambiente da DECLARANTE nas três formas.
+///
+/// A forma não qualificada consulta alcance e por isso aceita quando a
+/// declarante importa a unidade de `impl`; as formas que NOMEIAM o trato exigem
+/// que a declarante o tenha importado. Nada disso é decidido por esta unidade:
+/// é o comportamento pós-U-04 que ela preserva, e `#579` continua indecidida.
+#[test]
+fn a_matriz_do_corpo_default_materializado_segue_a_unidade_declarante() {
+    for (forma, corpo) in FORMAS_DEFAULT {
+        for (ambiente, imports) in AMBIENTES_DECLARANTE {
+            let c = caso_materializado(forma, corpo, ambiente, imports);
+            let logico = format!("647-def-{forma}-{ambiente}");
+            let checagem = pink(&logico, &["--check"], &c.raiz);
+            let execucao = pink(&logico, &["--run"], &c.raiz);
+
+            let nomeia_o_trato = imports.contains("tr2.Medida");
+            let aceito = if forma == "nao-qualificada" {
+                ambiente != "nenhum"
+            } else {
+                nomeia_o_trato
+            };
+
+            if aceito {
+                assert_eq!(
+                    codigo(&checagem),
+                    0,
+                    "def {forma}/{ambiente} devia ser aceito: {}",
+                    stderr(&checagem)
+                );
+                assert_eq!(
+                    codigo(&execucao),
+                    77,
+                    "def {forma}/{ambiente} devia executar o método da relação: {}",
+                    stderr(&execucao)
+                );
+            } else {
+                assert_eq!(
+                    codigo(&checagem),
+                    1,
+                    "def {forma}/{ambiente} devia ser recusado: {}",
+                    stderr(&checagem)
+                );
+                assert_eq!(
+                    codigo(&execucao),
+                    1,
+                    "o lowering tem de recusar o que `--check` recusou em def {forma}/{ambiente}: {}",
+                    stderr(&execucao)
+                );
+            }
+        }
+    }
+}
+
+/// Alvo nominal apelidado, inclusive em cadeia: a identidade é a resolvida, não
+/// a grafia escrita na assinatura.
+#[test]
+fn apelido_encadeado_do_alvo_resolve_para_a_mesma_identidade_qualificada() {
+    let chamador = "pacote chamador;\ntrazer tr.Medida;\napelido Doce = bombom;\napelido DoceEncadeado = Doce;\ncarinho usar(x: DoceEncadeado) -> bombom {\n    mimo Medida.medir(x);\n}\n";
+    let c = caso(
+        "raiz_apelido",
+        RAIZ,
+        &[
+            ("tr", TR.to_string()),
+            ("outro", OUTRO.to_string()),
+            ("chamador", chamador.to_string()),
+        ],
+    );
+    let checagem = pink("647-apelido", &["--check"], &c.raiz);
+    assert_eq!(codigo(&checagem), 0, "{}", stderr(&checagem));
+    let execucao = pink("647-apelido", &["--run"], &c.raiz);
+    assert_eq!(
+        codigo(&execucao),
+        77,
+        "o apelido tem de resolver para a mesma relação de `bombom`: {}",
+        stderr(&execucao)
     );
 }
 
