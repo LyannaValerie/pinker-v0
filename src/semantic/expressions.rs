@@ -551,6 +551,25 @@ impl SemanticChecker {
                         });
                     }
 
+                    // #649 — é aqui que a relação CONCRETA entra na
+                    // representação dinâmica: a vtable do objeto é construída a
+                    // partir dela, e a chamada dinâmica posterior só consome o
+                    // que este ponto autorizou. O alcance é perguntado uma vez,
+                    // na formação, à mesma autoridade de `module_resolve`;
+                    // `lower_trait_call` não refaz busca modular alguma.
+                    if !self.relacao_alcanca(&trait_name, &source_identity, expr.span) {
+                        return Err(PinkerError::Semantic {
+                            msg: format!(
+                                "impl de '{}' para tipo '{}' não é alcançável desta unidade e não pode formar '{}'; \
+                                 importe a unidade que declara essa implementação",
+                                trait_name,
+                                source_direct,
+                                Self::type_key(&target_ty)
+                            ),
+                            span: source_expr.span,
+                        });
+                    }
+
                     return Ok(target_ty);
                 }
 

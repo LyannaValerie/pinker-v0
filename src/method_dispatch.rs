@@ -31,9 +31,12 @@ use std::collections::HashMap;
 ///
 /// `fonte_da_relacao` é a unidade que DECLAROU o bloco `impl`, não a que
 /// escreveu o método: corpo default materializado pode vir de outra unidade.
+///
+/// #649 — o nome do trato não mora aqui. Sob `POLICY_B` ele não é entrada da
+/// pergunta de alcance, e guardá-lo neste transporte só ofereceria de volta a
+/// via por onde a nomeabilidade voltaria a autorizar relação.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DispatchRelation {
-    pub trait_name: String,
     pub fonte_da_relacao: Option<SourceId>,
 }
 
@@ -56,9 +59,10 @@ pub enum MethodSelection {
 
 /// Qual implementação concreta vence esta chamada?
 ///
-/// Alcance vem de `module_resolve`: candidato que não alcança quem escreveu o
-/// `span` não participa. Entre os que alcançam, vence o nível mais forte —
-/// o trato próprio nunca perde para uma relação alcançada por importação
+/// Alcance vem de `module_resolve`: candidato cuja RELAÇÃO não alcança quem
+/// escreveu o `span` não participa — e desde a #649 nomear o trato não é
+/// caminho até relação alguma. Entre os que alcançam, vence o nível mais forte:
+/// a relação própria nunca perde para uma relação alcançada por importação
 /// (#577). Sobrando exatamente um, ele é o vencedor; nenhum é `NoMatch`; mais
 /// de um é `Ambiguous`.
 pub fn select_impl_method(
@@ -69,13 +73,10 @@ pub fn select_impl_method(
     let alcancados: Vec<(NivelDeDespacho, String)> = candidates
         .into_iter()
         .filter_map(|candidate| match candidate.relation {
-            Some(relation) => nivel_de_despacho(
-                traits_visiveis_por_fonte,
-                span,
-                &relation.trait_name,
-                relation.fonte_da_relacao,
-            )
-            .map(|nivel| (nivel, candidate.function_name)),
+            Some(relation) => {
+                nivel_de_despacho(traits_visiveis_por_fonte, span, relation.fonte_da_relacao)
+                    .map(|nivel| (nivel, candidate.function_name))
+            }
             None => Some((NivelDeDespacho::Proprio, candidate.function_name)),
         })
         .collect();

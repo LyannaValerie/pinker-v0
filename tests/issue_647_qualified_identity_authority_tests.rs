@@ -354,8 +354,14 @@ fn caso_da_matriz(forma: &str, corpo: &str, ambiente: &str, imports: &str) -> Ca
     )
 }
 
-/// A célula é aceita quando o trato é nomeável pelo chamador; as três formas
-/// concordam entre si e `--check` concorda com a execução.
+/// A célula é aceita quando a RELAÇÃO alcança o chamador — e, nas formas que
+/// nomeiam o trato, também quando o trato é nomeável. As três formas concordam
+/// entre si e `--check` concorda com a execução.
+///
+/// #649/`POLICY_B_RELATION_REACHABILITY_ALWAYS_MATTERS` migrou três das doze
+/// células desta matriz, todas no ambiente `trato-nomeado`: nomear `tr.Medida`
+/// deixou de autorizar a relação declarada por `outro`, unidade que o chamador
+/// nunca importou. As outras nove são as mesmas de antes.
 #[test]
 fn a_matriz_de_tres_formas_por_quatro_ambientes_e_estavel() {
     for (forma, corpo) in FORMAS {
@@ -369,12 +375,18 @@ fn a_matriz_de_tres_formas_por_quatro_ambientes_e_estavel() {
             // a forma qualificada e o objeto de trato não chegam à identidade:
             // a resolução nominal recusa antes.
             let nomeia_o_trato = imports.contains("tr.Medida");
+            // A única relação do caso é declarada por `outro`; alcançá-la exige
+            // importar essa unidade (#649/POLICY_B).
+            let alcanca_a_relacao = imports.contains("outro");
             let aceito = if forma == "nao-qualificada" {
                 // A forma não qualificada não nomeia trato nenhum; ela depende
-                // do alcance da relação, decidido por `method_dispatch`.
-                ambiente != "nenhum"
+                // só do alcance da relação.
+                alcanca_a_relacao
             } else {
-                nomeia_o_trato
+                // As formas que nomeiam o trato precisam das DUAS coisas: a
+                // resolução nominal recusa antes quando o trato não é nomeável,
+                // e o alcance recusa depois quando a relação não chega aqui.
+                nomeia_o_trato && alcanca_a_relacao
             };
 
             if aceito {
@@ -441,7 +453,7 @@ fn metodo_ausente_e_recusado_pela_autoridade_e_nao_pela_resolucao_nominal() {
 #[test]
 fn o_alvo_resolvido_desempata_a_identidade_qualificada() {
     let outro = "pacote outro;\ntrazer tr.Medida;\nimpl Medida para bombom {\n    carinho medir(valor: bombom) -> bombom { mimo 20; }\n}\nimpl Medida para verso {\n    carinho medir(valor: verso) -> bombom { mimo 3; }\n}\n";
-    let chamador = "pacote chamador;\ntrazer tr.Medida;\ncarinho usar(x: bombom) -> bombom {\n    nova v: verso = \"oi\";\n    nova a: bombom = Medida.medir(x);\n    nova b: bombom = Medida.medir(v);\n    mimo a + b;\n}\n";
+    let chamador = "pacote chamador;\ntrazer tr.Medida;\ntrazer outro;\ncarinho usar(x: bombom) -> bombom {\n    nova v: verso = \"oi\";\n    nova a: bombom = Medida.medir(x);\n    nova b: bombom = Medida.medir(v);\n    mimo a + b;\n}\n";
     let c = caso(
         "raiz_alvo",
         RAIZ,
@@ -471,8 +483,14 @@ fn o_trato_desempata_a_identidade_qualificada() {
     let corpo = "carinho usar(x: bombom) -> bombom {\n    nova a: bombom = Medida.medir(x);\n    nova b: bombom = Peso.medir(x);\n    mimo a + b;\n}\n";
 
     for (nome, imports) in [
-        ("direta", "trazer tr.Medida;\ntrazer tp.Peso;\n"),
-        ("invertida", "trazer tp.Peso;\ntrazer tr.Medida;\n"),
+        (
+            "direta",
+            "trazer tr.Medida;\ntrazer tp.Peso;\ntrazer outro;\n",
+        ),
+        (
+            "invertida",
+            "trazer tp.Peso;\ntrazer tr.Medida;\ntrazer outro;\n",
+        ),
     ] {
         let chamador = format!("pacote chamador;\n{imports}{corpo}");
         let c = caso(
@@ -522,7 +540,7 @@ fn tratos_homonimos_nao_compartilham_identidade_qualificada() {
     let c = caso(
         "raiz_hom_a",
         raiz,
-        &modulos("pacote chamador;\ntrazer ta.Medida;\ncarinho usar(x: bombom) -> bombom {\n    mimo Medida.medir(x);\n}\n".to_string()),
+        &modulos("pacote chamador;\ntrazer ta.Medida;\ntrazer impla;\ncarinho usar(x: bombom) -> bombom {\n    mimo Medida.medir(x);\n}\n".to_string()),
     );
     assert_eq!(codigo(&pink("647-hom-a", &["--check"], &c.raiz)), 0);
     assert_eq!(
@@ -534,7 +552,7 @@ fn tratos_homonimos_nao_compartilham_identidade_qualificada() {
     let c = caso(
         "raiz_hom_b",
         raiz,
-        &modulos("pacote chamador;\ntrazer tb.Medida;\ncarinho usar(x: bombom) -> bombom {\n    nova v: verso = \"oi\";\n    mimo Medida.medir(v);\n}\n".to_string()),
+        &modulos("pacote chamador;\ntrazer tb.Medida;\ntrazer implb;\ncarinho usar(x: bombom) -> bombom {\n    nova v: verso = \"oi\";\n    mimo Medida.medir(v);\n}\n".to_string()),
     );
     assert_eq!(codigo(&pink("647-hom-b", &["--check"], &c.raiz)), 0);
     assert_eq!(
@@ -546,7 +564,7 @@ fn tratos_homonimos_nao_compartilham_identidade_qualificada() {
     let c = caso(
         "raiz_hom_cruzado",
         raiz,
-        &modulos("pacote chamador;\ntrazer tb.Medida;\ncarinho usar(x: bombom) -> bombom {\n    mimo Medida.medir(x);\n}\n".to_string()),
+        &modulos("pacote chamador;\ntrazer tb.Medida;\ntrazer impla;\ntrazer implb;\ncarinho usar(x: bombom) -> bombom {\n    mimo Medida.medir(x);\n}\n".to_string()),
     );
     let saida = pink("647-hom-cruzado", &["--check"], &c.raiz);
     let erro = stderr(&saida);
@@ -605,10 +623,11 @@ fn caso_materializado(forma: &str, corpo: &str, ambiente: &str, imports: &str) -
 /// O corpo default materializado atravessa para uma unidade que não podia
 /// nomear o trato, e o veredito segue o ambiente da DECLARANTE nas três formas.
 ///
-/// A forma não qualificada consulta alcance e por isso aceita quando a
-/// declarante importa a unidade de `impl`; as formas que NOMEIAM o trato exigem
-/// que a declarante o tenha importado. Nada disso é decidido por esta unidade:
-/// é o comportamento pós-U-04 que ela preserva, e `#579` continua indecidida.
+/// A forma não qualificada exige que a declarante alcance a relação; as formas
+/// que NOMEIAM o trato exigem, além disso, que a declarante o tenha importado.
+/// O AMBIENTE continua sendo o da declarante — é o contrato #517/U-04 que esta
+/// unidade preserva —; o que a #649 mudou foi o predicado de alcance, nas mesmas
+/// três células `trato-nomeado` da outra metade do espaço.
 #[test]
 fn a_matriz_do_corpo_default_materializado_segue_a_unidade_declarante() {
     for (forma, corpo) in FORMAS_DEFAULT {
@@ -619,10 +638,11 @@ fn a_matriz_do_corpo_default_materializado_segue_a_unidade_declarante() {
             let execucao = pink(&logico, &["--run"], &c.raiz);
 
             let nomeia_o_trato = imports.contains("tr2.Medida");
+            let alcanca_a_relacao = imports.contains("impl_m");
             let aceito = if forma == "nao-qualificada" {
-                ambiente != "nenhum"
+                alcanca_a_relacao
             } else {
-                nomeia_o_trato
+                nomeia_o_trato && alcanca_a_relacao
             };
 
             if aceito {
@@ -727,7 +747,7 @@ fn trato_declarado_na_propria_unidade_resolve_nas_tres_formas() {
 /// a grafia escrita na assinatura.
 #[test]
 fn apelido_encadeado_do_alvo_resolve_para_a_mesma_identidade_qualificada() {
-    let chamador = "pacote chamador;\ntrazer tr.Medida;\napelido Doce = bombom;\napelido DoceEncadeado = Doce;\ncarinho usar(x: DoceEncadeado) -> bombom {\n    mimo Medida.medir(x);\n}\n";
+    let chamador = "pacote chamador;\ntrazer tr.Medida;\ntrazer outro;\napelido Doce = bombom;\napelido DoceEncadeado = Doce;\ncarinho usar(x: DoceEncadeado) -> bombom {\n    mimo Medida.medir(x);\n}\n";
     let c = caso(
         "raiz_apelido",
         RAIZ,
@@ -759,7 +779,7 @@ fn paridade_interpretador_e_nativo_da_chamada_qualificada() {
         return;
     };
     let chamador =
-        "pacote chamador;\ntrazer tr.Medida;\ncarinho usar(x: bombom) -> bombom {\n    mimo Medida.medir(x);\n}\n";
+        "pacote chamador;\ntrazer tr.Medida;\ntrazer outro;\ncarinho usar(x: bombom) -> bombom {\n    mimo Medida.medir(x);\n}\n";
     let c = caso(
         "paridade_647",
         RAIZ,
