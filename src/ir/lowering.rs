@@ -35,7 +35,7 @@ impl<'a> FunctionLowerer<'a> {
     // @pinker-nav:start ir.lowering.funcoes-blocos
     // @pinker-nav:domain lowering
     // @pinker-nav:layer ir
-    // @pinker-nav:summary Configuração do `FunctionLowerer` e lowering de funções/blocos estruturados: aloca parâmetros e preserva metadados nominais/estruturais de callables, ponteiros crus e pointees de ponteiros de dados em aliases, retornos, ternários, chamadas por expressão e capturas de closure. Inclui resolvedores de método de `impl` direto e qualificado por trato; o direto só constrói candidatos da visão derivada e delega o veredito a `method_dispatch`, a mesma autoridade que a semântica consulta, e o qualificado nomeia o trato e continua sendo consulta de identidade; preserva a estrutura aninhada, sem ainda dividir o fluxo em CFG.
+    // @pinker-nav:summary Configuração do `FunctionLowerer` e lowering de funções/blocos estruturados: aloca parâmetros e preserva metadados nominais/estruturais de callables, ponteiros crus e pointees de ponteiros de dados em aliases, retornos, ternários, chamadas por expressão e capturas de closure. Inclui resolvedores de método de `impl` direto e qualificado por trato; o direto só constrói candidatos da visão derivada e delega o veredito a `method_dispatch`, a mesma autoridade que a semântica consulta, e o qualificado nomeia o trato e continua sendo consulta de identidade, correspondida desde a #647 por `method_identity`, autoridade única das três componentes da identidade, com a IR trazendo só o índice e a tradução para `Option`; preserva a estrutura aninhada, sem ainda dividir o fluxo em CFG.
     pub(super) fn new(context: &'a LoweringContext) -> Self {
         Self {
             context,
@@ -545,13 +545,39 @@ impl<'a> FunctionLowerer<'a> {
         method_name: &str,
         span: Span,
     ) -> Result<Option<String>, PinkerError> {
+        // #647/U-03A: a correspondência é de `method_identity`, a mesma que a
+        // checagem semântica consulta. Aqui só sobram o adaptador de
+        // representação — o receiver da IR vira identidade resolvida — e a
+        // tradução do veredito para `Option`, que é do lowering.
         let receiver_identity = receiver.identity(self.context, span)?;
-        let identity = MethodIdentity::new(
-            trait_name.to_string(),
-            receiver_identity,
-            method_name.to_string(),
-        );
-        Ok(self.context.impl_methods.get(&identity).cloned())
+        Ok(
+            match self.resolve_qualified_impl_method_symbol(
+                trait_name,
+                &receiver_identity,
+                method_name,
+            ) {
+                QualifiedMethodResolution::Resolved(function_name) => Some(function_name),
+                QualifiedMethodResolution::NoMatch => None,
+            },
+        )
+    }
+
+    /// Adaptador único do índice da IR para a autoridade qualificada.
+    fn resolve_qualified_impl_method_symbol(
+        &self,
+        trait_name: &str,
+        target: &ResolvedTypeId,
+        method_name: &str,
+    ) -> QualifiedMethodResolution {
+        method_identity::resolve_qualified_impl_method(
+            self.context
+                .impl_methods
+                .iter()
+                .map(|(identity, function_name)| (identity, function_name.as_str())),
+            trait_name,
+            target,
+            method_name,
+        )
     }
 
     fn resolve_trait_impl_symbol(
@@ -560,8 +586,10 @@ impl<'a> FunctionLowerer<'a> {
         target: ResolvedTypeId,
         method_name: &str,
     ) -> Option<String> {
-        let identity = MethodIdentity::new(trait_name.to_string(), target, method_name.to_string());
-        self.context.impl_methods.get(&identity).cloned()
+        match self.resolve_qualified_impl_method_symbol(trait_name, &target, method_name) {
+            QualifiedMethodResolution::Resolved(function_name) => Some(function_name),
+            QualifiedMethodResolution::NoMatch => None,
+        }
     }
 
     fn trait_object_name_for_expr(&self, expr: &Expr) -> Result<Option<String>, PinkerError> {

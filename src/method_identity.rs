@@ -8,7 +8,7 @@
 // @pinker-nav:start tratos.metodos.identidade
 // @pinker-nav:domain tratos
 // @pinker-nav:layer identidade
-// @pinker-nav:summary Identidade estruturada de método parametrizada pela identidade resolvida do alvo, compartilhada pela autoridade semântica e pela visão derivada da IR; também centraliza o codec injetivo dos nomes provisórios `__impl_*` e `__trait_default_check_*` — mesma gramática, prefixos distintos —, que preservam spellings para transporte e renderização mas nunca decidem coerência ou despacho, e a forma única que reconhece os dois como o mesmo corpo sintético de `trato`, para que a canonização e a materialização modular não precisem perguntar pelo prefixo literal.
+// @pinker-nav:summary Identidade estruturada de método parametrizada pela identidade resolvida do alvo, compartilhada pela autoridade semântica e pela visão derivada da IR; também centraliza o codec injetivo dos nomes provisórios `__impl_*` e `__trait_default_check_*` — mesma gramática, prefixos distintos —, que preservam spellings para transporte e renderização mas nunca decidem coerência ou despacho, e a forma única que reconhece os dois como o mesmo corpo sintético de `trato`, para que a canonização e a materialização modular não precisem perguntar pelo prefixo literal. Desde a #647 também detém a autoridade única da resolução qualificada: dada a identidade já resolvida — trato canônico, identidade resolvida do alvo e nome do método —, qual das funções materializadas a representa exatamente; a checagem semântica e o lowering trazem o índice na sua própria representação de alvo e traduzem o veredito, e nenhuma das duas ainda decide a correspondência.
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct MethodIdentity<T> {
@@ -25,6 +25,64 @@ impl<T> MethodIdentity<T> {
             method_name,
         }
     }
+}
+
+/// Veredito da resolução qualificada: identidade correspondida ou nenhuma.
+///
+/// É estrutural de propósito. O span, o texto e o tipo do erro — ou a decisão
+/// de seguir adiante sem erro nenhum — continuam com a fase que perguntou.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum QualifiedMethodResolution {
+    Resolved(String),
+    NoMatch,
+}
+
+/// Qual função materializada corresponde a esta identidade qualificada?
+///
+/// Autoridade única da forma `Trato.metodo(receiver, ...)` (#647/U-03A). A
+/// pergunta é só esta: dada a identidade de método já resolvida — trato
+/// canônico, identidade resolvida do alvo e nome do método —, qual das funções
+/// já materializadas a representa EXATAMENTE?
+///
+/// O que ela deliberadamente NÃO responde, e continua com seus donos:
+///
+/// ```text
+/// seleção entre candidatos       method_dispatch (#590/#591, C2)
+/// alcance de trato/relação       module_resolve (TratosNoDespacho)
+/// nomeabilidade do trato         resolução nominal, antes desta pergunta
+/// span, mensagem e tipo do erro  a fase que chamou
+/// representação do alvo          a fase, no adaptador que constrói a consulta
+/// ```
+///
+/// Cada fase traz o índice das funções materializadas na sua própria
+/// representação de alvo (`T`) e traduz o veredito para a sua superfície.
+/// Nenhuma das duas ainda decide a correspondência: a comparação acontece
+/// aqui, uma vez. O que resta de superfície para divergirem são os
+/// adaptadores — como cada fase resolve o alvo e monta o índice —, não a
+/// regra.
+///
+/// O primeiro par correspondente vence. Não é desempate: nenhuma fase registra
+/// duas funções para a mesma identidade — `semantic::traits::register_impl_methods`
+/// empurra um representante por identidade e a IR indexa por chave.
+pub fn resolve_qualified_impl_method<'a, T>(
+    materialized: impl IntoIterator<Item = (&'a MethodIdentity<T>, &'a str)>,
+    trait_name: &str,
+    target: &T,
+    method_name: &str,
+) -> QualifiedMethodResolution
+where
+    T: PartialEq + 'a,
+{
+    materialized
+        .into_iter()
+        .find(|(identity, _)| {
+            identity.trait_name == trait_name
+                && identity.target == *target
+                && identity.method_name == method_name
+        })
+        .map_or(QualifiedMethodResolution::NoMatch, |(_, function_name)| {
+            QualifiedMethodResolution::Resolved(function_name.to_string())
+        })
 }
 
 /// Prefixo do método de `impl` materializado pelo parser.
