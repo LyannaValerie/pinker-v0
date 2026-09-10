@@ -79,14 +79,20 @@ const MARCADORES_DE_RAMO_DA_AUTORIDADE: &[&str] = &[
 /// Tokens que só aparecem quando alguém está declarando contrato estrutural.
 const TOKENS_DE_CONTRATO: &[&str] = &["TypeIR::", "StackValueType::", "\"pinker_"];
 
-/// Formas de perguntar a aridade à autoridade. Um lado direito que não seja
-/// uma delas é resposta local, seja literal, constante nomeada ou expressão.
-const RESPOSTAS_DA_AUTORIDADE: &[&str] = &[
-    "internal_operations::aridade",
-    "aridade_interna(",
-    ".arity()",
-    "operation.arity",
-];
+/// O lado direito é uma consulta à autoridade?
+///
+/// `.arity()` sozinho não basta: o receptor tem de vir da autoridade. Um método
+/// `arity` de outro objeto responde a mesma pergunta por conta própria, e é
+/// decisão local.
+fn e_consulta_a_autoridade(direito: &str) -> bool {
+    if direito.contains("internal_operations::aridade") || direito.contains("aridade_interna(") {
+        return true;
+    }
+    direito.contains(".arity()")
+        && (direito.contains("operation.")
+            || direito.contains("entrada(")
+            || direito.contains("internal_operations::"))
+}
 
 /// Comparações de aridade. Todas contam: trocar `!=` por `<`/`>` não muda o
 /// fato decidido.
@@ -121,16 +127,51 @@ fn janela_atras(texto: &str, fim: usize, bytes: usize) -> &str {
     &texto[inicio..fim]
 }
 
-/// Posições de toda menção a uma operação interna: grafia literal ou constante
-/// de `enum_payload`, que é onde as grafias de leque são declaradas.
-fn mencoes_de_operacao_interna(texto: &str) -> Vec<usize> {
+/// Nomes de constantes de `src/**` cujo VALOR é uma grafia interna.
+///
+/// Sem isto, renomear a constante — ou criar outra — apagaria a menção e a
+/// grafia entraria por trás do guard. A resolução é por valor, não por
+/// convenção de nome.
+fn constantes_com_valor_de_grafia_interna(raiz: &Path) -> BTreeSet<String> {
+    let mut fontes = Vec::new();
+    fontes_rust(&raiz.join("src"), &mut fontes);
+    let mut nomes = BTreeSet::new();
+    for caminho in fontes {
+        let texto = std::fs::read_to_string(&caminho).expect("ler fonte");
+        for linha in texto.lines() {
+            let linha = linha.trim();
+            let Some(resto) = linha
+                .strip_prefix("pub const ")
+                .or(linha.strip_prefix("const "))
+            else {
+                continue;
+            };
+            if !(linha.contains("\"__pinker_internal_") || linha.contains("\"__ternario\"")) {
+                continue;
+            }
+            let Some(nome) = resto.split(':').next() else {
+                continue;
+            };
+            let nome = nome.trim();
+            if !nome.is_empty() {
+                nomes.insert(nome.to_string());
+            }
+        }
+    }
+    nomes
+}
+
+/// Posições de toda menção a uma operação interna: grafia literal, ou nome de
+/// constante cujo valor é grafia interna.
+fn mencoes_de_operacao_interna_com(texto: &str, constantes: &BTreeSet<String>) -> Vec<usize> {
     let mut posicoes = Vec::new();
-    for marcador in [
-        "\"__pinker_internal_",
-        "\"__ternario\"",
-        "enum_payload::ANEXAR",
-        "enum_payload::CARGA",
-    ] {
+    let mut marcadores: Vec<String> = vec![
+        "\"__pinker_internal_".to_string(),
+        "\"__ternario\"".to_string(),
+    ];
+    marcadores.extend(constantes.iter().cloned());
+    for marcador in marcadores {
+        let marcador = marcador.as_str();
         let mut base = 0usize;
         while let Some(deslocamento) = texto[base..].find(marcador) {
             posicoes.push(base + deslocamento);
@@ -138,6 +179,7 @@ fn mencoes_de_operacao_interna(texto: &str) -> Vec<usize> {
         }
     }
     posicoes.sort_unstable();
+    posicoes.dedup();
     posicoes
 }
 
@@ -194,10 +236,7 @@ fn responde_aridade_sem_a_autoridade(janela: &str) -> bool {
                 .split("||")
                 .next()
                 .unwrap_or("");
-            if !RESPOSTAS_DA_AUTORIDADE
-                .iter()
-                .any(|resposta| direito.contains(*resposta))
-            {
+            if !e_consulta_a_autoridade(direito) {
                 return true;
             }
         }
@@ -338,6 +377,7 @@ fn derivadores(raiz: &Path) -> Vec<(String, String)> {
 
 #[test]
 fn nenhum_derivador_declara_contrato_ao_lado_da_grafia_interna() {
+    let constantes = constantes_com_valor_de_grafia_interna(&repo());
     // Generaliza a forma física: não é só `insert(` numa tabela. Nomear a
     // operação e, na vizinhança, escrever tipo IR, tipo de pilha ou símbolo de
     // runtime é declarar contrato local — em `insert`, `match`, `if`, array ou
@@ -345,7 +385,7 @@ fn nenhum_derivador_declara_contrato_ao_lado_da_grafia_interna() {
     let raiz = repo();
     let mut ofensores = Vec::new();
     for (derivador, texto) in derivadores(&raiz) {
-        for posicao in mencoes_de_operacao_interna(&texto) {
+        for posicao in mencoes_de_operacao_interna_com(&texto, &constantes) {
             let janela = janela_a_frente(&texto, posicao, 200);
             // `builtin_nominal_sig` não é contrato estrutural: é a identidade
             // NOMINAL de `falha_operacional`, que continua com o dono dela.
@@ -363,7 +403,7 @@ fn nenhum_derivador_declara_contrato_ao_lado_da_grafia_interna() {
         // O símbolo também pode ser escrito ANTES da grafia.
         for (posicao, _) in texto.match_indices("\"pinker_") {
             let janela = janela_atras(&texto, posicao, 200);
-            if !mencoes_de_operacao_interna(janela).is_empty()
+            if !mencoes_de_operacao_interna_com(janela, &constantes).is_empty()
                 && !e_cruzamento_com_enum_payload(janela)
             {
                 ofensores.push(format!(
@@ -380,6 +420,7 @@ fn nenhum_derivador_declara_contrato_ao_lado_da_grafia_interna() {
 
 #[test]
 fn nenhum_derivador_responde_aridade_sem_perguntar_a_autoridade() {
+    let constantes = constantes_com_valor_de_grafia_interna(&repo());
     // Fecha a forma que não nomeia a grafia: dentro de um ramo que a autoridade
     // já decidiu, responder aridade por conta própria é reimplementar o
     // contrato — com literal, com constante nomeada ou com qualquer operador.
@@ -398,7 +439,7 @@ fn nenhum_derivador_responde_aridade_sem_perguntar_a_autoridade() {
         }
         // E as duas formas que nomeiam a grafia: número solto, ou aridade
         // respondida localmente logo ao lado da menção.
-        for posicao in mencoes_de_operacao_interna(&texto) {
+        for posicao in mencoes_de_operacao_interna_com(&texto, &constantes) {
             if responde_com_numero_solto(janela_a_frente(&texto, posicao, 120)) {
                 ofensores.push(format!(
                     "{derivador}: byte {posicao} devolve número solto para operação interna"
