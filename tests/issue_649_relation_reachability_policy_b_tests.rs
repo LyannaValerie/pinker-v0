@@ -446,6 +446,101 @@ fn homonimos_em_unidades_distintas_nao_compartilham_alcance() {
 }
 
 // ---------------------------------------------------------------------------
+// Competição entre relações ALCANÇÁVEIS — o nível segue a relação
+// ---------------------------------------------------------------------------
+//
+// A regra de precedência não mudou: vence o nível mais forte, e `Proprio`
+// precede `PorUnidadeImportada` (#577). O que POLICY_B mudou é a ENTRADA dessa
+// classificação — o nível passou a seguir a unidade que declarou a RELAÇÃO, e
+// não o fato de o chamador poder nomear o trato. Quando duas relações
+// alcançáveis competem pelo mesmo `(alvo, método)`, isso é observável, e as
+// duas transições abaixo são deltas intencionais desta Task.
+
+/// Relação PRÓPRIA contra relação de unidade importada.
+///
+/// `c` declara o trato `B` e a relação `B para bombom`; a relação `A para
+/// bombom` vem de `ia`, que `c` importou. As duas alcançam.
+///
+/// Antes da #649 as duas recebiam `Proprio` — uma por declaração, a outra
+/// porque `c` também nomeia `A` — e a chamada era AMBÍGUA. Sob POLICY_B a
+/// relação declarada por `c` é a própria e a transportada é subordinada, então
+/// a autoridade da unidade vence sozinha. É a subordinação que a #577 enunciou,
+/// agora aplicada à relação em vez de ao nome do trato.
+#[test]
+fn relacao_propria_vence_relacao_de_unidade_importada() {
+    let tr = "pacote tr;\n\ntrato A {\n    carinho medir(valor: si) -> bombom;\n}\n";
+    let ia = "pacote ia;\ntrazer tr.A;\n\nimpl A para bombom {\n    carinho medir(valor: bombom) -> bombom { mimo 20; }\n}\n";
+    let c = "pacote c;\ntrazer tr.A;\ntrazer ia;\n\ntrato B {\n    carinho medir(valor: si) -> bombom;\n}\n\nimpl B para bombom {\n    carinho medir(valor: bombom) -> bombom { mimo 3; }\n}\n\ncarinho usar(x: bombom) -> bombom { mimo x.medir(); }\n";
+    let caso = caso(
+        "prec_propria_649",
+        "pacote main;\ntrazer c.usar;\n\ncarinho principal() -> bombom { mimo usar(5); }\n",
+        &[
+            ("tr", tr.to_string()),
+            ("ia", ia.to_string()),
+            ("c", c.to_string()),
+        ],
+    );
+    let checagem = pink("649-prec-propria-check", &["--check"], &caso.raiz);
+    assert_eq!(codigo(&checagem), 0, "{}", stderr(&checagem));
+    let execucao = pink("649-prec-propria-run", &["--run"], &caso.raiz);
+    assert_eq!(
+        codigo(&execucao),
+        3,
+        "a relação declarada pela própria unidade tem de vencer a transportada: {}",
+        stderr(&execucao)
+    );
+}
+
+/// Duas relações TRANSPORTADAS competindo: nomear um dos tratos não desempata.
+///
+/// `c` importa `ia` e `ib`, e nomeia apenas `tr.A`. As duas relações alcançam
+/// `c` pelo mesmo nível subordinado.
+///
+/// Antes da #649 nomear `A` promovia aquela relação a `Proprio` e ela vencia
+/// sozinha, executando 20. Sob POLICY_B a nomeabilidade não decide nada —
+/// inclusive não decide precedência —, os dois candidatos ficam no mesmo nível
+/// e a chamada é ambígua, com a mensagem que manda qualificar. Qualificar
+/// continua funcionando, e é o que o controle abaixo prova.
+#[test]
+fn nomear_um_dos_tratos_nao_desempata_duas_relacoes_transportadas() {
+    let tr = "pacote tr;\n\ntrato A {\n    carinho medir(valor: si) -> bombom;\n}\n";
+    let tr2 = "pacote tr2;\n\ntrato B {\n    carinho medir(valor: si) -> bombom;\n}\n";
+    let ia = "pacote ia;\ntrazer tr.A;\n\nimpl A para bombom {\n    carinho medir(valor: bombom) -> bombom { mimo 20; }\n}\n";
+    let ib = "pacote ib;\ntrazer tr2.B;\n\nimpl B para bombom {\n    carinho medir(valor: bombom) -> bombom { mimo 3; }\n}\n";
+    let raiz = "pacote main;\ntrazer c.usar;\n\ncarinho principal() -> bombom { mimo usar(5); }\n";
+    let modulos = |corpo: &str| {
+        vec![
+            ("tr", tr.to_string()),
+            ("tr2", tr2.to_string()),
+            ("ia", ia.to_string()),
+            ("ib", ib.to_string()),
+            (
+                "c",
+                format!("pacote c;\ntrazer tr.A;\ntrazer ia;\ntrazer ib;\n\ncarinho usar(x: bombom) -> bombom {{ {corpo} }}\n"),
+            ),
+        ]
+    };
+
+    let ambiguo = caso("prec_transp_649", raiz, &modulos("mimo x.medir();"));
+    let checagem = pink("649-prec-transp-check", &["--check"], &ambiguo.raiz);
+    assert_eq!(codigo(&checagem), 1, "{}", stderr(&checagem));
+    assert!(
+        stderr(&checagem).contains("é ambíguo"),
+        "a recusa tem de ser de ambiguidade entre dois subordinados, não de alcance: {}",
+        stderr(&checagem)
+    );
+
+    // Controle: a saída que a própria mensagem indica continua disponível, e
+    // resolve para a relação nomeada — a ambiguidade é de seleção, não perda
+    // de alcance.
+    let qualificado = caso("prec_transp_q_649", raiz, &modulos("mimo A.medir(x);"));
+    let checagem = pink("649-prec-transp-q-check", &["--check"], &qualificado.raiz);
+    assert_eq!(codigo(&checagem), 0, "{}", stderr(&checagem));
+    let execucao = pink("649-prec-transp-q-run", &["--run"], &qualificado.raiz);
+    assert_eq!(codigo(&execucao), 20, "{}", stderr(&execucao));
+}
+
+// ---------------------------------------------------------------------------
 // Paridade interpretador × nativo
 // ---------------------------------------------------------------------------
 

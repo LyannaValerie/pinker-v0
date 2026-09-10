@@ -2024,6 +2024,17 @@ impl TratosNoDespacho {
 }
 
 /// Força da origem de um candidato de despacho. `Proprio` precede.
+///
+/// #649 — a REGRA de precedência não mudou: vence o nível mais forte, e a
+/// autoridade da unidade precede a dependência transportada (#577). O que
+/// mudou foi a ENTRADA da classificação. `Proprio` passou a significar
+/// "relação declarada por esta unidade" e não "relação de trato que esta
+/// unidade pode nomear", e a diferença é observável quando duas relações
+/// ALCANÇÁVEIS competem pelo mesmo `(alvo, método)`: relação própria agora
+/// vence relação importada que antes empatava com ela, e duas relações
+/// importadas agora empatam mesmo quando o chamador nomeia um dos tratos.
+/// Nomeabilidade não decide alcance e, pela mesma razão, não decide
+/// precedência.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum NivelDeDespacho {
     Proprio,
