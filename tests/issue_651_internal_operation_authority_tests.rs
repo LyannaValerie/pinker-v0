@@ -16,10 +16,12 @@
 //! 1. **Exaustividade** (`LAW-01`): o conjunto declarado é exatamente o
 //!    conjunto usado por `src/**`. Acrescentar uma grafia interna sem declarar,
 //!    ou declarar uma sem produtor/consumidor real, fica vermelho.
-//! 2. **Ausência de segunda tabela**: nenhuma fase pode voltar a inserir
-//!    assinatura ou a rotear símbolo de runtime por grafia interna. É a forma
-//!    física exata que a consolidação removeu, e reintroduzi-la exige nomear a
-//!    grafia — que a metade 1 já obriga a estar declarada.
+//! 2. **Ausência de segunda decisão**: nenhum derivador pode declarar contrato
+//!    ao lado da operação — tipo IR, tipo de pilha ou símbolo de runtime — nem
+//!    responder aridade por número mágico, seja nomeando a grafia (`match`,
+//!    `if`, `insert`, array) ou dentro de um ramo que a autoridade já decidiu.
+//!    A segunda forma é a que não nomeia grafia nenhuma e por isso escapa da
+//!    metade 1; por isso as duas regras existem separadamente.
 //!
 //! As fronteiras que U-01 não pode atravessar também são verificadas aqui:
 //! superfície pública (C1), símbolo ABI, identidade de usuário e a relação de
@@ -33,8 +35,11 @@ use std::path::{Path, PathBuf};
 
 const AUTHORITY_FILE: &str = "src/internal_operations.rs";
 
-/// Consumidores que perderam a decisão local e não podem recuperá-la.
-const CONSUMIDORES: &[&str] = &[
+/// Todo arquivo que consulta a autoridade e, por isso, não pode voltar a
+/// decidir por conta própria. A lista inclui as duas fases que consomem apenas
+/// a aridade — `semantic/calls` e o emissor SysV do backend —, porque decidir
+/// aridade localmente é exatamente a decisão que U-01 removeu.
+const DERIVADORES: &[&str] = &[
     "src/ir_validate.rs",
     "src/cfg_ir_validate.rs",
     "src/abstract_machine_validate.rs",
@@ -42,7 +47,117 @@ const CONSUMIDORES: &[&str] = &[
     "src/ir/context.rs",
     "src/ir/model.rs",
     "src/backend_s.rs",
+    "src/backend_s/external_callconv.rs",
+    "src/semantic/calls.rs",
 ];
+
+/// Marcadores de que o texto seguinte está num ramo já decidido pela
+/// autoridade. Depois deles, um número mágico de aridade é decisão local.
+const MARCADORES_DE_RAMO_DA_AUTORIDADE: &[&str] = &[
+    "internal_operations::e_ternaria(",
+    "internal_operations::e_operacao_generica_de_mapa(",
+    "internal_operations::entrada(",
+    "internal_operations::aridade(",
+    "aridade_interna(",
+    "is_generic_map_intrinsic(",
+];
+
+/// Tokens que só aparecem quando alguém está declarando contrato estrutural.
+const TOKENS_DE_CONTRATO: &[&str] = &["TypeIR::", "StackValueType::", "\"pinker_"];
+
+/// Um tipo citado à direita de `==`/`!=` é COMPARAÇÃO, não declaração.
+///
+/// A distinção importa: `ir_validate` compara a representação operacional de
+/// uma carga de leque contra a classe declarada por `enum_payload` — é a
+/// checagem cruzada inversa que aquele validador existe para fazer, e não uma
+/// segunda declaração de contrato.
+fn e_apenas_comparacao(janela: &str, posicao_do_token: usize) -> bool {
+    let anterior = janela[..posicao_do_token].trim_end();
+    anterior.ends_with("==") || anterior.ends_with("!=")
+}
+
+/// Fatia segura em fronteira de caractere, à frente de `inicio`.
+fn janela_a_frente(texto: &str, inicio: usize, bytes: usize) -> &str {
+    let mut fim = (inicio + bytes).min(texto.len());
+    while fim > inicio && !texto.is_char_boundary(fim) {
+        fim -= 1;
+    }
+    &texto[inicio..fim]
+}
+
+/// Fatia segura em fronteira de caractere, atrás de `fim`.
+fn janela_atras(texto: &str, fim: usize, bytes: usize) -> &str {
+    let mut inicio = fim.saturating_sub(bytes);
+    while inicio < fim && !texto.is_char_boundary(inicio) {
+        inicio += 1;
+    }
+    &texto[inicio..fim]
+}
+
+/// Posições de toda menção a uma operação interna: grafia literal ou constante
+/// de `enum_payload`, que é onde as grafias de leque são declaradas.
+fn mencoes_de_operacao_interna(texto: &str) -> Vec<usize> {
+    let mut posicoes = Vec::new();
+    for marcador in [
+        "\"__pinker_internal_",
+        "\"__ternario\"",
+        "enum_payload::ANEXAR",
+        "enum_payload::CARGA",
+    ] {
+        let mut base = 0usize;
+        while let Some(deslocamento) = texto[base..].find(marcador) {
+            posicoes.push(base + deslocamento);
+            base += deslocamento + marcador.len();
+        }
+    }
+    posicoes.sort_unstable();
+    posicoes
+}
+
+/// Um número solto logo depois de nomear a operação é resposta local.
+fn responde_com_numero_solto(janela: &str) -> bool {
+    let bytes = janela.as_bytes();
+    for (indice, _) in janela.match_indices("=>") {
+        let mut cursor = indice + 2;
+        while bytes.get(cursor).is_some_and(u8::is_ascii_whitespace) {
+            cursor += 1;
+        }
+        if janela[cursor..].starts_with("return") {
+            cursor += "return".len();
+            while bytes.get(cursor).is_some_and(u8::is_ascii_whitespace) {
+                cursor += 1;
+            }
+        }
+        if bytes.get(cursor).is_some_and(u8::is_ascii_digit) {
+            return true;
+        }
+    }
+    false
+}
+
+/// Comparação de aridade contra número mágico.
+fn compara_aridade_com_literal(janela: &str) -> bool {
+    let bytes = janela.as_bytes();
+    for alvo in [".len()", "argc"] {
+        for (indice, _) in janela.match_indices(alvo) {
+            let mut cursor = indice + alvo.len();
+            while bytes.get(cursor).is_some_and(u8::is_ascii_whitespace) {
+                cursor += 1;
+            }
+            if !(janela[cursor..].starts_with("!=") || janela[cursor..].starts_with("==")) {
+                continue;
+            }
+            cursor += 2;
+            while bytes.get(cursor).is_some_and(u8::is_ascii_whitespace) {
+                cursor += 1;
+            }
+            if bytes.get(cursor).is_some_and(u8::is_ascii_digit) {
+                return true;
+            }
+        }
+    }
+    false
+}
 
 fn repo() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -155,56 +270,79 @@ fn law_01_toda_grafia_declarada_tem_produtor_ou_consumidor_real() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn nenhuma_fase_reinsere_assinatura_por_grafia_interna() {
+fn nenhum_derivador_declara_contrato_ao_lado_da_grafia_interna() {
+    // Generaliza a forma física: não é só `insert(` numa tabela. Nomear a
+    // operação e, na sequência, escrever tipo IR, tipo de pilha ou símbolo de
+    // runtime é declarar contrato local, seja a forma `insert`, `match`, `if`
+    // ou array.
     let raiz = repo();
     let mut ofensores = Vec::new();
-    for consumidor in CONSUMIDORES {
-        let texto = std::fs::read_to_string(raiz.join(consumidor)).expect("ler consumidor");
-        // A forma física exata que a consolidação removeu: inserir numa tabela
-        // de assinaturas usando a grafia interna — literal ou por constante de
-        // `enum_payload` — como chave.
-        for (indice, _) in texto.match_indices("insert(") {
-            let janela: String = texto[indice..]
-                .chars()
-                .take(120)
-                .collect::<String>()
-                .split_whitespace()
-                .collect::<Vec<_>>()
-                .join(" ");
-            let chave_interna = janela.contains("\"__pinker_internal_")
-                || janela.contains("crate::enum_payload::ANEXAR")
-                || janela.contains("crate::enum_payload::CARGA");
+    for derivador in DERIVADORES {
+        let texto = std::fs::read_to_string(raiz.join(derivador)).expect("ler derivador");
+        for posicao in mencoes_de_operacao_interna(&texto) {
+            let janela = janela_a_frente(&texto, posicao, 200);
             // `builtin_nominal_sig` não é contrato estrutural: é a identidade
             // NOMINAL de `falha_operacional`, que continua com o dono dela.
-            let contrato_estrutural = !janela.contains("builtin_nominal_sig");
-            if chave_interna && contrato_estrutural {
-                ofensores.push(format!("{consumidor}: {janela}"));
+            if janela.contains("builtin_nominal_sig") {
+                continue;
+            }
+            for token in TOKENS_DE_CONTRATO {
+                let declara = janela
+                    .match_indices(token)
+                    .any(|(deslocamento, _)| !e_apenas_comparacao(janela, deslocamento));
+                if declara {
+                    ofensores.push(format!(
+                        "{derivador}: byte {posicao} nomeia operação interna e declara '{token}'"
+                    ));
+                }
+            }
+        }
+        // O símbolo também pode ser escrito ANTES da grafia.
+        for (posicao, _) in texto.match_indices("\"pinker_") {
+            let janela = janela_atras(&texto, posicao, 200);
+            if !mencoes_de_operacao_interna(janela).is_empty() {
+                ofensores.push(format!(
+                    "{derivador}: byte {posicao} roteia símbolo por operação interna"
+                ));
             }
         }
     }
     assert!(
         ofensores.is_empty(),
-        "tabela de assinatura local por grafia interna reintroduzida: {ofensores:?}"
+        "contrato estrutural local por operação interna reintroduzido: {ofensores:?}"
     );
 }
 
 #[test]
-fn nenhuma_fase_roteia_simbolo_de_runtime_por_grafia_interna() {
+fn nenhum_derivador_responde_aridade_por_numero_magico() {
+    // Fecha a forma que não nomeia a grafia: dentro de um ramo que a autoridade
+    // já decidiu, comparar aridade com literal é reimplementar o contrato.
     let raiz = repo();
     let mut ofensores = Vec::new();
-    for consumidor in CONSUMIDORES {
-        let texto = std::fs::read_to_string(raiz.join(consumidor)).expect("ler consumidor");
-        for (indice, _) in texto.match_indices("\"pinker_") {
-            let inicio = indice.saturating_sub(400);
-            let janela = &texto[inicio..indice];
-            if janela.contains("\"__pinker_internal_") {
-                ofensores.push(format!("{consumidor}: byte {indice}"));
+    for derivador in DERIVADORES {
+        let texto = std::fs::read_to_string(raiz.join(derivador)).expect("ler derivador");
+        for marcador in MARCADORES_DE_RAMO_DA_AUTORIDADE {
+            for (posicao, _) in texto.match_indices(marcador) {
+                let janela = janela_a_frente(&texto, posicao, 260);
+                if compara_aridade_com_literal(janela) {
+                    ofensores.push(format!(
+                        "{derivador}: byte {posicao} compara aridade com literal dentro de ramo da autoridade"
+                    ));
+                }
+            }
+        }
+        // E a forma que nomeia a grafia para devolver um número.
+        for posicao in mencoes_de_operacao_interna(&texto) {
+            if responde_com_numero_solto(janela_a_frente(&texto, posicao, 120)) {
+                ofensores.push(format!(
+                    "{derivador}: byte {posicao} devolve número solto para operação interna"
+                ));
             }
         }
     }
     assert!(
         ofensores.is_empty(),
-        "roteamento local de símbolo por grafia interna reintroduzido: {ofensores:?}"
+        "aridade local por número mágico reintroduzida: {ofensores:?}"
     );
 }
 
