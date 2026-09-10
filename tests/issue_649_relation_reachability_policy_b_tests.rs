@@ -540,13 +540,18 @@ fn nomeabilidade_do_trato_continua_desempatando_relacoes_alcancaveis() {
     );
 }
 
-/// O par negativo dos dois casos acima: quando a relação de `ia` NÃO alcança,
-/// ela não chega nem a competir.
+/// O par negativo dos dois casos acima, e um DELTA de aceitação: quando a
+/// relação de `ia` não alcança, ela não chega nem a competir.
 ///
 /// Sem `trazer ia;`, a relação de `A` deixa de participar e a de `ib` — cujo
 /// trato `c` não nomeia — vence sozinha pelo nível subordinado, executando 3.
-/// Sem este caso, os dois anteriores não distinguiriam "a precedência foi
-/// preservada" de "o alcance nunca foi aplicado aqui".
+/// O baseline executava 20: `autorizados` promovia a relação de `ia` a
+/// candidata só porque `c` nomeia `A`, sem que `c` a tivesse importado.
+///
+/// O vencedor muda, e muda por ALCANCE: o perdedor deixou de participar, não
+/// foi reclassificado. É esse contraste com PREC-1/PREC-2 — onde o conjunto
+/// alcançável é idêntico e o vencedor NÃO muda — que torna a distinção
+/// mensurável em vez de retórica.
 #[test]
 fn relacao_inalcancavel_nao_chega_a_competir_por_precedencia() {
     let tr = "pacote tr;\n\ntrato A {\n    carinho medir(valor: si) -> bombom;\n}\n";
@@ -572,7 +577,9 @@ fn relacao_inalcancavel_nao_chega_a_competir_por_precedencia() {
     assert_eq!(
         codigo(&execucao),
         3,
-        "a relação de `ia` não alcança `c` e não participa; a de `ib` vence sozinha: {}",
+        "a relação de `ia` não alcança `c` e não participa; a de `ib` vence sozinha. \
+         O baseline executava 20 aqui: é delta intencional de alcance, declarado \
+         como PREC-3 na tabela BEFORE/AFTER: {}",
         stderr(&execucao)
     );
 }
