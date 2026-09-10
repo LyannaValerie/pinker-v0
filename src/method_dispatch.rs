@@ -31,6 +31,13 @@ use std::collections::HashMap;
 ///
 /// `fonte_da_relacao` é a unidade que DECLAROU o bloco `impl`, não a que
 /// escreveu o método: corpo default materializado pode vir de outra unidade.
+///
+/// #649 — os dois campos respondem a perguntas DIFERENTES, e é por isso que os
+/// dois continuam aqui. `fonte_da_relacao` é a entrada do ALCANCE: sob
+/// `POLICY_B` só ela decide se a relação participa. `trait_name` é a entrada da
+/// PRECEDÊNCIA da #577, que a #649 não reabre: entre relações que já
+/// participam, ele é o que separa a autoridade própria da dependência
+/// transportada.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DispatchRelation {
     pub trait_name: String,
@@ -56,11 +63,13 @@ pub enum MethodSelection {
 
 /// Qual implementação concreta vence esta chamada?
 ///
-/// Alcance vem de `module_resolve`: candidato que não alcança quem escreveu o
-/// `span` não participa. Entre os que alcançam, vence o nível mais forte —
-/// o trato próprio nunca perde para uma relação alcançada por importação
-/// (#577). Sobrando exatamente um, ele é o vencedor; nenhum é `NoMatch`; mais
-/// de um é `Ambiguous`.
+/// Alcance vem de `module_resolve`: candidato cuja RELAÇÃO não alcança quem
+/// escreveu o `span` não participa — e desde a #649 nomear o trato não é
+/// caminho até relação alguma. Entre os que alcançam, a regra de seleção é a
+/// de sempre e a #649 não a tocou: vence o nível mais forte, e o trato próprio
+/// nunca perde para uma relação alcançada por importação (#577). Sobrando
+/// exatamente um, ele é o vencedor; nenhum é `NoMatch`; mais de um é
+/// `Ambiguous`.
 pub fn select_impl_method(
     traits_visiveis_por_fonte: &HashMap<SourceId, TratosNoDespacho>,
     span: Span,

@@ -399,22 +399,23 @@ const TRATO_MARCA: &str = "pacote mc2t;\n\n\
         carinho padrao(valor: bombom) -> bombom { mimo valor + 1; }\n\
     }\n";
 
-/// GOLDEN #579 — congela o comportamento CORRENTE, não o endossa.
+/// #579 DECIDIDA — `POLICY_B_RELATION_REACHABILITY_ALWAYS_MATTERS`.
 ///
 /// ```text
-/// THIS TEST PRESERVES CURRENT BEHAVIOR
-/// IT DOES NOT ENDORSE POLICY_A OR POLICY_B
+/// TRAIT_NAMEABILITY != RELATION_REACHABILITY
 /// ```
 ///
-/// A raiz nomeia o trato por import próprio e despacha por uma relação
-/// declarada por `mc2impl`, unidade que ela nunca importou diretamente: a
-/// relação só chega ao programa projetado por uma cadeia indireta. A #579
-/// permanece aberta para decidir se esse alcance deve continuar existindo;
-/// C2 apenas garante que a resposta, qualquer que venha a ser, terá uma só
-/// consequência executiva.
+/// A raiz nomeia o trato por import próprio e a relação é declarada por
+/// `mc2impl`, unidade que ela nunca importou: a relação só chega ao programa
+/// projetado por uma cadeia indireta que passa por `mc2mid`, e importar `meio`
+/// não é caminho até relação alguma. Até a #649 este golden congelava o
+/// comportamento contrário, sem endossá-lo; a Founder decidiu POLICY_B em #579
+/// e ele passou a congelar a recusa. C2 continua garantindo o que sempre
+/// garantiu: a resposta tem uma só consequência executiva, idêntica em
+/// `--check` e no lowering.
 #[test]
-fn golden_579_o_alcance_corrente_do_trato_proprio_permanece_identico() {
-    let caso = caso(&[
+fn golden_579_relacao_de_irmao_nao_alcanca_a_raiz_que_apenas_nomeia_o_trato() {
+    let negativo = caso(&[
         ("mc2t", TRATO_MARCA),
         (
             "mc2impl",
@@ -439,14 +440,64 @@ fn golden_579_o_alcance_corrente_do_trato_proprio_permanece_identico() {
         ),
     ]);
 
-    let checagem = pink("c2-579-check", &["--check"], &caso.raiz);
-    assert_eq!(codigo(&checagem), 0, "{}", stderr(&checagem));
+    let checagem = pink("c2-579-check", &["--check"], &negativo.raiz);
+    assert_eq!(
+        codigo(&checagem),
+        1,
+        "nomear o trato não pode autorizar a relação de `mc2impl`: {}",
+        stdout(&checagem)
+    );
+    assert!(
+        stderr(&checagem).contains("método 'padrao' não implementado para tipo 'bombom'"),
+        "a recusa é do despacho não qualificado, que não encontrou candidato ALCANÇÁVEL: {}",
+        stderr(&checagem)
+    );
 
-    let execucao = pink("c2-579-run", &["--run"], &caso.raiz);
+    // O lowering recusa o mesmo programa: a regra é uma só, e é isso que C2
+    // preserva qualquer que seja a política de alcance.
+    let execucao = pink("c2-579-run", &["--run"], &negativo.raiz);
+    assert_eq!(
+        codigo(&execucao),
+        1,
+        "o lowering tem de recusar o que `--check` recusou: {}",
+        stdout(&execucao)
+    );
+
+    // Controle pareado: a MESMA topologia com a raiz importando a unidade que
+    // declara a relação continua aceita e continua executando 17. Sem ele, o
+    // negativo acima não distinguiria "relação inalcançável" de "programa que
+    // nunca compôs".
+    let autorizado = caso(&[
+        ("mc2t", TRATO_MARCA),
+        (
+            "mc2impl",
+            "pacote mc2impl;\ntrazer mc2t.Marca;\n\n\
+             impl Marca para bombom {\n    \
+                 carinho padrao(valor: bombom) -> bombom { mimo valor + 7; }\n\
+             }\n\n\
+             carinho fundo() -> bombom { mimo 1; }\n",
+        ),
+        (
+            "mc2mid",
+            "pacote mc2mid;\ntrazer mc2impl.fundo;\n\n\
+             carinho meio() -> bombom { mimo fundo(); }\n",
+        ),
+        (
+            "main",
+            "pacote main;\ntrazer mc2t.Marca;\ntrazer mc2impl;\ntrazer mc2mid.meio;\n\n\
+             carinho principal() -> bombom {\n    \
+                 nova x: bombom = 10;\n    \
+                 mimo x.padrao() + meio() - meio();\n\
+             }\n",
+        ),
+    ]);
+    let checagem = pink("c2-579-autorizado-check", &["--check"], &autorizado.raiz);
+    assert_eq!(codigo(&checagem), 0, "{}", stderr(&checagem));
+    let execucao = pink("c2-579-autorizado-run", &["--run"], &autorizado.raiz);
     assert_eq!(
         codigo(&execucao),
         17,
-        "a relação indireta deixou de vencer: {}",
+        "com caminho autorizado a mesma relação continua vencendo: {}",
         stderr(&execucao)
     );
 }

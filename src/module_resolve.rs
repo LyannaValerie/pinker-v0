@@ -1936,8 +1936,8 @@ fn referencias_de_expr(expr: &Expr, out: &mut Vec<String>) {
 // @pinker-nav:start modulos.visibilidade.tratos
 // @pinker-nav:domain modulos
 // @pinker-nav:layer compilador
-// @pinker-nav:summary tratos_visiveis_por_fonte deriva, do grafo já resolvido, por onde o despacho de cada unidade-fonte pode passar, indexado por SourceId e em dois níveis de força e granularidade. O nível próprio são os tratos que a unidade declara mais os que seus imports autorizam por nome. O subordinado (#577) são as UNIDADES que ela importou, cujas relações de `impl` ela passa a poder atravessar, para que importar o implementador não obrigue a redeclarar a dependência interna que o torna válido; guardar ali o nome do trato, e não a unidade, abriria o despacho a toda relação daquele trato no programa, inclusive às de unidades que o importador nunca pediu. Não é reexport: nenhuma ligação de nome nasce daqui, então nomear o trato, implementá-lo ou qualificá-lo continua exigindo import próprio. nivel_de_despacho responde por qual dos dois níveis a relação de um candidato alcança quem escreveu o span, e o consumidor resolve pelo nível mais forte que produzir candidato, de modo que o trato próprio nunca perca para uma relação alcançada por importação. Despacho de método não passa por identificador livre e portanto não é alcançado pela resolução nominal; sem esta visão, um trato declarado na raiz continuaria fornecendo método default ao corpo de um módulo que nunca o importou. O índice é vazio quando não há composição, e nesse caso nada é filtrado; desde a #645, porém, índice não vazio cuja fonte o span não reconhece não alcança relação alguma, para que perda de contexto semântico nunca amplie os candidatos.
-/// Tratos visíveis a cada unidade-fonte, por `SourceId`.
+// @pinker-nav:summary tratos_visiveis_por_fonte deriva, do grafo já resolvido, os fatos que o despacho de cada unidade-fonte precisa, indexados por SourceId. São DUAS perguntas distintas sobre o mesmo índice, e a #649 existe justamente para não fundi-las. ALCANCE (relacao_alcanca, POLICY_B/#579): uma relação canônica de impl participa de uma operação nesta unidade somente se a própria unidade a declarou ou se ela pertence a unidade que esta importou — poder nomear o trato não é caminho até relação alguma, e um impl irmão carregado sem aresta autorizada não é candidato. PRECEDÊNCIA (nivel_de_despacho, contrato #577/C2 preexistente e NÃO alterado pela #649): entre relações que JÁ alcançam, o nível próprio são os tratos que a unidade declara mais os que seus imports autorizam por nome, e o subordinado são as relações das unidades importadas cujo trato ela não possui; o consumidor resolve pelo nível mais forte que produzir candidato. Nomeabilidade do trato deixou de decidir alcance e continua decidindo precedência: são relações semânticas diferentes, e nivel_de_despacho é a composição ordenada delas — filtra por alcance, depois classifica. Não é reexport: nenhuma ligação de nome nasce daqui, então nomear o trato, implementá-lo ou qualificá-lo continua exigindo import próprio. O índice é vazio quando não há composição, e nesse caso nada é filtrado; desde a #645, porém, índice não vazio cuja fonte o span não reconhece não alcança relação alguma, para que perda de contexto semântico nunca amplie os candidatos.
+/// Fatos de despacho de cada unidade-fonte, por `SourceId`.
 ///
 /// Um `x.metodo()` não menciona o trato: o despacho é por (tipo do receiver,
 /// nome do método), e essa tabela é global sobre a agregação. A resolução
@@ -1965,6 +1965,7 @@ pub fn tratos_visiveis_por_fonte(graph: &ModuleGraph) -> HashMap<SourceId, Trato
 
     for unit in graph.units() {
         let mut tratos = TratosNoDespacho {
+            unidade: unit.source_id,
             autorizados: tratos_da_unidade(unit),
             fontes_implementadoras: HashSet::new(),
         };
@@ -1988,15 +1989,11 @@ pub fn tratos_visiveis_por_fonte(graph: &ModuleGraph) -> HashMap<SourceId, Trato
             // a poder consumir a superfície que os `impl` DELA tornam válida.
             //
             // O que entra é a UNIDADE, não o trato: quem responde pelo alcance
-            // é a relação, e a relação pertence à unidade que a declarou. Guardar
-            // aqui o nome do trato abriria o despacho a toda relação daquele
-            // trato no programa, inclusive às declaradas por unidades que este
-            // importador nunca pediu — isso seria reexport pela porta de trás.
-            //
-            // Entra no nível subordinado, nunca no da própria unidade: nomear o
-            // trato, escrever `impl` sobre ele ou qualificá-lo continua
-            // exigindo import próprio, porque `ModuleEnvironment` não recebe
-            // ligação nenhuma daqui.
+            // é a relação, e a relação pertence à unidade que a declarou.
+            // Guardar aqui o nome do trato abriria o despacho a toda relação
+            // daquele trato no programa, inclusive às declaradas por unidades
+            // que este importador nunca pediu — isso seria reexport pela porta
+            // de trás.
             tratos.fontes_implementadoras.insert(origem.source_id);
         }
         por_fonte.insert(unit.source_id, tratos);
@@ -2005,78 +2002,155 @@ pub fn tratos_visiveis_por_fonte(graph: &ModuleGraph) -> HashMap<SourceId, Trato
     por_fonte
 }
 
-/// Por onde o despacho de uma unidade-fonte pode passar, em dois níveis.
+/// Os fatos de despacho de UMA unidade-fonte, para as duas perguntas.
 ///
-/// A separação existe porque as duas origens não têm a mesma força, nem a mesma
-/// granularidade. O que a unidade declarou ou importou por nome é autoridade
-/// dela, e vale para o trato inteiro. O que ela alcança só porque importou quem
-/// implementa é dependência semântica transportada: vale para as relações
-/// daquelas unidades, e por isso jamais compete com a autoridade própria nem
-/// alcança relação de unidade que ninguém pediu.
-#[derive(Debug, Clone, Default)]
+/// ```text
+/// RELATION_REACHABILITY != RELATION_PRECEDENCE
+/// ```
+///
+/// As duas perguntas usam entradas diferentes de propósito, e é isso que a
+/// #649 preserva:
+///
+/// - `alcanca` responde se a relação pode PARTICIPAR, e olha apenas a unidade
+///   que a declarou (`POLICY_B_RELATION_REACHABILITY_ALWAYS_MATTERS`, #579).
+///   Nome de trato não entra: nomear o trato não é caminho até relação alguma.
+/// - `precedencia` responde, entre relações que já participam, qual força a
+///   origem tem. É o contrato preexistente da #577, que a #649 NÃO reabre: o
+///   que a unidade declarou ou importou POR NOME é autoridade dela e vale para
+///   o trato inteiro; o que ela alcança só porque importou quem implementa é
+///   dependência semântica transportada, e jamais compete com a autoridade
+///   própria.
+#[derive(Debug, Clone)]
 pub struct TratosNoDespacho {
+    /// A unidade a que estes fatos pertencem. Entrada do ALCANCE.
+    unidade: SourceId,
     /// Tratos declarados pela unidade ou trazidos por import explícito dela.
+    /// Entrada da PRECEDÊNCIA, e de nada mais desde a #649.
     autorizados: HashSet<String>,
     /// #577 — unidades importadas por esta, cujas relações de `impl` ela pode
-    /// atravessar.
+    /// atravessar. Entrada das duas perguntas.
     fontes_implementadoras: HashSet<SourceId>,
 }
 
 impl TratosNoDespacho {
-    fn nivel(
-        &self,
-        trait_name: &str,
-        fonte_da_relacao: Option<SourceId>,
-    ) -> Option<NivelDeDespacho> {
+    /// A relação pode participar de uma operação nesta unidade?
+    ///
+    /// #649/POLICY_B. Nenhum nome de trato participa desta decisão, e esta
+    /// função não tem sequer como perguntar por um.
+    fn alcanca(&self, fonte_da_relacao: Option<SourceId>) -> bool {
+        // Relação sem unidade declarante conhecida não exibe caminho nenhum, e
+        // ausência de contexto não amplia alcance (#645).
+        let Some(fonte) = fonte_da_relacao else {
+            return false;
+        };
+        fonte == self.unidade || self.fontes_implementadoras.contains(&fonte)
+    }
+
+    /// Que força tem a origem de uma relação que JÁ alcança?
+    ///
+    /// Contrato preexistente da #577, preservado byte a byte pela #649. Só é
+    /// chamada depois de `alcanca`, e por isso é total: uma relação alcançável
+    /// cujo trato a unidade não possui por nome veio necessariamente de uma
+    /// unidade importada.
+    fn precedencia(&self, trait_name: &str) -> NivelDeDespacho {
         if self.autorizados.contains(trait_name) {
-            return Some(NivelDeDespacho::Proprio);
-        }
-        match fonte_da_relacao {
-            Some(fonte) if self.fontes_implementadoras.contains(&fonte) => {
-                Some(NivelDeDespacho::PorUnidadeImportada)
-            }
-            _ => None,
+            NivelDeDespacho::Proprio
+        } else {
+            NivelDeDespacho::PorUnidadeImportada
         }
     }
 }
 
 /// Força da origem de um candidato de despacho. `Proprio` precede.
+///
+/// #649 — este vocabulário é de SELEÇÃO, não de alcance. A política de
+/// precedência que ele expressa é a da #577/C2 e permanece exatamente como
+/// estava: entre relações que já alcançam, o trato próprio nunca perde para
+/// uma relação alcançada por importação.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum NivelDeDespacho {
     Proprio,
     PorUnidadeImportada,
 }
 
-/// Nível pelo qual a relação alcança quem escreveu `span`, se alcançar.
+/// A relação alcança quem escreveu `span`?
 ///
-/// `fonte_da_relacao` é a unidade que DECLAROU o `impl` do candidato. Sem ela o
-/// nível subordinado não se aplica: nível próprio continua sendo pergunta sobre
-/// o trato, o subordinado é pergunta sobre a relação.
+/// Autoridade única do ALCANCE (#649/#579,
+/// `POLICY_B_RELATION_REACHABILITY_ALWAYS_MATTERS`). `fonte_da_relacao` é a
+/// unidade que DECLAROU o `impl`, e é a única entrada semântica desta
+/// pergunta: o nome do trato não decide alcance, e por isso não é parâmetro.
+///
+/// ```text
+/// TRAIT_NAMEABILITY != RELATION_REACHABILITY
+/// ```
+///
+/// Pergunta de sim ou não, de propósito. Onde a relação já é única — chamada
+/// qualificada, formação de objeto de trato — a única pergunta é a
+/// autorização, e expor ali o vocabulário da precedência devolveria à fase a
+/// chance de decidir vencedor por conta própria.
+///
+/// ```text
+/// method_identity  -> WHICH RELATION?
+/// esta pergunta    -> MAY THIS CONTEXT USE IT?
+/// method_dispatch  -> WHICH CANDIDATE WINS?
+/// ```
 ///
 /// Índice vazio significa "sem composição a restringir" — programa de arquivo
 /// único, biblioteca sem módulos, qualquer fluxo legítimo em que não há
-/// ambiente de quem restringir a quem: o despacho segue exatamente como sempre
-/// seguiu, no nível próprio.
+/// ambiente de quem restringir a quem.
 ///
 /// #645 — fonte ausente de um índice NÃO vazio é outra coisa. Há composição, e
 /// a pergunta "por qual ambiente esta chamada alcança a relação?" ficou sem
-/// resposta. Conceder o nível próprio ali era responder "por todos": um span
-/// sem unidade reconhecida alcançava toda relação carregada no programa, e a
+/// resposta. Conceder alcance ali era responder "por todos": um span sem
+/// unidade reconhecida alcançava toda relação carregada no programa, e a
 /// ausência de contexto virava a autorização mais ampla que existe. Quem não
 /// sabe por qual ambiente responde não alcança relação nenhuma —
 /// `MISSING_SEMANTIC_CONTEXT -X-> EXPANDED_REACHABILITY`.
+pub fn relacao_alcanca(
+    por_fonte: &HashMap<SourceId, TratosNoDespacho>,
+    span: Span,
+    fonte_da_relacao: Option<SourceId>,
+) -> bool {
+    if por_fonte.is_empty() {
+        return true;
+    }
+    por_fonte
+        .get(&span.source)
+        .is_some_and(|tratos| tratos.alcanca(fonte_da_relacao))
+}
+
+/// Nível pelo qual a relação alcança quem escreveu `span`, se alcançar.
+///
+/// É a COMPOSIÇÃO ORDENADA das duas perguntas, e a ordem é o contrato:
+///
+/// ```text
+/// 1. relacao_alcanca  -> a relação participa? (POLICY_B, #649)
+/// 2. precedencia      -> que força ela tem?   (#577/C2, preexistente)
+/// ```
+///
+/// A #649 mudou QUAIS relações chegam ao passo 2. Ela não mudou o passo 2:
+/// entre relações que continuam alcançáveis, o vencedor é exatamente o que
+/// sempre foi, e a nomeabilidade do trato continua sendo o que separa a
+/// autoridade própria da dependência transportada.
+///
+/// ```text
+/// RELATION_REACHABILITY != RELATION_PRECEDENCE
+/// ```
 pub fn nivel_de_despacho(
     por_fonte: &HashMap<SourceId, TratosNoDespacho>,
     span: Span,
     trait_name: &str,
     fonte_da_relacao: Option<SourceId>,
 ) -> Option<NivelDeDespacho> {
-    if por_fonte.is_empty() {
-        return Some(NivelDeDespacho::Proprio);
+    if !relacao_alcanca(por_fonte, span, fonte_da_relacao) {
+        return None;
     }
-    por_fonte
-        .get(&span.source)?
-        .nivel(trait_name, fonte_da_relacao)
+    // Índice vazio é o caso legítimo sem composição: o despacho segue como
+    // sempre seguiu, no nível próprio.
+    let Some(tratos) = por_fonte.get(&span.source) else {
+        return Some(NivelDeDespacho::Proprio);
+    };
+    Some(tratos.precedencia(trait_name))
 }
 // @pinker-nav:end modulos.visibilidade.tratos
 

@@ -521,11 +521,7 @@ impl<'a> FunctionLowerer<'a> {
                 function_name: function_name.clone(),
                 relation: Some(DispatchRelation {
                     trait_name: identity.trait_name.clone(),
-                    fonte_da_relacao: self
-                        .context
-                        .fontes_das_relacoes
-                        .get(&(identity.trait_name.clone(), identity.target))
-                        .copied(),
+                    fonte_da_relacao: self.fonte_da_relacao(&identity.trait_name, identity.target),
                 }),
             });
         match method_dispatch::select_impl_method(
@@ -536,6 +532,31 @@ impl<'a> FunctionLowerer<'a> {
             MethodSelection::Winner(function_name) => Ok(Some(function_name)),
             MethodSelection::NoMatch | MethodSelection::Ambiguous => Ok(None),
         }
+    }
+
+    /// Unidade que DECLAROU a relação `(trato canônico, alvo resolvido)`.
+    ///
+    /// Adaptador único do lowering para a proveniência de relação; a pergunta
+    /// de alcance em si é de `module_resolve`.
+    fn fonte_da_relacao(&self, trait_name: &str, target: ResolvedTypeId) -> Option<SourceId> {
+        self.context
+            .fontes_das_relacoes
+            .get(&(trait_name.to_string(), target))
+            .copied()
+    }
+
+    /// A relação `(trato, alvo)` alcança quem escreveu `span`?
+    ///
+    /// #649/`POLICY_B_RELATION_REACHABILITY_ALWAYS_MATTERS` — a autoridade é
+    /// `module_resolve`, a MESMA que a checagem semântica e
+    /// o despacho não qualificado consultam. Sem isso `--check` e o lowering
+    /// discordariam sobre o mesmo programa.
+    fn relacao_alcanca(&self, trait_name: &str, target: ResolvedTypeId, span: Span) -> bool {
+        crate::module_resolve::relacao_alcanca(
+            &self.context.traits_visiveis_por_fonte,
+            span,
+            self.fonte_da_relacao(trait_name, target),
+        )
     }
 
     fn resolve_qualified_impl_method(
@@ -550,16 +571,22 @@ impl<'a> FunctionLowerer<'a> {
         // representação — o receiver da IR vira identidade resolvida — e a
         // tradução do veredito para `Option`, que é do lowering.
         let receiver_identity = receiver.identity(self.context, span)?;
-        Ok(
-            match self.resolve_qualified_impl_method_symbol(
-                trait_name,
-                &receiver_identity,
-                method_name,
-            ) {
-                QualifiedMethodResolution::Resolved(function_name) => Some(function_name),
-                QualifiedMethodResolution::NoMatch => None,
-            },
-        )
+        let function_name = match self.resolve_qualified_impl_method_symbol(
+            trait_name,
+            &receiver_identity,
+            method_name,
+        ) {
+            QualifiedMethodResolution::Resolved(function_name) => function_name,
+            QualifiedMethodResolution::NoMatch => return Ok(None),
+        };
+        // #649 — identidade exata não autoriza. Primeiro QUAL relação, depois
+        // se ESTE contexto pode usá-la: a chamada qualificada deixa de ser
+        // bypass da política modular, e a ordem das duas perguntas é a mesma
+        // que a checagem semântica aplica.
+        if !self.relacao_alcanca(trait_name, receiver_identity, span) {
+            return Ok(None);
+        }
+        Ok(Some(function_name))
     }
 
     /// Adaptador único do índice da IR para a autoridade qualificada.
@@ -778,6 +805,19 @@ impl<'a> FunctionLowerer<'a> {
         target_display: &str,
         span: Span,
     ) -> Result<Vec<String>, PinkerError> {
+        // #649 — a relação concreta entra na representação dinâmica AQUI, uma
+        // vez por objeto formado. O alcance é perguntado neste ponto e em
+        // nenhum outro: `lower_trait_call` consome o slot já autorizado e não
+        // refaz busca modular a cada chamada dinâmica.
+        if !self.relacao_alcanca(trait_name, target, span) {
+            return Err(PinkerError::Ir {
+                msg: format!(
+                    "impl de '{}' para '{}' não é alcançável desta unidade e não pode formar objeto de trato",
+                    trait_name, target_display
+                ),
+                span,
+            });
+        }
         let trait_meta = self
             .context
             .traits

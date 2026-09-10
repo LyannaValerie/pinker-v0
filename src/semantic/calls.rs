@@ -24,7 +24,7 @@ impl SemanticChecker {
     // @pinker-nav:start semantic.chamadas.despacho
     // @pinker-nav:domain chamadas
     // @pinker-nav:layer semantic
-    // @pinker-nav:summary Despacho de chamadas: resolução de método de impl (direta e qualificada por trato), restringida aos tratos que a unidade-fonte da chamada autorizou — uma chamada de método não nomeia o trato, então sem esse filtro um trato da raiz forneceria método default ao corpo de um módulo que nunca o importou. Quem alcança, quem precede e quem vence entre os candidatos não é decidido aqui: esta camada só constrói candidatos a partir de `method_index` e traduz o veredito de `method_dispatch`, a autoridade única que o lowering consulta com a mesma regra; a chamada qualificada nomeia o trato e continua sendo resolução de identidade, sem candidatos a comparar, e a correspondência exata dessa identidade é de `method_identity` desde a #647 — aqui sobram o adaptador que resolve o alvo e a mensagem, que é da fase. Também: seleção monomórfica das intrínsecas genéricas de mapa, checagem de chamada nomeada (aridade e tipos de argumento) e o despachante `check_call_expr` — construção de variante de leque, desugaring de `encaixe`, a checagem genérica das grafias históricas de contrato declarado, dirigida por `intrinsics::registry`, e os contratos próprios que sobram (aridade variável, formas genéricas de lista/mapa e restrições que não cabem em `(params, ret)`), caindo para a chamada de função declarada.
+    // @pinker-nav:summary Despacho de chamadas: resolução de método de impl (direta e qualificada por trato), restringida aos tratos que a unidade-fonte da chamada autorizou — uma chamada de método não nomeia o trato, então sem esse filtro um trato da raiz forneceria método default ao corpo de um módulo que nunca o importou. Quem alcança, quem precede e quem vence entre os candidatos não é decidido aqui: esta camada só constrói candidatos a partir de `method_index` e traduz o veredito de `method_dispatch`, a autoridade única que o lowering consulta com a mesma regra; a chamada qualificada nomeia o trato e continua sendo resolução de identidade, sem candidatos a comparar, e a correspondência exata dessa identidade é de `method_identity` desde a #647 — aqui sobram o adaptador que resolve o alvo e a mensagem, que é da fase; desde a #649 ela também pergunta o ALCANCE da relação resolvida à mesma autoridade de `module_resolve` que o despacho não qualificado consulta, porque poder nomear o trato não autoriza relação de unidade que este contexto nunca pediu. Também: seleção monomórfica das intrínsecas genéricas de mapa, checagem de chamada nomeada (aridade e tipos de argumento) e o despachante `check_call_expr` — construção de variante de leque, desugaring de `encaixe`, a checagem genérica das grafias históricas de contrato declarado, dirigida por `intrinsics::registry`, e os contratos próprios que sobram (aridade variável, formas genéricas de lista/mapa e restrições que não cabem em `(params, ret)`), caindo para a chamada de função declarada.
     fn check_trait_object_method_call(
         &mut self,
         expr_span: Span,
@@ -130,12 +130,7 @@ impl SemanticChecker {
                 .map(|meta| DispatchRelation {
                     trait_name: meta.identity.trait_name.clone(),
                     fonte_da_relacao: self
-                        .fontes_das_relacoes
-                        .get(&(
-                            meta.identity.trait_name.clone(),
-                            meta.identity.target.clone(),
-                        ))
-                        .copied(),
+                        .fonte_da_relacao(&meta.identity.trait_name, &meta.identity.target),
                 });
             DispatchCandidate {
                 function_name,
@@ -176,7 +171,7 @@ impl SemanticChecker {
         // lowering consulta. Aqui só sobram o adaptador de representação — o
         // alvo vira identidade resolvida antes da consulta — e a mensagem, que
         // é da fase.
-        match method_identity::resolve_qualified_impl_method(
+        let function_name = match method_identity::resolve_qualified_impl_method(
             self.impl_methods
                 .iter()
                 .map(|meta| (&meta.identity, meta.function_name.as_str())),
@@ -184,15 +179,31 @@ impl SemanticChecker {
             &resolved_key,
             method_name,
         ) {
-            QualifiedMethodResolution::Resolved(function_name) => Ok(function_name),
-            QualifiedMethodResolution::NoMatch => Err(PinkerError::Semantic {
+            QualifiedMethodResolution::Resolved(function_name) => function_name,
+            QualifiedMethodResolution::NoMatch => {
+                return Err(PinkerError::Semantic {
+                    msg: format!(
+                        "método '{}.{}' não implementado para tipo '{}'",
+                        trait_name, method_name, direct_key
+                    ),
+                    span,
+                })
+            }
+        };
+        // #649 — qualificar não é bypass da política modular. A identidade
+        // exata responde QUAL relação; o alcance responde se ESTE contexto pode
+        // usá-la, e as duas perguntas continuam com donos distintos.
+        if !self.relacao_alcanca(trait_name, &resolved_key, span) {
+            return Err(PinkerError::Semantic {
                 msg: format!(
-                    "método '{}.{}' não implementado para tipo '{}'",
-                    trait_name, method_name, direct_key
+                    "impl de '{}' para tipo '{}' não é alcançável desta unidade; \
+                     importe a unidade que declara essa implementação",
+                    trait_name, direct_key
                 ),
                 span,
-            }),
+            });
         }
+        Ok(function_name)
     }
 
     fn generic_map_monomorphic_callee(map_ty: &Type, name: &str) -> Option<&'static str> {

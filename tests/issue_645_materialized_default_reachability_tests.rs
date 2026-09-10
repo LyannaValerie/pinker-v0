@@ -405,9 +405,15 @@ fn homonimo_da_raiz_nao_captura_o_nome_do_corpo_default_materializado() {
 }
 
 /// A forma QUALIFICADA dentro do corpo default materializado continua sendo
-/// resolução de identidade pelo ambiente da declarante — o caso Y1 da #644, que
-/// a closure daquela Task classificou como contrato #517, não como defeito.
-/// A #645 não muda essa pergunta.
+/// resolução pelo ambiente da declarante — o caso Y1 da #644, que a closure
+/// daquela Task classificou como contrato #517, não como defeito. A #645 não
+/// muda essa pergunta, e a #649 tampouco: o que ela acrescenta é que o ambiente
+/// da declarante precisa ALCANÇAR a relação, e não apenas nomear o trato.
+///
+/// Por isso a declarante deste caso importa `m645_impl` desde a #649. O que o
+/// teste separa continua sendo declarante x importador: `m645_user` não nomeia
+/// `Medida` nem alcança a relação, e o corpo materializado nele continua sendo
+/// resolvido contra quem o escreveu.
 #[test]
 fn chamada_qualificada_no_corpo_default_segue_a_declarante() {
     let c = caso(
@@ -418,7 +424,7 @@ fn chamada_qualificada_no_corpo_default_segue_a_declarante() {
             IMPL_M,
             (
                 "m645_tr",
-                "pacote m645_tr;\ntrazer m645_tr2.Medida;\n\ntrato Base {\n    carinho rodar(valor: si) -> bombom { mimo Medida.medir(valor); }\n}\n",
+                "pacote m645_tr;\ntrazer m645_tr2.Medida;\ntrazer m645_impl;\n\ntrato Base {\n    carinho rodar(valor: si) -> bombom { mimo Medida.medir(valor); }\n}\n",
             ),
             USER,
         ],
@@ -602,18 +608,68 @@ fn span_de(source: SourceId) -> Span {
     Span::em(source, Position::new(1, 1), Position::new(1, 2))
 }
 
-/// A raiz importou `Marca` por nome: ela alcança o trato no nível próprio.
+/// A raiz alcança o que ela autorizou, e o nível diz por qual caminho.
+///
 /// É o controle positivo que prova que o índice deste caso não está vazio nem
-/// recusando tudo — sem ele, o caso negativo abaixo passaria por vacuidade.
+/// recusando tudo — sem ele, os casos negativos abaixo passariam por vacuidade.
+///
+/// #649/POLICY_B — quem responde pelo ALCANCE é a RELAÇÃO: a unidade que a
+/// declarou precisa ser a própria ou uma que esta importou. Antes desta
+/// política a pergunta era feita com o NOME do trato, e importar `Marca` por
+/// nome bastava para conceder alcance a qualquer relação carregada — é
+/// exatamente essa implicação que a Founder rejeitou em #579. A PRECEDÊNCIA
+/// entre as que alcançam continua sendo a da #577 e continua sendo decidida
+/// pelo nome do trato.
 #[test]
 fn lei_fonte_reconhecida_alcanca_o_que_autorizou() {
     let (graph, _fora) = grafo_com_composicao();
     let por_fonte = tratos_visiveis_por_fonte(&graph);
     assert!(!por_fonte.is_empty(), "o caso precisa ter composição");
     let raiz = graph.root().source_id;
+    let modulo = graph
+        .module("m645_lei")
+        .expect("o módulo do caso está no grafo")
+        .source_id;
+    assert_eq!(
+        nivel_de_despacho(&por_fonte, span_de(raiz), "m645_lei.Marca", Some(raiz)),
+        Some(NivelDeDespacho::Proprio),
+        "relação declarada pela própria unidade é alcançada no nível próprio"
+    );
+    assert_eq!(
+        nivel_de_despacho(&por_fonte, span_de(raiz), "m645_lei.Marca", Some(modulo)),
+        Some(NivelDeDespacho::Proprio),
+        "a relação ALCANÇA porque vem de unidade importada, e está no nível PRÓPRIO \
+         porque a raiz possui `Marca` por nome: são duas perguntas com entradas \
+         diferentes, e a #649 só mudou a primeira"
+    );
+    assert_eq!(
+        nivel_de_despacho(&por_fonte, span_de(raiz), "m645_lei.Outro", Some(modulo)),
+        Some(NivelDeDespacho::PorUnidadeImportada),
+        "mesma unidade importada, trato que a raiz não possui por nome: nível \
+         subordinado da #577"
+    );
+}
+
+/// #649/POLICY_B — nomear o trato não é caminho até relação alguma.
+///
+/// A raiz importa `m645_lei.Marca` por NOME e continua sem alcançar a relação
+/// de uma unidade irmã que ela nunca pediu. É o par negativo do controle
+/// acima: sem ele, o positivo não distinguiria POLICY_A de POLICY_B.
+#[test]
+fn lei_nomear_o_trato_nao_alcanca_relacao_de_irmao() {
+    let (graph, fora) = grafo_com_composicao();
+    let por_fonte = tratos_visiveis_por_fonte(&graph);
+    let raiz = graph.root().source_id;
+    assert_eq!(
+        nivel_de_despacho(&por_fonte, span_de(raiz), "m645_lei.Marca", Some(fora)),
+        None,
+        "TRAIT_NAMEABILITY != RELATION_REACHABILITY: a raiz nomeia `Marca` e \
+         mesmo assim não alcança relação declarada por unidade que não importou"
+    );
     assert_eq!(
         nivel_de_despacho(&por_fonte, span_de(raiz), "m645_lei.Marca", None),
-        Some(NivelDeDespacho::Proprio)
+        None,
+        "relação sem unidade declarante conhecida não exibe caminho autorizado"
     );
 }
 
@@ -626,9 +682,15 @@ fn lei_fonte_reconhecida_alcanca_o_que_autorizou() {
 fn lei_fonte_desconhecida_nao_alcanca_nada() {
     let (graph, fora) = grafo_com_composicao();
     let por_fonte = tratos_visiveis_por_fonte(&graph);
+    let raiz = graph.root().source_id;
     for desconhecida in [SourceId::UNKNOWN, fora] {
         assert_eq!(
-            nivel_de_despacho(&por_fonte, span_de(desconhecida), "m645_lei.Marca", None),
+            nivel_de_despacho(
+                &por_fonte,
+                span_de(desconhecida),
+                "m645_lei.Marca",
+                Some(raiz)
+            ),
             None,
             "fonte {desconhecida} não é unidade deste grafo e não pode alcançar relação alguma"
         );

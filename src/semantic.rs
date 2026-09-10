@@ -481,6 +481,34 @@ impl SemanticChecker {
         Ok(())
     }
 
+    /// Unidade que DECLAROU a relação `(trato canônico, alvo canônico)`.
+    ///
+    /// Adaptador único da fase para a proveniência de relação; a pergunta de
+    /// alcance em si é de `module_resolve`. Mora no pai porque as duas
+    /// superfícies que a fazem — chamada qualificada em `calls` e formação de
+    /// objeto de trato em `expressions` — são irmãs, e duplicar o adaptador
+    /// devolveria a cada uma a chance de responder por conta própria.
+    fn fonte_da_relacao(&self, trait_name: &str, target: &str) -> Option<SourceId> {
+        self.fontes_das_relacoes
+            .get(&(trait_name.to_string(), target.to_string()))
+            .copied()
+    }
+
+    /// A relação `(trato, alvo)` alcança quem escreveu `span`?
+    ///
+    /// #649/`POLICY_B_RELATION_REACHABILITY_ALWAYS_MATTERS` — a autoridade é
+    /// `module_resolve`, a MESMA que o despacho não qualificado consulta por
+    /// dentro de `method_dispatch`. Esta fase só traz a sua representação de
+    /// alvo e traduz o veredito: nenhuma regra de alcance nasce aqui, e a
+    /// resposta não depende de o chamador poder nomear o trato.
+    fn relacao_alcanca(&self, trait_name: &str, target: &str, span: Span) -> bool {
+        crate::module_resolve::relacao_alcanca(
+            &self.traits_visiveis_por_fonte,
+            span,
+            self.fonte_da_relacao(trait_name, target),
+        )
+    }
+
     fn trait_object_name(ty: &Type) -> Option<&str> {
         match ty {
             Type::Applied {
