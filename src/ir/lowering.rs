@@ -520,6 +520,7 @@ impl<'a> FunctionLowerer<'a> {
             .map(|(identity, function_name)| DispatchCandidate {
                 function_name: function_name.clone(),
                 relation: Some(DispatchRelation {
+                    trait_name: identity.trait_name.clone(),
                     fonte_da_relacao: self.fonte_da_relacao(&identity.trait_name, identity.target),
                 }),
             });

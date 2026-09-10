@@ -446,33 +446,35 @@ fn homonimos_em_unidades_distintas_nao_compartilham_alcance() {
 }
 
 // ---------------------------------------------------------------------------
-// Competição entre relações ALCANÇÁVEIS — o nível segue a relação
+// Competição entre relações ALCANÇÁVEIS — a precedência NÃO é desta Task
 // ---------------------------------------------------------------------------
 //
-// A regra de precedência não mudou: vence o nível mais forte, e `Proprio`
-// precede `PorUnidadeImportada` (#577). O que POLICY_B mudou é a ENTRADA dessa
-// classificação — o nível passou a seguir a unidade que declarou a RELAÇÃO, e
-// não o fato de o chamador poder nomear o trato. Quando duas relações
-// alcançáveis competem pelo mesmo `(alvo, método)`, isso é observável, e as
-// duas transições abaixo são deltas intencionais desta Task.
+// ```text
+// RELATION_REACHABILITY != RELATION_PRECEDENCE
+// ```
+//
+// A #649 decidiu QUAIS relações participam. Ela não decidiu qual delas vence
+// entre as que participam: essa é a pergunta da #577/C2, e o contrato dela
+// continua sendo o do baseline. Os dois casos abaixo são o teste perfeito da
+// separação, porque neles NENHUMA relação deixa de ser alcançável — só a
+// competição é observável. Se o vencedor mudasse aqui, a Task teria expandido
+// a decisão da Founder por analogia, que foi exatamente o achado G649-01.
 
-/// Relação PRÓPRIA contra relação de unidade importada.
+/// Relação própria e relação de unidade importada, ambas alcançáveis, ambas de
+/// trato que o chamador nomeia.
 ///
 /// `c` declara o trato `B` e a relação `B para bombom`; a relação `A para
-/// bombom` vem de `ia`, que `c` importou. As duas alcançam.
-///
-/// Antes da #649 as duas recebiam `Proprio` — uma por declaração, a outra
-/// porque `c` também nomeia `A` — e a chamada era AMBÍGUA. Sob POLICY_B a
-/// relação declarada por `c` é a própria e a transportada é subordinada, então
-/// a autoridade da unidade vence sozinha. É a subordinação que a #577 enunciou,
-/// agora aplicada à relação em vez de ao nome do trato.
+/// bombom` vem de `ia`, que `c` importou; `c` também importa `tr.A` por nome.
+/// As duas alcançam pelo alcance da #649, e as duas estão no nível próprio pela
+/// precedência da #577, porque `c` possui os DOIS tratos por nome. Empate é
+/// ambiguidade, e era ambiguidade antes da #649.
 #[test]
-fn relacao_propria_vence_relacao_de_unidade_importada() {
+fn precedencia_entre_relacoes_alcancaveis_permanece_a_do_baseline() {
     let tr = "pacote tr;\n\ntrato A {\n    carinho medir(valor: si) -> bombom;\n}\n";
     let ia = "pacote ia;\ntrazer tr.A;\n\nimpl A para bombom {\n    carinho medir(valor: bombom) -> bombom { mimo 20; }\n}\n";
     let c = "pacote c;\ntrazer tr.A;\ntrazer ia;\n\ntrato B {\n    carinho medir(valor: si) -> bombom;\n}\n\nimpl B para bombom {\n    carinho medir(valor: bombom) -> bombom { mimo 3; }\n}\n\ncarinho usar(x: bombom) -> bombom { mimo x.medir(); }\n";
     let caso = caso(
-        "prec_propria_649",
+        "prec1_649",
         "pacote main;\ntrazer c.usar;\n\ncarinho principal() -> bombom { mimo usar(5); }\n",
         &[
             ("tr", tr.to_string()),
@@ -480,64 +482,99 @@ fn relacao_propria_vence_relacao_de_unidade_importada() {
             ("c", c.to_string()),
         ],
     );
-    let checagem = pink("649-prec-propria-check", &["--check"], &caso.raiz);
-    assert_eq!(codigo(&checagem), 0, "{}", stderr(&checagem));
-    let execucao = pink("649-prec-propria-run", &["--run"], &caso.raiz);
+    let checagem = pink("649-prec1-check", &["--check"], &caso.raiz);
     assert_eq!(
-        codigo(&execucao),
-        3,
-        "a relação declarada pela própria unidade tem de vencer a transportada: {}",
-        stderr(&execucao)
+        codigo(&checagem),
+        1,
+        "as duas relações alcançam e as duas são de trato próprio: continua ambíguo, \
+         como no baseline. Mudar o vencedor aqui seria mudar precedência, que a \
+         #649 não decidiu: {}",
+        stderr(&checagem)
+    );
+    assert!(
+        stderr(&checagem).contains("é ambíguo"),
+        "a recusa é de seleção, não de alcance: {}",
+        stderr(&checagem)
+    );
+    assert_eq!(
+        codigo(&pink("649-prec1-run", &["--run"], &caso.raiz)),
+        1,
+        "o lowering tem de recusar o que `--check` recusou"
     );
 }
 
-/// Duas relações TRANSPORTADAS competindo: nomear um dos tratos não desempata.
+/// Duas relações transportadas, uma de trato que o chamador nomeia.
 ///
-/// `c` importa `ia` e `ib`, e nomeia apenas `tr.A`. As duas relações alcançam
-/// `c` pelo mesmo nível subordinado.
-///
-/// Antes da #649 nomear `A` promovia aquela relação a `Proprio` e ela vencia
-/// sozinha, executando 20. Sob POLICY_B a nomeabilidade não decide nada —
-/// inclusive não decide precedência —, os dois candidatos ficam no mesmo nível
-/// e a chamada é ambígua, com a mensagem que manda qualificar. Qualificar
-/// continua funcionando, e é o que o controle abaixo prova.
+/// `c` importa `ia` e `ib`, e nomeia apenas `tr.A`. As duas relações alcançam.
+/// Pela precedência da #577, nomear `A` põe aquela relação no nível próprio e a
+/// de `ib` no subordinado, então `A` vence sozinha e o programa executa 20 —
+/// exatamente como no baseline. A nomeabilidade do trato não decide mais
+/// ALCANCE, e continua decidindo PRECEDÊNCIA: são relações semânticas
+/// distintas, e a #649 só mexeu na primeira.
 #[test]
-fn nomear_um_dos_tratos_nao_desempata_duas_relacoes_transportadas() {
+fn nomeabilidade_do_trato_continua_desempatando_relacoes_alcancaveis() {
     let tr = "pacote tr;\n\ntrato A {\n    carinho medir(valor: si) -> bombom;\n}\n";
     let tr2 = "pacote tr2;\n\ntrato B {\n    carinho medir(valor: si) -> bombom;\n}\n";
     let ia = "pacote ia;\ntrazer tr.A;\n\nimpl A para bombom {\n    carinho medir(valor: bombom) -> bombom { mimo 20; }\n}\n";
     let ib = "pacote ib;\ntrazer tr2.B;\n\nimpl B para bombom {\n    carinho medir(valor: bombom) -> bombom { mimo 3; }\n}\n";
-    let raiz = "pacote main;\ntrazer c.usar;\n\ncarinho principal() -> bombom { mimo usar(5); }\n";
-    let modulos = |corpo: &str| {
-        vec![
+    let c = "pacote c;\ntrazer tr.A;\ntrazer ia;\ntrazer ib;\n\ncarinho usar(x: bombom) -> bombom { mimo x.medir(); }\n";
+    let caso = caso(
+        "prec2_649",
+        "pacote main;\ntrazer c.usar;\n\ncarinho principal() -> bombom { mimo usar(5); }\n",
+        &[
             ("tr", tr.to_string()),
             ("tr2", tr2.to_string()),
             ("ia", ia.to_string()),
             ("ib", ib.to_string()),
-            (
-                "c",
-                format!("pacote c;\ntrazer tr.A;\ntrazer ia;\ntrazer ib;\n\ncarinho usar(x: bombom) -> bombom {{ {corpo} }}\n"),
-            ),
-        ]
-    };
-
-    let ambiguo = caso("prec_transp_649", raiz, &modulos("mimo x.medir();"));
-    let checagem = pink("649-prec-transp-check", &["--check"], &ambiguo.raiz);
-    assert_eq!(codigo(&checagem), 1, "{}", stderr(&checagem));
-    assert!(
-        stderr(&checagem).contains("é ambíguo"),
-        "a recusa tem de ser de ambiguidade entre dois subordinados, não de alcance: {}",
-        stderr(&checagem)
+            ("c", c.to_string()),
+        ],
     );
-
-    // Controle: a saída que a própria mensagem indica continua disponível, e
-    // resolve para a relação nomeada — a ambiguidade é de seleção, não perda
-    // de alcance.
-    let qualificado = caso("prec_transp_q_649", raiz, &modulos("mimo A.medir(x);"));
-    let checagem = pink("649-prec-transp-q-check", &["--check"], &qualificado.raiz);
+    let checagem = pink("649-prec2-check", &["--check"], &caso.raiz);
     assert_eq!(codigo(&checagem), 0, "{}", stderr(&checagem));
-    let execucao = pink("649-prec-transp-q-run", &["--run"], &qualificado.raiz);
-    assert_eq!(codigo(&execucao), 20, "{}", stderr(&execucao));
+    let execucao = pink("649-prec2-run", &["--run"], &caso.raiz);
+    assert_eq!(
+        codigo(&execucao),
+        20,
+        "o trato nomeado continua vencendo o subordinado, como no baseline: {}",
+        stderr(&execucao)
+    );
+}
+
+/// O par negativo dos dois casos acima: quando a relação de `ia` NÃO alcança,
+/// ela não chega nem a competir.
+///
+/// Sem `trazer ia;`, a relação de `A` deixa de participar e a de `ib` — cujo
+/// trato `c` não nomeia — vence sozinha pelo nível subordinado, executando 3.
+/// Sem este caso, os dois anteriores não distinguiriam "a precedência foi
+/// preservada" de "o alcance nunca foi aplicado aqui".
+#[test]
+fn relacao_inalcancavel_nao_chega_a_competir_por_precedencia() {
+    let tr = "pacote tr;\n\ntrato A {\n    carinho medir(valor: si) -> bombom;\n}\n";
+    let tr2 = "pacote tr2;\n\ntrato B {\n    carinho medir(valor: si) -> bombom;\n}\n";
+    let ia = "pacote ia;\ntrazer tr.A;\n\nimpl A para bombom {\n    carinho medir(valor: bombom) -> bombom { mimo 20; }\n}\n";
+    let ib = "pacote ib;\ntrazer tr2.B;\n\nimpl B para bombom {\n    carinho medir(valor: bombom) -> bombom { mimo 3; }\n}\n";
+    // `c` nomeia `tr.A` e NÃO importa `ia`; a raiz carrega `ia` assim mesmo.
+    let c = "pacote c;\ntrazer tr.A;\ntrazer ib;\n\ncarinho usar(x: bombom) -> bombom { mimo x.medir(); }\n";
+    let caso = caso(
+        "prec3_649",
+        "pacote main;\ntrazer ia;\ntrazer c.usar;\n\ncarinho principal() -> bombom { mimo usar(5); }\n",
+        &[
+            ("tr", tr.to_string()),
+            ("tr2", tr2.to_string()),
+            ("ia", ia.to_string()),
+            ("ib", ib.to_string()),
+            ("c", c.to_string()),
+        ],
+    );
+    let checagem = pink("649-prec3-check", &["--check"], &caso.raiz);
+    assert_eq!(codigo(&checagem), 0, "{}", stderr(&checagem));
+    let execucao = pink("649-prec3-run", &["--run"], &caso.raiz);
+    assert_eq!(
+        codigo(&execucao),
+        3,
+        "a relação de `ia` não alcança `c` e não participa; a de `ib` vence sozinha: {}",
+        stderr(&execucao)
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -658,13 +695,20 @@ fn span_de(source: SourceId) -> Span {
     Span::em(source, Position::new(1, 1), Position::new(1, 2))
 }
 
-/// `TRAIT_NAMEABILITY != RELATION_REACHABILITY`, no ponto de decisão.
+/// As duas perguntas, no ponto de decisão, com as entradas trocadas de
+/// propósito.
 ///
-/// A raiz importa `Marca` por nome e continua sem alcançar a relação declarada
-/// pelo irmão que ela nunca pediu. O par positivo prova que o índice não está
-/// recusando tudo.
+/// ```text
+/// TRAIT_NAMEABILITY != RELATION_REACHABILITY   (#649/POLICY_B, decidido)
+/// TRAIT_NAMEABILITY == RELATION_PRECEDENCE     (#577/C2, preexistente e intocado)
+/// ```
+///
+/// A raiz importa `Marca` por nome e continua sem ALCANÇAR a relação declarada
+/// pelo irmão que ela nunca pediu; e continua pondo no nível PRÓPRIO a relação
+/// que alcança e cujo trato ela possui por nome. Os pares positivos provam que
+/// o índice não está recusando tudo nem promovendo tudo.
 #[test]
-fn lei_nomear_o_trato_nao_alcanca_relacao_de_irmao_carregado() {
+fn lei_alcance_segue_a_relacao_e_precedencia_segue_o_nome_do_trato() {
     let (graph, irmao) = grafo_com_irmao();
     let por_fonte = tratos_visiveis_por_fonte(&graph);
     assert!(!por_fonte.is_empty(), "o caso precisa ter composição");
@@ -675,19 +719,33 @@ fn lei_nomear_o_trato_nao_alcanca_relacao_de_irmao_carregado() {
         .source_id;
 
     assert_eq!(
-        nivel_de_despacho(&por_fonte, span_de(raiz), Some(raiz)),
+        nivel_de_despacho(&por_fonte, span_de(raiz), "m649_lei.Marca", Some(raiz)),
         Some(NivelDeDespacho::Proprio),
-        "relação da própria unidade"
+        "relação da própria unidade, de trato que ela possui por nome"
     );
     assert_eq!(
-        nivel_de_despacho(&por_fonte, span_de(raiz), Some(importado)),
+        nivel_de_despacho(&por_fonte, span_de(raiz), "m649_lei.Marca", Some(importado)),
+        Some(NivelDeDespacho::Proprio),
+        "ALCANCE e PRECEDÊNCIA são perguntas distintas: a relação alcança porque \
+         vem de unidade importada, e está no nível próprio porque a raiz possui \
+         `Marca` por nome. Este é o contrato de precedência da #577, que a #649 \
+         não reabriu — se ele virasse subordinado aqui, a Task teria mudado \
+         precedência sem autoridade (G649-01)."
+    );
+    assert_eq!(
+        nivel_de_despacho(&por_fonte, span_de(raiz), "m649_lei.Outro", Some(importado)),
         Some(NivelDeDespacho::PorUnidadeImportada),
-        "relação da unidade importada (#577)"
+        "mesma unidade importada, trato que a raiz NÃO possui por nome: nível \
+         subordinado. É o nome do trato que separa os dois níveis, e continua sendo."
+    );
+    assert!(
+        !relacao_alcanca(&por_fonte, span_de(raiz), Some(irmao)),
+        "irmão carregado sem aresta autorizada não alcança, mesmo com o trato nomeável"
     );
     assert_eq!(
-        nivel_de_despacho(&por_fonte, span_de(raiz), Some(irmao)),
+        nivel_de_despacho(&por_fonte, span_de(raiz), "m649_lei.Marca", Some(irmao)),
         None,
-        "irmão carregado sem aresta autorizada não alcança, mesmo com o trato nomeável"
+        "e por não alcançar, não chega a receber nível nenhum"
     );
 }
 
@@ -702,7 +760,7 @@ fn lei_o_predicado_booleano_concorda_com_o_nivel() {
     for fonte in [Some(raiz), Some(importado), Some(irmao), None] {
         assert_eq!(
             relacao_alcanca(&por_fonte, span_de(raiz), fonte),
-            nivel_de_despacho(&por_fonte, span_de(raiz), fonte).is_some(),
+            nivel_de_despacho(&por_fonte, span_de(raiz), "m649_lei.Marca", fonte).is_some(),
             "divergência para fonte {fonte:?}"
         );
     }
@@ -730,28 +788,61 @@ fn lei_contexto_perdido_e_indice_vazio_permanecem_como_a_u04_os_deixou() {
 // Guarda estrutural — POLICY_A não pode voltar por outro nome
 // ---------------------------------------------------------------------------
 
-/// A autoridade de alcance não tem como perguntar pelo nome do trato.
+/// A decisão de ALCANCE não tem como perguntar pelo nome do trato.
 ///
-/// Não é estética: enquanto a estrutura que decide alcance guardar nomes de
-/// trato, `POLICY_A` volta com uma linha. O oráculo é o código executável da
-/// região cartografada, sem comentários.
+/// Não é estética: enquanto a função que decide alcance puder ler nome de
+/// trato, `POLICY_A` volta com uma linha. O escopo do guarda é a função de
+/// alcance e o método que ela chama — NÃO a região inteira, porque a
+/// precedência da #577 legitimamente lê `autorizados`, e apagar essa distinção
+/// era o defeito G649-01.
 #[test]
-fn a_autoridade_de_alcance_nao_conhece_nome_de_trato() {
+fn a_decisao_de_alcance_nao_conhece_nome_de_trato() {
     let fonte =
         fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/module_resolve.rs"))
             .expect("ler a autoridade de alcance");
-    let inicio = fonte
-        .find("// @pinker-nav:start modulos.visibilidade.tratos")
-        .expect("região de alcance marcada");
-    let fim = fonte
-        .find("// @pinker-nav:end modulos.visibilidade.tratos")
-        .expect("fim da região de alcance");
-    let codigo = codigo_executavel(&fonte[inicio..fim]);
-    for proibido in ["trait_name", "autorizados", "Item::Trait"] {
-        assert!(
-            !codigo.contains(proibido),
-            "a decisão de alcance voltou a depender de `{proibido}`: \
-             nomeabilidade do trato não pode autorizar relação (#579/POLICY_B)"
-        );
+
+    /// Recorta a função que começa em `inicio` até a chave de fechamento NA
+    /// MESMA indentação da assinatura. Fechar em coluna zero engoliria os
+    /// métodos vizinhos do mesmo `impl` — e era justamente um vizinho, a
+    /// precedência, que legitimamente lê `autorizados`.
+    fn corpo<'a>(fonte: &'a str, inicio: &str) -> &'a str {
+        let comeco = fonte
+            .find(inicio)
+            .unwrap_or_else(|| panic!("assinatura ausente: {inicio}"));
+        let indentacao: String = inicio.chars().take_while(|c| *c == ' ').collect();
+        let fechamento = format!("\n{indentacao}}}");
+        let resto = &fonte[comeco..];
+        let fim = resto
+            .find(&fechamento)
+            .unwrap_or_else(|| panic!("fim do corpo ausente: {inicio}"))
+            + fechamento.len();
+        &resto[..fim]
     }
+
+    for assinatura in [
+        "pub fn relacao_alcanca(",
+        "    fn alcanca(&self, fonte_da_relacao: Option<SourceId>) -> bool {",
+    ] {
+        let codigo = codigo_executavel(corpo(&fonte, assinatura));
+        for proibido in ["trait_name", "autorizados"] {
+            assert!(
+                !codigo.contains(proibido),
+                "`{assinatura}` voltou a depender de `{proibido}`: nomeabilidade do \
+                 trato não pode autorizar relação (#579/POLICY_B)"
+            );
+        }
+    }
+
+    // O contraponto obrigatório: a precedência CONTINUA lendo o nome do trato.
+    // Sem esta metade, o guarda acima passaria também numa árvore em que a
+    // #649 tivesse apagado a precedência da #577 junto com o alcance.
+    let precedencia = codigo_executavel(corpo(
+        &fonte,
+        "    fn precedencia(&self, trait_name: &str) -> NivelDeDespacho {",
+    ));
+    assert!(
+        precedencia.contains("autorizados"),
+        "a precedência da #577 é decidida pelo trato que a unidade possui por nome, \
+         e a #649 não reabriu essa pergunta"
+    );
 }

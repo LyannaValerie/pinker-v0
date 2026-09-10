@@ -27,12 +27,11 @@ use std::time::Duration;
 // A autoridade, exercitada diretamente
 // ---------------------------------------------------------------------------
 
-/// `_trato` continua no nome do caso por legibilidade da matriz; desde a #649
-/// ele NAO e entrada da pergunta de alcance, e por isso nao chega ao transporte.
-fn candidato(function_name: &str, _trato: &str) -> DispatchCandidate {
+fn candidato(function_name: &str, trait_name: &str) -> DispatchCandidate {
     DispatchCandidate {
         function_name: function_name.to_string(),
         relation: Some(DispatchRelation {
+            trait_name: trait_name.to_string(),
             fonte_da_relacao: None,
         }),
     }

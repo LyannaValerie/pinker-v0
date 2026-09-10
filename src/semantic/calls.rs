@@ -128,6 +128,7 @@ impl SemanticChecker {
                 .iter()
                 .find(|meta| meta.function_name == function_name)
                 .map(|meta| DispatchRelation {
+                    trait_name: meta.identity.trait_name.clone(),
                     fonte_da_relacao: self
                         .fonte_da_relacao(&meta.identity.trait_name, &meta.identity.target),
                 });

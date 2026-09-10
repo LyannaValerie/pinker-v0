@@ -613,12 +613,13 @@ fn span_de(source: SourceId) -> Span {
 /// É o controle positivo que prova que o índice deste caso não está vazio nem
 /// recusando tudo — sem ele, os casos negativos abaixo passariam por vacuidade.
 ///
-/// #649/POLICY_B — quem responde é a RELAÇÃO. A relação declarada pela própria
-/// raiz é alcançada no nível próprio; a declarada pelo módulo que ela importou,
-/// no subordinado da #577. Antes desta política a pergunta era feita com o NOME
-/// do trato, e importar `Marca` por nome bastava para conceder o nível mais
-/// forte a qualquer relação carregada — é exatamente essa implicação que a
-/// Founder rejeitou em #579.
+/// #649/POLICY_B — quem responde pelo ALCANCE é a RELAÇÃO: a unidade que a
+/// declarou precisa ser a própria ou uma que esta importou. Antes desta
+/// política a pergunta era feita com o NOME do trato, e importar `Marca` por
+/// nome bastava para conceder alcance a qualquer relação carregada — é
+/// exatamente essa implicação que a Founder rejeitou em #579. A PRECEDÊNCIA
+/// entre as que alcançam continua sendo a da #577 e continua sendo decidida
+/// pelo nome do trato.
 #[test]
 fn lei_fonte_reconhecida_alcanca_o_que_autorizou() {
     let (graph, _fora) = grafo_com_composicao();
@@ -630,14 +631,22 @@ fn lei_fonte_reconhecida_alcanca_o_que_autorizou() {
         .expect("o módulo do caso está no grafo")
         .source_id;
     assert_eq!(
-        nivel_de_despacho(&por_fonte, span_de(raiz), Some(raiz)),
+        nivel_de_despacho(&por_fonte, span_de(raiz), "m645_lei.Marca", Some(raiz)),
         Some(NivelDeDespacho::Proprio),
         "relação declarada pela própria unidade é alcançada no nível próprio"
     );
     assert_eq!(
-        nivel_de_despacho(&por_fonte, span_de(raiz), Some(modulo)),
+        nivel_de_despacho(&por_fonte, span_de(raiz), "m645_lei.Marca", Some(modulo)),
+        Some(NivelDeDespacho::Proprio),
+        "a relação ALCANÇA porque vem de unidade importada, e está no nível PRÓPRIO \
+         porque a raiz possui `Marca` por nome: são duas perguntas com entradas \
+         diferentes, e a #649 só mudou a primeira"
+    );
+    assert_eq!(
+        nivel_de_despacho(&por_fonte, span_de(raiz), "m645_lei.Outro", Some(modulo)),
         Some(NivelDeDespacho::PorUnidadeImportada),
-        "relação da unidade importada é alcançada no nível subordinado (#577)"
+        "mesma unidade importada, trato que a raiz não possui por nome: nível \
+         subordinado da #577"
     );
 }
 
@@ -652,13 +661,13 @@ fn lei_nomear_o_trato_nao_alcanca_relacao_de_irmao() {
     let por_fonte = tratos_visiveis_por_fonte(&graph);
     let raiz = graph.root().source_id;
     assert_eq!(
-        nivel_de_despacho(&por_fonte, span_de(raiz), Some(fora)),
+        nivel_de_despacho(&por_fonte, span_de(raiz), "m645_lei.Marca", Some(fora)),
         None,
         "TRAIT_NAMEABILITY != RELATION_REACHABILITY: a raiz nomeia `Marca` e \
          mesmo assim não alcança relação declarada por unidade que não importou"
     );
     assert_eq!(
-        nivel_de_despacho(&por_fonte, span_de(raiz), None),
+        nivel_de_despacho(&por_fonte, span_de(raiz), "m645_lei.Marca", None),
         None,
         "relação sem unidade declarante conhecida não exibe caminho autorizado"
     );
@@ -676,7 +685,12 @@ fn lei_fonte_desconhecida_nao_alcanca_nada() {
     let raiz = graph.root().source_id;
     for desconhecida in [SourceId::UNKNOWN, fora] {
         assert_eq!(
-            nivel_de_despacho(&por_fonte, span_de(desconhecida), Some(raiz)),
+            nivel_de_despacho(
+                &por_fonte,
+                span_de(desconhecida),
+                "m645_lei.Marca",
+                Some(raiz)
+            ),
             None,
             "fonte {desconhecida} não é unidade deste grafo e não pode alcançar relação alguma"
         );
@@ -689,7 +703,7 @@ fn lei_fonte_desconhecida_nao_alcanca_nada() {
 fn lei_indice_vazio_continua_permissivo() {
     let vazio = std::collections::HashMap::new();
     assert_eq!(
-        nivel_de_despacho(&vazio, span_de(SourceId::UNKNOWN), None),
+        nivel_de_despacho(&vazio, span_de(SourceId::UNKNOWN), "Marca", None),
         Some(NivelDeDespacho::Proprio)
     );
 }
