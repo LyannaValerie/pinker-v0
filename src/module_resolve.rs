@@ -427,7 +427,7 @@ fn ambiente_da_unidade(
 // @pinker-nav:start modulos.resolucao.nominal-canonica
 // @pinker-nav:domain modulos
 // @pinker-nav:layer compilador
-// @pinker-nav:summary resolver_grafo reescreve declarações e referências de cada unidade para o nome canônico da unidade de origem, usando exclusivamente o ambiente que aquela unidade autorizou: a raiz preserva a grafia e o módulo qualifica pela própria chave, de modo que dois módulos independentes possam declarar o mesmo nome interno sem colidir e nenhuma referência de módulo possa ser satisfeita por disponibilidade acidental na raiz ou em irmão. Nomes possuídos pelo compilador, intrínsecas públicas, formas qualificadas de família, locais, parâmetros, bindings de padrão e parâmetros de tipo não são reescritos. Referência livre não autorizada que exista em outra unidade é recusada com o span e a fonte de quem a escreveu, em vez de religada em silêncio. Desde a #517 o CORPO default de um trato importado é resolvido contra o ambiente da unidade que DECLAROU o trato, e não contra o do importador: o parser copia esse corpo para a unidade que fez o `impl`, e como a raiz preserva grafia, resolvê-lo ali deixaria um homônimo da raiz capturar em silêncio o auxiliar do módulo. Só o corpo troca de ambiente; os tipos, inclusive o alvo do `impl`, continuam sendo da unidade que escreveu o `impl`. Desde a #567 a mesma troca vale para as closures sintéticas que esse corpo cita, e desde a #592 as três formas — default selecionado, default só para checagem e dependência sintética — são reconhecidas pelo mesmo fato adulto `trait_default_body`, nunca pelo prefixo do nome: o nome sintético é cunhado por quem materializa — no caso da closure tem de ser, porque o índice local do codec só é injetivo ali — e portanto não poderia responder pela origem.
+// @pinker-nav:summary resolver_grafo reescreve declarações e referências de cada unidade para o nome canônico da unidade de origem, usando exclusivamente o ambiente que aquela unidade autorizou: a raiz preserva a grafia e o módulo qualifica pela própria chave, de modo que dois módulos independentes possam declarar o mesmo nome interno sem colidir e nenhuma referência de módulo possa ser satisfeita por disponibilidade acidental na raiz ou em irmão. Nomes possuídos pelo compilador, intrínsecas públicas, formas qualificadas de família, locais, parâmetros, bindings de padrão e parâmetros de tipo não são reescritos. Referência livre não autorizada que exista em outra unidade é recusada com o span e a fonte de quem a escreveu, em vez de religada em silêncio. Desde a #517 o CORPO default de um trato importado é resolvido contra o ambiente da unidade que DECLAROU o trato, e não contra o do importador: o parser copia esse corpo para a unidade que fez o `impl`, e como a raiz preserva grafia, resolvê-lo ali deixaria um homônimo da raiz capturar em silêncio o auxiliar do módulo. Só o corpo troca de ambiente; os tipos, inclusive o alvo do `impl`, continuam sendo da unidade que escreveu o `impl`. Desde a #645 essa troca inclui a unidade-fonte do corpo, e não apenas o ambiente nominal: o alcance de relação pergunta por unidade-fonte, e o corpo copiado chega sem nenhuma. Desde a #567 a mesma troca vale para as closures sintéticas que esse corpo cita, e desde a #592 as três formas — default selecionado, default só para checagem e dependência sintética — são reconhecidas pelo mesmo fato adulto `trait_default_body`, nunca pelo prefixo do nome: o nome sintético é cunhado por quem materializa — no caso da closure tem de ser, porque o índice local do codec só é injetivo ali — e portanto não poderia responder pela origem.
 struct Resolvedor<'a> {
     unit_key: ModuleKey,
     env: &'a ModuleEnvironment,
@@ -448,6 +448,14 @@ struct Resolvedor<'a> {
     /// #517: unidades que declararam cada trato, para que o corpo default
     /// copiado pelo parser continue significando o que significava na origem.
     origem_dos_tratos: OrigemDosTratos<'a>,
+    /// #645: unidade-fonte contra a qual o CORPO em resolução responde, quando
+    /// ele é um default copiado de outra unidade. `None` fora desse caso.
+    ///
+    /// O corpo materializado atravessa o prepass, que lê o módulo vizinho sem
+    /// registrar unidade-fonte: todo span dele chega sem fonte. Sem reatribuir
+    /// aqui, o alcance de relação perguntaria por uma fonte que nenhuma unidade
+    /// reivindica, e a resposta seria "sem composição a restringir".
+    fonte_do_corpo: Option<SourceId>,
     /// Escopos de valor: parâmetros, locais e bindings de padrão.
     bound: Vec<HashSet<String>>,
     /// Escopos de tipo: parâmetros de tipo de função, struct e leque.
@@ -468,6 +476,11 @@ struct OrigemDosTratos<'a> {
     tratos: &'a HashMap<String, ModuleId>,
     chaves: &'a HashMap<ModuleId, ModuleKey>,
     ambientes: &'a HashMap<ModuleId, ModuleEnvironment>,
+    /// #645: a unidade-fonte de cada unidade declarante. O ambiente responde
+    /// por NOMES; o alcance de relação pergunta por unidade-fonte, e sem esta
+    /// terceira coluna a resposta teria de ser deduzida do span copiado — que é
+    /// justamente o que o prepass não registra.
+    fontes: &'a HashMap<ModuleId, SourceId>,
 }
 
 /// A função carrega o corpo default de um trato, copiado pelo parser?
@@ -511,6 +524,7 @@ impl<'a> Resolvedor<'a> {
             declaradas_no_grafo,
             declaradas_na_raiz,
             origem_dos_tratos,
+            fonte_do_corpo: None,
             bound: Vec::new(),
             type_bound: Vec::new(),
         }
@@ -525,7 +539,7 @@ impl<'a> Resolvedor<'a> {
     fn origem_do_corpo_default(
         &self,
         function: &FunctionDecl,
-    ) -> Option<(ModuleKey, &'a ModuleEnvironment)> {
+    ) -> Option<(ModuleKey, &'a ModuleEnvironment, SourceId)> {
         let trait_spelling = corpo_default_de_trato(function)?;
         let canonical = canonizar_grafia(trait_spelling, self.env);
         let id = *self.origem_dos_tratos.tratos.get(&canonical)?;
@@ -533,7 +547,11 @@ impl<'a> Resolvedor<'a> {
         if *chave == self.unit_key {
             return None;
         }
-        Some((chave.clone(), self.origem_dos_tratos.ambientes.get(&id)?))
+        Some((
+            chave.clone(),
+            self.origem_dos_tratos.ambientes.get(&id)?,
+            *self.origem_dos_tratos.fontes.get(&id)?,
+        ))
     }
 
     fn ligado(&self, name: &str) -> bool {
@@ -696,12 +714,18 @@ impl<'a> Resolvedor<'a> {
         // de ambiente é só o CORPO, e só quando ele é o default copiado de um
         // trato de outra unidade.
         let resultado = match self.origem_do_corpo_default(function) {
-            Some((chave, env)) => {
+            Some((chave, env, fonte)) => {
                 let chave_anterior = std::mem::replace(&mut self.unit_key, chave);
                 let env_anterior = std::mem::replace(&mut self.env, env);
+                // #645: a mesma troca que o ambiente nominal já fazia, agora
+                // também para a unidade-fonte. São a MESMA responsabilidade — a
+                // unidade que declarou o corpo —, respondida em duas perguntas
+                // distintas: nome e alcance de relação.
+                let fonte_anterior = std::mem::replace(&mut self.fonte_do_corpo, Some(fonte));
                 let resultado = self.resolver_bloco(&mut function.body);
                 self.unit_key = chave_anterior;
                 self.env = env_anterior;
+                self.fonte_do_corpo = fonte_anterior;
                 resultado
             }
             None => self.resolver_bloco(&mut function.body),
@@ -983,6 +1007,12 @@ impl<'a> Resolvedor<'a> {
     }
 
     fn resolver_expr(&mut self, expr: &mut Expr) -> Result<(), PinkerError> {
+        // #645: dentro de um corpo default copiado de outra unidade, todo span
+        // é dela. `com_fonte_padrao` só preenche o que ainda não reivindica
+        // fonte, então nada já vinculado é reatribuído.
+        if let Some(fonte) = self.fonte_do_corpo {
+            expr.span = expr.span.com_fonte_padrao(fonte);
+        }
         let span = expr.span;
         match &mut expr.kind {
             ExprKind::Ident(name) => {
@@ -1215,10 +1245,16 @@ pub fn resolver_grafo(graph: &ModuleGraph) -> Result<ModuleGraph, PinkerError> {
         .iter()
         .map(|unit| (unit.id, unit.key.clone()))
         .collect();
+    let fontes_de_unidade: HashMap<ModuleId, SourceId> = graph
+        .units()
+        .iter()
+        .map(|unit| (unit.id, unit.source_id))
+        .collect();
     let origem_dos_tratos = OrigemDosTratos {
         tratos: &tratos_por_unidade,
         chaves: &chaves_de_unidade,
         ambientes: &ambientes,
+        fontes: &fontes_de_unidade,
     };
     let mut resolvido = graph.clone();
 
@@ -1900,7 +1936,7 @@ fn referencias_de_expr(expr: &Expr, out: &mut Vec<String>) {
 // @pinker-nav:start modulos.visibilidade.tratos
 // @pinker-nav:domain modulos
 // @pinker-nav:layer compilador
-// @pinker-nav:summary tratos_visiveis_por_fonte deriva, do grafo já resolvido, por onde o despacho de cada unidade-fonte pode passar, indexado por SourceId e em dois níveis de força e granularidade. O nível próprio são os tratos que a unidade declara mais os que seus imports autorizam por nome. O subordinado (#577) são as UNIDADES que ela importou, cujas relações de `impl` ela passa a poder atravessar, para que importar o implementador não obrigue a redeclarar a dependência interna que o torna válido; guardar ali o nome do trato, e não a unidade, abriria o despacho a toda relação daquele trato no programa, inclusive às de unidades que o importador nunca pediu. Não é reexport: nenhuma ligação de nome nasce daqui, então nomear o trato, implementá-lo ou qualificá-lo continua exigindo import próprio. nivel_de_despacho responde por qual dos dois níveis a relação de um candidato alcança quem escreveu o span, e o consumidor resolve pelo nível mais forte que produzir candidato, de modo que o trato próprio nunca perca para uma relação alcançada por importação. Despacho de método não passa por identificador livre e portanto não é alcançado pela resolução nominal; sem esta visão, um trato declarado na raiz continuaria fornecendo método default ao corpo de um módulo que nunca o importou. O índice é vazio quando não há composição, e nesse caso nada é filtrado.
+// @pinker-nav:summary tratos_visiveis_por_fonte deriva, do grafo já resolvido, por onde o despacho de cada unidade-fonte pode passar, indexado por SourceId e em dois níveis de força e granularidade. O nível próprio são os tratos que a unidade declara mais os que seus imports autorizam por nome. O subordinado (#577) são as UNIDADES que ela importou, cujas relações de `impl` ela passa a poder atravessar, para que importar o implementador não obrigue a redeclarar a dependência interna que o torna válido; guardar ali o nome do trato, e não a unidade, abriria o despacho a toda relação daquele trato no programa, inclusive às de unidades que o importador nunca pediu. Não é reexport: nenhuma ligação de nome nasce daqui, então nomear o trato, implementá-lo ou qualificá-lo continua exigindo import próprio. nivel_de_despacho responde por qual dos dois níveis a relação de um candidato alcança quem escreveu o span, e o consumidor resolve pelo nível mais forte que produzir candidato, de modo que o trato próprio nunca perca para uma relação alcançada por importação. Despacho de método não passa por identificador livre e portanto não é alcançado pela resolução nominal; sem esta visão, um trato declarado na raiz continuaria fornecendo método default ao corpo de um módulo que nunca o importou. O índice é vazio quando não há composição, e nesse caso nada é filtrado; desde a #645, porém, índice não vazio cuja fonte o span não reconhece não alcança relação alguma, para que perda de contexto semântico nunca amplie os candidatos.
 /// Tratos visíveis a cada unidade-fonte, por `SourceId`.
 ///
 /// Um `x.metodo()` não menciona o trato: o despacho é por (tipo do receiver,
@@ -2017,8 +2053,18 @@ pub enum NivelDeDespacho {
 /// nível subordinado não se aplica: nível próprio continua sendo pergunta sobre
 /// o trato, o subordinado é pergunta sobre a relação.
 ///
-/// Índice vazio, ou fonte ausente dele, significa "sem composição a restringir":
-/// o despacho segue exatamente como sempre seguiu, no nível próprio.
+/// Índice vazio significa "sem composição a restringir" — programa de arquivo
+/// único, biblioteca sem módulos, qualquer fluxo legítimo em que não há
+/// ambiente de quem restringir a quem: o despacho segue exatamente como sempre
+/// seguiu, no nível próprio.
+///
+/// #645 — fonte ausente de um índice NÃO vazio é outra coisa. Há composição, e
+/// a pergunta "por qual ambiente esta chamada alcança a relação?" ficou sem
+/// resposta. Conceder o nível próprio ali era responder "por todos": um span
+/// sem unidade reconhecida alcançava toda relação carregada no programa, e a
+/// ausência de contexto virava a autorização mais ampla que existe. Quem não
+/// sabe por qual ambiente responde não alcança relação nenhuma —
+/// `MISSING_SEMANTIC_CONTEXT -X-> EXPANDED_REACHABILITY`.
 pub fn nivel_de_despacho(
     por_fonte: &HashMap<SourceId, TratosNoDespacho>,
     span: Span,
@@ -2028,10 +2074,9 @@ pub fn nivel_de_despacho(
     if por_fonte.is_empty() {
         return Some(NivelDeDespacho::Proprio);
     }
-    match por_fonte.get(&span.source) {
-        Some(tratos) => tratos.nivel(trait_name, fonte_da_relacao),
-        None => Some(NivelDeDespacho::Proprio),
-    }
+    por_fonte
+        .get(&span.source)?
+        .nivel(trait_name, fonte_da_relacao)
 }
 // @pinker-nav:end modulos.visibilidade.tratos
 
