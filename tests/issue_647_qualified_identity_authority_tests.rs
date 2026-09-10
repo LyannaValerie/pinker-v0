@@ -71,12 +71,16 @@ const JANELA: usize = 40;
 /// Um campo conta como comparado quando aparece ao lado de um `==`, de
 /// qualquer um dos dois lados: `a.trait_name == x` e `x == a.trait_name` são a
 /// mesma decisão escrita ao contrário, e um oráculo que só reconhece uma das
-/// duas grafias aceita a duplicação escrita na outra.
+/// duas grafias aceita a duplicação escrita na outra. `a.eq(b)` e `a.ne(b)` são
+/// a mesma comparação por extenso e entram pela mesma porta.
 ///
 /// Mencionar o campo não basta: `trait_name: identity.trait_name.clone()`
 /// constrói um candidato de despacho e não decide identidade nenhuma.
 fn componentes_comparados(corpo: &str) -> (bool, bool, bool) {
-    let compacto = corpo.split_whitespace().collect::<Vec<_>>().join(" ");
+    // `a.eq(b)` é `a == b` escrito por extenso. Um oráculo que só reconhece o
+    // operador aceita a mesma decisão reescrita como chamada de método.
+    let normalizado = corpo.replace(".eq(", " == ").replace(".ne(", " == ");
+    let compacto = normalizado.split_whitespace().collect::<Vec<_>>().join(" ");
     let partes: Vec<&str> = compacto.split("==").collect();
     let (mut trato, mut alvo, mut metodo) = (false, false, false);
     for janela in partes.windows(2) {
@@ -649,6 +653,73 @@ fn a_matriz_do_corpo_default_materializado_segue_a_unidade_declarante() {
                 );
             }
         }
+    }
+}
+
+/// Terceiro estado do trato no gerador de LAW-03: declarado na PRÓPRIA unidade
+/// que escreve a chamada, em vez de importado ou não possuído.
+///
+/// Vale nas duas metades do espaço — corpo próprio e corpo default de trato
+/// materializado cross-unit — e nas três formas de chamada. Aqui a resolução
+/// nominal nunca recusa, então toda célula chega à identidade.
+#[test]
+fn trato_declarado_na_propria_unidade_resolve_nas_tres_formas() {
+    let raiz_propria = "pacote main;\ntrazer chamador.usar;\ncarinho principal() -> bombom {\n    mimo usar(5);\n}\n";
+    let declaracao = "trato Medida {\n    carinho medir(valor: si) -> bombom;\n}\nimpl Medida para bombom {\n    carinho medir(valor: bombom) -> bombom { mimo 77; }\n}\n";
+
+    for (forma, corpo) in FORMAS {
+        let chamador = format!(
+            "pacote chamador;\n{declaracao}carinho usar(x: bombom) -> bombom {{\n{corpo}}}\n"
+        );
+        let c = caso(
+            &format!("raizprop_{forma}"),
+            raiz_propria,
+            &[("chamador", chamador)],
+        );
+        let logico = format!("647-proprio-{forma}");
+        let checagem = pink(&logico, &["--check"], &c.raiz);
+        assert_eq!(
+            codigo(&checagem),
+            0,
+            "trato próprio/{forma} devia ser aceito: {}",
+            stderr(&checagem)
+        );
+        let execucao = pink(&logico, &["--run"], &c.raiz);
+        assert_eq!(
+            codigo(&execucao),
+            77,
+            "trato próprio/{forma} devia executar o método da relação: {}",
+            stderr(&execucao)
+        );
+    }
+
+    let raiz_def = "pacote main;\ntrazer tr.Base;\ntrazer user.usar;\ncarinho principal() -> bombom {{ mimo usar(5); }}\n"
+        .replace("{{", "{")
+        .replace("}}", "}");
+    for (forma, corpo) in FORMAS_DEFAULT {
+        let declarante = format!(
+            "pacote tr;\n{declaracao}trato Base {{\n    carinho rodar(valor: si) -> bombom {{\n{corpo}    }}\n}}\n"
+        );
+        let c = caso(
+            &format!("raizpropdef_{forma}"),
+            &raiz_def,
+            &[("tr", declarante), ("user", USER.to_string())],
+        );
+        let logico = format!("647-propriodef-{forma}");
+        let checagem = pink(&logico, &["--check"], &c.raiz);
+        assert_eq!(
+            codigo(&checagem),
+            0,
+            "default com trato próprio/{forma} devia ser aceito: {}",
+            stderr(&checagem)
+        );
+        let execucao = pink(&logico, &["--run"], &c.raiz);
+        assert_eq!(
+            codigo(&execucao),
+            77,
+            "default com trato próprio/{forma} devia executar o método: {}",
+            stderr(&execucao)
+        );
     }
 }
 
