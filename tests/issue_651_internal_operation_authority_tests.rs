@@ -709,9 +709,10 @@ fn as_operacoes_sem_valor_sao_exatamente_as_declaradas_como_nulo() {
 // com escopo de bloco balanceado, não sobre janelas de bytes:
 //
 // ```text
-// R-A  uma derivação não decide aridade         (nenhum literal, nenhum padrão de fatia)
+// R-A  uma derivação não decide aridade         (nenhum literal, nenhuma fatia fixa)
 // R-B  uma derivação não busca contrato fora    (só a autoridade responde)
 // R-C  ninguém declara tabela local de grafias  (const/array de grafia interna)
+// R-D  ninguém publica consulta de contrato     (assinatura devolve TypeIR por grafia)
 // ```
 //
 // Nenhuma delas pergunta "esta forma apareceu?". Elas perguntam "esta região
@@ -905,6 +906,18 @@ fn fim_do_bloco(tokens: &[Token], abre: usize) -> usize {
 /// `else` de um `let … else`. Sem bloco no mesmo enunciado, a região vai do
 /// marcador até o fim do bloco que o contém, que é o menor escopo honesto.
 fn regiao_de_derivacao(tokens: &[Token], marcador: usize) -> (usize, usize) {
+    // `let PAT = <consulta> else { … };` — o primeiro bloco é o ramo de ERRO, e
+    // a derivação real vem DEPOIS do `;`. Tratar o ramo de erro como região
+    // deixava toda a derivação fora do alcance, e a mesma decisão mudava de
+    // veredito só por ter sido escrita alguns tokens adiante.
+    if let Some(inicio_do_let) = comeco_do_let(tokens, marcador) {
+        if let Some(ponto_e_virgula) = fim_do_let_com_else(tokens, inicio_do_let) {
+            return (
+                ponto_e_virgula,
+                fim_do_bloco_que_contem(tokens, ponto_e_virgula),
+            );
+        }
+    }
     let mut parenteses = 0i32;
     for indice in marcador..tokens.len() {
         let token = &tokens[indice];
@@ -926,16 +939,112 @@ fn regiao_de_derivacao(tokens: &[Token], marcador: usize) -> (usize, usize) {
     (marcador, tokens.len() - 1)
 }
 
+/// Início do `let` que contém `indice`, quando há um.
+fn comeco_do_let(tokens: &[Token], indice: usize) -> Option<usize> {
+    let piso = indice.saturating_sub(40);
+    (piso..indice)
+        .rev()
+        .find(|i| tokens[*i].tipo == Tipo::Ident && tokens[*i].texto == "let")
+}
+
+/// Posição do `;` do `let`, mas só quando ele tem um ramo `else`.
+fn fim_do_let_com_else(tokens: &[Token], inicio: usize) -> Option<usize> {
+    let mut tem_else = false;
+    let mut chaves = 0i32;
+    let mut parenteses = 0i32;
+    for (indice, token) in tokens.iter().enumerate().skip(inicio) {
+        if e_pontuacao(token, "(") || e_pontuacao(token, "[") {
+            parenteses += 1;
+        } else if e_pontuacao(token, ")") || e_pontuacao(token, "]") {
+            parenteses -= 1;
+        } else if e_pontuacao(token, "{") {
+            chaves += 1;
+        } else if e_pontuacao(token, "}") {
+            chaves -= 1;
+            if chaves < 0 {
+                return None;
+            }
+        } else if token.tipo == Tipo::Ident && token.texto == "else" && chaves == 0 {
+            tem_else = true;
+        } else if e_pontuacao(token, ";") && chaves == 0 && parenteses <= 0 {
+            return tem_else.then_some(indice);
+        }
+    }
+    None
+}
+
+/// Fim do bloco que contém `indice`, sem exigir que ele o abra.
+fn fim_do_bloco_que_contem(tokens: &[Token], indice: usize) -> usize {
+    let mut nivel = 0i32;
+    for (atual, token) in tokens.iter().enumerate().skip(indice) {
+        if e_pontuacao(token, "{") {
+            nivel += 1;
+        } else if e_pontuacao(token, "}") {
+            if nivel == 0 {
+                return atual;
+            }
+            nivel -= 1;
+        }
+    }
+    tokens.len() - 1
+}
+
 /// O identificador nomeia a autoridade das operações internas?
 fn e_da_autoridade(tokens: &[Token], indice: usize) -> bool {
-    tokens[indice].texto == "internal_operations"
-        || tokens[indice].texto == "aridade_interna"
-        || (tokens[indice].texto == "arity"
-            && indice >= 2
-            && matches!(
-                tokens[indice - 2].texto.as_str(),
-                "operation" | "entrada" | "internal_operations"
-            ))
+    // Toda função que já deriva da autoridade abre região: `is_generic_map_intrinsic`
+    // é derivação de `ir::model`, e o ramo que ela guarda é derivação tanto
+    // quanto o que consulta `entrada` diretamente.
+    matches!(
+        tokens[indice].texto.as_str(),
+        "internal_operations" | "aridade_interna" | "is_generic_map_intrinsic"
+    ) || (tokens[indice].texto == "arity"
+        && indice >= 2
+        && matches!(
+            tokens[indice - 2].texto.as_str(),
+            "operation" | "entrada" | "internal_operations"
+        ))
+}
+
+/// Padrão de fatia de comprimento fixo começando em `indice`.
+///
+/// Conta ELEMENTOS, não a forma deles: `[_, _, _]` e
+/// `[cond, entao, senao]` fixam a mesma aridade, e destruturar com nomes é a
+/// forma idiomática — foi por ela que a versão anterior passou.
+/// `[a, b, ..]` não fixa comprimento e não conta.
+fn fatia_de_comprimento_fixo(tokens: &[Token], indice: usize) -> Option<usize> {
+    if !e_pontuacao(&tokens[indice], "[") {
+        return None;
+    }
+    // Só é PADRÃO depois de `let`, de `=>` ou dentro de `matches!`.
+    let anterior = &tokens[indice.checked_sub(1)?];
+    let contexto_de_padrao = anterior.texto == "let"
+        || anterior.texto == "=>"
+        || anterior.texto == ","
+        || e_pontuacao(anterior, "(");
+    if !contexto_de_padrao {
+        return None;
+    }
+    let mut elementos = 1usize;
+    let mut profundidade = 0i32;
+    for token in tokens.iter().skip(indice + 1) {
+        if e_pontuacao(token, "[") || e_pontuacao(token, "(") || e_pontuacao(token, "{") {
+            profundidade += 1;
+        } else if e_pontuacao(token, ")") || e_pontuacao(token, "}") {
+            profundidade -= 1;
+        } else if e_pontuacao(token, "]") {
+            if profundidade == 0 {
+                return (elementos > 1).then_some(elementos);
+            }
+            profundidade -= 1;
+        } else if e_pontuacao(token, "..") && profundidade == 0 {
+            return None;
+        } else if e_pontuacao(token, ",") && profundidade == 0 {
+            elementos += 1;
+        } else if e_pontuacao(token, ";") {
+            return None;
+        }
+    }
+    None
 }
 
 /// R-A — uma derivação não decide aridade.
@@ -955,11 +1064,8 @@ fn decide_aridade(tokens: &[Token], inicio: usize, fim: usize) -> Option<String>
         {
             return Some(format!("literal '{}' em comparação", token.texto));
         }
-        if e_pontuacao(token, "[")
-            && tokens.get(indice + 1).is_some_and(|t| t.texto == "_")
-            && tokens.get(indice + 2).is_some_and(|t| t.texto == ",")
-        {
-            return Some("padrão de fatia de comprimento fixo".to_string());
+        if let Some(elementos) = fatia_de_comprimento_fixo(tokens, indice) {
+            return Some(format!("padrão de fatia de {elementos} elementos"));
         }
     }
     None
@@ -981,14 +1087,107 @@ fn busca_contrato_fora(tokens: &[Token], inicio: usize, fim: usize) -> Option<St
         }
         // Só chamada importa: constante de outro módulo é transporte.
         let mut fim_do_caminho = indice + 2;
-        while e_pontuacao(&tokens[fim_do_caminho + 1], "::") {
+        while tokens
+            .get(fim_do_caminho + 1)
+            .is_some_and(|t| e_pontuacao(t, "::"))
+        {
             fim_do_caminho += 2;
         }
-        if e_pontuacao(&tokens[fim_do_caminho + 1], "(") {
+        if tokens
+            .get(fim_do_caminho + 1)
+            .is_some_and(|t| e_pontuacao(t, "("))
+        {
             return Some(format!("chamada a crate::{}::…", modulo.texto));
         }
     }
     None
+}
+
+/// R-D — ninguém publica consulta de contrato chaveada por grafia.
+///
+/// A fachada não se reconhece por onde mora nem por como é chamada: reconhece-se
+/// pela ASSINATURA. Uma função cujo tipo de retorno menciona a representação de
+/// contrato e cujo corpo nomeia uma grafia interna é tabela de contrato, esteja
+/// ela num validador, num produtor ou num arquivo novo, e seja ela chamada
+/// diretamente ou por ponteiro ligado a um local.
+///
+/// Produtor legítimo devolve nó de IR, enunciado ou expressão — nunca `TypeIR`
+/// como resposta sobre uma grafia.
+fn recebe_grafia(tokens: &[Token], inicio: usize, fim: usize) -> bool {
+    let Some(abre) = (inicio..fim).find(|i| e_pontuacao(&tokens[*i], "(")) else {
+        return false;
+    };
+    let mut profundidade = 0i32;
+    let mut tipo: Vec<&str> = Vec::new();
+    let mut depois_dos_dois_pontos = false;
+    for token in tokens.iter().take(fim).skip(abre + 1) {
+        if e_pontuacao(token, "(") || e_pontuacao(token, "<") || e_pontuacao(token, "[") {
+            profundidade += 1;
+        } else if e_pontuacao(token, ">") || e_pontuacao(token, "]") {
+            profundidade -= 1;
+        } else if e_pontuacao(token, ")") {
+            if profundidade == 0 {
+                break;
+            }
+            profundidade -= 1;
+        } else if e_pontuacao(token, ",") && profundidade == 0 {
+            if tipo == ["&", "str"] || tipo == ["&", "String"] {
+                return true;
+            }
+            tipo.clear();
+            depois_dos_dois_pontos = false;
+        } else if e_pontuacao(token, ":") && profundidade == 0 {
+            depois_dos_dois_pontos = true;
+        } else if depois_dos_dois_pontos && token.texto != "'" {
+            tipo.push(&token.texto);
+        }
+    }
+    tipo == ["&", "str"] || tipo == ["&", "String"]
+}
+
+fn consultas_de_contrato_por_grafia(tokens: &[Token]) -> Vec<String> {
+    let mut achados = Vec::new();
+    for (indice, token) in tokens.iter().enumerate() {
+        if token.tipo != Tipo::Ident || token.texto != "fn" {
+            continue;
+        }
+        let Some(nome) = tokens.get(indice + 1) else {
+            continue;
+        };
+        // Assinatura: do `fn` até o `{` que abre o corpo.
+        let mut abre = indice;
+        while abre < tokens.len() && !e_pontuacao(&tokens[abre], "{") {
+            if e_pontuacao(&tokens[abre], ";") {
+                break;
+            }
+            abre += 1;
+        }
+        if abre >= tokens.len() || !e_pontuacao(&tokens[abre], "{") {
+            continue;
+        }
+        let assinatura_devolve_contrato = tokens[indice..abre]
+            .iter()
+            .any(|t| matches!(t.texto.as_str(), "TypeIR" | "StackValueType"));
+        // Chaveada POR GRAFIA: algum parâmetro é exatamente `&str`/`&String`.
+        // Um validador que infere tipo a partir de um nó de IR também devolve
+        // `TypeIR` e carrega `HashMap<String, TypeIR>` — a diferença está na
+        // CHAVE, não no retorno, e `String` dentro de container não é chave.
+        let chaveada_por_grafia = recebe_grafia(tokens, indice, abre);
+        if !assinatura_devolve_contrato || !chaveada_por_grafia {
+            continue;
+        }
+        let fim = fim_do_bloco(tokens, abre);
+        let nomeia_grafia = tokens[abre..fim]
+            .iter()
+            .any(|t| t.tipo == Tipo::Texto && e_grafia_interna(&t.texto));
+        if nomeia_grafia {
+            achados.push(format!(
+                "'{}' devolve contrato a partir de grafia interna",
+                nome.texto
+            ));
+        }
+    }
+    achados
 }
 
 /// R-C — ninguém declara tabela local de grafias internas.
@@ -1062,6 +1261,9 @@ fn nenhuma_derivacao_decide_por_conta_propria() {
         if relativo != AUTHORITY_FILE && relativo != "src/native_symbol.rs" {
             for achado in tabelas_locais_de_grafia(&tokens, &autoridade) {
                 ofensores.push(format!("{relativo}: R-C {achado}"));
+            }
+            for achado in consultas_de_contrato_por_grafia(&tokens) {
+                ofensores.push(format!("{relativo}: R-D {achado}"));
             }
         }
 
