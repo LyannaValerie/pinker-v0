@@ -388,19 +388,28 @@ pub const INTERNAL_OPERATIONS: &[InternalOperation] = &[
 pub const TERNARIA: &str = "__ternario";
 
 /// Contrato estrutural da grafia, quando ela é uma operação interna.
+#[cfg_attr(test, track_caller)]
 pub fn entrada(spelling: &str) -> Option<&'static InternalOperation> {
+    #[cfg(test)]
+    registro::registrar(std::panic::Location::caller());
     contract_table()
         .iter()
         .find(|operation| operation.spelling == spelling)
 }
 
 /// A grafia é uma operação interna declarada?
+#[cfg_attr(test, track_caller)]
 pub fn e_operacao_interna(spelling: &str) -> bool {
+    #[cfg(test)]
+    registro::registrar(std::panic::Location::caller());
     entrada(spelling).is_some()
 }
 
 /// A grafia é a escolha ternária?
+#[cfg_attr(test, track_caller)]
 pub fn e_ternaria(spelling: &str) -> bool {
+    #[cfg(test)]
+    registro::registrar(std::panic::Location::caller());
     spelling == TERNARIA
 }
 
@@ -408,25 +417,37 @@ pub fn e_ternaria(spelling: &str) -> bool {
 ///
 /// É a pergunta que `ir::model::is_generic_map_intrinsic` respondia por lista
 /// literal e que os três validadores consumiam.
+#[cfg_attr(test, track_caller)]
 pub fn e_operacao_generica_de_mapa(spelling: &str) -> bool {
+    #[cfg(test)]
+    registro::registrar(std::panic::Location::caller());
     entrada(spelling)
         .is_some_and(|operation| operation.family == InternalOperationFamily::MapaGenerica)
 }
 
 /// Aridade declarada da operação interna.
+#[cfg_attr(test, track_caller)]
 pub fn aridade(spelling: &str) -> Option<usize> {
+    #[cfg(test)]
+    registro::registrar(std::panic::Location::caller());
     entrada(spelling).map(InternalOperation::arity)
 }
 
 /// Retorno e parâmetros IR da operação, quando o contrato é fixo.
+#[cfg_attr(test, track_caller)]
 pub fn assinatura_ir(spelling: &str) -> Option<(TypeIR, &'static [TypeIR])> {
+    #[cfg(test)]
+    registro::registrar(std::panic::Location::caller());
     entrada(spelling).and_then(InternalOperation::assinatura_ir)
 }
 
 /// Todas as operações com contrato fixo, para as tabelas de assinatura das
 /// fases que precisam de `(ret, params)` completos.
+#[cfg_attr(test, track_caller)]
 pub fn assinaturas_declaradas(
 ) -> impl Iterator<Item = (&'static str, TypeIR, &'static [TypeIR])> + Clone {
+    #[cfg(test)]
+    registro::registrar(std::panic::Location::caller());
     contract_table().iter().filter_map(|operation| {
         operation
             .assinatura_ir()
@@ -500,6 +521,73 @@ pub(crate) mod contract_seam {
     impl Drop for MutatedContract {
         fn drop(&mut self) {
             MUTATED.with(|cell| cell.set(None));
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Registro de consulta — descoberta independente de consumidores, só sob
+// `cfg(test)`.
+//
+// A pergunta “quem decide F1–F4?” não pode ser respondida pela mesma lista que
+// o oráculo audita: foi essa circularidade que o fechamento dirigido de
+// `acb6ac6` derrubou, removendo um consumidor real da lista manual sem que
+// nada ficasse vermelho.
+//
+// Aqui a resposta vem da própria autoridade: toda consulta pública anota o
+// ARQUIVO de quem perguntou. `#[cfg_attr(test, track_caller)]` mantém produção
+// intacta — fora de teste nem o atributo nem a anotação existem. Consultas
+// desta autoridade a si mesma são descartadas, para que o registro contenha só
+// consumidores de verdade.
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+pub(crate) mod registro {
+    use std::cell::RefCell;
+    use std::collections::BTreeSet;
+    use std::panic::Location;
+
+    thread_local! {
+        /// Arquivos que consultaram a autoridade enquanto há gravação aberta.
+        static CONSULTAS: RefCell<Option<BTreeSet<&'static str>>> = const { RefCell::new(None) };
+    }
+
+    /// Anota o arquivo do consumidor, quando há gravação aberta nesta thread.
+    pub(crate) fn registrar(local: &'static Location<'static>) {
+        let arquivo = local.file();
+        if arquivo.starts_with("src/internal_operations") {
+            return;
+        }
+        CONSULTAS.with(|celula| {
+            if let Some(consultas) = celula.borrow_mut().as_mut() {
+                consultas.insert(arquivo);
+            }
+        });
+    }
+
+    /// Gravação aberta: enquanto viver, as consultas desta thread são anotadas.
+    #[must_use = "a gravação vale enquanto o guarda existir"]
+    pub(crate) struct Gravacao;
+
+    impl Gravacao {
+        pub(crate) fn abrir() -> Self {
+            CONSULTAS.with(|celula| *celula.borrow_mut() = Some(BTreeSet::new()));
+            Self
+        }
+
+        /// Fecha a gravação e devolve os arquivos observados, em ordem estável.
+        pub(crate) fn fechar(self) -> Vec<&'static str> {
+            CONSULTAS
+                .with(|celula| celula.borrow_mut().take())
+                .unwrap_or_default()
+                .into_iter()
+                .collect()
+        }
+    }
+
+    impl Drop for Gravacao {
+        fn drop(&mut self) {
+            CONSULTAS.with(|celula| *celula.borrow_mut() = None);
         }
     }
 }
