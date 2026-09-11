@@ -11,16 +11,29 @@
 //! respondida aqui, e esta suíte não afirma em lugar nenhum que responde.
 //!
 //! Ela é respondida por EXECUÇÃO, em
-//! `src/internal_operations/metamorphic_oracle.rs`: mutar F1, F2, F3 e F4 na
-//! autoridade canônica e exigir que todo consumidor real mude a resposta
-//! junto. Uma decisão local independente continua respondendo o valor antigo
-//! sob a mutação e derruba aquele oráculo — independentemente de arquivo,
-//! posição, helper, macro, operador, alias ou forma textual.
+//! `src/internal_operations/metamorphic_oracle.rs`, e nos DOIS sentidos: mutar
+//! um fato da autoridade canônica para ESTREITAR, e exigir que todo consumidor
+//! que decide aquele fato mude a resposta junto; e mutar para ADMITIR um caso
+//! novo, exibindo uma testemunha que só o contrato mutado aceita, e exigir que
+//! o mesmo consumidor passe a aceitá-la. A primeira metade pega a decisão local
+//! que SOMBREIA a autoridade; a segunda pega a que roda ADITIVA e CONCORDE ao
+//! lado dela. Nenhuma das duas olha o texto: arquivo, posição, helper, macro,
+//! operador e alias não mudam o veredito.
 //!
 //! ```text
-//! AUTHORITY_PROOF   = SEMANTIC_METAMORPHIC_EXECUTION
+//! AUTHORITY_PROOF   =
+//! BOUNDED_BIDIRECTIONAL_SEMANTIC_METAMORPHIC_EXECUTION
 //! SOURCE_SHAPE_LINT = SUPPLEMENTAL_ONLY
 //! ```
+//!
+//! **Limitada** não é ressalva de estilo: é o escopo medido. A prova vale sobre
+//! o domínio declarado em [`INTERNAL_OPERATIONS`], sobre as dimensões
+//! identificadas de cada fato, sobre os consumidores que três descobertas
+//! independentes encontram, e sobre as classes materiais de duplicação que ela
+//! nomeia. Ela NÃO afirma que nenhum trecho de Rust arbitrário, em lugar
+//! nenhum da árvore, possa responder à mesma pergunta. O domínio exato, e as
+//! classes de disposição de cada obrigação direcional, estão no cabeçalho
+//! daquele módulo.
 //!
 //! O fechamento dirigido do HEAD `f8683d87` mediu o limite do caminho
 //! sintático: de 21 reimplementações locais do MESMO contrato, 19 compilaram e
@@ -54,6 +67,19 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 const AUTHORITY_FILE: &str = "src/internal_operations.rs";
+
+/// O harness metamórfico, submódulo da autoridade.
+const ORACULO_FILE: &str = "src/internal_operations/metamorphic_oracle.rs";
+
+/// A ÚNICA grafia interna de `src/**` que não está na autoridade.
+///
+/// É a entrada SINTÉTICA da prova permissiva de pertinência: ela existe apenas
+/// dentro de uma variante instalada por teste, sob `cfg(test)`, e nunca em
+/// [`INTERNAL_OPERATIONS`]. Declará-la na autoridade criaria operação de
+/// produção — com superfície, binding e ABI que ela não pode ter. Deixá-la
+/// passar calada abriria a LAW-01 para qualquer grafia nova no harness. A
+/// exceção é nominal e vale só neste arquivo.
+const GRAFIA_SINTETICA_DO_ORACULO: &str = "__pinker_internal_u01_pertinencia_sintetica";
 
 /// O oráculo metamórfico: harness `#[cfg(test)]` da própria autoridade.
 ///
@@ -342,6 +368,9 @@ fn law_01_toda_grafia_interna_usada_esta_declarada_na_autoridade() {
         }
         let texto = std::fs::read_to_string(fonte).expect("ler fonte");
         for grafia in grafias_literais(&texto) {
+            if relativo == Path::new(ORACULO_FILE) && grafia == GRAFIA_SINTETICA_DO_ORACULO {
+                continue;
+            }
             if !declaradas.contains(&grafia) {
                 nao_declaradas.push((relativo.display().to_string(), grafia));
             }

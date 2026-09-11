@@ -75,12 +75,24 @@
 //! * a decisão local numa célula que a fase não PERGUNTA — nada a obriga a
 //!   acompanhar, e “não pergunta” passa por “não decide”.
 //!
-//! [`direcao_permissiva_por_aridade`] fecha as duas. O artefato EXPANDIDO — um
-//! operando a mais em cada chamada à operação — é ilegal sob a autoridade
-//! canônica e legal sob a mutação de aridade, e aí a matriz tem exigência dos
-//! dois lados: quem consulta precisa passar de RECUSA a ACEITE, e quem tem
-//! carve-out precisa ACEITAR nos dois estados. A segunda metade é a prova de
-//! ausência de caminho independente que faltava.
+//! [`direcao_permissiva_por_aridade`] fecha as duas para F2. O artefato
+//! EXPANDIDO — um operando a mais em cada chamada à operação — é ilegal sob a
+//! autoridade canônica e legal sob a mutação de aridade, e aí a matriz tem
+//! exigência dos dois lados: quem consulta precisa passar de RECUSA a ACEITE, e
+//! quem tem carve-out precisa ACEITAR nos dois estados.
+//!
+//! Para F1/família, F3 e F4 a cirurgia é outra, porque a mutação não
+//! acrescenta operando: ela TROCA a classe exigida de um operando ou de um
+//! resultado. O artefato que ela admite é um sítio de chamada NOVO, construído
+//! a partir do contrato MUTADO e recusado pelo canônico —
+//! [`direcao_permissiva_por_fato`]. Trocar a classe X por Y retira X e admite
+//! Y: a mutação não precisa ser superconjunto global da canônica para que a
+//! testemunha seja nova.
+//!
+//! Para F1/pertinência a direção que falta é a entrada NOVA:
+//! [`direcao_permissiva_por_pertinencia`] instala uma entrada SINTÉTICA,
+//! viva só dentro da variante, e exige que quem deriva pertinência da
+//! autoridade passe a admiti-la.
 //!
 //! **A descoberta atravessa repassador.** A instrumentação dinâmica anota um
 //! quadro de pilha só, então uma função que devolve a resposta da autoridade
@@ -91,17 +103,61 @@
 //! `validate_program` também consulta a autoridade, mas devolve o veredito da
 //! fase, não o fato.
 //!
-//! ## Limite declarado
+//! ## O domínio provado, e só ele
 //!
-//! A direção permissiva é provada sobre **F2/aridade**, em todo o domínio: as
-//! trinta e uma operações têm derivação provada, e as células com carve-out de
-//! aridade têm ausência provada. Para F1, F3 e F4 o artefato expandido não é
-//! construtível pela mesma cirurgia — mudar a CLASSE de um operando ou de um
-//! resultado exige materializar um valor de outra classe, que a sonda não tem
-//! como fornecer sem inventar IR — e nessas três a prova continua sendo só a
-//! restritiva, com as carve-outs valendo como declaração conferida contra a
-//! execução. Onde a expansão não é construtível a razão é medida e registrada,
-//! nunca presumida.
+//! ```text
+//! AUTHORITY_PROOF =
+//! BOUNDED_BIDIRECTIONAL_SEMANTIC_METAMORPHIC_EXECUTION
+//! ```
+//!
+//! Uma suíte finita NÃO prova que nenhum trecho de Rust arbitrário possa
+//! responder à mesma pergunta em algum lugar da árvore. Não é isso que está
+//! escrito aqui. O que esta prova estabelece, e mede a cada execução, é um
+//! domínio nomeado:
+//!
+//! * o **domínio compartilhado declarado** — as operações de
+//!   [`INTERNAL_OPERATIONS`], iteradas, nunca amostradas;
+//! * as **dimensões** de cada fato — pertinência, família, aridade, classe e
+//!   discriminante de operando, classe e presença de resultado —, cada uma
+//!   mutada por si, porque uma mutação que move duas dimensões pode esconder
+//!   duplicação na que não foi observada;
+//! * os **consumidores reais**, descobertos por três vias independentes da
+//!   escrituração — registro dinâmico, inventário estático de `src/**` e
+//!   inventário transitivo de repassadores — e conferidos contra o piso
+//!   histórico de oito decisores;
+//! * as **classes materiais de duplicação**: a decisão local que SOMBREIA a
+//!   autoridade (decide no lugar dela) e a que roda ADITIVA e CONCORDE ao lado
+//!   dela (concorda no estado canônico);
+//! * testemunhas **restritivas** e **complementares** para cada obrigação, com
+//!   a disposição de cada uma MEDIDA, nunca declarada.
+//!
+//! A obrigação direcional é por
+//! `(operação, fato, dimensão, consumidor, representação, testemunha,
+//! observável)`, e termina em exatamente uma destas classes:
+//!
+//! * **provada por admissão** — existe testemunha nova, ilegal sob a canônica e
+//!   legal sob a mutada, e o consumidor a admite;
+//! * **provada por projeção** — o observável do consumidor é uma resposta
+//!   DERIVADA, não um veredito, e ela segue a autoridade nos dois estados e os
+//!   distingue;
+//! * **provada por remoção de rota** — a autoridade mutada não admite chamada
+//!   alguma naquela fase, medido pela recusa, sob ela, da testemunha construída
+//!   a partir dela; quem continuar ACEITANDO só pode estar decidindo por conta
+//!   própria, e a matriz restritiva exige e mede essa mudança;
+//! * **equivalência de representação** — tudo que a mutada admite, a canônica
+//!   já admitia naquela fase: não existe caso novo a recusar;
+//! * **estruturalmente não aplicável** — a variante descreve um contrato
+//!   incoerente consigo mesmo, lido do tipo da própria autoridade.
+//!
+//! `direcao_permissiva_por_fato` exige zero obrigações fora dessas classes.
+//! Nenhuma delas é atalho: “não consegui construir a testemunha” não classifica
+//! nada, e deixa a obrigação SEM PROVA — vermelha.
+//!
+//! O que fica de fora, dito com todas as letras: o runtime e o interpretador
+//! não entram em mutação contrafactual (a prova termina antes de exigir
+//! execução de assinatura que produção nunca implementou); o binding ABI
+//! continua sendo de `backend_s` e não é exigido da entrada sintética; e o
+//! guard léxico da suíte de integração permanece `SUPPLEMENTAL_ONLY`.
 
 use super::contract_seam::MutatedContract;
 use super::registro::Gravacao;
@@ -111,12 +167,13 @@ use super::{
 };
 use crate::abstract_machine::{self, MachineProgram};
 use crate::abstract_machine_validate;
-use crate::ast::Program;
+use crate::ast::{Block, ElseBlock, Expr, ExprKind, Program, Stmt};
 use crate::cfg_ir::{self, ProgramCfgIR};
 use crate::cfg_ir_validate;
 use crate::error::PinkerError;
 use crate::instr_select::{self, SelectedProgram};
 use crate::instr_select_validate;
+use crate::intrinsics::identity::CalleeIdentity;
 use crate::ir::MapKeyIR;
 use crate::ir::{self, BlockIR, InstructionIR, ProgramIR, TypeIR, ValueIR};
 use crate::ir_validate;
@@ -532,6 +589,14 @@ enum Fato {
     /// F4 — o contrato estrutural do resultado.
     Resultado,
 }
+
+/// Os fatos cuja duplicação ADITIVA e concorde é material, e que por isso
+/// precisam de prova na direção permissiva além da restritiva.
+///
+/// F2/aridade tem prova própria em [`direcao_permissiva_por_aridade`], pelo
+/// artefato EXPANDIDO, que é a forma mais forte: ela não constrói sítio novo,
+/// alarga TODOS os sítios que a sonda já materializa.
+const FATOS_PERMISSIVOS: &[Fato] = &[Fato::Familia, Fato::Operandos, Fato::Resultado];
 
 const FATOS: &[Fato] = &[
     Fato::Existencia,
@@ -1126,59 +1191,65 @@ struct Expandida {
     cfg: ProgramCfgIR,
     selecionado: SelectedProgram,
     maquina: MachineProgram,
+    /// Quantos sítios de chamada à operação a CFG deste artefato contém.
+    ///
+    /// O desugaring de `encaixe` e o de `tentar` SINTETIZAM chamadas direto na
+    /// CFG: um artefato cuja IR tem só a testemunha pode chegar à CFG com
+    /// sítios canônicos de volta, e aí a recusa que a fase devolve é a do sítio
+    /// velho, não a da testemunha. Contar é o que separa as duas.
+    sitios_cfg: usize,
 }
 
-/// Repete o último argumento de toda chamada a `spelling` no valor.
-fn expandir_valor(valor: &mut ValueIR, spelling: &str, expandidas: &mut usize) {
+/// Visita toda chamada a `spelling` hospedada neste valor.
+///
+/// Uma travessia só, duas perguntas: a expansão de aridade edita o nó; a
+/// testemunha permissiva o LÊ para nascer de um sítio real. Manter as duas na
+/// mesma varredura é o que garante que elas enxerguem exatamente as mesmas
+/// formas da IR.
+fn visitar_chamadas(valor: &mut ValueIR, spelling: &str, acao: &mut dyn FnMut(&mut ValueIR)) {
     match valor {
         ValueIR::Call { callee, args, .. } => {
+            let alvo = callee == spelling;
             for argumento in args.iter_mut() {
-                expandir_valor(argumento, spelling, expandidas);
+                visitar_chamadas(argumento, spelling, acao);
             }
-            if callee == spelling {
-                // Repete o último operando — é o que a mutação de aridade
-                // declara. Sem operando algum, o operando a mais declarado é
-                // `bombom`, e o literal inteiro é o valor dessa classe.
-                match args.last().cloned() {
-                    Some(ultimo) => args.push(ultimo),
-                    None => args.push(ValueIR::Int(0)),
-                }
-                *expandidas += 1;
+            if alvo {
+                acao(valor);
             }
         }
-        ValueIR::Unary { operand, .. } => expandir_valor(operand, spelling, expandidas),
-        ValueIR::Deref { ptr, .. } => expandir_valor(ptr, spelling, expandidas),
+        ValueIR::Unary { operand, .. } => visitar_chamadas(operand, spelling, acao),
+        ValueIR::Deref { ptr, .. } => visitar_chamadas(ptr, spelling, acao),
         ValueIR::Binary { lhs, rhs, .. } => {
-            expandir_valor(lhs, spelling, expandidas);
-            expandir_valor(rhs, spelling, expandidas);
+            visitar_chamadas(lhs, spelling, acao);
+            visitar_chamadas(rhs, spelling, acao);
         }
         ValueIR::PointerOffset {
             pointer, offset, ..
         } => {
-            expandir_valor(pointer, spelling, expandidas);
-            expandir_valor(offset, spelling, expandidas);
+            visitar_chamadas(pointer, spelling, acao);
+            visitar_chamadas(offset, spelling, acao);
         }
         ValueIR::TraitCall { object, args, .. } => {
-            expandir_valor(object, spelling, expandidas);
+            visitar_chamadas(object, spelling, acao);
             for argumento in args.iter_mut() {
-                expandir_valor(argumento, spelling, expandidas);
+                visitar_chamadas(argumento, spelling, acao);
             }
         }
         ValueIR::CallIndirect { callee, args, .. } | ValueIR::CallRaw { callee, args, .. } => {
-            expandir_valor(callee, spelling, expandidas);
+            visitar_chamadas(callee, spelling, acao);
             for argumento in args.iter_mut() {
-                expandir_valor(argumento, spelling, expandidas);
+                visitar_chamadas(argumento, spelling, acao);
             }
         }
-        ValueIR::FieldAccess { base, .. } => expandir_valor(base, spelling, expandidas),
+        ValueIR::FieldAccess { base, .. } => visitar_chamadas(base, spelling, acao),
         ValueIR::Index { base, index, .. } => {
-            expandir_valor(base, spelling, expandidas);
-            expandir_valor(index, spelling, expandidas);
+            visitar_chamadas(base, spelling, acao);
+            visitar_chamadas(index, spelling, acao);
         }
         ValueIR::Cast { value, .. }
         | ValueIR::UnionInject { value, .. }
         | ValueIR::UnionTag { value, .. }
-        | ValueIR::UnionExtract { value, .. } => expandir_valor(value, spelling, expandidas),
+        | ValueIR::UnionExtract { value, .. } => visitar_chamadas(value, spelling, acao),
         // As folhas e as formas que não hospedam valor. A COMPLETUDE desta
         // varredura não é presumida: `expandir` conta os sítios de chamada no
         // texto do artefato e exige que todos tenham sido expandidos.
@@ -1186,73 +1257,84 @@ fn expandir_valor(valor: &mut ValueIR, spelling: &str, expandidas: &mut usize) {
     }
 }
 
-fn expandir_bloco(bloco: &mut BlockIR, spelling: &str, expandidas: &mut usize) {
+fn visitar_bloco(bloco: &mut BlockIR, spelling: &str, acao: &mut dyn FnMut(&mut ValueIR)) {
     for instrucao in &mut bloco.instructions {
-        expandir_instrucao(instrucao, spelling, expandidas);
+        visitar_instrucao(instrucao, spelling, acao);
     }
 }
 
-fn expandir_instrucao(instrucao: &mut InstructionIR, spelling: &str, expandidas: &mut usize) {
+/// Os valores que esta instrução hospeda DIRETAMENTE, sem entrar em sub-bloco.
+///
+/// Separar os dois níveis é o que permite achar o bloco MAIS INTERNO que
+/// hospeda uma chamada: é lá, e só lá, que os argumentos dela estão garantidos
+/// em escopo para uma testemunha nova.
+fn valores_da_instrucao(instrucao: &mut InstructionIR) -> Vec<&mut ValueIR> {
     match instrucao {
         InstructionIR::Let { value, .. }
         | InstructionIR::Assign { value, .. }
-        | InstructionIR::Expr { value, .. } => expandir_valor(value, spelling, expandidas),
+        | InstructionIR::Expr { value, .. } => vec![value],
         InstructionIR::Return {
             value: Some(valor), ..
-        } => expandir_valor(valor, spelling, expandidas),
-        InstructionIR::StoreIndirect { ptr, value, .. } => {
-            expandir_valor(ptr, spelling, expandidas);
-            expandir_valor(value, spelling, expandidas);
-        }
-        InstructionIR::StoreFieldIndirect { base, value, .. } => {
-            expandir_valor(base, spelling, expandidas);
-            expandir_valor(value, spelling, expandidas);
-        }
+        } => vec![valor],
+        InstructionIR::StoreIndirect { ptr, value, .. } => vec![ptr, value],
+        InstructionIR::StoreFieldIndirect { base, value, .. } => vec![base, value],
         InstructionIR::StoreIndexed {
             base, index, value, ..
-        } => {
-            expandir_valor(base, spelling, expandidas);
-            expandir_valor(index, spelling, expandidas);
-            expandir_valor(value, spelling, expandidas);
+        } => vec![base, index, value],
+        InstructionIR::If { condition, .. } | InstructionIR::While { condition, .. } => {
+            vec![condition]
         }
+        InstructionIR::EnumMatch(encaixe) => vec![&mut encaixe.scrutinee],
+        InstructionIR::UnionMatch(encaixe) => vec![&mut encaixe.scrutinee],
+        // `Falar`, `InlineAsm`, `Break` e `Continue` não hospedam chamada a
+        // operação interna nas sondas; a contagem de `expandir` prova isso a
+        // cada execução.
+        _ => Vec::new(),
+    }
+}
+
+/// Os blocos aninhados desta instrução.
+fn sub_blocos(instrucao: &mut InstructionIR) -> Vec<&mut BlockIR> {
+    match instrucao {
         InstructionIR::If {
-            condition,
             then_block,
             else_block,
             ..
-        } => {
-            expandir_valor(condition, spelling, expandidas);
-            expandir_bloco(then_block, spelling, expandidas);
-            if let Some(bloco) = else_block {
-                expandir_bloco(bloco, spelling, expandidas);
-            }
-        }
-        InstructionIR::While {
-            condition,
-            body_block,
-            ..
-        } => {
-            expandir_valor(condition, spelling, expandidas);
-            expandir_bloco(body_block, spelling, expandidas);
-        }
+        } => match else_block {
+            Some(senao) => vec![then_block, senao],
+            None => vec![then_block],
+        },
+        InstructionIR::While { body_block, .. } => vec![body_block],
         InstructionIR::EnumMatch(encaixe) => {
-            expandir_valor(&mut encaixe.scrutinee, spelling, expandidas);
-            for braco in &mut encaixe.arms {
-                expandir_bloco(&mut braco.body, spelling, expandidas);
+            let mut blocos: Vec<&mut BlockIR> = encaixe
+                .arms
+                .iter_mut()
+                .map(|braco| &mut braco.body)
+                .collect();
+            if let Some(senao) = &mut encaixe.otherwise {
+                blocos.push(senao);
             }
-            if let Some(bloco) = &mut encaixe.otherwise {
-                expandir_bloco(bloco, spelling, expandidas);
-            }
+            blocos
         }
-        InstructionIR::UnionMatch(encaixe) => {
-            expandir_valor(&mut encaixe.scrutinee, spelling, expandidas);
-            for braco in &mut encaixe.arms {
-                expandir_bloco(&mut braco.body, spelling, expandidas);
-            }
-        }
-        // `Falar`, `InlineAsm`, `Break` e `Continue` não hospedam chamada a
-        // operação interna nas sondas; a contagem prova isso a cada execução.
-        _ => {}
+        InstructionIR::UnionMatch(encaixe) => encaixe
+            .arms
+            .iter_mut()
+            .map(|braco| &mut braco.body)
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+fn visitar_instrucao(
+    instrucao: &mut InstructionIR,
+    spelling: &str,
+    acao: &mut dyn FnMut(&mut ValueIR),
+) {
+    for valor in valores_da_instrucao(instrucao) {
+        visitar_chamadas(valor, spelling, acao);
+    }
+    for bloco in sub_blocos(instrucao) {
+        visitar_bloco(bloco, spelling, acao);
     }
 }
 
@@ -1277,8 +1359,22 @@ fn expandir(
     }
     let mut ir = sonda.ir.clone();
     let mut expandidas = 0usize;
-    for funcao in &mut ir.functions {
-        expandir_bloco(&mut funcao.entry, spelling, &mut expandidas);
+    // Repete o último operando de cada chamada — é o que a mutação de aridade
+    // declara. Sem operando algum, o operando a mais declarado é `bombom`, e o
+    // literal inteiro é o valor dessa classe.
+    {
+        let mut repetir_ultimo = |chamada: &mut ValueIR| {
+            if let ValueIR::Call { args, .. } = chamada {
+                match args.last().cloned() {
+                    Some(ultimo) => args.push(ultimo),
+                    None => args.push(ValueIR::Int(0)),
+                }
+                expandidas += 1;
+            }
+        };
+        for funcao in &mut ir.functions {
+            visitar_bloco(&mut funcao.entry, spelling, &mut repetir_ultimo);
+        }
     }
     if expandidas != esperadas {
         return Err(format!(
@@ -1310,6 +1406,7 @@ fn expandir(
         cfg,
         selecionado,
         maquina,
+        sitios_cfg,
     })
 }
 
@@ -1440,6 +1537,966 @@ impl Consumidor {
             Err(_) => Some("INTERROMPE".to_string()),
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// Direção permissiva geral: testemunha NOVA, conforme ao contrato mutado
+// ---------------------------------------------------------------------------
+//
+// A expansão de aridade prova a direção permissiva para F2 mexendo nos sítios
+// que a sonda já materializa. Para F1, F3 e F4 a cirurgia é outra: a mutação
+// não acrescenta operando, TROCA a classe exigida de um operando ou de um
+// resultado, e o artefato que ela admite é um sítio de chamada NOVO — um que o
+// contrato canônico RECUSA e o mutado ACEITA.
+//
+// ```text
+//                A0 (canônica)      A1 (mutada)
+//   testemunha   RECUSA             ACEITA
+// ```
+//
+// É esse quadrante que a direção restritiva não alcança. Uma cópia local
+// ADITIVA e concorde — a fase pergunta à autoridade E confere de novo a regra
+// antiga por conta própria — continua RECUSANDO sob A1, e a divergência
+// denuncia a cópia. Trocar a classe X por Y retira X e admite Y: a mutação não
+// precisa ser superconjunto global de A0 para que a testemunha seja nova.
+//
+// A testemunha nasce do contrato MUTADO, que por sua vez nasceu da entrada
+// canônica corrente por cópia e edição de uma dimensão. Nenhuma classe é
+// escrita aqui: `args_da_variante` e `resultado_da_variante` LEEM a variante.
+
+/// O sítio de chamada que serve de base para a testemunha.
+struct Sitio {
+    args: Vec<ValueIR>,
+    ret_type: TypeIR,
+    identidade: crate::intrinsics::identity::CalleeIdentity,
+}
+
+/// Um literal desta classe, quando a classe é literalizável.
+///
+/// Só as classes escalares de transporte têm literal na IR; um mapa, uma lista
+/// ou um handle opaco precisam de um valor já em escopo, e por isso a
+/// testemunha reaproveita o argumento do sítio base quando a classe não muda.
+fn literal(tipo: TypeIR) -> Option<ValueIR> {
+    match tipo {
+        TypeIR::Bombom => Some(ValueIR::Int(0)),
+        TypeIR::Verso => Some(ValueIR::String("testemunha".to_string())),
+        TypeIR::Logica => Some(ValueIR::Bool(true)),
+        _ => None,
+    }
+}
+
+/// Os argumentos que o contrato MUTADO exige, a partir do sítio base.
+///
+/// Onde a variante declara a MESMA classe que a canônica naquela posição, o
+/// argumento do sítio base é reaproveitado: ele já conforma, e reaproveitar é o
+/// que mantém a testemunha a um passo do programa real. Onde a classe MUDOU, é
+/// preciso um valor da classe nova — e é só aí que a testemunha difere.
+fn args_da_variante(
+    canonica: &InternalOperation,
+    mutada: &InternalOperation,
+    base: &[ValueIR],
+) -> Option<Vec<ValueIR>> {
+    match mutada.operands {
+        InternalOperands::Declarados(novos) => {
+            let velhos = canonica.declared_params();
+            novos
+                .iter()
+                .enumerate()
+                .map(
+                    |(indice, classe)| match velhos.and_then(|v| v.get(indice)) {
+                        Some(velho) if velho == classe => base.get(indice).cloned(),
+                        _ => literal(*classe),
+                    },
+                )
+                .collect()
+        }
+        // Papéis e ramificação não declaram classe: a testemunha nova, nessas
+        // formas, é a do resultado, e os operandos do sítio base continuam
+        // valendo.
+        InternalOperands::PapeisDeMapa(_) | InternalOperands::Ramificacao => {
+            (base.len() == mutada.arity()).then(|| base.to_vec())
+        }
+    }
+}
+
+/// A classe de resultado que o contrato MUTADO declara, na forma concreta que a
+/// IR anota no sítio de chamada.
+///
+/// `ret_canonico` é o resultado que o sítio base carrega. Ele entra só onde a
+/// autoridade declara resultado RELATIVO — valor do mapa recebido, tipo dos
+/// ramos —, porque aí a classe concreta é derivada pela fase e a testemunha não
+/// pode inventá-la.
+fn resultado_da_variante(mutada: &InternalOperation, ret_canonico: TypeIR) -> Option<TypeIR> {
+    match mutada.result {
+        InternalResult::Declarado(tipo) => Some(tipo),
+        InternalResult::MapaNovoComChave(chave) => {
+            let valor = match ret_canonico {
+                TypeIR::Map { value, .. } => value,
+                _ => crate::ir::MapValueIR::Bombom,
+            };
+            Some(TypeIR::Map {
+                key: chave,
+                value: valor,
+            })
+        }
+        InternalResult::ValorDoMapaReceptor | InternalResult::TipoDosRamos => Some(ret_canonico),
+    }
+}
+
+/// Caminho até um bloco aninhado: para cada nível, a instrução e o sub-bloco.
+type CaminhoDeBloco = Vec<(usize, usize)>;
+
+/// O bloco MAIS INTERNO que hospeda uma chamada DIRETA à operação.
+///
+/// É lá, e só lá, que os argumentos do sítio estão garantidos em escopo para
+/// uma testemunha nova: um binding de bloco aninhado não é legível de fora.
+fn bloco_do_primeiro_sitio(bloco: &mut BlockIR, spelling: &str) -> Option<CaminhoDeBloco> {
+    for (indice, instrucao) in bloco.instructions.iter_mut().enumerate() {
+        for (sub, aninhado) in sub_blocos(instrucao).into_iter().enumerate() {
+            if let Some(mut caminho) = bloco_do_primeiro_sitio(aninhado, spelling) {
+                caminho.insert(0, (indice, sub));
+                return Some(caminho);
+            }
+        }
+    }
+    let hospeda = bloco.instructions.iter_mut().any(|instrucao| {
+        let mut achou = false;
+        for valor in valores_da_instrucao(instrucao) {
+            visitar_chamadas(valor, spelling, &mut |_| achou = true);
+        }
+        achou
+    });
+    hospeda.then(CaminhoDeBloco::new)
+}
+
+/// Navega o caminho até o bloco.
+fn bloco_em<'a>(raiz: &'a mut BlockIR, caminho: &CaminhoDeBloco) -> &'a mut BlockIR {
+    let mut atual = raiz;
+    for (indice, sub) in caminho {
+        atual = sub_blocos(&mut atual.instructions[*indice])
+            .into_iter()
+            .nth(*sub)
+            .expect("sub-bloco do caminho");
+    }
+    atual
+}
+
+/// O primeiro sítio de chamada à operação, para servir de base à testemunha.
+fn primeiro_sitio(funcao: &mut crate::ir::FunctionIR, spelling: &str) -> Option<Sitio> {
+    let mut sitio = None;
+    visitar_bloco(&mut funcao.entry, spelling, &mut |chamada| {
+        if sitio.is_none() {
+            if let ValueIR::Call {
+                args,
+                ret_type,
+                identidade,
+                ..
+            } = chamada
+            {
+                sitio = Some(Sitio {
+                    args: args.clone(),
+                    ret_type: *ret_type,
+                    identidade: *identidade,
+                });
+            }
+        }
+    });
+    sitio
+}
+
+/// Apaga da IR toda chamada à operação, preservando a forma do programa.
+///
+/// É o passo que torna a testemunha a ÚNICA pergunta sobre esta operação no
+/// artefato. Sem ele, os sítios canônicos — legais sob a autoridade real e
+/// ilegais sob a mutada — recusariam o programa inteiro sob `A1`, e o oráculo
+/// leria a recusa do sítio velho como se fosse a da testemunha.
+///
+/// A neutralização só SUBSTITUI, nunca remove: índice de instrução estável é o
+/// que permite inserir a testemunha no caminho medido antes.
+fn neutralizar_sitios(
+    funcao: &mut crate::ir::FunctionIR,
+    spelling: &str,
+) -> Result<(), &'static str> {
+    // Um sítio cuja classe de retorno não tem literal só pode ser neutralizado
+    // se ninguém ler o slot que ele alimenta: aí o slot inteiro passa a
+    // `bombom` e a chamada vira um literal dessa classe.
+    let mut sem_literal: Vec<String> = Vec::new();
+    lets_da_operacao(&mut funcao.entry, spelling, &mut sem_literal);
+    let texto = format!("{funcao:?}");
+    for slot in &sem_literal {
+        if texto.contains(&format!("Local(\"{slot}\")")) {
+            return Err(
+                "o sítio canônico devolve classe sem literal para um slot que o programa lê: \
+                 a testemunha não seria a única pergunta sobre a operação neste artefato",
+            );
+        }
+    }
+    for local in funcao.locals.iter_mut() {
+        if sem_literal.contains(&local.slot) {
+            local.ty = TypeIR::Bombom;
+            local.resolved = None;
+        }
+    }
+    visitar_bloco(&mut funcao.entry, spelling, &mut |chamada| {
+        if let ValueIR::Call { ret_type, .. } = chamada {
+            // Sem literal da classe, o valor vira `bombom`: ou o slot já foi
+            // retipado acima, ou a instrução é um `Expr` que descarta o valor.
+            *chamada = literal(*ret_type).unwrap_or(ValueIR::Int(0));
+        }
+    });
+    Ok(())
+}
+
+/// Slots dos `Let` cujo valor INTEIRO é uma chamada à operação sem literal de
+/// retorno.
+fn lets_da_operacao(bloco: &mut BlockIR, spelling: &str, achados: &mut Vec<String>) {
+    for instrucao in &mut bloco.instructions {
+        if let InstructionIR::Let {
+            slot,
+            value: ValueIR::Call {
+                callee, ret_type, ..
+            },
+            ..
+        } = instrucao
+        {
+            if callee == spelling && literal(*ret_type).is_none() {
+                achados.push(slot.clone());
+            }
+        }
+        for aninhado in sub_blocos(instrucao) {
+            lets_da_operacao(aninhado, spelling, achados);
+        }
+    }
+}
+
+fn span_sintetico() -> crate::token::Span {
+    crate::token::Span::new(
+        crate::token::Position::new(1, 1),
+        crate::token::Position::new(1, 1),
+    )
+}
+
+/// Slot da testemunha. Nome impossível na fonte, como todo temporário de fase.
+const TESTEMUNHA_SLOT: &str = "%u01testemunha#0";
+
+/// A instrução que hospeda a testemunha, e o local que ela declara.
+fn instrucao_da_testemunha(
+    spelling: &str,
+    args: Vec<ValueIR>,
+    ret: TypeIR,
+    identidade: crate::intrinsics::identity::CalleeIdentity,
+) -> (InstructionIR, Option<crate::ir::LocalIR>) {
+    let chamada = ValueIR::Call {
+        callee: spelling.to_string(),
+        args,
+        ret_type: ret,
+        identidade,
+    };
+    if ret == TypeIR::Nulo {
+        return (
+            InstructionIR::Expr {
+                value: chamada,
+                span: span_sintetico(),
+            },
+            None,
+        );
+    }
+    (
+        InstructionIR::Let {
+            slot: TESTEMUNHA_SLOT.to_string(),
+            value: chamada,
+            span: span_sintetico(),
+        },
+        Some(crate::ir::LocalIR {
+            source_name: TESTEMUNHA_SLOT.to_string(),
+            slot: TESTEMUNHA_SLOT.to_string(),
+            ty: ret,
+            resolved: None,
+            is_mut: false,
+        }),
+    )
+}
+
+/// Insere a instrução no fim do bloco, antes de um terminador.
+fn inserir_no_fim(bloco: &mut BlockIR, instrucao: InstructionIR) {
+    let posicao = bloco
+        .instructions
+        .iter()
+        .position(|existente| {
+            matches!(
+                existente,
+                InstructionIR::Return { .. }
+                    | InstructionIR::Break { .. }
+                    | InstructionIR::Continue { .. }
+            )
+        })
+        .unwrap_or(bloco.instructions.len());
+    bloco.instructions.insert(posicao, instrucao);
+}
+
+/// A testemunha permissiva desta variante, na IR, com as fases seguintes
+/// baixadas SOB a autoridade mutada.
+///
+/// O artefato é UM: as duas leituras — sob a canônica e sob a mutada —
+/// perguntam ao mesmo programa. É a autoridade que muda, nunca o artefato.
+fn testemunha_ir(
+    sonda: &Sonda,
+    canonica: &InternalOperation,
+    variante: &Variante,
+) -> Result<Expandida, String> {
+    let spelling = canonica.spelling;
+    let mutada = variante
+        .tabela
+        .iter()
+        .find(|operacao| operacao.spelling == spelling)
+        .ok_or_else(|| "a variante retira a operação: não há sítio a construir".to_string())?;
+    let mut ir = sonda.ir.clone();
+    let mut inseriu: Option<usize> = None;
+    for (indice, funcao) in ir.functions.iter_mut().enumerate() {
+        let Some(caminho) = bloco_do_primeiro_sitio(&mut funcao.entry, spelling) else {
+            continue;
+        };
+        let sitio = primeiro_sitio(funcao, spelling).expect("sítio achado pelo caminho");
+        let args = args_da_variante(canonica, mutada, &sitio.args)
+            .ok_or_else(|| "os operandos do contrato mutado não são construtíveis".to_string())?;
+        let ret = resultado_da_variante(mutada, sitio.ret_type)
+            .ok_or_else(|| "o resultado do contrato mutado não é construtível".to_string())?;
+        neutralizar_sitios(funcao, spelling).map_err(str::to_string)?;
+        let (instrucao, local) = instrucao_da_testemunha(spelling, args, ret, sitio.identidade);
+        inserir_no_fim(bloco_em(&mut funcao.entry, &caminho), instrucao);
+        if let Some(local) = local {
+            funcao.locals.push(local);
+        }
+        inseriu = Some(indice);
+        break;
+    }
+    let Some(hospedeira) = inseriu else {
+        return Err("nenhum sítio de chamada na IR desta sonda".to_string());
+    };
+    // As demais funções da sonda também podem hospedar sítios canônicos, e um
+    // só deles recusaria o programa inteiro sob a autoridade mutada.
+    for (indice, funcao) in ir.functions.iter_mut().enumerate() {
+        if indice != hospedeira {
+            neutralizar_sitios(funcao, spelling).map_err(str::to_string)?;
+        }
+    }
+    let _mutado = MutatedContract::install(variante.tabela.clone());
+    let cfg = cfg_ir::lower_program(&ir).map_err(|erro| format!("CFG da testemunha: {erro}"))?;
+    let selecionado = instr_select::lower_program(&cfg)
+        .map_err(|erro| format!("seleção da testemunha: {erro}"))?;
+    let maquina = abstract_machine::lower_program(&selecionado)
+        .map_err(|erro| format!("máquina da testemunha: {erro}"))?;
+    let sitios_cfg = sitios_de_chamada(&format!("{cfg:?}"), spelling);
+    Ok(Expandida {
+        ir,
+        cfg,
+        selecionado,
+        maquina,
+        sitios_cfg,
+    })
+}
+
+/// A testemunha permissiva MÍNIMA: um programa cuja única instrução é a chamada.
+///
+/// A sonda real é a primeira escolha, porque ela é o programa que o compilador
+/// de verdade produz. Mas duas coisas a inviabilizam: a CFG SINTETIZA chamadas
+/// que a IR não tem — o desugaring de `encaixe` e o de `tentar` emitem leitura
+/// de tag e de carga direto lá —, e um sítio canônico cuja classe de retorno
+/// não tem literal não é neutralizável. Nos dois casos o artefato deixaria de
+/// ter a testemunha como única pergunta sobre a operação.
+///
+/// O programa mínimo não tem esse problema porque não tem mais nada. Ele
+/// reaproveita as tabelas de identidade da sonda — tipos resolvidos, uniões,
+/// variantes de leque — e troca o corpo da função de entrada pela testemunha.
+/// Só existe onde todos os operandos do contrato mutado são literalizáveis: é a
+/// forma de dizer que a testemunha não inventa valor que a representação não
+/// tem.
+fn testemunha_minima(
+    sonda: &Sonda,
+    canonica: &InternalOperation,
+    variante: &Variante,
+) -> Result<Expandida, String> {
+    let spelling = canonica.spelling;
+    let mutada = variante
+        .tabela
+        .iter()
+        .find(|operacao| operacao.spelling == spelling)
+        .ok_or_else(|| "a variante retira a operação: não há sítio a construir".to_string())?;
+    let params = mutada
+        .declared_params()
+        .ok_or_else(|| "o contrato mutado declara papéis, não classes: sem literal".to_string())?;
+    let args: Option<Vec<ValueIR>> = params.iter().map(|classe| literal(*classe)).collect();
+    let args = args.ok_or_else(|| {
+        "algum operando do contrato mutado é de classe sem literal na IR".to_string()
+    })?;
+    let ret = match mutada.result {
+        InternalResult::Declarado(tipo) => tipo,
+        _ => {
+            return Err(
+                "o contrato mutado declara resultado relativo: sem sítio mínimo".to_string(),
+            )
+        }
+    };
+    let mut ir = sonda.ir.clone();
+    let indice = ir
+        .functions
+        .iter()
+        .position(|funcao| funcao.params.is_empty() && funcao.ret_type == TypeIR::Bombom)
+        .ok_or_else(|| "a sonda não tem função de entrada sem parâmetros".to_string())?;
+    let mut entrada = ir.functions[indice].clone();
+    let (instrucao, local) =
+        instrucao_da_testemunha(spelling, args, ret, CalleeIdentity::CompilerInternal);
+    entrada.locals = local.into_iter().collect();
+    entrada.entry.instructions = vec![
+        instrucao,
+        InstructionIR::Return {
+            value: Some(ValueIR::Int(0)),
+            span: span_sintetico(),
+        },
+    ];
+    ir.functions = vec![entrada];
+    let _mutado = MutatedContract::install(variante.tabela.clone());
+    let cfg = cfg_ir::lower_program(&ir).map_err(|erro| format!("CFG da testemunha: {erro}"))?;
+    let selecionado = instr_select::lower_program(&cfg)
+        .map_err(|erro| format!("seleção da testemunha: {erro}"))?;
+    let maquina = abstract_machine::lower_program(&selecionado)
+        .map_err(|erro| format!("máquina da testemunha: {erro}"))?;
+    let sitios_cfg = sitios_de_chamada(&format!("{cfg:?}"), spelling);
+    Ok(Expandida {
+        ir,
+        cfg,
+        selecionado,
+        maquina,
+        sitios_cfg,
+    })
+}
+
+// ---------------------------------------------------------------------------
+// A testemunha permissiva na AST
+// ---------------------------------------------------------------------------
+//
+// A semântica e o contexto de lowering examinam a AST, e é lá que a decisão
+// deles acontece: os desugarings de `encaixe`, de `tentar` e de `para cada` já
+// materializaram a chamada interna quando a checagem semântica roda. Uma
+// testemunha só de IR nunca chega a eles — e foi exatamente em `semantic/calls`
+// que a duplicação de F3/F4 do `B5` viveu até o sexto HEAD. Sem esta metade a
+// prova permissiva deixaria de fora o consumidor mais importante.
+//
+// A cirurgia é a mesma da IR: neutralizar todo sítio canônico, para que a
+// testemunha seja a ÚNICA pergunta sobre a operação, e inserir um sítio novo
+// que conforma ao contrato MUTADO.
+
+/// As expressões que esta instrução hospeda DIRETAMENTE, sem entrar em bloco.
+fn expressoes_do_stmt(stmt: &mut Stmt) -> Vec<&mut Expr> {
+    match stmt {
+        Stmt::Let(declaracao) => vec![&mut declaracao.init],
+        Stmt::Return(retorno) => retorno.expr.iter_mut().collect(),
+        Stmt::Assign(atribuicao) => vec![&mut atribuicao.expr],
+        // A cadeia `senão se` é UM `Stmt::If` com outro `IfStmt` dentro do
+        // `else`: parar no primeiro deixaria de fora toda condição a partir da
+        // segunda — e é lá que o desugaring de `tentar` põe as leituras de tag.
+        Stmt::If(condicional) => {
+            let mut condicoes = Vec::new();
+            let mut atual = condicional;
+            loop {
+                condicoes.push(&mut atual.condition);
+                match &mut atual.else_branch {
+                    Some(ElseBlock::If(aninhado)) => atual = aninhado,
+                    Some(ElseBlock::Block(_)) | None => break,
+                }
+            }
+            condicoes
+        }
+        Stmt::While(laco) => vec![&mut laco.condition],
+        Stmt::Falar(falar) => falar.args.iter_mut().collect(),
+        Stmt::EnumMatch(encaixe) => vec![&mut encaixe.scrutinee],
+        Stmt::UnionMatch(encaixe) => vec![&mut encaixe.scrutinee],
+        Stmt::Expr(expressao) => vec![expressao],
+        Stmt::Break(_) | Stmt::Continue(_) | Stmt::InlineAsm(_) => Vec::new(),
+    }
+}
+
+/// Os blocos aninhados desta instrução.
+fn blocos_do_stmt(stmt: &mut Stmt) -> Vec<&mut Block> {
+    match stmt {
+        Stmt::If(condicional) => {
+            let mut blocos = Vec::new();
+            let mut atual = condicional;
+            loop {
+                let crate::ast::IfStmt {
+                    then_branch,
+                    else_branch,
+                    ..
+                } = atual;
+                blocos.push(then_branch);
+                match else_branch {
+                    Some(ElseBlock::Block(bloco)) => {
+                        blocos.push(bloco);
+                        break;
+                    }
+                    Some(ElseBlock::If(aninhado)) => atual = aninhado,
+                    None => break,
+                }
+            }
+            blocos
+        }
+        Stmt::While(laco) => vec![&mut laco.body],
+        Stmt::EnumMatch(encaixe) => {
+            let mut blocos: Vec<&mut Block> = encaixe
+                .arms
+                .iter_mut()
+                .map(|braco| &mut braco.body)
+                .collect();
+            if let Some(senao) = &mut encaixe.otherwise {
+                blocos.push(senao);
+            }
+            blocos
+        }
+        Stmt::UnionMatch(encaixe) => encaixe
+            .arms
+            .iter_mut()
+            .map(|braco| &mut braco.body)
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// Visita toda chamada a `spelling` hospedada nesta expressão.
+fn visitar_chamadas_ast(expr: &mut Expr, spelling: &str, acao: &mut dyn FnMut(&mut Expr)) {
+    let alvo = matches!(
+        &expr.kind,
+        ExprKind::Call(callee, _)
+            if matches!(&callee.kind, ExprKind::Ident(nome) if nome == spelling)
+    );
+    match &mut expr.kind {
+        ExprKind::Call(callee, args) => {
+            visitar_chamadas_ast(callee, spelling, acao);
+            for argumento in args.iter_mut() {
+                visitar_chamadas_ast(argumento, spelling, acao);
+            }
+        }
+        ExprKind::Binary(lhs, _, rhs) => {
+            visitar_chamadas_ast(lhs, spelling, acao);
+            visitar_chamadas_ast(rhs, spelling, acao);
+        }
+        ExprKind::Unary(_, operando)
+        | ExprKind::AddressOf(operando)
+        | ExprKind::InternalMapIterCreate(operando)
+        | ExprKind::InternalMapIterNextKey(operando)
+        | ExprKind::Cast { expr: operando, .. } => visitar_chamadas_ast(operando, spelling, acao),
+        ExprKind::FieldAccess { base, .. } => visitar_chamadas_ast(base, spelling, acao),
+        ExprKind::Index { base, index } => {
+            visitar_chamadas_ast(base, spelling, acao);
+            visitar_chamadas_ast(index, spelling, acao);
+        }
+        _ => {}
+    }
+    if alvo {
+        acao(expr);
+    }
+}
+
+fn visitar_bloco_ast(bloco: &mut Block, spelling: &str, acao: &mut dyn FnMut(&mut Expr)) {
+    for stmt in &mut bloco.stmts {
+        for expressao in expressoes_do_stmt(stmt) {
+            visitar_chamadas_ast(expressao, spelling, acao);
+        }
+        for aninhado in blocos_do_stmt(stmt) {
+            visitar_bloco_ast(aninhado, spelling, acao);
+        }
+    }
+}
+
+/// O bloco MAIS INTERNO que hospeda uma chamada DIRETA à operação.
+fn bloco_do_primeiro_sitio_ast(bloco: &mut Block, spelling: &str) -> Option<CaminhoDeBloco> {
+    for (indice, stmt) in bloco.stmts.iter_mut().enumerate() {
+        for (sub, aninhado) in blocos_do_stmt(stmt).into_iter().enumerate() {
+            if let Some(mut caminho) = bloco_do_primeiro_sitio_ast(aninhado, spelling) {
+                caminho.insert(0, (indice, sub));
+                return Some(caminho);
+            }
+        }
+    }
+    let hospeda = bloco.stmts.iter_mut().any(|stmt| {
+        let mut achou = false;
+        for expressao in expressoes_do_stmt(stmt) {
+            visitar_chamadas_ast(expressao, spelling, &mut |_| achou = true);
+        }
+        achou
+    });
+    hospeda.then(CaminhoDeBloco::new)
+}
+
+fn bloco_ast_em<'a>(raiz: &'a mut Block, caminho: &CaminhoDeBloco) -> &'a mut Block {
+    let mut atual = raiz;
+    for (indice, sub) in caminho {
+        atual = blocos_do_stmt(&mut atual.stmts[*indice])
+            .into_iter()
+            .nth(*sub)
+            .expect("sub-bloco do caminho");
+    }
+    atual
+}
+
+/// Um literal desta classe na AST, quando a classe é literalizável.
+fn literal_ast(tipo: TypeIR, span: crate::token::Span) -> Option<Expr> {
+    let kind = match tipo {
+        TypeIR::Bombom => ExprKind::IntLit(0),
+        TypeIR::Verso => ExprKind::StringLit("testemunha".to_string()),
+        TypeIR::Logica => ExprKind::BoolLit(true),
+        _ => return None,
+    };
+    Some(Expr { kind, span })
+}
+
+/// A classe na representação `Type` desta fase, quando ela existe.
+///
+/// É correspondência de REPRESENTAÇÃO, e mora no teste pela mesma razão que
+/// mora na fase: a testemunha precisa ser escrita na linguagem da AST. QUAL
+/// classe a operação exige continua vindo só da autoridade.
+fn tipo_ast(tipo: TypeIR, span: crate::token::Span) -> Option<crate::ast::Type> {
+    use crate::ast::Type;
+    Some(match tipo {
+        TypeIR::Bombom => Type::Bombom(span),
+        TypeIR::Verso => Type::Verso(span),
+        TypeIR::Logica => Type::Logica(span),
+        _ => return None,
+    })
+}
+
+/// Os argumentos que o contrato MUTADO exige, na AST, a partir do sítio base.
+fn args_ast_da_variante(
+    canonica: &InternalOperation,
+    mutada: &InternalOperation,
+    base: &[Expr],
+    span: crate::token::Span,
+) -> Option<Vec<Expr>> {
+    match mutada.operands {
+        InternalOperands::Declarados(novos) => {
+            let velhos = canonica.declared_params();
+            novos
+                .iter()
+                .enumerate()
+                .map(
+                    |(indice, classe)| match velhos.and_then(|v| v.get(indice)) {
+                        Some(velho) if velho == classe => base.get(indice).cloned(),
+                        _ => literal_ast(*classe, span),
+                    },
+                )
+                .collect()
+        }
+        InternalOperands::PapeisDeMapa(_) | InternalOperands::Ramificacao => {
+            (base.len() == mutada.arity()).then(|| base.to_vec())
+        }
+    }
+}
+
+/// Nome do slot da testemunha na AST. Impossível na fonte, como os temporários
+/// que os próprios desugarings fabricam.
+const TESTEMUNHA_NOME: &str = "__u01_testemunha";
+
+/// A testemunha permissiva desta variante, na AST.
+fn testemunha_ast(
+    sonda: &Sonda,
+    canonica: &InternalOperation,
+    variante: &Variante,
+) -> Result<Program, String> {
+    use crate::ast::{Item, LetStmt};
+    let spelling = canonica.spelling;
+    let mutada = variante
+        .tabela
+        .iter()
+        .find(|operacao| operacao.spelling == spelling)
+        .ok_or_else(|| "a variante retira a operação: não há sítio a construir".to_string())?;
+    let InternalResult::Declarado(ret) = mutada.result else {
+        return Err("o contrato mutado declara resultado relativo: sem sítio na AST".to_string());
+    };
+    let InternalResult::Declarado(canonico) = canonica.result else {
+        return Err("o contrato canônico declara resultado relativo: sem sítio na AST".to_string());
+    };
+    let mut programa = sonda.programa.clone();
+    let mut alvo: Option<(usize, CaminhoDeBloco, Vec<Expr>, crate::token::Span)> = None;
+    for (indice, item) in programa.items.iter_mut().enumerate() {
+        let Item::Function(funcao) = item else {
+            continue;
+        };
+        let Some(caminho) = bloco_do_primeiro_sitio_ast(&mut funcao.body, spelling) else {
+            continue;
+        };
+        let mut base: Option<Vec<Expr>> = None;
+        visitar_bloco_ast(&mut funcao.body, spelling, &mut |chamada| {
+            if base.is_none() {
+                if let ExprKind::Call(_, args) = &chamada.kind {
+                    base = Some(args.clone());
+                }
+            }
+        });
+        alvo = Some((
+            indice,
+            caminho,
+            base.expect("sítio achado pelo caminho"),
+            funcao.span,
+        ));
+        break;
+    }
+    let Some((indice, caminho, base, span)) = alvo else {
+        return Err("nenhum sítio de chamada na AST desta sonda".to_string());
+    };
+    let args = args_ast_da_variante(canonica, mutada, &base, span)
+        .ok_or_else(|| "os operandos do contrato mutado não são construtíveis".to_string())?;
+    let tipo = tipo_ast(ret, span)
+        .ok_or_else(|| "a classe do resultado mutado não é escrevível na AST".to_string())?;
+    let neutro = literal_ast(canonico, span).ok_or_else(|| {
+        "a classe do resultado canônico não tem literal: o sítio canônico não é neutralizável"
+            .to_string()
+    })?;
+    for item in &mut programa.items {
+        if let Item::Function(funcao) = item {
+            visitar_bloco_ast(&mut funcao.body, spelling, &mut |chamada| {
+                *chamada = neutro.clone()
+            });
+        }
+    }
+    let Item::Function(funcao) = &mut programa.items[indice] else {
+        unreachable!("o alvo foi achado numa função")
+    };
+    let chamada = Expr {
+        kind: ExprKind::Call(
+            Box::new(Expr {
+                kind: ExprKind::Ident(spelling.to_string()),
+                span,
+            }),
+            args,
+        ),
+        span,
+    };
+    let testemunha = Stmt::Let(LetStmt {
+        name: TESTEMUNHA_NOME.to_string(),
+        is_mut: false,
+        ty: Some(tipo),
+        init: chamada,
+        span,
+    });
+    let bloco = bloco_ast_em(&mut funcao.body, &caminho);
+    let posicao = bloco
+        .stmts
+        .iter()
+        .position(|stmt| matches!(stmt, Stmt::Return(_) | Stmt::Break(_) | Stmt::Continue(_)))
+        .unwrap_or(bloco.stmts.len());
+    bloco.stmts.insert(posicao, testemunha);
+    Ok(programa)
+}
+
+/// Um artefato-testemunha, na representação que o consumidor examina.
+enum Artefato {
+    /// Árvore de sintaxe: a representação da semântica e do contexto de
+    /// lowering.
+    Arvore(Program),
+    /// IR e as fases baixadas a partir dela sob a autoridade mutada.
+    Baixado(Expandida),
+}
+
+impl Consumidor {
+    /// A resposta deste consumidor à testemunha, ou `None` quando ele não
+    /// examina a representação em que ela existe.
+    fn resposta_na_testemunha(self, artefato: &Artefato) -> Option<String> {
+        match artefato {
+            Artefato::Arvore(programa) => {
+                let resposta =
+                    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| match self {
+                        Self::Semantic => Some(veredito(semantic::check_program(programa))),
+                        Self::IrContext => Some(match ir::lower_program(programa) {
+                            Ok(_) => "ACEITA".to_string(),
+                            Err(erro) => format!("RECUSA: {erro}"),
+                        }),
+                        _ => None,
+                    }));
+                match resposta {
+                    Ok(resposta) => resposta,
+                    Err(_) => Some("INTERROMPE".to_string()),
+                }
+            }
+            Artefato::Baixado(expandida) => {
+                // O artefato daquele estágio está CONTAMINADO quando a descida
+                // sintetiza sítios canônicos de volta: ler a recusa do sítio
+                // velho como se fosse a da testemunha é o erro que o §6 da
+                // disposição proíbe.
+                let depois_da_ir = matches!(
+                    self,
+                    Self::CfgIrValidate
+                        | Self::InstrSelectValidate
+                        | Self::AbstractMachineValidate
+                        | Self::BackendSExternalCallconv
+                );
+                if depois_da_ir && expandida.sitios_cfg != 1 {
+                    return None;
+                }
+                self.resposta_expandida(expandida)
+            }
+        }
+    }
+}
+
+/// A variante é coerente consigo mesma?
+///
+/// Um contrato que declara resultado RELATIVO ao mapa recebido — valor do mapa,
+/// mapa novo com chave — e operandos que já NÃO são papéis de mapa não descreve
+/// operação alguma: o resultado aponta para um operando que deixou de existir.
+///
+/// A incoerência é do CONTRATO, lida do tipo da própria autoridade, e não uma
+/// observação sobre consumidor nenhum. Onde ela aparece, a direção permissiva é
+/// estruturalmente inexistente: não há chamada que a variante admita, em fase
+/// alguma, porque a variante não descreve chamada admissível.
+fn variante_coerente(mutada: &InternalOperation) -> bool {
+    let resultado_relativo_ao_mapa = matches!(
+        mutada.result,
+        InternalResult::ValorDoMapaReceptor | InternalResult::MapaNovoComChave(_)
+    );
+    let operandos_relativos_ao_mapa = matches!(mutada.operands, InternalOperands::PapeisDeMapa(_));
+    !resultado_relativo_ao_mapa || operandos_relativos_ao_mapa
+}
+
+/// A PROJEÇÃO que um consumidor deriva da autoridade.
+///
+/// Nem todo consumidor responde com aceite ou recusa. `ir/model` É o predicado
+/// de família — a resposta dele é a própria classificação —, e o contexto de
+/// lowering ANOTA no sítio de chamada a classe de resultado que a autoridade
+/// declara. Para esses dois, exigir uma testemunha “ilegal sob A0 e legal sob
+/// A1” seria exigir o quadrante errado: eles não recusam, eles PROJETAM.
+///
+/// O observável certo é o da disposição §10 — *actual inferred type / result /
+/// projection* —, e ele é direcional nos dois sentidos de uma vez: se a fase
+/// tiver tabela local, a projeção fica no valor ANTIGO sob a mutação, seja ela
+/// mais estreita ou mais larga.
+///
+/// O valor esperado em cada estado vem da entrada daquele estado — a canônica
+/// corrente e a variante derivada dela. Nenhuma classe é escrita aqui.
+fn projecao(
+    consumidor: Consumidor,
+    sonda: &Sonda,
+    spelling: &str,
+    entrada: Option<&InternalOperation>,
+) -> Option<(String, String)> {
+    match consumidor {
+        Consumidor::IrModel => {
+            let medido = format!("generica={}", ir::is_generic_map_intrinsic(spelling));
+            let esperado = format!(
+                "generica={}",
+                entrada.is_some_and(
+                    |operacao| operacao.family == InternalOperationFamily::MapaGenerica
+                )
+            );
+            Some((medido, esperado))
+        }
+        Consumidor::IrContext => {
+            let baixado = ir::lower_program(&sonda.programa).ok()?;
+            let mut anotados: Vec<TypeIR> = Vec::new();
+            let mut copia = baixado;
+            for funcao in &mut copia.functions {
+                visitar_bloco(&mut funcao.entry, spelling, &mut |chamada| {
+                    if let ValueIR::Call { ret_type, .. } = chamada {
+                        if !anotados.contains(ret_type) {
+                            anotados.push(*ret_type);
+                        }
+                    }
+                });
+            }
+            if anotados.is_empty() {
+                return None;
+            }
+            let medido = format!("{anotados:?}");
+            let declarado = entrada.and_then(|operacao| operacao.declared_ret())?;
+            let esperado = format!("{:?}", vec![declarado]);
+            Some((medido, esperado))
+        }
+        _ => None,
+    }
+}
+
+/// A obrigação por projeção: o que a fase projeta, nos dois estados, contra o
+/// que a autoridade de cada estado declara.
+fn obrigacao_por_projecao(
+    consumidor: Consumidor,
+    sonda: &Sonda,
+    canonica: &InternalOperation,
+    variante: &Variante,
+) -> Option<(bool, bool)> {
+    let spelling = canonica.spelling;
+    let mutada = variante
+        .tabela
+        .iter()
+        .find(|operacao| operacao.spelling == spelling);
+    let (medido_a0, esperado_a0) = projecao(consumidor, sonda, spelling, Some(canonica))?;
+    let (medido_a1, esperado_a1) = {
+        let _mutado = MutatedContract::install(variante.tabela.clone());
+        projecao(consumidor, sonda, spelling, mutada)?
+    };
+    // A prova exige as duas metades: a projeção precisa SEGUIR a autoridade nos
+    // dois estados, e os dois estados precisam ser distinguíveis. Uma projeção
+    // que não muda não prova derivação alguma.
+    Some((
+        medido_a0 == esperado_a0 && medido_a1 == esperado_a1,
+        medido_a0 != medido_a1,
+    ))
+}
+
+/// Todas as testemunhas permissivas desta variante, com a origem de cada uma.
+///
+/// A sonda real vem primeiro, porque ela é o programa que o compilador de
+/// verdade produz. O programa mínimo entra como complemento — não como
+/// substituto — para as formas que a sonda não consegue isolar.
+fn testemunhas(
+    corpus: &[Sonda],
+    canonica: &InternalOperation,
+    variante: &Variante,
+) -> Vec<(&'static str, Result<Artefato, String>)> {
+    let mut todas: Vec<(&'static str, Result<Artefato, String>)> = Vec::new();
+    for sonda in corpus {
+        if !sonda.testemunha(canonica.spelling) {
+            continue;
+        }
+        todas.push((
+            sonda.nome,
+            testemunha_ir(sonda, canonica, variante).map(Artefato::Baixado),
+        ));
+        todas.push((
+            sonda.nome,
+            testemunha_ast(sonda, canonica, variante).map(Artefato::Arvore),
+        ));
+    }
+    if let Some(primeira) = corpus.first() {
+        todas.push((
+            "mínima",
+            testemunha_minima(primeira, canonica, variante).map(Artefato::Baixado),
+        ));
+    }
+    todas
+}
+
+/// A resposta do consumidor à testemunha, sob a autoridade canônica e sob a
+/// mutada.
+///
+/// `None` quando o consumidor não examina a representação em que a testemunha
+/// existe, ou quando aquele artefato está contaminado por sítios canônicos.
+fn leitura(
+    consumidor: Consumidor,
+    artefato: &Artefato,
+    variante: &Variante,
+) -> Option<(String, String)> {
+    let canonica = consumidor.resposta_na_testemunha(artefato)?;
+    let mutada = {
+        let _mutado = MutatedContract::install(variante.tabela.clone());
+        consumidor.resposta_na_testemunha(artefato)?
+    };
+    Some((canonica, mutada))
+}
+
+/// A resposta é um ACEITE?
+///
+/// Recusar-se a continuar também é resposta, e interromper também: as duas
+/// contam como não-aceite, e nenhuma delas conta como prova.
+fn aceitou(resposta: &str) -> bool {
+    resposta == "ACEITA"
 }
 
 // ---------------------------------------------------------------------------
@@ -1705,6 +2762,12 @@ fn inventario_estatico_descoberta_e_escrituracao_coincidem() {
         "decisores do piso histórico que deixaram de consultar a autoridade \
          (matéria de disposição do Guia, não de edição desta lista): {piso_ausente:?}"
     );
+    println!(
+        "STATIC_INVENTORY_CONSUMERS = {}\n\
+         STATIC_INVENTORY_OUTSIDE_FLOOR = {}",
+        inventario.len(),
+        fora_do_piso.len()
+    );
 }
 
 /// Nenhum consumidor alcança a autoridade por indireção sem escrituração.
@@ -1825,6 +2888,16 @@ fn descoberta_e_escrituracao_coincidem() {
     assert!(
         novos.is_empty(),
         "consumidores novos, fora do piso histórico, sem explicação: {novos:?}"
+    );
+    println!(
+        "DISCOVERED_CONSUMERS = {}\n\
+         HISTORICAL_CONSUMERS_EXPECTED = {}\n\
+         HISTORICAL_CONSUMERS_MISSING = {}\n\
+         UNEXPLAINED_NEW_CONSUMERS = {}",
+        descobertos.len(),
+        PISO_HISTORICO.len(),
+        piso_ausente.len(),
+        novos.len()
     );
 }
 
@@ -2122,6 +3195,463 @@ fn direcao_permissiva_por_aridade() {
         "a direção permissiva precisa provar derivação E ausência: derivações={}, ausências={}",
         derivacoes.len(),
         ausencias.len()
+    );
+}
+
+/// Disposição de uma obrigação direcional.
+///
+/// São as quatro classes que a disposição do Guia admite, e nenhuma delas é
+/// atalho: `EquivalenciaDeRepresentacao` e `NaoAplicavel` exigem razão CAUSAL
+/// MEDIDA, nunca “não consegui construir a testemunha”.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Disposicao {
+    /// Existe testemunha nova — ilegal sob a canônica, legal sob a mutada — e o
+    /// consumidor a ADMITE. É o quadrante que a direção restritiva não alcança.
+    ProvadaPorAdmissao,
+    /// A autoridade mutada não admite chamada ALGUMA nesta fase: a testemunha
+    /// construída a partir do contrato mutado é recusada sob ele, e aceita sob
+    /// a canônica. A rota da fase desaparece com a mutação, então um consumidor
+    /// que continue ACEITANDO só pode estar decidindo por conta própria — e a
+    /// matriz restritiva exige e mede essa mudança.
+    ProvadaPorRemocaoDeRota,
+    /// A fase não distingue os dois estados do contrato: toda testemunha que a
+    /// autoridade mutada admite, a canônica já admitia. Não existe caso novo, e
+    /// por isso nenhuma cópia local concorde poderia recusá-lo.
+    EquivalenciaDeRepresentacao,
+    /// O observável do consumidor é uma PROJEÇÃO, não um veredito: ele deriva
+    /// a resposta da autoridade em vez de aceitar ou recusar um artefato. A
+    /// prova é a projeção seguir a autoridade nos DOIS estados e distinguir um
+    /// do outro — direcional nos dois sentidos de uma vez.
+    ProvadaPorProjecao,
+    /// A decisão compartilhada não existe naquela variante: o contrato mutado é
+    /// incoerente consigo mesmo, e por isso não admite chamada alguma em fase
+    /// alguma. A razão é lida do tipo da autoridade, não do comportamento do
+    /// consumidor.
+    EstruturalmenteNaoAplicavel,
+    /// Existe decisão material e não há prova suficiente.
+    NaoProvada,
+}
+
+impl Disposicao {
+    fn nome(self) -> &'static str {
+        match self {
+            Self::ProvadaPorAdmissao => "PROVADA/admissão",
+            Self::ProvadaPorRemocaoDeRota => "PROVADA/remoção de rota",
+            Self::ProvadaPorProjecao => "PROVADA/projeção",
+            Self::EquivalenciaDeRepresentacao => "EQUIVALÊNCIA DE REPRESENTAÇÃO",
+            Self::EstruturalmenteNaoAplicavel => "ESTRUTURALMENTE NÃO APLICÁVEL",
+            Self::NaoProvada => "NÃO PROVADA",
+        }
+    }
+}
+
+/// A obrigação direcional de uma célula da matriz.
+///
+/// A unidade é `(operação, fato, dimensão, consumidor)`, com a representação, a
+/// testemunha, o observável e os dois resultados medidos. Nenhum campo repete
+/// valor canônico: aridade, classe de operando e classe de resultado continuam
+/// existindo só em [`INTERNAL_OPERATIONS`], e chegam aqui pela variante, que
+/// nasceu da entrada canônica corrente.
+struct Obrigacao {
+    operacao: &'static str,
+    fato: Fato,
+    dimensao: &'static str,
+    consumidor: Consumidor,
+    /// Por origem de testemunha: `(aceita sob a canônica, aceita sob a mutada)`.
+    leituras: Vec<(&'static str, bool, bool)>,
+    /// `(a projeção seguiu a autoridade nos dois estados, os dois estados são
+    /// distinguíveis)`, quando o observável do consumidor é uma projeção.
+    projecao: Option<(bool, bool)>,
+    /// A variante descreve um contrato coerente consigo mesmo?
+    coerente: bool,
+    razoes: Vec<String>,
+}
+
+impl Obrigacao {
+    fn admite(&self) -> bool {
+        self.leituras
+            .iter()
+            .any(|(_, canonica, mutada)| !canonica && *mutada)
+    }
+
+    fn remove_rota(&self) -> bool {
+        self.leituras
+            .iter()
+            .any(|(_, canonica, mutada)| *canonica && !mutada)
+    }
+
+    fn sem_caso_novo(&self) -> bool {
+        !self.leituras.is_empty()
+            && self
+                .leituras
+                .iter()
+                .all(|(_, canonica, mutada)| *canonica && *mutada)
+    }
+}
+
+/// A prova na direção PERMISSIVA, fato a fato e operação a operação.
+///
+/// [`direcao_permissiva_por_aridade`] prova F2 pelo artefato EXPANDIDO — um
+/// operando a mais em cada chamada. Para F1/família, F3 e F4 a cirurgia é
+/// outra, porque a mutação não acrescenta operando: ela TROCA a classe exigida,
+/// e o artefato que a mutação admite é um sítio de chamada NOVO.
+///
+/// ```text
+///                A0 (canônica)      A1 (mutada)
+///   testemunha   RECUSA             ACEITA
+/// ```
+///
+/// Uma cópia local ADITIVA e concorde — a fase pergunta à autoridade E confere
+/// de novo, por conta própria, a regra antiga — continua RECUSANDO sob `A1`, e a
+/// divergência a denuncia. É esta metade que faltava para F1, F3 e F4.
+///
+/// Onde a fase não tem o quadrante — porque a autoridade mutada não admite
+/// chamada alguma nela, ou porque tudo que a mutada admite a canônica já
+/// admitia — a razão é MEDIDA, não presumida, e a disposição diz qual das duas
+/// é.
+#[test]
+fn direcao_permissiva_por_fato() {
+    let corpus = corpus();
+    let mut obrigacoes: Vec<Obrigacao> = Vec::new();
+    let mut divergencias: Vec<String> = Vec::new();
+    let mut nao_aplicaveis: Vec<String> = Vec::new();
+
+    for operacao in INTERNAL_OPERATIONS {
+        for fato in FATOS_PERMISSIVOS {
+            let lista = match variantes(operacao.spelling, *fato) {
+                Ok(lista) => lista,
+                Err(razao) => {
+                    nao_aplicaveis.push(format!(
+                        "{} / {} :: {razao}",
+                        operacao.spelling,
+                        fato.nome()
+                    ));
+                    continue;
+                }
+            };
+            for variante in &lista {
+                let construidas = testemunhas(&corpus, operacao, variante);
+                for consumidor in CONSUMIDORES {
+                    // A obrigação só existe onde o consumidor ALCANÇA a
+                    // operação: é o mesmo filtro da matriz restritiva, e é o
+                    // que impede inventar aresta onde a fase nunca decide. O
+                    // contexto de lowering registra assinatura de TODA operação
+                    // de contrato fixo, mas quem constrói a cadeia de variante
+                    // é o produtor, e essa chamada não chega à AST que ele
+                    // examina.
+                    if !corpus
+                        .iter()
+                        .any(|sonda| consumidor.alcanca(sonda, operacao.spelling))
+                    {
+                        continue;
+                    }
+                    let mut obrigacao = Obrigacao {
+                        operacao: operacao.spelling,
+                        fato: *fato,
+                        dimensao: variante.dimensao.nome(),
+                        consumidor: *consumidor,
+                        leituras: Vec::new(),
+                        coerente: variante
+                            .tabela
+                            .iter()
+                            .find(|entrada| entrada.spelling == operacao.spelling)
+                            .is_some_and(variante_coerente),
+                        projecao: corpus.iter().find_map(|sonda| {
+                            obrigacao_por_projecao(*consumidor, sonda, operacao, variante)
+                        }),
+                        razoes: Vec::new(),
+                    };
+                    for (origem, testemunha) in &construidas {
+                        match testemunha {
+                            Err(razao) => obrigacao.razoes.push(format!("{origem}: {razao}")),
+                            Ok(testemunha) => {
+                                if let Some((canonica, mutada)) =
+                                    leitura(*consumidor, testemunha, variante)
+                                {
+                                    obrigacao.leituras.push((
+                                        origem,
+                                        aceitou(&canonica),
+                                        aceitou(&mutada),
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                    if obrigacao.leituras.is_empty() && obrigacao.projecao.is_none() {
+                        continue;
+                    }
+                    if !consulta(*consumidor, *fato) {
+                        // Célula com carve-out: a prova exigida é a de AUSÊNCIA
+                        // de caminho independente. Quem não pergunta o fato não
+                        // pode recusar uma testemunha que só viola esse fato.
+                        for (origem, canonica, mutada) in &obrigacao.leituras {
+                            if !canonica || !mutada {
+                                divergencias.push(format!(
+                                    "{} / {} [{}] / {origem}: {} tem carve-out do fato e RECUSA a testemunha (canônica={canonica}, mutada={mutada}) — tem caminho independente para o fato que não pergunta",
+                                    operacao.spelling,
+                                    fato.nome(),
+                                    variante.dimensao.nome(),
+                                    consumidor.nome()
+                                ));
+                            }
+                        }
+                        continue;
+                    }
+                    if !decide(*consumidor, *fato, variante.dimensao, operacao) {
+                        continue;
+                    }
+                    obrigacoes.push(obrigacao);
+                }
+            }
+        }
+    }
+
+    let mut contagem = [0usize; 6];
+    let mut nao_provadas: Vec<String> = Vec::new();
+    for obrigacao in &obrigacoes {
+        let disposicao = if obrigacao.projecao == Some((true, true)) {
+            Disposicao::ProvadaPorProjecao
+        } else if obrigacao.admite() {
+            Disposicao::ProvadaPorAdmissao
+        } else if obrigacao.remove_rota() {
+            Disposicao::ProvadaPorRemocaoDeRota
+        } else if obrigacao.sem_caso_novo() {
+            Disposicao::EquivalenciaDeRepresentacao
+        } else if !obrigacao.coerente {
+            Disposicao::EstruturalmenteNaoAplicavel
+        } else {
+            Disposicao::NaoProvada
+        };
+        contagem[match disposicao {
+            Disposicao::ProvadaPorAdmissao => 0,
+            Disposicao::ProvadaPorRemocaoDeRota => 1,
+            Disposicao::ProvadaPorProjecao => 2,
+            Disposicao::EquivalenciaDeRepresentacao => 3,
+            Disposicao::EstruturalmenteNaoAplicavel => 4,
+            Disposicao::NaoProvada => 5,
+        }] += 1;
+        if disposicao == Disposicao::NaoProvada {
+            nao_provadas.push(format!(
+                "{} / {} [{}] / {}: {} — leituras {:?}, projeção {:?}, razões {:?}",
+                obrigacao.operacao,
+                obrigacao.fato.nome(),
+                obrigacao.dimensao,
+                obrigacao.consumidor.nome(),
+                disposicao.nome(),
+                obrigacao.leituras,
+                obrigacao.projecao,
+                obrigacao.razoes
+            ));
+        }
+    }
+
+    assert!(
+        divergencias.is_empty(),
+        "direção permissiva vermelha ({} divergências):\n  {}",
+        divergencias.len(),
+        divergencias.join("\n  ")
+    );
+    assert!(
+        nao_provadas.is_empty(),
+        "obrigações direcionais sem prova ({}):\n  {}",
+        nao_provadas.len(),
+        nao_provadas.join("\n  ")
+    );
+
+    // Piso por célula declarada: nenhuma célula `(decisor, fato)` pode ficar de
+    // pé SÓ por equivalência de representação. Equivalência é leitura honesta
+    // onde a fase de fato não distingue os dois estados, mas uma coluna inteira
+    // sustentada por ela seria a prova encolhendo em silêncio — que é o que os
+    // pisos existem para impedir.
+    for consumidor in CONSUMIDORES {
+        for fato in FATOS_PERMISSIVOS {
+            if !consulta(*consumidor, *fato) {
+                continue;
+            }
+            let da_celula: Vec<&Obrigacao> = obrigacoes
+                .iter()
+                .filter(|obrigacao| obrigacao.consumidor == *consumidor && obrigacao.fato == *fato)
+                .collect();
+            if da_celula.is_empty() {
+                continue;
+            }
+            assert!(
+                da_celula.iter().any(|obrigacao| obrigacao.admite()
+                    || obrigacao.projecao == Some((true, true))
+                    || obrigacao.remove_rota()),
+                "{} declara consultar {} e toda obrigação dele no domínio está de pé só por equivalência de representação",
+                consumidor.nome(),
+                fato.nome()
+            );
+        }
+    }
+
+    // Piso global do quadrante NOVO: a prova permissiva precisa exibir
+    // admissão em quantidade, não uma amostra. O número é piso, não
+    // expectativa: existe para que uma queda apareça, e a medição corrente
+    // passa dele com folga.
+    assert!(
+        contagem[0] >= 200,
+        "a direção permissiva precisa provar ADMISSÃO em escala: {} obrigações provadas por admissão",
+        contagem[0]
+    );
+
+    println!(
+        "DIRECTIONAL_OBLIGATIONS_TOTAL = {}\n\
+         DIRECTIONAL_PROVED_BY_ADMISSION = {}\n\
+         DIRECTIONAL_PROVED_BY_ROUTE_REMOVAL = {}\n\
+         DIRECTIONAL_PROVED_BY_PROJECTION = {}\n\
+         DIRECTIONAL_REPRESENTATION_EQUIVALENCE = {}\n\
+         DIRECTIONAL_STRUCTURALLY_NOT_APPLICABLE = {}\n\
+         DIRECTIONAL_UNPROVED = {}\n\
+         DIRECTIONAL_NOT_APPLICABLE_PAIRS = {}",
+        obrigacoes.len(),
+        contagem[0],
+        contagem[1],
+        contagem[2],
+        contagem[3],
+        contagem[4],
+        contagem[5],
+        nao_aplicaveis.len(),
+    );
+    if std::env::var_os("ORACULO_MEDIR").is_some() {
+        for razao in &nao_aplicaveis {
+            println!("DIRECTIONAL_NA {razao}");
+        }
+        for obrigacao in &obrigacoes {
+            println!(
+                "DIRECTIONAL {} {} [{}] {} :: {:?}",
+                obrigacao.operacao,
+                obrigacao.fato.nome(),
+                obrigacao.dimensao,
+                obrigacao.consumidor.nome(),
+                obrigacao.leituras
+            );
+        }
+    }
+}
+
+/// Grafia da entrada SINTÉTICA de pertinência. Existe só dentro de uma variante
+/// instalada por teste: nunca está em [`INTERNAL_OPERATIONS`], nunca chega à
+/// superfície pública, nunca ganha binding de runtime e nunca muda ABI.
+const SINTETICA: &str = "__pinker_internal_u01_pertinencia_sintetica";
+
+/// A entrada sintética: contrato mínimo, na forma que qualquer fase sabe ler.
+///
+/// Ela não é uma operação nova do compilador — é a pergunta “esta grafia está
+/// DECLARADA?” feita na direção que a remoção não alcança. Nenhum corpo de
+/// runtime, nenhum binding nativo e nenhum lowering especializado são exigidos
+/// dela: §11 da disposição separa `SYNTHETIC_OPERATION_EXISTS` de
+/// `EVERY_PHASE_MUST_IMPLEMENT_ARBITRARY_NEW_OPERATION`.
+fn entrada_sintetica() -> InternalOperation {
+    InternalOperation {
+        spelling: SINTETICA,
+        family: InternalOperationFamily::Leque,
+        operands: InternalOperands::Declarados(&[TypeIR::Bombom]),
+        result: InternalResult::Declarado(TypeIR::Bombom),
+    }
+}
+
+/// F1/pertinência na direção PERMISSIVA: a autoridade passa a DECLARAR, e quem
+/// deriva passa a admitir.
+///
+/// A mutação restritiva de pertinência RETIRA a operação, e prova dependência
+/// na direção da remoção. Ela não vê a lista local ADITIVA: um decisor que
+/// pergunte à autoridade E mantenha a própria lista continua respondendo o
+/// mesmo quando a autoridade perde uma entrada que a lista dele ainda tem.
+///
+/// A direção que falta é a entrada NOVA. Um decisor que derive a pertinência da
+/// autoridade admite a grafia sintética; um que a conjugue com lista própria
+/// continua recusando, e a divergência o denuncia.
+///
+/// A exigência vale só para os decisores cuja pergunta compartilhada é mesmo
+/// *esta grafia é operação interna declarada?* — medido, não declarado: são os
+/// que RECUSAM a testemunha sob a autoridade real. Quem não a recusa não
+/// consulta pertinência para ela, e exigir admissão dele seria exigir
+/// implementação de fase para uma operação fictícia.
+#[test]
+fn direcao_permissiva_por_pertinencia() {
+    let corpus = corpus();
+    let sintetica = entrada_sintetica();
+    assert!(
+        !INTERNAL_OPERATIONS
+            .iter()
+            .any(|operacao| operacao.spelling == SINTETICA),
+        "a entrada sintética não pode existir na autoridade de produção"
+    );
+    assert!(
+        crate::intrinsics::registry::HISTORICAL
+            .iter()
+            .all(|entrada| entrada.spelling != SINTETICA),
+        "a entrada sintética não pode encostar na superfície pública"
+    );
+    let mut aditiva = INTERNAL_OPERATIONS.to_vec();
+    aditiva.push(sintetica);
+    let variante = Variante {
+        dimensao: Dimensao::Pertinencia,
+        tabela: aditiva,
+    };
+    let sonda = corpus.first().expect("corpus não vazio");
+    let testemunha = testemunha_minima(sonda, &sintetica, &variante)
+        .map(Artefato::Baixado)
+        .expect("a testemunha mínima da entrada sintética precisa ser construtível");
+
+    let mut derivaram: Vec<&'static str> = Vec::new();
+    let mut indiferentes: Vec<String> = Vec::new();
+    let mut divergencias: Vec<String> = Vec::new();
+    for consumidor in CONSUMIDORES {
+        if *consumidor == Consumidor::BackendSExternalCallconv {
+            // O emissor do subset montável precisa do SÍMBOLO do runtime, e o
+            // símbolo não mora nesta autoridade: `NATIVE_BINDING_OWNER` é
+            // `src/backend_s.rs`, e G651-01 fechou exatamente essa fronteira.
+            //
+            // ```text
+            // OPERATION EXISTS != THIS OPERATION BINDS TO THIS ABI SYMBOL
+            // ```
+            //
+            // Exigir que ele admita uma grafia fictícia seria exigir binding
+            // nativo para ela — o que a §11 da disposição proíbe e o que
+            // reabriria G651-01 pelo avesso. A carve-out dele já diz que ele
+            // classifica a pseudo-chamada pela grafia reservada, não pela
+            // tabela.
+            indiferentes.push(format!(
+                "{}: exige binding nativo, que a autoridade não declara",
+                consumidor.nome()
+            ));
+            continue;
+        }
+        let Some((canonica, mutada)) = leitura(*consumidor, &testemunha, &variante) else {
+            continue;
+        };
+        if aceitou(&canonica) {
+            // Não recusa a grafia desconhecida: a pergunta compartilhada dele
+            // não é pertinência desta operação. Registrado, não exigido.
+            indiferentes.push(format!("{}: {canonica}", consumidor.nome()));
+            continue;
+        }
+        if aceitou(&mutada) {
+            derivaram.push(consumidor.nome());
+        } else {
+            divergencias.push(format!(
+                "{}: recusa a grafia sob a autoridade que a DECLARA (canônica={canonica}, mutada={mutada}) — a pertinência dele não vem da autoridade",
+                consumidor.nome()
+            ));
+        }
+    }
+
+    assert!(
+        divergencias.is_empty(),
+        "F1/pertinência permissiva vermelha ({} divergências):\n  {}",
+        divergencias.len(),
+        divergencias.join("\n  ")
+    );
+    assert!(
+        derivaram.len() >= 4,
+        "a pertinência precisa ser derivada por todos os validadores de contrato: derivaram {derivaram:?}, indiferentes {indiferentes:?}"
+    );
+    println!(
+        "F1_EXISTENCE_PERMISSIVE_DERIVED = {derivaram:?}\n\
+         F1_EXISTENCE_PERMISSIVE_INDIFFERENT = {indiferentes:?}"
     );
 }
 

@@ -471,9 +471,14 @@ pub fn assinaturas_declaradas(
 // MUTATE(CANONICAL_FACT) -> ALL_RELEVANT_CONSUMERS_OBSERVE_MUTATION
 // ```
 //
-// Um consumidor que tenha decisão local própria continua respondendo o valor
-// ANTIGO sob a mutação, e o oráculo de `metamorphic_oracle` fica vermelho —
-// sem precisar reconhecer a forma sintática da decisão local.
+// Um consumidor que SOMBREIE a autoridade — decida no lugar dela — continua
+// respondendo o valor ANTIGO sob a mutação, e o oráculo de
+// `metamorphic_oracle` fica vermelho sem precisar reconhecer a forma sintática
+// da decisão local. Um que decida ADITIVAMENTE ao lado dela, concordando no
+// estado canônico, não aparece nessa metade: é a mutação que ADMITE um caso
+// novo — e a testemunha que só ela aceita — que o denuncia. O oráculo prova as
+// duas direções, e o domínio exato de cada uma está declarado no cabeçalho
+// dele.
 // ---------------------------------------------------------------------------
 
 #[cfg(not(test))]
