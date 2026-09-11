@@ -22,10 +22,11 @@
 //!    [`super::contract_seam`], viva só sob `cfg(test)`);
 //! 4. reler a mesma resposta dos mesmos artefatos.
 //!
-//! Um consumidor que pergunte à autoridade muda junto. Um consumidor com
-//! decisão local independente continua respondendo o valor ANTIGO, e o teste
-//! fica vermelho — **independentemente de arquivo, posição, helper, macro,
-//! operador, alias ou forma textual**, porque o oráculo nunca olha o texto.
+//! Um consumidor que pergunte à autoridade muda junto. Um consumidor cuja
+//! decisão local SOMBREIA a autoridade — decide no lugar dela, e por isso pode
+//! divergir dela — continua respondendo o valor ANTIGO, e o teste fica vermelho
+//! — **independentemente de arquivo, posição, helper, macro, operador, alias ou
+//! forma textual**, porque o oráculo nunca olha o texto.
 //!
 //! O fechamento dirigido de `acb6ac6` mostrou que o MECANISMO estava certo e a
 //! COBERTURA não: com uma sentinela por fato, decisão local sobre outra
@@ -38,12 +39,15 @@
 //! APLICÁVEL`. Nenhuma sentinela escolhida a dedo define o universo, e operação
 //! nova na autoridade sem testemunha deixa a cobertura vermelha.
 //!
-//! **O universo de consumidores é descoberto, não declarado.** A própria
-//! autoridade anota, sob `cfg(test)`, o arquivo de quem a consulta
-//! ([`super::registro`]). A escrituração deste arquivo é conferida contra essa
-//! descoberta e contra o piso histórico de oito decisores: tirar um consumidor
-//! daqui deixa o teste vermelho, porque a descoberta continua achando o
-//! consumidor real.
+//! **O universo de consumidores é descoberto, não declarado.** Duas fontes
+//! independentes da escrituração respondem quem consulta a autoridade: a
+//! própria autoridade anota, sob `cfg(test)`, o arquivo de quem a chama
+//! ([`super::registro`]), e o inventário estático varre `src/**` atrás de quem
+//! nomeia a API canônica. A primeira cobre o que as sondas executam; a segunda
+//! cobre o compilador inteiro, inclusive fases fora do corpus. A escrituração
+//! deste arquivo é conferida contra as duas e contra o piso histórico de oito
+//! decisores: tirar um consumidor daqui deixa o teste vermelho, porque a
+//! descoberta continua achando o consumidor real.
 //!
 //! Duas propriedades merecem ser ditas em voz alta.
 //!
@@ -59,6 +63,33 @@
 //! integração exigem que decisão local legítima — predicado de comparação de
 //! tipo, texto de diagnóstico, corpo do interpretador, binding nativo no dono —
 //! continue invisível para o oráculo.
+//!
+//! ## Limites declarados desta prova
+//!
+//! O que esta prova NÃO mede está escrito aqui para que não seja lido como
+//! coberto. Cada limite tem contraprova executada registrada na Task; o que
+//! sobra deles é guardado pelo lint suplementar de forma de fonte em
+//! `tests/issue_651_internal_operation_authority_tests.rs`, que é suplementar
+//! justamente porque a forma é corrida perdida.
+//!
+//! 1. **Duplicação ADITIVA concorde.** Uma tabela local que CONCORDA com a
+//!    autoridade e roda ao lado dela não muda resposta nenhuma: o caminho da
+//!    autoridade continua vivo e ainda acompanha a mutação. O oráculo pega
+//!    duplicação que SOMBREIA a autoridade, não duplicação que a acompanha. É a
+//!    forma que a dívida tem na véspera de divergir — e é o lint suplementar que
+//!    a recusa hoje.
+//! 2. **Células com carve-out.** [`CARVE_OUTS`] nomeia, com razão escrita, cada
+//!    par (decisor, fato) que a fase não pergunta à autoridade. Nessas células
+//!    `decide()` devolve `false` e nenhuma aresta é decisória: decisão local ali
+//!    não fica vermelha neste arquivo. "Não pergunta" não é "não decide" — onde
+//!    a fase decide na representação DELA, a carve-out diz isso com todas as
+//!    letras, e a afirmação de dono único vale sobre a matriz consultada, não
+//!    sobre a matriz inteira.
+//! 3. **Atribuição por quadro de chamada.** A descoberta atribui o arquivo que
+//!    NOMEIA a API canônica. Quem alcança a autoridade por um repassador
+//!    declarado num arquivo já escriturado é contado no repassador, não no
+//!    chamador — ele consome a resposta da autoridade, não duplica a decisão,
+//!    mas a atribuição do consumidor fica no repassador.
 
 use super::contract_seam::MutatedContract;
 use super::registro::Gravacao;
