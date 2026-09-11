@@ -389,7 +389,7 @@ pub const TERNARIA: &str = "__ternario";
 
 /// Contrato estrutural da grafia, quando ela é uma operação interna.
 pub fn entrada(spelling: &str) -> Option<&'static InternalOperation> {
-    INTERNAL_OPERATIONS
+    contract_table()
         .iter()
         .find(|operation| operation.spelling == spelling)
 }
@@ -427,9 +427,82 @@ pub fn assinatura_ir(spelling: &str) -> Option<(TypeIR, &'static [TypeIR])> {
 /// fases que precisam de `(ret, params)` completos.
 pub fn assinaturas_declaradas(
 ) -> impl Iterator<Item = (&'static str, TypeIR, &'static [TypeIR])> + Clone {
-    INTERNAL_OPERATIONS.iter().filter_map(|operation| {
+    contract_table().iter().filter_map(|operation| {
         operation
             .assinatura_ir()
             .map(|(ret, params)| (operation.spelling, ret, params))
     })
 }
+
+// ---------------------------------------------------------------------------
+// Costura metamórfica — apenas sob `cfg(test)`.
+//
+// Toda consulta desta autoridade passa por `contract_table()`. Em produção a
+// função É a tabela: `#[cfg(not(test))]` devolve `INTERNAL_OPERATIONS` e o
+// otimizador não vê indireção alguma. Nenhum dado de produção muda de forma,
+// nenhum `trait` novo atravessa a Pinker e nenhuma fase precisa ser genérica.
+//
+// Sob `cfg(test)`, a mesma função consulta antes uma variante MUTADA do
+// contrato, instalada por teste e por thread. É essa costura que torna a
+// pergunta terminal de G651-02 executável:
+//
+// ```text
+// MUTATE(CANONICAL_FACT) -> ALL_RELEVANT_CONSUMERS_OBSERVE_MUTATION
+// ```
+//
+// Um consumidor que tenha decisão local própria continua respondendo o valor
+// ANTIGO sob a mutação, e o oráculo de `metamorphic_oracle` fica vermelho —
+// sem precisar reconhecer a forma sintática da decisão local.
+// ---------------------------------------------------------------------------
+
+#[cfg(not(test))]
+#[inline]
+fn contract_table() -> &'static [InternalOperation] {
+    INTERNAL_OPERATIONS
+}
+
+#[cfg(test)]
+use contract_seam::contract_table;
+
+#[cfg(test)]
+pub(crate) mod contract_seam {
+    use super::{InternalOperation, INTERNAL_OPERATIONS};
+    use std::cell::Cell;
+
+    thread_local! {
+        /// Contrato mutado vigente nesta thread de teste, quando existe.
+        ///
+        /// Ser `thread_local` é o que permite que `cargo test` rode as provas
+        /// metamórficas em paralelo sem que uma mutação vaze para outra.
+        static MUTATED: Cell<Option<&'static [InternalOperation]>> = const { Cell::new(None) };
+    }
+
+    /// A tabela que TODA consulta da autoridade enxerga agora.
+    pub(crate) fn contract_table() -> &'static [InternalOperation] {
+        MUTATED.with(Cell::get).unwrap_or(INTERNAL_OPERATIONS)
+    }
+
+    /// Instala uma variante mutada do contrato canônico até ser descartada.
+    ///
+    /// O escopo é o do valor devolvido: ao sair, a autoridade real volta a
+    /// valer. Nenhum teste precisa desfazer a mutação à mão.
+    #[must_use = "a mutação vale enquanto o guarda existir"]
+    pub(crate) struct MutatedContract;
+
+    impl MutatedContract {
+        pub(crate) fn install(operations: Vec<InternalOperation>) -> Self {
+            let mutated: &'static [InternalOperation] = Box::leak(operations.into_boxed_slice());
+            MUTATED.with(|cell| cell.set(Some(mutated)));
+            Self
+        }
+    }
+
+    impl Drop for MutatedContract {
+        fn drop(&mut self) {
+            MUTATED.with(|cell| cell.set(None));
+        }
+    }
+}
+
+#[cfg(test)]
+mod metamorphic_oracle;

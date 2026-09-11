@@ -1,8 +1,5 @@
-//! U-01 / TC-01 — guard da autoridade única do contrato de operações internas.
-//!
-//! O que esta suíte protege não é a existência de um registro: é a propriedade
-//! de que **uma** mudança num fato compartilhado de operação interna exige
-//! mudar **uma** autoridade.
+//! U-01 / TC-01 — fronteiras e exaustividade da autoridade de operações
+//! internas do compilador.
 //!
 //! ```text
 //! CHANGE_ONE_SHARED_INTERNAL_OPERATION_FACT
@@ -10,26 +7,45 @@
 //! ```
 //!
 //! A pergunta obrigatória — *este guard poderia continuar verde se um
-//! consumidor reimplementasse localmente o mesmo contrato?* — é respondida por
-//! duas metades que só juntas fecham o caminho:
+//! consumidor reimplementasse localmente o mesmo contrato?* — **não** é
+//! respondida aqui, e esta suíte não afirma em lugar nenhum que responde.
+//!
+//! Ela é respondida por EXECUÇÃO, em
+//! `src/internal_operations/metamorphic_oracle.rs`: mutar F1, F2, F3 e F4 na
+//! autoridade canônica e exigir que todo consumidor real mude a resposta
+//! junto. Uma decisão local independente continua respondendo o valor antigo
+//! sob a mutação e derruba aquele oráculo — independentemente de arquivo,
+//! posição, helper, macro, operador, alias ou forma textual.
+//!
+//! ```text
+//! AUTHORITY_PROOF   = SEMANTIC_METAMORPHIC_EXECUTION
+//! SOURCE_SHAPE_LINT = SUPPLEMENTAL_ONLY
+//! ```
+//!
+//! O fechamento dirigido do HEAD `f8683d87` mediu o limite do caminho
+//! sintático: de 21 reimplementações locais do MESMO contrato, 19 compilaram e
+//! passaram por estas regras mudando apenas macro, aritmética, padrão de
+//! fatia, helper ou arquivo hospedeiro. Decidir se um trecho de Rust
+//! arbitrário responde à mesma pergunta é indecidível por inspeção léxica.
+//!
+//! O que esta suíte prova, e continua sound:
 //!
 //! 1. **Exaustividade** (`LAW-01`): o conjunto declarado é exatamente o
-//!    conjunto usado por `src/**`. Acrescentar uma grafia interna sem declarar,
-//!    ou declarar uma sem produtor/consumidor real, fica vermelho.
-//! 2. **Ausência de segunda decisão**: varrendo `src/**` inteiro, com uma
-//!    allowlist explícita de PAPÉIS — autoridade, identidade, corpos do
-//!    interpretador e produtores —, nenhum derivador pode declarar contrato ao
-//!    lado da operação (tipo IR, tipo de pilha, símbolo de runtime) nem
-//!    responder aridade sem perguntar à autoridade. A regra é sobre o fato, não
-//!    sobre a forma: `insert`, `match`, `if`, array e comparação caem todos, o
-//!    lado direito da aridade precisa ser consulta à autoridade — literal,
-//!    constante nomeada ou expressão não servem — e trocar `!=` por `<` não
-//!    ajuda. Como o escopo é a árvore, extrair a segunda tabela para um arquivo
-//!    novo não a esconde: torna esse arquivo um derivador não isento.
+//!    conjunto de grafias internas usadas por `src/**`. Acrescentar uma grafia
+//!    interna sem declarar, ou declarar uma sem produtor/consumidor real, fica
+//!    vermelho.
+//! 2. **Fronteiras que U-01 não pode atravessar**: superfície pública (C1),
+//!    símbolo ABI, identidade de usuário, a relação de especialização de mapa
+//!    que pertence a U-02 e a coerência interna do contrato declarado.
+//! 3. **Guard estrutural suplementar**: as regras léxicas que sobraram são
+//!    regression guard barato contra as formas JÁ VISTAS, e só isso. Elas
+//!    levam `guard_suplementar_` no nome exatamente para que ninguém volte a
+//!    lê-las como prova de autoridade única.
 //!
-//! As fronteiras que U-01 não pode atravessar também são verificadas aqui:
-//! superfície pública (C1), símbolo ABI, identidade de usuário e a relação de
-//! especialização de mapa que pertence a U-02.
+//! ```text
+//! SUPPLEMENTAL_STRUCTURAL_GUARD
+//! NOT_SEMANTIC_AUTHORITY_PROOF
+//! ```
 
 use pinker_v0::internal_operations::{self, InternalOperationFamily, INTERNAL_OPERATIONS};
 use pinker_v0::intrinsics::identity::{callee_identity_de_ident, CalleeIdentity};
@@ -39,6 +55,13 @@ use std::path::{Path, PathBuf};
 
 const AUTHORITY_FILE: &str = "src/internal_operations.rs";
 
+/// O oráculo metamórfico: harness `#[cfg(test)]` da própria autoridade.
+///
+/// Ele nomeia grafias e contratos porque é o que MUTA o contrato canônico para
+/// provar que todo consumidor acompanha. Não é derivador de fase, e por isso
+/// não entra no guard estrutural suplementar.
+const ORACLE_FILE: &str = "src/internal_operations/metamorphic_oracle.rs";
+
 /// Papéis que a #651 distingue e que PODEM nomear uma operação interna junto
 /// com contrato ou aridade. Tudo o mais em `src/**` é derivador.
 ///
@@ -47,7 +70,8 @@ const AUTHORITY_FILE: &str = "src/internal_operations.rs";
 /// invisível — torna-a um derivador não isento, e o guard fecha nele.
 const PAPEIS_ISENTOS: &[&str] = &[
     // A autoridade canônica.
-    "src/internal_operations.rs",
+    AUTHORITY_FILE,
+    ORACLE_FILE,
     // Autoridade das grafias de carga de leque e da classificação de carga.
     "src/enum_payload.rs",
     // BINDING_NATIVO: dono único preexistente da relação `operação interna ->
@@ -381,7 +405,7 @@ fn derivadores(raiz: &Path) -> Vec<(String, String)> {
 }
 
 #[test]
-fn nenhum_derivador_declara_contrato_ao_lado_da_grafia_interna() {
+fn guard_suplementar_nenhum_derivador_declara_contrato_ao_lado_da_grafia_interna() {
     let constantes = constantes_com_valor_de_grafia_interna(&repo());
     // Generaliza a forma física: não é só `insert(` numa tabela. Nomear a
     // operação e, na vizinhança, escrever tipo IR, tipo de pilha ou símbolo de
@@ -424,7 +448,7 @@ fn nenhum_derivador_declara_contrato_ao_lado_da_grafia_interna() {
 }
 
 #[test]
-fn nenhum_derivador_responde_aridade_sem_perguntar_a_autoridade() {
+fn guard_suplementar_nenhum_derivador_responde_aridade_sem_perguntar_a_autoridade() {
     let constantes = constantes_com_valor_de_grafia_interna(&repo());
     // Fecha a forma que não nomeia a grafia: dentro de um ramo que a autoridade
     // já decidiu, responder aridade por conta própria é reimplementar o
@@ -701,29 +725,36 @@ fn as_operacoes_sem_valor_sao_exatamente_as_declaradas_como_nulo() {
 }
 
 // ---------------------------------------------------------------------------
-// 5. Regras de classe sobre tokens — G651-02
+// 5. Guard estrutural SUPLEMENTAR sobre tokens
 //
-// As regras acima reconhecem FORMAS. Reconhecer forma é corrida perdida: quem
-// quiser reimplementar o contrato localmente escolhe outra forma. As três
-// regras desta seção fecham CLASSES, e operam sobre o fluxo de tokens do Rust
-// com escopo de bloco balanceado, não sobre janelas de bytes:
+// ```text
+// SUPPLEMENTAL_STRUCTURAL_GUARD
+// NOT_SEMANTIC_AUTHORITY_PROOF
+// ```
+//
+// As regras desta seção operam sobre o fluxo de tokens do Rust, com escopo de
+// bloco balanceado, e são baratas de manter:
 //
 // ```text
 // R-A  uma derivação não decide aridade         (nenhum literal, nenhuma fatia fixa)
-// R-B  uma derivação não busca contrato fora    (só a autoridade responde)
 // R-C  ninguém declara tabela local de grafias  (const/array de grafia interna)
 // R-D  ninguém publica consulta de contrato     (assinatura devolve TypeIR por grafia)
 // ```
 //
-// Nenhuma delas pergunta "esta forma apareceu?". Elas perguntam "esta região
-// contém alguma resposta que não veio da autoridade?", e a resposta é derivada
-// da estrutura léxica, não de substring dentro de raio arbitrário.
+// O que elas são: regression guard contra as formas JÁ VISTAS. Reintroduzir
+// literalmente uma das reimplementações conhecidas volta a ficar vermelho aqui,
+// barato e cedo.
 //
-// O que isto NÃO é: prova semântica. Decidir se um trecho de Rust arbitrário
-// responde à mesma pergunta é indecidível por inspeção léxica, e esta suíte não
-// finge o contrário. O que ela garante é que as três classes acima estão
-// fechadas por construção, e o complemento comportamental — LAW-01, as suítes
-// de produto e a sensibilidade M1a–M9 — cobre a divergência de valor.
+// O que elas NÃO são: prova de que nenhuma implementação local pode existir.
+// O fechamento dirigido do HEAD `f8683d87` falsificou essa leitura com 19
+// bypasses materiais, e a antiga R-B — “uma derivação não busca contrato fora”
+// — foi REMOVIDA por sobre-detecção: ela recusava um predicado de comparação de
+// tipo legitimamente próprio do validador, que é fato de fase e não contrato
+// compartilhado.
+//
+// A prova de autoridade única é a execução metamórfica em
+// `src/internal_operations/metamorphic_oracle.rs`. Se alguma vez estas regras e
+// aquele oráculo discordarem, o oráculo decide.
 // ---------------------------------------------------------------------------
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -1071,38 +1102,6 @@ fn decide_aridade(tokens: &[Token], inicio: usize, fim: usize) -> Option<String>
     None
 }
 
-/// R-B — uma derivação não busca contrato fora da autoridade.
-///
-/// Dentro da região, uma chamada `crate::outro_modulo::f(…)` é uma segunda
-/// fonte de contrato, esteja a tabela hospedada onde estiver. Fecha a fachada
-/// num arquivo de papel isento sem depender de onde o arquivo mora.
-fn busca_contrato_fora(tokens: &[Token], inicio: usize, fim: usize) -> Option<String> {
-    for indice in inicio..fim.saturating_sub(4) {
-        if tokens[indice].texto != "crate" || !e_pontuacao(&tokens[indice + 1], "::") {
-            continue;
-        }
-        let modulo = &tokens[indice + 2];
-        if modulo.tipo != Tipo::Ident || modulo.texto == "internal_operations" {
-            continue;
-        }
-        // Só chamada importa: constante de outro módulo é transporte.
-        let mut fim_do_caminho = indice + 2;
-        while tokens
-            .get(fim_do_caminho + 1)
-            .is_some_and(|t| e_pontuacao(t, "::"))
-        {
-            fim_do_caminho += 2;
-        }
-        if tokens
-            .get(fim_do_caminho + 1)
-            .is_some_and(|t| e_pontuacao(t, "("))
-        {
-            return Some(format!("chamada a crate::{}::…", modulo.texto));
-        }
-    }
-    None
-}
-
 /// R-D — ninguém publica consulta de contrato chaveada por grafia.
 ///
 /// A fachada não se reconhece por onde mora nem por como é chamada: reconhece-se
@@ -1237,7 +1236,7 @@ fn e_grafia_interna(valor: &str) -> bool {
 }
 
 #[test]
-fn nenhuma_derivacao_decide_por_conta_propria() {
+fn guard_suplementar_nenhuma_derivacao_decide_por_conta_propria() {
     let raiz = repo();
     let autoridade = std::fs::read_to_string(raiz.join(AUTHORITY_FILE)).expect("ler autoridade");
     let mut fontes = Vec::new();
@@ -1258,7 +1257,10 @@ fn nenhuma_derivacao_decide_por_conta_propria() {
         // `native_symbol` é a autoridade de identidade: a tabela de namespaces
         // reservados PRECISA nomear `__ternario`, e é dela que
         // `is_compiler_generated` deriva. Não é tabela de contrato.
-        if relativo != AUTHORITY_FILE && relativo != "src/native_symbol.rs" {
+        if relativo != AUTHORITY_FILE
+            && relativo != ORACLE_FILE
+            && relativo != "src/native_symbol.rs"
+        {
             for achado in tabelas_locais_de_grafia(&tokens, &autoridade) {
                 ofensores.push(format!("{relativo}: R-C {achado}"));
             }
@@ -1283,9 +1285,6 @@ fn nenhuma_derivacao_decide_por_conta_propria() {
             let linha = fonte[..token.byte].matches('\n').count() + 1;
             if let Some(motivo) = decide_aridade(&tokens, inicio, fim) {
                 ofensores.push(format!("{relativo}:{linha} R-A {motivo}"));
-            }
-            if let Some(motivo) = busca_contrato_fora(&tokens, inicio, fim) {
-                ofensores.push(format!("{relativo}:{linha} R-B {motivo}"));
             }
         }
     }
