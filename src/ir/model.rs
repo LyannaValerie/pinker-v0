@@ -495,20 +495,10 @@ impl MapKeyIR {
     }
 }
 
+/// U-01: a família é decidida pela autoridade declarativa das operações
+/// internas, não por uma lista literal repetida por fase.
 pub(crate) fn is_generic_map_intrinsic(name: &str) -> bool {
-    matches!(
-        name,
-        "__pinker_internal_mapa_criar_chave_bombom"
-            | "__pinker_internal_mapa_criar_chave_verso"
-            | "__pinker_internal_mapa_definir"
-            | "__pinker_internal_mapa_obter"
-            | "__pinker_internal_mapa_tem"
-            | "__pinker_internal_mapa_tamanho"
-            | "__pinker_internal_mapa_remover"
-            | "__pinker_internal_mapa_iterador_criar"
-            | "__pinker_internal_mapa_iterador_proxima_chave_bombom"
-            | "__pinker_internal_mapa_iterador_proxima_chave_verso"
-    )
+    crate::internal_operations::e_operacao_generica_de_mapa(name)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

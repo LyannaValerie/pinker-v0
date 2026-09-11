@@ -706,8 +706,10 @@ pub(super) fn extract_external_callconv_program(
                         // autoridade não os alcança. Eles precisam do portão
                         // aqui, ou a grafia volta a ser autoridade executiva
                         // neste emissor — e só neste.
-                        if identidade.dispatches_as_builtin() && callee == "__ternario" {
-                            if args.len() != 3 {
+                        if identidade.dispatches_as_builtin()
+                            && crate::internal_operations::e_ternaria(callee)
+                        {
+                            if Some(args.len()) != crate::internal_operations::aridade(callee) {
                                 return Err(err(
                                     "subset externo montável (Fase 214) exige `__ternario` com 3 argumentos",
                                 ));

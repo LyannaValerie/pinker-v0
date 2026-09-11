@@ -20,6 +20,119 @@
 
 use super::*;
 
+/// U-01 — aridade de uma operação interna do compilador, lida da autoridade
+/// declarativa.
+///
+/// A semântica continua decidindo o que é dela: o texto de cada diagnóstico, a
+/// correspondência entre `Type` e `TypeIR` — que é fato das representações — e
+/// as perguntas que só existem nesta fase, como "este valor é um leque com
+/// carga?". Quantos operandos a operação tem, qual a classe declarada de cada
+/// um e qual a classe do resultado são fatos compartilhados com IR, CFG,
+/// seleção e máquina, e por isso têm dono só: `crate::internal_operations`.
+///
+/// Onde a autoridade declara PAPEL em vez de classe — as operações genéricas de
+/// mapa — não há classe compartilhada a duplicar: a classe concreta é derivada
+/// do mapa recebido, por esta fase, com o predicado de comparação dela.
+fn aridade_interna(name: &str) -> usize {
+    crate::internal_operations::entrada(name)
+        .expect("operação interna sem contrato declarado na autoridade")
+        .arity()
+}
+
+/// U-01 — o contrato declarado desta operação interna.
+fn contrato_interno(name: &str) -> &'static crate::internal_operations::InternalOperation {
+    crate::internal_operations::entrada(name)
+        .expect("operação interna sem contrato declarado na autoridade")
+}
+
+/// A classe desta representação `Type` é a classe IR que a autoridade declara?
+///
+/// É correspondência de REPRESENTAÇÃO, não contrato. QUAL classe a operação
+/// exige vem da autoridade; que `mapa<verso,verso>` desta fase corresponda a
+/// `TypeIR::MapVersoVerso` é fato das duas representações, e continua sendo
+/// desta fase — como o predicado de comparação e o texto do diagnóstico.
+fn classe_corresponde(ty: &Type, ir: crate::ir::TypeIR) -> bool {
+    use crate::ir::TypeIR;
+    matches!(
+        (ty, ir),
+        (Type::Bombom(_), TypeIR::Bombom)
+            | (Type::Logica(_), TypeIR::Logica)
+            | (Type::Verso(_), TypeIR::Verso)
+            | (Type::Nulo(_), TypeIR::Nulo)
+            | (Type::ListBombom(_), TypeIR::ListBombom)
+            | (Type::ListVerso(_), TypeIR::ListVerso)
+            | (Type::MapVersoBombom(_), TypeIR::MapVersoBombom)
+            | (Type::MapVersoVerso(_), TypeIR::MapVersoVerso)
+            | (Type::MapBombomBombom(_), TypeIR::MapBombomBombom)
+            | (Type::MapBombomVerso(_), TypeIR::MapBombomVerso)
+    )
+}
+
+/// O operando `indice` corresponde à classe que a autoridade declara para ele?
+///
+/// `true` quando a autoridade NÃO declara classe: as operações de papéis de
+/// mapa declaram PAPEL, e a classe concreta é derivada do mapa recebido pela
+/// própria fase. Aí não há fato compartilhado a duplicar — há derivação.
+fn operando_interno_corresponde(name: &str, indice: usize, ty: &Type) -> bool {
+    match contrato_interno(name)
+        .declared_params()
+        .and_then(|params| params.get(indice).copied())
+    {
+        Some(ir) => classe_corresponde(ty, ir),
+        None => true,
+    }
+}
+
+/// O operando 0 corresponde ao que a autoridade declara para ele?
+///
+/// Onde a autoridade declara PAPÉIS relativos ao mapa recebido, o operando 0 é
+/// o RECEPTOR: a exigência é ser mapa genérico, e a classe concreta é derivada
+/// dele pela fase. Onde ela declara CLASSE, a exigência é a classe declarada.
+/// Nos dois casos quem decide QUAL é a exigência é a autoridade.
+fn receptor_ou_classe_corresponde(name: &str, ty: &Type) -> bool {
+    match contrato_interno(name).operands {
+        crate::internal_operations::InternalOperands::PapeisDeMapa(_) => {
+            matches!(ty, Type::Map { .. })
+        }
+        _ => operando_interno_corresponde(name, 0, ty),
+    }
+}
+
+/// O resultado declarado pela autoridade, na representação `Type` desta fase.
+///
+/// U-01: a classe do resultado é fato compartilhado com IR, CFG, seleção e
+/// máquina. Esta fase não a repete em literal; traduz a da autoridade.
+fn resultado_interno(name: &str, span: Span) -> Result<Type, PinkerError> {
+    use crate::ir::TypeIR;
+    let Some(ir) = contrato_interno(name).declared_ret() else {
+        return Err(PinkerError::Semantic {
+            msg: format!("operação interna '{name}' não declara classe de resultado fixa"),
+            span,
+        });
+    };
+    let traduzido = match ir {
+        TypeIR::Bombom => Type::Bombom(span),
+        TypeIR::Logica => Type::Logica(span),
+        TypeIR::Verso => Type::Verso(span),
+        TypeIR::Nulo => Type::Nulo(span),
+        TypeIR::ListBombom => Type::ListBombom(span),
+        TypeIR::ListVerso => Type::ListVerso(span),
+        TypeIR::MapVersoBombom => Type::MapVersoBombom(span),
+        TypeIR::MapVersoVerso => Type::MapVersoVerso(span),
+        TypeIR::MapBombomBombom => Type::MapBombomBombom(span),
+        TypeIR::MapBombomVerso => Type::MapBombomVerso(span),
+        outra => {
+            return Err(PinkerError::Semantic {
+                msg: format!(
+                    "classe de resultado declarada para '{name}' não é representável nesta fase: {outra:?}"
+                ),
+                span,
+            })
+        }
+    };
+    Ok(traduzido)
+}
+
 impl SemanticChecker {
     // @pinker-nav:start semantic.chamadas.despacho
     // @pinker-nav:domain chamadas
@@ -775,7 +888,7 @@ impl SemanticChecker {
         }
 
         if name == "__pinker_internal_mapa_iterador_criar" {
-            if args.len() != 1 {
+            if args.len() != aridade_interna(name) {
                 return Err(PinkerError::Semantic {
                     msg: "iterador interno de mapa exige 1 argumento".to_string(),
                     span: expr_span,
@@ -785,7 +898,7 @@ impl SemanticChecker {
                 &args[0],
                 "resultado sem retorno não pode ser iterado como mapa",
             )?;
-            if !matches!(map_ty, Type::Map { .. }) {
+            if !receptor_ou_classe_corresponde(name, &map_ty) {
                 return Err(PinkerError::Semantic {
                     msg: format!(
                         "iterador interno exige mapa genérico; encontrado '{}'",
@@ -794,7 +907,7 @@ impl SemanticChecker {
                     span: args[0].span,
                 });
             }
-            return Ok(Type::Bombom(expr_span));
+            return resultado_interno(name, expr_span);
         }
 
         if matches!(
@@ -802,7 +915,7 @@ impl SemanticChecker {
             "__pinker_internal_mapa_iterador_proxima_chave_bombom"
                 | "__pinker_internal_mapa_iterador_proxima_chave_verso"
         ) {
-            if args.len() != 1 {
+            if args.len() != aridade_interna(name) {
                 return Err(PinkerError::Semantic {
                     msg: "avanço de iterador interno de mapa exige 1 argumento".to_string(),
                     span: expr_span,
@@ -812,17 +925,13 @@ impl SemanticChecker {
                 &args[0],
                 "resultado sem retorno não pode ser cursor de mapa",
             )?;
-            if !matches!(cursor_ty, Type::Bombom(_)) {
+            if !operando_interno_corresponde(name, 0, &cursor_ty) {
                 return Err(PinkerError::Semantic {
                     msg: "cursor interno de mapa exige 'bombom'".to_string(),
                     span: args[0].span,
                 });
             }
-            return Ok(if name.ends_with("_verso") {
-                Type::Verso(expr_span)
-            } else {
-                Type::Bombom(expr_span)
-            });
+            return resultado_interno(name, expr_span);
         }
 
         // As operações de tag e extração de união **não** são chamadas da
@@ -833,7 +942,7 @@ impl SemanticChecker {
 
         // Intrínsecas internas do desugaring de `encaixe` (Fases 209–210).
         if name == "__pinker_internal_leque_tag" {
-            if args.len() != 1 {
+            if args.len() != aridade_interna(name) {
                 return Err(PinkerError::Semantic {
                     msg: format!(
                         "intrínseca interna '{}' exige 1 argumento (valor de leque)",
@@ -864,10 +973,10 @@ impl SemanticChecker {
                     span: args[0].span,
                 });
             }
-            return Ok(Type::Bombom(expr_span));
+            return resultado_interno(name, expr_span);
         }
         if crate::enum_payload::is_carga_intrinsic(name) {
-            if args.len() != 3 {
+            if args.len() != aridade_interna(name) {
                 return Err(PinkerError::Semantic {
                     msg: format!(
                         "intrínseca interna '{}' exige 3 argumentos (leque, tag, índice)",
@@ -1379,8 +1488,8 @@ impl SemanticChecker {
             return Ok(Type::Verso(expr_span));
         }
 
-        if name == "__ternario" {
-            if args.len() != 3 {
+        if crate::internal_operations::e_ternaria(name) {
+            if args.len() != aridade_interna(name) {
                 return Err(PinkerError::Semantic {
                     msg: format!(
                         "expressão ternária requer exatamente 3 argumentos (condição, valor_verdade, valor_falso), recebido {}",
@@ -1619,7 +1728,7 @@ impl SemanticChecker {
         }
 
         if name == "__pinker_internal_mapa_verso_verso_iterador_criar" {
-            if args.len() != 1 {
+            if args.len() != aridade_interna(name) {
                 return Err(PinkerError::Semantic {
                     msg: "iterador interno de mapa<verso,verso> exige 1 argumento".to_string(),
                     span: expr_span,
@@ -1629,31 +1738,37 @@ impl SemanticChecker {
                 &args[0],
                 "resultado de função sem retorno não pode ser usado como argumento",
             )?;
-            if !matches!(map_ty, Type::MapVersoVerso(_)) {
+            if !operando_interno_corresponde(name, 0, &map_ty) {
                 return Err(PinkerError::Semantic {
                     msg: "iterador interno de mapa<verso,verso> exige mapa<verso,verso>"
                         .to_string(),
                     span: args[0].span,
                 });
             }
-            return Ok(Type::Bombom(expr_span));
+            return resultado_interno(name, expr_span);
         }
         if name == "__pinker_internal_mapa_verso_verso_iterador_proxima_chave" {
-            if args.len() != 1 {
+            if args.len() != aridade_interna(name) {
                 return Err(PinkerError::Semantic {
                     msg: "iterador interno de mapa<verso,verso> exige 1 argumento".to_string(),
                     span: expr_span,
                 });
             }
-            self.check_value_expr(
+            let cursor_ty = self.check_value_expr(
                 &args[0],
                 "resultado de função sem retorno não pode ser usado como argumento",
             )?;
-            return Ok(Type::Verso(expr_span));
+            if !operando_interno_corresponde(name, 0, &cursor_ty) {
+                return Err(PinkerError::Semantic {
+                    msg: "cursor interno de mapa<verso,verso> exige 'bombom'".to_string(),
+                    span: args[0].span,
+                });
+            }
+            return resultado_interno(name, expr_span);
         }
 
         if name == "__pinker_internal_mapa_bombom_bombom_iterador_criar" {
-            if args.len() != 1 {
+            if args.len() != aridade_interna(name) {
                 return Err(PinkerError::Semantic {
                     msg: "iterador interno de mapa<bombom,bombom> exige 1 argumento".to_string(),
                     span: expr_span,
@@ -1663,31 +1778,37 @@ impl SemanticChecker {
                 &args[0],
                 "resultado de função sem retorno não pode ser usado como argumento",
             )?;
-            if !matches!(map_ty, Type::MapBombomBombom(_)) {
+            if !operando_interno_corresponde(name, 0, &map_ty) {
                 return Err(PinkerError::Semantic {
                     msg: "iterador interno de mapa<bombom,bombom> exige mapa<bombom,bombom>"
                         .to_string(),
                     span: args[0].span,
                 });
             }
-            return Ok(Type::Bombom(expr_span));
+            return resultado_interno(name, expr_span);
         }
         if name == "__pinker_internal_mapa_bombom_bombom_iterador_proxima_chave" {
-            if args.len() != 1 {
+            if args.len() != aridade_interna(name) {
                 return Err(PinkerError::Semantic {
                     msg: "iterador interno de mapa<bombom,bombom> exige 1 argumento".to_string(),
                     span: expr_span,
                 });
             }
-            self.check_value_expr(
+            let cursor_ty = self.check_value_expr(
                 &args[0],
                 "resultado de função sem retorno não pode ser usado como argumento",
             )?;
-            return Ok(Type::Bombom(expr_span));
+            if !operando_interno_corresponde(name, 0, &cursor_ty) {
+                return Err(PinkerError::Semantic {
+                    msg: "cursor interno de mapa<bombom,bombom> exige 'bombom'".to_string(),
+                    span: args[0].span,
+                });
+            }
+            return resultado_interno(name, expr_span);
         }
 
         if name == "__pinker_internal_mapa_bombom_verso_iterador_criar" {
-            if args.len() != 1 {
+            if args.len() != aridade_interna(name) {
                 return Err(PinkerError::Semantic {
                     msg: "iterador interno de mapa<bombom,verso> exige 1 argumento".to_string(),
                     span: expr_span,
@@ -1697,27 +1818,33 @@ impl SemanticChecker {
                 &args[0],
                 "resultado de função sem retorno não pode ser usado como argumento",
             )?;
-            if !matches!(map_ty, Type::MapBombomVerso(_)) {
+            if !operando_interno_corresponde(name, 0, &map_ty) {
                 return Err(PinkerError::Semantic {
                     msg: "iterador interno de mapa<bombom,verso> exige mapa<bombom,verso>"
                         .to_string(),
                     span: args[0].span,
                 });
             }
-            return Ok(Type::Bombom(expr_span));
+            return resultado_interno(name, expr_span);
         }
         if name == "__pinker_internal_mapa_bombom_verso_iterador_proxima_chave" {
-            if args.len() != 1 {
+            if args.len() != aridade_interna(name) {
                 return Err(PinkerError::Semantic {
                     msg: "iterador interno de mapa<bombom,verso> exige 1 argumento".to_string(),
                     span: expr_span,
                 });
             }
-            self.check_value_expr(
+            let cursor_ty = self.check_value_expr(
                 &args[0],
                 "resultado de função sem retorno não pode ser usado como argumento",
             )?;
-            return Ok(Type::Bombom(expr_span));
+            if !operando_interno_corresponde(name, 0, &cursor_ty) {
+                return Err(PinkerError::Semantic {
+                    msg: "cursor interno de mapa<bombom,verso> exige 'bombom'".to_string(),
+                    span: args[0].span,
+                });
+            }
+            return resultado_interno(name, expr_span);
         }
 
         let arg_refs: Vec<&Expr> = args.iter().collect();

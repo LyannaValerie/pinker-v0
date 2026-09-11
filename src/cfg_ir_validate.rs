@@ -13,7 +13,8 @@
 
 use crate::cfg_ir::{InstructionCfgIR, OperandIR, ProgramCfgIR, TempIR, TerminatorIR};
 use crate::error::PinkerError;
-use crate::ir::{MapKeyIR, TypeIR};
+use crate::internal_operations::{InternalOperands, InternalResult, MapOperandRole};
+use crate::ir::TypeIR;
 use crate::token::{Position, Span};
 use std::collections::{HashMap, HashSet, VecDeque};
 
@@ -114,148 +115,17 @@ pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
             },
         );
     }
-    sigs_intrinsecas.insert(
-        "__pinker_internal_mapa_verso_bombom_iterador_criar".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::MapVersoBombom],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "__pinker_internal_mapa_verso_bombom_iterador_proxima_chave".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Verso,
-            params: vec![TypeIR::Bombom],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "__pinker_internal_mapa_verso_verso_iterador_criar".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::MapVersoVerso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "__pinker_internal_mapa_verso_verso_iterador_proxima_chave".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Verso,
-            params: vec![TypeIR::Bombom],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "__pinker_internal_mapa_bombom_bombom_iterador_criar".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::MapBombomBombom],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "__pinker_internal_mapa_bombom_bombom_iterador_proxima_chave".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::Bombom],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "__pinker_internal_mapa_bombom_verso_iterador_criar".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::MapBombomVerso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "__pinker_internal_mapa_bombom_verso_iterador_proxima_chave".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::Bombom],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "__pinker_internal_leque_criar_0".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::Bombom],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "__pinker_internal_leque_anexar_b".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::Bombom, TypeIR::Bombom],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "__pinker_internal_leque_anexar_v".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::Bombom, TypeIR::Verso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "__pinker_internal_leque_tag".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::Bombom],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "__pinker_internal_leque_carga_b".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::Bombom, TypeIR::Bombom, TypeIR::Bombom],
-        },
-    );
-    sigs_intrinsecas.insert(
-        "__pinker_internal_leque_carga_v".to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Verso,
-            params: vec![TypeIR::Bombom, TypeIR::Bombom, TypeIR::Bombom],
-        },
-    );
-    // D1: cargas de lista, mesmo caminho de uma palavra com a categoria
-    // operacional preservada.
-    sigs_intrinsecas.insert(
-        crate::enum_payload::ANEXAR_LISTA_BOMBOM.to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::Bombom, TypeIR::ListBombom],
-        },
-    );
-    sigs_intrinsecas.insert(
-        crate::enum_payload::ANEXAR_LISTA_VERSO.to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::Bombom, TypeIR::ListVerso],
-        },
-    );
-    sigs_intrinsecas.insert(
-        crate::enum_payload::CARGA_LISTA_BOMBOM.to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::ListBombom,
-            params: vec![TypeIR::Bombom, TypeIR::Bombom, TypeIR::Bombom],
-        },
-    );
-    sigs_intrinsecas.insert(
-        crate::enum_payload::CARGA_LISTA_VERSO.to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::ListVerso,
-            params: vec![TypeIR::Bombom, TypeIR::Bombom, TypeIR::Bombom],
-        },
-    );
-    sigs_intrinsecas.insert(
-        crate::enum_payload::ANEXAR_SAIDA_PROCESSO.to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::Bombom,
-            params: vec![TypeIR::Bombom, TypeIR::OpaqueWordHandle],
-        },
-    );
-    sigs_intrinsecas.insert(
-        crate::enum_payload::CARGA_SAIDA_PROCESSO.to_string(),
-        FunctionSigCfg {
-            ret_type: TypeIR::OpaqueWordHandle,
-            params: vec![TypeIR::Bombom, TypeIR::Bombom, TypeIR::Bombom],
-        },
-    );
+    // U-01 — as operações internas com contrato fixo vêm da autoridade
+    // declarativa, pelo mesmo laço já usado acima para o registry histórico.
+    for (spelling, ret_type, params) in crate::internal_operations::assinaturas_declaradas() {
+        sigs_intrinsecas.insert(
+            spelling.to_string(),
+            FunctionSigCfg {
+                ret_type,
+                params: params.to_vec(),
+            },
+        );
+    }
     // Não há assinatura chamável de união: tag e extração são instruções CFG
     // tipadas (`UnionTag`/`UnionExtract`), nunca `Call`.
     // Parte B: as superfícies falíveis devolvem um leque com carga, que na IR é
@@ -940,8 +810,8 @@ fn validate_block(
                 // #532: as relaxações por nome desta validação valem para a
                 // intrínseca, não para uma função do usuário homônima.
                 let builtin = identidade.dispatches_as_builtin();
-                if builtin && callee == "__ternario" {
-                    if args.len() != 3 {
+                if builtin && crate::internal_operations::e_ternaria(callee) {
+                    if Some(args.len()) != crate::internal_operations::aridade(callee.as_str()) {
                         return Err(cfg_error(
                             "aridade inválida em call __ternario",
                             function.span,
@@ -981,63 +851,46 @@ fn validate_block(
                         _ => None,
                     };
                     let first_map = actual.first().copied().and_then(map_parts);
-                    let valid = match callee.as_str() {
-                        "__pinker_internal_mapa_criar_chave_bombom" => {
-                            actual.is_empty()
-                                && matches!(
-                                    ret_type,
-                                    TypeIR::Map {
-                                        key: MapKeyIR::Bombom,
-                                        ..
-                                    }
-                                )
-                        }
-                        "__pinker_internal_mapa_criar_chave_verso" => {
-                            actual.is_empty()
-                                && matches!(
-                                    ret_type,
-                                    TypeIR::Map {
-                                        key: MapKeyIR::Verso,
-                                        ..
-                                    }
-                                )
-                        }
-                        "__pinker_internal_mapa_definir" => {
-                            first_map.is_some_and(|(key, value)| {
-                                actual.len() == 3
-                                    && actual[1] == key.type_ir()
-                                    && actual[2] == value.type_ir()
-                                    && *ret_type == TypeIR::Nulo
-                            })
-                        }
-                        "__pinker_internal_mapa_obter" => first_map.is_some_and(|(key, value)| {
-                            actual.len() == 2
-                                && actual[1] == key.type_ir()
-                                && *ret_type == value.type_ir()
-                        }),
-                        "__pinker_internal_mapa_tem" => first_map.is_some_and(|(key, _)| {
-                            actual.len() == 2
-                                && actual[1] == key.type_ir()
-                                && *ret_type == TypeIR::Logica
-                        }),
-                        "__pinker_internal_mapa_tamanho" => {
-                            actual.len() == 1 && first_map.is_some() && *ret_type == TypeIR::Bombom
-                        }
-                        "__pinker_internal_mapa_remover" => first_map.is_some_and(|(key, _)| {
-                            actual.len() == 2
-                                && actual[1] == key.type_ir()
-                                && *ret_type == TypeIR::Nulo
-                        }),
-                        "__pinker_internal_mapa_iterador_criar" => {
-                            actual.len() == 1 && first_map.is_some() && *ret_type == TypeIR::Bombom
-                        }
-                        "__pinker_internal_mapa_iterador_proxima_chave_bombom" => {
-                            actual == [TypeIR::Bombom] && *ret_type == TypeIR::Bombom
-                        }
-                        "__pinker_internal_mapa_iterador_proxima_chave_verso" => {
-                            actual == [TypeIR::Bombom] && *ret_type == TypeIR::Verso
-                        }
-                        _ => false,
+                    // U-01 — aridade, papéis de operando e contrato de resultado
+                    // vêm da autoridade declarativa. Permanece local o que é
+                    // desta fase: a comparação por igualdade exata e o
+                    // diagnóstico.
+                    let operation = crate::internal_operations::entrada(callee.as_str());
+                    let valid = match operation {
+                        None => false,
+                        Some(operation) => match operation.result {
+                            InternalResult::MapaNovoComChave(chave) => {
+                                actual.len() == operation.arity()
+                                    && matches!(ret_type, TypeIR::Map { key, .. } if *key == chave)
+                            }
+                            _ => match operation.operands {
+                                InternalOperands::PapeisDeMapa(papeis)
+                                    if papeis.contains(&MapOperandRole::Chave) =>
+                                {
+                                    first_map.is_some_and(|(key, value)| {
+                                        let esperado_ret = match operation.result {
+                                            InternalResult::ValorDoMapaReceptor => value.type_ir(),
+                                            InternalResult::Declarado(declarado) => declarado,
+                                            _ => TypeIR::Nulo,
+                                        };
+                                        actual.len() == operation.arity()
+                                            && actual[1] == key.type_ir()
+                                            && (!papeis.contains(&MapOperandRole::Valor)
+                                                || actual[2] == value.type_ir())
+                                            && *ret_type == esperado_ret
+                                    })
+                                }
+                                InternalOperands::PapeisDeMapa(_) => {
+                                    actual.len() == operation.arity()
+                                        && first_map.is_some()
+                                        && Some(*ret_type) == operation.declared_ret()
+                                }
+                                InternalOperands::Declarados(params) => {
+                                    actual == params && Some(*ret_type) == operation.declared_ret()
+                                }
+                                InternalOperands::Ramificacao => false,
+                            },
+                        },
                     };
                     if !valid {
                         return Err(invalid(&format!(

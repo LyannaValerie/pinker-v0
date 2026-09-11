@@ -23,6 +23,7 @@ pub mod generic_identity;
 pub mod inline_asm;
 pub mod instr_select;
 pub mod instr_select_validate;
+pub mod internal_operations;
 pub mod interpreter;
 pub mod intrinsics;
 pub mod ir;

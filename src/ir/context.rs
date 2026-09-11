@@ -440,77 +440,21 @@ impl LoweringContext {
             };
             function_sigs.insert(entrada.spelling.to_string(), sig);
         }
-        function_sigs.insert(
-            "__pinker_internal_mapa_verso_verso_iterador_criar".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
-        );
-        function_sigs.insert(
-            "__pinker_internal_mapa_verso_verso_iterador_proxima_chave".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
-        );
-        function_sigs.insert(
-            "__pinker_internal_mapa_bombom_bombom_iterador_criar".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
-        );
-        function_sigs.insert(
-            "__pinker_internal_mapa_bombom_bombom_iterador_proxima_chave".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
-        );
-        function_sigs.insert(
-            "__pinker_internal_mapa_bombom_verso_iterador_criar".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
-        );
-        function_sigs.insert(
-            "__pinker_internal_mapa_bombom_verso_iterador_proxima_chave".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
-        );
-        function_sigs.insert(
-            "__pinker_internal_leque_criar_0".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
-        );
-        function_sigs.insert(
-            "__pinker_internal_leque_anexar_b".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
-        );
-        function_sigs.insert(
-            "__pinker_internal_leque_anexar_v".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
-        );
-        function_sigs.insert(
-            "__pinker_internal_leque_tag".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
-        );
-        function_sigs.insert(
-            "__pinker_internal_leque_carga_b".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
-        );
-        function_sigs.insert(
-            "__pinker_internal_leque_carga_v".to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Verso)?,
-        );
-        // D1: cargas de lista reutilizam integralmente o caminho de uma palavra.
-        // Os quatro nomes internos existem porque a assinatura de retorno é por
-        // símbolo; todos colapsam no mesmo par de símbolos do runtime nativo.
-        function_sigs.insert(
-            crate::enum_payload::ANEXAR_LISTA_BOMBOM.to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
-        );
-        function_sigs.insert(
-            crate::enum_payload::ANEXAR_LISTA_VERSO.to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
-        );
-        function_sigs.insert(
-            crate::enum_payload::CARGA_LISTA_BOMBOM.to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::ListBombom)?,
-        );
-        function_sigs.insert(
-            crate::enum_payload::CARGA_LISTA_VERSO.to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::ListVerso)?,
-        );
-        function_sigs.insert(
-            crate::enum_payload::ANEXAR_SAIDA_PROCESSO.to_string(),
-            builtin_sig(&mut resolved_types, TypeIR::Bombom)?,
-        );
+        // U-01 — as operações internas com contrato fixo vêm da autoridade
+        // declarativa; esta camada só precisa do retorno.
+        //
+        // `CARGA_SAIDA_PROCESSO` continua logo abaixo com assinatura NOMINAL:
+        // o handle opaco não determina identidade semântica sozinho, e o tipo
+        // nominal é fato de `falha_operacional`, não do contrato estrutural.
+        for (spelling, ret_type, _params) in crate::internal_operations::assinaturas_declaradas() {
+            if spelling == crate::enum_payload::CARGA_SAIDA_PROCESSO {
+                continue;
+            }
+            function_sigs.insert(
+                spelling.to_string(),
+                builtin_sig(&mut resolved_types, ret_type)?,
+            );
+        }
         function_sigs.insert(
             crate::enum_payload::CARGA_SAIDA_PROCESSO.to_string(),
             builtin_nominal_sig(
