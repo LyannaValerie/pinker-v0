@@ -52,10 +52,10 @@
 //!
 //! ```text
 //! consumidores reais de reconhecimento              = 16
-//! detectados por prova de execução                  = 14
+//! detectados por prova de execução                  = 15
 //!   destes, por estas testemunhas                   = 12
 //!   destes, pelas testemunhas de `module_resolve`   =  2
-//! fora do alcance do seam de biblioteca             =  1
+//!   destes, pela testemunha do `pink_cli`           =  1
 //! inalcançável a partir da fonte                    =  1
 //! ```
 //!
@@ -63,11 +63,15 @@
 //! vivem no caminho de projeção do grafo de módulos: a obrigação é a mesma, mas o
 //! observável de ponta a ponta exige o carregador.
 //!
-//! O que fica fora do alcance é a colheita de closures de default do `pink_cli`:
-//! ela mora no binário, e o `#[cfg(test)]` da biblioteca não a alcança. Fica com
-//! as provas de composição em `tests/` — a Task a mediu por perturbação da
-//! autoridade no build, e ela ficou vermelha em
-//! `default_importado_com_closure_sintetica_compoe_pela_origem`.
+//! A colheita de closures de default do `pink_cli` mora no módulo do binário, e
+//! o `#[cfg(test)]` da biblioteca não a alcançava. Alcança agora, sem redesenho
+//! de produção: `src/u05_cli_recognition_tests.rs` compila o MESMO arquivo
+//! físico `src/pink_cli/modules.rs` dentro da biblioteca, sob `#[cfg(test)]` e
+//! com o contexto de nomes que `main.rs` lhe dá, de modo que
+//! `pinker_v0::anonymous_identity` resolva para ESTA autoridade e para ESTE
+//! contrafactual. A entrada é a superfície existente `contexto_de_import` e o
+//! observável é o pool real de templates. Medida a cópia local escondida ali, o
+//! pool contrafactual chega vazio e a testemunha fica vermelha.
 //!
 //! O inalcançável é o disjunto anônimo da recusa de endereço cru em
 //! `semantic::expressions`: `&IDENT` só carrega grafia de fonte, e a fronteira
