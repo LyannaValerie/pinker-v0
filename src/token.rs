@@ -161,6 +161,24 @@ impl Span {
         Self { source, ..self }
     }
 
+    /// Ordem de leitura desta localização dentro da compilação.
+    ///
+    /// É a ordem em que um humano encontra o trecho lendo o programa: primeiro
+    /// a unidade-fonte, na ordem de descoberta que o `SourceMap` registra (a
+    /// raiz é sempre a primeira), depois a posição dentro dela.
+    ///
+    /// Existe para que um diagnóstico com mais de uma candidata possa escolher
+    /// o sujeito por uma identidade semântica real — onde o usuário escreveu a
+    /// declaração — em vez de por ordem de iteração de tabela ou por grafia
+    /// sintética. Renomear uma identidade gerada não muda esta ordem, porque
+    /// ela não olha nome nenhum.
+    ///
+    /// `SourceId::UNKNOWN` ordena por último: um span sintético não reivindica
+    /// fonte, e por isso é o pior sujeito disponível quando existe outro.
+    pub fn ordem_de_leitura(self) -> (u32, usize, usize) {
+        (self.source.as_u32(), self.start.line, self.start.col)
+    }
+
     /// Atribui a fonte apenas quando o span ainda não reivindica nenhuma.
     /// Um span já vinculado nunca é reatribuído: é isso que impede que um
     /// carimbo de fronteira reescreva a origem real de uma posição.

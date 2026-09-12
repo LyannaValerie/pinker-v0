@@ -79,6 +79,24 @@ pub fn validar_namespace_pinker_owned(name: &str, span: Span) -> Result<(), Pink
 /// MEMBER_SPELLING    -> LIVRE, SALVO IMPORT NESTA UNIDADE
 /// CANONICAL_SPELLING -> LIVRE; A IDENTIDADE NÃO DISPUTA MAIS O NOME
 /// ```
+/// Ordena declarações coletadas pela ordem de leitura da fonte.
+///
+/// As tabelas da passagem 1 são indexadas por nome e não possuem ordem. Quando
+/// mais de uma entrada é inválida por conta própria, quem decide o diagnóstico é
+/// a ordem da varredura — e a de `HashMap` muda entre execuções do mesmo
+/// programa. `Span::ordem_de_leitura` devolve a ordem em que o humano encontra
+/// cada declaração: unidade-fonte na ordem de descoberta, depois posição.
+///
+/// Limite declarado: entradas que o compilador materializa sem posição de fonte
+/// compartilham o span sintético e empatam entre si. Nenhuma ordem semântica
+/// existe entre elas, e nenhuma delas é inválida por construção — esta função
+/// não inventa um critério sintético para desempatar o que não tem significado.
+fn em_ordem_de_leitura<T>(itens: impl Iterator<Item = T>, span_de: impl Fn(&T) -> Span) -> Vec<T> {
+    let mut itens: Vec<T> = itens.collect();
+    itens.sort_by_key(|item| span_de(item).ordem_de_leitura());
+    itens
+}
+
 fn active_intrinsic_declaration_conflict(
     program: &Program,
     name: &str,
@@ -1374,22 +1392,38 @@ impl SemanticChecker {
         // coexistência quando o runtime efetivamente produz as tags. Como o
         // renderer é lossless, a própria autoridade recupera a proveniência;
         // a semântica não interpreta spelling nem mantém outro encoder.
-        if let Some((nome, decl)) = self.enums.iter().find(|(nome, _)| {
-            matches!(
-                crate::generic_identity::specialization_template_identity(nome),
-                Some(crate::generic_identity::GenericTemplateIdentity {
-                    kind: crate::generic_identity::GenericKind::Enum,
-                    origin,
-                    ref local_name,
-                }) if origin != crate::generic_identity::GenericOrigin::Builtin
-                    && local_name == superficie.identidade()
-            )
-        }) {
+        //
+        // O sujeito é a DECLARAÇÃO do usuário, não uma de suas materializações:
+        // um template pode ter sido especializado muitas vezes, e mais de um
+        // template — em unidades-fonte distintas — pode reivindicar o nome. A
+        // tabela de leques é indexada por nome sintético e não tem ordem, então
+        // a escolha vem da ordem de leitura da fonte (`Span::ordem_de_leitura`):
+        // a primeira declaração conflitante que o humano encontra lendo o
+        // programa. Renomear uma identidade gerada não muda quem é escolhido.
+        let candidata = self
+            .enums
+            .iter()
+            .filter_map(|(nome, decl)| {
+                match crate::generic_identity::specialization_template_identity(nome) {
+                    Some(crate::generic_identity::GenericTemplateIdentity {
+                        kind: crate::generic_identity::GenericKind::Enum,
+                        origin,
+                        local_name,
+                    }) if origin != crate::generic_identity::GenericOrigin::Builtin
+                        && local_name == superficie.identidade() =>
+                    {
+                        Some((local_name, decl))
+                    }
+                    _ => None,
+                }
+            })
+            .min_by_key(|(_, decl)| decl.span.ordem_de_leitura());
+        if let Some((template, decl)) = candidata {
             return Err(PinkerError::Semantic {
                 msg: crate::falha_operacional::conflito_de_taxonomia(
                     &superficie.leque_monomorfico(),
                     &format!(
-                        "a especialização '{nome}' veio de um template declarado pelo usuário"
+                        "o template '{template}' declarado pelo usuário materializa este leque"
                     ),
                 ),
                 span: decl.span,
@@ -1663,15 +1697,21 @@ impl SemanticChecker {
             }
         }
 
-        for alias_target in self.type_aliases.values() {
+        // As tabelas coletadas são indexadas por nome e não têm ordem. Quando
+        // mais de uma declaração é inválida por conta própria, a primeira que a
+        // iteração alcançasse decidiria qual diagnóstico o usuário vê — e a
+        // iteração de `HashMap` não é a mesma entre execuções. A validação
+        // percorre a ordem de leitura da fonte: o primeiro defeito que o humano
+        // encontra lendo o programa é o que ele recebe.
+        for alias_target in em_ordem_de_leitura(self.type_aliases.values(), |ty| ty.span()) {
             self.resolve_type_or_error(alias_target)?;
         }
-        for struct_decl in self.structs.values() {
+        for struct_decl in em_ordem_de_leitura(self.structs.values(), |decl| decl.span) {
             self.validate_struct_decl(struct_decl)?;
         }
         // Cargas de variantes são validadas após a coleta completa para
         // permitir referência a leque declarado depois (inclusive recursiva).
-        for enum_decl in self.enums.values() {
+        for enum_decl in em_ordem_de_leitura(self.enums.values(), |decl| decl.span) {
             for variant in &enum_decl.variants {
                 for payload in &variant.payloads {
                     // A validade da carga vem da autoridade única de
@@ -1993,14 +2033,19 @@ impl SemanticChecker {
             ));
         }
 
-        let mut template_references = HashSet::new();
+        // Ordem de aparição no template, não ordem de tabela hash: quando mais de
+        // um operando está errado, o usuário recebe o primeiro que aparece no
+        // texto que ele escreveu.
+        let mut template_references: Vec<String> = Vec::new();
         for chunk in &stmt.chunks {
             validate_inline_asm_chunk(chunk, stmt.span)?;
             let parts = crate::inline_asm::parse_template(chunk)
                 .map_err(|error| semantic_error(error.to_string(), stmt.span))?;
             for part in parts {
                 if let crate::inline_asm::AsmTemplatePart::Operand(name) = part {
-                    template_references.insert(name);
+                    if !template_references.contains(&name) {
+                        template_references.push(name);
+                    }
                 }
             }
         }
@@ -2115,7 +2160,8 @@ impl SemanticChecker {
                 ));
             }
         }
-        for binding in &binding_names {
+        // Ordem de declaração dos operandos, pela mesma razão.
+        for binding in stmt.operands.iter().map(|operand| &operand.name) {
             if !template_references.contains(binding) {
                 return Err(semantic_error(
                     format!(
