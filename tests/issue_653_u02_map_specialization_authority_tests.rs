@@ -36,6 +36,27 @@
 //!    observados pelo que produzem — AST, aceitação/tipo, IR renderizada —, não
 //!    pelo que a autoridade afirma.
 //!
+//! # Onde esta suíte para, e quem continua
+//!
+//! Estes oráculos fecham a reintrodução **divergente**: uma fase que escolhe a
+//! célula errada muda o que produz, e a projeção a recusa. Eles NÃO fecham a
+//! reintrodução **concordante** — a cópia local que responde exatamente o valor
+//! canônico —, porque o comportamento dela é idêntico e nenhuma projeção a
+//! distingue. O único detector dela aqui é o censo textual, e censo textual não
+//! fecha classe nenhuma: basta o literal do alvo deixar de aparecer inteiro no
+//! texto, como `concat!("mapa_", "verso_bombom_", "tamanho")`.
+//!
+//! ```text
+//! TEXTUAL_CENSUS        = SUPPLEMENTAL_ONLY
+//! OBSERVABLE_PROJECTION = DIVERGENCE_DETECTOR
+//! METAMORPHIC_EXECUTION = TERMINAL_GUARANTEE
+//! ```
+//!
+//! A garantia terminal é por EXECUÇÃO e vive em
+//! `src/map_specialization/metamorphic_oracle.rs`: mutar a célula na autoridade
+//! e exigir que a seleção de cada consumidor real acompanhe. Quem tem cópia
+//! local mantém a resposta antiga e fica vermelho lá, não aqui.
+//!
 //! # O que esta suíte NÃO reivindica
 //!
 //! ```text
@@ -43,6 +64,7 @@
 //! MAP_SPECIALIZATION_RELATION != INTERNAL_OPERATION_CONTRACT
 //! MAP_SPECIALIZATION_RELATION != RUNTIME_OR_INTERPRETER_BODY
 //! MAP_SPECIALIZATION_RELATION != ABI_SYMBOL
+//! CONCORDANT_DUPLICATE_ABSENCE != PROVED_BY_THIS_SUITE
 //! ```
 
 mod common;
@@ -436,9 +458,12 @@ fn fases_consumidoras() -> Vec<(&'static str, String)> {
 
 #[test]
 fn nenhuma_fase_nomeia_uma_identidade_monomorfica_de_mapa() {
-    // A propriedade adulta: mudar UMA célula muda UMA autoridade. Se uma fase
-    // voltasse a nomear a grafia do alvo, ela voltaria a decidir a relação —
-    // e este censo é o que a impede de fazê-lo em silêncio.
+    // Guard SUPLEMENTAR. Ele recusa a reintrodução escrita de forma direta, que
+    // é a que aparece em revisão e em merge acidental, e é barato. O que ele NÃO
+    // faz é fechar a classe: um literal montado por fragmento passa por ele
+    // intacto. Quem fecha é a prova por execução em
+    // `src/map_specialization/metamorphic_oracle.rs`; se este censo for lido
+    // como fechamento, a promessa fica maior que a medida.
     for (nome, fonte) in fases_consumidoras() {
         let executavel = codigo_com_literais(&fonte);
         for &class in CANONICAL_MAP_CLASSES {

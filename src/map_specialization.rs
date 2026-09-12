@@ -72,6 +72,9 @@
 
 use crate::intrinsics::identity::{intrinsic_from_public_spelling, IntrinsicIdentity};
 
+#[cfg(test)]
+mod metamorphic_oracle;
+
 /// Classe concreta de mapa, na forma em que a especialização a endereça.
 ///
 /// É a identidade canônica de `mapa<K,V>` monomorfizado, independente da
@@ -198,8 +201,33 @@ fn monomorphic_public_spelling(
 /// O lado direito da relação é sempre uma identidade que C1 já declara: a
 /// travessia por [`intrinsic_from_public_spelling`] é o que impede esta
 /// autoridade de virar um segundo registry público.
+/// A célula, como as fases a veem.
+///
+/// Em produção esta função **é** [`monomorphic_public_spelling`]: mesma tabela,
+/// mesmo caminho, sem indireção de dado, sem `trait`, sem token. O `#[cfg(test)]`
+/// acrescenta um único ponto de substituição contrafactual, usado somente pela
+/// prova de `metamorphic_oracle` — a que responde, por EXECUÇÃO, se um
+/// consumidor real acompanha uma mudança da célula ou decide por conta própria.
+///
+/// ```text
+/// PRODUCTION_TABLE_PATH = UNCHANGED
+/// PRODUCTION_INDIRECTION = NONE
+/// COUNTERFACTUAL_SUBSTITUTION = TEST_ONLY
+/// ```
+#[cfg(not(test))]
+#[inline(always)]
+fn cell_target(class: CanonicalMapClass, operation: GenericMapOperation) -> &'static str {
+    monomorphic_public_spelling(class, operation)
+}
+
+#[cfg(test)]
+fn cell_target(class: CanonicalMapClass, operation: GenericMapOperation) -> &'static str {
+    metamorphic_oracle::installed_cell_target(class, operation)
+        .unwrap_or_else(|| monomorphic_public_spelling(class, operation))
+}
+
 pub fn specialize(class: CanonicalMapClass, operation: GenericMapOperation) -> IntrinsicIdentity {
-    let spelling = monomorphic_public_spelling(class, operation);
+    let spelling = cell_target(class, operation);
     intrinsic_from_public_spelling(spelling)
         .expect("célula de especialização de mapa endereça grafia pública registrada em C1")
 }
