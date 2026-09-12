@@ -63,6 +63,9 @@
 use pinker_v0::internal_operations::{self, InternalOperationFamily, INTERNAL_OPERATIONS};
 use pinker_v0::intrinsics::identity::{callee_identity_de_ident, CalleeIdentity};
 use pinker_v0::intrinsics::registry;
+use pinker_v0::map_specialization::{
+    specialize_spelling, CANONICAL_MAP_CLASSES, GENERIC_MAP_OPERATIONS,
+};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
@@ -618,66 +621,48 @@ fn callee_de_usuario_nunca_vira_operacao_interna() {
     }
 }
 
-/// Alvos declarados por uma tabela de especialização de mapa, lidos da FONTE.
-///
-/// Ler a fonte, e não reconstruir os nomes por `format!`, é o que faz este
-/// teste detectar uma mudança do lado direito da relação — que é exatamente o
-/// que U-02 faria.
-fn alvos_da_tabela_de_especializacao(texto: &str, funcao: &str) -> Vec<String> {
-    let inicio = texto
-        .find(funcao)
-        .unwrap_or_else(|| panic!("tabela de especialização '{funcao}' desapareceu"));
-    let corpo = &texto[inicio..];
-    let fim = corpo
-        .find("_ => None,")
-        .expect("tabela de especialização sem braço final");
-    let mut alvos = Vec::new();
-    let mut resto = &corpo[..fim];
-    while let Some(abre) = resto.find("Some(\"") {
-        resto = &resto[abre + "Some(\"".len()..];
-        let fecha = resto.find('"').expect("literal sem fechamento");
-        alvos.push(resto[..fecha].to_string());
-        resto = &resto[fecha..];
-    }
-    alvos
-}
-
 #[test]
 fn a_autoridade_nao_absorve_a_relacao_de_especializacao_de_mapa_de_u02() {
-    // U-02 é `(classe concreta de mapa, operação genérica) -> grafia
-    // monomórfica`. As três realizações paralelas dessa relação continuam onde
-    // estão, e os alvos delas são grafias HISTÓRICAS do registry público.
-    let raiz = repo();
-    let tabelas = [
-        ("src/ir.rs", "fn generic_map_monomorphic_callee"),
-        ("src/parser/mod.rs", "fn generic_map_callee"),
-        ("src/semantic/calls.rs", "fn generic_map_monomorphic_callee"),
-    ];
-    let mut conjuntos = Vec::new();
-    for (arquivo, funcao) in tabelas {
-        let texto = std::fs::read_to_string(raiz.join(arquivo)).expect("ler tabela de U-02");
-        let alvos = alvos_da_tabela_de_especializacao(&texto, funcao);
-        assert_eq!(
-            alvos.len(),
-            20,
-            "{arquivo}: a relação de U-02 deixou de ter 20 combinações"
-        );
-        for alvo in &alvos {
+    // U-02 é `(classe concreta de mapa, operação genérica) -> identidade
+    // monomórfica`. A #653 consolidou as cinco realizações paralelas dessa
+    // relação numa autoridade só, `pinker_v0::map_specialization`, e por isso
+    // este guard deixou de contar tabelas-fonte: contar `Some("...")` em três
+    // arquivos era mecanismo, não a alegação. As DUAS alegações de fronteira
+    // que importam para U-01 continuam medidas aqui, agora contra a autoridade
+    // que passou a responder pela relação.
+    //
+    // ```text
+    // U02_CODOMAIN            = C1 PUBLIC HISTORICAL SURFACE
+    // U02_CODOMAIN INTERSECT
+    //   U01_INTERNAL_SURFACE  = EMPTY
+    // ```
+    let mut celulas = 0usize;
+    let mut alvos = std::collections::BTreeSet::new();
+    for &class in CANONICAL_MAP_CLASSES {
+        for &operation in GENERIC_MAP_OPERATIONS {
+            let alvo = specialize_spelling(class, operation);
+            celulas += 1;
+            assert!(
+                alvos.insert(alvo),
+                "a relação de U-02 reaproveitou o alvo '{alvo}'"
+            );
             assert!(
                 registry::e_historica(alvo),
-                "{arquivo}: '{alvo}' saiu do registry histórico"
+                "'{alvo}' saiu do registry histórico"
             );
             assert!(
                 !internal_operations::e_operacao_interna(alvo),
-                "U-02 absorvida: {arquivo} passou a resolver para a operação interna '{alvo}'"
+                "U-02 absorvida: {class:?}/{operation:?} passou a resolver para a \
+                 operação interna '{alvo}'"
             );
         }
-        conjuntos.push(alvos);
     }
-    assert!(
-        conjuntos.windows(2).all(|par| par[0] == par[1]),
-        "as três realizações da relação de U-02 deixaram de concordar"
+    assert_eq!(
+        celulas, 24,
+        "a relação de U-02 deixou de ter 24 combinações"
     );
+    assert_eq!(alvos.len(), 24);
+
     // E nenhuma grafia monomórfica de mapa entrou na autoridade interna.
     for operation in INTERNAL_OPERATIONS {
         assert!(

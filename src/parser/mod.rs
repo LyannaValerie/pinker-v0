@@ -3,6 +3,7 @@ use crate::ast::*;
 use crate::error::PinkerError;
 use crate::generic_identity::{self, GenericKind, GenericOrigin};
 use crate::lexer::Lexer;
+use crate::map_specialization::{self, CanonicalMapClass, GenericMapOperation};
 use crate::token::{Span, Token, TokenKind};
 use std::collections::{HashMap, HashSet};
 
@@ -27,33 +28,33 @@ enum CollectionKind {
 }
 
 impl CollectionKind {
-    fn generic_map_callee(&self, name: &str) -> Option<&'static str> {
-        match (self, name) {
-            (CollectionKind::MapVersoBombom, "mapa_definir") => Some("mapa_verso_bombom_definir"),
-            (CollectionKind::MapVersoBombom, "mapa_obter") => Some("mapa_verso_bombom_obter"),
-            (CollectionKind::MapVersoBombom, "mapa_tem") => Some("mapa_verso_bombom_tem"),
-            (CollectionKind::MapVersoBombom, "mapa_tamanho") => Some("mapa_verso_bombom_tamanho"),
-            (CollectionKind::MapVersoBombom, "mapa_remover") => Some("mapa_verso_bombom_remover"),
-
-            (CollectionKind::MapVersoVerso, "mapa_definir") => Some("mapa_verso_verso_definir"),
-            (CollectionKind::MapVersoVerso, "mapa_obter") => Some("mapa_verso_verso_obter"),
-            (CollectionKind::MapVersoVerso, "mapa_tem") => Some("mapa_verso_verso_tem"),
-            (CollectionKind::MapVersoVerso, "mapa_tamanho") => Some("mapa_verso_verso_tamanho"),
-            (CollectionKind::MapVersoVerso, "mapa_remover") => Some("mapa_verso_verso_remover"),
-
-            (CollectionKind::MapBombomBombom, "mapa_definir") => Some("mapa_bombom_bombom_definir"),
-            (CollectionKind::MapBombomBombom, "mapa_obter") => Some("mapa_bombom_bombom_obter"),
-            (CollectionKind::MapBombomBombom, "mapa_tem") => Some("mapa_bombom_bombom_tem"),
-            (CollectionKind::MapBombomBombom, "mapa_tamanho") => Some("mapa_bombom_bombom_tamanho"),
-            (CollectionKind::MapBombomBombom, "mapa_remover") => Some("mapa_bombom_bombom_remover"),
-
-            (CollectionKind::MapBombomVerso, "mapa_definir") => Some("mapa_bombom_verso_definir"),
-            (CollectionKind::MapBombomVerso, "mapa_obter") => Some("mapa_bombom_verso_obter"),
-            (CollectionKind::MapBombomVerso, "mapa_tem") => Some("mapa_bombom_verso_tem"),
-            (CollectionKind::MapBombomVerso, "mapa_tamanho") => Some("mapa_bombom_verso_tamanho"),
-            (CollectionKind::MapBombomVerso, "mapa_remover") => Some("mapa_bombom_verso_remover"),
-            _ => None,
+    /// Adaptação de representação, local à fase: QUAL classe canônica de mapa
+    /// é esta coleção.
+    ///
+    /// `None` para toda coleção que não é mapa monomórfico — incluindo o mapa
+    /// genérico adulto `CollectionKind::Map`, cuja criação e cujas operações
+    /// continuam sendo materializadas por operação interna e não por
+    /// especialização monomórfica.
+    ///
+    /// Este adapter responde uma pergunta só. Dada a classe e a operação, qual
+    /// identidade executável responde é de [`crate::map_specialization`].
+    fn canonical_map_class(&self) -> Option<CanonicalMapClass> {
+        match self {
+            CollectionKind::MapVersoBombom => Some(CanonicalMapClass::VersoBombom),
+            CollectionKind::MapVersoVerso => Some(CanonicalMapClass::VersoVerso),
+            CollectionKind::MapBombomBombom => Some(CanonicalMapClass::BombomBombom),
+            CollectionKind::MapBombomVerso => Some(CanonicalMapClass::BombomVerso),
+            CollectionKind::ListBombom
+            | CollectionKind::ListVerso
+            | CollectionKind::ListEnum(_)
+            | CollectionKind::Map { .. } => None,
         }
+    }
+
+    /// Consulta à autoridade de especialização, traduzida para a representação
+    /// desta fase.
+    fn generic_map_callee(&self, name: &str) -> Option<&'static str> {
+        map_specialization::specialize_generic_spelling(self.canonical_map_class()?, name)
     }
 }
 

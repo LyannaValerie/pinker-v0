@@ -502,7 +502,7 @@ impl Parser {
     /// Lowering auditável:
     /// ```text
     /// nova __iter_mapa_N    = mapa_expr;
-    /// nova __iter_tamanho_N = mapa_verso_bombom_tamanho(__iter_mapa_N);
+    /// nova __iter_tamanho_N = <tamanho da classe>(__iter_mapa_N);
     /// nova __iter_cursor_N  = <cursor interno sobre snapshot de chaves>;
     /// nova muda __iter_indice_N: bombom = 0;
     /// enquanto __iter_indice_N < __iter_tamanho_N {
@@ -535,7 +535,7 @@ impl Parser {
             span: helper_span,
         });
 
-        // nova __iter_tamanho_N: bombom = mapa_verso_bombom_tamanho(__iter_mapa_N);
+        // nova __iter_tamanho_N: bombom = <tamanho da classe>(__iter_mapa_N);
         let size_binding_stmt = Stmt::Let(LetStmt {
             name: size_slot_name.clone(),
             is_mut: false,
@@ -543,7 +543,10 @@ impl Parser {
             init: Expr {
                 kind: ExprKind::Call(
                     Box::new(Expr {
-                        kind: Self::callee_intrinseco("mapa_verso_bombom_tamanho"),
+                        kind: ExprKind::Intrinsic(map_specialization::specialize(
+                            CanonicalMapClass::VersoBombom,
+                            GenericMapOperation::Tamanho,
+                        )),
                         span: helper_span,
                     }),
                     vec![Expr {
@@ -838,7 +841,10 @@ impl Parser {
             init: Expr {
                 kind: ExprKind::Call(
                     Box::new(Expr {
-                        kind: Self::callee_intrinseco("mapa_verso_verso_tamanho"),
+                        kind: ExprKind::Intrinsic(map_specialization::specialize(
+                            CanonicalMapClass::VersoVerso,
+                            GenericMapOperation::Tamanho,
+                        )),
                         span: helper_span,
                     }),
                     vec![Expr {
@@ -993,7 +999,10 @@ impl Parser {
             init: Expr {
                 kind: ExprKind::Call(
                     Box::new(Expr {
-                        kind: Self::callee_intrinseco("mapa_bombom_bombom_tamanho"),
+                        kind: ExprKind::Intrinsic(map_specialization::specialize(
+                            CanonicalMapClass::BombomBombom,
+                            GenericMapOperation::Tamanho,
+                        )),
                         span: helper_span,
                     }),
                     vec![Expr {
@@ -1149,7 +1158,10 @@ impl Parser {
             init: Expr {
                 kind: ExprKind::Call(
                     Box::new(Expr {
-                        kind: Self::callee_intrinseco("mapa_bombom_verso_tamanho"),
+                        kind: ExprKind::Intrinsic(map_specialization::specialize(
+                            CanonicalMapClass::BombomVerso,
+                            GenericMapOperation::Tamanho,
+                        )),
                         span: helper_span,
                     }),
                     vec![Expr {
