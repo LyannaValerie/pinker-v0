@@ -32,6 +32,7 @@ pub mod jsonl;
 pub mod layout;
 pub mod lexer;
 pub mod limite_tempo;
+pub mod map_representation;
 pub mod map_specialization;
 pub mod method_dispatch;
 pub mod method_identity;
