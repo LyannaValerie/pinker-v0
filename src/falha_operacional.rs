@@ -301,6 +301,24 @@ impl SuperficieFalivel {
         LEQUE_RESULTADO
     }
 
+    /// Grafia humana do leque devolvido: `Resultado<sucesso, falha>`.
+    ///
+    /// [`Self::leque_monomorfico`] é transporte — nome injetivo seguro para o
+    /// assembler e chave do leque na AST. Ele não é a grafia pela qual um
+    /// humano conhece o tipo, e um diagnóstico que o exibe está mostrando a
+    /// representação interna no lugar da identidade.
+    ///
+    /// As duas metades vêm desta autoridade: o nome do leque e a grafia de
+    /// diagnóstico de cada carga. Não há decodificação de nome sintético aqui.
+    pub fn grafia_humana(&self) -> String {
+        format!(
+            "{}<{}, {}>",
+            self.identidade(),
+            self.sucesso.nome_para_diagnostico(),
+            self.falha.nome_para_diagnostico()
+        )
+    }
+
     /// Taxonomia canônica do leque devolvido, na ordem que **define** as tags.
     ///
     /// Índice 0 é [`TAG_OK`], índice 1 é [`TAG_ERRO`]. É esta lista, e não a
@@ -641,13 +659,33 @@ pub fn identidades_produzidas_pelo_runtime() -> impl Iterator<Item = &'static st
 ///
 /// Esta é a checagem completa porque olha o artefato em que a tag é depositada,
 /// e não o texto que o produziu.
+///
+/// O leque é nomeado em grafia humana. A identidade monomórfica que os
+/// consumidores passam é nome de transporte: exibi-lo faria o diagnóstico
+/// afirmar que o usuário declarou `__gen_leque_<hex>`, que não é um nome que
+/// exista no programa dele.
 pub fn conflito_de_taxonomia(mono: &str, detalhe: &str) -> String {
+    let mono = grafia_humana_do_leque(mono);
     format!(
         "o leque '{mono}' é produzido pelo runtime (superfícies falíveis) e precisa manter \
          a taxonomia builtin `{VARIANTE_OK}` antes de `{VARIANTE_ERRO}`: {detalhe}. \
          Como está, o discriminante devolvido pela implementação seria interpretado por \
          outra taxonomia"
     )
+}
+
+/// Grafia humana de um leque monomórfico que alguma superfície desta lista
+/// produz.
+///
+/// A tradução é uma consulta à própria lista fechada — a superfície que cunhou
+/// o nome é quem sabe soletrá-lo —, não um decodificador paralelo do formato de
+/// `generic_identity`. Um nome que nenhuma superfície produz volta inalterado:
+/// inventar grafia para ele seria pior que exibi-lo.
+fn grafia_humana_do_leque(mono: &str) -> String {
+    SUPERFICIES_FALIVEIS
+        .iter()
+        .find(|superficie| superficie.leque_monomorfico() == mono)
+        .map_or_else(|| mono.to_string(), SuperficieFalivel::grafia_humana)
 }
 
 pub fn conflito_de_identidade(nome: &str) -> String {
