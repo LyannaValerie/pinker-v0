@@ -592,7 +592,12 @@ impl LoweringContext {
         if let Type::Union { members, span } = resolved {
             return self.intern_union(&members, span);
         }
-        TypeIR::from_ast_with_context(ty, &self.type_aliases, &self.struct_names)
+        // F-04: a representação vem do tipo JÁ RESOLVIDO, não da grafia crua.
+        // As duas coincidiam enquanto a resolução não decidia nada além de
+        // apelidos; desde que ela canoniza a representação do mapa, usar a
+        // grafia crua faria o nó declarar uma representação diferente da que a
+        // tabela de identidades resolvidas guarda para a mesma chave canônica.
+        TypeIR::from_ast_with_context(&resolved, &self.type_aliases, &self.struct_names)
     }
 
     fn resolve_union_ast_type(
@@ -684,11 +689,24 @@ impl LoweringContext {
                 size: *size,
                 span: *span,
             }),
-            Type::Map { key, value, span } => Ok(Type::Map {
-                key: Box::new(self.resolve_union_ast_type(key, resolving)?),
-                value: Box::new(self.resolve_union_ast_type(value, resolving)?),
-                span: *span,
-            }),
+            Type::Map { key, value, span } => {
+                let key = self.resolve_union_ast_type(key, resolving)?;
+                let value = self.resolve_union_ast_type(value, resolving)?;
+                // F-04: a IR resolve apelidos por conta própria, então ela
+                // precisa chegar à mesma representação canônica que a
+                // semântica — senão a mesma chave canônica entraria na tabela
+                // de identidades resolvidas com duas representações.
+                if let Some(canonical) =
+                    crate::map_representation::canonical_representation(&key, &value, *span)
+                {
+                    return Ok(canonical);
+                }
+                Ok(Type::Map {
+                    key: Box::new(key),
+                    value: Box::new(value),
+                    span: *span,
+                })
+            }
             Type::ListEnum { element, span } => {
                 let resolved_element = self.resolve_union_ast_type(
                     &Type::Alias {

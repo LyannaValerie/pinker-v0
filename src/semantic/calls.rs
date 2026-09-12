@@ -320,21 +320,17 @@ impl SemanticChecker {
         Ok(function_name)
     }
 
-    /// Adaptação de representação, local à fase: QUAL classe canônica de mapa é
-    /// este `Type`.
+    /// QUAL classe canônica de mapa é este `Type`.
     ///
-    /// `None` para todo tipo que não é mapa monomórfico, o mapa genérico adulto
-    /// `Type::Map` incluído: ele não tem identidade monomórfica e continua
-    /// sendo atendido pelo contrato de operação interna.
+    /// A pergunta é da autoridade de representação, não desta fase: F-04
+    /// mostrou que responder por variante física aqui fazia o mesmo tipo
+    /// resolvido especializar ou não conforme a grafia de origem.
+    ///
+    /// `None` para todo tipo que não é mapa e para o mapa cujos componentes
+    /// não formam uma das quatro classes históricas: esse continua sendo
+    /// atendido pelo contrato de operação interna.
     fn canonical_map_class(map_ty: &Type) -> Option<map_specialization::CanonicalMapClass> {
-        use map_specialization::CanonicalMapClass;
-        match map_ty {
-            Type::MapVersoBombom(_) => Some(CanonicalMapClass::VersoBombom),
-            Type::MapVersoVerso(_) => Some(CanonicalMapClass::VersoVerso),
-            Type::MapBombomBombom(_) => Some(CanonicalMapClass::BombomBombom),
-            Type::MapBombomVerso(_) => Some(CanonicalMapClass::BombomVerso),
-            _ => None,
-        }
+        crate::map_representation::class_of(map_ty)
     }
 
     /// Consulta à autoridade de especialização, traduzida para a representação
