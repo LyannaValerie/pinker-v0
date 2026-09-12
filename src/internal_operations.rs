@@ -40,7 +40,11 @@
 //! - Os **corpos** — interpretador hospedado e `pinker_rt` — continuam com seus
 //!   donos de fase. Esta autoridade é declarativa e não executa nada.
 //! - A relação `(classe concreta de mapa, operação genérica) -> grafia
-//!   monomórfica` **não** mora aqui: é objeto de U-02 e continua onde está.
+//!   monomórfica` **não** mora aqui: desde U-02 ela tem autoridade própria em
+//!   [`crate::map_specialization`], cujo codomínio é a superfície pública C1.
+//!   Nenhuma grafia desta tabela é alvo dela, e o fallback adulto do mapa
+//!   genérico — `TypeIR::Map { key, .. }` — continua sendo respondido por estas
+//!   operações internas, não por especialização monomórfica.
 //!
 //! O fato que esta autoridade centraliza é o contrato estrutural — existência,
 //! aridade, operandos e resultado — que antes era decidido

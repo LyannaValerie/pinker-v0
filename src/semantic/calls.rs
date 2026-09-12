@@ -19,6 +19,7 @@
 //! passou de privado a `pub(super)`.
 
 use super::*;
+use crate::map_specialization;
 
 /// U-01 — aridade de uma operação interna do compilador, lida da autoridade
 /// declarativa.
@@ -319,30 +320,27 @@ impl SemanticChecker {
         Ok(function_name)
     }
 
-    fn generic_map_monomorphic_callee(map_ty: &Type, name: &str) -> Option<&'static str> {
-        match (map_ty, name) {
-            (Type::MapVersoBombom(_), "mapa_definir") => Some("mapa_verso_bombom_definir"),
-            (Type::MapVersoBombom(_), "mapa_obter") => Some("mapa_verso_bombom_obter"),
-            (Type::MapVersoBombom(_), "mapa_tem") => Some("mapa_verso_bombom_tem"),
-            (Type::MapVersoBombom(_), "mapa_tamanho") => Some("mapa_verso_bombom_tamanho"),
-            (Type::MapVersoBombom(_), "mapa_remover") => Some("mapa_verso_bombom_remover"),
-            (Type::MapVersoVerso(_), "mapa_definir") => Some("mapa_verso_verso_definir"),
-            (Type::MapVersoVerso(_), "mapa_obter") => Some("mapa_verso_verso_obter"),
-            (Type::MapVersoVerso(_), "mapa_tem") => Some("mapa_verso_verso_tem"),
-            (Type::MapVersoVerso(_), "mapa_tamanho") => Some("mapa_verso_verso_tamanho"),
-            (Type::MapVersoVerso(_), "mapa_remover") => Some("mapa_verso_verso_remover"),
-            (Type::MapBombomBombom(_), "mapa_definir") => Some("mapa_bombom_bombom_definir"),
-            (Type::MapBombomBombom(_), "mapa_obter") => Some("mapa_bombom_bombom_obter"),
-            (Type::MapBombomBombom(_), "mapa_tem") => Some("mapa_bombom_bombom_tem"),
-            (Type::MapBombomBombom(_), "mapa_tamanho") => Some("mapa_bombom_bombom_tamanho"),
-            (Type::MapBombomBombom(_), "mapa_remover") => Some("mapa_bombom_bombom_remover"),
-            (Type::MapBombomVerso(_), "mapa_definir") => Some("mapa_bombom_verso_definir"),
-            (Type::MapBombomVerso(_), "mapa_obter") => Some("mapa_bombom_verso_obter"),
-            (Type::MapBombomVerso(_), "mapa_tem") => Some("mapa_bombom_verso_tem"),
-            (Type::MapBombomVerso(_), "mapa_tamanho") => Some("mapa_bombom_verso_tamanho"),
-            (Type::MapBombomVerso(_), "mapa_remover") => Some("mapa_bombom_verso_remover"),
+    /// Adaptação de representação, local à fase: QUAL classe canônica de mapa é
+    /// este `Type`.
+    ///
+    /// `None` para todo tipo que não é mapa monomórfico, o mapa genérico adulto
+    /// `Type::Map` incluído: ele não tem identidade monomórfica e continua
+    /// sendo atendido pelo contrato de operação interna.
+    fn canonical_map_class(map_ty: &Type) -> Option<map_specialization::CanonicalMapClass> {
+        use map_specialization::CanonicalMapClass;
+        match map_ty {
+            Type::MapVersoBombom(_) => Some(CanonicalMapClass::VersoBombom),
+            Type::MapVersoVerso(_) => Some(CanonicalMapClass::VersoVerso),
+            Type::MapBombomBombom(_) => Some(CanonicalMapClass::BombomBombom),
+            Type::MapBombomVerso(_) => Some(CanonicalMapClass::BombomVerso),
             _ => None,
         }
+    }
+
+    /// Consulta à autoridade de especialização, traduzida para a representação
+    /// desta fase. Nenhuma célula da relação nasce aqui.
+    fn generic_map_monomorphic_callee(map_ty: &Type, name: &str) -> Option<&'static str> {
+        map_specialization::specialize_generic_spelling(Self::canonical_map_class(map_ty)?, name)
     }
 
     fn check_named_function_call(

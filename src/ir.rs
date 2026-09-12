@@ -334,30 +334,27 @@ fn is_generic_map_create_expr(expr: &Expr) -> bool {
     chamada_intrinseca_sem_argumentos(expr, "mapa_criar")
 }
 
-fn generic_map_monomorphic_callee(map_ty: TypeIR, name: &str) -> Option<&'static str> {
-    match (map_ty, name) {
-        (TypeIR::MapVersoBombom, "mapa_definir") => Some("mapa_verso_bombom_definir"),
-        (TypeIR::MapVersoBombom, "mapa_obter") => Some("mapa_verso_bombom_obter"),
-        (TypeIR::MapVersoBombom, "mapa_tem") => Some("mapa_verso_bombom_tem"),
-        (TypeIR::MapVersoBombom, "mapa_tamanho") => Some("mapa_verso_bombom_tamanho"),
-        (TypeIR::MapVersoBombom, "mapa_remover") => Some("mapa_verso_bombom_remover"),
-        (TypeIR::MapVersoVerso, "mapa_definir") => Some("mapa_verso_verso_definir"),
-        (TypeIR::MapVersoVerso, "mapa_obter") => Some("mapa_verso_verso_obter"),
-        (TypeIR::MapVersoVerso, "mapa_tem") => Some("mapa_verso_verso_tem"),
-        (TypeIR::MapVersoVerso, "mapa_tamanho") => Some("mapa_verso_verso_tamanho"),
-        (TypeIR::MapVersoVerso, "mapa_remover") => Some("mapa_verso_verso_remover"),
-        (TypeIR::MapBombomBombom, "mapa_definir") => Some("mapa_bombom_bombom_definir"),
-        (TypeIR::MapBombomBombom, "mapa_obter") => Some("mapa_bombom_bombom_obter"),
-        (TypeIR::MapBombomBombom, "mapa_tem") => Some("mapa_bombom_bombom_tem"),
-        (TypeIR::MapBombomBombom, "mapa_tamanho") => Some("mapa_bombom_bombom_tamanho"),
-        (TypeIR::MapBombomBombom, "mapa_remover") => Some("mapa_bombom_bombom_remover"),
-        (TypeIR::MapBombomVerso, "mapa_definir") => Some("mapa_bombom_verso_definir"),
-        (TypeIR::MapBombomVerso, "mapa_obter") => Some("mapa_bombom_verso_obter"),
-        (TypeIR::MapBombomVerso, "mapa_tem") => Some("mapa_bombom_verso_tem"),
-        (TypeIR::MapBombomVerso, "mapa_tamanho") => Some("mapa_bombom_verso_tamanho"),
-        (TypeIR::MapBombomVerso, "mapa_remover") => Some("mapa_bombom_verso_remover"),
+/// Adaptação de representação, local à fase: QUAL classe canônica de mapa é
+/// este `TypeIR`.
+///
+/// `None` para todo tipo que não é mapa monomórfico, incluindo o mapa genérico
+/// adulto `TypeIR::Map`, que não tem identidade monomórfica e segue atendido
+/// pelo contrato de operação interna.
+fn canonical_map_class(map_ty: TypeIR) -> Option<crate::map_specialization::CanonicalMapClass> {
+    use crate::map_specialization::CanonicalMapClass;
+    match map_ty {
+        TypeIR::MapVersoBombom => Some(CanonicalMapClass::VersoBombom),
+        TypeIR::MapVersoVerso => Some(CanonicalMapClass::VersoVerso),
+        TypeIR::MapBombomBombom => Some(CanonicalMapClass::BombomBombom),
+        TypeIR::MapBombomVerso => Some(CanonicalMapClass::BombomVerso),
         _ => None,
     }
+}
+
+/// Consulta à autoridade de especialização, traduzida para a representação
+/// desta fase. Nenhuma célula da relação nasce aqui.
+fn generic_map_monomorphic_callee(map_ty: TypeIR, name: &str) -> Option<&'static str> {
+    crate::map_specialization::specialize_generic_spelling(canonical_map_class(map_ty)?, name)
 }
 
 fn trait_object_name_from_type(

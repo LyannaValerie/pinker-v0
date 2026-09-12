@@ -1947,28 +1947,36 @@ impl<'a> FunctionLowerer<'a> {
             }
             if is_generic_map_create_expr(&let_stmt.init) {
                 let slot_ty = self.context.resolve_type(annotated_ty)?;
-                let callee = match slot_ty {
-                    TypeIR::MapVersoBombom => "mapa_verso_bombom_criar",
-                    TypeIR::MapVersoVerso => "mapa_verso_verso_criar",
-                    TypeIR::MapBombomBombom => "mapa_bombom_bombom_criar",
-                    TypeIR::MapBombomVerso => "mapa_bombom_verso_criar",
-                    TypeIR::Map {
-                        key: MapKeyIR::Bombom,
-                        ..
-                    } => "__pinker_internal_mapa_criar_chave_bombom",
-                    TypeIR::Map {
-                        key: MapKeyIR::Verso,
-                        ..
-                    } => "__pinker_internal_mapa_criar_chave_verso",
-                    _ => {
-                        return Err(PinkerError::Ir {
-                            msg: format!(
-                                "mapa_criar() exige anotação de mapa; encontrado '{}'",
-                                slot_ty.name()
-                            ),
-                            span: let_stmt.span,
-                        });
-                    }
+                // U-02: a classe monomórfica não escolhe grafia aqui. O
+                // adapter diz QUAL classe é, e a autoridade de especialização
+                // diz qual identidade a operação `criar` endereça nela. O
+                // fallback adulto do mapa genérico é outra pergunta, com outro
+                // dono: ele não tem identidade monomórfica pública e continua
+                // sendo materializado por operação interna.
+                let callee = match canonical_map_class(slot_ty) {
+                    Some(class) => crate::map_specialization::specialize_spelling(
+                        class,
+                        crate::map_specialization::GenericMapOperation::Criar,
+                    ),
+                    None => match slot_ty {
+                        TypeIR::Map {
+                            key: MapKeyIR::Bombom,
+                            ..
+                        } => "__pinker_internal_mapa_criar_chave_bombom",
+                        TypeIR::Map {
+                            key: MapKeyIR::Verso,
+                            ..
+                        } => "__pinker_internal_mapa_criar_chave_verso",
+                        _ => {
+                            return Err(PinkerError::Ir {
+                                msg: format!(
+                                    "mapa_criar() exige anotação de mapa; encontrado '{}'",
+                                    slot_ty.name()
+                                ),
+                                span: let_stmt.span,
+                            });
+                        }
+                    },
                 };
                 let binding = self.allocate_binding(
                     &let_stmt.name,
