@@ -222,7 +222,7 @@ pub const PINKER_OWNED_NAMESPACES: &[PinkerOwnedNamespace] = &[
         reason: "o lowering materializa as intrínsecas internas de leque e mapa sob este prefixo",
     },
     PinkerOwnedNamespace {
-        shape: ReservedShape::Prefix("__anon_carinho_"),
+        shape: ReservedShape::Prefix(crate::anonymous_identity::ANONYMOUS_CALLABLE_PREFIX),
         scope: ReservedScope::AnyIdentifier,
         owner: NamespaceOwner::CompilerGenerated,
         reason: "o parser materializa cada `carinho` anônimo sob este prefixo",
@@ -358,11 +358,28 @@ pub const PINKER_OWNED_NAMESPACES: &[PinkerOwnedNamespace] = &[
 /// definição foi criado pelo próprio compilador; e `main` é nome legítimo de
 /// pacote, então só pode ser recusado onde de fato produziria um símbolo.
 pub fn reserved_namespace(name: &str, scope: ReservedScope) -> Option<PinkerOwnedNamespace> {
-    PINKER_OWNED_NAMESPACES
-        .iter()
-        .copied()
-        .find(|entry| entry.scope == scope && entry.shape.matches(name))
+    namespaces_possuidos().find(|entry| entry.scope == scope && entry.shape.matches(name))
 }
+
+/// A tabela canônica, mais — só no build de teste — a grafia contrafactual do
+/// contrafactual de U-05. A entrada de prova existe para que renomear o
+/// namespace anônimo não vire, sem querer, um teste sobre namespace NÃO
+/// reservado: sem ela a renomeação mudaria duas coisas ao mesmo tempo e uma
+/// falha não distinguiria as causas. Em produção o iterador é a tabela.
+fn namespaces_possuidos() -> impl Iterator<Item = PinkerOwnedNamespace> {
+    let possuidos = PINKER_OWNED_NAMESPACES.iter().copied();
+    #[cfg(test)]
+    let possuidos = possuidos.chain(NAMESPACES_DE_PROVA.iter().copied());
+    possuidos
+}
+
+#[cfg(test)]
+const NAMESPACES_DE_PROVA: &[PinkerOwnedNamespace] = &[PinkerOwnedNamespace {
+    shape: ReservedShape::Prefix(crate::anonymous_identity::PREFIXO_CONTRAFACTUAL),
+    scope: ReservedScope::AnyIdentifier,
+    owner: NamespaceOwner::CompilerGenerated,
+    reason: "é a grafia contrafactual do callable anônimo, existente só no build de teste",
+}];
 
 /// `true` quando o nome pertence a uma forma que o compilador materializa.
 ///
@@ -370,8 +387,7 @@ pub fn reserved_namespace(name: &str, scope: ReservedScope) -> Option<PinkerOwne
 /// superprefixo comum às famílias não é propriedade da Pinker, e um nome de
 /// usuário como `__usuario` não é identidade gerada.
 pub fn is_compiler_generated(name: &str) -> bool {
-    PINKER_OWNED_NAMESPACES
-        .iter()
+    namespaces_possuidos()
         .any(|entry| entry.owner == NamespaceOwner::CompilerGenerated && entry.shape.matches(name))
 }
 

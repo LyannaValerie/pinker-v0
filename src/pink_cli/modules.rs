@@ -198,10 +198,7 @@ fn colher_closures_de_default(
         let ast::Item::Function(function) = item else {
             continue;
         };
-        if !function
-            .name
-            .starts_with(pinker_v0::anonymous_identity::ANONYMOUS_CALLABLE_PREFIX)
-        {
+        if !pinker_v0::anonymous_identity::is_anonymous_callable_name(&function.name) {
             continue;
         }
         destino

@@ -10,6 +10,45 @@ const FORMAT_MAGIC: &[u8] = b"pinker-anonymous-callable-v1";
 const MATERIALIZED_DEFAULT_FORMAT_MAGIC: &[u8] = b"pinker-materialized-default-closure-v1";
 pub const ANONYMOUS_CALLABLE_PREFIX: &str = "__anon_carinho_";
 
+#[cfg(test)]
+mod recognition_oracle;
+
+#[cfg(test)]
+pub(crate) use recognition_oracle::{AutoridadeContrafactual, PREFIXO_CONTRAFACTUAL};
+
+/// A grafia do namespace, lida pelas TRÊS frentes que a tocam: as duas que
+/// cunham e a que reconhece.
+///
+/// Em produção é a constante, sem indireção de dado e sem estado. O
+/// `#[cfg(test)]` existe para uma pergunta que só a execução responde: se a
+/// autoridade mudar, cada consumidor real acompanha? Uma cópia local — ainda
+/// que escondida em `concat!`, fatiamento ou helper — mantém a resposta antiga,
+/// e é isso que fica vermelho. Ver `src/anonymous_identity/recognition_oracle.rs`.
+fn anonymous_callable_prefix() -> &'static str {
+    #[cfg(test)]
+    if recognition_oracle::contrafactual_ativo() {
+        return PREFIXO_CONTRAFACTUAL;
+    }
+    ANONYMOUS_CALLABLE_PREFIX
+}
+
+/// Reconhecimento canônico: este nome pertence ao namespace sintético de
+/// callable anônimo?
+///
+/// É a única pergunta de classificação que as fases fazem hoje, e é de
+/// PERTENCIMENTO AO NAMESPACE. Ela não responde "esta grafia é uma identidade
+/// anônima canonicamente codificada?" — ninguém precisa dessa segunda pergunta,
+/// e fundi-la aqui daria a cada consumidor uma resposta mais forte do que o
+/// contrato de que ele depende, recusando em silêncio nomes que hoje as fases
+/// tratam como closure.
+///
+/// Reconhecer no mesmo lugar em que se cunha é o que torna a regra única: quem
+/// mudar a autoridade de identidade move todo consumidor junto, e nenhuma fase
+/// pode manter verde uma regra local equivalente.
+pub fn is_anonymous_callable_name(name: &str) -> bool {
+    name.starts_with(anonymous_callable_prefix())
+}
+
 fn hex_bytes(rendered: &str) -> Option<Vec<u8>> {
     if rendered.len() % 2 != 0 {
         return None;
@@ -74,7 +113,7 @@ pub fn anonymous_callable_identity_bytes(origin: &SourceOrigin, local_index: usi
 pub fn anonymous_callable_name(origin: &SourceOrigin, local_index: usize) -> String {
     format!(
         "{}{}",
-        ANONYMOUS_CALLABLE_PREFIX,
+        anonymous_callable_prefix(),
         full_hex(&anonymous_callable_identity_bytes(origin, local_index))
     )
 }
@@ -108,7 +147,7 @@ pub fn materialized_default_closure_name(
     local_index: usize,
 ) -> String {
     let rendered = origin_closure_name
-        .strip_prefix(ANONYMOUS_CALLABLE_PREFIX)
+        .strip_prefix(anonymous_callable_prefix())
         .unwrap_or(origin_closure_name);
     // A origem entra pelos bytes que a renderizam. Quando a grafia recebida não
     // é a renderização canônica, os bytes crus dela servem igual: o que importa
@@ -125,6 +164,6 @@ pub fn materialized_default_closure_name(
             .expect("materialized default closure local index fits in u64")
             .to_be_bytes(),
     );
-    format!("{}{}", ANONYMOUS_CALLABLE_PREFIX, full_hex(&bytes))
+    format!("{}{}", anonymous_callable_prefix(), full_hex(&bytes))
 }
 // @pinker-nav:end identidades.anonima-callable

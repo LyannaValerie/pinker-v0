@@ -181,9 +181,7 @@ fn nao_e_entidade_de_unidade(name: &str) -> bool {
 /// silêncio, exatamente onde a autoridade de contratos de trato precisa ver as
 /// duas para recusar a duplicata.
 fn e_identidade_endereçada_por_conteudo(item: &Item, name: &str) -> bool {
-    if name.starts_with("__gen_")
-        || name.starts_with(crate::anonymous_identity::ANONYMOUS_CALLABLE_PREFIX)
-    {
+    if name.starts_with("__gen_") || crate::anonymous_identity::is_anonymous_callable_name(name) {
         return true;
     }
     matches!(
@@ -1754,9 +1752,8 @@ fn referencias_do_item(item: &Item) -> Vec<String> {
                 // porque a cópia materializada os cita igual.
                 let mut do_corpo = Vec::new();
                 referencias_de_bloco(body, &mut do_corpo);
-                do_corpo.retain(|nome| {
-                    !nome.starts_with(crate::anonymous_identity::ANONYMOUS_CALLABLE_PREFIX)
-                });
+                do_corpo
+                    .retain(|nome| !crate::anonymous_identity::is_anonymous_callable_name(nome));
                 out.extend(do_corpo);
             }
         }
@@ -2172,3 +2169,131 @@ pub fn fontes_de_modulo(graph: &ModuleGraph) -> HashSet<SourceId> {
         .collect()
 }
 // @pinker-nav:end modulos.visibilidade.fontes
+
+#[cfg(test)]
+mod anonymous_recognition_witness {
+    use super::*;
+    use crate::anonymous_identity::{
+        anonymous_callable_name, AutoridadeContrafactual, PREFIXO_CONTRAFACTUAL,
+    };
+    use crate::falha_operacional::span_sintetico;
+    use crate::source_origin::SourceOrigin;
+
+    fn funcao_sintetica(nome: &str) -> Item {
+        let span = span_sintetico();
+        Item::Function(crate::ast::FunctionDecl {
+            name: nome.to_string(),
+            impl_facts: None,
+            trait_default_body: None,
+            type_params: Vec::new(),
+            params: Vec::new(),
+            ret_type: None,
+            body: crate::ast::Block {
+                stmts: Vec::new(),
+                span,
+            },
+            span,
+        })
+    }
+
+    /// Testemunha de U-05 para o disjunto anônimo de
+    /// [`e_identidade_endereçada_por_conteudo`].
+    ///
+    /// Este consumidor mora no caminho de projeção do grafo de módulos, que só
+    /// existe sob o carregador do binário, então o oráculo contrafactual de
+    /// `anonymous_identity` não o alcança de ponta a ponta. A obrigação, porém, é
+    /// a mesma e cabe aqui: o nome vem da autoridade de CUNHAGEM, nunca de um
+    /// literal, e a resposta tem de acompanhar a renomeação do namespace. Uma
+    /// cópia local — inclusive escondida por concatenação — continua respondendo
+    /// pela grafia antiga e deixa a segunda metade vermelha.
+    #[test]
+    fn identidade_endereçada_por_conteudo_acompanha_a_autoridade() {
+        let canonico = anonymous_callable_name(&SourceOrigin::Root, 0);
+        assert!(e_identidade_endereçada_por_conteudo(
+            &funcao_sintetica(&canonico),
+            &canonico
+        ));
+
+        let _guarda = AutoridadeContrafactual::instalar();
+        let contrafactual = anonymous_callable_name(&SourceOrigin::Root, 0);
+        assert!(contrafactual.starts_with(PREFIXO_CONTRAFACTUAL));
+        assert!(
+            e_identidade_endereçada_por_conteudo(
+                &funcao_sintetica(&contrafactual),
+                &contrafactual
+            ),
+            "o consumidor manteve a resposta da grafia antiga"
+        );
+    }
+
+    /// Um corpo default de trato que contém closure, como o parser o levanta.
+    const TRATO_COM_CLOSURE: &str = "\
+pacote main;
+
+carinho apoio() -> bombom { mimo 3; }
+
+trato Marca {
+    carinho marcar(valor: si) -> bombom {
+        nova base: bombom = 5;
+        nova f: carinho(bombom) -> bombom = carinho(v: bombom) -> bombom {
+            mimo apoio() + base + v;
+        };
+        mimo f(2);
+    }
+}
+
+impl Marca para bombom {}
+
+carinho principal() -> bombom {
+    nova x: bombom = 10;
+    mimo x.marcar();
+}
+";
+
+    fn referencias_do_trato(fonte: &str) -> Vec<String> {
+        let tokens = crate::lexer::Lexer::new(fonte)
+            .tokenize()
+            .expect("tokenizar o trato");
+        let programa = crate::parser::Parser::new(tokens)
+            .parse()
+            .expect("parsear o trato");
+        let trato = programa
+            .items
+            .iter()
+            .find(|item| matches!(item, Item::Trait(_)))
+            .expect("o programa declara um trato");
+        referencias_do_item(trato)
+    }
+
+    /// Testemunha de U-05 para o filtro de dependência sintética do caminho de
+    /// import: a declaração do trato é contrato, e a closure do corpo default
+    /// NÃO acompanha por ela — quem a traz é a cópia que cada `impl`
+    /// materializa.
+    ///
+    /// O oráculo não pergunta ao helper. Ele compara as referências colhidas sob
+    /// as duas grafias do namespace, depois de apagar cada uma: um consumidor que
+    /// continuasse filtrando pela grafia antiga deixaria a closure vazar sob a
+    /// nova, e as duas listas divergiriam.
+    #[test]
+    fn dependencia_sintetica_do_default_acompanha_a_autoridade() {
+        let canonico = referencias_do_trato(TRATO_COM_CLOSURE);
+        let contrafactual = {
+            let _guarda = AutoridadeContrafactual::instalar();
+            referencias_do_trato(TRATO_COM_CLOSURE)
+        };
+        let sem_grafia = |nomes: Vec<String>, prefixo: &str| -> Vec<String> {
+            nomes
+                .into_iter()
+                .map(|nome| nome.replace(prefixo, "<ANON>"))
+                .collect()
+        };
+        assert_eq!(
+            sem_grafia(
+                canonico,
+                crate::anonymous_identity::ANONYMOUS_CALLABLE_PREFIX
+            ),
+            sem_grafia(contrafactual, PREFIXO_CONTRAFACTUAL),
+            "o filtro manteve a resposta da grafia antiga"
+        );
+    }
+}
