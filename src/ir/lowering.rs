@@ -2263,7 +2263,7 @@ impl<'a> FunctionLowerer<'a> {
                 // Fase 243: nome sintético de literal `carinho` — resolve
                 // como criação de closure (com ou sem capturas), no ponto
                 // exato onde `self.scopes` reflete o escopo léxico vigente.
-                if name.starts_with("__anon_carinho_") {
+                if crate::anonymous_identity::is_anonymous_callable_name(name) {
                     return self.resolve_closure(name, expr.span);
                 }
                 if let Some(binding) = self.resolve_existing_binding(name) {

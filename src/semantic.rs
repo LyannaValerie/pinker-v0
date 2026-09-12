@@ -1709,7 +1709,8 @@ impl SemanticChecker {
                 // Fase 243: closures (`__anon_carinho_*`) são checadas
                 // lazily no ponto de criação (`resolve_closure_value`), com
                 // o ambiente léxico correto — não aqui, isoladas.
-                Item::Function(function) if function.name.starts_with("__anon_carinho_") => {}
+                Item::Function(function)
+                    if crate::anonymous_identity::is_anonymous_callable_name(&function.name) => {}
                 Item::Function(function) => self.check_function(function)?,
                 Item::Const(constant) => self.check_const_body(constant)?,
                 Item::TypeAlias(_) | Item::Struct(_) | Item::Enum(_) | Item::Trait(_) => {}
@@ -1723,7 +1724,7 @@ impl SemanticChecker {
         // genuinamente usadas como valor recebem a convenção uniforme.
         for item in &program.items {
             if let Item::Function(function) = item {
-                if function.name.starts_with("__anon_carinho_")
+                if crate::anonymous_identity::is_anonymous_callable_name(&function.name)
                     && !self.checked_closures.contains(&function.name)
                 {
                     self.checked_closures.insert(function.name.clone());
@@ -1969,7 +1970,7 @@ impl SemanticChecker {
     }
 
     fn function_name_for_diagnostic(name: &str) -> String {
-        if name.starts_with(crate::anonymous_identity::ANONYMOUS_CALLABLE_PREFIX) {
+        if crate::anonymous_identity::is_anonymous_callable_name(name) {
             "<anônima>".to_string()
         } else {
             name.to_string()

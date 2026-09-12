@@ -1840,7 +1840,7 @@ fn expand_transitive_free_idents<F>(
     F: Fn(&str) -> Option<FunctionDecl>,
 {
     for candidate in capture_candidates_in_function(function) {
-        if candidate.starts_with("__anon_carinho_") {
+        if crate::anonymous_identity::is_anonymous_callable_name(&candidate) {
             if visiting.insert(candidate.clone()) {
                 if let Some(nested) = lookup(&candidate) {
                     expand_transitive_free_idents(&nested, lookup, visiting, out, seen);

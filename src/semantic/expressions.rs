@@ -295,7 +295,7 @@ impl SemanticChecker {
                 // resolve como criação de closure (materializa captura por
                 // valor e checa o corpo com o ambiente correto), não como
                 // resolução genérica de variável/função da Fase 242.
-                if name.starts_with("__anon_carinho_") {
+                if crate::anonymous_identity::is_anonymous_callable_name(name) {
                     return self.resolve_closure_value(name, expr.span);
                 }
                 self.resolve_var(name)
@@ -346,7 +346,7 @@ impl SemanticChecker {
                         span: operand.span,
                     });
                 }
-                if name.starts_with("__anon_carinho_")
+                if crate::anonymous_identity::is_anonymous_callable_name(name)
                     || name.starts_with("__fnref_env_")
                     || method_identity::parse_provisional_function_name(name).is_some()
                 {

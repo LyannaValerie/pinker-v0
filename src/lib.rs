@@ -63,6 +63,8 @@ pub mod text_norm;
 pub mod tipo_entrada;
 pub mod token;
 pub mod tooling;
+#[cfg(test)]
+mod u05_cli_recognition_tests;
 pub mod union_canon;
 pub mod union_payload;
 pub mod valor_json;

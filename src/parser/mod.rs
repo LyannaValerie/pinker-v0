@@ -425,7 +425,9 @@ impl Parser {
         seen: &mut HashSet<String>,
     ) -> Result<(), PinkerError> {
         for candidate in crate::ast::capture_candidates_in_function(function) {
-            if !candidate.starts_with("__anon_carinho_") || !seen.insert(candidate.clone()) {
+            if !crate::anonymous_identity::is_anonymous_callable_name(&candidate)
+                || !seen.insert(candidate.clone())
+            {
                 continue;
             }
             let Some(template) = templates.get(&candidate) else {
@@ -1492,7 +1494,9 @@ impl Parser {
         let mut closure_templates: HashMap<String, FunctionDecl> = self
             .pending_functions
             .iter()
-            .filter(|function| function.name.starts_with("__anon_carinho_"))
+            .filter(|function| {
+                crate::anonymous_identity::is_anonymous_callable_name(&function.name)
+            })
             .map(|function| (function.name.clone(), function.clone()))
             .collect();
         for (nome, template) in &self.contexto_de_import.closures_de_default_importadas {
@@ -2149,7 +2153,7 @@ impl Parser {
 
         if !is_mut {
             if let ExprKind::Ident(function_name) = &init.kind {
-                if function_name.starts_with("__anon_carinho_")
+                if crate::anonymous_identity::is_anonymous_callable_name(function_name)
                     && !self.capturing_anon_functions.contains(function_name)
                 {
                     let function_name = function_name.clone();

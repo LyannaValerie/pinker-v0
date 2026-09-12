@@ -333,8 +333,9 @@ impl Parser {
                                 .resolve_function_value_alias(arg_name)
                                 .filter(|resolved| resolved != arg_name)
                                 .or_else(|| {
-                                    (arg_name.starts_with("__anon_carinho_")
-                                        && !self.capturing_anon_functions.contains(arg_name))
+                                    (crate::anonymous_identity::is_anonymous_callable_name(
+                                        arg_name,
+                                    ) && !self.capturing_anon_functions.contains(arg_name))
                                     .then(|| arg_name.clone())
                                 }),
                             _ => None,

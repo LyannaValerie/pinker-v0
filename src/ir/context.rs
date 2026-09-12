@@ -67,7 +67,8 @@ pub fn lower_program_composto(
             // Fase 243: closures (`__anon_carinho_*`) são abaixadas lazily
             // no ponto de criação (`FunctionLowerer::resolve_closure`), com
             // o ambiente correto — não aqui, isoladas.
-            Item::Function(function_decl) if function_decl.name.starts_with("__anon_carinho_") => {}
+            Item::Function(function_decl)
+                if crate::anonymous_identity::is_anonymous_callable_name(&function_decl.name) => {}
             Item::Function(function_decl) => {
                 functions.push(FunctionLowerer::new(&context).lower_function(function_decl)?)
             }
@@ -85,7 +86,7 @@ pub fn lower_program_composto(
     // como valor recebem a convenção uniforme de ambiente.
     for item in &program.items {
         if let Item::Function(function_decl) = item {
-            if function_decl.name.starts_with("__anon_carinho_") {
+            if crate::anonymous_identity::is_anonymous_callable_name(&function_decl.name) {
                 let already = context
                     .closure_state
                     .borrow()
