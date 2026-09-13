@@ -80,6 +80,10 @@
 //! `tests/issue_655_u05_anonymous_recognition_authority_tests.rs` fixa. Ele segue
 //! derivando da autoridade; não sustenta comportamento.
 
+// @pinker-nav:start evidencia.identidade-anonima.oraculo-contrafactual
+// @pinker-nav:domain identidade
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Oraculo contrafactual do reconhecimento de identidade anonima: renomeia a grafia canonica em tempo de execucao e exige que o observavel de cada consumidor real acompanhe a autoridade, recusando a copia local que um censo textual nao enxerga.
 use std::cell::Cell;
 
 use crate::{ir, semantic};
@@ -343,3 +347,4 @@ fn a_grafia_contrafactual_e_identidade_gerada() {
     assert!(nome.starts_with(PREFIXO_CONTRAFACTUAL));
     assert!(crate::native_symbol::is_compiler_generated(&nome));
 }
+// @pinker-nav:end evidencia.identidade-anonima.oraculo-contrafactual

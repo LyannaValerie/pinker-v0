@@ -1,3 +1,7 @@
+// @pinker-nav:start crate.modulos.superficie
+// @pinker-nav:domain modulos
+// @pinker-nav:layer compilador
+// @pinker-nav:summary Manifesto de modulos da crate pinker_v0: a unica lista que declara quais modulos existem e quais sao publicos, fixando a superficie que binario, testes e consumidores internos podem alcancar.
 pub mod abstract_machine;
 pub mod abstract_machine_validate;
 pub mod ambiente_processo;
@@ -40,6 +44,7 @@ pub mod module_graph;
 pub mod module_resolve;
 pub mod native_symbol;
 pub mod nav;
+pub mod nav_coverage;
 pub mod nav_projection_lifecycle;
 pub mod nav_projection_recipe;
 pub mod nav_projection_report;
@@ -69,3 +74,4 @@ mod u05_cli_recognition_tests;
 pub mod union_canon;
 pub mod union_payload;
 pub mod valor_json;
+// @pinker-nav:end crate.modulos.superficie

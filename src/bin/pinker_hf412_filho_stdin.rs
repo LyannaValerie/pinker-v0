@@ -17,6 +17,10 @@
 //! suprime a linha `codigo=` e transforma a medida da disposição numa corrida
 //! decidida pelo escalonador da máquina.
 
+// @pinker-nav:start evidencia.processos.fixture-sigpipe-stdin
+// @pinker-nav:domain processos
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Filho auditavel da matriz de SIGPIPE do runtime nativo: cada modo cobre uma celula do comportamento diante do stdin escrito pelo pai, sonda a disposicao herdada de SIGPIPE e drena a entrada antes de reportar, sem escrever em stdout.
 use std::io::{Read as _, Write as _};
 use std::process::ExitCode;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -319,3 +323,4 @@ fn rotulo_da_disposicao(observada: usize) -> &'static str {
         _ => "HANDLER",
     }
 }
+// @pinker-nav:end evidencia.processos.fixture-sigpipe-stdin

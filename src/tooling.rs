@@ -10,6 +10,7 @@ use crate::diff_coverage::{self, CoverageAuthorities, RelationStatus};
 use crate::doc::{self, DocConfig};
 use crate::doc_index::DocCatalog;
 use crate::nav::{self, CodeCatalog};
+use crate::nav_coverage;
 use crate::nav_projection_store::ProjectionStore;
 use crate::project_state::{self, DomainDetails, DomainId, StateStatus};
 use std::collections::BTreeSet;
@@ -296,6 +297,33 @@ fn validate_diff_spec(diff: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Lê, somente leitura e sem mutar o repositório, o catálogo derivado de
+/// código tal como existia em `base`. É o único caminho pelo qual a base entra
+/// na cobertura: o derivador continua sem executar Git.
+pub fn load_base_code_catalog(
+    repo: &Path,
+    base: &str,
+    catalog_relative_path: &str,
+) -> Result<CodeCatalog, String> {
+    validate_diff_spec(base)?;
+    let output = Command::new("git")
+        .current_dir(repo)
+        .args(["show", &format!("{base}:{catalog_relative_path}")])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .map_err(|error| format!("E-BASE-GIT: {error}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "E-BASE-GIT: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    let text = String::from_utf8(output.stdout)
+        .map_err(|_| "E-BASE-UTF8: catálogo da base não é UTF-8".to_string())?;
+    CodeCatalog::parse(&text, "<base-catalog>").map_err(|error| error.to_string())
+}
+
 fn bounded_git_diff(repo: &Path, diff: &str) -> Result<String, String> {
     validate_diff_spec(diff)?;
     let mut child = Command::new("git")
@@ -359,7 +387,7 @@ fn aggregate_reason(status: RelationStatus, domain: &str) -> Option<String> {
     }
 }
 
-pub fn collect_impact(repo: &Path, diff: &str) -> Result<ImpactReport, String> {
+pub fn collect_impact(repo: &Path, diff: &str, base: Option<&str>) -> Result<ImpactReport, String> {
     let root = RepoRoot::discover(repo).map_err(|error| error.to_string())?;
     let unified = bounded_git_diff(root.path(), diff)?;
     let config = DocConfig::load(root.path()).map_err(|error| error.to_string())?;
@@ -383,10 +411,21 @@ pub fn collect_impact(repo: &Path, diff: &str) -> Result<ImpactReport, String> {
     let docs = DocCatalog::load(&docs_path).ok();
     let projection_store = ProjectionStore::load(root.path()).ok();
     let manifests = change::Manifests::load(&root.path().join(".pinker/changes"));
+    let base_code = match base {
+        Some(reference) => Some(load_base_code_catalog(
+            root.path(),
+            reference,
+            &config.generated.code_index,
+        )?),
+        None => None,
+    };
+    let policy = nav_coverage::CoveragePolicy::load(root.path()).ok();
     let coverage = diff_coverage::analyze(
         &unified,
         CoverageAuthorities {
             code: &code,
+            base_code: base_code.as_ref(),
+            policy: policy.as_ref(),
             docs: docs.as_ref(),
             projection_store: projection_store.as_ref(),
             doc_config: Some(&config),
@@ -740,7 +779,7 @@ pub fn collect_preflight(
         });
         recommended.insert("pink nav projecao verificar".to_string());
     }
-    let (impact, impact_error) = match collect_impact(root.path(), diff) {
+    let (impact, impact_error) = match collect_impact(root.path(), diff, None) {
         Ok(impact) => (Some(impact), None),
         Err(error) => {
             blocking.push(Finding {

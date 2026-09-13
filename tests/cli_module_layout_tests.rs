@@ -75,14 +75,21 @@ const REGIOES_DA_MAIN_1: &[&str] = &[
 /// Irmão que a MAIN-1 criou.
 const IRMAO_DA_MAIN_1: &str = "nav_cli.rs";
 
-/// Os dez símbolos que a #601 mediu como `pub(super)` da MAIN-1 — a lista
-/// `exports` de `unit_costs.json`, nem um a mais. Eles são o cabo entre o
-/// roteamento, que fica no entrypoint, e a implementação, que desceu.
+/// Os símbolos que a MAIN-1 expõe como `pub(super)` — os dez que a #601 mediu
+/// na lista `exports` de `unit_costs.json`, mais um adaptador por subcomando
+/// `nav` criado depois, nem um a mais. Eles são o cabo entre o roteamento, que
+/// fica no entrypoint, e a implementação, que desceu.
+///
+/// `run_nav_cobertura` entrou com a T1 (#675), que acrescentou o subcomando
+/// `pink nav cobertura`. É adaptador de comando novo, não promoção de símbolo
+/// interno: a propriedade medida — um `pub(super)` por adaptador, e nenhum
+/// outro — continua a mesma.
 const SIMBOLOS_DA_MAIN_1: &[&str] = &[
     "run_nav_projecao",
     "run_nav_mostrar",
     "run_nav_buscar",
     "run_nav_localizar",
+    "run_nav_cobertura",
     "run_nav_cobertura_diff",
     "run_nav_impacto",
     "run_nav_listar",
@@ -102,6 +109,7 @@ const EXPOSICOES_NECESSARIAS: &[&str] = &[
     "run_build",
     "run_doc",
     "run_nav_buscar",
+    "run_nav_cobertura",
     "run_nav_cobertura_diff",
     "run_nav_impacto",
     "run_nav_listar",
@@ -432,7 +440,7 @@ fn a_main_1_mora_no_irmao_e_nao_no_entrypoint() {
     assert_eq!(
         SIMBOLOS_DA_MAIN_1.len(),
         irmao.matches("pub(super) fn ").count(),
-        "src/pink_cli/{IRMAO_DA_MAIN_1} expõe ao entrypoint um número de símbolos diferente dos dez que a #601 mediu"
+        "src/pink_cli/{IRMAO_DA_MAIN_1} expõe ao entrypoint um número de símbolos diferente do declarado em SIMBOLOS_DA_MAIN_1"
     );
 }
 

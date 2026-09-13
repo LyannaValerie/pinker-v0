@@ -51,6 +51,23 @@ fn write(root: &Path, rel: &str, content: &str) {
 
 fn fixture(root: &Path) {
     write(root, ".pinker/doc.toml", DOC_TOML);
+    // T1 (#675): a autoridade de escopo/exceções da cobertura é pré-requisito
+    // de `nav verificar`. Sem ela o gate falha fechado, por desenho, então a
+    // fixture declara as quatro raízes oficiais e nenhuma exceção.
+    write(
+        root,
+        ".pinker/cartography/coverage-policy-v1.jsonl",
+        concat!(
+            r#"{"schema":1,"kind":"scope","root":"src","category":"production","file_enforcement":"required"}"#,
+            "\n",
+            r#"{"schema":1,"kind":"scope","root":"runtime/pinker_rt/src","category":"production","file_enforcement":"required"}"#,
+            "\n",
+            r#"{"schema":1,"kind":"scope","root":"tests","category":"evidence","file_enforcement":"inventory"}"#,
+            "\n",
+            r#"{"schema":1,"kind":"scope","root":"apps","category":"example","file_enforcement":"inventory"}"#,
+            "\n",
+        ),
+    );
     write(root, "src/cfg_ir.rs", SRC);
     write(root, "runtime/pinker_rt/src/lib.rs", RUNTIME_LIB);
     fs::create_dir_all(root.join("tests")).unwrap();

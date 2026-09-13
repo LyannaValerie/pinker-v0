@@ -341,8 +341,16 @@ fn relaciona_todas_as_superficies_por_autoridades_explicitas() {
     assert_success(&output);
     assert!(output.stderr.is_empty());
     let json = stdout(&output);
-    assert!(json.starts_with("{\"schema\":1,\"source\":\"stdin-unified-diff\""));
+    assert!(json.starts_with("{\"schema\":2,\"source\":\"stdin-unified-diff\""));
     for expected in [
+        // Fatos de cobertura corrente publicados separadamente (T1/#675): a
+        // relação com região continua existindo e NÃO absorve completude.
+        "\"covered_intervals\":",
+        "\"uncovered_intervals\":",
+        "\"completeness\":",
+        "\"base_regions\":",
+        "\"policy_changed\":false",
+        "\"lifecycle\":{\"status\":\"UNAVAILABLE\"",
         "\"path\":\"src/alvo.rs\"",
         "\"id\":\"codigo.alvo\"",
         "\"id\":\"development.diff-coverage.contract\"",

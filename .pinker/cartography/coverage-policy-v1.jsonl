@@ -1,0 +1,4 @@
+{"schema":1,"kind":"scope","root":"src","category":"production","file_enforcement":"required"}
+{"schema":1,"kind":"scope","root":"runtime/pinker_rt/src","category":"production","file_enforcement":"required"}
+{"schema":1,"kind":"scope","root":"tests","category":"evidence","file_enforcement":"inventory"}
+{"schema":1,"kind":"scope","root":"apps","category":"example","file_enforcement":"inventory"}

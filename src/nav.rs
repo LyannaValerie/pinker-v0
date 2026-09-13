@@ -8,6 +8,7 @@
 //! semanticamente onde inseri-los. Zero dependências externas.
 
 use crate::jsonl;
+use crate::nav_coverage;
 use crate::text_norm;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -435,7 +436,35 @@ impl CodeIndex {
 // @pinker-nav:start trama.codigo.verificacao-reutilizavel
 // @pinker-nav:domain navegacao
 // @pinker-nav:layer trama
-// @pinker-nav:summary Modelo somente leitura compartilhado por pink nav verificar e consumidores internos: reescaneia as raízes oficiais, valida as regiões e compara o catálogo renderizado com o arquivo versionado.
+// @pinker-nav:summary Modelo somente leitura compartilhado por pink nav verificar e consumidores internos: reescaneia as raizes oficiais, valida as regioes, compara o catalogo renderizado com o arquivo versionado e avalia a cobertura corrente da cartografia pela autoridade versionada, falhando fechado quando essa autoridade nao pode ser estabelecida.
+
+/// Resultado da avaliação de cobertura corrente da cartografia. A autoridade
+/// de escopo/exceções é externa e versionada; quando ela não pode ser
+/// estabelecida, o estado é `PolicyUnavailable` e conta como erro — ausência
+/// de autoridade nunca vira PASS silencioso.
+#[derive(Debug)]
+pub enum CoverageOutcome {
+    Checked {
+        inventory: nav_coverage::CoverageInventory,
+        violations: Vec<nav_coverage::CoverageViolation>,
+    },
+    PolicyUnavailable {
+        reason: String,
+    },
+}
+
+impl CoverageOutcome {
+    pub fn error_count(&self) -> usize {
+        match self {
+            CoverageOutcome::Checked { violations, .. } => violations.len(),
+            CoverageOutcome::PolicyUnavailable { .. } => 1,
+        }
+    }
+
+    pub fn is_ok(&self) -> bool {
+        self.error_count() == 0
+    }
+}
 
 /// Estado observacional produzido pela mesma autoridade de `pink nav
 /// verificar`, sem impressão e sem escrita.
@@ -444,19 +473,23 @@ pub struct RepositoryVerification {
     pub index: CodeIndex,
     pub source_errors: Vec<NavVerifyError>,
     pub catalog_out_of_date: bool,
+    pub coverage: CoverageOutcome,
 }
 
 impl RepositoryVerification {
     pub fn is_ok(&self) -> bool {
-        self.source_errors.is_empty() && !self.catalog_out_of_date
+        self.source_errors.is_empty() && !self.catalog_out_of_date && self.coverage.is_ok()
     }
 
     pub fn total_errors(&self) -> usize {
-        self.source_errors.len() + usize::from(self.catalog_out_of_date)
+        self.source_errors.len()
+            + usize::from(self.catalog_out_of_date)
+            + self.coverage.error_count()
     }
 }
 
-/// Executa integralmente a verificação do catálogo de código em memória.
+/// Executa integralmente a verificação do catálogo de código em memória,
+/// incluindo a propriedade de cobertura corrente das raízes oficiais.
 pub fn verify_repository(
     repo_root: &Path,
     catalog_relative_path: &str,
@@ -466,11 +499,39 @@ pub fn verify_repository(
     let rendered = index.render_jsonl();
     let catalog_out_of_date =
         fs::read_to_string(repo_root.join(catalog_relative_path)).unwrap_or_default() != rendered;
+    let coverage = verify_coverage(repo_root, &index);
     Ok(RepositoryVerification {
         index,
         source_errors,
         catalog_out_of_date,
+        coverage,
     })
+}
+
+/// Carrega a autoridade versionada de cobertura, monta o inventário corrente e
+/// avalia a propriedade. Qualquer falha em estabelecer a autoridade ou o
+/// inventário é reportada como indisponibilidade, jamais como sucesso.
+fn verify_coverage(repo_root: &Path, index: &CodeIndex) -> CoverageOutcome {
+    let policy = match nav_coverage::CoveragePolicy::load(repo_root) {
+        Ok(policy) => policy,
+        Err(error) => {
+            return CoverageOutcome::PolicyUnavailable {
+                reason: error.to_string(),
+            }
+        }
+    };
+    match nav_coverage::inventory(repo_root, index, &policy) {
+        Ok(inventory) => {
+            let violations = nav_coverage::verify(&inventory, index, &policy);
+            CoverageOutcome::Checked {
+                inventory,
+                violations,
+            }
+        }
+        Err(error) => CoverageOutcome::PolicyUnavailable {
+            reason: error.to_string(),
+        },
+    }
 }
 
 // @pinker-nav:end trama.codigo.verificacao-reutilizavel
@@ -916,6 +977,136 @@ fn compose_display_path(relative_path: &str, file_relative: &Path) -> String {
     }
 }
 // @pinker-nav:end trama.codigo.raizes
+
+// @pinker-nav:start trama.codigo.arquivos-oficiais
+// @pinker-nav:domain navegacao
+// @pinker-nav:layer trama
+// @pinker-nav:symbol pinker_v0::nav::official_source_files|official_source_files|rust-function|declaration
+// @pinker-nav:symbol pinker_v0::nav::official_source_files|official_source_files|rust-function|implementation
+// @pinker-nav:summary Enumera os arquivos-fonte das raizes oficiais independentemente de possuirem marcadores, entregando o universo elegivel que a cobertura de cartografia audita; a mesma validacao de raiz e a mesma travessia sem symlink do fluxo de varredura decidem o conjunto.
+
+/// Um arquivo-fonte pertencente a uma raiz oficial, com o dialeto léxico
+/// daquela raiz. A lista existe para que a cobertura da cartografia parta do
+/// universo físico de arquivos, e nunca dos próprios marcadores publicados:
+/// um arquivo sem nenhuma região continua aparecendo aqui.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OfficialSourceFile {
+    /// Caminho repo-relativo exibido, idêntico ao usado pelo catálogo.
+    pub path: String,
+    /// Raiz oficial que contém o arquivo (ex.: `"src"`).
+    pub root: String,
+    /// Dialeto léxico declarado pela raiz.
+    pub dialect: MarkerDialect,
+}
+
+/// Enumera todos os arquivos-fonte das raízes oficiais (§15), na mesma ordem
+/// determinística do catálogo e com a mesma política de validação de raiz e de
+/// recusa a symlink. Não lê o conteúdo dos arquivos e não depende de nenhum
+/// marcador: a ausência de `@pinker-nav` não remove um arquivo desta lista.
+pub fn official_source_files(repo_root: &Path) -> Result<Vec<OfficialSourceFile>, ScanError> {
+    let roots = official_scan_roots();
+    let validated = resolve_and_validate_roots(repo_root, &roots)?;
+    let mut seen: BTreeSet<String> = BTreeSet::new();
+    let mut files: Vec<OfficialSourceFile> = Vec::new();
+    for (root, abs_root) in &validated {
+        let mut collected = Vec::new();
+        collect_source_files(abs_root, abs_root, &root.extensions, &mut collected)?;
+        for rel in collected {
+            let display = compose_display_path(&root.relative_path, &rel);
+            if seen.insert(display.clone()) {
+                files.push(OfficialSourceFile {
+                    path: display,
+                    root: root.relative_path.clone(),
+                    dialect: root.dialect,
+                });
+            }
+        }
+    }
+    files.sort_by(|a, b| a.path.cmp(&b.path));
+    Ok(files)
+}
+// @pinker-nav:end trama.codigo.arquivos-oficiais
+
+// @pinker-nav:start trama.codigo.relevancia-lexical
+// @pinker-nav:domain navegacao
+// @pinker-nav:layer trama
+// @pinker-nav:symbol pinker_v0::nav::relevant_source_lines|relevant_source_lines|rust-function|declaration
+// @pinker-nav:symbol pinker_v0::nav::relevant_source_lines|relevant_source_lines|rust-function|implementation
+// @pinker-nav:summary Classificacao conservadora de linha relevante reutilizando o rastreador lexico dos marcadores: apenas linha vazia e linha inteiramente comentada saem da obrigacao de cobertura, e toda duvida permanece relevante em vez de virar PASS silencioso.
+
+/// Decide, linha a linha, se uma linha do arquivo carrega obrigação de
+/// cobertura. A classificação é **conservadora por desenho**: ela remove da
+/// obrigação apenas o que é demonstravelmente vazio ou demonstravelmente
+/// comentário integral, e mantém como relevante tudo que não souber decidir.
+///
+/// Reutiliza o mesmo rastreador léxico que distingue marcador real de texto
+/// parecido com marcador, então `//` dentro de string não esconde código e
+/// `/*` dentro de string não abre comentário.
+///
+/// Limitações declaradas, todas na direção segura (conservam obrigação):
+///
+/// - uma linha que abre e fecha `/* ... */` sem código permanece relevante;
+/// - uma linha que fecha um comentário de bloco permanece relevante;
+/// - linha de conteúdo de string multilinha permanece relevante.
+///
+/// O índice 0 do vetor corresponde à linha 1 do arquivo, e o comprimento do
+/// vetor é o número de linhas de `text` segundo [`str::lines`].
+pub fn relevant_source_lines(text: &str, dialect: MarkerDialect) -> Vec<bool> {
+    match dialect {
+        MarkerDialect::Rust => {
+            let mut state = LexicalState::Code;
+            text.lines()
+                .map(|line| {
+                    let opened_inside_block = matches!(state, LexicalState::BlockComment(_));
+                    let whole_line_comment = marker_comment(line, &mut state).is_some();
+                    let still_inside_block = matches!(state, LexicalState::BlockComment(_));
+                    line_is_relevant(
+                        line,
+                        opened_inside_block,
+                        still_inside_block,
+                        whole_line_comment,
+                    )
+                })
+                .collect()
+        }
+        MarkerDialect::Pinker => {
+            let mut state = PinkerState::Code;
+            text.lines()
+                .map(|line| {
+                    let opened_inside_block = matches!(state, PinkerState::BlockComment(_));
+                    let whole_line_comment = marker_comment_pinker(line, &mut state).is_some();
+                    let still_inside_block = matches!(state, PinkerState::BlockComment(_));
+                    line_is_relevant(
+                        line,
+                        opened_inside_block,
+                        still_inside_block,
+                        whole_line_comment,
+                    )
+                })
+                .collect()
+        }
+    }
+}
+
+/// Regra única compartilhada pelos dois dialetos. Somente três situações
+/// retiram a obrigação de cobertura de uma linha: ela é vazia/branca, ela
+/// começou e terminou dentro de um comentário de bloco, ou seu primeiro token
+/// não-branco abre um comentário de linha a partir de estado de código.
+fn line_is_relevant(
+    line: &str,
+    opened_inside_block: bool,
+    still_inside_block: bool,
+    whole_line_comment: bool,
+) -> bool {
+    if line.trim().is_empty() {
+        return false;
+    }
+    if opened_inside_block && still_inside_block {
+        return false;
+    }
+    !whole_line_comment
+}
+// @pinker-nav:end trama.codigo.relevancia-lexical
 
 struct OpenRegion {
     key: String,
@@ -1594,7 +1785,7 @@ fn render_symbol_doc(link: &SymbolDocLink) -> String {
     format!("{}|{}", link.identity, link.document)
 }
 
-fn json_string_array(values: &[String]) -> String {
+pub(crate) fn json_string_array(values: &[String]) -> String {
     format!(
         "[{}]",
         values
@@ -1605,7 +1796,7 @@ fn json_string_array(values: &[String]) -> String {
     )
 }
 
-fn json_string(value: &str) -> String {
+pub(crate) fn json_string(value: &str) -> String {
     let mut out = String::with_capacity(value.len() + 2);
     out.push('"');
     for ch in value.chars() {

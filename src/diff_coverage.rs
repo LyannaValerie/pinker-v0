@@ -8,13 +8,14 @@ use crate::change::Manifests;
 use crate::doc::{DocConfig, DocProjection};
 use crate::doc_index::{DocCatalog, DocDocument, DocSection};
 use crate::nav::{CodeCatalog, CodeRegion};
+use crate::nav_coverage::{CoveragePolicy, DispositionKind};
 use crate::nav_projection_recipe;
 use crate::nav_projection_store::ProjectionStore;
 use crate::symbol_index;
 use std::collections::BTreeSet;
 use std::fmt;
 
-pub const DIFF_COVERAGE_SCHEMA: u64 = 1;
+pub const DIFF_COVERAGE_SCHEMA: u64 = 2;
 pub const MAX_DIFF_BYTES: usize = 16 * 1024 * 1024;
 
 // @pinker-nav:start trama.diff-cobertura.modelo
@@ -148,13 +149,60 @@ pub struct CoverageWarning {
     pub message: String,
 }
 
+/// Completude do recorte alterado de um arquivo perante a cartografia.
+///
+/// `Unverifiable` existe para que ausência de evidência nunca se pareça com
+/// prova: quando a propriedade depende da cartografia da base e a base não
+/// pode ser estabelecida, este é o resultado — nunca `Complete`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Completeness {
+    /// Toda linha nova relevante cai dentro de alguma região publicada.
+    Complete,
+    /// Ao menos uma região intersecta e ao menos uma linha nova relevante fica
+    /// de fora. Interseção parcial nunca é promovida a completude.
+    Partial,
+    /// Nenhuma região publicada intersecta as linhas novas do arquivo.
+    Absent,
+    /// A propriedade não pôde ser decidida com a evidência disponível.
+    Unverifiable { reason: String },
+}
+
+impl Completeness {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Completeness::Complete => "COMPLETE",
+            Completeness::Partial => "PARTIAL",
+            Completeness::Absent => "NONE",
+            Completeness::Unverifiable { .. } => "UNVERIFIABLE",
+        }
+    }
+}
+
+/// Destino de uma chave de região que existia na base e não existe mais no
+/// candidato, ou que mudou de arquivo entre os dois estados.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct RegionDisposition {
+    pub key: String,
+    pub base_path: String,
+    pub disposition: String,
+    pub targets: Vec<String>,
+    pub authority: Authority,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FileCoverage {
     pub path: String,
     pub old_path: Option<String>,
     pub status: FileStatus,
     pub changed_lines: Vec<LineRange>,
+    /// Recorte das linhas novas que cai dentro de região publicada.
+    pub covered_intervals: Vec<LineRange>,
+    /// Recorte das linhas novas RELEVANTES fora de qualquer região publicada.
+    pub uncovered_intervals: Vec<LineRange>,
+    pub completeness: Completeness,
     pub regions: Relation<RegionItem>,
+    /// Regiões da cartografia da BASE que as linhas removidas alcançam.
+    pub base_regions: Relation<RegionItem>,
     pub documents: Relation<DocumentItem>,
     pub projections: Relation<ProjectionItem>,
     pub tests: Relation<TestItem>,
@@ -166,10 +214,18 @@ pub struct CoverageReport {
     pub schema: u64,
     pub source: String,
     pub files: Vec<FileCoverage>,
+    /// Lifecycle base->candidato das chaves de região.
+    pub lifecycle: Relation<RegionDisposition>,
+    /// A própria autoridade de escopo/exceções mudou neste diff.
+    pub policy_changed: bool,
 }
 
 pub struct CoverageAuthorities<'a> {
     pub code: &'a CodeCatalog,
+    /// Cartografia da base. `None` significa base indisponível, e toda
+    /// propriedade que dependa dela vira `UNVERIFIABLE`.
+    pub base_code: Option<&'a CodeCatalog>,
+    pub policy: Option<&'a CoveragePolicy>,
     pub docs: Option<&'a DocCatalog>,
     pub projection_store: Option<&'a ProjectionStore>,
     pub doc_config: Option<&'a DocConfig>,
@@ -238,6 +294,12 @@ struct ParsedFile {
     old_path: Option<String>,
     status: FileStatus,
     changed_lines: Vec<LineRange>,
+    /// Subconjunto das linhas novas cuja classificação conservadora as mantém
+    /// sob obrigação de cobertura. Derivado só do texto do diff: o módulo
+    /// continua sem ler fontes.
+    relevant_lines: Vec<LineRange>,
+    /// Coordenadas de linha REMOVIDAS, no espaço da base.
+    deleted_lines: Vec<LineRange>,
     deletion_without_new_lines: bool,
     binary: bool,
 }
@@ -247,6 +309,8 @@ struct FileBuilder {
     old_path: Option<String>,
     new_path: Option<String>,
     added_lines: Vec<usize>,
+    relevant_added_lines: Vec<usize>,
+    deleted_lines: Vec<usize>,
     saw_deletion: bool,
     binary: bool,
     declared_added: bool,
@@ -355,11 +419,11 @@ fn parse_unified_diff(input: &str) -> Result<Vec<ParsedFile>, CoverageError> {
                     if active.new_remaining == 0 {
                         return Err(format_error(line_number, "linha adicionada excede o hunk"));
                     }
-                    current
-                        .as_mut()
-                        .expect("hunk exige arquivo")
-                        .added_lines
-                        .push(active.new_line);
+                    let file = current.as_mut().expect("hunk exige arquivo");
+                    file.added_lines.push(active.new_line);
+                    if added_line_is_relevant(&raw[1..]) {
+                        file.relevant_added_lines.push(active.new_line);
+                    }
                     active.new_line += 1;
                     active.new_remaining -= 1;
                 }
@@ -367,7 +431,9 @@ fn parse_unified_diff(input: &str) -> Result<Vec<ParsedFile>, CoverageError> {
                     if active.old_remaining == 0 {
                         return Err(format_error(line_number, "linha removida excede o hunk"));
                     }
-                    current.as_mut().expect("hunk exige arquivo").saw_deletion = true;
+                    let file = current.as_mut().expect("hunk exige arquivo");
+                    file.saw_deletion = true;
+                    file.deleted_lines.push(active.old_line);
                     active.old_line += 1;
                     active.old_remaining -= 1;
                 }
@@ -609,6 +675,14 @@ fn finish_file(builder: FileBuilder, line: usize) -> Result<ParsedFile, Coverage
     added.sort_unstable();
     added.dedup();
     let changed_lines = merge_lines(&added);
+    let mut relevant = builder.relevant_added_lines;
+    relevant.sort_unstable();
+    relevant.dedup();
+    let relevant_lines = merge_lines(&relevant);
+    let mut deleted = builder.deleted_lines;
+    deleted.sort_unstable();
+    deleted.dedup();
+    let deleted_lines = merge_lines(&deleted);
     Ok(ParsedFile {
         path,
         old_path: if status == FileStatus::Renamed || status == FileStatus::Deleted {
@@ -618,9 +692,24 @@ fn finish_file(builder: FileBuilder, line: usize) -> Result<ParsedFile, Coverage
         },
         status,
         changed_lines,
+        relevant_lines,
+        deleted_lines,
         deletion_without_new_lines: builder.saw_deletion && added.is_empty(),
         binary: builder.binary,
     })
+}
+
+/// Classificação conservadora de uma linha ADICIONADA, decidida apenas pelo
+/// texto que o próprio diff carrega.
+///
+/// Um hunk não traz o estado léxico do arquivo inteiro, então esta função
+/// remove da obrigação somente o que é inequívoco na própria linha: linha
+/// vazia e linha cujo primeiro token não-branco abre um comentário de linha.
+/// Conteúdo de string multilinha, corpo de comentário de bloco e atributo
+/// permanecem RELEVANTES — a dúvida conserva a obrigação em vez de virar PASS.
+fn added_line_is_relevant(text: &str) -> bool {
+    let trimmed = text.trim();
+    !(trimmed.is_empty() || trimmed.starts_with("//"))
 }
 
 fn merge_lines(lines: &[usize]) -> Vec<LineRange> {
@@ -651,6 +740,11 @@ pub fn analyze(
     authorities: CoverageAuthorities<'_>,
 ) -> Result<CoverageReport, CoverageError> {
     let parsed = parse_unified_diff(input)?;
+    let policy_changed = parsed.iter().any(|file| {
+        file.path == crate::nav_coverage::POLICY_PATH
+            || file.old_path.as_deref() == Some(crate::nav_coverage::POLICY_PATH)
+    });
+    let lifecycle = derive_lifecycle(&authorities);
     let mut files = Vec::with_capacity(parsed.len());
     for file in parsed {
         files.push(analyze_file(&file, &authorities)?);
@@ -660,7 +754,109 @@ pub fn analyze(
         schema: DIFF_COVERAGE_SCHEMA,
         source: "stdin-unified-diff".to_string(),
         files,
+        lifecycle,
+        policy_changed,
     })
+}
+
+/// Relaciona as chaves de região da base com as do candidato.
+///
+/// Uma chave que mudou de arquivo é um movimento observável e fica `KNOWN`
+/// sem exigir política. Uma chave que sumiu do candidato exige disposição
+/// declarada na autoridade versionada; sem ela o estado é `UNKNOWN`, nunca
+/// sucesso. Sem base — ou sem autoridade — o estado é `UNAVAILABLE`.
+fn derive_lifecycle(authorities: &CoverageAuthorities<'_>) -> Relation<RegionDisposition> {
+    let Some(base) = authorities.base_code else {
+        return Relation::unavailable(
+            "cartografia da base indisponível: lifecycle de região não pode ser estabelecido",
+        );
+    };
+    let current: BTreeSet<&str> = authorities
+        .code
+        .regions
+        .iter()
+        .map(|region| region.key.as_str())
+        .collect();
+    let current_files: std::collections::BTreeMap<&str, &str> = authorities
+        .code
+        .regions
+        .iter()
+        .map(|region| (region.key.as_str(), region.file.as_str()))
+        .collect();
+
+    let mut items: Vec<RegionDisposition> = Vec::new();
+    let mut undeclared = false;
+    let mut policy_missing = false;
+    for region in &base.regions {
+        let key = region.key.as_str();
+        if current.contains(key) {
+            let destination = current_files.get(key).copied().unwrap_or_default();
+            if destination != region.file {
+                items.push(RegionDisposition {
+                    key: region.key.clone(),
+                    base_path: region.file.clone(),
+                    disposition: DispositionKind::Moved.as_str().to_string(),
+                    targets: vec![destination.to_string()],
+                    authority: Authority {
+                        source: "base-code-catalog".to_string(),
+                        path: "src/navigation.jsonl".to_string(),
+                        record: Some(region.key.clone()),
+                        field: "file".to_string(),
+                    },
+                });
+            }
+            continue;
+        }
+        let Some(policy) = authorities.policy else {
+            policy_missing = true;
+            continue;
+        };
+        match policy.disposition(key) {
+            Some(rule) => items.push(RegionDisposition {
+                key: region.key.clone(),
+                base_path: region.file.clone(),
+                disposition: rule.kind.as_str().to_string(),
+                targets: rule.targets.clone(),
+                authority: Authority {
+                    source: "coverage-policy".to_string(),
+                    path: crate::nav_coverage::POLICY_PATH.to_string(),
+                    record: Some(rule.key.clone()),
+                    field: "disposition".to_string(),
+                },
+            }),
+            None => {
+                undeclared = true;
+                items.push(RegionDisposition {
+                    key: region.key.clone(),
+                    base_path: region.file.clone(),
+                    disposition: "UNDECLARED".to_string(),
+                    targets: Vec::new(),
+                    authority: Authority {
+                        source: "coverage-policy".to_string(),
+                        path: crate::nav_coverage::POLICY_PATH.to_string(),
+                        record: None,
+                        field: "disposition".to_string(),
+                    },
+                });
+            }
+        }
+    }
+    items.sort();
+    if policy_missing {
+        return Relation::unavailable(
+            "autoridade de escopo/exceções indisponível: disposição de região não pode ser estabelecida",
+        );
+    }
+    if undeclared {
+        return Relation {
+            status: RelationStatus::Unknown,
+            reason: Some(
+                "ao menos uma chave saiu do catálogo sem disposição declarada".to_string(),
+            ),
+            items,
+        };
+    }
+    Relation::known(items)
 }
 
 fn analyze_file(
@@ -695,6 +891,25 @@ fn analyze_file(
         Relation::known(touched.iter().map(|region| region_item(region)).collect())
     };
 
+    let spans = region_spans(authorities.code, &file.path);
+    let covered_intervals = intersect(&file.changed_lines, &spans);
+    let uncovered_intervals = subtract(&file.relevant_lines, &spans);
+    let base_regions = derive_base_regions(file, authorities, &mut warnings);
+    let completeness = derive_completeness(
+        file,
+        &touched,
+        &covered_intervals,
+        &uncovered_intervals,
+        authorities.base_code.is_some(),
+    );
+    if !uncovered_intervals.is_empty() {
+        warning(
+            &mut warnings,
+            "W-DIFF-INTERVAL-UNCOVERED",
+            "linhas novas relevantes fora de qualquer região publicada",
+        );
+    }
+
     let identities = touched_identities(&touched);
     let documents = derive_documents(file, &touched, &identities, authorities, &mut warnings)?;
     let tests = derive_tests(&touched, &identities, authorities, &mut warnings)?;
@@ -705,12 +920,140 @@ fn analyze_file(
         old_path: file.old_path.clone(),
         status: file.status,
         changed_lines: file.changed_lines.clone(),
+        covered_intervals,
+        uncovered_intervals,
+        completeness,
         regions,
+        base_regions,
         documents,
         projections,
         tests,
         warnings: warnings.into_iter().collect(),
     })
+}
+
+/// Spans publicados pelo catálogo indicado para um path.
+fn region_spans(code: &CodeCatalog, path: &str) -> Vec<LineRange> {
+    let mut spans: Vec<LineRange> = code
+        .regions
+        .iter()
+        .filter(|region| region.file == path)
+        .map(|region| LineRange {
+            start: region.start_marker,
+            end: region.end_marker,
+        })
+        .collect();
+    spans.sort();
+    spans
+}
+
+/// Parte de `ranges` que cai dentro de algum span.
+fn intersect(ranges: &[LineRange], spans: &[LineRange]) -> Vec<LineRange> {
+    let mut lines: Vec<usize> = Vec::new();
+    for range in ranges {
+        for line in range.start..=range.end {
+            if spans
+                .iter()
+                .any(|span| span.start <= line && line <= span.end)
+            {
+                lines.push(line);
+            }
+        }
+    }
+    merge_lines(&lines)
+}
+
+/// Parte de `ranges` que não cai em nenhum span.
+fn subtract(ranges: &[LineRange], spans: &[LineRange]) -> Vec<LineRange> {
+    let mut lines: Vec<usize> = Vec::new();
+    for range in ranges {
+        for line in range.start..=range.end {
+            if !spans
+                .iter()
+                .any(|span| span.start <= line && line <= span.end)
+            {
+                lines.push(line);
+            }
+        }
+    }
+    merge_lines(&lines)
+}
+
+/// A remoção de linhas só pode ser relacionada contra a cartografia da BASE:
+/// as coordenadas removidas não existem no candidato. Sem base, `UNAVAILABLE`.
+fn derive_base_regions(
+    file: &ParsedFile,
+    authorities: &CoverageAuthorities<'_>,
+    warnings: &mut BTreeSet<CoverageWarning>,
+) -> Relation<RegionItem> {
+    if file.deleted_lines.is_empty() {
+        return Relation::known(Vec::new());
+    }
+    let Some(base) = authorities.base_code else {
+        warning(
+            warnings,
+            "W-DIFF-BASE-UNAVAILABLE",
+            "cartografia da base indisponível: linhas removidas não podem ser relacionadas",
+        );
+        return Relation::unavailable(
+            "cartografia da base indisponível para as coordenadas removidas",
+        );
+    };
+    let base_path = file.old_path.as_deref().unwrap_or(file.path.as_str());
+    let touched = touched_regions(base, base_path, &file.deleted_lines);
+    if touched.is_empty() {
+        return Relation::unknown(
+            "nenhuma região da base intersecta as linhas removidas do arquivo",
+        );
+    }
+    Relation::known(touched.iter().map(|region| region_item(region)).collect())
+}
+
+/// A completude só pode ser decidida a partir do candidato quando existe
+/// linha nova para julgar e o arquivo continua existindo com o mesmo path.
+///
+/// Deleção pura não publica coordenada corrente nenhuma; arquivo removido ou
+/// renomeado muda o espaço de coordenadas. Nesses três casos a cartografia da
+/// base é necessária, e a ausência dela é `UNVERIFIABLE`, nunca `COMPLETE`.
+fn base_required(file: &ParsedFile) -> bool {
+    matches!(file.status, FileStatus::Deleted | FileStatus::Renamed)
+        || (file.changed_lines.is_empty() && !file.deleted_lines.is_empty())
+}
+
+/// Decide a completude do recorte alterado sem nunca promover ausência de
+/// evidência a sucesso.
+fn derive_completeness(
+    file: &ParsedFile,
+    touched: &[&CodeRegion],
+    covered: &[LineRange],
+    uncovered: &[LineRange],
+    base_available: bool,
+) -> Completeness {
+    if file.binary {
+        return Completeness::Unverifiable {
+            reason: "diff binário não publica coordenadas de linha".to_string(),
+        };
+    }
+    if base_required(file) && !base_available {
+        return Completeness::Unverifiable {
+            reason: "a propriedade depende da cartografia da base, que está indisponível"
+                .to_string(),
+        };
+    }
+    if !uncovered.is_empty() {
+        return if touched.is_empty() && covered.is_empty() {
+            Completeness::Absent
+        } else {
+            Completeness::Partial
+        };
+    }
+    if file.changed_lines.is_empty() {
+        return Completeness::Complete;
+    }
+    if touched.is_empty() {
+        return Completeness::Absent;
+    }
+    Completeness::Complete
 }
 
 fn warning(warnings: &mut BTreeSet<CoverageWarning>, code: &str, message: &str) {
@@ -1121,9 +1464,11 @@ fn add_navigation_projections(
 
 pub fn render_json(report: &CoverageReport) -> String {
     format!(
-        "{{\"schema\":{},\"source\":{},\"files\":[{}]}}",
+        "{{\"schema\":{},\"source\":{},\"policy_changed\":{},\"lifecycle\":{},\"files\":[{}]}}",
         report.schema,
         json_string(&report.source),
+        report.policy_changed,
+        relation_json(&report.lifecycle, disposition_json),
         report
             .files
             .iter()
@@ -1138,6 +1483,23 @@ pub fn render_human(report: &CoverageReport) -> String {
         return "Cobertura de diff: nenhum arquivo alterado.\n".to_string();
     }
     let mut out = format!("Cobertura de diff ({} arquivo(s))\n", report.files.len());
+    out.push_str(&format!(
+        "política de cobertura alterada: {}\n",
+        if report.policy_changed { "sim" } else { "não" }
+    ));
+    append_relation(&mut out, "lifecycle", &report.lifecycle, |item| {
+        if item.targets.is_empty() {
+            format!("{} ({}) de {}", item.key, item.disposition, item.base_path)
+        } else {
+            format!(
+                "{} ({}) de {} -> {}",
+                item.key,
+                item.disposition,
+                item.base_path,
+                item.targets.join(", ")
+            )
+        }
+    });
     for file in &report.files {
         out.push_str(&format!("\n{} [{}]\n", file.path, file.status.as_str()));
         if let Some(old) = &file.old_path {
@@ -1164,7 +1526,24 @@ pub fn render_human(report: &CoverageReport) -> String {
             );
             out.push('\n');
         }
+        out.push_str(&format!(
+            "  completude: {}{}\n",
+            file.completeness.as_str(),
+            match &file.completeness {
+                Completeness::Unverifiable { reason } => format!(" ({reason})"),
+                _ => String::new(),
+            }
+        ));
+        append_ranges(&mut out, "intervalos cobertos", &file.covered_intervals);
+        append_ranges(
+            &mut out,
+            "intervalos descobertos",
+            &file.uncovered_intervals,
+        );
         append_relation(&mut out, "regiões", &file.regions, |item| {
+            format!("{} em {}:{}-{}", item.id, item.path, item.start, item.end)
+        });
+        append_relation(&mut out, "regiões da base", &file.base_regions, |item| {
             format!("{} em {}:{}-{}", item.id, item.path, item.start, item.end)
         });
         append_relation(&mut out, "documentos", &file.documents, |item| {
@@ -1186,6 +1565,29 @@ pub fn render_human(report: &CoverageReport) -> String {
     out
 }
 
+fn append_ranges(out: &mut String, label: &str, ranges: &[LineRange]) {
+    out.push_str(&format!("  {label}:"));
+    if ranges.is_empty() {
+        out.push_str(" nenhum\n");
+        return;
+    }
+    out.push(' ');
+    out.push_str(
+        &ranges
+            .iter()
+            .map(|range| {
+                if range.start == range.end {
+                    range.start.to_string()
+                } else {
+                    format!("{}-{}", range.start, range.end)
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(", "),
+    );
+    out.push('\n');
+}
+
 fn append_relation<T, F>(out: &mut String, label: &str, relation: &Relation<T>, render: F)
 where
     F: Fn(&T) -> String,
@@ -1202,16 +1604,20 @@ where
 
 fn file_json(file: &FileCoverage) -> String {
     format!(
-        "{{\"path\":{},\"old_path\":{},\"status\":{},\"changed_lines\":[{}],\"regions\":{},\"documents\":{},\"projections\":{},\"tests\":{},\"warnings\":[{}]}}",
+        "{{\"path\":{},\"old_path\":{},\"status\":{},\"changed_lines\":[{}],\"covered_intervals\":[{}],\"uncovered_intervals\":[{}],\"completeness\":{},\"completeness_reason\":{},\"regions\":{},\"base_regions\":{},\"documents\":{},\"projections\":{},\"tests\":{},\"warnings\":[{}]}}",
         json_string(&file.path),
         option_string(file.old_path.as_deref()),
         json_string(file.status.as_str()),
-        file.changed_lines
-            .iter()
-            .map(|range| format!("{{\"start\":{},\"end\":{}}}", range.start, range.end))
-            .collect::<Vec<_>>()
-            .join(","),
+        ranges_json(&file.changed_lines),
+        ranges_json(&file.covered_intervals),
+        ranges_json(&file.uncovered_intervals),
+        json_string(file.completeness.as_str()),
+        option_string(match &file.completeness {
+            Completeness::Unverifiable { reason } => Some(reason.as_str()),
+            _ => None,
+        }),
         relation_json(&file.regions, region_json),
+        relation_json(&file.base_regions, region_json),
         relation_json(&file.documents, document_json),
         relation_json(&file.projections, projection_json),
         relation_json(&file.tests, test_json),
@@ -1224,6 +1630,29 @@ fn file_json(file: &FileCoverage) -> String {
             ))
             .collect::<Vec<_>>()
             .join(",")
+    )
+}
+
+fn ranges_json(ranges: &[LineRange]) -> String {
+    ranges
+        .iter()
+        .map(|range| format!("{{\"start\":{},\"end\":{}}}", range.start, range.end))
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
+fn disposition_json(item: &RegionDisposition) -> String {
+    format!(
+        "{{\"key\":{},\"base_path\":{},\"disposition\":{},\"targets\":[{}],\"authority\":{}}}",
+        json_string(&item.key),
+        json_string(&item.base_path),
+        json_string(&item.disposition),
+        item.targets
+            .iter()
+            .map(|target| json_string(target))
+            .collect::<Vec<_>>()
+            .join(","),
+        authority_json(&item.authority)
     )
 }
 
@@ -1373,9 +1802,11 @@ mod tests {
     #[test]
     fn renderizadores_sao_deterministicos_e_sem_ansi() {
         let report = CoverageReport {
-            schema: 1,
+            schema: DIFF_COVERAGE_SCHEMA,
             source: "stdin-unified-diff".to_string(),
             files: Vec::new(),
+            lifecycle: Relation::unavailable("base indisponível"),
+            policy_changed: false,
         };
         assert_eq!(render_json(&report), render_json(&report));
         assert_eq!(render_human(&report), render_human(&report));

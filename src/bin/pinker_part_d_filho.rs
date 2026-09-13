@@ -1,5 +1,9 @@
 //! Fixture processual da Parte D. Não é uma superfície da linguagem.
 
+// @pinker-nav:start evidencia.processos.fixture-parte-d
+// @pinker-nav:domain processos
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Fixture processual da Parte D: filho auditavel com modos de janela natural e marker de conclusao, usado para separar interrupcao de execucao curta sem que a fixture prometa tempo, que continua sendo do LimiteTempo da linguagem.
 use std::io::{Read as _, Write as _};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
@@ -211,3 +215,4 @@ fn main() {
         }
     }
 }
+// @pinker-nav:end evidencia.processos.fixture-parte-d
