@@ -16,6 +16,7 @@ use crate::ast::*;
 use crate::error::PinkerError;
 use crate::ir::TypeIR;
 use crate::layout;
+use crate::map_representation;
 use crate::method_dispatch::{
     self, DispatchCandidate, DispatchRelation, MethodSelection, RepresentativeSelection,
 };
@@ -589,6 +590,20 @@ impl SemanticChecker {
     // @pinker-nav:layer semantic
     // @pinker-nav:summary Sistema de tipos da checagem: compatibilidade estrutural (`check_type_match`), resolução de tipos nomeados/aliases com detecção de recursão (`resolve_type_named`/`resolve_type_or_error`), validação de struct, regras de inteiro/cast e verificação de faixa de literais inteiros contra o tipo-alvo.
     fn check_type_match(expected: &Type, actual: &Type) -> bool {
+        // F-04: dois mapas são comparados pelos componentes que a autoridade de
+        // representação entrega, nunca pela variante física que cada um
+        // carrega. Sem isto, trocar `mapa<verso,bombom>` por `mapa<AA,bombom>`
+        // — o mesmo tipo resolvido — mudava a resposta, inclusive apagando a
+        // compatibilidade de componente que o mapa genérico já alcançava.
+        // Decompor não é igualar: quem decide se chave casa com chave e valor
+        // com valor continua sendo esta mesma política, aplicada recursivamente.
+        if let (Some(expected_map), Some(actual_map)) = (
+            map_representation::components(expected),
+            map_representation::components(actual),
+        ) {
+            return Self::check_type_match(expected_map.key.as_ref(), actual_map.key.as_ref())
+                && Self::check_type_match(expected_map.value.as_ref(), actual_map.value.as_ref());
+        }
         match (expected, actual) {
             (Type::Bombom(_), Type::Bombom(_))
             | (Type::Bombom(_), Type::U64(_))
@@ -605,10 +620,6 @@ impl SemanticChecker {
             | (Type::Verso(_), Type::Verso(_))
             | (Type::ListBombom(_), Type::ListBombom(_))
             | (Type::ListVerso(_), Type::ListVerso(_))
-            | (Type::MapVersoBombom(_), Type::MapVersoBombom(_))
-            | (Type::MapVersoVerso(_), Type::MapVersoVerso(_))
-            | (Type::MapBombomBombom(_), Type::MapBombomBombom(_))
-            | (Type::MapBombomVerso(_), Type::MapBombomVerso(_))
             | (Type::Nulo(_), Type::Nulo(_)) => true,
             (Type::Struct { name: lhs_name, .. }, Type::Struct { name: rhs_name, .. }) => {
                 lhs_name == rhs_name
@@ -646,21 +657,6 @@ impl SemanticChecker {
                     ..
                 },
             ) => lhs_element == rhs_element,
-            (
-                Type::Map {
-                    key: lhs_key,
-                    value: lhs_value,
-                    ..
-                },
-                Type::Map {
-                    key: rhs_key,
-                    value: rhs_value,
-                    ..
-                },
-            ) => {
-                Self::check_type_match(lhs_key, rhs_key)
-                    && Self::check_type_match(lhs_value, rhs_value)
-            }
             (
                 Type::FixedArray {
                     element: lhs_element,
@@ -822,6 +818,17 @@ impl SemanticChecker {
                         ),
                         span: value.span(),
                     });
+                }
+                // F-04: depois da resolução, o mapa recebe a representação
+                // canônica da sua classe. `mapa<AA,bombom>` e
+                // `mapa<verso,bombom>` denotam o mesmo tipo resolvido e a
+                // partir daqui também o carregam da mesma forma — que é a
+                // mesma que `ir::model::expected_representation_for_key` já
+                // exigia para esta chave canônica.
+                if let Some(canonical) =
+                    map_representation::canonical_representation(&key, &value, *span)
+                {
+                    return Ok(canonical);
                 }
                 Ok(Type::Map {
                     key: Box::new(key),
