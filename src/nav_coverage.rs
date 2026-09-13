@@ -9,15 +9,26 @@
 //! ([`crate::nav::official_source_files`]), nunca dos marcadores, e responde
 //! por arquivo: quantas regiões existem, quais intervalos estão cobertos,
 //! quais intervalos relevantes não estão, qual a completude e qual a
-//! disposição declarada. Escopo e exceções vêm de uma única autoridade
-//! versionada em `.pinker/cartography/coverage-policy-v1.jsonl`; o catálogo
-//! derivado nunca é autoridade de exceção.
+//! disposição declarada. Escopo, exceções, disposições de chave e dívida
+//! herdada vêm de uma única autoridade versionada em
+//! `.pinker/cartography/coverage-policy-v1.jsonl`; o catálogo derivado nunca é
+//! autoridade de exceção.
+//!
+//! A obrigação tem dois níveis, e os dois são executados pelo mesmo gate:
+//!
+//! - **arquivo**: todo arquivo de raiz `required` precisa de ao menos uma
+//!   região ou de uma exceção estreita aprovada;
+//! - **intervalo**: o número de linhas relevantes descobertas de cada arquivo
+//!   é fixado na autoridade e precisa bater exatamente. Uma linha relevante
+//!   nova fora de região é dívida nova e falha; cobrir parte da dívida exige
+//!   apertar o registro. Nos dois sentidos, a mudança é visível e revisável.
 //!
 //! ```text
 //! CATALOG_CONSISTENT           != CURRENT_CODE_COVERAGE_COMPLETE
 //! PARTIAL_REGION_INTERSECTION  != FULL_FILE_COVERAGE
 //! ZERO_ANCHOR_FILE             != AUTOMATICALLY_EXCLUDED
 //! DERIVED_CATALOG              != EXCEPTION_AUTHORITY
+//! DECLARED_DEBT                != BUDGET_WITH_SLACK
 //! ```
 //!
 //! Zero dependências externas.
@@ -26,6 +37,7 @@ use crate::jsonl::{self, JsonObject};
 use crate::nav::{
     self, official_scan_roots, official_source_files, relevant_source_lines, CodeIndex,
 };
+use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::fs;
@@ -140,12 +152,29 @@ pub struct DispositionRule {
     pub review: String,
 }
 
+/// Dívida de cobertura herdada, fixada arquivo a arquivo.
+///
+/// Não é exceção: o arquivo continua sob enforcement. O registro declara
+/// exatamente quantas linhas relevantes estão descobertas HOJE, e a
+/// verificação exige igualdade. Uma linha relevante nova fora de região faz o
+/// número subir e o gate falha; cobrir parte da dívida faz o número descer e o
+/// gate exige que o registro seja apertado. Nos dois sentidos a mudança é uma
+/// alteração visível e revisável da autoridade — nunca folga silenciosa.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DebtRule {
+    pub path: String,
+    pub uncovered_relevant_lines: usize,
+    pub reason: String,
+    pub review: String,
+}
+
 /// A autoridade carregada e validada.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct CoveragePolicy {
     pub scopes: Vec<ScopeRule>,
     pub exceptions: Vec<ExceptionRule>,
     pub dispositions: Vec<DispositionRule>,
+    pub debts: Vec<DebtRule>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -183,6 +212,9 @@ pub enum PolicyError {
     },
     DuplicateDisposition {
         key: String,
+    },
+    DuplicateDebt {
+        path: String,
     },
     ScopeRootsMismatch {
         declared: Vec<String>,
@@ -241,6 +273,12 @@ impl fmt::Display for PolicyError {
                     "E-COVERAGE-POLICY-DUP-DISPOSITION: disposição '{key}' declarada duas vezes"
                 )
             }
+            PolicyError::DuplicateDebt { path } => {
+                write!(
+                    f,
+                    "E-COVERAGE-POLICY-DUP-DEBT: dívida de '{path}' declarada duas vezes"
+                )
+            }
             PolicyError::ScopeRootsMismatch { declared, official } => {
                 write!(
                     f,
@@ -294,6 +332,7 @@ impl CoveragePolicy {
                 "scope" => policy.scopes.push(parse_scope(&object, line)?),
                 "exception" => policy.exceptions.push(parse_exception(&object, line)?),
                 "disposition" => policy.dispositions.push(parse_disposition(&object, line)?),
+                "debt" => policy.debts.push(parse_debt(&object, line)?),
                 other => {
                     return Err(PolicyError::UnknownKind {
                         line,
@@ -341,6 +380,14 @@ impl CoveragePolicy {
                 });
             }
         }
+        let mut debts = BTreeSet::new();
+        for debt in &self.debts {
+            if !debts.insert(debt.path.clone()) {
+                return Err(PolicyError::DuplicateDebt {
+                    path: debt.path.clone(),
+                });
+            }
+        }
         Ok(())
     }
 
@@ -361,6 +408,11 @@ impl CoveragePolicy {
         self.dispositions
             .iter()
             .find(|disposition| disposition.key == key)
+    }
+
+    /// Dívida de cobertura fixada para um caminho exato.
+    pub fn debt(&self, path: &str) -> Option<&DebtRule> {
+        self.debts.iter().find(|debt| debt.path == path)
     }
 }
 
@@ -429,6 +481,31 @@ fn broad_exception_detail(path: &str) -> Option<&'static str> {
         return Some("componente de caminho degenerado");
     }
     None
+}
+
+fn parse_debt(object: &JsonObject, line: usize) -> Result<DebtRule, PolicyError> {
+    let path = required_str(object, "path", line)?;
+    if let Some(detail) = broad_exception_detail(&path) {
+        return Err(PolicyError::BroadException {
+            line,
+            path,
+            detail: detail.to_string(),
+        });
+    }
+    let uncovered = object
+        .get("uncovered_relevant_lines")
+        .and_then(|value| value.as_int())
+        .filter(|value| *value >= 0)
+        .ok_or(PolicyError::MissingField {
+            line,
+            field: "uncovered_relevant_lines".to_string(),
+        })?;
+    Ok(DebtRule {
+        path,
+        uncovered_relevant_lines: uncovered as usize,
+        reason: required_str(object, "reason", line)?,
+        review: required_str(object, "review", line)?,
+    })
 }
 
 fn parse_disposition(object: &JsonObject, line: usize) -> Result<DispositionRule, PolicyError> {
@@ -546,6 +623,7 @@ pub struct FileCoverage {
     pub uncovered_relevant_intervals: Vec<LineInterval>,
     pub relevant_lines: usize,
     pub covered_relevant_lines: usize,
+    pub uncovered_relevant_lines: usize,
     pub completeness: Completeness,
     pub disposition: FileDisposition,
 }
@@ -622,6 +700,7 @@ pub fn inventory(
             .map(|interval| relevant_within(&relevant, *interval))
             .sum();
         let covered_relevant_lines = relevant_lines - uncovered_relevant_lines;
+        let uncovered_relevant_line_count = uncovered_relevant_lines;
 
         let mut keys: Vec<String> = regions.iter().map(|region| region.key.clone()).collect();
         keys.sort();
@@ -665,6 +744,7 @@ pub fn inventory(
             uncovered_relevant_intervals,
             relevant_lines,
             covered_relevant_lines,
+            uncovered_relevant_lines: uncovered_relevant_line_count,
             completeness,
             disposition,
         });
@@ -758,6 +838,23 @@ pub enum CoverageViolation {
     },
     /// Disposição cujo destino declarado não existe no catálogo corrente.
     MissingDispositionTarget { key: String, target: String },
+    /// Dívida de cobertura cresceu: linha relevante nova fora de região.
+    CoverageDebtIncreased {
+        path: String,
+        declared: usize,
+        found: usize,
+    },
+    /// Dívida declarada não corresponde mais ao observado: o registro precisa
+    /// ser apertado, senão a folga volta a caber sem revisão.
+    CoverageDebtStale {
+        path: String,
+        declared: usize,
+        found: usize,
+    },
+    /// Dívida declarada para um caminho que não existe nas raízes oficiais.
+    StaleDebtPath { path: String },
+    /// Dívida declarada para arquivo que não está sob enforcement.
+    DebtOutsideEnforcement { path: String },
 }
 
 impl fmt::Display for CoverageViolation {
@@ -783,6 +880,30 @@ impl fmt::Display for CoverageViolation {
                 f,
                 "E-COVERAGE-DISPOSITION-TARGET: destino {target} da disposição {key} não existe no catálogo corrente"
             ),
+            CoverageViolation::CoverageDebtIncreased {
+                path,
+                declared,
+                found,
+            } => write!(
+                f,
+                "E-COVERAGE-DEBT-INCREASED: {path} passou de {declared} para {found} linha(s) relevante(s) descoberta(s); cubra a responsabilidade nova ou declare a dívida na autoridade"
+            ),
+            CoverageViolation::CoverageDebtStale {
+                path,
+                declared,
+                found,
+            } => write!(
+                f,
+                "E-COVERAGE-DEBT-STALE: {path} declara {declared} linha(s) relevante(s) descoberta(s) e observa {found}; aperte o registro em vez de guardar folga"
+            ),
+            CoverageViolation::StaleDebtPath { path } => write!(
+                f,
+                "E-COVERAGE-DEBT-PATH: dívida declara {path}, que não existe nas raízes oficiais"
+            ),
+            CoverageViolation::DebtOutsideEnforcement { path } => write!(
+                f,
+                "E-COVERAGE-DEBT-SCOPE: {path} não está sob enforcement; a dívida declarada não tem efeito e deve ser retirada"
+            ),
         }
     }
 }
@@ -801,6 +922,35 @@ pub fn verify(
                 path: file.path.clone(),
             });
         }
+        if file.file_enforcement != Enforcement::Required {
+            continue;
+        }
+        // Uma exceção estreita aprovada retira o arquivo inteiro da obrigação;
+        // exigir também um registro de dívida seria contabilizar o mesmo fato
+        // em duas autoridades.
+        if matches!(file.disposition, FileDisposition::Exception { .. }) {
+            continue;
+        }
+        // Catraca de intervalo: a dívida herdada é um número fixado na
+        // autoridade, não um limite com folga. Igualdade exata é o que impede
+        // tanto dívida nova quanto o truque de reduzir para poder recrescer.
+        let declared = policy
+            .debt(&file.path)
+            .map(|debt| debt.uncovered_relevant_lines)
+            .unwrap_or(0);
+        match file.uncovered_relevant_lines.cmp(&declared) {
+            Ordering::Greater => violations.push(CoverageViolation::CoverageDebtIncreased {
+                path: file.path.clone(),
+                declared,
+                found: file.uncovered_relevant_lines,
+            }),
+            Ordering::Less => violations.push(CoverageViolation::CoverageDebtStale {
+                path: file.path.clone(),
+                declared,
+                found: file.uncovered_relevant_lines,
+            }),
+            Ordering::Equal => {}
+        }
     }
 
     let inventoried: BTreeMap<&str, &FileCoverage> = inventory
@@ -816,6 +966,20 @@ pub fn verify(
             Some(file) if !file.regions.is_empty() => {
                 violations.push(CoverageViolation::UnnecessaryException {
                     path: exception.path.clone(),
+                })
+            }
+            Some(_) => {}
+        }
+    }
+
+    for debt in &policy.debts {
+        match inventoried.get(debt.path.as_str()) {
+            None => violations.push(CoverageViolation::StaleDebtPath {
+                path: debt.path.clone(),
+            }),
+            Some(file) if file.file_enforcement != Enforcement::Required => {
+                violations.push(CoverageViolation::DebtOutsideEnforcement {
+                    path: debt.path.clone(),
                 })
             }
             Some(_) => {}
@@ -952,7 +1116,7 @@ pub fn render_json(inventory: &CoverageInventory) -> String {
             out.push(',');
         }
         out.push_str(&format!(
-            "{{\"path\":{},\"root\":{},\"category\":{},\"file_enforcement\":{},\"regions\":{},\"covered_intervals\":{},\"uncovered_relevant_intervals\":{},\"relevant_lines\":{},\"covered_relevant_lines\":{},\"completeness\":{},\"disposition\":{}}}",
+            "{{\"path\":{},\"root\":{},\"category\":{},\"file_enforcement\":{},\"regions\":{},\"covered_intervals\":{},\"uncovered_relevant_intervals\":{},\"relevant_lines\":{},\"covered_relevant_lines\":{},\"uncovered_relevant_lines\":{},\"completeness\":{},\"disposition\":{}}}",
             nav::json_string(&file.path),
             nav::json_string(&file.root),
             nav::json_string(&file.category),
@@ -962,6 +1126,7 @@ pub fn render_json(inventory: &CoverageInventory) -> String {
             render_intervals(&file.uncovered_relevant_intervals),
             file.relevant_lines,
             file.covered_relevant_lines,
+            file.uncovered_relevant_lines,
             nav::json_string(file.completeness.as_str()),
             nav::json_string(file.disposition.as_str()),
         ));

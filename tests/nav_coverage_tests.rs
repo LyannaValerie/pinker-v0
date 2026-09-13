@@ -328,6 +328,20 @@ fn c4_intersecao_parcial_nao_e_completude() {
         "interseção parcial foi promovida a COMPLETE: {inventario}"
     );
 
+    // E não basta publicar PARTIAL: sem dívida declarada, o consumidor de CI
+    // precisa recusar o arquivo pela causa correta.
+    let output = verificar(repo.path());
+    assert_ne!(
+        output.status.code(),
+        Some(0),
+        "o gate aceitou interseção parcial não declarada"
+    );
+    assert!(
+        stderr(&output).contains("E-COVERAGE-DEBT-INCREASED: src/parcial.rs"),
+        "falhou por outra causa: {}",
+        stderr(&output)
+    );
+
     // O mesmo recorte no diff: a região existe, então o arquivo NÃO é NONE,
     // mas a linha nova fora dela impede completude.
     let code = catalogo(&fs::read_to_string(repo.path().join("src/navigation.jsonl")).unwrap());
@@ -674,6 +688,128 @@ fn mudanca_da_politica_e_observavel_no_diff() {
     let diff = "--- a/src/alvo.rs\n+++ b/src/alvo.rs\n@@ -3 +3 @@\n-    1\n+    2\n";
     let report = analyze(diff, autoridades(&current, None, None)).expect("diff válido");
     assert!(!report.policy_changed);
+}
+
+/// C13 — intervalo relevante NOVO fora de região, em arquivo que já tem
+/// região, é dívida nova: o gate de `make ci` recusa pela causa correta. Este
+/// é o ataque que a revisão adversarial de #535 executou contra o candidato
+/// anterior, onde o arquivo ficava `PARTIAL` e o gate continuava verde.
+#[test]
+fn c13_intervalo_novo_em_arquivo_ancorado_e_recusado_pelo_gate() {
+    let repo = fixture("c13");
+    assert_eq!(
+        verificar(repo.path()).status.code(),
+        Some(0),
+        "candidato inicial deveria passar"
+    );
+
+    let com_divida = format!("{COBERTO}\npub fn divida_nova() -> i32 {{\n    9\n}}\n");
+    write(repo.path(), "src/coberto.rs", &com_divida);
+    sincronizar(repo.path());
+
+    let output = verificar(repo.path());
+    assert_ne!(
+        output.status.code(),
+        Some(0),
+        "dívida nova de intervalo entrou sem o gate ver"
+    );
+    assert!(
+        stderr(&output).contains("E-COVERAGE-DEBT-INCREASED: src/coberto.rs passou de 0 para 3"),
+        "falhou por outra causa: {}",
+        stderr(&output)
+    );
+
+    // Declarar a dívida na autoridade versionada é o único caminho que aceita,
+    // e ele é uma mudança visível do arquivo revisável.
+    write(
+        repo.path(),
+        ".pinker/cartography/coverage-policy-v1.jsonl",
+        &format!(
+            "{POLICY}{}\n",
+            r#"{"schema":1,"kind":"debt","path":"src/coberto.rs","uncovered_relevant_lines":3,"reason":"responsabilidade nova ainda nao cartografada","review":"reduzir a zero ao publicar a regiao correspondente"}"#
+        ),
+    );
+    assert_eq!(
+        verificar(repo.path()).status.code(),
+        Some(0),
+        "dívida declarada foi recusada: {}",
+        stderr(&verificar(repo.path()))
+    );
+}
+
+/// C14 — a dívida declarada é um número fixado, não um teto com folga: ela não
+/// pode sobreviver obsoleta, apontar para caminho inexistente nem alcançar
+/// arquivo fora do enforcement.
+#[test]
+fn c14_divida_declarada_nao_guarda_folga_nem_sobrevive_obsoleta() {
+    let repo = fixture("c14");
+
+    // Folga: o arquivo está inteiramente coberto e ainda assim declara dívida.
+    write(
+        repo.path(),
+        ".pinker/cartography/coverage-policy-v1.jsonl",
+        &format!(
+            "{POLICY}{}\n",
+            r#"{"schema":1,"kind":"debt","path":"src/coberto.rs","uncovered_relevant_lines":5,"reason":"r","review":"v"}"#
+        ),
+    );
+    let output = verificar(repo.path());
+    assert_ne!(output.status.code(), Some(0), "folga aceita");
+    assert!(
+        stderr(&output)
+            .contains("E-COVERAGE-DEBT-STALE: src/coberto.rs declara 5 linha(s) relevante(s) descoberta(s) e observa 0"),
+        "falhou por outra causa: {}",
+        stderr(&output)
+    );
+
+    // Caminho que não existe nas raízes oficiais.
+    write(
+        repo.path(),
+        ".pinker/cartography/coverage-policy-v1.jsonl",
+        &format!(
+            "{POLICY}{}\n",
+            r#"{"schema":1,"kind":"debt","path":"src/nunca_existiu.rs","uncovered_relevant_lines":5,"reason":"r","review":"v"}"#
+        ),
+    );
+    assert!(
+        stderr(&verificar(repo.path())).contains("E-COVERAGE-DEBT-PATH"),
+        "dívida obsoleta passou"
+    );
+
+    // Raiz apenas inventariada: a dívida não teria efeito e precisa sair.
+    write(repo.path(), "tests/evidencia.rs", SEM_ANCORA);
+    write(
+        repo.path(),
+        ".pinker/cartography/coverage-policy-v1.jsonl",
+        &format!(
+            "{POLICY}{}\n",
+            r#"{"schema":1,"kind":"debt","path":"tests/evidencia.rs","uncovered_relevant_lines":3,"reason":"r","review":"v"}"#
+        ),
+    );
+    sincronizar(repo.path());
+    assert!(
+        stderr(&verificar(repo.path())).contains("E-COVERAGE-DEBT-SCOPE: tests/evidencia.rs"),
+        "dívida fora do enforcement passou"
+    );
+
+    // Uma exceção estreita aprovada retira o arquivo da obrigação inteira: a
+    // catraca não cobra dívida em cima dela.
+    write(repo.path(), "src/sem_ancora.rs", SEM_ANCORA);
+    write(
+        repo.path(),
+        ".pinker/cartography/coverage-policy-v1.jsonl",
+        &format!(
+            "{POLICY}{}\n",
+            r#"{"schema":1,"kind":"exception","path":"src/sem_ancora.rs","reason":"fixture sem responsabilidade cartografavel","review":"retirar se ganhar comportamento proprio"}"#
+        ),
+    );
+    sincronizar(repo.path());
+    assert_eq!(
+        verificar(repo.path()).status.code(),
+        Some(0),
+        "exceção aprovada foi cobrada pela catraca: {}",
+        stderr(&verificar(repo.path()))
+    );
 }
 
 /// `--base REF` é o caminho real pelo qual a cartografia da base entra: o

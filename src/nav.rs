@@ -436,7 +436,7 @@ impl CodeIndex {
 // @pinker-nav:start trama.codigo.verificacao-reutilizavel
 // @pinker-nav:domain navegacao
 // @pinker-nav:layer trama
-// @pinker-nav:summary Modelo somente leitura compartilhado por pink nav verificar e consumidores internos: reescaneia as raizes oficiais, valida as regioes, compara o catalogo renderizado com o arquivo versionado e avalia a cobertura corrente da cartografia pela autoridade versionada, falhando fechado quando essa autoridade nao pode ser estabelecida.
+// @pinker-nav:summary Modelo somente leitura compartilhado por pink nav verificar e consumidores internos: reescaneia as raizes oficiais, valida as regioes, compara o catalogo renderizado com o arquivo versionado e avalia a cobertura corrente da cartografia pela autoridade versionada, nos dois niveis (arquivo sem regiao e divida de intervalo fixada), falhando fechado quando essa autoridade nao pode ser estabelecida.
 
 /// Resultado da avaliação de cobertura corrente da cartografia. A autoridade
 /// de escopo/exceções é externa e versionada; quando ela não pode ser
