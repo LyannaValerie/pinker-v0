@@ -414,8 +414,10 @@ impl CodeIndex {
 
     /// Busca por chave, domínio, camada, resumo e caminho (prioridade §7.3).
     pub fn search(&self, query: &str) -> Vec<&CodeRegion> {
-        let scored = score_regions(&self.regions, query);
-        scored.into_iter().map(|(r, _, _)| r).collect()
+        score_regions(&self.regions, query)
+            .into_iter()
+            .map(|hit| hit.region)
+            .collect()
     }
 
     /// Lista regiões de uma camada (layer) ou domínio (domain).
@@ -473,14 +475,47 @@ pub fn verify_repository(
 
 // @pinker-nav:end trama.codigo.verificacao-reutilizavel
 
-/// Pontuação de código (§7.3). Prioridade mínima: chave exata, chave parcial,
-/// domínio/camada exatos, termos no resumo, caminho. Devolve
-/// `(região, pontuação, cobertura)` ordenado por (pontuação, cobertura, chave).
-fn score_regions<'a>(regions: &'a [CodeRegion], query: &str) -> Vec<(&'a CodeRegion, u32, usize)> {
-    let q_norm = text_norm::normalize(query);
-    let terms = text_norm::terms(query);
-    let mut hits: Vec<(&CodeRegion, u32, usize)> = Vec::new();
-    for region in regions {
+/// Pesos por campo da relação de relevância por termo (§7.3 revisada — #672).
+/// São uma hipótese calibrada no conjunto de desenvolvimento da Task, não um
+/// contrato histórico: mudá-los muda apenas a ordenação, nunca a integridade.
+const FIELD_WEIGHT_KEY: u32 = 6;
+const FIELD_WEIGHT_DOMAIN_LAYER: u32 = 4;
+const FIELD_WEIGHT_SUMMARY: u32 = 3;
+const FIELD_WEIGHT_FILE: u32 = 2;
+
+/// Sinais de acesso direto. Ficam acima de qualquer evidência textual para que
+/// consultar uma chave estável continue sendo recuperação determinística e não
+/// competição de relevância.
+const SCORE_KEY_EXACT: u32 = 100_000;
+const SCORE_KEY_CONTAINS_QUERY: u32 = 2_000;
+const SCORE_DOMAIN_OR_LAYER_EQUALS_QUERY: u32 = 800;
+
+/// Relevância observada de uma região para uma consulta, com a evidência que a
+/// produziu. A pontuação é heurística de ordenação — não é probabilidade.
+#[derive(Debug, Clone)]
+pub struct RegionMatch<'a> {
+    pub region: &'a CodeRegion,
+    pub score: u32,
+    /// Termos com poder discriminante que a região cobre.
+    pub coverage: usize,
+    /// Quantos termos com poder discriminante a consulta tinha.
+    pub terms_considered: usize,
+    pub matched_terms: Vec<String>,
+}
+
+/// Campos indexados de uma região para uma consulta.
+struct RegionFields {
+    key_norm: String,
+    domain_norm: String,
+    layer_norm: String,
+    key: Vec<String>,
+    domain_layer: Vec<String>,
+    summary: Vec<String>,
+    file: Vec<String>,
+}
+
+impl RegionFields {
+    fn index(region: &CodeRegion) -> Self {
         let key_norm = text_norm::normalize(&region.key);
         let domain_norm = region
             .domain
@@ -492,56 +527,160 @@ fn score_regions<'a>(regions: &'a [CodeRegion], query: &str) -> Vec<(&'a CodeReg
             .as_deref()
             .map(text_norm::normalize)
             .unwrap_or_default();
-        let summary_norm = text_norm::normalize(&region.summary);
-        let file_norm = text_norm::normalize(&region.file);
+        let mut domain_layer = tokens(&domain_norm);
+        domain_layer.extend(tokens(&layer_norm));
+        RegionFields {
+            key: tokens(&key_norm),
+            domain_layer,
+            summary: tokens(&text_norm::normalize(&region.summary)),
+            file: tokens(&text_norm::normalize(&region.file)),
+            key_norm,
+            domain_norm,
+            layer_norm,
+        }
+    }
 
-        let mut score = 0u32;
-        if key_norm == q_norm {
-            score += 100;
-        } else if key_norm.contains(&q_norm) {
-            score += 60;
-        }
-        if domain_norm == q_norm || layer_norm == q_norm {
-            score += 40;
-        }
-        if covers(&summary_norm, &terms) {
-            score += 20;
-        }
-        if covers(&file_norm, &terms) || file_norm.contains(&q_norm) {
-            score += 10;
-        }
+    fn contains(&self, term: &str) -> bool {
+        has(&self.key, term)
+            || has(&self.domain_layer, term)
+            || has(&self.summary, term)
+            || has(&self.file, term)
+    }
 
-        let haystack = format!(
-            "{} {} {} {} {}",
-            key_norm, domain_norm, layer_norm, summary_norm, file_norm
-        );
-        let coverage = terms
+    /// Soma dos pesos dos campos em que o termo aparece como palavra inteira.
+    fn field_weight(&self, term: &str) -> u32 {
+        let mut weight = 0;
+        if has(&self.key, term) {
+            weight += FIELD_WEIGHT_KEY;
+        }
+        if has(&self.domain_layer, term) {
+            weight += FIELD_WEIGHT_DOMAIN_LAYER;
+        }
+        if has(&self.summary, term) {
+            weight += FIELD_WEIGHT_SUMMARY;
+        }
+        if has(&self.file, term) {
+            weight += FIELD_WEIGHT_FILE;
+        }
+        weight
+    }
+}
+
+fn tokens(normalized: &str) -> Vec<String> {
+    normalized
+        .split(' ')
+        .filter(|w| !w.is_empty())
+        .map(str::to_string)
+        .collect()
+}
+
+fn has(words: &[String], term: &str) -> bool {
+    words.iter().any(|w| w == term)
+}
+
+/// Peso de raridade inteiro e determinístico (sem ponto flutuante): um termo
+/// presente na maioria das regiões não discrimina nada e vale zero; quanto mais
+/// raro, maior o peso, com teto natural em `log2(total)`.
+fn term_weight(regions_total: usize, document_frequency: usize) -> u32 {
+    if document_frequency == 0 || regions_total == 0 || document_frequency * 2 > regions_total {
+        return 0;
+    }
+    1 + (regions_total / document_frequency).ilog2()
+}
+
+/// Pontuação de código (§7.3 revisada — #672). Relação por termo e por campo,
+/// ponderada por raridade, preservando a prioridade de acesso direto por chave.
+/// Devolve as regiões ordenadas por (pontuação, cobertura, chave).
+fn score_regions<'a>(regions: &'a [CodeRegion], query: &str) -> Vec<RegionMatch<'a>> {
+    let q_norm = text_norm::normalize(query);
+    if q_norm.is_empty() {
+        return Vec::new();
+    }
+    // Termos distintos na ordem de aparição: repetir um termo não amplifica
+    // relevância.
+    let mut terms: Vec<String> = Vec::new();
+    for term in text_norm::terms(query) {
+        if !terms.contains(&term) {
+            terms.push(term);
+        }
+    }
+    // A forma canônica da consulta também ignora a repetição, para que
+    // `foo foo` continue encontrando a chave `foo` por acesso direto.
+    let q_canonical = terms.join(" ");
+
+    let indexed: Vec<RegionFields> = regions.iter().map(RegionFields::index).collect();
+    let mut document_frequency = vec![0usize; terms.len()];
+    for fields in &indexed {
+        for (i, term) in terms.iter().enumerate() {
+            if fields.contains(term) {
+                document_frequency[i] += 1;
+            }
+        }
+    }
+    let mut weights: Vec<u32> = document_frequency
+        .iter()
+        .map(|df| term_weight(regions.len(), *df))
+        .collect();
+    // A regra de raridade descarta termo sem poder discriminante, nunca toda a
+    // evidência: quando nenhum termo da consulta discrimina — o caso de um
+    // catálogo pequeno, em que qualquer termo está na maioria das regiões —
+    // todos os termos presentes voltam a valer o mesmo peso mínimo.
+    if weights.iter().all(|w| *w == 0) {
+        weights = document_frequency
             .iter()
-            .filter(|t| haystack.split(' ').any(|w| w == t.as_str()))
-            .count();
+            .map(|df| u32::from(*df > 0))
+            .collect();
+    }
+    let discriminating = weights.iter().filter(|w| **w > 0).count();
+
+    let mut hits: Vec<RegionMatch<'a>> = Vec::new();
+    for (region, fields) in regions.iter().zip(indexed.iter()) {
+        let mut textual = 0u32;
+        let mut matched_terms: Vec<String> = Vec::new();
+        for (i, term) in terms.iter().enumerate() {
+            if weights[i] == 0 {
+                continue;
+            }
+            let field_weight = fields.field_weight(term);
+            if field_weight == 0 {
+                continue;
+            }
+            textual += weights[i] * field_weight;
+            matched_terms.push(term.clone());
+        }
+        let coverage = matched_terms.len();
+        let mut score = textual;
+        // Cobrir todos os termos discriminantes é evidência melhor do que somar
+        // muito em um termo só.
+        if discriminating > 1 && coverage == discriminating {
+            score += textual / 2;
+        }
+        if fields.key_norm == q_canonical {
+            score += SCORE_KEY_EXACT;
+        } else if fields.key_norm.contains(&q_canonical) {
+            score += SCORE_KEY_CONTAINS_QUERY;
+        }
+        if fields.domain_norm == q_canonical || fields.layer_norm == q_canonical {
+            score += SCORE_DOMAIN_OR_LAYER_EQUALS_QUERY;
+        }
 
         if score > 0 {
-            hits.push((region, score, coverage));
+            hits.push(RegionMatch {
+                region,
+                score,
+                coverage,
+                terms_considered: discriminating,
+                matched_terms,
+            });
         }
     }
     hits.sort_by(|a, b| {
-        b.1.cmp(&a.1)
-            .then(b.2.cmp(&a.2))
-            .then(a.0.key.cmp(&b.0.key))
+        b.score
+            .cmp(&a.score)
+            .then(b.coverage.cmp(&a.coverage))
+            .then(a.region.key.cmp(&b.region.key))
     });
     hits
-}
-
-fn covers(haystack_norm: &str, terms: &[String]) -> bool {
-    if terms.is_empty() {
-        return false;
-    }
-    let words: Vec<&str> = haystack_norm.split(' ').filter(|w| !w.is_empty()).collect();
-    let matched = terms
-        .iter()
-        .filter(|t| words.iter().any(|w| *w == t.as_str()))
-        .count();
-    matched >= terms.len().div_ceil(2)
 }
 
 // ---------------------------------------------------------------------------
@@ -1588,10 +1727,16 @@ impl CodeCatalog {
     }
 
     pub fn search(&self, query: &str) -> Vec<&CodeRegion> {
-        score_regions(&self.regions, query)
+        self.search_ranked(query)
             .into_iter()
-            .map(|(r, _, _)| r)
+            .map(|hit| hit.region)
             .collect()
+    }
+
+    /// Mesma ordenação de `search`, preservando a evidência de relevância para
+    /// quem precisa mostrá-la ao agente.
+    pub fn search_ranked(&self, query: &str) -> Vec<RegionMatch<'_>> {
+        score_regions(&self.regions, query)
     }
 
     pub fn list(&self, selector: &str) -> Vec<&CodeRegion> {

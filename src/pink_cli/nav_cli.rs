@@ -347,7 +347,16 @@ fn load_code_catalog(repo_root: &Path) -> Result<nav::CodeCatalog, i32> {
     }
 }
 
-pub(super) fn run_nav_mostrar(repo_root: &Path, key: &str, json: bool) -> i32 {
+/// Orçamento de saída de `nav mostrar` (#672 T0-B). A unidade é a LINHA do
+/// corpo da região; `desde` é o deslocamento 1-based da primeira linha pedida.
+#[derive(Debug, Clone, Copy, Default)]
+pub(super) struct BodyBudget {
+    pub(super) resumo: bool,
+    pub(super) linhas: Option<usize>,
+    pub(super) desde: Option<usize>,
+}
+
+pub(super) fn run_nav_mostrar(repo_root: &Path, key: &str, json: bool, budget: BodyBudget) -> i32 {
     let catalog = match load_code_catalog(repo_root) {
         Ok(c) => c,
         Err(code) => return code,
@@ -385,7 +394,29 @@ pub(super) fn run_nav_mostrar(repo_root: &Path, key: &str, json: bool) -> i32 {
             return EXIT_SOURCE;
         }
     }
+    // A validação de fonte/âncora/hash acima é a MESMA em qualquer modo: o
+    // corpo pode ser recortado, a verificação nunca.
     let content = nav::extract_region_content(&source, region);
+    let total_lines = content.len();
+    let from = budget.desde.unwrap_or(1).max(1);
+    let skipped = (from - 1).min(total_lines);
+    let available = total_lines - skipped;
+    let shown_lines: &[String] = if budget.resumo {
+        &[]
+    } else {
+        let take = budget.linhas.unwrap_or(available).min(available);
+        &content[skipped..skipped + take]
+    };
+    // `resumo` não é truncamento: é uma resposta que declara não conter corpo.
+    // Truncamento é sobrar linha DEPOIS da janela devolvida; o prefixo pulado
+    // por `--desde` é declarado em `returned_from`, não escondido.
+    let truncated = !budget.resumo && skipped + shown_lines.len() < total_lines;
+    let next_line = if truncated {
+        Some(skipped + shown_lines.len() + 1)
+    } else {
+        None
+    };
+
     if json {
         let mut out = String::new();
         out.push_str("{\"schema\":1");
@@ -404,10 +435,24 @@ pub(super) fn run_nav_mostrar(repo_root: &Path, key: &str, json: bool) -> i32 {
         out.push_str(&format!(",\"content_start\":{}", region.content_start));
         out.push_str(&format!(",\"content_end\":{}", region.content_end));
         out.push_str(&format!(",\"hash\":{}", json_escape(&region.hash)));
-        out.push_str(&format!(
-            ",\"content\":{}",
-            json_escape(&content.join("\n"))
-        ));
+        if !region.summary.is_empty() {
+            out.push_str(&format!(",\"summary\":{}", json_escape(&region.summary)));
+        }
+        out.push_str(&format!(",\"verified\":{}", true));
+        out.push_str(&format!(",\"total_lines\":{}", total_lines));
+        out.push_str(&format!(",\"returned_from\":{}", skipped + 1));
+        out.push_str(&format!(",\"returned_lines\":{}", shown_lines.len()));
+        out.push_str(&format!(",\"body_included\":{}", !budget.resumo));
+        out.push_str(&format!(",\"truncated\":{}", truncated));
+        if let Some(next) = next_line {
+            out.push_str(&format!(",\"continuation_desde\":{}", next));
+        }
+        if !budget.resumo {
+            out.push_str(&format!(
+                ",\"content\":{}",
+                json_escape(&shown_lines.join("\n"))
+            ));
+        }
         out.push('}');
         println!("{out}");
     } else {
@@ -418,9 +463,24 @@ pub(super) fn run_nav_mostrar(repo_root: &Path, key: &str, json: bool) -> i32 {
         if !region.summary.is_empty() {
             println!("// {}", region.summary);
         }
+        if budget.resumo {
+            println!(
+                "// verificado: hash {} · {} linhas de corpo não incluídas (use `pink nav mostrar {}` para o corpo inteiro)",
+                region.hash, total_lines, region.key
+            );
+            return EXIT_OK;
+        }
         println!();
-        for line in &content {
+        for line in shown_lines {
             println!("{line}");
+        }
+        if truncated {
+            println!(
+                "// truncado: {} de {} linhas (continue com --desde {})",
+                shown_lines.len(),
+                total_lines,
+                next_line.unwrap_or(total_lines)
+            );
         }
     }
     EXIT_OK
@@ -431,30 +491,40 @@ pub(super) fn run_nav_buscar(
     consulta: &str,
     json: bool,
     limite: Option<usize>,
+    desde: Option<usize>,
 ) -> i32 {
     let catalog = match load_code_catalog(repo_root) {
         Ok(c) => c,
         Err(code) => return code,
     };
     let limit = clamp_limit(limite, LIMIT_DEFAULT_BUSCAR);
-    let hits = catalog.search(consulta);
-    if hits.is_empty() {
+    let hits = catalog.search_ranked(consulta);
+    let total = hits.len();
+    let offset = desde.unwrap_or(0).min(total);
+    let shown: Vec<&nav::RegionMatch> = hits.iter().skip(offset).take(limit).collect();
+    if shown.is_empty() {
         if json {
             println!(
-                "{{\"schema\":1,\"query\":{},\"normalized\":{},\"results\":[]}}",
+                "{{\"schema\":1,\"query\":{},\"normalized\":{},\"total_results\":{},\"returned_results\":0,\"offset\":{},\"limit\":{},\"truncated\":false,\"results\":[]}}",
                 json_escape(consulta),
-                json_escape(&pinker_v0::text_norm::normalize(consulta))
+                json_escape(&pinker_v0::text_norm::normalize(consulta)),
+                total,
+                offset,
+                limit
             );
         } else {
             eprintln!("Nenhuma região encontrada para: {consulta}");
         }
         return EXIT_NORESULT;
     }
-    let shown: Vec<&nav::CodeRegion> = hits.into_iter().take(limit).collect();
+    // O truncamento é declarado sempre que sobrou resultado depois da janela.
+    let truncated = offset + shown.len() < total;
+    let next_offset = offset + shown.len();
     if json {
         let results: Vec<String> = shown
             .iter()
-            .map(|r| {
+            .map(|hit| {
+                let r = hit.region;
                 let mut o = String::from("{");
                 o.push_str(&format!("\"key\":{}", json_escape(&r.key)));
                 if let Some(domain) = &r.domain {
@@ -469,18 +539,34 @@ pub(super) fn run_nav_buscar(
                 if !r.summary.is_empty() {
                     o.push_str(&format!(",\"summary\":{}", json_escape(&r.summary)));
                 }
+                o.push_str(&format!(",\"score\":{}", hit.score));
+                o.push_str(&format!(",\"coverage\":{}", hit.coverage));
+                o.push_str(&format!(",\"terms_considered\":{}", hit.terms_considered));
+                let terms: Vec<String> = hit.matched_terms.iter().map(|t| json_escape(t)).collect();
+                o.push_str(&format!(",\"matched_terms\":[{}]", terms.join(",")));
                 o.push('}');
                 o
             })
             .collect();
+        let mut tail = String::new();
+        if truncated {
+            tail.push_str(&format!(",\"continuation_desde\":{}", next_offset));
+        }
         println!(
-            "{{\"schema\":1,\"query\":{},\"normalized\":{},\"results\":[{}]}}",
+            "{{\"schema\":1,\"query\":{},\"normalized\":{},\"total_results\":{},\"returned_results\":{},\"offset\":{},\"limit\":{},\"truncated\":{}{},\"results\":[{}]}}",
             json_escape(consulta),
             json_escape(&pinker_v0::text_norm::normalize(consulta)),
+            total,
+            shown.len(),
+            offset,
+            limit,
+            truncated,
+            tail,
             results.join(",")
         );
     } else {
-        for region in shown {
+        for hit in &shown {
+            let region = hit.region;
             println!("{}", region.key);
             if !region.summary.is_empty() {
                 println!("   {}", region.summary);
@@ -489,6 +575,16 @@ pub(super) fn run_nav_buscar(
                 "   {}:{}-{}",
                 region.file, region.content_start, region.content_end
             );
+        }
+        if truncated {
+            println!(
+                "// {} de {} resultados (continue com --desde {})",
+                shown.len(),
+                total,
+                next_offset
+            );
+        } else {
+            println!("// {} de {} resultados", shown.len(), total);
         }
     }
     EXIT_OK
