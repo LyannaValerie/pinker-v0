@@ -58,6 +58,15 @@ impl Parser {
             (Type::ListEnum { element: lhs, .. }, Type::ListEnum { element: rhs, .. }) => {
                 lhs == rhs
             }
+            // A0-1 (HD-02): o handle opaco carrega a identidade nominal no
+            // próprio `name` nesta fase; duas evidências do mesmo handle
+            // concordam e handles nominalmente distintos continuam em
+            // conflito. Fica fora do grupo Alias|Struct|Enum de propósito:
+            // `generic_identity` já o codifica por tag própria e ele não
+            // participa daquela equivalência.
+            (Type::OpaqueHandle { name: lhs, .. }, Type::OpaqueHandle { name: rhs, .. }) => {
+                lhs == rhs
+            }
             (
                 Type::Map {
                     key: lhs_key,
