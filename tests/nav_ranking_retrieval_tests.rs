@@ -189,7 +189,7 @@ fn toda_chave_estavel_continua_recuperavel_em_primeiro_lugar() {
     let mut regressoes: Vec<&str> = Vec::new();
     for chave in &chaves {
         let hits = indice.search_ranked(chave);
-        match hits.first() {
+        match hits.hits.first() {
             Some(primeiro) if primeiro.region.key == *chave => {}
             _ => regressoes.push(chave),
         }
@@ -395,4 +395,95 @@ fn resumo_recusa_regiao_derivada_da_fonte() {
     assert!(!String::from_utf8_lossy(&resumo.stdout).contains("\"verified\":true"));
 
     fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn estrito_abstem_quando_o_catalogo_desconhece_o_vocabulario() {
+    let out = nav_real(&[
+        "buscar",
+        "coletor de lixo geracional do interpretador",
+        "--estrito",
+        "--json",
+    ]);
+    assert_eq!(
+        out.status.code(),
+        Some(4),
+        "abstenção usa o código de 'sem resultado': {}",
+        String::from_utf8_lossy(&out.stdout)
+    );
+    assert_eq!(json_field(&out.stdout, "abstained"), "true");
+    assert_eq!(
+        json_field(&out.stdout, "abstention_reason"),
+        "vocabulario_desconhecido"
+    );
+    assert!(ordered_keys(&out.stdout).is_empty());
+
+    // O comportamento padrão da MESMA consulta não mudou: continua devolvendo
+    // o que o ranqueamento encontrar, sem abstenção.
+    let padrao = nav_real(&["buscar", "coletor de lixo geracional do interpretador"]);
+    assert_eq!(padrao.status.code(), Some(0), "{}", stderr_de(&padrao));
+    assert!(!padrao.stdout.is_empty());
+}
+
+#[test]
+fn estrito_abstem_quando_nenhuma_regiao_cobre_a_consulta_inteira() {
+    // Todos os termos existem no catálogo; nenhuma região cobre todos eles.
+    let out = nav_real(&[
+        "buscar",
+        "contagem de referencias para liberar memoria",
+        "--estrito",
+        "--json",
+    ]);
+    assert_eq!(
+        out.status.code(),
+        Some(4),
+        "{}",
+        String::from_utf8_lossy(&out.stdout)
+    );
+    assert_eq!(json_field(&out.stdout, "abstained"), "true");
+    assert_eq!(
+        json_field(&out.stdout, "abstention_reason"),
+        "cobertura_insuficiente"
+    );
+
+    let padrao = nav_real(&["buscar", "contagem de referencias para liberar memoria"]);
+    assert_eq!(padrao.status.code(), Some(0), "{}", stderr_de(&padrao));
+}
+
+#[test]
+fn estrito_nao_rejeita_consulta_fraca_mas_valida() {
+    let casos = [
+        ("aleatorio", "runtime.aleatorio.gerador"),
+        (
+            "alinhamento e offsets de campos de struct",
+            "layout.tipos.memoria",
+        ),
+        ("normalizacao de consultas", "trama.consultas.normalizacao"),
+    ];
+    for (consulta, esperado) in casos {
+        let out = nav_real(&["buscar", consulta, "--estrito", "--json", "--limite", "5"]);
+        assert_eq!(
+            out.status.code(),
+            Some(0),
+            "modo estrito abstendo de consulta respondível '{consulta}': {}",
+            String::from_utf8_lossy(&out.stdout)
+        );
+        let keys = ordered_keys(&out.stdout);
+        assert_eq!(
+            keys.first().map(String::as_str),
+            Some(esperado),
+            "estrito devolveu {keys:?} para '{consulta}'"
+        );
+    }
+}
+
+#[test]
+fn estrito_pertence_somente_a_buscar() {
+    let out = nav_real(&["mostrar", "trama.consultas.normalizacao", "--estrito"]);
+    assert_eq!(out.status.code(), Some(2), "{}", stderr_de(&out));
+    assert!(stderr_de(&out).contains("--estrito"));
+}
+
+fn stderr_de(output: &Output) -> String {
+    String::from_utf8_lossy(&output.stderr).to_string()
 }

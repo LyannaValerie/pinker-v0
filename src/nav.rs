@@ -415,6 +415,7 @@ impl CodeIndex {
     /// Busca por chave, domínio, camada, resumo e caminho (prioridade §7.3).
     pub fn search(&self, query: &str) -> Vec<&CodeRegion> {
         score_regions(&self.regions, query)
+            .hits
             .into_iter()
             .map(|hit| hit.region)
             .collect()
@@ -489,6 +490,48 @@ const FIELD_WEIGHT_FILE: u32 = 2;
 const SCORE_KEY_EXACT: u32 = 100_000;
 const SCORE_KEY_CONTAINS_QUERY: u32 = 2_000;
 const SCORE_DOMAIN_OR_LAYER_EQUALS_QUERY: u32 = 800;
+
+/// O que o catálogo sabe sobre os termos de uma consulta. É evidência
+/// estrutural — frequência documental — e não estimativa de probabilidade.
+#[derive(Debug, Clone, Default)]
+pub struct QueryAnalysis {
+    /// Termos que o catálogo nunca viu (frequência documental zero). Um termo
+    /// desconhecido é o mais específico possível: nenhuma região o cobre.
+    pub unknown_terms: Vec<String>,
+    /// Termos com poder discriminante: nem desconhecidos, nem presentes na
+    /// maioria das regiões.
+    pub discriminating_terms: Vec<String>,
+}
+
+/// Resultado completo de uma busca ranqueada: o que foi entendido da consulta
+/// e as regiões ordenadas.
+#[derive(Debug, Clone)]
+pub struct RankedSearch<'a> {
+    pub analysis: QueryAnalysis,
+    pub hits: Vec<RegionMatch<'a>>,
+}
+
+impl RankedSearch<'_> {
+    /// Relevância estrita (#672): só sobrevive o resultado que cobre TODOS os
+    /// termos discriminantes. Devolve `None` quando a consulta traz vocabulário
+    /// que o catálogo desconhece — aí não há resultado estrito possível.
+    pub fn strict(&self) -> Option<Vec<&RegionMatch<'_>>> {
+        if !self.analysis.unknown_terms.is_empty() {
+            return None;
+        }
+        Some(
+            self.hits
+                .iter()
+                .filter(|hit| {
+                    self.analysis
+                        .discriminating_terms
+                        .iter()
+                        .all(|term| hit.matched_terms.contains(term))
+                })
+                .collect(),
+        )
+    }
+}
 
 /// Relevância observada de uma região para uma consulta, com a evidência que a
 /// produziu. A pontuação é heurística de ordenação — não é probabilidade.
@@ -591,10 +634,13 @@ fn term_weight(regions_total: usize, document_frequency: usize) -> u32 {
 /// Pontuação de código (§7.3 revisada — #672). Relação por termo e por campo,
 /// ponderada por raridade, preservando a prioridade de acesso direto por chave.
 /// Devolve as regiões ordenadas por (pontuação, cobertura, chave).
-fn score_regions<'a>(regions: &'a [CodeRegion], query: &str) -> Vec<RegionMatch<'a>> {
+fn score_regions<'a>(regions: &'a [CodeRegion], query: &str) -> RankedSearch<'a> {
     let q_norm = text_norm::normalize(query);
     if q_norm.is_empty() {
-        return Vec::new();
+        return RankedSearch {
+            analysis: QueryAnalysis::default(),
+            hits: Vec::new(),
+        };
     }
     // Termos distintos na ordem de aparição: repetir um termo não amplifica
     // relevância.
@@ -632,6 +678,20 @@ fn score_regions<'a>(regions: &'a [CodeRegion], query: &str) -> Vec<RegionMatch<
             .collect();
     }
     let discriminating = weights.iter().filter(|w| **w > 0).count();
+    let analysis = QueryAnalysis {
+        unknown_terms: terms
+            .iter()
+            .zip(document_frequency.iter())
+            .filter(|(_, df)| **df == 0)
+            .map(|(term, _)| term.clone())
+            .collect(),
+        discriminating_terms: terms
+            .iter()
+            .zip(weights.iter())
+            .filter(|(_, weight)| **weight > 0)
+            .map(|(term, _)| term.clone())
+            .collect(),
+    };
 
     let mut hits: Vec<RegionMatch<'a>> = Vec::new();
     for (region, fields) in regions.iter().zip(indexed.iter()) {
@@ -680,7 +740,7 @@ fn score_regions<'a>(regions: &'a [CodeRegion], query: &str) -> Vec<RegionMatch<
             .then(b.coverage.cmp(&a.coverage))
             .then(a.region.key.cmp(&b.region.key))
     });
-    hits
+    RankedSearch { analysis, hits }
 }
 
 // ---------------------------------------------------------------------------
@@ -1728,14 +1788,15 @@ impl CodeCatalog {
 
     pub fn search(&self, query: &str) -> Vec<&CodeRegion> {
         self.search_ranked(query)
+            .hits
             .into_iter()
             .map(|hit| hit.region)
             .collect()
     }
 
-    /// Mesma ordenação de `search`, preservando a evidência de relevância para
-    /// quem precisa mostrá-la ao agente.
-    pub fn search_ranked(&self, query: &str) -> Vec<RegionMatch<'_>> {
+    /// Mesma ordenação de `search`, preservando a evidência de relevância e o
+    /// que o catálogo entendeu da consulta.
+    pub fn search_ranked(&self, query: &str) -> RankedSearch<'_> {
         score_regions(&self.regions, query)
     }
 

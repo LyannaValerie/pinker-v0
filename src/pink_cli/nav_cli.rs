@@ -492,28 +492,75 @@ pub(super) fn run_nav_buscar(
     json: bool,
     limite: Option<usize>,
     desde: Option<usize>,
+    estrito: bool,
 ) -> i32 {
     let catalog = match load_code_catalog(repo_root) {
         Ok(c) => c,
         Err(code) => return code,
     };
     let limit = clamp_limit(limite, LIMIT_DEFAULT_BUSCAR);
-    let hits = catalog.search_ranked(consulta);
-    let total = hits.len();
+    let ranked = catalog.search_ranked(consulta);
+    // Relevância estrita é um recorte declarado sobre a MESMA ordenação: não
+    // reordena nada e não inventa confiança, apenas recusa o que não cobre a
+    // consulta inteira. Fora do modo estrito, nada muda.
+    let strict_hits = if estrito { ranked.strict() } else { None };
+    let abstention_reason = if estrito {
+        match &strict_hits {
+            None => Some("vocabulario_desconhecido"),
+            Some(hits) if hits.is_empty() => Some("cobertura_insuficiente"),
+            Some(_) => None,
+        }
+    } else {
+        None
+    };
+    let pool: Vec<&nav::RegionMatch> = match &strict_hits {
+        Some(hits) => hits.clone(),
+        None if estrito => Vec::new(),
+        None => ranked.hits.iter().collect(),
+    };
+    let total = pool.len();
     let offset = desde.unwrap_or(0).min(total);
-    let shown: Vec<&nav::RegionMatch> = hits.iter().skip(offset).take(limit).collect();
+    let shown: Vec<&nav::RegionMatch> = pool.iter().skip(offset).take(limit).copied().collect();
     if shown.is_empty() {
         if json {
+            let mut extra = String::new();
+            if estrito {
+                extra.push_str(",\"strict\":true");
+            }
+            if let Some(reason) = abstention_reason {
+                extra.push_str(",\"abstained\":true");
+                extra.push_str(&format!(",\"abstention_reason\":{}", json_escape(reason)));
+                if reason == "vocabulario_desconhecido" {
+                    let termos: Vec<String> = ranked
+                        .analysis
+                        .unknown_terms
+                        .iter()
+                        .map(|t| json_escape(t))
+                        .collect();
+                    extra.push_str(&format!(",\"unknown_terms\":[{}]", termos.join(",")));
+                }
+            }
             println!(
-                "{{\"schema\":1,\"query\":{},\"normalized\":{},\"total_results\":{},\"returned_results\":0,\"offset\":{},\"limit\":{},\"truncated\":false,\"results\":[]}}",
+                "{{\"schema\":1,\"query\":{},\"normalized\":{},\"total_results\":{},\"returned_results\":0,\"offset\":{},\"limit\":{},\"truncated\":false{},\"results\":[]}}",
                 json_escape(consulta),
                 json_escape(&pinker_v0::text_norm::normalize(consulta)),
                 total,
                 offset,
-                limit
+                limit,
+                extra
             );
         } else {
-            eprintln!("Nenhuma região encontrada para: {consulta}");
+            match abstention_reason {
+                Some("vocabulario_desconhecido") => eprintln!(
+                    "Nenhuma região relevante para: {consulta}\nO catálogo não conhece: {}",
+                    ranked.analysis.unknown_terms.join(", ")
+                ),
+                Some("cobertura_insuficiente") => eprintln!(
+                    "Nenhuma região relevante para: {consulta}\nNenhuma região cobre todos os termos: {}",
+                    ranked.analysis.discriminating_terms.join(", ")
+                ),
+                _ => eprintln!("Nenhuma região encontrada para: {consulta}"),
+            }
         }
         return EXIT_NORESULT;
     }
@@ -549,6 +596,9 @@ pub(super) fn run_nav_buscar(
             })
             .collect();
         let mut tail = String::new();
+        if estrito {
+            tail.push_str(",\"strict\":true");
+        }
         if truncated {
             tail.push_str(&format!(",\"continuation_desde\":{}", next_offset));
         }
