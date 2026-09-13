@@ -486,6 +486,35 @@ pub(super) fn run_nav_mostrar(repo_root: &Path, key: &str, json: bool, budget: B
     EXIT_OK
 }
 
+/// Campos de evidência do modo estrito: o denominador da cobertura, o limiar
+/// declarado como razão inteira e o vocabulário que o catálogo desconhece.
+/// Só aparecem com `--estrito`; a saída padrão fica byte a byte a mesma.
+fn strict_evidence_fields(ranked: &nav::RankedSearch<'_>) -> String {
+    let mut out = format!(
+        ",\"content_mass_total\":{},\"coverage_threshold_num\":2,\"coverage_threshold_den\":3",
+        ranked.total_content_mass
+    );
+    if !ranked.analysis.unknown_terms.is_empty() {
+        let termos: Vec<String> = ranked
+            .analysis
+            .unknown_terms
+            .iter()
+            .map(|t| json_escape(t))
+            .collect();
+        out.push_str(&format!(",\"unknown_terms\":[{}]", termos.join(",")));
+    }
+    if !ranked.analysis.phrasing_terms.is_empty() {
+        let termos: Vec<String> = ranked
+            .analysis
+            .phrasing_terms
+            .iter()
+            .map(|t| json_escape(t))
+            .collect();
+        out.push_str(&format!(",\"phrasing_terms\":[{}]", termos.join(",")));
+    }
+    out
+}
+
 pub(super) fn run_nav_buscar(
     repo_root: &Path,
     consulta: &str,
@@ -501,21 +530,12 @@ pub(super) fn run_nav_buscar(
     let limit = clamp_limit(limite, LIMIT_DEFAULT_BUSCAR);
     let ranked = catalog.search_ranked(consulta);
     // Relevância estrita é um recorte declarado sobre a MESMA ordenação: não
-    // reordena nada e não inventa confiança, apenas recusa o que não cobre a
-    // consulta inteira. Fora do modo estrito, nada muda.
-    let strict_hits = if estrito { ranked.strict() } else { None };
-    let abstention_reason = if estrito {
-        match &strict_hits {
-            None => Some("vocabulario_desconhecido"),
-            Some(hits) if hits.is_empty() => Some("cobertura_insuficiente"),
-            Some(_) => None,
-        }
-    } else {
-        None
-    };
-    let pool: Vec<&nav::RegionMatch> = match &strict_hits {
-        Some(hits) => hits.clone(),
-        None if estrito => Vec::new(),
+    // reordena nada e não inventa confiança, apenas recusa o candidato que não
+    // reúne evidência suficiente. Fora do modo estrito, nada muda.
+    let strict = if estrito { Some(ranked.strict()) } else { None };
+    let abstention_reason = strict.as_ref().and_then(|s| s.abstention_reason);
+    let pool: Vec<&nav::RegionMatch> = match &strict {
+        Some(selection) => selection.hits.clone(),
         None => ranked.hits.iter().collect(),
     };
     let total = pool.len();
@@ -530,15 +550,7 @@ pub(super) fn run_nav_buscar(
             if let Some(reason) = abstention_reason {
                 extra.push_str(",\"abstained\":true");
                 extra.push_str(&format!(",\"abstention_reason\":{}", json_escape(reason)));
-                if reason == "vocabulario_desconhecido" {
-                    let termos: Vec<String> = ranked
-                        .analysis
-                        .unknown_terms
-                        .iter()
-                        .map(|t| json_escape(t))
-                        .collect();
-                    extra.push_str(&format!(",\"unknown_terms\":[{}]", termos.join(",")));
-                }
+                extra.push_str(&strict_evidence_fields(&ranked));
             }
             println!(
                 "{{\"schema\":1,\"query\":{},\"normalized\":{},\"total_results\":{},\"returned_results\":0,\"offset\":{},\"limit\":{},\"truncated\":false{},\"results\":[]}}",
@@ -551,14 +563,22 @@ pub(super) fn run_nav_buscar(
             );
         } else {
             match abstention_reason {
-                Some("vocabulario_desconhecido") => eprintln!(
-                    "Nenhuma região relevante para: {consulta}\nO catálogo não conhece: {}",
-                    ranked.analysis.unknown_terms.join(", ")
+                Some("sem_termo_de_conteudo") => eprintln!(
+                    "Nenhuma região relevante para: {consulta}\nA consulta não tem termo de conteúdo: {}",
+                    ranked.analysis.phrasing_terms.join(", ")
                 ),
-                Some("cobertura_insuficiente") => eprintln!(
-                    "Nenhuma região relevante para: {consulta}\nNenhuma região cobre todos os termos: {}",
-                    ranked.analysis.discriminating_terms.join(", ")
-                ),
+                Some("evidencia_insuficiente") => {
+                    eprintln!(
+                        "Nenhuma região relevante para: {consulta}\nNenhuma região cobre dois terços da evidência da consulta (massa {}).",
+                        ranked.total_content_mass
+                    );
+                    if !ranked.analysis.unknown_terms.is_empty() {
+                        eprintln!(
+                            "O catálogo não conhece: {}",
+                            ranked.analysis.unknown_terms.join(", ")
+                        );
+                    }
+                }
                 _ => eprintln!("Nenhuma região encontrada para: {consulta}"),
             }
         }
@@ -591,6 +611,14 @@ pub(super) fn run_nav_buscar(
                 o.push_str(&format!(",\"terms_considered\":{}", hit.terms_considered));
                 let terms: Vec<String> = hit.matched_terms.iter().map(|t| json_escape(t)).collect();
                 o.push_str(&format!(",\"matched_terms\":[{}]", terms.join(",")));
+                if estrito {
+                    // Evidência auditável do recorte estrito, em inteiros: o
+                    // leitor reconstrói cobertura e suporte sem ponto flutuante.
+                    o.push_str(&format!(
+                        ",\"content_mass_matched\":{},\"structural_mass_matched\":{}",
+                        hit.matched_content_mass, hit.structural_mass
+                    ));
+                }
                 o.push('}');
                 o
             })
@@ -598,6 +626,7 @@ pub(super) fn run_nav_buscar(
         let mut tail = String::new();
         if estrito {
             tail.push_str(",\"strict\":true");
+            tail.push_str(&strict_evidence_fields(&ranked));
         }
         if truncated {
             tail.push_str(&format!(",\"continuation_desde\":{}", next_offset));

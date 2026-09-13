@@ -398,56 +398,173 @@ fn resumo_recusa_regiao_derivada_da_fonte() {
 }
 
 #[test]
-fn estrito_abstem_quando_o_catalogo_desconhece_o_vocabulario() {
-    let out = nav_real(&[
-        "buscar",
-        "coletor de lixo geracional do interpretador",
-        "--estrito",
-        "--json",
-    ]);
-    assert_eq!(
-        out.status.code(),
-        Some(4),
-        "abstenção usa o código de 'sem resultado': {}",
-        String::from_utf8_lossy(&out.stdout)
-    );
-    assert_eq!(json_field(&out.stdout, "abstained"), "true");
-    assert_eq!(
-        json_field(&out.stdout, "abstention_reason"),
-        "vocabulario_desconhecido"
-    );
-    assert!(ordered_keys(&out.stdout).is_empty());
+fn estrito_abstem_quando_o_gabarito_diz_que_nao_ha_destino() {
+    // ANSWERABILITY VEM DO GABARITO, NUNCA DA POLÍTICA. As duas consultas
+    // abaixo são "sem resposta" porque NENHUMA região do catálogo é autoridade
+    // sobre o assunto — nem mesmo uma que PROVE a ausência da capacidade:
+    //   - "macro de expansao sintatica": src/parser/mod.rs tem onze regiões e
+    //     nenhuma é autoridade sobre expansão sintática;
+    //   - "inferencia de tempo de vida de referencia": as sete regiões de
+    //     src/semantic.rs tratam escopos, funções, módulos e importações;
+    //     nenhuma trata tempo de vida ou empréstimo.
+    // O critério é o catálogo, não o veredito do modo estrito.
+    for consulta in [
+        "macro de expansao sintatica",
+        "inferencia de tempo de vida de referencia",
+    ] {
+        let out = nav_real(&["buscar", consulta, "--estrito", "--json"]);
+        assert_eq!(
+            out.status.code(),
+            Some(4),
+            "abstenção usa o código de 'sem resultado' em '{consulta}': {}",
+            String::from_utf8_lossy(&out.stdout)
+        );
+        assert_eq!(json_field(&out.stdout, "abstained"), "true");
+        assert_eq!(
+            json_field(&out.stdout, "abstention_reason"),
+            "evidencia_insuficiente"
+        );
+        assert!(ordered_keys(&out.stdout).is_empty());
 
-    // O comportamento padrão da MESMA consulta não mudou: continua devolvendo
-    // o que o ranqueamento encontrar, sem abstenção.
-    let padrao = nav_real(&["buscar", "coletor de lixo geracional do interpretador"]);
-    assert_eq!(padrao.status.code(), Some(0), "{}", stderr_de(&padrao));
-    assert!(!padrao.stdout.is_empty());
+        // O comportamento padrão da MESMA consulta não mudou: continua
+        // devolvendo o que o ranqueamento encontrar, sem abstenção.
+        let padrao = nav_real(&["buscar", consulta]);
+        assert_eq!(padrao.status.code(), Some(0), "{}", stderr_de(&padrao));
+        assert!(!padrao.stdout.is_empty());
+    }
 }
 
 #[test]
-fn estrito_abstem_quando_nenhuma_regiao_cobre_a_consulta_inteira() {
-    // Todos os termos existem no catálogo; nenhuma região cobre todos eles.
-    let out = nav_real(&[
+fn estrito_nao_confunde_fraseado_com_conteudo() {
+    // Palavra de classe fechada do português ("onde", "os", "e", "como", "da")
+    // é fraseado: não vira evidência obrigatória. Substantivo, adjetivo e verbo
+    // lexical ("rotulos", "saltos", "validos", "arvore", "indentada", "ficam")
+    // continuam sendo conteúdo. As duas consultas são respondíveis pelo
+    // gabarito e precisam sobreviver.
+    for (consulta, esperado) in [
+        (
+            "onde ficam os rotulos e saltos validos",
+            "machine.validacao.invariantes",
+        ),
+        (
+            "impressao da ast como arvore indentada",
+            "printer.ast.renderizacao",
+        ),
+        (
+            "identidade da fonte no diagnostico",
+            "diagnostico.fonte.identidade",
+        ),
+    ] {
+        let out = nav_real(&["buscar", consulta, "--estrito", "--json", "--limite", "5"]);
+        assert_eq!(
+            out.status.code(),
+            Some(0),
+            "modo estrito abstendo de consulta respondível '{consulta}': {}",
+            String::from_utf8_lossy(&out.stdout)
+        );
+        assert_eq!(
+            ordered_keys(&out.stdout).first().map(String::as_str),
+            Some(esperado),
+            "estrito devolveu {:?} para '{consulta}'",
+            ordered_keys(&out.stdout)
+        );
+    }
+}
+
+#[test]
+fn conteudo_material_sem_suporte_nao_e_ignorado() {
+    // Controle complementar: tolerar fraseado NÃO pode virar licença para
+    // ignorar conteúdo. A mesma consulta que sobrevive ganha material que o
+    // catálogo não sustenta ("coletor de lixo geracional") e precisa cair.
+    let base = nav_real(&[
         "buscar",
-        "contagem de referencias para liberar memoria",
+        "onde ficam os rotulos e saltos validos",
+        "--estrito",
+        "--json",
+    ]);
+    assert_eq!(base.status.code(), Some(0), "{}", stderr_de(&base));
+
+    let poluida = nav_real(&[
+        "buscar",
+        "onde ficam os rotulos e saltos validos do coletor de lixo geracional",
         "--estrito",
         "--json",
     ]);
     assert_eq!(
+        poluida.status.code(),
+        Some(4),
+        "conteúdo material sem suporte foi ignorado: {}",
+        String::from_utf8_lossy(&poluida.stdout)
+    );
+    assert_eq!(
+        json_field(&poluida.stdout, "abstention_reason"),
+        "evidencia_insuficiente"
+    );
+}
+
+#[test]
+fn termo_desconhecido_nao_renormaliza_o_denominador() {
+    // Se a cobertura fosse renormalizada só sobre os termos encontrados, uma
+    // consulta com muitos termos desconhecidos e um termo genérico conhecido
+    // teria cobertura aparente de 100%. A penalidade é finita, mas fica no
+    // denominador.
+    let consulta =
+        "jit tracos quentes agendador threads geracional assimetrica webassembly macro catalogo";
+    let out = nav_real(&["buscar", consulta, "--estrito", "--json"]);
+    assert_eq!(
         out.status.code(),
         Some(4),
-        "{}",
+        "cobertura aparente de 100% com vocabulário desconhecido: {}",
         String::from_utf8_lossy(&out.stdout)
     );
-    assert_eq!(json_field(&out.stdout, "abstained"), "true");
     assert_eq!(
         json_field(&out.stdout, "abstention_reason"),
-        "cobertura_insuficiente"
+        "evidencia_insuficiente"
     );
+    // O denominador declarado inclui a massa dos termos desconhecidos.
+    let total: u32 = json_field(&out.stdout, "content_mass_total")
+        .parse()
+        .unwrap();
+    assert!(total >= 90, "denominador renormalizado: {total}");
+}
 
-    let padrao = nav_real(&["buscar", "contagem de referencias para liberar memoria"]);
-    assert_eq!(padrao.status.code(), Some(0), "{}", stderr_de(&padrao));
+#[test]
+fn acesso_exato_por_chave_resolve_antes_da_estimativa() {
+    // Consultar um identificador estável é recuperação determinística: não pode
+    // depender de estimativa de evidência.
+    let out = nav_real(&[
+        "buscar",
+        "trama.consultas.normalizacao",
+        "--estrito",
+        "--json",
+    ]);
+    assert_eq!(out.status.code(), Some(0), "{}", stderr_de(&out));
+    assert_eq!(
+        ordered_keys(&out.stdout).first().map(String::as_str),
+        Some("trama.consultas.normalizacao")
+    );
+}
+
+#[test]
+fn campos_do_modo_estrito_nao_vazam_para_o_padrao() {
+    let padrao = nav_real(&["buscar", "normalizacao de consultas", "--json"]);
+    let texto = String::from_utf8_lossy(&padrao.stdout);
+    for campo in [
+        "\"strict\"",
+        "\"abstained\"",
+        "\"abstention_reason\"",
+        "\"content_mass_total\"",
+        "\"content_mass_matched\"",
+        "\"structural_mass_matched\"",
+        "\"coverage_threshold_num\"",
+        "\"phrasing_terms\"",
+        "\"unknown_terms\"",
+    ] {
+        assert!(
+            !texto.contains(campo),
+            "campo do modo estrito vazou para o padrão: {campo}"
+        );
+    }
 }
 
 #[test]
@@ -459,6 +576,11 @@ fn estrito_nao_rejeita_consulta_fraca_mas_valida() {
             "layout.tipos.memoria",
         ),
         ("normalizacao de consultas", "trama.consultas.normalizacao"),
+        ("ledger de mudancas dos manifestos", "trama.mudancas.ledger"),
+        (
+            "fronteira freestanding do boot",
+            "boot.geracao.fronteira-freestanding",
+        ),
     ];
     for (consulta, esperado) in casos {
         let out = nav_real(&["buscar", consulta, "--estrito", "--json", "--limite", "5"]);

@@ -378,10 +378,13 @@ fn nav_usage(binary: &str) -> String {
                        páginas, a página seguinte é de outro estado.\n\
            --resumo    mostrar devolve só o resumo verificado, sem corpo\n\
            --linhas N  mostrar limita o corpo a N linhas e declara o truncamento\n\
-           --estrito   buscar só devolve região que cobre todos os termos\n\
-                       discriminantes da consulta, e nada quando a consulta traz\n\
-                       termo que o catálogo desconhece. Sem resultado relevante\n\
-                       sai com 4, o mesmo código de 'sem resultado'.\n\
+           --estrito   buscar só devolve região que cobre pelo menos dois\n\
+                       terços da massa de termos de conteúdo da consulta.\n\
+                       Termo que o catálogo desconhece pesa no denominador e\n\
+                       nunca é coberto; palavra de fraseado do português não\n\
+                       conta como conteúdo; chave exata resolve antes. Sem\n\
+                       resultado relevante sai com 4, o mesmo código de\n\
+                       'sem resultado'.\n\
          \n\
          Códigos de saída: 0 sucesso · 2 uso inválido · 3 catálogo ausente/inválido\n\
                            · 4 sem resultado · 5 fonte/âncora ou drift\n\
