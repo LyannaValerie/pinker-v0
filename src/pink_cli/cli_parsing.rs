@@ -316,7 +316,6 @@ fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String>
     let mut desde: Option<usize> = None;
     let mut linhas: Option<usize> = None;
     let mut resumo = false;
-    let mut estrito = false;
     let mut subcommand: Option<String> = None;
     let mut positionals: Vec<String> = Vec::new();
     let mut i = 0usize;
@@ -402,7 +401,6 @@ fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String>
                 limite = Some(value);
             }
             "--resumo" => resumo = true,
-            "--estrito" => estrito = true,
             "--desde" => {
                 i += 1;
                 if i >= args.len() {
@@ -486,12 +484,6 @@ fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String>
             nav_usage(binary)
         ));
     }
-    if estrito && subcommand != "buscar" {
-        return Err(format!(
-            "A opção '--estrito' pertence a nav buscar.\n\n{}",
-            nav_usage(binary)
-        ));
-    }
     if desde.is_some() && subcommand != "mostrar" && subcommand != "buscar" {
         return Err(format!(
             "A opção '--desde' pertence a nav mostrar e nav buscar.\n\n{}",
@@ -522,7 +514,6 @@ fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String>
             NavSub::Buscar {
                 consulta: positionals.join(" "),
                 desde,
-                estrito,
             }
         }
         "localizar" => {

@@ -415,7 +415,6 @@ impl CodeIndex {
     /// Busca por chave, domínio, camada, resumo e caminho (prioridade §7.3).
     pub fn search(&self, query: &str) -> Vec<&CodeRegion> {
         score_regions(&self.regions, query)
-            .hits
             .into_iter()
             .map(|hit| hit.region)
             .collect()
@@ -491,125 +490,6 @@ const SCORE_KEY_EXACT: u32 = 100_000;
 const SCORE_KEY_CONTAINS_QUERY: u32 = 2_000;
 const SCORE_DOMAIN_OR_LAYER_EQUALS_QUERY: u32 = 800;
 
-/// Fração mínima da massa de termos de conteúdo que um candidato precisa
-/// cobrir para sobreviver ao modo estrito (#672). É razão INTEIRA exata: a
-/// comparação é `casada * 3 >= total * 2`, sem ponto flutuante, coerente com o
-/// resto da relação de relevância.
-const STRICT_COVERAGE_NUM: u32 = 2;
-const STRICT_COVERAGE_DEN: u32 = 3;
-
-/// Palavras de classe gramatical FECHADA do português — artigos, preposições e
-/// suas contrações, conjunções, pronomes, interrogativos e verbos
-/// copulativos/auxiliares. Inventário finito e não produtivo da língua: o
-/// critério é gramatical, não estatístico e não específico deste repositório.
-/// Nenhum substantivo, adjetivo ou verbo lexical entra aqui — "arvore",
-/// "indentada", "estrutura", "formato", "ficam", "ocupa", "acontece" e
-/// "decide" são termos de CONTEÚDO e continuam valendo massa.
-/// Ordenada para busca binária.
-const PT_CLOSED_CLASS: &[&str] = &[
-    "a", "ao", "aos", "apos", "aquela", "aquele", "aquilo", "as", "ate", "cade", "com", "como",
-    "conforme", "contra", "da", "das", "de", "desde", "do", "dos", "durante", "e", "ela", "elas",
-    "ele", "eles", "em", "embora", "enquanto", "entre", "era", "eram", "essa", "esse", "esta",
-    "estao", "estar", "estava", "este", "eu", "foi", "foram", "haver", "havia", "isso", "isto",
-    "lhe", "lhes", "mas", "me", "meu", "minha", "na", "nas", "nem", "no", "nos", "o", "onde", "os",
-    "ou", "para", "pela", "pelas", "pelo", "pelos", "pois", "por", "porem", "porque", "quais",
-    "qual", "quando", "quanta", "quantas", "quanto", "quantos", "que", "quem", "sao", "se", "sem",
-    "sendo", "ser", "seu", "sob", "sobre", "sua", "te", "tu", "um", "uma", "umas", "uns", "vos",
-];
-
-/// Um termo de fraseado não é termo de conteúdo: sai do numerador E do
-/// denominador da cobertura. Não é lista de ruído por consulta, subsistema ou
-/// capacidade — é a classe fechada da língua.
-fn is_phrasing_term(term: &str) -> bool {
-    PT_CLOSED_CLASS.binary_search(&term).is_ok()
-}
-
-/// Penalidade FINITA e explícita do termo que o catálogo desconhece: a massa
-/// que o termo mais raro possível teria (frequência documental 1). Não é veto
-/// infinito e não é peso zero — entra no denominador da cobertura e nunca pode
-/// ser casada, então limita a cobertura por cima de forma proporcional a
-/// quantos termos desconhecidos a consulta trouxe.
-fn unknown_term_mass(regions_total: usize) -> u32 {
-    if regions_total == 0 {
-        return 0;
-    }
-    1 + regions_total.ilog2()
-}
-
-/// O que o catálogo sabe sobre os termos de uma consulta. É evidência
-/// estrutural — frequência documental — e não estimativa de probabilidade.
-#[derive(Debug, Clone, Default)]
-pub struct QueryAnalysis {
-    /// Termos que o catálogo nunca viu (frequência documental zero). Um termo
-    /// desconhecido é o mais específico possível: nenhuma região o cobre.
-    pub unknown_terms: Vec<String>,
-    /// Termos com poder discriminante: nem desconhecidos, nem presentes na
-    /// maioria das regiões.
-    pub discriminating_terms: Vec<String>,
-    /// Termos de fraseado (classe fechada do português) descartados da
-    /// contabilidade de evidência.
-    pub phrasing_terms: Vec<String>,
-}
-
-/// Resultado completo de uma busca ranqueada: o que foi entendido da consulta
-/// e as regiões ordenadas.
-#[derive(Debug, Clone)]
-pub struct RankedSearch<'a> {
-    pub analysis: QueryAnalysis,
-    pub hits: Vec<RegionMatch<'a>>,
-    /// Massa total dos termos de CONTEÚDO da consulta: o denominador da
-    /// cobertura. Inclui a penalidade dos termos desconhecidos e exclui os
-    /// termos de fraseado. Nunca é renormalizada só sobre os termos
-    /// encontrados — renormalizar deixaria "nove termos desconhecidos mais um
-    /// termo genérico conhecido" parecer cobertura total.
-    pub total_content_mass: u32,
-}
-
-/// Recorte estrito sobre a MESMA ordenação, com a razão da abstenção quando
-/// nenhum candidato reúne evidência suficiente.
-#[derive(Debug)]
-pub struct StrictSelection<'a> {
-    pub hits: Vec<&'a RegionMatch<'a>>,
-    pub abstention_reason: Option<&'static str>,
-}
-
-impl RankedSearch<'_> {
-    /// Evidência estrita (#672): a busca estima SUFICIÊNCIA DE EVIDÊNCIA, não
-    /// semântica. Sobrevive o candidato que cobre pelo menos dois terços da
-    /// massa de termos de conteúdo da consulta.
-    ///
-    /// Acesso exato por chave, domínio ou camada resolve ANTES: consultar um
-    /// identificador estável é recuperação determinística e nunca pode virar
-    /// estimativa de evidência.
-    pub fn strict(&self) -> StrictSelection<'_> {
-        if self.hits.iter().any(|hit| hit.direct_access) {
-            return StrictSelection {
-                hits: self.hits.iter().collect(),
-                abstention_reason: None,
-            };
-        }
-        if self.total_content_mass == 0 {
-            return StrictSelection {
-                hits: Vec::new(),
-                abstention_reason: Some("sem_termo_de_conteudo"),
-            };
-        }
-        let hits: Vec<&RegionMatch<'_>> = self
-            .hits
-            .iter()
-            .filter(|hit| {
-                hit.matched_content_mass * STRICT_COVERAGE_DEN
-                    >= self.total_content_mass * STRICT_COVERAGE_NUM
-            })
-            .collect();
-        let abstention_reason = hits.is_empty().then_some("evidencia_insuficiente");
-        StrictSelection {
-            hits,
-            abstention_reason,
-        }
-    }
-}
-
 /// Relevância observada de uma região para uma consulta, com a evidência que a
 /// produziu. A pontuação é heurística de ordenação — não é probabilidade.
 #[derive(Debug, Clone)]
@@ -621,16 +501,6 @@ pub struct RegionMatch<'a> {
     /// Quantos termos com poder discriminante a consulta tinha.
     pub terms_considered: usize,
     pub matched_terms: Vec<String>,
-    /// Massa de termos de conteúdo que esta região cobre — numerador da
-    /// cobertura ponderada.
-    pub matched_content_mass: u32,
-    /// Parte dessa massa que casa na IDENTIDADE da região (chave, domínio ou
-    /// caminho) e não só na prosa do resumo. É evidência de localização
-    /// reportada para auditoria; não é preferência por camada nenhuma.
-    pub structural_mass: u32,
-    /// A consulta canônica é exatamente a chave, o domínio ou a camada desta
-    /// região: acesso direto, resolvido antes de qualquer estimativa.
-    pub direct_access: bool,
 }
 
 /// Campos indexados de uma região para uma consulta.
@@ -639,7 +509,6 @@ struct RegionFields {
     domain_norm: String,
     layer_norm: String,
     key: Vec<String>,
-    domain: Vec<String>,
     domain_layer: Vec<String>,
     summary: Vec<String>,
     file: Vec<String>,
@@ -658,12 +527,10 @@ impl RegionFields {
             .as_deref()
             .map(text_norm::normalize)
             .unwrap_or_default();
-        let domain = tokens(&domain_norm);
-        let mut domain_layer = domain.clone();
+        let mut domain_layer = tokens(&domain_norm);
         domain_layer.extend(tokens(&layer_norm));
         RegionFields {
             key: tokens(&key_norm),
-            domain,
             domain_layer,
             summary: tokens(&text_norm::normalize(&region.summary)),
             file: tokens(&text_norm::normalize(&region.file)),
@@ -678,13 +545,6 @@ impl RegionFields {
             || has(&self.domain_layer, term)
             || has(&self.summary, term)
             || has(&self.file, term)
-    }
-
-    /// O termo casa na identidade da região — chave, domínio ou caminho — e não
-    /// só no resumo. Camada é deliberadamente omitida: usá-la aqui seria
-    /// confundir evidência de localização com preferência por camada.
-    fn structural_match(&self, term: &str) -> bool {
-        has(&self.key, term) || has(&self.domain, term) || has(&self.file, term)
     }
 
     /// Soma dos pesos dos campos em que o termo aparece como palavra inteira.
@@ -731,14 +591,10 @@ fn term_weight(regions_total: usize, document_frequency: usize) -> u32 {
 /// Pontuação de código (§7.3 revisada — #672). Relação por termo e por campo,
 /// ponderada por raridade, preservando a prioridade de acesso direto por chave.
 /// Devolve as regiões ordenadas por (pontuação, cobertura, chave).
-fn score_regions<'a>(regions: &'a [CodeRegion], query: &str) -> RankedSearch<'a> {
+fn score_regions<'a>(regions: &'a [CodeRegion], query: &str) -> Vec<RegionMatch<'a>> {
     let q_norm = text_norm::normalize(query);
     if q_norm.is_empty() {
-        return RankedSearch {
-            analysis: QueryAnalysis::default(),
-            hits: Vec::new(),
-            total_content_mass: 0,
-        };
+        return Vec::new();
     }
     // Termos distintos na ordem de aparição: repetir um termo não amplifica
     // relevância.
@@ -776,51 +632,11 @@ fn score_regions<'a>(regions: &'a [CodeRegion], query: &str) -> RankedSearch<'a>
             .collect();
     }
     let discriminating = weights.iter().filter(|w| **w > 0).count();
-    // Massa de evidência por termo de CONTEÚDO (usada só pelo recorte estrito;
-    // a ordenação padrão continua decidida por `weights`). O termo de fraseado
-    // vale zero porque não é conteúdo; o desconhecido vale a penalidade finita
-    // e fica no denominador sem nunca poder ser casado.
-    let unknown_mass = unknown_term_mass(regions.len());
-    let content_mass: Vec<u32> = terms
-        .iter()
-        .enumerate()
-        .map(|(i, term)| {
-            if is_phrasing_term(term) {
-                0
-            } else if document_frequency[i] == 0 {
-                unknown_mass
-            } else {
-                weights[i]
-            }
-        })
-        .collect();
-    let total_content_mass: u32 = content_mass.iter().sum();
-    let analysis = QueryAnalysis {
-        unknown_terms: terms
-            .iter()
-            .zip(document_frequency.iter())
-            .filter(|(_, df)| **df == 0)
-            .map(|(term, _)| term.clone())
-            .collect(),
-        discriminating_terms: terms
-            .iter()
-            .zip(weights.iter())
-            .filter(|(_, weight)| **weight > 0)
-            .map(|(term, _)| term.clone())
-            .collect(),
-        phrasing_terms: terms
-            .iter()
-            .filter(|term| is_phrasing_term(term))
-            .cloned()
-            .collect(),
-    };
 
     let mut hits: Vec<RegionMatch<'a>> = Vec::new();
     for (region, fields) in regions.iter().zip(indexed.iter()) {
         let mut textual = 0u32;
         let mut matched_terms: Vec<String> = Vec::new();
-        let mut matched_content_mass = 0u32;
-        let mut structural_mass = 0u32;
         for (i, term) in terms.iter().enumerate() {
             if weights[i] == 0 {
                 continue;
@@ -831,10 +647,6 @@ fn score_regions<'a>(regions: &'a [CodeRegion], query: &str) -> RankedSearch<'a>
             }
             textual += weights[i] * field_weight;
             matched_terms.push(term.clone());
-            matched_content_mass += content_mass[i];
-            if fields.structural_match(term) {
-                structural_mass += content_mass[i];
-            }
         }
         let coverage = matched_terms.len();
         let mut score = textual;
@@ -851,9 +663,6 @@ fn score_regions<'a>(regions: &'a [CodeRegion], query: &str) -> RankedSearch<'a>
         if fields.domain_norm == q_canonical || fields.layer_norm == q_canonical {
             score += SCORE_DOMAIN_OR_LAYER_EQUALS_QUERY;
         }
-        let direct_access = fields.key_norm == q_canonical
-            || fields.domain_norm == q_canonical
-            || fields.layer_norm == q_canonical;
 
         if score > 0 {
             hits.push(RegionMatch {
@@ -862,9 +671,6 @@ fn score_regions<'a>(regions: &'a [CodeRegion], query: &str) -> RankedSearch<'a>
                 coverage,
                 terms_considered: discriminating,
                 matched_terms,
-                matched_content_mass,
-                structural_mass,
-                direct_access,
             });
         }
     }
@@ -874,11 +680,7 @@ fn score_regions<'a>(regions: &'a [CodeRegion], query: &str) -> RankedSearch<'a>
             .then(b.coverage.cmp(&a.coverage))
             .then(a.region.key.cmp(&b.region.key))
     });
-    RankedSearch {
-        analysis,
-        hits,
-        total_content_mass,
-    }
+    hits
 }
 
 // ---------------------------------------------------------------------------
@@ -1926,15 +1728,14 @@ impl CodeCatalog {
 
     pub fn search(&self, query: &str) -> Vec<&CodeRegion> {
         self.search_ranked(query)
-            .hits
             .into_iter()
             .map(|hit| hit.region)
             .collect()
     }
 
-    /// Mesma ordenação de `search`, preservando a evidência de relevância e o
-    /// que o catálogo entendeu da consulta.
-    pub fn search_ranked(&self, query: &str) -> RankedSearch<'_> {
+    /// Mesma ordenação de `search`, preservando a evidência de relevância para
+    /// quem precisa mostrá-la ao agente.
+    pub fn search_ranked(&self, query: &str) -> Vec<RegionMatch<'_>> {
         score_regions(&self.regions, query)
     }
 
@@ -2102,41 +1903,6 @@ pub fn validate_region(source: &str, region: &CodeRegion) -> RegionCheck {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// `is_phrasing_term` usa busca binária: a lista precisa estar ordenada e
-    /// sem repetição, ou um termo de fraseado passaria a contar como conteúdo.
-    #[test]
-    fn lexico_de_fraseado_esta_ordenado_e_sem_repeticao() {
-        for par in PT_CLOSED_CLASS.windows(2) {
-            assert!(
-                par[0] < par[1],
-                "léxico fora de ordem ou repetido: {:?} antes de {:?}",
-                par[0],
-                par[1]
-            );
-        }
-        for termo in PT_CLOSED_CLASS {
-            assert!(is_phrasing_term(termo), "não encontrou {termo:?}");
-        }
-        // Substantivo, adjetivo e verbo lexical NÃO são fraseado.
-        for termo in [
-            "arvore",
-            "indentada",
-            "estrutura",
-            "formato",
-            "ficam",
-            "ocupa",
-            "acontece",
-            "decide",
-            "estoura",
-            "tempo",
-        ] {
-            assert!(
-                !is_phrasing_term(termo),
-                "{termo:?} foi tratado como fraseado"
-            );
-        }
-    }
 
     fn temp_src(name: &str) -> PathBuf {
         let now = std::time::SystemTime::now()

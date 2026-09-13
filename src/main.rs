@@ -188,7 +188,6 @@ enum NavSub {
     Buscar {
         consulta: String,
         desde: Option<usize>,
-        estrito: bool,
     },
     Localizar {
         symbol: String,
@@ -378,13 +377,6 @@ fn nav_usage(binary: &str) -> String {
                        páginas, a página seguinte é de outro estado.\n\
            --resumo    mostrar devolve só o resumo verificado, sem corpo\n\
            --linhas N  mostrar limita o corpo a N linhas e declara o truncamento\n\
-           --estrito   buscar só devolve região que cobre pelo menos dois\n\
-                       terços da massa de termos de conteúdo da consulta.\n\
-                       Termo que o catálogo desconhece pesa no denominador e\n\
-                       nunca é coberto; palavra de fraseado do português não\n\
-                       conta como conteúdo; chave exata resolve antes. Sem\n\
-                       resultado relevante sai com 4, o mesmo código de\n\
-                       'sem resultado'.\n\
          \n\
          Códigos de saída: 0 sucesso · 2 uso inválido · 3 catálogo ausente/inválido\n\
                            · 4 sem resultado · 5 fonte/âncora ou drift\n\
@@ -659,18 +651,9 @@ fn run_nav(config: NavConfigCli) -> i32 {
     let repo_root = Path::new(&config.repo);
     match config.sub {
         NavSub::Mostrar { key, budget } => run_nav_mostrar(repo_root, &key, config.json, budget),
-        NavSub::Buscar {
-            consulta,
-            desde,
-            estrito,
-        } => run_nav_buscar(
-            repo_root,
-            &consulta,
-            config.json,
-            config.limite,
-            desde,
-            estrito,
-        ),
+        NavSub::Buscar { consulta, desde } => {
+            run_nav_buscar(repo_root, &consulta, config.json, config.limite, desde)
+        }
         NavSub::Localizar { symbol } => run_nav_localizar(repo_root, &symbol, config.json),
         NavSub::CoberturaDiff => run_nav_cobertura_diff(repo_root, config.json),
         NavSub::Impacto { diff } => run_nav_impacto(repo_root, &diff, config.json),
