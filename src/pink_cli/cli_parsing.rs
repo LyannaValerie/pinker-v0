@@ -313,6 +313,9 @@ fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String>
     let mut predecessor: Option<String> = None;
     let mut autorizar: Option<String> = None;
     let mut diff: Option<String> = None;
+    let mut desde: Option<usize> = None;
+    let mut linhas: Option<usize> = None;
+    let mut resumo = false;
     let mut subcommand: Option<String> = None;
     let mut positionals: Vec<String> = Vec::new();
     let mut i = 0usize;
@@ -397,6 +400,41 @@ fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String>
                 })?;
                 limite = Some(value);
             }
+            "--resumo" => resumo = true,
+            "--desde" => {
+                i += 1;
+                if i >= args.len() {
+                    return Err(format!(
+                        "Flag '--desde' requer um valor.\n\n{}",
+                        nav_usage(binary)
+                    ));
+                }
+                let raw = &args[i];
+                desde = Some(raw.parse::<usize>().map_err(|_| {
+                    format!(
+                        "Valor de '--desde' inválido: '{}'\n\n{}",
+                        raw,
+                        nav_usage(binary)
+                    )
+                })?);
+            }
+            "--linhas" => {
+                i += 1;
+                if i >= args.len() {
+                    return Err(format!(
+                        "Flag '--linhas' requer um valor.\n\n{}",
+                        nav_usage(binary)
+                    ));
+                }
+                let raw = &args[i];
+                linhas = Some(raw.parse::<usize>().map_err(|_| {
+                    format!(
+                        "Valor de '--linhas' inválido: '{}'\n\n{}",
+                        raw,
+                        nav_usage(binary)
+                    )
+                })?);
+            }
             _ if arg.starts_with('-') => {
                 return Err(format!(
                     "Flag desconhecida no comando nav: '{}'\n\n{}",
@@ -440,11 +478,28 @@ fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String>
         Ok(())
     };
 
+    if (resumo || linhas.is_some()) && subcommand != "mostrar" {
+        return Err(format!(
+            "As opções '--resumo' e '--linhas' pertencem a nav mostrar.\n\n{}",
+            nav_usage(binary)
+        ));
+    }
+    if desde.is_some() && subcommand != "mostrar" && subcommand != "buscar" {
+        return Err(format!(
+            "A opção '--desde' pertence a nav mostrar e nav buscar.\n\n{}",
+            nav_usage(binary)
+        ));
+    }
     let has_projection_options =
         observado || justificativa.is_some() || predecessor.is_some() || autorizar.is_some();
     let sub = match subcommand.as_str() {
         "mostrar" => NavSub::Mostrar {
             key: require_one("mostrar")?,
+            budget: nav_cli::BodyBudget {
+                resumo,
+                linhas,
+                desde,
+            },
         },
         "listar" => NavSub::Listar {
             seletor: require_one("listar")?,
@@ -458,6 +513,7 @@ fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String>
             }
             NavSub::Buscar {
                 consulta: positionals.join(" "),
+                desde,
             }
         }
         "localizar" => {

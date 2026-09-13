@@ -181,13 +181,27 @@ struct DocConfigCli {
 
 /// Subcomando de `pink nav` (Trama Pinker — Etapa 3, navegação do código).
 enum NavSub {
-    Mostrar { key: String },
-    Buscar { consulta: String },
-    Localizar { symbol: String },
+    Mostrar {
+        key: String,
+        budget: nav_cli::BodyBudget,
+    },
+    Buscar {
+        consulta: String,
+        desde: Option<usize>,
+    },
+    Localizar {
+        symbol: String,
+    },
     CoberturaDiff,
-    Impacto { diff: String },
-    Listar { seletor: String },
-    Mapa { filtro: Option<String> },
+    Impacto {
+        diff: String,
+    },
+    Listar {
+        seletor: String,
+    },
+    Mapa {
+        filtro: Option<String>,
+    },
     Sincronizar,
     Verificar,
     Projecao(ProjectionSub),
@@ -342,7 +356,7 @@ fn nav_usage(binary: &str) -> String {
            nav         navegação semântica do código da Trama Pinker\n\
          \n\
          Subcomandos:\n\
-           mostrar CHAVE       extrai a região de código pela chave\n\
+           mostrar CHAVE       extrai a região de código pela chave (sempre verificada)\n\
            buscar CONSULTA     busca regiões por chave, domínio, camada, resumo\n\
            localizar SÍMBOLO   resolve identidade estrutural e vínculos explícitos\n\
            cobertura-diff      relaciona unified diff de stdin a superfícies explícitas\n\
@@ -357,6 +371,12 @@ fn nav_usage(binary: &str) -> String {
            --repo      raiz do repositório (padrão: .)\n\
            --json      saída estável em JSON (mostrar/buscar/localizar/cobertura-diff/impacto/listar/mapa)\n\
            --limite N  máximo de resultados (1..20; buscar=10)\n\
+           --desde N   continuação determinística: buscar pula N resultados;\n\
+                       mostrar começa na linha N do corpo. A continuação vale\n\
+                       para o mesmo catálogo/fonte; se eles mudarem entre as\n\
+                       páginas, a página seguinte é de outro estado.\n\
+           --resumo    mostrar devolve só o resumo verificado, sem corpo\n\
+           --linhas N  mostrar limita o corpo a N linhas e declara o truncamento\n\
          \n\
          Códigos de saída: 0 sucesso · 2 uso inválido · 3 catálogo ausente/inválido\n\
                            · 4 sem resultado · 5 fonte/âncora ou drift\n\
@@ -630,9 +650,9 @@ fn scan_code(repo_root: &Path) -> nav::CodeIndex {
 fn run_nav(config: NavConfigCli) -> i32 {
     let repo_root = Path::new(&config.repo);
     match config.sub {
-        NavSub::Mostrar { key } => run_nav_mostrar(repo_root, &key, config.json),
-        NavSub::Buscar { consulta } => {
-            run_nav_buscar(repo_root, &consulta, config.json, config.limite)
+        NavSub::Mostrar { key, budget } => run_nav_mostrar(repo_root, &key, config.json, budget),
+        NavSub::Buscar { consulta, desde } => {
+            run_nav_buscar(repo_root, &consulta, config.json, config.limite, desde)
         }
         NavSub::Localizar { symbol } => run_nav_localizar(repo_root, &symbol, config.json),
         NavSub::CoberturaDiff => run_nav_cobertura_diff(repo_root, config.json),
