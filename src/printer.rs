@@ -1,10 +1,10 @@
-use crate::ast::*;
-use crate::token::Span;
-
 // @pinker-nav:start printer.ast.renderizacao
 // @pinker-nav:domain ast
 // @pinker-nav:layer printer
 // @pinker-nav:summary Renderiza a AST como árvore textual indentada (itens, funções, blocos, comandos, expressões e tipos) para inspeção humana via `--ast`; a variante `--json-ast` delega ao serializador da própria AST.
+use crate::ast::*;
+use crate::token::Span;
+
 pub fn render_program(program: &Program) -> String {
     let mut out = String::new();
     render_program_into(program, 0, &mut out);
@@ -601,6 +601,10 @@ fn line(out: &mut String, indent: usize, text: &str) {
 }
 // @pinker-nav:end printer.ast.renderizacao
 
+// @pinker-nav:start evidencia.printer.ponteiro-de-funcao
+// @pinker-nav:domain printer
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Provas da Fase 245 no printer: o tipo ponteiro de funcao e formatado de modo que o reparse devolve o mesmo tipo sem ambiguidade, e a forma sem retorno e impressa sem seta de retorno.
 #[cfg(test)]
 mod phase245_tests {
     use super::*;
@@ -649,3 +653,4 @@ mod phase245_tests {
         assert_eq!(format_type(&ty), "seta<carinho(u8)>");
     }
 }
+// @pinker-nav:end evidencia.printer.ponteiro-de-funcao

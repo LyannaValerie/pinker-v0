@@ -1,10 +1,10 @@
+// @pinker-nav:start parser.comandos.bloco
+// @pinker-nav:domain comandos
+// @pinker-nav:layer parser
+// @pinker-nav:summary Blocos e comandos: reconhece `{ ... }`, declarações locais (`nova`/`muda`), atribuições, `mimo` (retorno), `talvez`/`senao`, laços (`sempre`/`repetir`), `quebrar`/`continuar`, `falar` e asm inline, produzindo `ast::Block`/`ast::Stmt`.
 use super::*;
 
 impl Parser {
-    // @pinker-nav:start parser.comandos.bloco
-    // @pinker-nav:domain comandos
-    // @pinker-nav:layer parser
-    // @pinker-nav:summary Blocos e comandos: reconhece `{ ... }`, declarações locais (`nova`/`muda`), atribuições, `mimo` (retorno), `talvez`/`senao`, laços (`sempre`/`repetir`), `quebrar`/`continuar`, `falar` e asm inline, produzindo `ast::Block`/`ast::Stmt`.
     pub(super) fn parse_block(&mut self) -> Result<Block, PinkerError> {
         let start_span = self.consume(TokenKind::LBrace, "{")?.span;
         self.function_value_scopes.push(HashMap::new());
@@ -464,6 +464,5 @@ impl Parser {
             span: merge_span(expr.span, self.previous().span),
         }))
     }
-
-    // @pinker-nav:end parser.comandos.bloco
 }
+// @pinker-nav:end parser.comandos.bloco

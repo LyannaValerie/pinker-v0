@@ -235,6 +235,11 @@ fn o_pai_inclui_o_irmao() {
 /// subi-la para o topo deixaria os três verdes e cegos para toda a produção
 /// que ficou no pai. A declaração `mod render_abi;` é produção e vive acima do
 /// corte, junto do resto.
+///
+/// Marcador `@pinker-nav` não conta: ele é cartografia, não produção, e a T1
+/// (#675) exige que a declaração do irmão esteja dentro de alguma região, o
+/// que obriga um `@pinker-nav:end` depois dela. O que o oráculo protege é que
+/// nenhuma PRODUÇÃO desça para baixo do corte.
 #[test]
 fn o_corte_dos_oraculos_no_primeiro_cfg_test_ainda_ve_a_producao_inteira() {
     let pai = fonte("backend_s.rs");
@@ -244,7 +249,7 @@ fn o_corte_dos_oraculos_no_primeiro_cfg_test_ainda_ve_a_producao_inteira() {
     let depois: String = pai[corte..]
         .lines()
         .map(str::trim)
-        .filter(|linha| !linha.is_empty())
+        .filter(|linha| !linha.is_empty() && !linha.starts_with("// @pinker-nav:"))
         .collect::<Vec<_>>()
         .join(" ");
     assert_eq!(

@@ -1,5 +1,9 @@
 //! Modelos semânticos e renderização da superfície `pink nav projecao`.
 
+// @pinker-nav:start trama.projecoes.relatorios
+// @pinker-nav:domain projecoes
+// @pinker-nav:layer relatorios
+// @pinker-nav:summary Relatórios versionados da CLI de projeções: inventário, definição versus observado, verificação composta com causas raiz e dependentes bloqueados, e resumos de plano/apply derivados dos mesmos modelos para texto humano e JSON determinísticos sem paths absolutos.
 use crate::automation::{ApplyReport, ChangeKind, CheckReport};
 use crate::nav::CodeRegion;
 use crate::nav_projection_lifecycle::{
@@ -11,11 +15,6 @@ use crate::nav_projection_snapshot::{
 };
 use crate::nav_projection_store::{ArtifactError, ProjectionStore, StoredSnapshot};
 use std::collections::{BTreeMap, BTreeSet};
-
-// @pinker-nav:start trama.projecoes.relatorios
-// @pinker-nav:domain projecoes
-// @pinker-nav:layer relatorios
-// @pinker-nav:summary Relatórios versionados da CLI de projeções: inventário, definição versus observado, verificação composta com causas raiz e dependentes bloqueados, e resumos de plano/apply derivados dos mesmos modelos para texto humano e JSON determinísticos sem paths absolutos.
 
 #[derive(Debug, Clone)]
 pub struct VerificationItem {

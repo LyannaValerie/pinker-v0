@@ -159,6 +159,10 @@
 //! continua sendo de `backend_s` e não é exigido da entrada sintética; e o
 //! guard léxico da suíte de integração permanece `SUPPLEMENTAL_ONLY`.
 
+// @pinker-nav:start evidencia.internas.oraculo-metamorfico
+// @pinker-nav:domain contrato
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Oraculo metamorfico do contrato de operacoes internas: muta o fato canonico e exige que todo consumidor relevante observe a mutacao, fechando por execucao a classe de reimplementacao local que um censo textual nao alcanca.
 use super::contract_seam::MutatedContract;
 use super::registro::Gravacao;
 use super::{
@@ -3728,3 +3732,4 @@ fn a_mutacao_e_local_a_thread_e_termina_com_o_guarda() {
     }
     assert_eq!(super::aridade(TERNARIA), antes);
 }
+// @pinker-nav:end evidencia.internas.oraculo-metamorfico

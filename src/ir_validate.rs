@@ -8,6 +8,10 @@
 //!
 //! Ponto de entrada: [`validate_program`].
 
+// @pinker-nav:start ir.validacao.invariantes
+// @pinker-nav:domain validacao
+// @pinker-nav:layer ir
+// @pinker-nav:summary Valida os invariantes da IR estruturada antes do lowering para CFG: constantes globais bem tipadas, bloco de entrada e slots únicos por função, e comandos/expressões com tipos compatíveis via inferência recursiva.
 use crate::error::PinkerError;
 use crate::internal_operations::{InternalOperands, InternalResult, MapOperandRole};
 use crate::ir::{
@@ -22,10 +26,6 @@ struct FunctionSig {
     params: Vec<TypeIR>,
 }
 
-// @pinker-nav:start ir.validacao.invariantes
-// @pinker-nav:domain validacao
-// @pinker-nav:layer ir
-// @pinker-nav:summary Valida os invariantes da IR estruturada antes do lowering para CFG: constantes globais bem tipadas, bloco de entrada e slots únicos por função, e comandos/expressões com tipos compatíveis via inferência recursiva.
 /// Confere a metadata publicada das variantes de `leque` (D1).
 ///
 /// A defesa é repetida aqui, em vez de confiar no lowering, porque é

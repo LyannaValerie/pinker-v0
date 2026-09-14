@@ -1,15 +1,14 @@
 //! Plano imutável, sua serialização canônica e o digest que o autoriza.
 
+// @pinker-nav:start automation.plano.modelo
+// @pinker-nav:domain plano
+// @pinker-nav:layer automation
+// @pinker-nav:summary Modelo imutável do plano efêmero: payload opaco com limite explícito por target, target repo-relativo com estado desejado opcional (ausência significa remoção) e construtor que valida schema, produtor, allowlist, duplicidade e o limite somado do plano antes de existir qualquer instância.
 use super::path::{Allowlist, RelativePath};
 use super::{
     json_string, Failure, HarnessCause, PolicyCause, AUTOMATION_SCHEMA, MAX_PLAN_BYTES,
     MAX_TARGET_BYTES,
 };
-
-// @pinker-nav:start automation.plano.modelo
-// @pinker-nav:domain plano
-// @pinker-nav:layer automation
-// @pinker-nav:summary Modelo imutável do plano efêmero: payload opaco com limite explícito por target, target repo-relativo com estado desejado opcional (ausência significa remoção) e construtor que valida schema, produtor, allowlist, duplicidade e o limite somado do plano antes de existir qualquer instância.
 
 /// Conteúdo desejado de um target.
 ///
@@ -259,6 +258,10 @@ impl Plan {
 }
 // @pinker-nav:end automation.plano.serializacao
 
+// @pinker-nav:start evidencia.automacao.plano-canonico
+// @pinker-nav:domain automacao
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Provas da forma canonica do plano: a ordem de declaracao dos alvos nao muda a forma canonica, o payload entra no digest e a remocao aparece como null na forma canonica em vez de sumir.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -312,3 +315,4 @@ mod tests {
         assert!(plano.to_canonical_json().contains("\"desired\":null"));
     }
 }
+// @pinker-nav:end evidencia.automacao.plano-canonico

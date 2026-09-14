@@ -76,6 +76,10 @@
 //! A chave de busca é sempre a tabela CANÔNICA, nunca a célula instalada: o
 //! contrafactual move a decisão do consumidor, não o vocabulário do oráculo.
 
+// @pinker-nav:start evidencia.mapas.especializacao-oraculo-metamorfico
+// @pinker-nav:domain mapas
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Prova por execucao de que cada consumidor real deriva a celula de especializacao de mapa da autoridade U-02: detecta tanto a fase que escolhe a celula errada quanto a que escolhe a celula certa por conta propria, fechando a classe que o censo textual deixa aberta.
 use super::{
     monomorphic_public_spelling, CanonicalMapClass, GenericMapOperation, CANONICAL_MAP_CLASSES,
     GENERIC_MAP_OPERATIONS,
@@ -641,3 +645,4 @@ fn o_relatorio_da_grade_nomeia_cada_realizacao() {
         );
     }
 }
+// @pinker-nav:end evidencia.mapas.especializacao-oraculo-metamorfico

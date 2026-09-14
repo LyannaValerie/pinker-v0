@@ -3,16 +3,15 @@
 //! Human e JSON recebem exclusivamente [`ProjectState`]. Nenhum renderer
 //! consulta autoridades, recalcula overall ou executa I/O.
 
+// @pinker-nav:start project-state.renderizacao
+// @pinker-nav:domain estado
+// @pinker-nav:layer relatorios
+// @pinker-nav:summary Renderers humano e JSON determinísticos derivados exclusivamente de ProjectState, com ordem fixa, UTF-8, paths repo-relativos e ausência de ANSI, timestamps e root absoluto.
 use crate::project_state::{
     AuthorityAvailability, Diagnostic, DocumentationState, DomainDetails, DomainState, Finding,
     LocalCheck, PendingOperation, ProjectState, ProjectionCause, ProjectionItem, ProjectionsState,
     RepositoryState, Source, TramaState,
 };
-
-// @pinker-nav:start project-state.renderizacao
-// @pinker-nav:domain estado
-// @pinker-nav:layer relatorios
-// @pinker-nav:summary Renderers humano e JSON determinísticos derivados exclusivamente de ProjectState, com ordem fixa, UTF-8, paths repo-relativos e ausência de ANSI, timestamps e root absoluto.
 
 pub fn render_json(state: &ProjectState) -> String {
     let domains = state
@@ -394,6 +393,10 @@ fn json_string(value: &str) -> String {
 
 // @pinker-nav:end project-state.renderizacao
 
+// @pinker-nav:start evidencia.estado.relatorio-json
+// @pinker-nav:domain estado
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Prova de que o escape JSON do relatorio de estado cobre caracteres de controle e nao emite sequencia ANSI, preservando saida legivel por maquina.
 #[cfg(test)]
 mod tests {
     use super::json_string;
@@ -403,3 +406,4 @@ mod tests {
         assert_eq!(json_string("a\n\"b"), "\"a\\n\\\"b\"");
     }
 }
+// @pinker-nav:end evidencia.estado.relatorio-json

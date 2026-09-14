@@ -22,6 +22,10 @@
 //! decide vencedor por conta própria — é isso que impede `--check` e o lowering
 //! de discordarem sobre o mesmo programa.
 
+// @pinker-nav:start tratos.despacho.selecao
+// @pinker-nav:domain tratos
+// @pinker-nav:layer semantica
+// @pinker-nav:summary Autoridade unica da selecao de metodo de impl: dados candidatos ja construidos por uma fase, decide qual implementacao concreta vence e qual representante responde, sem opinar sobre identidade de metodo, alcance de trato, materializacao de corpo default, span, diagnostico ou lowering.
 use crate::module_resolve::{nivel_de_despacho, NivelDeDespacho, TratosNoDespacho};
 use crate::source_map::SourceId;
 use crate::token::Span;
@@ -148,3 +152,4 @@ pub fn select_representative<T>(
         (None, _) => RepresentativeSelection::Selected(0),
     }
 }
+// @pinker-nav:end tratos.despacho.selecao

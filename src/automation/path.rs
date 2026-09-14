@@ -8,12 +8,11 @@
 //! A separação é deliberada: um path lexicalmente válido ainda pode ser
 //! inseguro no disco, e prometer o contrário aqui seria enganoso.
 
-use super::{PolicyCause, MAX_PATH_LEN};
-
 // @pinker-nav:start automation.paths.politica-lexical
 // @pinker-nav:domain paths
 // @pinker-nav:layer automation
 // @pinker-nav:summary Política lexical de paths repo-relativos (rejeita vazio, absoluto, travessia, componente degenerado, barra invertida, caractere de controle e excesso de comprimento) e allowlist lógica em memória, ordenada e sem duplicatas — sem qualquer acesso ao filesystem, cujo confinamento real pertence ao estágio de apply.
+use super::{PolicyCause, MAX_PATH_LEN};
 
 /// Um path repo-relativo já validado lexicalmente.
 ///
@@ -118,6 +117,10 @@ impl Allowlist {
 }
 // @pinker-nav:end automation.paths.politica-lexical
 
+// @pinker-nav:start evidencia.automacao.caminhos
+// @pinker-nav:domain automacao
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Provas da politica lexica de caminho: aceita caminho repo-relativo bem formado, rejeita as formas invalidas (absoluto, travessia, componente estranho) e a allowlist e canonica e independe da ordem de declaracao.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -163,3 +166,4 @@ mod tests {
         assert!(!a.permits(&RelativePath::new("c.md").unwrap()));
     }
 }
+// @pinker-nav:end evidencia.automacao.caminhos

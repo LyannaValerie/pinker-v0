@@ -42,6 +42,10 @@
 //! simulados: não há apply, então não há `APPLIED`, `NO_CHANGE` operacional,
 //! `STALE_PLAN`, `IO_FAILURE` nem falha posterior à escrita.
 
+// @pinker-nav:start automation.contrato.resultados
+// @pinker-nav:domain contrato
+// @pinker-nav:layer automation
+// @pinker-nav:summary Contrato de resultados do núcleo de automação: outcomes de domínio (MATCH, DRIFT, APPLIED, NO_CHANGE), falhas operacionais separadas (HARNESS_FAILURE, POLICY_VIOLATION, STALE_PLAN, IO_FAILURE, VERIFY_AFTER_APPLY_FAILURE) e NEEDS_HUMAN_DECISION como estado decisório que nunca substitui a causa; o estágio puro só produz Match, Drift, HarnessFailure e PolicyViolation.
 pub mod compare;
 pub mod fsio;
 pub mod path;
@@ -61,11 +65,6 @@ pub use report::{
 pub use root::{RepoRoot, ROOT_MARKER};
 
 use std::fmt;
-
-// @pinker-nav:start automation.contrato.resultados
-// @pinker-nav:domain contrato
-// @pinker-nav:layer automation
-// @pinker-nav:summary Contrato de resultados do núcleo de automação: outcomes de domínio (MATCH, DRIFT, APPLIED, NO_CHANGE), falhas operacionais separadas (HARNESS_FAILURE, POLICY_VIOLATION, STALE_PLAN, IO_FAILURE, VERIFY_AFTER_APPLY_FAILURE) e NEEDS_HUMAN_DECISION como estado decisório que nunca substitui a causa; o estágio puro só produz Match, Drift, HarnessFailure e PolicyViolation.
 
 /// Versão do schema do plano e dos relatórios.
 pub const AUTOMATION_SCHEMA: u64 = 1;
@@ -438,6 +437,10 @@ pub const RECOVERY_PROCEDURE: &str =
 /// seus módulos: não há autoridade pública a reutilizar, e promover uma delas
 /// mudaria a superfície de outro domínio para acomodar este. A cópia é declarada
 /// e coberta por teste de escaping.
+// @pinker-nav:start evidencia.automacao.limites-e-decisao
+// @pinker-nav:domain automacao
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Provas do nucleo de automacao: os limites publicados sao exatamente os valores aprovados, somente MATCH e drift sao alcancaveis pelo nucleo puro, e a decisao nao substitui a causa no relatorio.
 pub(crate) fn json_string(value: &str) -> String {
     let mut out = String::with_capacity(value.len() + 2);
     out.push('"');
@@ -489,3 +492,4 @@ mod tests {
         );
     }
 }
+// @pinker-nav:end evidencia.automacao.limites-e-decisao

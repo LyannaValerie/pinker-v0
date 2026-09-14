@@ -21,12 +21,11 @@
 //! `pinker_v0::nav_projection_snapshot::parse` e `::validate_rules` continuam
 //! sendo os mesmos caminhos públicos de antes.
 
-use super::*;
-
 // @pinker-nav:start trama.snapshots.parser
 // @pinker-nav:domain snapshots
 // @pinker-nav:layer trama
 // @pinker-nav:summary Parser TOML estrito do snapshot: aceita apenas tabelas conhecidas, rejeita chave desconhecida, chave duplicada, seção duplicada, string incompleta, escape não suportado, dado residual após o valor, número negativo e overflow, e aplica em seguida toda a validação estrutural e semântica do schema, incluindo o orçamento e a validação por campo do fato histórico materializado.
+use super::*;
 
 /// Valor escalar aceito pelo subconjunto TOML.
 #[derive(Debug, Clone, PartialEq, Eq)]

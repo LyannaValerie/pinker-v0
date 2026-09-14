@@ -8,12 +8,12 @@
 //! junto do `main` que o define. Este irmão o enxerga por escopo textual,
 //! porque o `mod` que o declara está abaixo da definição da macro.
 
-use super::*;
-
 // @pinker-nav:start cli.analise.pipeline
 // @pinker-nav:domain analise
 // @pinker-nav:layer cli
 // @pinker-nav:summary run_analyze lê o arquivo de entrada, registra-o como unidade-fonte primária no SourceMap para que todo span nasça vinculado, e conduz o pipeline de análise: tokeniza, parseia, compõe os módulos preservando a unidade (carregar_e_projetar, que devolve o programa projetado e o grafo resolvido), roda a verificação semântica ciente da composição (semantic::check_program_composto, que recebe os tratos visíveis por fonte) e, conforme as flags do Config, cada etapa a jusante (IR, CFG IR, seleção de instruções, máquina abstrata, backend `.s` textual, execução via interpretador, backend pseudo-asm) só é computada se alguma flag de saída a exigir (`needs_ir`/`needs_cfg`/`needs_selected`/`needs_machine`); a falha ao ler o arquivo é tratada diretamente com `eprintln!` e `process::exit(1)`, enquanto erros Pinker das etapas de tokenização, parsing, importação, semântica e lowerings são tratados por `try_or_exit!`; esta função não monta nem linka um binário — a emissão `--asm-s` é apenas texto impresso, e `--run` executa via interpreter::run_program_with_args, não via processo nativo.
+use super::*;
+
 pub(super) fn run_analyze(config: Config) {
     let source = match fs::read_to_string(&config.input) {
         Ok(source) => source,

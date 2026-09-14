@@ -1,10 +1,10 @@
-use crate::token::{Span, TokenKind};
-use std::collections::HashSet;
-
 // @pinker-nav:start ast.programa.estrutura
 // @pinker-nav:domain programa
 // @pinker-nav:layer ast
 // @pinker-nav:summary Estrutura de topo do programa na AST: pacote, imports e itens (funções, structs, enums, tratos/impl, aliases e constantes), cada declaração com seu span e serialização JSON. `FunctionDecl` transporta dois fatos que o nome não pode responder: `impl_facts`, que diz de qual alvo de `impl` o método é, e — desde a #592 — `trait_default_body`, fonte única de que a função foi materializada a partir de um corpo default de trato, com o papel operacional (`SelectedAsImpl`, `CheckOnly`, `Dependency`) e a grafia do trato declarante. O corpo materializado pertence à unidade que DECLAROU o trato, e é o fato, não o prefixo do nome sintético, que diz isso à resolução modular; a distinção de papel existe porque só o primeiro entra em `method_index`/vtable, só o segundo é endereçado por conteúdo, e o terceiro nem é método.
+use crate::token::{Span, TokenKind};
+use std::collections::HashSet;
+
 #[derive(Debug, Clone)]
 pub struct Program {
     pub package: Option<PackageDecl>,

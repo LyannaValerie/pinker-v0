@@ -200,6 +200,10 @@ fn parse_com_prefixo(name: &str, prefixo: &str) -> Option<(String, String, Strin
 
 // @pinker-nav:end tratos.metodos.identidade
 
+// @pinker-nav:start evidencia.metodos.identidade
+// @pinker-nav:domain metodos
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Provas da identidade de metodo: o transporte provisorio e injetivo mesmo para componentes que contem sublinhado, o corpo sintetico reconhece as duas formas e preserva o prefixo, e tratos homonimos de unidades distintas nao compartilham a checagem de default.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -241,3 +245,4 @@ mod tests {
         );
     }
 }
+// @pinker-nav:end evidencia.metodos.identidade

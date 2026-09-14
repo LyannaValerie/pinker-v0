@@ -36,6 +36,10 @@
 //! `schema = 2` pertence ao formato de **snapshot**, que foi quem ganhou
 //! composição.
 
+// @pinker-nav:start trama.snapshots.receita
+// @pinker-nav:domain snapshots
+// @pinker-nav:layer trama
+// @pinker-nav:summary Receita de reconstrução: autoridade reutilizável e mínima para as transformações intermediárias que não possuem medida histórica própria, sem medidas, sem estado e sem predecessor, capaz de compor apenas outras receitas e nunca snapshots, com versionamento próprio independente do formato de snapshot, e sem autoridade para afirmar fato histórico — materializar região pertence só ao snapshot.
 use crate::nav::CodeRegion;
 use crate::nav_projection_snapshot::{
     apply_rules, build_rule, measure, optional_list, parse_raw, reject_unknown, render_rule_body,
@@ -66,11 +70,6 @@ pub const RECIPE_SCHEMA: u64 = RECIPE_SCHEMA_V3;
 
 /// Diretório repo-relativo canônico das receitas.
 pub const RECIPES_DIR: &str = ".pinker/projections/recipes/";
-
-// @pinker-nav:start trama.snapshots.receita
-// @pinker-nav:domain snapshots
-// @pinker-nav:layer trama
-// @pinker-nav:summary Receita de reconstrução: autoridade reutilizável e mínima para as transformações intermediárias que não possuem medida histórica própria, sem medidas, sem estado e sem predecessor, capaz de compor apenas outras receitas e nunca snapshots, com versionamento próprio independente do formato de snapshot, e sem autoridade para afirmar fato histórico — materializar região pertence só ao snapshot.
 
 /// Uma transformação reutilizável, sem identidade histórica.
 #[derive(Debug, Clone, PartialEq, Eq)]

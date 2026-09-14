@@ -1,11 +1,11 @@
 //! Identidade estreita e injetiva de callables anônimos.
 
-use crate::source_origin::SourceOrigin;
-
 // @pinker-nav:start identidades.anonima-callable
 // @pinker-nav:domain identidade
 // @pinker-nav:layer compilador
 // @pinker-nav:summary Codifica a identidade estrutural e injetiva de callables anônimos a partir da proveniência canônica da fonte e do índice local do parser, renderizando integralmente os bytes sob o namespace sintético reservado. Desde a #567 há uma segunda forma, para a closure COPIADA numa materialização de corpo default de trato: ela carrega as duas proveniências — a da closure, que é a unidade onde o default foi escrito, e a da materialização, que é a unidade que escreveu o `impl` e conta o índice. As duas são necessárias e por razões distintas: sem a primeira a cópia se apresentaria como coisa do importador; sem a segunda dois importadores cunhariam o mesmo nome, porque índice local só é injetivo dentro de quem o conta. Nenhuma grafia de trato, alvo ou método participa.
+use crate::source_origin::SourceOrigin;
+
 const FORMAT_MAGIC: &[u8] = b"pinker-anonymous-callable-v1";
 const MATERIALIZED_DEFAULT_FORMAT_MAGIC: &[u8] = b"pinker-materialized-default-closure-v1";
 pub const ANONYMOUS_CALLABLE_PREFIX: &str = "__anon_carinho_";

@@ -8,6 +8,19 @@
 //! concluindo a Onda 6. Onda 7 cartografa as superfícies operacionais:
 //! `src/main.rs` (camada `cli`), `src/editor_tui.rs` (camada `editor`) e
 //! `src/boot.rs` (camada `boot`).
+//!
+//! # Recenseamento da T1 (#675)
+//!
+//! A T1 acrescentou 31 regiões ao catálogo corrente: as 24 lacunas de produção
+//! que o gate de cobertura tornou visíveis e a unidade reparou, as duas
+//! primitivas de enumeração e de relevância de `src/nav.rs`, as quatro regiões
+//! de `src/nav_coverage.rs` e a região de evidência de
+//! `tests/nav_coverage_tests.rs`. Dessas, 18 nascem na camada `evidencia`.
+//!
+//! Por isso todo total desta suíte sobe exatamente +31, e todo total restrito
+//! à camada `evidencia` sobe exatamente +18. Nenhum outro literal mudou: os
+//! conjuntos de chaves esperadas, os metadados congelados e os filtros
+//! históricos continuam como estavam.
 
 use pinker_v0::nav::{CodeCatalog, CodeIndex, CodeRegion};
 use std::collections::HashSet;
@@ -572,12 +585,15 @@ fn catalogo_real_cartografa_o_guardiao_pinker_da_onda_9() {
     // A #663 acrescenta a autoridade de representação canônica de mapa
     // (`mapa.representacao.canonica`) e a sua região de evidência
     // (`evidencia.tipos.mapa-representacao-equivalente`), 611 -> 613.
+    // A T1 (#675) acrescenta 103 regiões: toda linha relevante de produção que
+    // ainda estava fora de qualquer região passou a pertencer a uma
+    // responsabilidade publicada, 644 -> 747. Nenhuma região foi retirada.
     // Este é o único total vivo desta suíte;
     // todos os demais são reconstruções históricas e continuam com os literais
     // congelados, porque `project_pre_automation_core` e
     // `project_pre_projection_snapshot_contract` removem as regiões novas antes
     // de qualquer reconstrução.
-    assert_eq!(index.regions.len(), 613);
+    assert_eq!(index.regions.len(), 747);
 
     // Exatamente uma região Pinker, a do Guardião, com metadados congelados.
     let guardiao: Vec<_> = index
@@ -601,8 +617,8 @@ fn catalogo_real_cartografa_o_guardiao_pinker_da_onda_9() {
             .filter(|r| r.layer.as_deref() == Some(layer))
             .count()
     };
-    assert_eq!(by_layer("evidencia"), 306);
-    assert_eq!(by_layer("runtime"), 22);
+    assert_eq!(by_layer("evidencia"), 359);
+    assert_eq!(by_layer("runtime"), 23);
     assert_eq!(by_layer("apps"), 1);
 }
 
@@ -1123,6 +1139,9 @@ fn camada_runtime_cartografa_o_runtime_nativo() {
         // Parte E2: SHA-256 sobre verso e sobre arquivo, com dono nativo desde
         // a primeira versão — nunca existiu recorte interpreter-only aqui.
         "runtime.sha256.superficies",
+        // T1 (#675): os usos compartilhados pelo bloco de arquivos e acaso do
+        // runtime estavam fora de qualquer região e ganharam a sua.
+        "runtime.arquivos.preludio",
     ];
 
     let hosted_runtime_keys = ["processos.ambiente.overlay"];
@@ -1227,6 +1246,8 @@ fn camada_operacional_cartografa_cli_editor_boot() {
         ("cli.build.nativo", "src/pink_cli/analysis_build.rs"),
         ("cli.modulos.importacao", "src/pink_cli/modules.rs"),
         ("cli.nav.projecao", "src/pink_cli/nav_cli.rs"),
+        // T1 (#675): a ligação do irmão de análise e build, que fica no pai.
+        ("cli.analise.ligacao", "src/main.rs"),
     ];
     let expected_editor_keys = [
         "editor.estado.modelo",
@@ -2329,7 +2350,7 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
         .filter(|region| !region.key.starts_with("evidencia.runtime."))
         .count();
     assert_eq!(
-        historical_evidence_total, 211,
+        historical_evidence_total, 264,
         "o estado histórico da Onda 8E deve conter 159 regiões de evidência (111 anteriores + 47 da Onda 8E + 1 da Fase 243 em tests/semantic_tests.rs), mais as evidências adultas D9, D10 e a política de recurso D13; mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais a evidência da identidade genérica injetiva da #476; mais a região de evidência da paridade de argumento nomeado da #492; mais a região de evidência da autoridade nativa de símbolos da #497; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região de evidência do `impl` sobre trato importado da #517; mais as duas regiões de evidência da #532 (identidade intrínseca separada da grafia e namespace de módulos); mais a região de evidência da validação semântica de corpo sintético de trato em unidade não-raiz da #566; mais a região de evidência da relação de `impl` duplicada da #572; mais a região de evidência da composição de closure sintética em corpo default de trato importado da #567; mais a região de evidência do `impl` transitivo alcançado pela unidade importada da #577; mais a região de evidência da equivalência de representação de mapa da #663"
     );
     for previous in [
@@ -2363,8 +2384,8 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
         .filter(|region| region.key != "backend-s.lowering.objetos-trato-nativos")
         .count();
     assert_eq!(
-        historical_catalog_total, 452,
-        "o estado histórico da Onda 8E deve totalizar 341 regiões (340 + 1 região nova de Fase 243 em src/ast.rs; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +3 regiões do endurecimento pós-PR #411); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends); mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476; mais a região de evidência da paridade de argumento nomeado da #492; mais as sete regiões da autoridade nativa de símbolos da #497; mais as sete regiões da composição modular da #514: identidade de fonte no diagnóstico, unidade e grafo de módulo, ambiente de import explícito, resolução nominal canônica, projeção de execução, visibilidade de tratos por unidade e validação modular local; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região do índice de fontes de módulo da #514; mais a região de evidência do `impl` sobre trato importado da #517; mais as duas regiões de evidência da #532 (identidade intrínseca separada da grafia e namespace de módulos); mais a região de evidência da validação semântica de corpo sintético de trato em unidade não-raiz da #566; mais a região de evidência da relação de `impl` duplicada da #572; mais a região de evidência da composição de closure sintética em corpo default de trato importado da #567; mais a região de evidência do `impl` transitivo alcançado pela unidade importada da #577; mais as duas regiões da #663: a autoridade de representação canônica de mapa e a sua região de evidência"
+        historical_catalog_total, 586,
+        "o estado histórico da Onda 8E deve totalizar 341 regiões (340 + 1 região nova de Fase 243 em src/ast.rs; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +3 regiões do endurecimento pós-PR #411); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends); mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476; mais a região de evidência da paridade de argumento nomeado da #492; mais as sete regiões da autoridade nativa de símbolos da #497; mais as sete regiões da composição modular da #514: identidade de fonte no diagnóstico, unidade e grafo de módulo, ambiente de import explícito, resolução nominal canônica, projeção de execução, visibilidade de tratos por unidade e validação modular local; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região do índice de fontes de módulo da #514; mais a região de evidência do `impl` sobre trato importado da #517; mais as duas regiões de evidência da #532 (identidade intrínseca separada da grafia e namespace de módulos); mais a região de evidência da validação semântica de corpo sintético de trato em unidade não-raiz da #566; mais a região de evidência da relação de `impl` duplicada da #572; mais a região de evidência da composição de closure sintética em corpo default de trato importado da #567; mais a região de evidência do `impl` transitivo alcançado pela unidade importada da #577; mais as duas regiões da #663: a autoridade de representação canônica de mapa e a sua região de evidência; mais as 103 regiões da T1 (#675), que publicou responsabilidade para todo o código de produção que ainda estava fora de qualquer região"
     );
 }
 
@@ -2474,8 +2495,8 @@ fn onda_8f_cartografa_evidencias_do_backend_textual() {
         .filter(|region| !region.key.starts_with("evidencia.runtime."))
         .count();
     assert_eq!(
-        historical_catalog_total, 452,
-        "o estado histórico da Onda 8F deve totalizar 349 regiões (348 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +3 regiões do endurecimento pós-PR #411); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends); mais a evidência D9 de fatiar_verso; mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476; mais a região de evidência da paridade de argumento nomeado da #492; mais as sete regiões da autoridade nativa de símbolos da #497; mais as sete regiões da composição modular da #514: identidade de fonte no diagnóstico, unidade e grafo de módulo, ambiente de import explícito, resolução nominal canônica, projeção de execução, visibilidade de tratos por unidade e validação modular local; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região do índice de fontes de módulo da #514; mais a região de evidência do `impl` sobre trato importado da #517; mais as duas regiões de evidência da #532 (identidade intrínseca separada da grafia e namespace de módulos); mais a região de evidência da validação semântica de corpo sintético de trato em unidade não-raiz da #566; mais a região de evidência da relação de `impl` duplicada da #572; mais a região de evidência da composição de closure sintética em corpo default de trato importado da #567; mais a região de evidência do `impl` transitivo alcançado pela unidade importada da #577; mais as duas regiões da #663: a autoridade de representação canônica de mapa e a sua região de evidência"
+        historical_catalog_total, 586,
+        "o estado histórico da Onda 8F deve totalizar 349 regiões (348 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +3 regiões do endurecimento pós-PR #411); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends); mais a evidência D9 de fatiar_verso; mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476; mais a região de evidência da paridade de argumento nomeado da #492; mais as sete regiões da autoridade nativa de símbolos da #497; mais as sete regiões da composição modular da #514: identidade de fonte no diagnóstico, unidade e grafo de módulo, ambiente de import explícito, resolução nominal canônica, projeção de execução, visibilidade de tratos por unidade e validação modular local; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região do índice de fontes de módulo da #514; mais a região de evidência do `impl` sobre trato importado da #517; mais as duas regiões de evidência da #532 (identidade intrínseca separada da grafia e namespace de módulos); mais a região de evidência da validação semântica de corpo sintético de trato em unidade não-raiz da #566; mais a região de evidência da relação de `impl` duplicada da #572; mais a região de evidência da composição de closure sintética em corpo default de trato importado da #567; mais a região de evidência do `impl` transitivo alcançado pela unidade importada da #577; mais as duas regiões da #663: a autoridade de representação canônica de mapa e a sua região de evidência; mais as 103 regiões da T1 (#675), que publicou responsabilidade para todo o código de produção que ainda estava fora de qualquer região"
     );
 
     let mut expected_keys: Vec<_> = expected_regions.iter().map(|entry| entry.0).collect();
@@ -2610,8 +2631,8 @@ fn onda_8f_cartografa_evidencias_do_backend_textual() {
         .collect();
     assert_eq!(
         previous_regions.len(),
-        444,
-        "as 341 regiões anteriores devem ser preservadas (340 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +3 regiões do endurecimento pós-PR #411); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends); mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476; mais a região de evidência da paridade de argumento nomeado da #492; mais as sete regiões da autoridade nativa de símbolos da #497; mais as sete regiões da composição modular da #514: identidade de fonte no diagnóstico, unidade e grafo de módulo, ambiente de import explícito, resolução nominal canônica, projeção de execução, visibilidade de tratos por unidade e validação modular local; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região do índice de fontes de módulo da #514; mais a região de evidência do `impl` sobre trato importado da #517; mais as duas regiões de evidência da #532 (identidade intrínseca separada da grafia e namespace de módulos); mais a região de evidência da validação semântica de corpo sintético de trato em unidade não-raiz da #566; mais a região de evidência da relação de `impl` duplicada da #572; mais a região de evidência da composição de closure sintética em corpo default de trato importado da #567; mais a região de evidência do `impl` transitivo alcançado pela unidade importada da #577; mais as duas regiões da #663: a autoridade de representação canônica de mapa e a sua região de evidência"
+        578,
+        "as 341 regiões anteriores devem ser preservadas (340 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +3 regiões do endurecimento pós-PR #411); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends); mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476; mais a região de evidência da paridade de argumento nomeado da #492; mais as sete regiões da autoridade nativa de símbolos da #497; mais as sete regiões da composição modular da #514: identidade de fonte no diagnóstico, unidade e grafo de módulo, ambiente de import explícito, resolução nominal canônica, projeção de execução, visibilidade de tratos por unidade e validação modular local; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região do índice de fontes de módulo da #514; mais a região de evidência do `impl` sobre trato importado da #517; mais as duas regiões de evidência da #532 (identidade intrínseca separada da grafia e namespace de módulos); mais a região de evidência da validação semântica de corpo sintético de trato em unidade não-raiz da #566; mais a região de evidência da relação de `impl` duplicada da #572; mais a região de evidência da composição de closure sintética em corpo default de trato importado da #567; mais a região de evidência do `impl` transitivo alcançado pela unidade importada da #577; mais as duas regiões da #663: a autoridade de representação canônica de mapa e a sua região de evidência; mais as 103 regiões da T1 (#675), que publicou responsabilidade para todo o código de produção que ainda estava fora de qualquer região"
     );
 
     verifica_snapshot_canonico("onda-8f-anterior");
@@ -2712,8 +2733,8 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
         .filter(|region| !region.key.starts_with("evidencia.runtime."))
         .count();
     assert_eq!(
-        historical_catalog_total, 460,
-        "o estado histórico da Onda 8G deve totalizar 356 regiões (355 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +3 regiões do endurecimento pós-PR #411); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends); mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476; mais a região de evidência da paridade de argumento nomeado da #492; mais as sete regiões da autoridade nativa de símbolos da #497; mais as sete regiões da composição modular da #514: identidade de fonte no diagnóstico, unidade e grafo de módulo, ambiente de import explícito, resolução nominal canônica, projeção de execução, visibilidade de tratos por unidade e validação modular local; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região do índice de fontes de módulo da #514; mais a região de evidência do `impl` sobre trato importado da #517; mais as duas regiões de evidência da #532 (identidade intrínseca separada da grafia e namespace de módulos); mais a região de evidência da validação semântica de corpo sintético de trato em unidade não-raiz da #566; mais a região de evidência da relação de `impl` duplicada da #572; mais a região de evidência da composição de closure sintética em corpo default de trato importado da #567; mais a região de evidência do `impl` transitivo alcançado pela unidade importada da #577; mais as duas regiões da #663: a autoridade de representação canônica de mapa e a sua região de evidência"
+        historical_catalog_total, 594,
+        "o estado histórico da Onda 8G deve totalizar 356 regiões (355 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +3 regiões do endurecimento pós-PR #411); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends); mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476; mais a região de evidência da paridade de argumento nomeado da #492; mais as sete regiões da autoridade nativa de símbolos da #497; mais as sete regiões da composição modular da #514: identidade de fonte no diagnóstico, unidade e grafo de módulo, ambiente de import explícito, resolução nominal canônica, projeção de execução, visibilidade de tratos por unidade e validação modular local; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região do índice de fontes de módulo da #514; mais a região de evidência do `impl` sobre trato importado da #517; mais as duas regiões de evidência da #532 (identidade intrínseca separada da grafia e namespace de módulos); mais a região de evidência da validação semântica de corpo sintético de trato em unidade não-raiz da #566; mais a região de evidência da relação de `impl` duplicada da #572; mais a região de evidência da composição de closure sintética em corpo default de trato importado da #567; mais a região de evidência do `impl` transitivo alcançado pela unidade importada da #577; mais as duas regiões da #663: a autoridade de representação canônica de mapa e a sua região de evidência; mais as 103 regiões da T1 (#675), que publicou responsabilidade para todo o código de produção que ainda estava fora de qualquer região"
     );
     assert_eq!(
         catalog
@@ -2728,7 +2749,7 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
             .filter(|region| !region.key.starts_with("evidencia.runtime."))
             .filter(|region| !region.key.starts_with("evidencia.runtime."))
             .count(),
-        219,
+        272,
         "o estado histórico da Onda 8G deve totalizar 172 regiões de evidência; mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais a evidência da #476; mais a região de evidência da paridade de argumento nomeado da #492; mais a região de evidência da autoridade nativa de símbolos da #497; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região de evidência do `impl` sobre trato importado da #517; mais as duas regiões de evidência da #532 (identidade intrínseca separada da grafia e namespace de módulos); mais a região de evidência da validação semântica de corpo sintético de trato em unidade não-raiz da #566; mais a região de evidência da relação de `impl` duplicada da #572; mais a região de evidência da composição de closure sintética em corpo default de trato importado da #567; mais a região de evidência do `impl` transitivo alcançado pela unidade importada da #577; mais a região de evidência da equivalência de representação de mapa da #663"
     );
     let backend_s_evidence_keys: HashSet<_> = catalog
@@ -3014,8 +3035,8 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
         .collect();
     assert_eq!(
         previous_regions.len(),
-        453,
-        "as 349 regiões anteriores devem ser preservadas semanticamente (348 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +3 regiões do endurecimento pós-PR #411); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends); mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476; mais a região de evidência da paridade de argumento nomeado da #492; mais as sete regiões da autoridade nativa de símbolos da #497; mais as sete regiões da composição modular da #514: identidade de fonte no diagnóstico, unidade e grafo de módulo, ambiente de import explícito, resolução nominal canônica, projeção de execução, visibilidade de tratos por unidade e validação modular local; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região do índice de fontes de módulo da #514; mais a região de evidência do `impl` sobre trato importado da #517; mais as duas regiões de evidência da #532 (identidade intrínseca separada da grafia e namespace de módulos); mais a região de evidência da validação semântica de corpo sintético de trato em unidade não-raiz da #566; mais a região de evidência da relação de `impl` duplicada da #572; mais a região de evidência da composição de closure sintética em corpo default de trato importado da #567; mais a região de evidência do `impl` transitivo alcançado pela unidade importada da #577; mais as duas regiões da #663: a autoridade de representação canônica de mapa e a sua região de evidência"
+        587,
+        "as 349 regiões anteriores devem ser preservadas semanticamente (348 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +3 regiões do endurecimento pós-PR #411); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends); mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476; mais a região de evidência da paridade de argumento nomeado da #492; mais as sete regiões da autoridade nativa de símbolos da #497; mais as sete regiões da composição modular da #514: identidade de fonte no diagnóstico, unidade e grafo de módulo, ambiente de import explícito, resolução nominal canônica, projeção de execução, visibilidade de tratos por unidade e validação modular local; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região do índice de fontes de módulo da #514; mais a região de evidência do `impl` sobre trato importado da #517; mais as duas regiões de evidência da #532 (identidade intrínseca separada da grafia e namespace de módulos); mais a região de evidência da validação semântica de corpo sintético de trato em unidade não-raiz da #566; mais a região de evidência da relação de `impl` duplicada da #572; mais a região de evidência da composição de closure sintética em corpo default de trato importado da #567; mais a região de evidência do `impl` transitivo alcançado pela unidade importada da #577; mais as duas regiões da #663: a autoridade de representação canônica de mapa e a sua região de evidência; mais as 103 regiões da T1 (#675), que publicou responsabilidade para todo o código de produção que ainda estava fora de qualquer região"
     );
 
     verifica_snapshot_canonico("onda-8g-anterior");
@@ -3103,7 +3124,10 @@ fn capsula_nav_catalog_cartografa_suporte_e_seis_testes() {
         sha256_hex(stripped.as_bytes()),
         // Onda 9: as fixtures da cápsula passaram a criar a raiz obrigatória
         // `apps/`; a fonte-base foi regenerada com essa mudança.
-        "7179db716f3a56dd59d8b3ec0c170d803f3a297d8fc11ab85f533871c7197d93",
+        // T1 (#675): a fixture passou a escrever a autoridade de cobertura
+        // `.pinker/cartography/coverage-policy-v1.jsonl`, pré-requisito de
+        // `nav verificar`; a fonte-base foi regenerada de novo pela mesma razão.
+        "b2c1d6d599057483ce4a15b1bd5d1f3de785e928db3493ef8e77e05d81dee1b5",
         "retirar marcadores deve reconstruir exatamente a fonte-base"
     );
 
@@ -3267,14 +3291,14 @@ fn capsula_nav_catalog_cartografa_suporte_e_seis_testes() {
             .iter()
             .filter(|region| region.layer.as_deref() == Some("evidencia"))
             .count(),
-        262
+        315
     );
     assert_eq!(
         capsule_scope
             .iter()
             .filter(|region| region.layer.as_deref() == Some("runtime"))
             .count(),
-        22
+        23
     );
     let mut target_regions: Vec<_> = catalog
         .regions
@@ -3620,14 +3644,14 @@ fn capsula_doc_catalog_cartografa_suporte_e_quatro_testes() {
             .iter()
             .filter(|region| region.layer.as_deref() == Some("evidencia"))
             .count(),
-        268
+        321
     );
     assert_eq!(
         capsule_scope
             .iter()
             .filter(|region| region.layer.as_deref() == Some("runtime"))
             .count(),
-        22
+        23
     );
     let mut all_keys: Vec<&str> = catalog.regions.iter().map(|r| r.key.as_str()).collect();
     all_keys.sort_unstable();
@@ -3685,14 +3709,14 @@ fn capsula_doc_catalog_cartografa_suporte_e_quatro_testes() {
             .iter()
             .filter(|region| region.layer.as_deref() == Some("evidencia"))
             .count(),
-        262
+        315
     );
     assert_eq!(
         merged_base
             .iter()
             .filter(|region| region.layer.as_deref() == Some("runtime"))
             .count(),
-        22
+        23
     );
     // J. Preservação do conjunto histórico de 386 regiões da Onda 8.
 
@@ -3794,15 +3818,15 @@ fn onda_8_convergencia_fecha_cadeia_8a_8j() {
 
     assert_eq!(
         historical.len(),
-        497,
-        "a convergência da Onda 8 exige exatamente 387 regiões (386 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +5 regiões do endurecimento pós-PR #411); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends); mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476; mais a região de evidência da paridade de argumento nomeado da #492; mais as sete regiões da autoridade nativa de símbolos da #497; mais as sete regiões da composição modular da #514: identidade de fonte no diagnóstico, unidade e grafo de módulo, ambiente de import explícito, resolução nominal canônica, projeção de execução, visibilidade de tratos por unidade e validação modular local; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região do índice de fontes de módulo da #514; mais a região de evidência do `impl` sobre trato importado da #517; mais a região de evidência da composição de closure sintética em corpo default de trato importado da #567; mais a região de evidência do `impl` transitivo alcançado pela unidade importada da #577; mais as duas regiões da #663: a autoridade de representação canônica de mapa e a sua região de evidência"
+        631,
+        "a convergência da Onda 8 exige exatamente 387 regiões (386 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +5 regiões do endurecimento pós-PR #411); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends); mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476; mais a região de evidência da paridade de argumento nomeado da #492; mais as sete regiões da autoridade nativa de símbolos da #497; mais as sete regiões da composição modular da #514: identidade de fonte no diagnóstico, unidade e grafo de módulo, ambiente de import explícito, resolução nominal canônica, projeção de execução, visibilidade de tratos por unidade e validação modular local; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região do índice de fontes de módulo da #514; mais a região de evidência do `impl` sobre trato importado da #517; mais a região de evidência da composição de closure sintética em corpo default de trato importado da #567; mais a região de evidência do `impl` transitivo alcançado pela unidade importada da #577; mais as duas regiões da #663: a autoridade de representação canônica de mapa e a sua região de evidência; mais as 103 regiões da T1 (#675), que publicou responsabilidade para todo o código de produção que ainda estava fora de qualquer região"
     );
     assert_eq!(
         historical
             .iter()
             .filter(|region| region.layer.as_deref() == Some("evidencia"))
             .count(),
-        256,
+        309,
         "a convergência da Onda 8 exige exatamente 203 regiões de evidência; mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais a evidência da #476; mais a região de evidência da paridade de argumento nomeado da #492; mais a região de evidência da autoridade nativa de símbolos da #497; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região de evidência do `impl` sobre trato importado da #517; mais a região de evidência da composição de closure sintética em corpo default de trato importado da #567; mais a região de evidência do `impl` transitivo alcançado pela unidade importada da #577; mais a região de evidência da equivalência de representação de mapa da #663"
     );
     assert_eq!(
@@ -3810,7 +3834,7 @@ fn onda_8_convergencia_fecha_cadeia_8a_8j() {
             .iter()
             .filter(|region| region.layer.as_deref() == Some("runtime"))
             .count(),
-        22,
+        23,
         "a convergência da Onda 8 preserva as regiões de runtime"
     );
 
@@ -4010,8 +4034,8 @@ fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
         .filter(|region| !region.key.starts_with("evidencia.runtime."))
         .count();
     assert_eq!(
-        historical_catalog_total, 470,
-        "o estado histórico da Onda 8H deve totalizar 366 regiões (365 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +3 regiões do endurecimento pós-PR #411); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends); mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476; mais a região de evidência da paridade de argumento nomeado da #492; mais as sete regiões da autoridade nativa de símbolos da #497; mais as sete regiões da composição modular da #514: identidade de fonte no diagnóstico, unidade e grafo de módulo, ambiente de import explícito, resolução nominal canônica, projeção de execução, visibilidade de tratos por unidade e validação modular local; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região do índice de fontes de módulo da #514; mais a região de evidência do `impl` sobre trato importado da #517; mais as duas regiões de evidência da #532 (identidade intrínseca separada da grafia e namespace de módulos); mais a região de evidência da validação semântica de corpo sintético de trato em unidade não-raiz da #566; mais a região de evidência da relação de `impl` duplicada da #572; mais a região de evidência da composição de closure sintética em corpo default de trato importado da #567; mais a região de evidência do `impl` transitivo alcançado pela unidade importada da #577; mais as duas regiões da #663: a autoridade de representação canônica de mapa e a sua região de evidência"
+        historical_catalog_total, 604,
+        "o estado histórico da Onda 8H deve totalizar 366 regiões (365 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +3 regiões do endurecimento pós-PR #411); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends); mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476; mais a região de evidência da paridade de argumento nomeado da #492; mais as sete regiões da autoridade nativa de símbolos da #497; mais as sete regiões da composição modular da #514: identidade de fonte no diagnóstico, unidade e grafo de módulo, ambiente de import explícito, resolução nominal canônica, projeção de execução, visibilidade de tratos por unidade e validação modular local; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região do índice de fontes de módulo da #514; mais a região de evidência do `impl` sobre trato importado da #517; mais as duas regiões de evidência da #532 (identidade intrínseca separada da grafia e namespace de módulos); mais a região de evidência da validação semântica de corpo sintético de trato em unidade não-raiz da #566; mais a região de evidência da relação de `impl` duplicada da #572; mais a região de evidência da composição de closure sintética em corpo default de trato importado da #567; mais a região de evidência do `impl` transitivo alcançado pela unidade importada da #577; mais as duas regiões da #663: a autoridade de representação canônica de mapa e a sua região de evidência; mais as 103 regiões da T1 (#675), que publicou responsabilidade para todo o código de produção que ainda estava fora de qualquer região"
     );
     assert_eq!(
         catalog
@@ -4025,7 +4049,7 @@ fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
             .filter(|region| !region.key.starts_with("evidencia.runtime."))
             .filter(|region| !region.key.starts_with("evidencia.runtime."))
             .count(),
-        229,
+        282,
         "o estado histórico da Onda 8H deve totalizar 182 regiões de evidência; mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais a evidência da #476; mais a região de evidência da paridade de argumento nomeado da #492; mais a região de evidência da autoridade nativa de símbolos da #497; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região de evidência do `impl` sobre trato importado da #517; mais as duas regiões de evidência da #532 (identidade intrínseca separada da grafia e namespace de módulos); mais a região de evidência da validação semântica de corpo sintético de trato em unidade não-raiz da #566; mais a região de evidência da relação de `impl` duplicada da #572; mais a região de evidência da composição de closure sintética em corpo default de trato importado da #567; mais a região de evidência do `impl` transitivo alcançado pela unidade importada da #577; mais a região de evidência da equivalência de representação de mapa da #663"
     );
     let externo_keys: HashSet<_> = catalog
@@ -4495,8 +4519,8 @@ fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
         .collect();
     assert_eq!(
         previous_regions.len(),
-        460,
-        "as 356 regiões anteriores devem ser preservadas semanticamente (355 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +3 regiões do endurecimento pós-PR #411); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends); mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476; mais a região de evidência da paridade de argumento nomeado da #492; mais as sete regiões da autoridade nativa de símbolos da #497; mais as sete regiões da composição modular da #514: identidade de fonte no diagnóstico, unidade e grafo de módulo, ambiente de import explícito, resolução nominal canônica, projeção de execução, visibilidade de tratos por unidade e validação modular local; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região do índice de fontes de módulo da #514; mais a região de evidência do `impl` sobre trato importado da #517; mais as duas regiões de evidência da #532 (identidade intrínseca separada da grafia e namespace de módulos); mais a região de evidência da validação semântica de corpo sintético de trato em unidade não-raiz da #566; mais a região de evidência da relação de `impl` duplicada da #572; mais a região de evidência da composição de closure sintética em corpo default de trato importado da #567; mais a região de evidência do `impl` transitivo alcançado pela unidade importada da #577; mais as duas regiões da #663: a autoridade de representação canônica de mapa e a sua região de evidência"
+        594,
+        "as 356 regiões anteriores devem ser preservadas semanticamente (355 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +3 regiões do endurecimento pós-PR #411); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends); mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476; mais a região de evidência da paridade de argumento nomeado da #492; mais as sete regiões da autoridade nativa de símbolos da #497; mais as sete regiões da composição modular da #514: identidade de fonte no diagnóstico, unidade e grafo de módulo, ambiente de import explícito, resolução nominal canônica, projeção de execução, visibilidade de tratos por unidade e validação modular local; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região do índice de fontes de módulo da #514; mais a região de evidência do `impl` sobre trato importado da #517; mais as duas regiões de evidência da #532 (identidade intrínseca separada da grafia e namespace de módulos); mais a região de evidência da validação semântica de corpo sintético de trato em unidade não-raiz da #566; mais a região de evidência da relação de `impl` duplicada da #572; mais a região de evidência da composição de closure sintética em corpo default de trato importado da #567; mais a região de evidência do `impl` transitivo alcançado pela unidade importada da #577; mais as duas regiões da #663: a autoridade de representação canônica de mapa e a sua região de evidência; mais as 103 regiões da T1 (#675), que publicou responsabilidade para todo o código de produção que ainda estava fora de qualquer região"
     );
 
     verifica_snapshot_canonico("onda-8h-anterior");
@@ -4630,8 +4654,8 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
                 && region.file != "tests/trama_query_tests.rs")
             .filter(|region| !region.key.starts_with("evidencia.runtime."))
             .count(),
-        484,
-        "o estado histórico da Onda 8I deve totalizar 380 regiões (379 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +3 regiões do endurecimento pós-PR #411); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends); mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476; mais a região de evidência da paridade de argumento nomeado da #492; mais as sete regiões da autoridade nativa de símbolos da #497; mais as sete regiões da composição modular da #514: identidade de fonte no diagnóstico, unidade e grafo de módulo, ambiente de import explícito, resolução nominal canônica, projeção de execução, visibilidade de tratos por unidade e validação modular local; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região do índice de fontes de módulo da #514; mais a região de evidência do `impl` sobre trato importado da #517; mais as duas regiões de evidência da #532 (identidade intrínseca separada da grafia e namespace de módulos); mais a região de evidência da validação semântica de corpo sintético de trato em unidade não-raiz da #566; mais a região de evidência da relação de `impl` duplicada da #572; mais a região de evidência da composição de closure sintética em corpo default de trato importado da #567; mais a região de evidência do `impl` transitivo alcançado pela unidade importada da #577; mais as duas regiões da #663: a autoridade de representação canônica de mapa e a sua região de evidência"
+        618,
+        "o estado histórico da Onda 8I deve totalizar 380 regiões (379 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +3 regiões do endurecimento pós-PR #411); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends); mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476; mais a região de evidência da paridade de argumento nomeado da #492; mais as sete regiões da autoridade nativa de símbolos da #497; mais as sete regiões da composição modular da #514: identidade de fonte no diagnóstico, unidade e grafo de módulo, ambiente de import explícito, resolução nominal canônica, projeção de execução, visibilidade de tratos por unidade e validação modular local; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região do índice de fontes de módulo da #514; mais a região de evidência do `impl` sobre trato importado da #517; mais as duas regiões de evidência da #532 (identidade intrínseca separada da grafia e namespace de módulos); mais a região de evidência da validação semântica de corpo sintético de trato em unidade não-raiz da #566; mais a região de evidência da relação de `impl` duplicada da #572; mais a região de evidência da composição de closure sintética em corpo default de trato importado da #567; mais a região de evidência do `impl` transitivo alcançado pela unidade importada da #577; mais as duas regiões da #663: a autoridade de representação canônica de mapa e a sua região de evidência; mais as 103 regiões da T1 (#675), que publicou responsabilidade para todo o código de produção que ainda estava fora de qualquer região"
     );
     assert_eq!(
         catalog
@@ -4643,7 +4667,7 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
             .filter(|region| region.layer.as_deref() == Some("evidencia"))
             .filter(|region| !region.key.starts_with("evidencia.runtime."))
             .count(),
-        243,
+        296,
         "o estado histórico da Onda 8I deve totalizar 196 regiões de evidência; mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais a evidência da #476; mais a região de evidência da paridade de argumento nomeado da #492; mais a região de evidência da autoridade nativa de símbolos da #497; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região de evidência do `impl` sobre trato importado da #517; mais as duas regiões de evidência da #532 (identidade intrínseca separada da grafia e namespace de módulos); mais a região de evidência da validação semântica de corpo sintético de trato em unidade não-raiz da #566; mais a região de evidência da relação de `impl` duplicada da #572; mais a região de evidência da composição de closure sintética em corpo default de trato importado da #567; mais a região de evidência do `impl` transitivo alcançado pela unidade importada da #577; mais a região de evidência da equivalência de representação de mapa da #663"
     );
     let nativo_keys: HashSet<_> = catalog
@@ -5172,8 +5196,8 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
         .collect();
     assert_eq!(
         previous_regions.len(),
-        470,
-        "as 366 regiões anteriores devem ser preservadas semanticamente (365 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +3 regiões do endurecimento pós-PR #411); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends); mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476; mais a região de evidência da paridade de argumento nomeado da #492; mais as sete regiões da autoridade nativa de símbolos da #497; mais as sete regiões da composição modular da #514: identidade de fonte no diagnóstico, unidade e grafo de módulo, ambiente de import explícito, resolução nominal canônica, projeção de execução, visibilidade de tratos por unidade e validação modular local; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região do índice de fontes de módulo da #514; mais a região de evidência do `impl` sobre trato importado da #517; mais as duas regiões de evidência da #532 (identidade intrínseca separada da grafia e namespace de módulos); mais a região de evidência da validação semântica de corpo sintético de trato em unidade não-raiz da #566; mais a região de evidência da relação de `impl` duplicada da #572; mais a região de evidência da composição de closure sintética em corpo default de trato importado da #567; mais a região de evidência do `impl` transitivo alcançado pela unidade importada da #577; mais as duas regiões da #663: a autoridade de representação canônica de mapa e a sua região de evidência"
+        604,
+        "as 366 regiões anteriores devem ser preservadas semanticamente (365 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +3 regiões do endurecimento pós-PR #411); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends); mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476; mais a região de evidência da paridade de argumento nomeado da #492; mais as sete regiões da autoridade nativa de símbolos da #497; mais as sete regiões da composição modular da #514: identidade de fonte no diagnóstico, unidade e grafo de módulo, ambiente de import explícito, resolução nominal canônica, projeção de execução, visibilidade de tratos por unidade e validação modular local; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região do índice de fontes de módulo da #514; mais a região de evidência do `impl` sobre trato importado da #517; mais as duas regiões de evidência da #532 (identidade intrínseca separada da grafia e namespace de módulos); mais a região de evidência da validação semântica de corpo sintético de trato em unidade não-raiz da #566; mais a região de evidência da relação de `impl` duplicada da #572; mais a região de evidência da composição de closure sintética em corpo default de trato importado da #567; mais a região de evidência do `impl` transitivo alcançado pela unidade importada da #577; mais as duas regiões da #663: a autoridade de representação canônica de mapa e a sua região de evidência; mais as 103 regiões da T1 (#675), que publicou responsabilidade para todo o código de produção que ainda estava fora de qualquer região"
     );
 
     verifica_snapshot_canonico("onda-8i-anterior");
@@ -5279,8 +5303,8 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
                 && region.file != "tests/doc_catalog_tests.rs"
                 && region.file != "tests/trama_query_tests.rs")
             .count(),
-        497,
-        "a Onda 8J deve totalizar 387 regiões (386 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +5 regiões do endurecimento pós-PR #411); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends); mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476; mais a região de evidência da paridade de argumento nomeado da #492; mais as sete regiões da autoridade nativa de símbolos da #497; mais as sete regiões da composição modular da #514: identidade de fonte no diagnóstico, unidade e grafo de módulo, ambiente de import explícito, resolução nominal canônica, projeção de execução, visibilidade de tratos por unidade e validação modular local; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região do índice de fontes de módulo da #514; mais a região de evidência do `impl` sobre trato importado da #517; mais as duas regiões de evidência da #532 (identidade intrínseca separada da grafia e namespace de módulos); mais a região de evidência da validação semântica de corpo sintético de trato em unidade não-raiz da #566; mais a região de evidência da relação de `impl` duplicada da #572; mais a região de evidência da composição de closure sintética em corpo default de trato importado da #567; mais a região de evidência do `impl` transitivo alcançado pela unidade importada da #577; mais as duas regiões da #663: a autoridade de representação canônica de mapa e a sua região de evidência"
+        631,
+        "a Onda 8J deve totalizar 387 regiões (386 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +5 regiões do endurecimento pós-PR #411); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends); mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476; mais a região de evidência da paridade de argumento nomeado da #492; mais as sete regiões da autoridade nativa de símbolos da #497; mais as sete regiões da composição modular da #514: identidade de fonte no diagnóstico, unidade e grafo de módulo, ambiente de import explícito, resolução nominal canônica, projeção de execução, visibilidade de tratos por unidade e validação modular local; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região do índice de fontes de módulo da #514; mais a região de evidência do `impl` sobre trato importado da #517; mais as duas regiões de evidência da #532 (identidade intrínseca separada da grafia e namespace de módulos); mais a região de evidência da validação semântica de corpo sintético de trato em unidade não-raiz da #566; mais a região de evidência da relação de `impl` duplicada da #572; mais a região de evidência da composição de closure sintética em corpo default de trato importado da #567; mais a região de evidência do `impl` transitivo alcançado pela unidade importada da #577; mais as duas regiões da #663: a autoridade de representação canônica de mapa e a sua região de evidência; mais as 103 regiões da T1 (#675), que publicou responsabilidade para todo o código de produção que ainda estava fora de qualquer região"
     );
     assert_eq!(
         catalog
@@ -5291,7 +5315,7 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
                 && region.file != "tests/trama_query_tests.rs")
             .filter(|region| region.layer.as_deref() == Some("evidencia"))
             .count(),
-        256,
+        309,
         "a Onda 8J deve totalizar 203 regiões de evidência; mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais a região de evidência da paridade de argumento nomeado da #492; mais a região de evidência da autoridade nativa de símbolos da #497; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região de evidência do `impl` sobre trato importado da #517; mais as duas regiões de evidência da #532 (identidade intrínseca separada da grafia e namespace de módulos); mais a região de evidência da validação semântica de corpo sintético de trato em unidade não-raiz da #566; mais a região de evidência da relação de `impl` duplicada da #572; mais a região de evidência da composição de closure sintética em corpo default de trato importado da #567; mais a região de evidência do `impl` transitivo alcançado pela unidade importada da #577; mais a região de evidência da equivalência de representação de mapa da #663"
     );
     assert_eq!(
@@ -5303,7 +5327,7 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
                 && region.file != "tests/trama_query_tests.rs")
             .filter(|region| region.layer.as_deref() == Some("runtime"))
             .count(),
-        22,
+        23,
         "a camada runtime inclui o descritor de união da Fase 248"
     );
     let evidencia_runtime_keys: HashSet<_> = catalog
@@ -5436,12 +5460,12 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
     // Parte E1) + 12 de evidência (8J + HR3 + a evidência interna JSON).
     assert_eq!(
         central_source.matches("@pinker-nav:start ").count(),
-        33,
+        34,
         "{central} deve conter 33 marcadores de início (21 produção + 12 evidência)"
     );
     assert_eq!(
         central_source.matches("@pinker-nav:end ").count(),
-        33,
+        34,
         "{central} deve conter 33 marcadores de fim (21 produção + 12 evidência)"
     );
     assert_eq!(
@@ -5616,6 +5640,8 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
         "runtime.json.plano-legado",
         // Parte E2: SHA-256 sobre verso e sobre arquivo no runtime nativo.
         "runtime.sha256.superficies",
+        // T1 (#675): o prelúdio do bloco de arquivos e acaso do runtime.
+        "runtime.arquivos.preludio",
     ]);
     let production_regions: Vec<_> = catalog
         .regions
@@ -5655,7 +5681,7 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
             .iter()
             .filter(|region| region.file == central)
             .count(),
-        33,
+        34,
         "{central} deve registrar 33 regiões (21 de produção + 12 de evidência), com as três da família JSON da Parte E1"
     );
 
@@ -5770,6 +5796,9 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
     let sem_evidencia_interna = [
         "runtime.conversoes.numero-texto",
         "runtime.arquivos.io",
+        // T1 (#675): prelúdio de usos do bloco de arquivos e acaso. Não declara
+        // símbolo próprio, portanto não há teste interno que o cite.
+        "runtime.arquivos.preludio",
         "runtime.caminhos.sistema",
         "runtime.tempo.relogio",
         "runtime.aleatorio.gerador",
@@ -5844,8 +5873,8 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
         .collect();
     assert_eq!(
         previous_regions.len(),
-        485,
-        "as 380 regiões anteriores devem ser preservadas semanticamente (379 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +3 regiões do endurecimento pós-PR #411); mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476; mais a região de evidência da paridade de argumento nomeado da #492; mais as sete regiões da autoridade nativa de símbolos da #497; mais as sete regiões da composição modular da #514: identidade de fonte no diagnóstico, unidade e grafo de módulo, ambiente de import explícito, resolução nominal canônica, projeção de execução, visibilidade de tratos por unidade e validação modular local; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região do índice de fontes de módulo da #514; mais a região de evidência do `impl` sobre trato importado da #517; mais as duas regiões de evidência da #532 (identidade intrínseca separada da grafia e namespace de módulos); mais a região de evidência da validação semântica de corpo sintético de trato em unidade não-raiz da #566; mais a região de evidência da relação de `impl` duplicada da #572; mais a região de evidência da composição de closure sintética em corpo default de trato importado da #567; mais a região de evidência do `impl` transitivo alcançado pela unidade importada da #577; mais as duas regiões da #663: a autoridade de representação canônica de mapa e a sua região de evidência"
+        619,
+        "as 380 regiões anteriores devem ser preservadas semanticamente (379 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +3 regiões do endurecimento pós-PR #411); mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476; mais a região de evidência da paridade de argumento nomeado da #492; mais as sete regiões da autoridade nativa de símbolos da #497; mais as sete regiões da composição modular da #514: identidade de fonte no diagnóstico, unidade e grafo de módulo, ambiente de import explícito, resolução nominal canônica, projeção de execução, visibilidade de tratos por unidade e validação modular local; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região do índice de fontes de módulo da #514; mais a região de evidência do `impl` sobre trato importado da #517; mais as duas regiões de evidência da #532 (identidade intrínseca separada da grafia e namespace de módulos); mais a região de evidência da validação semântica de corpo sintético de trato em unidade não-raiz da #566; mais a região de evidência da relação de `impl` duplicada da #572; mais a região de evidência da composição de closure sintética em corpo default de trato importado da #567; mais a região de evidência do `impl` transitivo alcançado pela unidade importada da #577; mais as duas regiões da #663: a autoridade de representação canônica de mapa e a sua região de evidência; mais as 103 regiões da T1 (#675), que publicou responsabilidade para todo o código de produção que ainda estava fora de qualquer região"
     );
 
     verifica_snapshot_canonico("onda-8j-anterior");

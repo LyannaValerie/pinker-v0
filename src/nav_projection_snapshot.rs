@@ -42,6 +42,10 @@
 //! seletor sem correspondência, consumo incorreto de overrides ou predecessor
 //! inconsistente são `HARNESS_FAILURE` e nunca são reclassificados como drift.
 
+// @pinker-nav:start trama.snapshots.modelo
+// @pinker-nav:domain snapshots
+// @pinker-nav:layer trama
+// @pinker-nav:summary Modelo imutável dos snapshots históricos de projeção do catálogo de navegação: schema versionado, ID estável, estados FROZEN/CANDIDATE, medidas (regiões, comprimento, FNV-1a 64 canônico), predecessor opcional, justificativa e regras de reconstrução tipadas com orçamento explícito de consumo, incluindo a materialização de uma região histórica que não existe mais no catálogo corrente, com orçamento próprio e aplicação por último.
 use crate::nav::CodeRegion;
 use std::fmt;
 
@@ -116,11 +120,6 @@ pub const FNV_PREFIX: &str = "fnv1a64:";
 
 /// Comprimento máximo de um identificador de snapshot.
 pub const MAX_ID_LEN: usize = 64;
-
-// @pinker-nav:start trama.snapshots.modelo
-// @pinker-nav:domain snapshots
-// @pinker-nav:layer trama
-// @pinker-nav:summary Modelo imutável dos snapshots históricos de projeção do catálogo de navegação: schema versionado, ID estável, estados FROZEN/CANDIDATE, medidas (regiões, comprimento, FNV-1a 64 canônico), predecessor opcional, justificativa e regras de reconstrução tipadas com orçamento explícito de consumo, incluindo a materialização de uma região histórica que não existe mais no catálogo corrente, com orçamento próprio e aplicação por último.
 
 /// Qual formato está sendo interpretado.
 ///
@@ -2104,5 +2103,10 @@ pub fn human_report(report: &VerifyReport) -> String {
 }
 // @pinker-nav:end trama.snapshots.relatorio
 
+// @pinker-nav:start trama.projecoes.provas-ligacao
+// @pinker-nav:domain projecoes
+// @pinker-nav:layer trama
+// @pinker-nav:summary Ligacao do modulo de provas do snapshot de projecao, privado e `#[cfg(test)]`, mantido em arquivo proprio sem ampliar superficie do modulo.
 #[cfg(test)]
 mod tests;
+// @pinker-nav:end trama.projecoes.provas-ligacao

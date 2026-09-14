@@ -3,17 +3,16 @@
 //! Esta é a ponta operacional do interpretador. Ela não é usada pelas
 //! superfícies históricas e não implementa o runtime nativo.
 
+// @pinker-nav:start processos.estruturado.hospedado
+// @pinker-nav:domain processos
+// @pinker-nav:layer interpreter
+// @pinker-nav:summary Implementa a nova execução estruturada apenas no interpretador: recusa Ate(0) antes de configurar ou criar o filho, configura argv/cwd/ambiente e PATH saneada, faz um único spawn para os demais limites, move stdin/stdout/stderr por uma única malha poll com fds não-bloqueantes e quantum justo por canal, aplica deadline monotônico, mata e reapa somente o filho direto no timeout ou erro pós-spawn, valida UTF-8 estritamente após reap e só então devolve um snapshot imutável.
 use crate::limite_tempo::LimiteTempo;
 use crate::saida_processo::SaidaProcesso;
 use std::collections::HashMap;
 use std::io::{self, Read, Write};
 use std::process::{Child, ChildStderr, ChildStdin, ChildStdout, ExitStatus, Stdio};
 use std::time::{Duration, Instant};
-
-// @pinker-nav:start processos.estruturado.hospedado
-// @pinker-nav:domain processos
-// @pinker-nav:layer interpreter
-// @pinker-nav:summary Implementa a nova execução estruturada apenas no interpretador: recusa Ate(0) antes de configurar ou criar o filho, configura argv/cwd/ambiente e PATH saneada, faz um único spawn para os demais limites, move stdin/stdout/stderr por uma única malha poll com fds não-bloqueantes e quantum justo por canal, aplica deadline monotônico, mata e reapa somente o filho direto no timeout ou erro pós-spawn, valida UTF-8 estritamente após reap e só então devolve um snapshot imutável.
 
 /// PATH default da nova superfície. Um overlay explícito de PATH é aplicado
 /// depois e, portanto, vence este valor.

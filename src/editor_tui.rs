@@ -1,3 +1,7 @@
+// @pinker-nav:start editor.estado.modelo
+// @pinker-nav:domain estado
+// @pinker-nav:layer editor
+// @pinker-nav:summary OUTPUT_LINES e EDITOR_LINES fixam quantas linhas do painel de saída e do corpo do arquivo são exibidas por render(); struct EditorTui guarda file_path, o buffer de linhas do arquivo (lines), o histórico de mensagens do painel (output) e a flag dirty; from_path lê o arquivo via fs::read_to_string e usa source.lines() para separar o conteúdo, sem armazenar terminadores originais nem a presença de newline final, inicializando o painel com uma mensagem de boas-vindas e retornando Err(String) se a leitura falhar.
 use crate::ast::Program;
 use crate::lexer::Lexer;
 use crate::palette;
@@ -8,10 +12,6 @@ use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
-// @pinker-nav:start editor.estado.modelo
-// @pinker-nav:domain estado
-// @pinker-nav:layer editor
-// @pinker-nav:summary OUTPUT_LINES e EDITOR_LINES fixam quantas linhas do painel de saída e do corpo do arquivo são exibidas por render(); struct EditorTui guarda file_path, o buffer de linhas do arquivo (lines), o histórico de mensagens do painel (output) e a flag dirty; from_path lê o arquivo via fs::read_to_string e usa source.lines() para separar o conteúdo, sem armazenar terminadores originais nem a presença de newline final, inicializando o painel com uma mensagem de boas-vindas e retornando Err(String) se a leitura falhar.
 const OUTPUT_LINES: usize = 10;
 const EDITOR_LINES: usize = 18;
 
@@ -223,8 +223,8 @@ impl EditorTui {
     fn push_output(&mut self, msg: String) {
         self.output.push(msg);
     }
-    // @pinker-nav:end editor.render.saida
 }
+// @pinker-nav:end editor.render.saida
 
 // @pinker-nav:start editor.analise.checagem
 // @pinker-nav:domain analise
@@ -240,6 +240,10 @@ fn parse_and_check_program(source: &str) -> Result<Program, crate::error::Pinker
 }
 // @pinker-nav:end editor.analise.checagem
 
+// @pinker-nav:start evidencia.editor.sessao-de-arquivo
+// @pinker-nav:domain editor
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Provas do editor TUI: abrir arquivo existente carrega o conteudo, arquivo inexistente falha em vez de criar sessao vazia, o comando de tokens produz saida e o comando de alteracao de linha muda a linha indicada.
 #[cfg(test)]
 mod tests {
     use super::EditorTui;
@@ -309,3 +313,4 @@ mod tests {
         std::fs::remove_file(path).expect("cleanup");
     }
 }
+// @pinker-nav:end evidencia.editor.sessao-de-arquivo

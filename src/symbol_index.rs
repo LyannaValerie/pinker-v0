@@ -4,6 +4,12 @@
 //! vínculos explícitos já serializados no catálogo da Trama e resolve IDs
 //! documentais contra o catálogo documental vigente.
 
+// @pinker-nav:start trama.simbolos.modelo
+// @pinker-nav:domain simbolos
+// @pinker-nav:layer trama
+// @pinker-nav:symbol pinker_v0::symbol_index::LocateReport|LocateReport|rust-type|declaration
+// @pinker-nav:symbol-doc pinker_v0::symbol_index::LocateReport|development.symbol-index
+// @pinker-nav:summary Modelo único, público e versionado de localização: candidatos homônimos permanecem separados por identidade; relações carregam status KNOWN, UNKNOWN ou UNAVAILABLE, paths repo-relativos e a autoridade explícita que produziu cada vínculo.
 use crate::doc_index::{DocCatalog, DocDocument, DocSection};
 use crate::nav::{CodeCatalog, CodeRegion, SymbolKind, SymbolRole};
 use std::collections::{BTreeMap, BTreeSet};
@@ -11,13 +17,6 @@ use std::fmt;
 
 /// Schema público próprio de `pink nav localizar`.
 pub const SYMBOL_LOCATION_SCHEMA: u64 = 1;
-
-// @pinker-nav:start trama.simbolos.modelo
-// @pinker-nav:domain simbolos
-// @pinker-nav:layer trama
-// @pinker-nav:symbol pinker_v0::symbol_index::LocateReport|LocateReport|rust-type|declaration
-// @pinker-nav:symbol-doc pinker_v0::symbol_index::LocateReport|development.symbol-index
-// @pinker-nav:summary Modelo único, público e versionado de localização: candidatos homônimos permanecem separados por identidade; relações carregam status KNOWN, UNKNOWN ou UNAVAILABLE, paths repo-relativos e a autoridade explícita que produziu cada vínculo.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RelationStatus {
@@ -756,6 +755,10 @@ fn json_string(value: &str) -> String {
     out
 }
 // @pinker-nav:end trama.simbolos.renderizacao
+// @pinker-nav:start evidencia.simbolos.derivacao-e-render
+// @pinker-nav:domain simbolos
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Provas do indice de simbolos: as relacoes explicitas sao derivadas sem heuristica e a ausencia e publicada como ausencia, homonimos sao preservados em ordem de identidade, destino inexistente e teste fabricado fora de evidencia sao recusados, e os renderizadores consomem o mesmo modelo e sao deterministicos.
 
 #[cfg(test)]
 mod tests {
@@ -906,3 +909,4 @@ mod tests {
         assert!(!render_json(&report).contains("/tmp/"));
     }
 }
+// @pinker-nav:end evidencia.simbolos.derivacao-e-render

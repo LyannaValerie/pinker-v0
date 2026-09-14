@@ -108,6 +108,10 @@ fn passthrough(ch: char) -> &'static str {
 }
 // @pinker-nav:end trama.consultas.normalizacao
 
+// @pinker-nav:start evidencia.consultas.normalizacao
+// @pinker-nav:domain consultas
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Provas da normalizacao de consulta: minusculas com remocao de diacriticos, pontuacao virando espaco com colapso de repeticoes, divisao em termos descartando vazios e dobra de todos os diacriticos do portugues.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -142,3 +146,4 @@ mod tests {
         assert_eq!(normalize("Ãâ Éê Çç"), "aa ee cc");
     }
 }
+// @pinker-nav:end evidencia.consultas.normalizacao

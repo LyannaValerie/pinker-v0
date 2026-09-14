@@ -19,12 +19,12 @@
 //! do move e continua sendo: `pub(super)` é o mínimo que devolve ao pai a
 //! função que ele chama nas duas entradas públicas do caminho montável.
 
-use super::*;
-
 // @pinker-nav:start backend-s.lowering.globais-rodata
 // @pinker-nav:domain lowering
 // @pinker-nav:layer backend-s
 // @pinker-nav:summary `extract_external_callconv_program` (início): deduplicação de símbolos globais (recusa duplicados), aceitação apenas de globais estáticas `bombom`/`logica` com inicializador literal inteiro/lógico (`OperandIR::Int`/`Bool`), montagem de `rodata_globals`, e a exigência de função `principal`. Primeira responsabilidade contígua da extração para `ExternalCallConvProgram`.
+use super::*;
+
 pub(super) fn extract_external_callconv_program(
     selected: &SelectedProgram,
     native_runtime: bool,
@@ -1574,6 +1574,10 @@ pub(super) fn extract_external_callconv_program(
                 }
             }
             // @pinker-nav:end backend-s.lowering.falar-runtime
+            // @pinker-nav:start backend-s.callconv.montagem-do-programa
+            // @pinker-nav:domain callconv
+            // @pinker-nav:layer backend-s
+            // @pinker-nav:summary Montagem final do programa de convencao externa: fecha cada bloco com seu terminador, acumula as funcoes e reune rodata de globais, de strings e de referencias a funcao com as vtables e adaptadores de trato. A referencia a funcao inexistente como valor e recusada aqui pelo subset da Fase 242.
             blocks.push(ExternalCallConvBlock {
                 label: block.label.clone(),
                 body,
@@ -1611,3 +1615,4 @@ pub(super) fn extract_external_callconv_program(
         functions,
     })
 }
+// @pinker-nav:end backend-s.callconv.montagem-do-programa

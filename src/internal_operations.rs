@@ -52,6 +52,10 @@
 //! `abstract_machine_validate`, `instr_select_validate`, `ir::context`,
 //! `ir::model` e `backend_s`, cada um com sua própria tabela literal.
 
+// @pinker-nav:start internas.contrato.autoridade
+// @pinker-nav:domain contrato
+// @pinker-nav:layer compilador
+// @pinker-nav:summary Autoridade declarativa unica das operacoes internas do compilador (U-01): existencia, familia, papel dos operandos, aridade e assinatura IR de cada grafia interna, deliberadamente separada da classe do callee, da superficie publica das intrinsecas e do simbolo ABI do runtime.
 use crate::ir::{MapKeyIR, TypeIR};
 
 /// Família estrutural de uma operação interna.
@@ -603,3 +607,4 @@ pub(crate) mod registro {
 
 #[cfg(test)]
 mod metamorphic_oracle;
+// @pinker-nav:end internas.contrato.autoridade

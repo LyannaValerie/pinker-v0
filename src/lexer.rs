@@ -1,11 +1,10 @@
-use crate::error::PinkerError;
-use crate::source_map::SourceId;
-use crate::token::{Position, Span, Token, TokenKind};
-
 // @pinker-nav:start lexer.identificadores.namespace-reservado
 // @pinker-nav:domain identificadores
 // @pinker-nav:layer lexer
 // @pinker-nav:summary Fronteira única de identificadores originados da fonte: os namespaces de escopo `AnyIdentifier` da autoridade `native_symbol` — as dezenove formas que o compilador de fato materializa (`__pinker_internal_`, `__anon_carinho_`, `__impl_`, `__gen_`, `__gen_leque_`, `__fnref_env_`, os slots de iteração, os alvos de `tentar`/propagação, `__env`, `__ternario`, ...) — são recusados com `E-SEMANTIC-RESERVED-NAMESPACE` em toda posição de identificador: declaração de função, variável, parâmetro, constante, apelido, ninho, leque, trato, método e campo, e também qualquer referência. A reserva é da forma possuída, não do superprefixo `__` comum a elas, então `__usuario` continua identificador Pinker legal. Por estar no ponto em que o texto da fonte se torna `TokenKind::Ident`, nenhum consumidor a jusante pode observar um identificador reservado; identificadores sintéticos construídos diretamente pelo compilador não são lexados e portanto não passam por esta fronteira. A lista não é duplicada aqui: a tabela canônica é `native_symbol::PINKER_OWNED_NAMESPACES`.
+use crate::error::PinkerError;
+use crate::source_map::SourceId;
+use crate::token::{Position, Span, Token, TokenKind};
 
 /// Prefixo de identificador reservado ao compilador, derivado da autoridade
 /// única de namespace Pinker-owned. É uma das formas da tabela canônica, não
@@ -32,6 +31,10 @@ fn consume_source_identifier(lexeme: &str, span: Span) -> Result<(), PinkerError
 }
 // @pinker-nav:end lexer.identificadores.namespace-reservado
 
+// @pinker-nav:start lexer.cursor.leitura-de-caracteres
+// @pinker-nav:domain cursor
+// @pinker-nav:layer lexer
+// @pinker-nav:summary Cursor de leitura do lexico: avanca um caractere mantendo linha e coluna corretas, espia o proximo sem consumir e consome condicionalmente quando o caractere esperado casa. E o unico ponto que move a posicao, e por isso a unica fonte de span correto.
 pub struct Lexer<'a> {
     chars: std::iter::Peekable<std::str::CharIndices<'a>>,
     line: usize,
@@ -105,6 +108,7 @@ impl<'a> Lexer<'a> {
             false
         }
     }
+    // @pinker-nav:end lexer.cursor.leitura-de-caracteres
 
     // @pinker-nav:start lexer.espacos-comentarios.consumo
     // @pinker-nav:domain comentarios
@@ -557,5 +561,5 @@ impl<'a> Lexer<'a> {
 
         Ok(tokens)
     }
-    // @pinker-nav:end lexer.fluxo.tokenizacao
 }
+// @pinker-nav:end lexer.fluxo.tokenizacao

@@ -1,10 +1,10 @@
+// @pinker-nav:start parser.genericos.inferencia-local
+// @pinker-nav:domain genericos
+// @pinker-nav:layer parser
+// @pinker-nav:summary Inferência genérica local e determinística para chamadas sem argumentos de tipo explícitos: sintetiza somente tipos locais de argumentos, unifica recursivamente posições formais com parâmetros de tipo, exige substituição única, diagnostica conflito/ausência de fonte e registra a mesma instanciação monomórfica usada pelo caminho explícito. Não usa tipo de retorno esperado, não executa coercion e não contém dispatch nominal por função.
 use super::*;
 
 impl Parser {
-    // @pinker-nav:start parser.genericos.inferencia-local
-    // @pinker-nav:domain genericos
-    // @pinker-nav:layer parser
-    // @pinker-nav:summary Inferência genérica local e determinística para chamadas sem argumentos de tipo explícitos: sintetiza somente tipos locais de argumentos, unifica recursivamente posições formais com parâmetros de tipo, exige substituição única, diagnostica conflito/ausência de fonte e registra a mesma instanciação monomórfica usada pelo caminho explícito. Não usa tipo de retorno esperado, não executa coercion e não contém dispatch nominal por função.
     pub(super) fn push_value_param_scope(&mut self, params: &[Param]) {
         self.value_type_scopes.push(
             params
@@ -1287,5 +1287,5 @@ impl Parser {
         }
         Ok(out)
     }
-    // @pinker-nav:end parser.genericos.leques-instanciacao
 }
+// @pinker-nav:end parser.genericos.leques-instanciacao

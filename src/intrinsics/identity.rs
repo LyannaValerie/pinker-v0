@@ -6,6 +6,10 @@
 //! execução no interpretador e símbolos de runtime continuam com seus donos
 //! de fase.
 
+// @pinker-nav:start intrinsecos.identidade.autoridade
+// @pinker-nav:domain intrinsecos
+// @pinker-nav:layer identidade
+// @pinker-nav:summary Autoridade de identidade da superficie publica de intrinsecas: decide se uma grafia publica pertence a uma intrinseca, qual identidade canonica ela representa, qual alias historico aponta para qual alvo e qual politica vale para declaracao callable homonima, sem assumir assinatura, execucao ou simbolo de runtime.
 use crate::falha_operacional::{OperacaoFalivel, SUPERFICIES_FALIVEIS};
 use crate::intrinsics::public_surface::{IdentidadeCanonica, EXPORTACOES};
 use std::collections::BTreeMap;
@@ -682,3 +686,4 @@ mod tests {
         }
     }
 }
+// @pinker-nav:end intrinsecos.identidade.autoridade

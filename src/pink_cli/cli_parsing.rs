@@ -4,12 +4,12 @@
 //! Movimento físico: as decisões, o estado e a ordem são os do entrypoint.
 //! `main.rs` continua dono da orquestração; aqui mora só a implementação.
 
-use super::*;
-
 // @pinker-nav:start cli.parsing.subcomandos
 // @pinker-nav:domain parsing
 // @pinker-nav:layer cli
 // @pinker-nav:summary Parsers estritos dos subcomandos, incluindo estado, doctor e verificar: validam flags, posicionais, duplicatas e requisitos cruzados antes de produzir modelos tipados.
+use super::*;
+
 fn parse_build_args(binary: &str, args: &[String]) -> Result<BuildConfig, String> {
     let mut input: Option<String> = None;
     let mut out_dir = "build".to_string();
@@ -313,6 +313,7 @@ fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String>
     let mut predecessor: Option<String> = None;
     let mut autorizar: Option<String> = None;
     let mut diff: Option<String> = None;
+    let mut base: Option<String> = None;
     let mut desde: Option<usize> = None;
     let mut linhas: Option<usize> = None;
     let mut resumo = false;
@@ -350,6 +351,22 @@ fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String>
                     ));
                 }
                 diff = Some(args[i].clone());
+            }
+            "--base" => {
+                i += 1;
+                if i >= args.len() {
+                    return Err(format!(
+                        "Flag '--base' requer uma referência Git.\n\n{}",
+                        nav_usage(binary)
+                    ));
+                }
+                if base.is_some() {
+                    return Err(format!(
+                        "A opção '--base' não pode ser repetida.\n\n{}",
+                        nav_usage(binary)
+                    ));
+                }
+                base = Some(args[i].clone());
             }
             "--observado" => observado = true,
             "--justificativa" => {
@@ -527,6 +544,16 @@ fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String>
                 symbol: require_one("localizar")?,
             }
         }
+        "cobertura" => {
+            if limite.is_some() {
+                return Err(format!(
+                    "A opção '--limite' não pertence a nav cobertura.\n\n{}",
+                    nav_usage(binary)
+                ));
+            }
+            require_none("cobertura")?;
+            NavSub::Cobertura
+        }
         "cobertura-diff" => {
             if limite.is_some() {
                 return Err(format!(
@@ -535,7 +562,7 @@ fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String>
                 ));
             }
             require_none("cobertura-diff")?;
-            NavSub::CoberturaDiff
+            NavSub::CoberturaDiff { base: base.clone() }
         }
         "impacto" => {
             if limite.is_some() {
@@ -548,7 +575,10 @@ fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String>
             let diff = diff
                 .clone()
                 .ok_or_else(|| format!("nav impacto exige --diff REF.\n\n{}", nav_usage(binary)))?;
-            NavSub::Impacto { diff }
+            NavSub::Impacto {
+                diff,
+                base: base.clone(),
+            }
         }
         "mapa" => NavSub::Mapa {
             filtro: if positionals.is_empty() {

@@ -1,9 +1,9 @@
-use crate::token::Span;
-
 // @pinker-nav:start error.diagnostico.taxonomia
 // @pinker-nav:domain diagnostico
 // @pinker-nav:layer error
 // @pinker-nav:summary Taxonomia unificada de erros do compilador (léxico, sintático, semântico, cada validação de pipeline e runtime), cada variante carregando mensagem e span de origem.
+use crate::token::Span;
+
 #[derive(Debug)]
 pub enum PinkerError {
     Lexer {
@@ -244,6 +244,10 @@ fn split_runtime_message_and_trace(msg: &str) -> (&str, Option<&str>) {
 }
 // @pinker-nav:end error.diagnostico.contexto-fonte
 
+// @pinker-nav:start error.diagnostico.mensagem
+// @pinker-nav:domain diagnostico
+// @pinker-nav:layer error
+// @pinker-nav:summary Texto observavel de cada variante de erro do compilador: a mensagem que o humano le e que os testes comparam, por fase — lexico, sintatico, semantico, IR, validacao textual e runtime — com a posicao de origem preservada em todas elas.
 impl std::fmt::Display for PinkerError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -303,3 +307,4 @@ impl std::fmt::Display for PinkerError {
 }
 
 impl std::error::Error for PinkerError {}
+// @pinker-nav:end error.diagnostico.mensagem

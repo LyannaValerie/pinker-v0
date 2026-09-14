@@ -59,16 +59,15 @@
 //! histórica é fazer a resolução semântica concordar com a autoridade que já
 //! existia, não inventar uma nova.
 
+// @pinker-nav:start mapa.representacao.canonica
+// @pinker-nav:domain tipos
+// @pinker-nav:layer semantica
+// @pinker-nav:summary Autoridade única da correspondência entre a representação física de um tipo de mapa e seus componentes semânticos: `components` decompõe qualquer mapa — as quatro variantes históricas e o `Type::Map` adulto — no par (chave, valor), `class_of` nomeia a classe canônica independentemente da grafia e `canonical_representation` devolve a variante física canônica de um par já resolvido. Não decide compatibilidade, identidade exata, admissibilidade de componente nem especialização de operação.
 use std::borrow::Cow;
 
 use crate::ast::Type;
 use crate::map_specialization::CanonicalMapClass;
 use crate::token::Span;
-
-// @pinker-nav:start mapa.representacao.canonica
-// @pinker-nav:domain tipos
-// @pinker-nav:layer semantica
-// @pinker-nav:summary Autoridade única da correspondência entre a representação física de um tipo de mapa e seus componentes semânticos: `components` decompõe qualquer mapa — as quatro variantes históricas e o `Type::Map` adulto — no par (chave, valor), `class_of` nomeia a classe canônica independentemente da grafia e `canonical_representation` devolve a variante física canônica de um par já resolvido. Não decide compatibilidade, identidade exata, admissibilidade de componente nem especialização de operação.
 
 /// Chave e valor semânticos de um tipo de mapa.
 ///
@@ -177,5 +176,10 @@ pub fn canonical_representation(key: &Type, value: &Type, span: Span) -> Option<
 }
 // @pinker-nav:end mapa.representacao.canonica
 
+// @pinker-nav:start map-representation.provas.ligacao
+// @pinker-nav:domain provas
+// @pinker-nav:layer map-representation
+// @pinker-nav:summary Ligacao do modulo de provas da representacao de mapa, privado e `#[cfg(test)]`, mantido em arquivo proprio sem ampliar superficie do modulo.
 #[cfg(test)]
 mod tests;
+// @pinker-nav:end map-representation.provas.ligacao

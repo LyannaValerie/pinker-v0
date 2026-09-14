@@ -8,6 +8,10 @@
 //! módulo `nav_projection_snapshot`, porque o módulo desceu de bloco para
 //! arquivo sem descer de nível.
 
+// @pinker-nav:start evidencia.trama.snapshots-nucleo
+// @pinker-nav:domain snapshots
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Testes de unidade do nucleo somente leitura dos snapshots historicos de projecao da Trama, preservando as assercoes e o caminho de modulo originais apos a decomposicao fisica do arquivo.
 use super::*;
 
 fn region(key: &str, file: &str, hash: &str) -> CodeRegion {
@@ -163,3 +167,4 @@ fn falha_de_harness_nao_produz_medida_observada() {
     assert!(matches!(report.outcome, Outcome::HarnessFailure(_)));
     assert!(report.observed.is_none());
 }
+// @pinker-nav:end evidencia.trama.snapshots-nucleo

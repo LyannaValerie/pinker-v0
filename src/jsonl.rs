@@ -10,13 +10,13 @@
 //! `\" \\ \n \r \t \uXXXX`), inteiros não-negativos, booleanos e arrays de
 //! strings. Zero dependências externas.
 
-use std::collections::BTreeMap;
-use std::fmt;
-
 // @pinker-nav:start trama.catalogo.leitor-jsonl
 // @pinker-nav:domain catalogo
 // @pinker-nav:layer trama
 // @pinker-nav:summary Leitor mínimo e zero-dependência de JSON de uma linha (JSONL): interpreta objetos com strings escapadas, inteiros, booleanos e arrays de strings, permitindo que as consultas reconstruam os catálogos sem revarrer as fontes.
+use std::collections::BTreeMap;
+use std::fmt;
+
 /// Valor JSON mínimo aceito pelos catálogos da Trama.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum JsonValue {
@@ -276,6 +276,10 @@ impl<'a> Parser<'a> {
 }
 // @pinker-nav:end trama.catalogo.leitor-jsonl
 
+// @pinker-nav:start evidencia.jsonl.parser-minimo
+// @pinker-nav:domain jsonl
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Provas do parser JSONL minimo: objeto plano, arrays e booleanos, escapes e sequencias unicode, preservacao de UTF-8 e recusa de sobra depois do valor em vez de aceitacao silenciosa.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -316,3 +320,4 @@ mod tests {
         assert!(parse_object(r#"{"a":}"#).is_err());
     }
 }
+// @pinker-nav:end evidencia.jsonl.parser-minimo

@@ -36,12 +36,12 @@
 //! privados a `pub(super)` — exatamente os seis `exports` que o
 //! `unit_costs.json` da #601 nomeia para a IR-3.
 
-use super::*;
-
 // @pinker-nav:start ir.modelo.representacao
 // @pinker-nav:domain modelo
 // @pinker-nav:layer ir
 // @pinker-nav:summary Modelo de dados da IR estruturada: programa, constantes, funções, blocos, instruções, valores, tipos (`TypeIR`/`ScalarTypeIR`) e operadores — a representação com slots normalizados e tipos explícitos produzida após a semântica.
+use super::*;
+
 /// Programa completo na IR estruturada.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProgramIR {

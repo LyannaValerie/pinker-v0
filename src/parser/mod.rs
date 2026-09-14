@@ -1,3 +1,7 @@
+// @pinker-nav:start parser.estado.modelo
+// @pinker-nav:domain estado
+// @pinker-nav:layer parser
+// @pinker-nav:summary Preludio do parser e o estado que ele carrega durante todo o parse: os submodulos de comandos, expressoes, genericos, lacos e resultado, o tipo de colecao detectado em declaracao de variavel e de parametro (que decide a desugaring de `para cada`), e a estrutura Parser com posicao de token, tabelas de tipos conhecidos, relacoes de impl pendentes, origem generica e o conjunto de funcoes anonimas capturantes.
 use crate::anonymous_identity;
 use crate::ast::*;
 use crate::error::PinkerError;
@@ -194,6 +198,11 @@ pub struct Parser {
     /// — excluídos dos caminhos rápidos estáticos das Fases 238/239.
     capturing_anon_functions: HashSet<String>,
 }
+// @pinker-nav:end parser.estado.modelo
+// @pinker-nav:start parser.instanciacao.registros
+// @pinker-nav:domain instanciacao
+// @pinker-nav:layer parser
+// @pinker-nav:summary Registros que o parser acumula enquanto reconhece formas que so se resolvem depois: instanciacao generica de funcao e de leque, instanciacao e binding de parametro de funcao, bloco de impl ja lido e relacao de impl ainda pendente, mais a uniao de dois spans em um span que cobre os dois.
 
 #[derive(Clone)]
 struct GenericInstantiation {
@@ -250,6 +259,11 @@ fn merge_span(a: Span, b: Span) -> Span {
 ///
 /// Guarda ÍNDICES, não lexemas: quem lê decide o que extrair, e o leitor não
 /// precisa de empréstimo vivo sobre `self.tokens` enquanto o parser segue
+// @pinker-nav:end parser.instanciacao.registros
+// @pinker-nav:start parser.importacoes.contexto
+// @pinker-nav:domain importacoes
+// @pinker-nav:layer parser
+// @pinker-nav:summary Declaracao de `trazer` como o parser a ve e o contexto de import que ele recebe pronto: membros na ordem textual, import inteiro quando a lista e vazia, quais nomes sao modulo Pinker real e quais identidades de topo o modulo traz. O parser recebe o veredito de modulo; nao o calcula.
 /// mutando. `membros` vazio significa import inteiro (`trazer M;`); caso
 /// contrário são os membros na ORDEM TEXTUAL, que é a ordem em que a forma
 /// separada equivalente teria sido escrita.
@@ -311,6 +325,11 @@ pub struct ContextoDeImport {
     pub import_incompleto: bool,
 }
 
+// @pinker-nav:end parser.importacoes.contexto
+// @pinker-nav:start parser.impl.materializacao-de-default
+// @pinker-nav:domain impl
+// @pinker-nav:layer parser
+// @pinker-nav:summary Construcao do parser (com e sem contexto de import ou origem generica) e a materializacao de corpo default de trato por alvo: chave de tipo do impl, nome da funcao materializada, nome da funcao de checagem do default e a copia das closures sinteticas que o corpo cita. Uma copia por materializacao e obrigatoria porque a captura de uma closure e resolvida uma unica vez por nome e o receiver muda de tipo a cada alvo.
 impl Parser {
     pub fn new(tokens: Vec<Token>) -> Self {
         Self::with_generic_origin(tokens, GenericOrigin::Root)
@@ -521,6 +540,7 @@ impl Parser {
         Ok(())
     }
 
+    // @pinker-nav:end parser.impl.materializacao-de-default
     // @pinker-nav:start parser.fluxo.nucleo
     // @pinker-nav:domain fluxo
     // @pinker-nav:layer parser
@@ -1938,6 +1958,10 @@ impl Parser {
     }
 
     // @pinker-nav:end parser.encaixe.expressao
+    // @pinker-nav:start parser.colecoes.registro-de-tipo
+    // @pinker-nav:domain colecoes
+    // @pinker-nav:layer parser
+    // @pinker-nav:summary Registro do tipo de colecao de um nome declarado, para que o `para cada` posterior saiba, sem reinferir, se itera lista, mapa ou verso, e para que uma redeclaracao em outro escopo nao herde a colecao anterior.
 
     fn register_collection_type(&mut self, name: &str, ty: &Type) {
         match ty {
@@ -1981,6 +2005,7 @@ impl Parser {
         }
     }
 
+    // @pinker-nav:end parser.colecoes.registro-de-tipo
     // @pinker-nav:start parser.closures.expressao
     // @pinker-nav:domain closures
     // @pinker-nav:layer parser
@@ -3341,6 +3366,10 @@ impl Parser {
         }
     }
     // @pinker-nav:end parser.genericos.leques-template
+    // @pinker-nav:start parser.funcoes.parametro-funcao
+    // @pinker-nav:domain funcoes
+    // @pinker-nav:layer parser
+    // @pinker-nav:summary Reconhecimento de declaracao que recebe funcao como parametro e a cunhagem do nome sintetico correspondente, transporte usado pela especializacao; o nome pertence a unidade que materializa e nunca e autoridade de identidade.
 
     fn has_function_param(function: &FunctionDecl) -> bool {
         function
@@ -3378,6 +3407,8 @@ impl Parser {
         format!("__fnparam_{}_{}", name, suffix)
     }
 
+    // @pinker-nav:end parser.funcoes.parametro-funcao
+
     // @pinker-nav:start parser.constantes.declaracao
     // @pinker-nav:domain constantes
     // @pinker-nav:layer parser
@@ -3401,6 +3432,5 @@ impl Parser {
             span: merge_span(start_span, self.previous().span),
         })
     }
-
-    // @pinker-nav:end parser.constantes.declaracao
 }
+// @pinker-nav:end parser.constantes.declaracao

@@ -79,6 +79,21 @@ const REGIOES_MOVIDAS: &[(&str, &str)] = &[
     ("semantic.tratos.contratos", "traits.rs"),
 ];
 
+/// As regiões publicadas pela T1 (#675) sobre código do módulo que já estava
+/// aqui e continuava fora de qualquer região. Nenhuma delas foi movida por
+/// corte algum: elas nascem no arquivo onde estão.
+const REGIOES_NOVAS_T1: &[(&str, &str)] = &[
+    ("semantic.intrinsecas.colisao-de-declaracao", "semantic.rs"),
+    ("semantic.verificador.estado", "semantic.rs"),
+    ("semantic.verificador.construcao-e-grafia", "semantic.rs"),
+    ("semantic.ninhos.tipo-de-campo", "semantic.rs"),
+    ("semantic.falhas.identidade-do-leque", "semantic.rs"),
+    ("semantic.asm.verificacao-inline", "semantic.rs"),
+    ("semantic.enums.casamento-exaustividade", "semantic.rs"),
+    ("semantic.programa.pontos-de-entrada", "semantic.rs"),
+    ("semantic.chamadas.contrato-interno", "calls.rs"),
+];
+
 /// As regiões que os cortes deixaram onde estavam. `semantic.funcoes.verificacao`
 /// é a vizinha imediata anterior do span contíguo da SEM-3 e a anterior da
 /// SEM-2, e `semantic.modulos.validacao-local` é a posterior da SEM-1 e da
@@ -412,8 +427,17 @@ fn o_censo_de_regioes_do_modulo_e_exaustivo_nos_dois_sentidos() {
         );
     }
 
-    // Declaradas: a união exata das movidas e das retidas, sem interseção.
+    // Declaradas: a união exata das movidas, das retidas e das novas da T1,
+    // sem interseção.
     let mut declaradas: BTreeMap<String, String> = BTreeMap::new();
+    for (chave, arquivo) in REGIOES_NOVAS_T1 {
+        assert!(
+            declaradas
+                .insert((*chave).to_string(), (*arquivo).to_string())
+                .is_none(),
+            "DUPLICATE_REGION_KEY: `{chave}` declarada duas vezes"
+        );
+    }
     for (chave, arquivo) in REGIOES_MOVIDAS {
         assert!(
             declaradas

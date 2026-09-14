@@ -163,6 +163,10 @@ impl LimiteTempo {
 }
 // @pinker-nav:end processos.limite-tempo.taxonomia
 
+// @pinker-nav:start evidencia.limite-tempo.discriminantes
+// @pinker-nav:domain limite-tempo
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Provas do limite de tempo: a ordem de declaracao fixa os discriminantes, zero significa expiracao imediata e nao ausencia de limite, o discriminante sobrevive a ida e volta, e a ausencia de limite com descendente que mantem o pipe aberto pode esperar indefinidamente.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -220,3 +224,4 @@ mod tests {
         );
     }
 }
+// @pinker-nav:end evidencia.limite-tempo.discriminantes

@@ -23,6 +23,10 @@
 //! A implementação operacional host-side é dona de confinamento por descritor.
 //! Este módulo conserva somente a política Pinker independente e seus limites.
 
+// @pinker-nav:start automation.filesystem.confinamento
+// @pinker-nav:domain filesystem
+// @pinker-nav:layer automation
+// @pinker-nav:summary Confinamento de um path repo-relativo no filesystem: cada ancestral existente e o próprio alvo são inspecionados com symlink_metadata, rejeitando link simbólico em qualquer posição, ancestral que não seja diretório, alvo que não seja arquivo regular e qualquer resultado fora da raiz canônica — política conservadora que se revalida antes de substituir e não promete imunidade a TOCTOU.
 use super::compare::{check, ChangeKind, CheckReport, Observation, ObservedState};
 use super::plan::Plan;
 use super::root::RepoRoot;
@@ -36,11 +40,6 @@ use std::path::{Path, PathBuf};
 
 /// Quantas vezes se tenta um nome de temporário antes de desistir.
 pub const MAX_TEMP_ATTEMPTS: u32 = 64;
-
-// @pinker-nav:start automation.filesystem.confinamento
-// @pinker-nav:domain filesystem
-// @pinker-nav:layer automation
-// @pinker-nav:summary Confinamento de um path repo-relativo no filesystem: cada ancestral existente e o próprio alvo são inspecionados com symlink_metadata, rejeitando link simbólico em qualquer posição, ancestral que não seja diretório, alvo que não seja arquivo regular e qualquer resultado fora da raiz canônica — política conservadora que se revalida antes de substituir e não promete imunidade a TOCTOU.
 
 /// Resolve um path repo-relativo dentro da raiz, aplicando o confinamento.
 ///
@@ -551,6 +550,10 @@ pub fn verify_written(
 }
 // @pinker-nav:end automation.filesystem.aplicacao
 
+// @pinker-nav:start evidencia.automacao.causa-de-raiz
+// @pinker-nav:domain automacao
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Prova de que a causa de harness originada na raiz do repositorio e formatavel, para que a falha chegue ao relatorio com texto estavel em vez de identificador opaco.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -566,3 +569,4 @@ mod tests {
         assert!(falha.to_string().contains("/x"));
     }
 }
+// @pinker-nav:end evidencia.automacao.causa-de-raiz

@@ -1,3 +1,7 @@
+// @pinker-nav:start cli.config.modelos
+// @pinker-nav:domain config
+// @pinker-nav:layer cli
+// @pinker-nav:summary Constantes e helpers JSON, modelos dos comandos históricos e configurações de doctor/verificar usados pelo parsing e roteamento determinísticos da CLI.
 use pinker_v0::abstract_machine;
 use pinker_v0::abstract_machine_validate;
 use pinker_v0::backend_s;
@@ -21,6 +25,7 @@ use pinker_v0::lexer::Lexer;
 use pinker_v0::module_graph::ModuleGraph;
 use pinker_v0::module_resolve;
 use pinker_v0::nav;
+use pinker_v0::nav_coverage;
 use pinker_v0::nav_projection_lifecycle::{self, ProjectionError};
 use pinker_v0::nav_projection_report;
 use pinker_v0::nav_projection_store::ProjectionStore;
@@ -62,14 +67,11 @@ use cli_parsing::parse_args;
 use doc_cli::{load_doc_config, run_doc, write_atomic};
 use modules::{base_dir_de, carregar_e_projetar, contexto_de_import};
 use nav_cli::{
-    run_nav_buscar, run_nav_cobertura_diff, run_nav_impacto, run_nav_listar, run_nav_localizar,
-    run_nav_mapa, run_nav_mostrar, run_nav_projecao, run_nav_sincronizar, run_nav_verificar,
+    run_nav_buscar, run_nav_cobertura, run_nav_cobertura_diff, run_nav_impacto, run_nav_listar,
+    run_nav_localizar, run_nav_mapa, run_nav_mostrar, run_nav_projecao, run_nav_sincronizar,
+    run_nav_verificar,
 };
 
-// @pinker-nav:start cli.config.modelos
-// @pinker-nav:domain config
-// @pinker-nav:layer cli
-// @pinker-nav:summary Constantes e helpers JSON, modelos dos comandos históricos e configurações de doctor/verificar usados pelo parsing e roteamento determinísticos da CLI.
 /// Códigos de saída públicos da CLI e das consultas da Trama (especificação §7.4).
 const EXIT_OK: i32 = 0;
 const EXIT_FAILURE: i32 = 1;
@@ -192,9 +194,13 @@ enum NavSub {
     Localizar {
         symbol: String,
     },
-    CoberturaDiff,
+    Cobertura,
+    CoberturaDiff {
+        base: Option<String>,
+    },
     Impacto {
         diff: String,
+        base: Option<String>,
     },
     Listar {
         seletor: String,
@@ -359,8 +365,11 @@ fn nav_usage(binary: &str) -> String {
            mostrar CHAVE       extrai a região de código pela chave (sempre verificada)\n\
            buscar CONSULTA     busca regiões por chave, domínio, camada, resumo\n\
            localizar SÍMBOLO   resolve identidade estrutural e vínculos explícitos\n\
+           cobertura           inventaria a cobertura corrente das raízes oficiais\n\
            cobertura-diff      relaciona unified diff de stdin a superfícies explícitas\n\
            impacto --diff REF  obtém e relaciona um diff Git sem mutar o repositório\n\
+           --base REF          cartografia da base para cobertura-diff/impacto;\n\
+                               sem ela, a propriedade dependente da base é UNVERIFIABLE\n\
            listar SELETOR      lista regiões de uma camada (layer) ou domínio\n\
            mapa [FILTRO]       agrupa regiões por arquivo\n\
            sincronizar         regenera o catálogo src/navigation.jsonl\n\
@@ -369,7 +378,7 @@ fn nav_usage(binary: &str) -> String {
          \n\
          Opções:\n\
            --repo      raiz do repositório (padrão: .)\n\
-           --json      saída estável em JSON (mostrar/buscar/localizar/cobertura-diff/impacto/listar/mapa)\n\
+           --json      saída estável em JSON (mostrar/buscar/localizar/cobertura/cobertura-diff/impacto/listar/mapa)\n\
            --limite N  máximo de resultados (1..20; buscar=10)\n\
            --desde N   continuação determinística: buscar pula N resultados;\n\
                        mostrar começa na linha N do corpo. A continuação vale\n\
@@ -655,10 +664,15 @@ fn run_nav(config: NavConfigCli) -> i32 {
             run_nav_buscar(repo_root, &consulta, config.json, config.limite, desde)
         }
         NavSub::Localizar { symbol } => run_nav_localizar(repo_root, &symbol, config.json),
-        NavSub::CoberturaDiff => run_nav_cobertura_diff(repo_root, config.json),
-        NavSub::Impacto { diff } => run_nav_impacto(repo_root, &diff, config.json),
+        NavSub::CoberturaDiff { base } => {
+            run_nav_cobertura_diff(repo_root, base.as_deref(), config.json)
+        }
+        NavSub::Impacto { diff, base } => {
+            run_nav_impacto(repo_root, &diff, base.as_deref(), config.json)
+        }
         NavSub::Listar { seletor } => run_nav_listar(repo_root, &seletor, config.json),
         NavSub::Mapa { filtro } => run_nav_mapa(repo_root, filtro.as_deref(), config.json),
+        NavSub::Cobertura => run_nav_cobertura(repo_root, config.json),
         NavSub::Sincronizar => run_nav_sincronizar(repo_root),
         NavSub::Verificar => run_nav_verificar(repo_root),
         NavSub::Projecao(command) => run_nav_projecao(repo_root, config.json, command),
@@ -697,7 +711,12 @@ fn run_repl(_config: ReplConfig) {
 // junto dos outros irmãos, porque escopo de `macro_rules!` é textual e não
 // de item: um `mod` acima da definição de `try_or_exit!` não enxergaria a
 // macro, e os 29 usos que a #601 mediu vivem todos dentro desta unidade.
+// @pinker-nav:start cli.analise.ligacao
+// @pinker-nav:domain analise
+// @pinker-nav:layer cli
+// @pinker-nav:summary Ligacao do submodulo de analise e build do CLI, declarado por caminho explicito em `pink_cli/`, e a importacao das duas entradas que o despacho de comando usa.
 #[path = "pink_cli/analysis_build.rs"]
 mod analysis_build;
 
 use analysis_build::{run_analyze, run_build};
+// @pinker-nav:end cli.analise.ligacao

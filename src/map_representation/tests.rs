@@ -3,6 +3,10 @@
 //! As expectativas são literais: nenhuma delas é produzida pela própria
 //! autoridade, e por isso uma tabela errada aqui não se justifica sozinha.
 
+// @pinker-nav:start evidencia.mapas.representacao-oraculo-interno
+// @pinker-nav:domain mapas
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Oraculo interno da autoridade de representacao de mapa, com expectativas literais escritas fora da autoridade para que uma tabela errada nao consiga se justificar sozinha.
 use super::*;
 use crate::token::{Position, Span};
 
@@ -157,3 +161,4 @@ fn mapa_generico_fora_das_classes_nao_ganha_classe() {
     assert!(components(&ty).is_some());
     assert!(class_of(&ty).is_none());
 }
+// @pinker-nav:end evidencia.mapas.representacao-oraculo-interno

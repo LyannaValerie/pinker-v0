@@ -1,10 +1,10 @@
+// @pinker-nav:start parser.lacos.for-each
+// @pinker-nav:domain lacos
+// @pinker-nav:layer parser
+// @pinker-nav:summary Desugaring de `para cada X em COL { ... }`: reconhece a forma for-each e a reescreve em laço explícito com cursor/índice e chamadas de iteração conforme o tipo da coleção (listas e mapas, por chave/valor), produzindo `ast::Stmt`.
 use super::*;
 
 impl Parser {
-    // @pinker-nav:start parser.lacos.for-each
-    // @pinker-nav:domain lacos
-    // @pinker-nav:layer parser
-    // @pinker-nav:summary Desugaring de `para cada X em COL { ... }`: reconhece a forma for-each e a reescreve em laço explícito com cursor/índice e chamadas de iteração conforme o tipo da coleção (listas e mapas, por chave/valor), produzindo `ast::Stmt`.
     pub(super) fn parse_for_stmt_desugared(&mut self) -> Result<Vec<Stmt>, PinkerError> {
         let start_span = self.consume(TokenKind::KwPara, "para")?.span;
         if self.match_token(TokenKind::KwCada) {
@@ -1286,6 +1286,5 @@ impl Parser {
             while_stmt,
         ])
     }
-
-    // @pinker-nav:end parser.lacos.for-each
 }
+// @pinker-nav:end parser.lacos.for-each

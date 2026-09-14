@@ -39,6 +39,10 @@
 //! com o span e a fonte da unidade que a escreveu. É a diferença entre "este
 //! nome não existe" e "este nome existe, em outro lugar, e você não o pediu".
 
+// @pinker-nav:start modulos.ambiente.import-explicito
+// @pinker-nav:domain modulos
+// @pinker-nav:layer compilador
+// @pinker-nav:summary ModuleEnvironment é o conjunto de ligações que uma unidade autorizou — as próprias declarações de topo mais exclusivamente os imports que ela escreveu — e é a única fonte de resolução do corpo dessa unidade; ambientes_do_grafo monta um ambiente por unidade a partir do grafo, recusando import seletivo de símbolo inexistente e sem jamais herdar as dependências internas do módulo importado para o importador, que é o que separa superfície visível ao importador de ambiente de implementação do módulo.
 use std::collections::{HashMap, HashSet};
 
 use crate::ast::{
@@ -51,10 +55,6 @@ use crate::module_graph::{ModuleGraph, ModuleId, ModuleKey, ModuleUnit};
 use crate::source_map::SourceId;
 use crate::token::Span;
 
-// @pinker-nav:start modulos.ambiente.import-explicito
-// @pinker-nav:domain modulos
-// @pinker-nav:layer compilador
-// @pinker-nav:summary ModuleEnvironment é o conjunto de ligações que uma unidade autorizou — as próprias declarações de topo mais exclusivamente os imports que ela escreveu — e é a única fonte de resolução do corpo dessa unidade; ambientes_do_grafo monta um ambiente por unidade a partir do grafo, recusando import seletivo de símbolo inexistente e sem jamais herdar as dependências internas do módulo importado para o importador, que é o que separa superfície visível ao importador de ambiente de implementação do módulo.
 /// Ligações autorizadas por uma unidade.
 #[derive(Debug, Clone, Default)]
 pub struct ModuleEnvironment {
@@ -2169,6 +2169,10 @@ pub fn fontes_de_modulo(graph: &ModuleGraph) -> HashSet<SourceId> {
         .collect()
 }
 // @pinker-nav:end modulos.visibilidade.fontes
+// @pinker-nav:start evidencia.modulos.identidade-anonima
+// @pinker-nav:domain modulos
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Testemunha de reconhecimento anonimo na resolucao modular: a identidade enderecada por conteudo acompanha a autoridade que a declarou, e a dependencia sintetica materializada a partir de corpo default de trato acompanha a mesma autoridade em vez da unidade que a materializou.
 
 #[cfg(test)]
 mod anonymous_recognition_witness {
@@ -2297,3 +2301,4 @@ carinho principal() -> bombom {
         );
     }
 }
+// @pinker-nav:end evidencia.modulos.identidade-anonima

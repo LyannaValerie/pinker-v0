@@ -5,14 +5,13 @@
 //! filesystem. A consequência é que o check aqui é trivialmente sem escrita —
 //! não há caminho de escrita a evitar, porque não há filesystem.
 
-use super::path::RelativePath;
-use super::plan::Plan;
-use super::{Decision, Failure, HarnessCause, Outcome, PolicyCause};
-
 // @pinker-nav:start automation.comparacao.classificacao
 // @pinker-nav:domain comparacao
 // @pinker-nav:layer automation
 // @pinker-nav:summary Observação do estado corrente como dado de entrada, classificação por comparação de bytes em create/replace/remove/no-change e check somente leitura que exige observação para cada target, rejeita observação órfã ou duplicada e produz apenas MATCH ou DRIFT — falha de harness nunca é reclassificada como drift.
+use super::path::RelativePath;
+use super::plan::Plan;
+use super::{Decision, Failure, HarnessCause, Outcome, PolicyCause};
 
 /// Como um target difere do estado desejado.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -208,6 +207,10 @@ pub fn check(plan: &Plan, observed: &ObservedState) -> Result<CheckReport, Failu
 }
 // @pinker-nav:end automation.comparacao.classificacao
 
+// @pinker-nav:start evidencia.automacao.classificacao
+// @pinker-nav:domain automacao
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Prova de que a classificacao de mudanca cobre as quatro formas observaveis do alvo, sem quinta forma implicita nem forma alcancavel apenas por acidente.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -221,3 +224,4 @@ mod tests {
         assert_eq!(classify(None, None), ChangeKind::NoChange);
     }
 }
+// @pinker-nav:end evidencia.automacao.classificacao

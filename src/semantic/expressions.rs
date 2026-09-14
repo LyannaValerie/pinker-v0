@@ -34,13 +34,13 @@
 //! `check_pointer_arithmetic`) só têm chamadores dentro do próprio corte e
 //! continuam privados.
 
+// @pinker-nav:start semantic.unioes.encaixe
+// @pinker-nav:domain unioes
+// @pinker-nav:layer semantic
+// @pinker-nav:summary Verificação de `encaixe` de união: resolve o tipo do scrutinee e o tipo de cada braço integralmente (apelidos inclusos), deriva a chave canônica compartilhada de `union_canon`, exige que cada braço pertença à união, rejeita duplicata após a resolução (dois apelidos do mesmo tipo canônico são o mesmo membro), exige cobertura exata dos membros canônicos e abre um escopo por braço com o binding declarado no tipo resolvido do membro. Nenhuma tag é calculada ou armazenada aqui — a tag pertence ao registry internado pelo lowering.
 use super::*;
 
 impl SemanticChecker {
-    // @pinker-nav:start semantic.unioes.encaixe
-    // @pinker-nav:domain unioes
-    // @pinker-nav:layer semantic
-    // @pinker-nav:summary Verificação de `encaixe` de união: resolve o tipo do scrutinee e o tipo de cada braço integralmente (apelidos inclusos), deriva a chave canônica compartilhada de `union_canon`, exige que cada braço pertença à união, rejeita duplicata após a resolução (dois apelidos do mesmo tipo canônico são o mesmo membro), exige cobertura exata dos membros canônicos e abre um escopo por braço com o binding declarado no tipo resolvido do membro. Nenhuma tag é calculada ou armazenada aqui — a tag pertence ao registry internado pelo lowering.
     pub(super) fn check_union_match(
         &mut self,
         union_match: &UnionMatchStmt,
@@ -964,5 +964,5 @@ impl SemanticChecker {
         }
         None
     }
-    // @pinker-nav:end semantic.expressoes.verificacao
 }
+// @pinker-nav:end semantic.expressoes.verificacao

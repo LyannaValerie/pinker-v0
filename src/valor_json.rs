@@ -24,14 +24,14 @@
 //! JSON_VALUE_IDENTITY != JSON_SOURCE_TEXT != PINKER_RUNTIME_REPRESENTATION
 //! ```
 
-pub use pinker_json_contract::{
-    interpretar, serializar, NoJson, PoliticaValorJson, TabelaJson, TipoJson, LIMITE_PROFUNDIDADE,
-};
-
 // @pinker-nav:start json.identidade.nomes-publicos
 // @pinker-nav:domain dados
 // @pinker-nav:layer semantica
 // @pinker-nav:summary Nomes públicos da família JSON declarados uma única vez: o tipo do valor é handle opaco nominal reservado pelo runtime, o leque de classificação fixa a ordem de declaração que é o discriminante lido pela IR, e as duas identidades entram em `runtime_identity` — a reserva não vem do recipiente acidental em que cada uma é materializada.
+pub use pinker_json_contract::{
+    interpretar, serializar, NoJson, PoliticaValorJson, TabelaJson, TipoJson, LIMITE_PROFUNDIDADE,
+};
+
 /// Nome público do tipo do valor JSON.
 ///
 /// Identidade **produzida pelo runtime**, como `SaidaProcesso`: o valor por trás

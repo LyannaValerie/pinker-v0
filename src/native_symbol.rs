@@ -16,13 +16,12 @@
 //! visibilidade dinâmica (`STV_HIDDEN`), que governa exportação e não resolve
 //! captura no link estático.
 
-use std::collections::BTreeMap;
-use std::fmt::Write as _;
-
 // @pinker-nav:start nativo.simbolo.entrypoint
 // @pinker-nav:domain identidade
 // @pinker-nav:layer nativo
 // @pinker-nav:summary Autoridade explícita do entrypoint: ENTRYPOINT_SOURCE_IDENTITY (`principal`) é a única identidade de fonte que produz um símbolo de plataforma, ENTRYPOINT_NATIVE_SYMBOL (`main`) é o símbolo da superfície montável e FREESTANDING_ENTRYPOINT_SYMBOL (`_start`) o da superfície livre. NativeSurface modela explicitamente a diferença deliberada entre a superfície montável, onde a identidade vira símbolo de ABI, e a superfície textual `pinker.text.v0`, anotativa, que preserva a grafia Pinker. `function_symbol` é o único ponto que responde `principal -> main`; `is_entrypoint` é o único ponto que reconhece a identidade do entrypoint.
+use std::collections::BTreeMap;
+use std::fmt::Write as _;
 
 /// Identidade Pinker do entrypoint na fonte. Não muda a sintaxe de `principal`.
 pub const ENTRYPOINT_SOURCE_IDENTITY: &str = "principal";

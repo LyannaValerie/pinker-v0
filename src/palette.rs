@@ -134,12 +134,12 @@ pub const TEMA_PINKER: Tema = Tema {
     cursor: CURSOR,
     selecao: SELECAO,
 };
-// @pinker-nav:end palette.visual.identidade
 
 // ── Reset ANSI ───────────────────────────────────────────────────────
 
 pub const RESET: &str = "\x1b[0m";
 
+// @pinker-nav:end palette.visual.identidade
 // ── Helpers para estilização ─────────────────────────────────────────
 
 // @pinker-nav:start palette.visual.estilizacao
@@ -247,6 +247,10 @@ Seleção               {selecao}",
 
 // ── Testes ───────────────────────────────────────────────────────────
 
+// @pinker-nav:start evidencia.paleta.cores-e-ansi
+// @pinker-nav:domain paleta
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Provas da paleta: conversao de hexadecimal para RGB e de volta, formato das sequencias ANSI de frente e de fundo, presenca do reset ao colorir e do reset junto do negrito, consistencia das cores do tema Pinker e cobertura de todas as cores no resumo publicado.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -320,3 +324,4 @@ mod tests {
         assert!(resumo.contains("#2A1F3A"));
     }
 }
+// @pinker-nav:end evidencia.paleta.cores-e-ansi

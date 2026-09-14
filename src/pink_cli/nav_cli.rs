@@ -12,12 +12,12 @@
 //! `pinker_v0::nav_projection_lifecycle`). Este arquivo é o adaptador de CLI
 //! dessas autoridades, exatamente como era dentro do pai.
 
-use super::*;
-
 // @pinker-nav:start cli.nav.projecao
 // @pinker-nav:domain projecoes
 // @pinker-nav:layer cli
 // @pinker-nav:summary Adaptador final `pink nav projecao`: despacha listar, mostrar, verificar, preparar e aceitar; descobre root pelo automation core, deriva texto e JSON dos mesmos modelos, recalcula planos antes de toda autorização e preserva exits distintos para drift, harness, política e stale.
+use super::*;
+
 pub(super) fn run_nav_projecao(repo: &Path, json: bool, command: ProjectionSub) -> i32 {
     let root = match pinker_v0::automation::RepoRoot::discover(repo) {
         Ok(root) => root,
@@ -626,7 +626,7 @@ pub(super) fn run_nav_localizar(repo_root: &Path, symbol: &str, json: bool) -> i
     }
 }
 
-pub(super) fn run_nav_cobertura_diff(repo_root: &Path, json: bool) -> i32 {
+pub(super) fn run_nav_cobertura_diff(repo_root: &Path, base: Option<&str>, json: bool) -> i32 {
     let root = match pinker_v0::automation::RepoRoot::discover(repo_root) {
         Ok(root) => root,
         Err(error) => {
@@ -685,10 +685,29 @@ pub(super) fn run_nav_cobertura_diff(repo_root: &Path, json: bool) -> i32 {
     };
     let projection_store = ProjectionStore::load(root.path()).ok();
     let manifests = change::Manifests::load(&root.path().join(".pinker/changes"));
+    let base_code = match base {
+        Some(reference) => {
+            match tooling::load_base_code_catalog(
+                root.path(),
+                reference,
+                &config.generated.code_index,
+            ) {
+                Ok(catalog) => Some(catalog),
+                Err(error) => {
+                    eprintln!("{error}");
+                    return EXIT_CATALOG;
+                }
+            }
+        }
+        None => None,
+    };
+    let policy = nav_coverage::CoveragePolicy::load(root.path()).ok();
     let report = match diff_coverage::analyze(
         input,
         diff_coverage::CoverageAuthorities {
             code: &code,
+            base_code: base_code.as_ref(),
+            policy: policy.as_ref(),
             docs: docs.as_ref(),
             projection_store: projection_store.as_ref(),
             doc_config: Some(&config),
@@ -709,8 +728,8 @@ pub(super) fn run_nav_cobertura_diff(repo_root: &Path, json: bool) -> i32 {
     EXIT_OK
 }
 
-pub(super) fn run_nav_impacto(repo_root: &Path, diff: &str, json: bool) -> i32 {
-    match tooling::collect_impact(repo_root, diff) {
+pub(super) fn run_nav_impacto(repo_root: &Path, diff: &str, base: Option<&str>, json: bool) -> i32 {
+    match tooling::collect_impact(repo_root, diff, base) {
         Ok(report) => {
             if json {
                 println!("{}", tooling::render_impact_json(&report));
@@ -949,6 +968,38 @@ pub(super) fn run_nav_mapa(repo_root: &Path, filtro: Option<&str>, json: bool) -
 // @pinker-nav:domain nav
 // @pinker-nav:layer cli
 // @pinker-nav:summary run_nav_sincronizar reescaneia e grava o catálogo somente após validação; run_nav_verificar reutiliza nav::verify_repository e valida em memória os vínculos estruturados do índice de símbolos contra os catálogos de código e documentação, sem escrever e sem duplicar autoridade.
+pub(super) fn run_nav_cobertura(repo_root: &Path, json: bool) -> i32 {
+    let policy = match nav_coverage::CoveragePolicy::load(repo_root) {
+        Ok(policy) => policy,
+        Err(error) => {
+            eprintln!("{error}");
+            return EXIT_POLICY;
+        }
+    };
+    let index = scan_code(repo_root);
+    let inventory = match nav_coverage::inventory(repo_root, &index, &policy) {
+        Ok(inventory) => inventory,
+        Err(error) => {
+            eprintln!("{error}");
+            return EXIT_SOURCE;
+        }
+    };
+    if json {
+        println!("{}", nav_coverage::render_json(&inventory));
+    } else {
+        print!("{}", nav_coverage::render_text(&inventory));
+    }
+    let violations = nav_coverage::verify(&inventory, &index, &policy);
+    if violations.is_empty() {
+        EXIT_OK
+    } else {
+        for violation in &violations {
+            eprintln!("{violation}");
+        }
+        EXIT_SOURCE
+    }
+}
+
 pub(super) fn run_nav_sincronizar(repo_root: &Path) -> i32 {
     let doc_config = load_doc_config(repo_root);
     let index = scan_code(repo_root);
@@ -1002,6 +1053,16 @@ pub(super) fn run_nav_verificar(repo_root: &Path) -> i32 {
                     path: doc_config.generated.code_index.clone()
                 }
             );
+        }
+        match &verification.coverage {
+            nav::CoverageOutcome::Checked { violations, .. } => {
+                for violation in violations {
+                    eprintln!("  - {violation}");
+                }
+            }
+            nav::CoverageOutcome::PolicyUnavailable { reason } => {
+                eprintln!("  - {reason}");
+            }
         }
         return EXIT_SOURCE;
     }
