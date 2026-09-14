@@ -66,6 +66,22 @@ mudança só documental.
 Critério de pontuação por pergunta: **100% útil** = respondida só pela Trama;
 **50%** = a Trama apontou a direção mas outro método fechou; **inútil** = outro
 método respondeu mais rápido e melhor.
+
+### Limites do método — leia antes de citar os números
+
+- O oráculo de cobertura é **definido por `grep`**. Os 100% da linha do `grep`
+  na tabela de blast radius são, portanto, **tautológicos**: ele acha por
+  definição tudo o que ele mesmo delimitou. Esse número não prova que o
+  conjunto encontrado seja o conjunto que precisaria mudar.
+- O oráculo é "arquivos que mencionam `uniao`", não "arquivos que uma
+  implementação de tuplas obrigaria a alterar". É uma aproximação.
+- As seis consultas são um conjunto de conveniência desta rodada. Não são o
+  conjunto de avaliação da T0 e **não formam comparação antes/depois** com
+  nenhuma medição da campanha #671.
+- A razão de bytes compara **duas rotas específicas** para **uma pergunta
+  específica**. Não é economia de contexto medida ao longo de uma Task.
+- A quebra observada no experimento de escrita é de **cartografia e
+  reconstrução histórica**. Nada aqui mediu regressão semântica do compilador.
 <!-- @pinker-doc:end development.trama-utility-audit.metodo -->
 
 <!-- @pinker-doc:start
@@ -117,9 +133,13 @@ em primeiro lugar assim que a consulta usa as palavras do próprio índice
 **recuperação, não de cobertura**: a Trama sabe, mas exige que se pergunte com
 as palavras dela.
 
-`pink doc rota` é mais fraco que `pink doc buscar`: das três intenções testadas,
-`rota` devolveu vazio em duas e resposta irrelevante na terceira, enquanto
-`buscar` acertou a pergunta do roadmap.
+**Retratação — `pink doc rota`.** Uma versão anterior desta auditoria afirmou
+que `rota` é mais fraco que `buscar`. **A afirmação era falsa e nasceu de um
+erro de método**: as duas superfícies foram exercitadas com consultas
+diferentes. `run_doc_rota` e `run_doc_buscar` chamam ambas
+`catalog.search(consulta)`; divergem apenas no limite padrão e na apresentação.
+Reexecutado com consultas idênticas, o resultado é o mesmo nas quatro testadas.
+Nada nesta auditoria sustenta retirar ou rever `doc rota`.
 
 ### Cobertura de blast radius — a Trama sozinha não fecha
 
@@ -128,8 +148,8 @@ Oráculo: 36 arquivos não-teste mencionam o construtor `uniao`.
 | Método | Arquivos achados | Recall | Chamadas |
 |---|---|---|---|
 | `nav listar unioes` | 5 | 14% | 1 |
-| `nav listar` em 6 domínios relevantes | 13 (2 fora do alvo) | 36% | 6 |
-| `grep -rl` | 36 | 100% | 1 |
+| `nav listar` em 6 domínios relevantes | 15 devolvidos: **13 no oráculo** + 2 fora | 36% | 6 |
+| `grep -rl` | 36 | 100% (tautológico: define o oráculo) | 1 |
 
 A leitura correta não é "a Trama perde". Os 13 que ela acha são os
 **conceitualmente centrais**, cada um com resumo; os 23 que faltam são em boa
@@ -149,19 +169,59 @@ Uma linha inserida dentro de `layout.tipos.memoria`:
   `HARNESS_FAILURE`** (`OverrideStaleBase`), exit 6;
 - `make ci` → **9 testes falham** em `nav_cartography_tests`.
 
-O conserto é uma edição manual de **uma linha** (`from = "fnv1a64:..."` no
-snapshot), e o diagnóstico já entrega o hash esperado e o encontrado. Ciclo
-completo até verde: **5 passos, ~2 s**, confirmado com
-`cargo test --test nav_cartography_tests` → 35 passed, 0 failed. O histórico da
-`main` mostra que é a prática normal: os commits `0450188`, `4e146a3`, `5ed8e24`
-e `7b9ab4f` reancoram de 2 a 13 linhas de projeção junto com o código, e
-`348117f` existe só para isso.
+### O conserto óbvio é o conserto errado — e o CI premia
+
+Esta é a correção mais séria desta auditoria, e ela **agrava** o achado em vez
+de aliviá-lo.
+
+A reconciliação é uma **cadeia de dois elos**, não um valor único:
+
+```text
+hash corrente do código
+  --[ regra na RECIPE: from = corrente -> to = histórico ]-->
+hash histórico
+  --[ regra no SNAPSHOT FROZEN: from = histórico -> to = medida ]-->
+projeção medida
+```
+
+O `from` do snapshot é a **saída da recipe**, não o hash da fonte. Quando o
+código muda, o elo que envelhece é o **da recipe**; o snapshot `FROZEN`
+permanece byte-imutável. É exatamente o que a prática da `main` faz: os commits
+`0450188`, `4e146a3`, `5ed8e24` e `7b9ab4f` reancoram de 2 a 13 linhas **da
+recipe** junto com o código, `348117f` existe só para isso, e a PR #676 declara
+e cumpre "nenhum snapshot foi tocado", reancorando 16 bases só na recipe.
+
+**O experimento desta auditoria fez o contrário.** Lendo o diagnóstico
+`OverrideStaleBase` ao pé da letra, editou o `from` dentro de
+`.pinker/projections/onda-pink-agente-d.toml`, que carrega `state = "FROZEN"`.
+Isso é precisamente a recalibração que o `AGENTS.md` proíbe. O ciclo levou
+**5 passos e ~2 s**, e `cargo test --test nav_cartography_tests` devolveu
+**35 passed, 0 failed**.
+
+Esse verde é o problema, não a solução:
+
+```text
+CONSERTO_ERRADO -> CI_VERDE
+```
+
+O diagnóstico nomeia a regra e entrega os dois hashes, mas **não diz em qual
+dos dois elos a regra vive**, e nenhum gate distingue reancorar a recipe de
+recalibrar um snapshot congelado. Um agente que segue a mensagem literalmente
+corrompe a autoridade histórica e é recompensado com build verde.
+
+O caminho correto, na `main` do baseline (onde a recipe ainda não tinha regra
+para `layout.tipos.memoria`), seria **acrescentar a regra à recipe**, não tocar
+o snapshot — que é o que a T1 fez para cada chave que perturbou.
 
 O problema **não é o custo** — é que ele é indescobrível:
 
 - `CONTRIBUTING.md` não menciona projeções, snapshots ou reancoragem;
 - `pink nav projecao` não tem subcomando de reancoragem (`listar`, `mostrar`,
-  `verificar`, `preparar`, `aceitar` — os dois últimos são de `CANDIDATE`);
+  `verificar`, `preparar`, `aceitar` — os dois últimos são de `CANDIDATE`).
+  A automação **já tem dono**: a Filha A da campanha #623 especifica
+  `check`/plano com digest/`apply` explícito exatamente para "manutenção manual
+  dos hashes `from` nas recipes históricas". O que falta hoje não é o programa
+  — é a instrução operacional para quem esbarra no erro antes de ela existir;
 - `AGENTS.md` diz *"Nunca recalibre `regions`, `length`, `fnv1a64` ou a projeção
   estável para esconder drift"*. A frase é sobre esconder drift, mas um agente
   que acabou de ler `OverrideStaleBase` numa linha literalmente escrita
@@ -188,16 +248,17 @@ A seção nova ficou consultável imediatamente por `pink doc buscar` e
 `pink doc mostrar`. Mas o portal `docs/development/README.md` mantém **à mão**
 uma lista de documentos e uma tabela de rotas, e `doc verificar` passou verde
 com o documento novo ausente das duas. O catálogo de máquina e o portal humano
-podem divergir em silêncio.
+podem divergir em silêncio. Integridade de links, índices e referências é
+escopo declarado da Filha B da #623, ainda não executada.
 
-### Preenchimento — metade do sistema está parada
+### Preenchimento — duas capacidades sem preenchimento
 
 | Capacidade | Contrato | Estado medido |
 |---|---|---|
 | Catálogo de código | regiões derivadas de marcadores | **613 regiões, 78% das linhas não-teste, 98/127 arquivos** — vivo e sincronizado |
 | Índice de símbolos (`nav localizar`) | identidade estrutural e vínculos | **13 bindings, 7 símbolos, 9 de 613 regiões (1,5%)** — e **todos os 7 são da própria Trama** (`nav`, `doc_index`, `symbol_index`, `diff_coverage`). Zero símbolos do compilador. `nav localizar Type` e `nav localizar TypeIR` devolvem vazio |
 | Manifestos de mudança | "fonte para geração derivada" | até o cutover (PR #410) a cobertura é **completa e conferida por teste**; depois dele, **107 merges, 18 com manifesto, 89 sem** — a lacuna é contínua do #441 ao #673 |
-| Projeções documentais geradas | tabela mecânica de entregas | `docs/roadmap/generated.md` e `docs/history/changes.md` **param no #440** |
+| Projeções documentais geradas | tabela mecânica de entregas | `docs/roadmap/generated.md` e `docs/history/changes.md` **param no #440**, coerentemente com o que declaram compilar |
 | Verificação | `nav verificar`, `doc verificar` | verdes, ~1,5 s — barato e confiável |
 
 A lacuna **não é violação de contrato**: `change_history_coverage_tests` só
@@ -210,8 +271,19 @@ O problema é outro, e é de dono. O `trama.yml` **exige** o bloco
 `doc importar-pr --check`, que por desenho **valida sem escrever**. Nada nem
 ninguém roda o modo de escrita depois do merge. O resultado é que os autores
 continuam pagando o custo de preencher o bloco em 89 PRs cujo conteúdo nunca
-virou manifesto, e `docs/roadmap/generated.md` publica como corrente um ledger
-que termina no #440.
+virou manifesto.
+
+Uma ressalva contra a leitura anterior, que dizia que `docs/roadmap/generated.md`
+"publica estado falso": **não publica**. A página declara compilar "o que os
+manifestos declaram, sem inventar direção" e aponta `../roadmap.md` como ordem
+ativa oficial. Estar incompleta é consistente com o que ela promete.
+
+E a lacuna também não é necessariamente ausência de dono: a #442 congela a
+documentação e adia obrigações documentais conflitantes. Registrar o bloco na
+PR, importar o manifesto e regenerar páginas derivadas são **três operações
+distintas**, e a primeira conserva valor mesmo com as outras adiadas. O
+encaminhamento correto é o Guia registrar quem responde pela importação e em
+que janela — não importar 89 PRs nem retirar o bloco por reação.
 <!-- @pinker-doc:end development.trama-utility-audit.resultados -->
 
 <!-- @pinker-doc:start
@@ -225,7 +297,9 @@ summary: Mapa de doze etapas produzido pela Trama para o item 16 do Bloco 20, co
 -->
 ## Subproduto: mapa do item 16 (tuplas)
 
-Produzido **pela Trama**, verificado contra o oráculo. Não é entrega do item.
+Produzido **pela Trama**, conferido contra o oráculo por `grep` — que é uma
+aproximação, não a lista definitiva do que o item 16 obrigaria a mudar. Não é
+entrega do item.
 
 | Etapa | Região da Trama | Arquivo | Linhas |
 |---|---|---|---|
@@ -244,7 +318,8 @@ Produzido **pela Trama**, verificado contra o oráculo. Não é entrega do item.
 
 Os 23 arquivos que a Trama não nomeia são, em quase todos os casos, os espelhos
 de validação e renderização das mesmas etapas. Quem for implementar o item 16
-deve prever a reancoragem de base em 31 dos 36 arquivos.
+deve prever a reancoragem do elo da recipe em 31 dos 36 arquivos — nunca a edição
+dos snapshots `FROZEN`.
 <!-- @pinker-doc:end development.trama-utility-audit.mapa-item-16 -->
 
 <!-- @pinker-doc:start
@@ -257,33 +332,42 @@ summary: Veredito por capacidade e os quatro consertos baratos que resolvem a ma
 -->
 ## Veredito por capacidade
 
-| Capacidade | Veredito |
-|---|---|
-| Resumos de região + `--resumo` | **manter** — 158× de economia de contexto, sem substituto |
-| `nav mostrar` / `nav listar` / `nav mapa` | **manter** — preciso e barato quando se sabe a chave |
-| `nav buscar` | **manter e melhorar recuperação** — o conteúdo está lá; o ranking não entrega |
-| `nav verificar` / `doc verificar` / `sincronizar` | **manter** — 1,5 s, diff mínimo, sem churn |
-| `doc mostrar` / `doc buscar` | **manter** |
-| `doc rota` | **rever** — perde para `doc buscar` nas mesmas intenções |
-| Snapshots `FROZEN` | **manter o mecanismo, documentar a reancoragem** — o custo é 1 linha, o problema é ninguém saber disso |
-| `nav localizar` (índice de símbolos) | **preencher ou remover** — hoje indexa 7 símbolos, todos da própria Trama |
-| Manifestos `.pinker/changes` + projeções geradas | **religar ou parar de exigir o bloco** — o bloco é cobrado em todo PR, mas 89 dos 107 merges pós-cutover nunca viraram manifesto |
+Nenhuma capacidade sai desta auditoria com recomendação de remoção.
+
+| Capacidade | Veredito | Encaminhamento |
+|---|---|---|
+| Resumos de região + `--resumo` | **manter** | preservar os ganhos de T0 |
+| `nav mostrar` / `nav listar` / `nav mapa` | **manter** | — |
+| `nav buscar` | **manter** | registrar estas consultas para avaliação pós-T2/#674 |
+| `nav verificar` / `doc verificar` / `sincronizar` | **manter** | melhorar o diagnóstico de dessincronia |
+| `doc mostrar` / `doc buscar` / `doc rota` | **manter** | `rota` e `buscar` compartilham `catalog.search`; a crítica anterior a `rota` foi retratada |
+| Cobertura corrente | **concluir T1** | #675 / PR #676 |
+| Snapshots `FROZEN` | **manter; instruir a recuperação agora** | automação é a Filha A da #623; a instrução operacional não espera por ela |
+| `nav localizar` | **manter e completar** | T2 existe para isto; a baixa cobertura confirma a necessidade, não a remoção |
+| Bloco `pinker-change` e ledger | **manter; esclarecer lifecycle** | separar registro na PR, persistência e geração documental diante do freeze da #442 |
+| Portal humano | **preservar** | integridade de relações é escopo da Filha B da #623 |
 
 ## Recomendação
 
-**Não remover.** A parte cara (marcadores e catálogo) é a parte que funciona, e
-a economia de contexto é grande demais para descartar. O custo real não está na
-infraestrutura: está em duas capacidades que foram construídas e nunca
-preenchidas, e numa manobra obrigatória que não está escrita em lugar nenhum.
+**Não remover nada.** A parte cara — marcadores e catálogo — é a parte que
+funciona, e a economia de contexto entre as rotas medidas é grande demais para
+descartar.
 
-Quatro consertos baratos resolvem a maior parte do custo medido:
+O que esta auditoria sustenta, depois de corrigida, é mais estreito e mais
+útil do que a versão anterior afirmava:
 
-1. escrever a reancoragem de base em `CONTRIBUTING.md` e no `AGENTS.md`, e
-   desfazer a leitura de que ela é proibida;
-2. fazer `pink nav verificar` **nomear a região** que dessincronizou;
-3. decidir o destino de `nav localizar` — ou preencher os símbolos do
-   compilador, ou retirar o comando;
-4. decidir o destino do ledger — ou dar dono ao passo de escrita
-   (`doc importar-pr` sem `--check`, após o merge), ou parar de cobrar o bloco
-   `pinker-change` e de publicar `docs/roadmap/generated.md` como corrente.
+1. **Tornar explícita a recuperação de `OverrideStaleBase` no contrato
+   operacional vigente**, distinguindo elo da recipe de snapshot `FROZEN`.
+   Esta é a recomendação mais forte, porque o conserto aparentemente óbvio é o
+   proibido e o CI não o recusa.
+2. **Fazer `pink nav verificar` nomear a região dessincronizada** — correção
+   focal, sem mudança de contrato.
+3. **Seguir a campanha #671 como planejada**: concluir T1, prosseguir para T2,
+   e só então reavaliar a política de intenção da #674.
+4. **Registrar a disposição do ledger diante do freeze da #442** — quem
+   responde pela importação e em que janela.
+
+Nenhuma ativação documental e nenhuma retirada de comando decorre
+automaticamente desta auditoria.
+
 <!-- @pinker-doc:end development.trama-utility-audit.veredito -->
