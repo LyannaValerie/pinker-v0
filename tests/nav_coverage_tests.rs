@@ -200,6 +200,17 @@ fn arquivo_json(json: &str, path: &str) -> String {
     panic!("objeto JSON de {path} não termina");
 }
 
+/// Impressão digital observada do conteúdo descoberto de um arquivo. É um
+/// dado do inventário, não a decisão sob teste: os controles a usam para
+/// declarar a dívida herdada, e depois provam o comportamento do gate.
+fn fingerprint_de(root: &Path, path: &str) -> String {
+    let inventario = arquivo_json(&cobertura_json(root), path);
+    let marca = "\"uncovered_fingerprint\":\"";
+    let inicio = inventario.find(marca).expect("fingerprint publicada") + marca.len();
+    let fim = inicio + inventario[inicio..].find('"').expect("fim da fingerprint");
+    inventario[inicio..fim].to_string()
+}
+
 fn catalogo(text: &str) -> CodeCatalog {
     CodeCatalog::parse(text, "<fixture>").expect("catálogo de fixture válido")
 }
@@ -234,7 +245,7 @@ fn autoridades<'a>(
 // @pinker-nav:test-for pinker_v0::nav_coverage::inventory
 // @pinker-nav:test-for pinker_v0::nav_coverage::verify
 // @pinker-nav:test-for pinker_v0::nav_coverage::CoveragePolicy
-// @pinker-nav:summary Controles C1 a C12 da cobertura corrente atingindo o consumidor real pink nav cobertura/verificar e a autoridade de relacao base-candidato: arquivo zero-ancora visivel e recusado, perda de marcador detectada, intervalo relevante fora de regiao exposto, intersecao parcial nao promovida a completude, movimento e split/merge com disposicao preservada, excecao estreita aceita e excecao ampla recusada na carga, base ausente como UNVERIFIABLE, catalogo derivado editado a mao incapaz de fabricar PASS e projecao FROZEN recalibrada recusada.
+// @pinker-nav:summary Controles C1 a C15 da cobertura corrente atingindo o consumidor real pink nav cobertura/verificar e a autoridade de relacao base-candidato: arquivo zero-ancora visivel e recusado, perda de marcador detectada, intervalo relevante fora de regiao exposto e recusado pelo gate, intersecao parcial nao promovida a completude, movimento e split/merge com disposicao preservada, excecao estreita aceita e excecao ampla recusada na carga, base ausente como UNVERIFIABLE, catalogo derivado editado a mao incapaz de fabricar PASS, projecao FROZEN recalibrada recusada e divida herdada que nao guarda folga nem aceita troca de conteudo por contagem igual.
 
 /// C1 — um arquivo de produção sem nenhum marcador aparece no inventário e o
 /// gate o recusa pela causa correta.
@@ -721,13 +732,14 @@ fn c13_intervalo_novo_em_arquivo_ancorado_e_recusado_pelo_gate() {
 
     // Declarar a dívida na autoridade versionada é o único caminho que aceita,
     // e ele é uma mudança visível do arquivo revisável.
+    let politica_c13 = format!(
+        "{POLICY}{{\"schema\":1,\"kind\":\"debt\",\"path\":\"src/coberto.rs\",\"uncovered_relevant_lines\":3,\"fingerprint\":\"{}\",\"reason\":\"responsabilidade nova ainda nao cartografada\",\"review\":\"reduzir a zero ao publicar a regiao correspondente\"}}\n",
+        fingerprint_de(repo.path(), "src/coberto.rs")
+    );
     write(
         repo.path(),
         ".pinker/cartography/coverage-policy-v1.jsonl",
-        &format!(
-            "{POLICY}{}\n",
-            r#"{"schema":1,"kind":"debt","path":"src/coberto.rs","uncovered_relevant_lines":3,"reason":"responsabilidade nova ainda nao cartografada","review":"reduzir a zero ao publicar a regiao correspondente"}"#
-        ),
+        &politica_c13,
     );
     assert_eq!(
         verificar(repo.path()).status.code(),
@@ -750,7 +762,7 @@ fn c14_divida_declarada_nao_guarda_folga_nem_sobrevive_obsoleta() {
         ".pinker/cartography/coverage-policy-v1.jsonl",
         &format!(
             "{POLICY}{}\n",
-            r#"{"schema":1,"kind":"debt","path":"src/coberto.rs","uncovered_relevant_lines":5,"reason":"r","review":"v"}"#
+            r#"{"schema":1,"kind":"debt","path":"src/coberto.rs","uncovered_relevant_lines":5,"fingerprint":"fnv1a64:0000000000000001","reason":"r","review":"v"}"#
         ),
     );
     let output = verificar(repo.path());
@@ -768,7 +780,7 @@ fn c14_divida_declarada_nao_guarda_folga_nem_sobrevive_obsoleta() {
         ".pinker/cartography/coverage-policy-v1.jsonl",
         &format!(
             "{POLICY}{}\n",
-            r#"{"schema":1,"kind":"debt","path":"src/nunca_existiu.rs","uncovered_relevant_lines":5,"reason":"r","review":"v"}"#
+            r#"{"schema":1,"kind":"debt","path":"src/nunca_existiu.rs","uncovered_relevant_lines":5,"fingerprint":"fnv1a64:0000000000000001","reason":"r","review":"v"}"#
         ),
     );
     assert!(
@@ -783,7 +795,7 @@ fn c14_divida_declarada_nao_guarda_folga_nem_sobrevive_obsoleta() {
         ".pinker/cartography/coverage-policy-v1.jsonl",
         &format!(
             "{POLICY}{}\n",
-            r#"{"schema":1,"kind":"debt","path":"tests/evidencia.rs","uncovered_relevant_lines":3,"reason":"r","review":"v"}"#
+            r#"{"schema":1,"kind":"debt","path":"tests/evidencia.rs","uncovered_relevant_lines":3,"fingerprint":"fnv1a64:0000000000000001","reason":"r","review":"v"}"#
         ),
     );
     sincronizar(repo.path());
@@ -809,6 +821,58 @@ fn c14_divida_declarada_nao_guarda_folga_nem_sobrevive_obsoleta() {
         Some(0),
         "exceção aprovada foi cobrada pela catraca: {}",
         stderr(&verificar(repo.path()))
+    );
+}
+
+/// C15 — a dívida é o conteúdo descoberto, não um número. Trocar linhas
+/// descobertas herdadas por linhas descobertas NOVAS, mantendo a contagem,
+/// é dívida nova disfarçada e o gate recusa pela causa correta.
+#[test]
+fn c15_troca_de_divida_por_contagem_igual_e_recusada() {
+    let repo = fixture("c15");
+
+    // Dívida herdada declarada: duas linhas relevantes fora da região.
+    let herdada =
+        format!("{COBERTO}\npub const HERDADA_A: i32 = 1;\npub const HERDADA_B: i32 = 2;\n");
+    write(repo.path(), "src/coberto.rs", &herdada);
+    sincronizar(repo.path());
+    let fingerprint = fingerprint_de(repo.path(), "src/coberto.rs");
+    let politica = format!(
+        "{POLICY}{{\"schema\":1,\"kind\":\"debt\",\"path\":\"src/coberto.rs\",\"uncovered_relevant_lines\":2,\"fingerprint\":\"{fingerprint}\",\"reason\":\"divida herdada da fixture\",\"review\":\"reduzir a zero ao publicar a regiao correspondente\"}}\n"
+    );
+    write(
+        repo.path(),
+        ".pinker/cartography/coverage-policy-v1.jsonl",
+        &politica,
+    );
+    assert_eq!(
+        verificar(repo.path()).status.code(),
+        Some(0),
+        "dívida herdada declarada foi recusada: {}",
+        stderr(&verificar(repo.path()))
+    );
+
+    // Troca: sai a dívida herdada, entram duas linhas descobertas NOVAS. A
+    // contagem não muda; o conteúdo muda.
+    let trocada = format!("{COBERTO}\npub const TROCA_A: i32 = 7;\npub const TROCA_B: i32 = 8;\n");
+    write(repo.path(), "src/coberto.rs", &trocada);
+    sincronizar(repo.path());
+
+    let output = verificar(repo.path());
+    assert_ne!(
+        output.status.code(),
+        Some(0),
+        "troca de dívida por contagem igual passou"
+    );
+    assert!(
+        stderr(&output).contains("E-COVERAGE-DEBT-CHANGED: src/coberto.rs"),
+        "falhou por outra causa: {}",
+        stderr(&output)
+    );
+    assert!(
+        !stderr(&output).contains("E-COVERAGE-DEBT-INCREASED"),
+        "a contagem não mudou; a recusa precisa vir do conteúdo: {}",
+        stderr(&output)
     );
 }
 

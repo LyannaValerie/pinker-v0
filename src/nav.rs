@@ -1713,7 +1713,7 @@ fn valid_key(key: &str) -> bool {
     true
 }
 
-fn fnv1a64(data: &str) -> String {
+pub(crate) fn fnv1a64(data: &str) -> String {
     let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
     for byte in data.bytes() {
         hash ^= byte as u64;

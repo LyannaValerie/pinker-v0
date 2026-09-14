@@ -164,6 +164,14 @@ pub struct DispositionRule {
 pub struct DebtRule {
     pub path: String,
     pub uncovered_relevant_lines: usize,
+    /// Impressão digital do CONTEÚDO descoberto, não das coordenadas.
+    ///
+    /// Contagem sozinha é catraca furada: remover três linhas descobertas
+    /// herdadas e acrescentar três novas mantém o número e trocaria dívida
+    /// velha por dívida nova sem aparecer. A impressão digital fixa QUAL
+    /// responsabilidade continua descoberta; qualquer troca a muda. É estável
+    /// sob deslocamento de linha, ao contrário de um intervalo literal.
+    pub fingerprint: String,
     pub reason: String,
     pub review: String,
 }
@@ -503,6 +511,7 @@ fn parse_debt(object: &JsonObject, line: usize) -> Result<DebtRule, PolicyError>
     Ok(DebtRule {
         path,
         uncovered_relevant_lines: uncovered as usize,
+        fingerprint: required_str(object, "fingerprint", line)?,
         reason: required_str(object, "reason", line)?,
         review: required_str(object, "review", line)?,
     })
@@ -624,6 +633,9 @@ pub struct FileCoverage {
     pub relevant_lines: usize,
     pub covered_relevant_lines: usize,
     pub uncovered_relevant_lines: usize,
+    /// `fnv1a64` sobre o conteúdo das linhas relevantes descobertas, na ordem
+    /// do arquivo. Identifica QUAL responsabilidade segue descoberta.
+    pub uncovered_fingerprint: String,
     pub completeness: Completeness,
     pub disposition: FileDisposition,
 }
@@ -701,6 +713,14 @@ pub fn inventory(
             .sum();
         let covered_relevant_lines = relevant_lines - uncovered_relevant_lines;
         let uncovered_relevant_line_count = uncovered_relevant_lines;
+        let source_lines: Vec<&str> = text.lines().collect();
+        let uncovered_body: Vec<&str> = uncovered_relevant_intervals
+            .iter()
+            .flat_map(|interval| interval.start..=interval.end)
+            .filter(|line| relevant.get(line - 1).copied().unwrap_or(false))
+            .filter_map(|line| source_lines.get(line - 1).copied())
+            .collect();
+        let uncovered_fingerprint = nav::fnv1a64(&uncovered_body.join("\n"));
 
         let mut keys: Vec<String> = regions.iter().map(|region| region.key.clone()).collect();
         keys.sort();
@@ -745,6 +765,7 @@ pub fn inventory(
             relevant_lines,
             covered_relevant_lines,
             uncovered_relevant_lines: uncovered_relevant_line_count,
+            uncovered_fingerprint,
             completeness,
             disposition,
         });
@@ -851,6 +872,13 @@ pub enum CoverageViolation {
         declared: usize,
         found: usize,
     },
+    /// A dívida manteve a contagem mas trocou de conteúdo: responsabilidade
+    /// descoberta nova entrou no lugar da herdada.
+    CoverageDebtChanged {
+        path: String,
+        declared: String,
+        found: String,
+    },
     /// Dívida declarada para um caminho que não existe nas raízes oficiais.
     StaleDebtPath { path: String },
     /// Dívida declarada para arquivo que não está sob enforcement.
@@ -895,6 +923,14 @@ impl fmt::Display for CoverageViolation {
             } => write!(
                 f,
                 "E-COVERAGE-DEBT-STALE: {path} declara {declared} linha(s) relevante(s) descoberta(s) e observa {found}; aperte o registro em vez de guardar folga"
+            ),
+            CoverageViolation::CoverageDebtChanged {
+                path,
+                declared,
+                found,
+            } => write!(
+                f,
+                "E-COVERAGE-DEBT-CHANGED: {path} manteve a contagem de linhas descobertas mas trocou o conteúdo ({declared} -> {found}); dívida herdada não pode ser substituída por dívida nova sem revisão"
             ),
             CoverageViolation::StaleDebtPath { path } => write!(
                 f,
@@ -949,7 +985,21 @@ pub fn verify(
                 declared,
                 found: file.uncovered_relevant_lines,
             }),
-            Ordering::Equal => {}
+            Ordering::Equal => {
+                let declared_fingerprint = policy
+                    .debt(&file.path)
+                    .map(|debt| debt.fingerprint.as_str())
+                    .unwrap_or("");
+                if !declared_fingerprint.is_empty()
+                    && declared_fingerprint != file.uncovered_fingerprint
+                {
+                    violations.push(CoverageViolation::CoverageDebtChanged {
+                        path: file.path.clone(),
+                        declared: declared_fingerprint.to_string(),
+                        found: file.uncovered_fingerprint.clone(),
+                    });
+                }
+            }
         }
     }
 
@@ -1116,7 +1166,7 @@ pub fn render_json(inventory: &CoverageInventory) -> String {
             out.push(',');
         }
         out.push_str(&format!(
-            "{{\"path\":{},\"root\":{},\"category\":{},\"file_enforcement\":{},\"regions\":{},\"covered_intervals\":{},\"uncovered_relevant_intervals\":{},\"relevant_lines\":{},\"covered_relevant_lines\":{},\"uncovered_relevant_lines\":{},\"completeness\":{},\"disposition\":{}}}",
+            "{{\"path\":{},\"root\":{},\"category\":{},\"file_enforcement\":{},\"regions\":{},\"covered_intervals\":{},\"uncovered_relevant_intervals\":{},\"relevant_lines\":{},\"covered_relevant_lines\":{},\"uncovered_relevant_lines\":{},\"uncovered_fingerprint\":{},\"completeness\":{},\"disposition\":{}}}",
             nav::json_string(&file.path),
             nav::json_string(&file.root),
             nav::json_string(&file.category),
@@ -1127,6 +1177,7 @@ pub fn render_json(inventory: &CoverageInventory) -> String {
             file.relevant_lines,
             file.covered_relevant_lines,
             file.uncovered_relevant_lines,
+            nav::json_string(&file.uncovered_fingerprint),
             nav::json_string(file.completeness.as_str()),
             nav::json_string(file.disposition.as_str()),
         ));
