@@ -59,9 +59,12 @@ Três experimentos, todos reproduzíveis no checkout:
 Validação usada: `PINKER_EXIGE_NATIVO=1 make ci` com histórico completo. Os
 gates da Trama (`docs-check`, `nav-check`, `change-history-check`, `guard`),
 `fmt-check` e `clippy` passam. Seis testes de `automation_apply_tests` falham
-neste contêiner por rodarem como `root` — eles esperam `IO_FAILURE` de um
-ancestral sem permissão, e `root` ignora o bit; é ambiental e alheio a uma
-mudança só documental.
+neste contêiner. **Um deles foi verificado diretamente**: a asserção diz
+`ancestral sem permissão virou Ok(...) em vez de IO_FAILURE`, e o contêiner roda
+como `root`, que ignora o bit de permissão. Os outros cinco são **inferência**
+pela mesma classe e pelo mesmo arquivo, não verificação individual. O runner do
+GitHub passa nos seis, o que confirma o ambiente — não prova, isoladamente, a
+causa de cada um.
 
 Critério de pontuação por pergunta: **100% útil** = respondida só pela Trama;
 **50%** = a Trama apontou a direção mas outro método fechou; **inútil** = outro
