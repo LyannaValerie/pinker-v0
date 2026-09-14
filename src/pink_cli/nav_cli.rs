@@ -12,12 +12,12 @@
 //! `pinker_v0::nav_projection_lifecycle`). Este arquivo é o adaptador de CLI
 //! dessas autoridades, exatamente como era dentro do pai.
 
-use super::*;
-
 // @pinker-nav:start cli.nav.projecao
 // @pinker-nav:domain projecoes
 // @pinker-nav:layer cli
 // @pinker-nav:summary Adaptador final `pink nav projecao`: despacha listar, mostrar, verificar, preparar e aceitar; descobre root pelo automation core, deriva texto e JSON dos mesmos modelos, recalcula planos antes de toda autorização e preserva exits distintos para drift, harness, política e stale.
+use super::*;
+
 pub(super) fn run_nav_projecao(repo: &Path, json: bool, command: ProjectionSub) -> i32 {
     let root = match pinker_v0::automation::RepoRoot::discover(repo) {
         Ok(root) => root,

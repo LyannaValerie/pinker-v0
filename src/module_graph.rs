@@ -17,6 +17,10 @@
 //! um dado não é atribuir significado a ele, e atribuir significado aos dois
 //! exige decisão que esta camada não possui.
 
+// @pinker-nav:start modulos.unidade.preservacao
+// @pinker-nav:domain modulos
+// @pinker-nav:layer compilador
+// @pinker-nav:summary ModuleId/ModuleKey identificam a unidade modular; ModuleUnit preserva os cinco campos do Program (package, freestanding, imports, impls, items) junto da identidade de módulo e da fonte de origem, de modo que nenhuma validação dependente desses dados possa perdê-los antes de rodar; ModuleGraph reúne as unidades de uma compilação com a raiz em ModuleId::ROOT e oferece a ordem de dependência já resolvida. package e freestanding trafegam como dado, sem contrato semântico novo.
 use std::collections::HashMap;
 
 use crate::ast::{ImplDecl, ImportDecl, Item, PackageDecl, Program};
@@ -24,10 +28,6 @@ use crate::source_map::SourceId;
 use crate::source_origin::SourceOrigin;
 use crate::token::Span;
 
-// @pinker-nav:start modulos.unidade.preservacao
-// @pinker-nav:domain modulos
-// @pinker-nav:layer compilador
-// @pinker-nav:summary ModuleId/ModuleKey identificam a unidade modular; ModuleUnit preserva os cinco campos do Program (package, freestanding, imports, impls, items) junto da identidade de módulo e da fonte de origem, de modo que nenhuma validação dependente desses dados possa perdê-los antes de rodar; ModuleGraph reúne as unidades de uma compilação com a raiz em ModuleId::ROOT e oferece a ordem de dependência já resolvida. package e freestanding trafegam como dado, sem contrato semântico novo.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ModuleId(u32);
 

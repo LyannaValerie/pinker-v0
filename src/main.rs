@@ -1,3 +1,7 @@
+// @pinker-nav:start cli.config.modelos
+// @pinker-nav:domain config
+// @pinker-nav:layer cli
+// @pinker-nav:summary Constantes e helpers JSON, modelos dos comandos históricos e configurações de doctor/verificar usados pelo parsing e roteamento determinísticos da CLI.
 use pinker_v0::abstract_machine;
 use pinker_v0::abstract_machine_validate;
 use pinker_v0::backend_s;
@@ -68,10 +72,6 @@ use nav_cli::{
     run_nav_verificar,
 };
 
-// @pinker-nav:start cli.config.modelos
-// @pinker-nav:domain config
-// @pinker-nav:layer cli
-// @pinker-nav:summary Constantes e helpers JSON, modelos dos comandos históricos e configurações de doctor/verificar usados pelo parsing e roteamento determinísticos da CLI.
 /// Códigos de saída públicos da CLI e das consultas da Trama (especificação §7.4).
 const EXIT_OK: i32 = 0;
 const EXIT_FAILURE: i32 = 1;
@@ -711,7 +711,12 @@ fn run_repl(_config: ReplConfig) {
 // junto dos outros irmãos, porque escopo de `macro_rules!` é textual e não
 // de item: um `mod` acima da definição de `try_or_exit!` não enxergaria a
 // macro, e os 29 usos que a #601 mediu vivem todos dentro desta unidade.
+// @pinker-nav:start cli.analise.ligacao
+// @pinker-nav:domain analise
+// @pinker-nav:layer cli
+// @pinker-nav:summary Ligacao do submodulo de analise e build do CLI, declarado por caminho explicito em `pink_cli/`, e a importacao das duas entradas que o despacho de comando usa.
 #[path = "pink_cli/analysis_build.rs"]
 mod analysis_build;
 
 use analysis_build::{run_analyze, run_build};
+// @pinker-nav:end cli.analise.ligacao

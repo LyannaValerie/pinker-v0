@@ -102,7 +102,29 @@ const REGIOES_MOVIDAS: &[(&str, &str)] = &[
 /// `impl LoweringContext` do pai. É ela que ficaria vermelha se o corte tivesse
 /// escorregado uma região para a frente, e a igualdade de conjunto abaixo é o
 /// que recusa uma região arrastada em silêncio.
-const REGIOES_RETIDAS: &[&str] = &["ir.tipos.conversao-ast"];
+///
+/// As demais foram publicadas pela T1 (#675) sobre o código que já estava no
+/// pai e continuava fora de qualquer região: prelúdio e superfície do módulo,
+/// registros internos do lowering, metadata de leque publicada, reconhecimento
+/// de forma, estado por função, render do programa, resolução de tipo,
+/// representação física e nome de `TypeIR`, escalares, operadores e as provas
+/// de alias de objeto de trato. Nenhuma delas pertence a unidade do inventário
+/// da #601: elas nascem aqui e ficam aqui.
+const REGIOES_RETIDAS: &[&str] = &[
+    "ir.tipos.conversao-ast",
+    "ir.modulo.superficie",
+    "ir.lowering.metadados-internos",
+    "ir.leques.metadata-publicada",
+    "ir.lowering.reconhecimento-de-forma",
+    "ir.lowering.estado-por-funcao",
+    "ir.render.programa",
+    "ir.lowering.resolucao-de-tipo",
+    "ir.tipos.representacao-fisica",
+    "ir.tipos.nome-e-render",
+    "ir.tipos.escalares",
+    "ir.operadores.conversao-ast",
+    "evidencia.ir.alias-de-objeto-de-trato",
+];
 
 /// As definições que cada unidade moveu inteiras, e o irmão onde passam a morar.
 /// Uma definição, no irmão certo, e nenhuma deixada para trás no pai.

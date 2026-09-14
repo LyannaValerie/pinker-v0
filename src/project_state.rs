@@ -4,6 +4,10 @@
 //! Trama, documentação, projeções e automation core para uma
 //! representação única consumível diretamente por interfaces internas.
 
+// @pinker-nav:start project-state.modelo
+// @pinker-nav:domain estado
+// @pinker-nav:layer modelo
+// @pinker-nav:summary Modelo tipado e versionado do estado consolidado: domínios em ordem fixa, estados explícitos, fontes atribuídas, warnings, blockers e operações pendentes sem root absoluto ou dados incidentais.
 use crate::automation::RepoRoot;
 use crate::doc::{self, DocConfig};
 use crate::doc_index::{DocCatalog, DocIndex};
@@ -16,11 +20,6 @@ use std::path::Path;
 
 /// Schema público inicial da superfície `pink estado`.
 pub const PROJECT_STATE_SCHEMA: u64 = 1;
-
-// @pinker-nav:start project-state.modelo
-// @pinker-nav:domain estado
-// @pinker-nav:layer modelo
-// @pinker-nav:summary Modelo tipado e versionado do estado consolidado: domínios em ordem fixa, estados explícitos, fontes atribuídas, warnings, blockers e operações pendentes sem root absoluto ou dados incidentais.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StateStatus {
@@ -1039,6 +1038,10 @@ fn add_warning_and_diagnostic(
 
 // @pinker-nav:end project-state.coleta
 
+// @pinker-nav:start evidencia.estado.precedencia
+// @pinker-nav:domain estado
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Prova de que o estado geral do projeto tem precedencia deterministica entre os estados de dominio, de modo que a ordem em que os dominios sao observados nao altera o veredito publicado.
 #[cfg(test)]
 mod tests {
     use super::{
@@ -1076,3 +1079,4 @@ mod tests {
         );
     }
 }
+// @pinker-nav:end evidencia.estado.precedencia

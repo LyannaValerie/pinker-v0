@@ -22,14 +22,13 @@
 //! `lista<Token>` compartilham a mesma classe operacional e **não** são
 //! intercambiáveis.
 
-use crate::ast::Type;
-use crate::union_canon;
-use std::collections::{HashMap, HashSet};
-
 // @pinker-nav:start leque.carga.classificacao
 // @pinker-nav:domain leques
 // @pinker-nav:layer semantica
 // @pinker-nav:summary Autoridade única das cargas de variante de leque: `resolve_payload_type` resolve apelidos em profundidade (inclusive o elemento de `lista<E>` e cadeias de apelidos) sem criar identidade nominal nova, `classify_enum_payload` decide a classe operacional exaustivamente por variante de `Type` (discriminante imediato, `verso`, handle opaco de uma palavra ou recusa estável), e `EnumPayloadShape` transporta representação operacional, tipo resolvido, chave canônica de identidade e identidade do elemento da lista até parser, semântica, lowering, validadores, interpretador e backend nativo, que derivam o helper de runtime exclusivamente da classe — nunca de um `match` parcial local sobre o tipo-fonte.
+use crate::ast::Type;
+use crate::union_canon;
+use std::collections::{HashMap, HashSet};
 
 /// Categoria operacional de uma carga de variante.
 ///

@@ -1,9 +1,9 @@
-use crate::source_map::SourceId;
-
 // @pinker-nav:start token.lexico.vocabulario
 // @pinker-nav:domain lexico
 // @pinker-nav:layer token
 // @pinker-nav:summary Vocabulário canônico de tokens da Pinker: palavras-chave em português, operadores, delimitadores e literais que o léxico produz e o parser consome.
+use crate::source_map::SourceId;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TokenKind {
     KwPacote,
@@ -230,6 +230,10 @@ impl std::fmt::Display for Span {
     }
 }
 // @pinker-nav:end token.representacao.spans
+// @pinker-nav:start token.representacao.token-e-nomes
+// @pinker-nav:domain representacao
+// @pinker-nav:layer token
+// @pinker-nav:summary O token como o parser o recebe — categoria lexica, lexema original e span — e o vocabulario estavel de nomes de cada categoria, usado em diagnostico e em teste, junto com a pergunta de literal. O lexema e preservado porque o diagnostico mostra o que o humano escreveu, nao a categoria.
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Token {
@@ -351,3 +355,4 @@ impl TokenKind {
         }
     }
 }
+// @pinker-nav:end token.representacao.token-e-nomes

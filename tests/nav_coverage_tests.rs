@@ -203,14 +203,6 @@ fn arquivo_json(json: &str, path: &str) -> String {
 /// Impressão digital observada do conteúdo descoberto de um arquivo. É um
 /// dado do inventário, não a decisão sob teste: os controles a usam para
 /// declarar a dívida herdada, e depois provam o comportamento do gate.
-fn fingerprint_de(root: &Path, path: &str) -> String {
-    let inventario = arquivo_json(&cobertura_json(root), path);
-    let marca = "\"uncovered_fingerprint\":\"";
-    let inicio = inventario.find(marca).expect("fingerprint publicada") + marca.len();
-    let fim = inicio + inventario[inicio..].find('"').expect("fim da fingerprint");
-    inventario[inicio..fim].to_string()
-}
-
 fn catalogo(text: &str) -> CodeCatalog {
     CodeCatalog::parse(text, "<fixture>").expect("catálogo de fixture válido")
 }
@@ -245,7 +237,7 @@ fn autoridades<'a>(
 // @pinker-nav:test-for pinker_v0::nav_coverage::inventory
 // @pinker-nav:test-for pinker_v0::nav_coverage::verify
 // @pinker-nav:test-for pinker_v0::nav_coverage::CoveragePolicy
-// @pinker-nav:summary Controles C1 a C15 da cobertura corrente atingindo o consumidor real pink nav cobertura/verificar e a autoridade de relacao base-candidato: arquivo zero-ancora visivel e recusado, perda de marcador detectada, intervalo relevante fora de regiao exposto e recusado pelo gate, intersecao parcial nao promovida a completude, movimento e split/merge com disposicao preservada, excecao estreita aceita e excecao ampla recusada na carga, base ausente como UNVERIFIABLE, catalogo derivado editado a mao incapaz de fabricar PASS, projecao FROZEN recalibrada recusada e divida herdada que nao guarda folga nem aceita troca de conteudo por contagem igual.
+// @pinker-nav:summary Controles C1 a C15 da cobertura corrente atingindo o consumidor real pink nav cobertura/verificar e a autoridade de relacao base-candidato: arquivo zero-ancora visivel e recusado, perda de marcador detectada, intervalo relevante fora de regiao exposto e recusado pelo gate, intersecao parcial nao promovida a completude, movimento e split/merge com disposicao preservada, excecao estreita aceita como unica rota e excecao ampla recusada na carga, base ausente como UNVERIFIABLE, catalogo derivado editado a mao incapaz de fabricar PASS, projecao FROZEN recalibrada recusada, declaracao de lacuna incapaz de devolver o gate ao verde e mesma contagem com conteudo novo ainda recusada por cobertura.
 
 /// C1 — um arquivo de produção sem nenhum marcador aparece no inventário e o
 /// gate o recusa pela causa correta.
@@ -339,8 +331,8 @@ fn c4_intersecao_parcial_nao_e_completude() {
         "interseção parcial foi promovida a COMPLETE: {inventario}"
     );
 
-    // E não basta publicar PARTIAL: sem dívida declarada, o consumidor de CI
-    // precisa recusar o arquivo pela causa correta.
+    // E não basta publicar PARTIAL: o consumidor de CI precisa recusar o
+    // arquivo pela causa correta, sem rota de declaração que o aceite.
     let output = verificar(repo.path());
     assert_ne!(
         output.status.code(),
@@ -348,7 +340,7 @@ fn c4_intersecao_parcial_nao_e_completude() {
         "o gate aceitou interseção parcial não declarada"
     );
     assert!(
-        stderr(&output).contains("E-COVERAGE-DEBT-INCREASED: src/parcial.rs"),
+        stderr(&output).contains("E-COVERAGE-UNCOVERED-INTERVAL: src/parcial.rs"),
         "falhou por outra causa: {}",
         stderr(&output)
     );
@@ -701,111 +693,110 @@ fn mudanca_da_politica_e_observavel_no_diff() {
     assert!(!report.policy_changed);
 }
 
-/// C13 — intervalo relevante NOVO fora de região, em arquivo que já tem
-/// região, é dívida nova: o gate de `make ci` recusa pela causa correta. Este
-/// é o ataque que a revisão adversarial de #535 executou contra o candidato
-/// anterior, onde o arquivo ficava `PARTIAL` e o gate continuava verde.
+/// C13 — a causalidade completa do gate de intervalo, em quatro passos.
+///
+/// STEP A: arquivo integralmente coberto passa.
+/// STEP B: acrescentar trecho relevante fora de região falha POR COBERTURA.
+/// STEP C: tentar declarar essa lacuna na autoridade NÃO produz PASS — não
+///         existe registro que transforme código descoberto em aceito.
+/// STEP D: cartografar de fato a responsabilidade nova e sincronizar o
+///         catálogo pelo caminho oficial passa.
+///
+/// Este é o ataque que a revisão adversarial de #535 executou contra o
+/// candidato anterior, onde declarar a lacuna como dívida devolvia o gate ao
+/// verde sem cobrir uma linha sequer.
 #[test]
 fn c13_intervalo_novo_em_arquivo_ancorado_e_recusado_pelo_gate() {
     let repo = fixture("c13");
+
+    // STEP A.
     assert_eq!(
         verificar(repo.path()).status.code(),
         Some(0),
         "candidato inicial deveria passar"
     );
 
-    let com_divida = format!("{COBERTO}\npub fn divida_nova() -> i32 {{\n    9\n}}\n");
-    write(repo.path(), "src/coberto.rs", &com_divida);
+    // STEP B.
+    let com_lacuna = format!("{COBERTO}\npub fn responsabilidade_nova() -> i32 {{\n    9\n}}\n");
+    write(repo.path(), "src/coberto.rs", &com_lacuna);
     sincronizar(repo.path());
 
     let output = verificar(repo.path());
     assert_ne!(
         output.status.code(),
         Some(0),
-        "dívida nova de intervalo entrou sem o gate ver"
+        "intervalo novo entrou sem o gate ver"
     );
     assert!(
-        stderr(&output).contains("E-COVERAGE-DEBT-INCREASED: src/coberto.rs passou de 0 para 3"),
+        stderr(&output).contains(
+            "E-COVERAGE-UNCOVERED-INTERVAL: src/coberto.rs tem 3 linha(s) relevante(s) em 1 intervalo(s)"
+        ),
         "falhou por outra causa: {}",
         stderr(&output)
     );
 
-    // Declarar a dívida na autoridade versionada é o único caminho que aceita,
-    // e ele é uma mudança visível do arquivo revisável.
-    let politica_c13 = format!(
-        "{POLICY}{{\"schema\":1,\"kind\":\"debt\",\"path\":\"src/coberto.rs\",\"uncovered_relevant_lines\":3,\"fingerprint\":\"{}\",\"reason\":\"responsabilidade nova ainda nao cartografada\",\"review\":\"reduzir a zero ao publicar a regiao correspondente\"}}\n",
-        fingerprint_de(repo.path(), "src/coberto.rs")
+    // STEP C — declarar a lacuna não é rota de aceitação. A autoridade recusa
+    // o registro, e o que importa é que o candidato continua reprovado: a
+    // cobertura não passa a existir porque alguém a declarou.
+    let politica_com_declaracao = format!(
+        "{POLICY}{}\n",
+        r#"{"schema":1,"kind":"debt","path":"src/coberto.rs","uncovered_relevant_lines":3,"reason":"responsabilidade nova ainda nao cartografada","review":"reduzir a zero"}"#
     );
     write(
         repo.path(),
         ".pinker/cartography/coverage-policy-v1.jsonl",
-        &politica_c13,
+        &politica_com_declaracao,
     );
+    let declarado = verificar(repo.path());
+    assert_ne!(
+        declarado.status.code(),
+        Some(0),
+        "declarar a lacuna devolveu o gate ao verde"
+    );
+    assert!(
+        stderr(&declarado).contains("E-COVERAGE-POLICY-KIND"),
+        "a autoridade aceitou um registro de dívida: {}",
+        stderr(&declarado)
+    );
+
+    // STEP D — cartografar de fato, com a autoridade de volta à forma válida.
+    write(
+        repo.path(),
+        ".pinker/cartography/coverage-policy-v1.jsonl",
+        POLICY,
+    );
+    let cartografado = format!(
+        "{COBERTO}\n\
+         // @pinker-nav:start fixture.alvo.responsabilidade-nova\n\
+         // @pinker-nav:domain fixture\n\
+         // @pinker-nav:layer core\n\
+         // @pinker-nav:summary Responsabilidade nova do alvo, publicada como regiao propria.\n\
+         pub fn responsabilidade_nova() -> i32 {{\n\
+         \x20   9\n\
+         }}\n\
+         // @pinker-nav:end fixture.alvo.responsabilidade-nova\n"
+    );
+    write(repo.path(), "src/coberto.rs", &cartografado);
+    sincronizar(repo.path());
     assert_eq!(
         verificar(repo.path()).status.code(),
         Some(0),
-        "dívida declarada foi recusada: {}",
+        "cartografia real foi recusada: {}",
         stderr(&verificar(repo.path()))
     );
 }
 
-/// C14 — a dívida declarada é um número fixado, não um teto com folga: ela não
-/// pode sobreviver obsoleta, apontar para caminho inexistente nem alcançar
-/// arquivo fora do enforcement.
+/// C14 — a exceção estreita aprovada é a ÚNICA rota que retira um arquivo da
+/// obrigação, e ela vale para o arquivo inteiro. Não existe rota por
+/// intervalo: um arquivo que já tem região e ainda tem linha relevante fora
+/// dela continua reprovado mesmo com exceção declarada, e a própria exceção é
+/// denunciada como desnecessária.
 #[test]
-fn c14_divida_declarada_nao_guarda_folga_nem_sobrevive_obsoleta() {
+fn c14_excecao_e_a_unica_rota_e_nao_alcanca_intervalo() {
     let repo = fixture("c14");
 
-    // Folga: o arquivo está inteiramente coberto e ainda assim declara dívida.
-    write(
-        repo.path(),
-        ".pinker/cartography/coverage-policy-v1.jsonl",
-        &format!(
-            "{POLICY}{}\n",
-            r#"{"schema":1,"kind":"debt","path":"src/coberto.rs","uncovered_relevant_lines":5,"fingerprint":"fnv1a64:0000000000000001","reason":"r","review":"v"}"#
-        ),
-    );
-    let output = verificar(repo.path());
-    assert_ne!(output.status.code(), Some(0), "folga aceita");
-    assert!(
-        stderr(&output)
-            .contains("E-COVERAGE-DEBT-STALE: src/coberto.rs declara 5 linha(s) relevante(s) descoberta(s) e observa 0"),
-        "falhou por outra causa: {}",
-        stderr(&output)
-    );
-
-    // Caminho que não existe nas raízes oficiais.
-    write(
-        repo.path(),
-        ".pinker/cartography/coverage-policy-v1.jsonl",
-        &format!(
-            "{POLICY}{}\n",
-            r#"{"schema":1,"kind":"debt","path":"src/nunca_existiu.rs","uncovered_relevant_lines":5,"fingerprint":"fnv1a64:0000000000000001","reason":"r","review":"v"}"#
-        ),
-    );
-    assert!(
-        stderr(&verificar(repo.path())).contains("E-COVERAGE-DEBT-PATH"),
-        "dívida obsoleta passou"
-    );
-
-    // Raiz apenas inventariada: a dívida não teria efeito e precisa sair.
-    write(repo.path(), "tests/evidencia.rs", SEM_ANCORA);
-    write(
-        repo.path(),
-        ".pinker/cartography/coverage-policy-v1.jsonl",
-        &format!(
-            "{POLICY}{}\n",
-            r#"{"schema":1,"kind":"debt","path":"tests/evidencia.rs","uncovered_relevant_lines":3,"fingerprint":"fnv1a64:0000000000000001","reason":"r","review":"v"}"#
-        ),
-    );
-    sincronizar(repo.path());
-    assert!(
-        stderr(&verificar(repo.path())).contains("E-COVERAGE-DEBT-SCOPE: tests/evidencia.rs"),
-        "dívida fora do enforcement passou"
-    );
-
-    // Uma exceção estreita aprovada retira o arquivo da obrigação inteira: a
-    // catraca não cobra dívida em cima dela.
+    // Arquivo sem nenhuma região: a exceção estreita aprovada o retira da
+    // obrigação inteira.
     write(repo.path(), "src/sem_ancora.rs", SEM_ANCORA);
     write(
         repo.path(),
@@ -819,60 +810,77 @@ fn c14_divida_declarada_nao_guarda_folga_nem_sobrevive_obsoleta() {
     assert_eq!(
         verificar(repo.path()).status.code(),
         Some(0),
-        "exceção aprovada foi cobrada pela catraca: {}",
+        "exceção aprovada de arquivo inteiro foi recusada: {}",
         stderr(&verificar(repo.path()))
     );
-}
 
-/// C15 — a dívida é o conteúdo descoberto, não um número. Trocar linhas
-/// descobertas herdadas por linhas descobertas NOVAS, mantendo a contagem,
-/// é dívida nova disfarçada e o gate recusa pela causa correta.
-#[test]
-fn c15_troca_de_divida_por_contagem_igual_e_recusada() {
-    let repo = fixture("c15");
-
-    // Dívida herdada declarada: duas linhas relevantes fora da região.
-    let herdada =
-        format!("{COBERTO}\npub const HERDADA_A: i32 = 1;\npub const HERDADA_B: i32 = 2;\n");
-    write(repo.path(), "src/coberto.rs", &herdada);
-    sincronizar(repo.path());
-    let fingerprint = fingerprint_de(repo.path(), "src/coberto.rs");
-    let politica = format!(
-        "{POLICY}{{\"schema\":1,\"kind\":\"debt\",\"path\":\"src/coberto.rs\",\"uncovered_relevant_lines\":2,\"fingerprint\":\"{fingerprint}\",\"reason\":\"divida herdada da fixture\",\"review\":\"reduzir a zero ao publicar a regiao correspondente\"}}\n"
-    );
+    // Arquivo PARCIAL: a exceção não alcança o intervalo descoberto.
+    write(repo.path(), "src/parcial.rs", PARCIAL);
     write(
         repo.path(),
         ".pinker/cartography/coverage-policy-v1.jsonl",
-        &politica,
+        &format!(
+            "{POLICY}{}\n",
+            r#"{"schema":1,"kind":"exception","path":"src/parcial.rs","reason":"tentativa de retirar um intervalo da obrigacao","review":"nao deveria ser aceita"}"#
+        ),
     );
-    assert_eq!(
-        verificar(repo.path()).status.code(),
-        Some(0),
-        "dívida herdada declarada foi recusada: {}",
-        stderr(&verificar(repo.path()))
-    );
-
-    // Troca: sai a dívida herdada, entram duas linhas descobertas NOVAS. A
-    // contagem não muda; o conteúdo muda.
-    let trocada = format!("{COBERTO}\npub const TROCA_A: i32 = 7;\npub const TROCA_B: i32 = 8;\n");
-    write(repo.path(), "src/coberto.rs", &trocada);
     sincronizar(repo.path());
-
     let output = verificar(repo.path());
     assert_ne!(
         output.status.code(),
         Some(0),
-        "troca de dívida por contagem igual passou"
+        "exceção retirou um intervalo da obrigação"
     );
     assert!(
-        stderr(&output).contains("E-COVERAGE-DEBT-CHANGED: src/coberto.rs"),
+        stderr(&output).contains("E-COVERAGE-UNCOVERED-INTERVAL: src/parcial.rs"),
         "falhou por outra causa: {}",
         stderr(&output)
     );
     assert!(
-        !stderr(&output).contains("E-COVERAGE-DEBT-INCREASED"),
-        "a contagem não mudou; a recusa precisa vir do conteúdo: {}",
+        stderr(&output).contains("E-COVERAGE-EXCEPTION-UNNECESSARY: src/parcial.rs"),
+        "exceção sobre arquivo com região não foi denunciada: {}",
         stderr(&output)
+    );
+}
+
+/// C15 — contagem igual com conteúdo diferente continua recusada, e a causa é
+/// cobertura. Trocar as linhas descobertas por outras, mantendo o número,
+/// não muda nada: não existe contagem tolerada para comparar.
+#[test]
+fn c15_mesma_contagem_com_conteudo_novo_continua_recusada() {
+    let repo = fixture("c15");
+
+    let primeira =
+        format!("{COBERTO}\npub const PRIMEIRA_A: i32 = 1;\npub const PRIMEIRA_B: i32 = 2;\n");
+    write(repo.path(), "src/coberto.rs", &primeira);
+    sincronizar(repo.path());
+    let antes = verificar(repo.path());
+    assert_ne!(
+        antes.status.code(),
+        Some(0),
+        "duas linhas descobertas passaram"
+    );
+    assert!(
+        stderr(&antes).contains("E-COVERAGE-UNCOVERED-INTERVAL: src/coberto.rs tem 2 linha(s)"),
+        "falhou por outra causa: {}",
+        stderr(&antes)
+    );
+
+    // Mesma contagem, conteúdo (responsabilidade) diferente.
+    let trocada = format!("{COBERTO}\npub const TROCA_A: i32 = 7;\npub const TROCA_B: i32 = 8;\n");
+    write(repo.path(), "src/coberto.rs", &trocada);
+    sincronizar(repo.path());
+
+    let depois = verificar(repo.path());
+    assert_ne!(
+        depois.status.code(),
+        Some(0),
+        "troca de responsabilidade descoberta por contagem igual passou"
+    );
+    assert!(
+        stderr(&depois).contains("E-COVERAGE-UNCOVERED-INTERVAL: src/coberto.rs tem 2 linha(s)"),
+        "a recusa precisa vir da cobertura: {}",
+        stderr(&depois)
     );
 }
 

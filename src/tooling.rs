@@ -4,6 +4,10 @@
 //! diff. Ele adapta as autoridades existentes para os contratos estruturados
 //! de `pink doctor`, `pink nav impacto` e `pink verificar`.
 
+// @pinker-nav:start tooling.f1.doctor
+// @pinker-nav:domain tooling
+// @pinker-nav:layer preflight
+// @pinker-nav:summary Identidade binária e Git, compatibilidade por ancestralidade e recomendação determinística compostas com o estado observacional vigente para o contrato JSON de pink doctor.
 use crate::automation::RepoRoot;
 use crate::change;
 use crate::diff_coverage::{self, CoverageAuthorities, RelationStatus};
@@ -30,11 +34,6 @@ pub const AVAILABLE_SUBCOMMANDS: &[&str] = &[
     "repl",
     "verificar",
 ];
-
-// @pinker-nav:start tooling.f1.doctor
-// @pinker-nav:domain tooling
-// @pinker-nav:layer preflight
-// @pinker-nav:summary Identidade binária e Git, compatibilidade por ancestralidade e recomendação determinística compostas com o estado observacional vigente para o contrato JSON de pink doctor.
 
 pub fn binary_commit() -> &'static str {
     option_env!("PINKER_BUILD_COMMIT").unwrap_or("UNKNOWN")
@@ -914,6 +913,10 @@ pub fn preflight_exit_code(report: &PreflightReport) -> i32 {
     }
 }
 // @pinker-nav:end tooling.f1.unified-preflight
+// @pinker-nav:start evidencia.ferramentas.preflight
+// @pinker-nav:domain ferramentas
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Provas do preflight unificado: a acao recomendada tem prioridade deterministica, especificacao de diff invalida e recusada antes de invocar git, e diff vazio produz requisito de override conhecido e vazio em vez de indefinido.
 
 #[cfg(test)]
 mod tests {
@@ -978,3 +981,4 @@ mod tests {
         assert!(json.contains("\"projection_overrides_required\":{\"status\":\"KNOWN\""));
     }
 }
+// @pinker-nav:end evidencia.ferramentas.preflight

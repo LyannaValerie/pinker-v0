@@ -1,12 +1,12 @@
+// @pinker-nav:start select.modelo.representacao
+// @pinker-nav:domain modelo
+// @pinker-nav:layer select
+// @pinker-nav:summary Modelo de dados da seleção de instruções: programa, globais, funções, blocos, instruções selecionadas (`SelectedInstr`) e terminadores — a representação já próxima da máquina, ainda sobre operandos do CFG.
 use crate::cfg_ir::{FalarArgCfgIR, InstructionCfgIR, OperandIR, ProgramCfgIR, TerminatorIR};
 use crate::error::PinkerError;
 use crate::ir::{BinaryOpIR, TypeIR, UnaryOpIR};
 use std::collections::{HashMap, HashSet};
 
-// @pinker-nav:start select.modelo.representacao
-// @pinker-nav:domain modelo
-// @pinker-nav:layer select
-// @pinker-nav:summary Modelo de dados da seleção de instruções: programa, globais, funções, blocos, instruções selecionadas (`SelectedInstr`) e terminadores — a representação já próxima da máquina, ainda sobre operandos do CFG.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedProgram {
     pub module_name: String,

@@ -238,13 +238,23 @@ fn o_pai_inclui_e_importa_o_irmao() {
 /// produção inteira. Se ela subir para o topo, eles cortam o arquivo inteiro,
 /// continuam verdes e param de observar tudo: é a forma silenciosa OG-1 que a
 /// #601 registrou, e o motivo de este teste existir.
+///
+/// Marcador `@pinker-nav` não conta: ele é cartografia, não produção, e a T1
+/// (#675) exige que a declaração do irmão esteja dentro de alguma região, o
+/// que obriga um `@pinker-nav:end` depois dela. O que o oráculo protege é que
+/// nenhuma PRODUÇÃO desça para baixo do corte.
 #[test]
 fn o_corte_dos_oraculos_no_primeiro_cfg_test_ainda_ve_a_producao_inteira() {
     let pai = fonte("interpreter.rs");
     let corte = pai
         .find("\n#[cfg(test)]")
         .expect("o pai declara o irmão de teste sob #[cfg(test)]");
-    let depois = pai[corte + 1..].trim_end();
+    let depois: String = pai[corte + 1..]
+        .lines()
+        .filter(|linha| !linha.trim_start().starts_with("// @pinker-nav:"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let depois = depois.trim_end();
     assert_eq!(
         depois, "#[cfg(test)]\nmod tests;",
         "depois do primeiro `#[cfg(test)]` o pai passou a ter conteúdo que os \

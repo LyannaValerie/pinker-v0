@@ -7,6 +7,10 @@
 //! O manifesto é a fonte estrutural; o corpo do PR é a origem humana. Nenhum
 //! conteúdo narrativo é inventado — apenas os campos declarados são propagados.
 
+// @pinker-nav:start trama.mudancas.vocabulario
+// @pinker-nav:domain mudancas
+// @pinker-nav:layer trama
+// @pinker-nav:summary Preludio e vocabulario do manifesto de mudanca: as cercas do bloco `pinker-change`, os enums fechados de kind e de status, a fonte (PR ou issue) e o registro de mudanca, mais a taxonomia de erro com suas mensagens estaveis — incluindo a recusa de alterar manifesto ja imutavel de um PR fechado.
 use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -180,6 +184,7 @@ impl fmt::Display for ChangeError {
     }
 }
 
+// @pinker-nav:end trama.mudancas.vocabulario
 // @pinker-nav:start trama.mudancas.manifesto
 // @pinker-nav:domain mudancas
 // @pinker-nav:layer trama
@@ -494,6 +499,10 @@ impl Change {
     }
 }
 // @pinker-nav:end trama.mudancas.manifesto
+// @pinker-nav:start trama.mudancas.carga-e-problemas
+// @pinker-nav:domain mudancas
+// @pinker-nav:layer trama
+// @pinker-nav:summary Resultado da carga de `.pinker/changes/`: o que foi lido com sucesso e os problemas encontrados, preservados lado a lado. Os dois viajam juntos para que um arquivo invalido apareca no relatorio em vez de desaparecer em silencio.
 
 /// Manifestos carregados de `.pinker/changes/`.
 #[derive(Debug, Clone, Default)]
@@ -502,6 +511,7 @@ pub struct Manifests {
     pub problems: Vec<ChangeError>,
 }
 
+// @pinker-nav:end trama.mudancas.carga-e-problemas
 // @pinker-nav:start trama.mudancas.ledger
 // @pinker-nav:domain mudancas
 // @pinker-nav:layer trama
@@ -570,6 +580,10 @@ impl Manifests {
     }
 }
 // @pinker-nav:end trama.mudancas.ledger
+// @pinker-nav:start trama.mudancas.sintaxe
+// @pinker-nav:domain mudancas
+// @pinker-nav:layer trama
+// @pinker-nav:summary Sintaxe do manifesto antes de qualquer interpretacao semantica: extrai o bloco entre as cercas exigindo abertura e fechamento proprios, e valida a forma do YAML versionado linha a linha — indentacao, chave conhecida, escalar bem formado e ausencia de campo repetido — reportando a linha exata da divergencia.
 
 fn extract_block(body: &str) -> Result<String, ChangeError> {
     let lines: Vec<&str> = body.lines().collect();
@@ -738,6 +752,11 @@ fn validate_manifest_syntax(block: &str) -> Result<(), ChangeError> {
     }
     Ok(())
 }
+// @pinker-nav:end trama.mudancas.sintaxe
+// @pinker-nav:start trama.mudancas.lexico-de-valores
+// @pinker-nav:domain mudancas
+// @pinker-nav:layer trama
+// @pinker-nav:summary Politica lexica dos valores do manifesto: escalar aceito, formato fechado de id, reconhecimento de arquivo `pr-N.yaml` e extracao do numero de PR do nome do arquivo. E aqui que um id plausivel porem fora do formato deixa de passar.
 
 fn malformed_yaml<T>(line: usize, detail: &str) -> Result<T, ChangeError> {
     Err(ChangeError::MalformedYaml {
@@ -821,6 +840,11 @@ fn valid_id(id: &str) -> bool {
     }
     true
 }
+// @pinker-nav:end trama.mudancas.lexico-de-valores
+// @pinker-nav:start trama.mudancas.normalizacao-textual
+// @pinker-nav:domain mudancas
+// @pinker-nav:layer trama
+// @pinker-nav:summary Normalizacao textual usada tanto na carga quanto no render: remocao de comentario inline respeitando aspas, reconhecimento de valor de preenchimento, remocao de aspas e escape JSON do ledger mecanico.
 
 fn is_pr_yaml(path: &Path) -> bool {
     path.file_name()
@@ -944,6 +968,11 @@ fn json_string(value: &str) -> String {
     out.push('"');
     out
 }
+// @pinker-nav:end trama.mudancas.normalizacao-textual
+// @pinker-nav:start evidencia.mudancas.manifesto-e-ledger
+// @pinker-nav:domain mudancas
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Provas do manifesto de mudanca: extracao do bloco `pinker-change`, remocao de comentario de template, valor de preenchimento reportado por campo e dentro de item de area, bloco ausente como erro, ida e volta idempotente do YAML com aspas no subconjunto canonico, e recusa de enum invalido, campo desconhecido, fonte malformada, id fora do formato e campo obrigatorio ausente.
 
 #[cfg(test)]
 mod tests {
@@ -1184,3 +1213,4 @@ mod tests {
         assert!(line.contains("\"status\":\"completed\""));
     }
 }
+// @pinker-nav:end evidencia.mudancas.manifesto-e-ledger

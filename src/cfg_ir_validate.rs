@@ -11,6 +11,10 @@
 //!
 //! Ponto de entrada: [`validate_program`].
 
+// @pinker-nav:start cfg.unioes.validacao-operacoes
+// @pinker-nav:domain unioes
+// @pinker-nav:layer cfg
+// @pinker-nav:summary Fronteira de validação das operações internas tipadas de união no CFG: cada `UnionTag` confirma a existência do `UnionTypeId` e cada `UnionExtract` é confrontado com a tabela internada — tag pertencente ao registry, chave canônica coincidente com a tag, tipo e layout do payload iguais. Nenhuma tag é recalculada; o registry é a única fonte, e nenhuma chamada comum substitui estas operações.
 use crate::cfg_ir::{InstructionCfgIR, OperandIR, ProgramCfgIR, TempIR, TerminatorIR};
 use crate::error::PinkerError;
 use crate::internal_operations::{InternalOperands, InternalResult, MapOperandRole};
@@ -24,10 +28,6 @@ struct FunctionSigCfg {
     params: Vec<TypeIR>,
 }
 
-// @pinker-nav:start cfg.unioes.validacao-operacoes
-// @pinker-nav:domain unioes
-// @pinker-nav:layer cfg
-// @pinker-nav:summary Fronteira de validação das operações internas tipadas de união no CFG: cada `UnionTag` confirma a existência do `UnionTypeId` e cada `UnionExtract` é confrontado com a tabela internada — tag pertencente ao registry, chave canônica coincidente com a tag, tipo e layout do payload iguais. Nenhuma tag é recalculada; o registry é a única fonte, e nenhuma chamada comum substitui estas operações.
 fn validate_union_operations(program: &ProgramCfgIR) -> Result<(), PinkerError> {
     for function in &program.functions {
         for block in &function.blocks {

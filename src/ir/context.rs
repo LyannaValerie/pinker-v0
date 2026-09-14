@@ -36,15 +36,15 @@
 //! `src/ir/lowering.rs` chamam e, por isso, os únicos que passaram de privados
 //! a `pub(super)`.
 
+// @pinker-nav:start ir.lowering.programa-orquestracao
+// @pinker-nav:domain lowering
+// @pinker-nav:layer ir
+// @pinker-nav:summary Ponto de entrada do lowering AST → IR: constrói o `LoweringContext` global, percorre os itens do programa, despacha constantes (`lower_const`) e funções (`FunctionLowerer`) e monta o `ProgramIR` (nome do módulo, modo freestanding). Aliases/structs/leques/tratos são ignorados aqui (já viraram fatos do contexto); não reexecuta análise semântica.
 use super::lowering::lower_const;
 use super::*;
 
 // Fase 2 escolhe IR estruturada: blocos e `if` seguem explícitos, sem SSA e sem saltos.
 // Isso mantém o lowering pequeno e auditável sem quebrar o frontend estabilizado.
-// @pinker-nav:start ir.lowering.programa-orquestracao
-// @pinker-nav:domain lowering
-// @pinker-nav:layer ir
-// @pinker-nav:summary Ponto de entrada do lowering AST → IR: constrói o `LoweringContext` global, percorre os itens do programa, despacha constantes (`lower_const`) e funções (`FunctionLowerer`) e monta o `ProgramIR` (nome do módulo, modo freestanding). Aliases/structs/leques/tratos são ignorados aqui (já viraram fatos do contexto); não reexecuta análise semântica.
 pub fn lower_program(program: &Program) -> Result<ProgramIR, PinkerError> {
     lower_program_composto(program, HashMap::new())
 }
@@ -137,11 +137,11 @@ pub fn lower_program_composto(
 }
 // @pinker-nav:end ir.lowering.programa-orquestracao
 
+// @pinker-nav:start ir.lowering.contexto-declaracoes
+// @pinker-nav:domain lowering
+// @pinker-nav:layer ir
+// @pinker-nav:summary Primeira metade de `from_program`: coleta os fatos globais que todos os corpos consomem — nome do módulo, aliases de tipo (com leques registrados como alias para `bombom`), structs e seus campos/offsets de layout, variantes de leque com índices e cargas, e as assinaturas das funções e tipos das constantes declaradas no programa. Prepara o contexto; não reexecuta a checagem semântica.
 impl LoweringContext {
-    // @pinker-nav:start ir.lowering.contexto-declaracoes
-    // @pinker-nav:domain lowering
-    // @pinker-nav:layer ir
-    // @pinker-nav:summary Primeira metade de `from_program`: coleta os fatos globais que todos os corpos consomem — nome do módulo, aliases de tipo (com leques registrados como alias para `bombom`), structs e seus campos/offsets de layout, variantes de leque com índices e cargas, e as assinaturas das funções e tipos das constantes declaradas no programa. Prepara o contexto; não reexecuta a checagem semântica.
     fn from_program_composto(
         program: &Program,
         traits_visiveis_por_fonte: HashMap<SourceId, crate::module_resolve::TratosNoDespacho>,
@@ -975,5 +975,5 @@ impl LoweringContext {
         }
         Ok(())
     }
-    // @pinker-nav:end ir.lowering.identidade-resolvida
 }
+// @pinker-nav:end ir.lowering.identidade-resolvida

@@ -7,6 +7,12 @@
 //! agente que altera o código mantém os marcadores; o script nunca decide
 //! semanticamente onde inseri-los. Zero dependências externas.
 
+// @pinker-nav:start trama.codigo.modelo-indice-simbolos
+// @pinker-nav:domain navegacao
+// @pinker-nav:layer trama
+// @pinker-nav:symbol pinker_v0::nav::CodeIndex|CodeIndex|rust-type|declaration
+// @pinker-nav:symbol-doc pinker_v0::nav::CodeIndex|development.symbol-index
+// @pinker-nav:summary Declara o modelo em memória da navegação de código: a região catalogada e seus metadados explícitos de símbolo, o dialeto de vínculo (categoria e papel), o vínculo de documentação e o CodeIndex que os agrega como autoridade de varredura. É também o prelúdio do módulo — os usos que todo o arquivo compartilha. A implementação permanece na região trama.codigo.catalogo.
 use crate::jsonl;
 use crate::nav_coverage;
 use crate::text_norm;
@@ -95,18 +101,16 @@ pub struct SymbolDocLink {
 }
 
 /// Índice de código em memória.
-// @pinker-nav:start trama.codigo.modelo-indice-simbolos
-// @pinker-nav:domain navegacao
-// @pinker-nav:layer trama
-// @pinker-nav:symbol pinker_v0::nav::CodeIndex|CodeIndex|rust-type|declaration
-// @pinker-nav:symbol-doc pinker_v0::nav::CodeIndex|development.symbol-index
-// @pinker-nav:summary Declara CodeIndex, autoridade em memória das regiões e metadados explícitos dos símbolos; a implementação permanece na região trama.codigo.catalogo.
 #[derive(Debug, Clone, Default)]
 pub struct CodeIndex {
     pub regions: Vec<CodeRegion>,
     pub scan_problems: Vec<NavVerifyError>,
 }
 // @pinker-nav:end trama.codigo.modelo-indice-simbolos
+// @pinker-nav:start trama.codigo.diagnosticos
+// @pinker-nav:domain navegacao
+// @pinker-nav:layer trama
+// @pinker-nav:summary Erros da navegacao de codigo e suas mensagens estaveis: ScanError cobre a falha de raiz e de leitura antes de qualquer varredura, e NavVerifyError cobre a falha de cartografia ja varrida (marcador orfao, chave invalida, sobreposicao, metadado malformado, identidade de simbolo conflitante, destino ausente e drift do catalogo). O texto de cada variante e superficie observavel de CLI e de teste.
 
 #[derive(Debug)]
 pub enum ScanError {
@@ -295,6 +299,7 @@ impl fmt::Display for NavVerifyError {
     }
 }
 
+// @pinker-nav:end trama.codigo.diagnosticos
 // @pinker-nav:start trama.codigo.catalogo
 // @pinker-nav:domain navegacao
 // @pinker-nav:layer trama
@@ -436,7 +441,7 @@ impl CodeIndex {
 // @pinker-nav:start trama.codigo.verificacao-reutilizavel
 // @pinker-nav:domain navegacao
 // @pinker-nav:layer trama
-// @pinker-nav:summary Modelo somente leitura compartilhado por pink nav verificar e consumidores internos: reescaneia as raizes oficiais, valida as regioes, compara o catalogo renderizado com o arquivo versionado e avalia a cobertura corrente da cartografia pela autoridade versionada, nos dois niveis (arquivo sem regiao e divida de intervalo fixada), falhando fechado quando essa autoridade nao pode ser estabelecida.
+// @pinker-nav:summary Modelo somente leitura compartilhado por pink nav verificar e consumidores internos: reescaneia as raizes oficiais, valida as regioes, compara o catalogo renderizado com o arquivo versionado e avalia a cobertura corrente da cartografia pela autoridade versionada, nos dois niveis (arquivo sem regiao e intervalo relevante fora de regiao), falhando fechado quando essa autoridade nao pode ser estabelecida.
 
 /// Resultado da avaliação de cobertura corrente da cartografia. A autoridade
 /// de escopo/exceções é externa e versionada; quando ela não pode ser
@@ -535,6 +540,10 @@ fn verify_coverage(repo_root: &Path, index: &CodeIndex) -> CoverageOutcome {
 }
 
 // @pinker-nav:end trama.codigo.verificacao-reutilizavel
+// @pinker-nav:start trama.codigo.ranking-consulta
+// @pinker-nav:domain navegacao
+// @pinker-nav:layer trama
+// @pinker-nav:summary Relevancia observada de uma regiao para uma consulta textual: pesos por campo, sinais de acesso direto por chave, peso de termo por frequencia documental e a evidencia dos termos que casaram. A pontuacao ordena resultados e nunca decide corretude; consultar chave estavel continua sendo recuperacao determinista acima de qualquer evidencia lexical.
 
 /// Pesos por campo da relação de relevância por termo (§7.3 revisada — #672).
 /// São uma hipótese calibrada no conjunto de desenvolvimento da Task, não um
@@ -748,6 +757,7 @@ fn score_regions<'a>(regions: &'a [CodeRegion], query: &str) -> Vec<RegionMatch<
 // Raízes controladas de código (Onda 6D — especificação §12 a 17 e 20).
 // ---------------------------------------------------------------------------
 
+// @pinker-nav:end trama.codigo.ranking-consulta
 // @pinker-nav:start trama.codigo.raizes
 // @pinker-nav:domain navegacao
 // @pinker-nav:layer trama
@@ -1107,6 +1117,10 @@ fn line_is_relevant(
     !whole_line_comment
 }
 // @pinker-nav:end trama.codigo.relevancia-lexical
+// @pinker-nav:start trama.codigo.varredura-arquivo
+// @pinker-nav:domain navegacao
+// @pinker-nav:layer trama
+// @pinker-nav:summary Laco de varredura de um arquivo: mantem a regiao aberta corrente, reconhece start/end pelo dialeto da raiz, recusa aninhamento e registra marcador orfao ou nao fechado como problema de varredura em vez de descartar silenciosamente.
 
 struct OpenRegion {
     key: String,
@@ -1215,6 +1229,11 @@ fn scan_file(rel_path: &str, text: &str, dialect: MarkerDialect, index: &mut Cod
         });
     }
 }
+// @pinker-nav:end trama.codigo.varredura-arquivo
+// @pinker-nav:start trama.codigo.comentario-real
+// @pinker-nav:domain navegacao
+// @pinker-nav:layer trama
+// @pinker-nav:summary Reconhecimento lexico de comentario verdadeiro por dialeto, para que um marcador escrito dentro de literal de texto, literal de caractere, string crua ou comentario de bloco aninhado nunca vire regiao. O estado lexico e por arquivo e avanca linha a linha; so o reconhecedor muda entre Rust e Pinker, nunca o namespace de chaves.
 
 /// Estado léxico ativo de um arquivo, escolhido pelo dialeto da raiz. O laço de
 /// varredura é único e independente do dialeto: apenas o reconhecedor de
@@ -1466,6 +1485,11 @@ fn marker_comment_pinker<'a>(line: &'a str, state: &mut PinkerState) -> Option<&
     None
 }
 
+// @pinker-nav:end trama.codigo.comentario-real
+// @pinker-nav:start trama.codigo.fechamento-regiao
+// @pinker-nav:domain navegacao
+// @pinker-nav:layer trama
+// @pinker-nav:summary Fechamento de uma regiao aberta: confere que a chave do end casa com a do start, calcula limites de conteudo e hash do corpo, aplica os metadados acumulados e publica a regiao no indice, convertendo divergencia em problema de varredura nomeado.
 fn finish_region(
     rel_path: &str,
     open: OpenRegion,
@@ -1525,6 +1549,7 @@ fn finish_region(
     });
 }
 
+// @pinker-nav:end trama.codigo.fechamento-regiao
 // @pinker-nav:start trama.codigo.metadados-simbolos
 // @pinker-nav:domain simbolos
 // @pinker-nav:layer trama
@@ -1645,6 +1670,10 @@ fn parse_symbol_name(value: &str) -> Option<String> {
     Some(value.to_string())
 }
 // @pinker-nav:end trama.codigo.metadados-simbolos
+// @pinker-nav:start trama.codigo.sintaxe-marcador
+// @pinker-nav:domain navegacao
+// @pinker-nav:layer trama
+// @pinker-nav:summary Sintaxe textual da autoridade @pinker-nav: extrai a chave de um marcador exigindo comentario de linha real e prefixo estrito, separa campo e valor dos metadados, e valida o formato fechado de chave. E aqui que doc comment e prefixo aproximado deixam de ser metadado.
 
 /// Extrai a chave após um marcador (`@pinker-nav:start`/`:end`) em uma linha
 /// que deve ser um comentário `//`.
@@ -1712,6 +1741,11 @@ fn valid_key(key: &str) -> bool {
     }
     true
 }
+// @pinker-nav:end trama.codigo.sintaxe-marcador
+// @pinker-nav:start trama.codigo.serializacao-json
+// @pinker-nav:domain navegacao
+// @pinker-nav:layer trama
+// @pinker-nav:summary Serializacao determinista do catalogo derivado: hash fnv1a64 do corpo das regioes, render JSON de regiao, simbolo e vinculo de documentacao em ordem fixa de campos, e escape de texto. Determinismo aqui e o que torna o drift do catalogo detectavel por comparacao literal.
 
 pub(crate) fn fnv1a64(data: &str) -> String {
     let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
@@ -1818,6 +1852,7 @@ pub(crate) fn json_string(value: &str) -> String {
 // Catálogo carregado do JSONL (superfície de consulta — §5).
 // ---------------------------------------------------------------------------
 
+// @pinker-nav:end trama.codigo.serializacao-json
 // @pinker-nav:start trama.codigo.consulta
 // @pinker-nav:domain navegacao
 // @pinker-nav:layer trama
@@ -2090,6 +2125,10 @@ pub fn validate_region(source: &str, region: &CodeRegion) -> RegionCheck {
     RegionCheck::Ok
 }
 // @pinker-nav:end trama.codigo.consulta
+// @pinker-nav:start evidencia.navegacao.varredura-catalogo
+// @pinker-nav:domain navegacao
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Provas da varredura e do catalogo de navegacao: multiplas regioes por arquivo, preservacao de dominio e camada, determinismo do render, recusa de marcador dentro de literal ou comentario de bloco, distincao entre lifetime e literal de caractere, prefixo estrito de metadado e as duas gramaticas de dialeto.
 
 #[cfg(test)]
 mod tests {
@@ -2728,3 +2767,4 @@ mod tests {
         assert_eq!(parse_marker(candidate.unwrap(), START), None);
     }
 }
+// @pinker-nav:end evidencia.navegacao.varredura-catalogo

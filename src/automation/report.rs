@@ -8,14 +8,13 @@
 //! mudaria**, não o conteúdo. Também não carregam root absoluto, porque o
 //! modelo só conhece paths repo-relativos.
 
-use super::compare::CheckReport;
-use super::fsio::ApplyReport;
-use super::{json_string, Failure, FinalDrift};
-
 // @pinker-nav:start automation.relatorio.renderizacao
 // @pinker-nav:domain relatorio
 // @pinker-nav:layer automation
 // @pinker-nav:summary Renderização determinística do mesmo modelo de check em JSON de uma linha com ordem de chaves fixa e em Markdown derivado dele, ambos sem payload completo, sem root absoluto e sem códigos ANSI; a falha, quando existe, aparece com código estável e nunca é substituída pelo estado decisório.
+use super::compare::CheckReport;
+use super::fsio::ApplyReport;
+use super::{json_string, Failure, FinalDrift};
 
 /// Relatório JSON de uma linha, com ordem de chaves fixa.
 pub fn json_report(report: &CheckReport) -> String {
@@ -285,6 +284,10 @@ fn lista_humana(itens: &[String]) -> String {
 }
 // @pinker-nav:end automation.relatorio.aplicacao
 
+// @pinker-nav:start evidencia.automacao.relatorio-sem-payload
+// @pinker-nav:domain automacao
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Prova de que os relatorios de automacao nao carregam o payload do plano, mantendo o relatorio auditavel sem duplicar conteudo de arquivo.
 #[cfg(test)]
 mod tests {
     use super::super::compare::{check, Observation, ObservedState};
@@ -313,3 +316,4 @@ mod tests {
         assert!(!markdown.contains("636f6e746575646f"));
     }
 }
+// @pinker-nav:end evidencia.automacao.relatorio-sem-payload

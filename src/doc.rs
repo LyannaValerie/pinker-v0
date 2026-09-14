@@ -13,6 +13,10 @@
 //! O módulo é deliberadamente puro: carrega e valida a configuração, e devolve
 //! decisões. Toda impressão e término de processo é responsabilidade do CLI.
 
+// @pinker-nav:start trama.documentos.configuracao
+// @pinker-nav:domain documentos
+// @pinker-nav:layer trama
+// @pinker-nav:summary Preludio e modelo da configuracao documental: caminhos versionados do ledger e do `.pinker/doc.toml`, schema suportado, o modo forward-only, a politica do GitHub, os caminhos gerados, a projecao documental e a configuracao completa, mais os erros de configuracao e a rejeicao de baseline com suas mensagens estaveis.
 use std::collections::HashMap;
 use std::fmt;
 use std::fs;
@@ -154,6 +158,7 @@ impl fmt::Display for BaselineRejection {
     }
 }
 
+// @pinker-nav:end trama.documentos.configuracao
 // @pinker-nav:start trama.documentos.marco
 // @pinker-nav:domain documentos
 // @pinker-nav:layer trama
@@ -333,6 +338,10 @@ pub fn verify_repository(
 }
 
 // @pinker-nav:end trama.documentos.verificacao-reutilizavel
+// @pinker-nav:start trama.documentos.toml-minimo
+// @pinker-nav:domain documentos
+// @pinker-nav:layer trama
+// @pinker-nav:summary Leitor minimo e determinista do subconjunto de TOML que `doc.toml` usa: cabecalho de secao, par chave-valor com escalar (texto entre aspas, inteiro ou booleano), comentario e linha em branco, com nome de campo qualificado e linha exata em cada erro. Zero dependencias externas, coerente com a filosofia do compilador.
 
 /// Leitor mínimo e determinístico de um subconjunto de TOML.
 ///
@@ -527,6 +536,11 @@ fn parse_scalar(input: &str, line_no: usize) -> Result<RawScalar, ConfigError> {
     })
 }
 
+// @pinker-nav:end trama.documentos.toml-minimo
+// @pinker-nav:start evidencia.documentos.configuracao-e-baseline
+// @pinker-nav:domain documentos
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Provas da configuracao documental: todos os campos sao lidos, o baseline exclusivo recusa PR anterior ou igual ao marco e o inclusivo aceita o proprio marco, a mensagem de rejeicao casa com a especificacao, e modo, schema, campo obrigatorio ausente e tipo errado de escalar sao recusados com erro de linha.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -621,3 +635,4 @@ code_index = "src/navigation.jsonl"
         assert!(matches!(err, ConfigError::InvalidField { .. }));
     }
 }
+// @pinker-nav:end evidencia.documentos.configuracao-e-baseline

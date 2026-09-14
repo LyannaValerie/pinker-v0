@@ -11,16 +11,16 @@
 //! Posição no pipeline:
 //!   `instr_select` → **`abstract_machine`** → `abstract_machine_validate` → `interpreter` / `backend_text`
 
+// @pinker-nav:start machine.modelo.representacao
+// @pinker-nav:domain modelo
+// @pinker-nav:layer machine
+// @pinker-nav:summary Modelo de dados da máquina abstrata de pilha: programa, globais, funções com slots, blocos, instruções de pilha (`MachineInstr`) e terminadores — a representação executada pelo interpretador.
 use crate::cfg_ir::OperandIR;
 use crate::error::PinkerError;
 use crate::instr_select::{FalarArgSelected, SelectedInstr, SelectedProgram, SelectedTerminator};
 use crate::ir::TypeIR;
 use std::collections::HashMap;
 
-// @pinker-nav:start machine.modelo.representacao
-// @pinker-nav:domain modelo
-// @pinker-nav:layer machine
-// @pinker-nav:summary Modelo de dados da máquina abstrata de pilha: programa, globais, funções com slots, blocos, instruções de pilha (`MachineInstr`) e terminadores — a representação executada pelo interpretador.
 /// Programa completo na representação de máquina abstrata.
 /// Contém globals (constantes somente-leitura) e funções com blocos de instruções de pilha.
 #[derive(Debug, Clone, PartialEq, Eq)]

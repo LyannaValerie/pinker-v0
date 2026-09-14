@@ -216,6 +216,10 @@ impl TabelaSaidas {
 }
 // @pinker-nav:end processos.saida.snapshot
 
+// @pinker-nav:start evidencia.processos.handles-de-saida
+// @pinker-nav:domain processos
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Provas da saida de processo hospedada: os acessores sao reconhecidos por uma unica declaracao, stdout e stderr sao canais distintos, handles sao monotonicos e nunca reutilizados, o esgotamento nao envolve nem aborta, copias do handle observam o mesmo snapshot e handle nao produzido nao resolve.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -289,3 +293,4 @@ mod tests {
         assert!(tabela.obter(0).is_none());
     }
 }
+// @pinker-nav:end evidencia.processos.handles-de-saida

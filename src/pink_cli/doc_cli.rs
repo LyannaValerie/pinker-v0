@@ -5,12 +5,12 @@
 //! Movimento físico: as decisões, o estado e a ordem são os do entrypoint.
 //! `main.rs` continua dono da orquestração; aqui mora só a implementação.
 
-use super::*;
-
 // @pinker-nav:start cli.doc.consulta
 // @pinker-nav:domain doc
 // @pinker-nav:layer cli
 // @pinker-nav:summary load_doc_config carrega doc::DocConfig::load (sai com 1 em erro); run_doc despacha DocSub (Marco/ImportarPr/Mostrar/Listar/Buscar/Rota/Sincronizar/Verificar) para as funções correspondentes; scan_docs varre docs/ via doc_index::DocIndex::scan; load_doc_catalog lê o catálogo gerado; write_atomic é o único mecanismo desta base que grava atomicamente — escreve um arquivo `.jsonl.tmp` e usa fs::rename por cima do caminho final, usado pelas rotinas de sincronização (não pelas consultas abaixo); run_doc_mostrar/run_doc_listar/run_doc_buscar/run_doc_rota e print_doc_results_json apenas leem o catálogo e imprimem resultados em texto ou JSON, sem escrever em disco.
+use super::*;
+
 pub(super) fn load_doc_config(repo_root: &Path) -> doc::DocConfig {
     match doc::DocConfig::load(repo_root) {
         Ok(cfg) => cfg,

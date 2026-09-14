@@ -8,12 +8,12 @@
 //! `mod tests` é privado e `#[cfg(test)]`: a ponte não amplia superfície
 //! nenhuma para fora do módulo `backend_s`.
 
-pub use super::*;
-
 // @pinker-nav:start evidencia.backend-s.proveniencia-de-ponteiro
 // @pinker-nav:domain memoria
 // @pinker-nav:layer evidencia
 // @pinker-nav:summary Unidade da classificação de proveniência do back-end nativo (continuação do hotfix pós-PR #411): `selected_call_provenance` como autoridade única sobre chamada direta, indireta, por endereço cru e de trato — `Public` quando e somente quando o retorno é ponteiro —, e a regra do cast `virar seta<T>`, que preserva `Public`, `Internal`, `Fabricated` e `Unclassified` tipado como ponteiro, e só produz `Fabricated` a partir de valor não-ponteiro. Cobre os ramos que a superfície da linguagem ainda não alcança, porque `seta<seta<T>>`, carga de ponteiro pela memória e carga de união com ponteiro estão fora do subconjunto atual.
+pub use super::*;
+
 #[cfg(test)]
 mod tests_proveniencia_de_ponteiro {
     use super::*;

@@ -20,13 +20,13 @@
 //! `check_block` é o único símbolo que o pai chama e, por isso, o único que
 //! passou de privado a `pub(super)`.
 
+// @pinker-nav:start semantic.comandos.verificacao
+// @pinker-nav:domain comandos
+// @pinker-nav:layer semantic
+// @pinker-nav:summary Verificação de comandos de um bloco: `mimo` (let) com inferência de `lista_criar`/`mapa_criar` pela anotação e checagem de tipo/faixa, retorno, atribuição a variável/deref/campo/índice (mutabilidade e tipos), `talvez`/`senão`, laço `sempre que` (com controle de profundidade), `quebrar`/`continuar`, `falar` (tipos imprimíveis), `sussurro` (asm) e expressão-comando.
 use super::*;
 
 impl SemanticChecker {
-    // @pinker-nav:start semantic.comandos.verificacao
-    // @pinker-nav:domain comandos
-    // @pinker-nav:layer semantic
-    // @pinker-nav:summary Verificação de comandos de um bloco: `mimo` (let) com inferência de `lista_criar`/`mapa_criar` pela anotação e checagem de tipo/faixa, retorno, atribuição a variável/deref/campo/índice (mutabilidade e tipos), `talvez`/`senão`, laço `sempre que` (com controle de profundidade), `quebrar`/`continuar`, `falar` (tipos imprimíveis), `sussurro` (asm) e expressão-comando.
     pub(super) fn check_block(
         &mut self,
         block: &Block,
@@ -392,5 +392,5 @@ impl SemanticChecker {
 
         Ok(())
     }
-    // @pinker-nav:end semantic.comandos.verificacao
 }
+// @pinker-nav:end semantic.comandos.verificacao

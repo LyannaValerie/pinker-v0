@@ -8,8 +8,17 @@
 //! `#[cfg(test)]`: a ponte não amplia superfície nenhuma para fora do módulo
 //! `interpreter`.
 
+// @pinker-nav:start evidencia.interpretador.ponte-de-modulo
+// @pinker-nav:domain interpretador
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Ponte que devolve o modulo pai aos modulos de teste movidos um nivel abaixo pela unidade INT-1: `super` mudou de significado na descida e a reexportacao preserva `use super::*` nos seis modulos. E privada e `#[cfg(test)]`, portanto nao amplia superficie nenhuma para fora do modulo interpreter.
 pub use super::*;
+// @pinker-nav:end evidencia.interpretador.ponte-de-modulo
 
+// @pinker-nav:start evidencia.tratos.objeto-em-runtime
+// @pinker-nav:domain tratos
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Provas do objeto de trato em runtime (Fase 244): o snapshot composto do receiver independe do endereco de origem, e a vtable e internada de modo que handles criados a partir da mesma tabela permanecem distintos entre si.
 #[cfg(test)]
 mod fase244_trait_runtime_tests {
     use super::*;
@@ -108,7 +117,12 @@ mod fase244_trait_runtime_tests {
         );
     }
 }
+// @pinker-nav:end evidencia.tratos.objeto-em-runtime
 
+// @pinker-nav:start evidencia.callables.tempo-de-vida
+// @pinker-nav:domain callables
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Provas de tempo de vida de callable no interpretador (D3): o descritor possui o ambiente trailing e instancias distintas nao o compartilham, e uma falha de endereco nao publica handle nem ambiente parcialmente construido.
 #[cfg(test)]
 mod d3_callable_lifetime_tests {
     use super::*;
@@ -164,7 +178,12 @@ mod d3_callable_lifetime_tests {
         assert_eq!(state.next_allocation_addr, usize::MAX - 7);
     }
 }
+// @pinker-nav:end evidencia.callables.tempo-de-vida
 
+// @pinker-nav:start evidencia.memoria.superficie-publica
+// @pinker-nav:domain memoria
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Provas da superficie publica de memoria do interpretador (Fase 246): liberar um endereco reutilizado escolhe a geracao viva mais recente, os bytes publicados preservam largura, aliasing e extensao, e a contabilidade de paginas libera somente os bytes efetivamente vivos.
 #[cfg(test)]
 mod fase246_public_memory_tests {
     use super::*;
@@ -280,7 +299,12 @@ mod fase246_public_memory_tests {
         assert_eq!(state.budget.lifetime_virtual_bytes, 8192);
     }
 }
+// @pinker-nav:end evidencia.memoria.superficie-publica
 
+// @pinker-nav:start evidencia.unioes.orcamento
+// @pinker-nav:domain unioes
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Provas do orcamento de uniao em runtime (HR3): o orcamento de bytes de carga e o de metadata sao finitos, e toda aritmetica do orcamento usa operacoes checked em vez de envolver silenciosamente.
 #[cfg(test)]
 mod hr3_union_budget_tests {
     use super::*;
@@ -328,6 +352,7 @@ mod hr3_union_budget_tests {
     }
 }
 
+// @pinker-nav:end evidencia.unioes.orcamento
 // @pinker-nav:start interpreter.unioes.contabilidade-dominios
 // @pinker-nav:domain unioes
 // @pinker-nav:layer interpreter

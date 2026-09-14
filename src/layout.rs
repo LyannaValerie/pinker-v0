@@ -1,10 +1,10 @@
-use crate::ast::{StructDecl, Type};
-use std::collections::HashMap;
-
 // @pinker-nav:start layout.tipos.memoria
 // @pinker-nav:domain tipos
 // @pinker-nav:layer layout
 // @pinker-nav:summary Calcula o layout estático (tamanho e alinhamento) dos tipos Pinker e os offsets de campos de struct, com arredondamento de alinhamento, resolução de aliases e proteção contra recursão.
+use crate::ast::{StructDecl, Type};
+use std::collections::HashMap;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TypeLayout {
     pub size: u64,

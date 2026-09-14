@@ -13,12 +13,12 @@
 //! `pinker_v0::backend_s::render_program` continue sendo o mesmo caminho
 //! público; nenhum outro item ganhou visibilidade.
 
-use super::*;
-
 // @pinker-nav:start backend-s.renderizacao.abi-textual-programa
 // @pinker-nav:domain renderizacao
 // @pinker-nav:layer backend-s
 // @pinker-nav:summary `render_program`: renderer do `.s` **textual** baseado em `BackendTextProgram` (caminho `emit_from_selected`), distinto do renderer montável. Emite cabeçalho, `module`, `mode` livre/hospedado, metadados `abi.*` **como comentários** (`; abi.func`/`abi.params`/`abi.ret`/`abi.frame`/`abi.prologue`/`abi.epilogue`), `.rodata` de globais e blocos. No modo freestanding embute `boot.entry`, o linker script e o kernel stub textuais e um loop `.Lpinker_hang`. **Não** é assembly GAS montável nem ABI SysV real: `mov $slot`/`unop`/`binop` e os `@arg`/`@ret` são convenções textuais, não reconhecíveis diretamente pelo assembler.
+use super::*;
+
 pub fn render_program(program: &BackendTextProgram) -> String {
     let mut out = String::new();
 

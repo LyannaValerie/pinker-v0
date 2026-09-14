@@ -10,6 +10,10 @@
 //! Posição no pipeline:
 //!   `semantic` → **`ir`** → `ir_validate` → `cfg_ir`
 
+// @pinker-nav:start ir.modulo.superficie
+// @pinker-nav:domain modulo
+// @pinker-nav:layer ir
+// @pinker-nav:summary Preludio e superficie publica do modulo IR: os usos compartilhados, a declaracao dos submodulos context, lowering, model e render, e as reexportacoes que definem exatamente o que a IR expoe ao resto do pipeline — os dois pontos de entrada de lowering e o modelo de programa, funcao, bloco, instrucao, valor e tipo.
 use crate::ast::{
     transitive_free_identifiers_in_function, AssignTarget, BinaryOp, Block, BreakStmt, ConstDecl,
     ContinueStmt, ElseBlock, EnumMatchStmt, EnumPattern, Expr, ExprKind, FalarStmt, FunctionDecl,
@@ -52,6 +56,11 @@ pub use model::{
 };
 
 #[derive(Clone)]
+// @pinker-nav:end ir.modulo.superficie
+// @pinker-nav:start ir.lowering.metadados-internos
+// @pinker-nav:domain lowering
+// @pinker-nav:layer ir
+// @pinker-nav:summary Registros internos que o lowering carrega enquanto traduz o programa: assinatura de funcao, metadata de metodo e de trato com identidade resolvida, metadata de callable e de funcao crua, captura de closure, estado de binding por escopo, o contexto de lowering completo e os registros de leque (informacao por leque, tipo de carga e registro de unioes). Nada aqui viaja no ProgramIR publicado.
 struct FunctionSigIR {
     ret_type: TypeIR,
     /// Identidade semântica completa do retorno. Substitui o antigo
@@ -283,6 +292,11 @@ impl EnumPayloadTypeIR {
     }
 }
 
+// @pinker-nav:end ir.lowering.metadados-internos
+// @pinker-nav:start ir.leques.metadata-publicada
+// @pinker-nav:domain leques
+// @pinker-nav:layer ir
+// @pinker-nav:summary Metadata de leque que viaja no ProgramIR: variante com discriminante e cargas, e cada carga conservando ao mesmo tempo a representacao operacional e a identidade semantica resolvida, para que validadores e testes estruturais confiram as duas dimensoes sem reconstruir nada.
 /// Metadata publicada de uma variante de leque.
 ///
 /// Viaja no [`ProgramIR`] para que os validadores e os testes estruturais
@@ -316,6 +330,11 @@ pub struct EnumPayloadMetaIR {
 /// `lista.criar` e `mapa.criar` chegam aqui como identidade resolvida; uma
 /// função do usuário com a mesma grafia é `Ident` e nunca satisfaz esta
 /// pergunta.
+// @pinker-nav:end ir.leques.metadata-publicada
+// @pinker-nav:start ir.lowering.reconhecimento-de-forma
+// @pinker-nav:domain lowering
+// @pinker-nav:layer ir
+// @pinker-nav:summary Perguntas de forma que o lowering faz sobre a AST ja checada: se uma expressao e chamada intrinseca sem argumentos por identidade resolvida (e nao por grafia), se e criacao generica de lista ou de mapa, qual a classe canonica de um mapa e o callee monomorfico correspondente, e como extrair nome de objeto de trato, metadata de funcao crua e tipo apontado a partir do tipo ou da declaracao.
 fn chamada_intrinseca_sem_argumentos(expr: &Expr, canonica: &str) -> bool {
     let ExprKind::Call(callee, args) = &expr.kind else {
         return false;
@@ -483,6 +502,11 @@ fn raw_function_metadata_from_decl(
             .flatten(),
     })
 }
+// @pinker-nav:end ir.lowering.reconhecimento-de-forma
+// @pinker-nav:start ir.lowering.estado-por-funcao
+// @pinker-nav:domain lowering
+// @pinker-nav:layer ir
+// @pinker-nav:summary Estado mutavel por funcao durante o lowering: pilha de escopos lexicos, contador por nome-fonte que gera o slot unico `%nome#N`, acumulacao de locais declaradas fora dos parametros, e o valor IR com o tipo que o acompanha em cada no.
 
 // `FunctionLowerer` mantém estado mutable por função durante o lowering:
 // - `scopes`: pilha de escopos léxicos (topo = escopo atual).
@@ -544,6 +568,11 @@ impl TypedValueIR {
     }
 }
 
+// @pinker-nav:end ir.lowering.estado-por-funcao
+// @pinker-nav:start ir.render.programa
+// @pinker-nav:domain render
+// @pinker-nav:layer ir
+// @pinker-nav:summary Render textual determinista do ProgramIR: cabecalho de modulo e, em ordem fixa, as funcoes com seus blocos, instrucoes e valores, delegando cada linha ao submodulo render. E a forma que os testes estruturais comparam.
 pub fn render_program(program: &ProgramIR) -> String {
     let mut out = String::new();
     line(&mut out, 0, &format!("module {}", program.module_name));
@@ -586,6 +615,11 @@ pub fn render_program(program: &ProgramIR) -> String {
     out
 }
 
+// @pinker-nav:end ir.render.programa
+// @pinker-nav:start ir.lowering.resolucao-de-tipo
+// @pinker-nav:domain lowering
+// @pinker-nav:layer ir
+// @pinker-nav:summary Resolucao de tipo no contexto de lowering: reduz uniao AST a forma canonica, consulta a tabela de identidades resolvidas em vez do nome nominal, materializa o tipo IR correspondente e responde o tamanho de um array de bombom apontado quando o alias permite.
 impl LoweringContext {
     fn resolve_type(&self, ty: &Type) -> Result<TypeIR, PinkerError> {
         let resolved = self.resolve_union_ast_type(ty, &mut Vec::new())?;
@@ -825,6 +859,11 @@ fn pointer_to_bombom_array_size(ty: &Type, aliases: &HashMap<String, Type>) -> O
     }
 }
 
+// @pinker-nav:end ir.lowering.resolucao-de-tipo
+// @pinker-nav:start ir.tipos.representacao-fisica
+// @pinker-nav:domain tipos
+// @pinker-nav:layer ir
+// @pinker-nav:summary Predicados de representacao fisica do TypeIR: quantas palavras a ABI nativa corrente ja transporta, o que cabe em uma palavra de ambiente de closure, sinal e integralidade do escalar, e compatibilidade entre dois tipos. Arrays fixos permanecem valores inline multi-palavra e `nulo` nao e valor.
 impl TypeIR {
     /// Quantidade de palavras da representação já transportável pela ABI
     /// nativa atual. Arrays fixos permanecem valores inline multi-palavra;
@@ -870,6 +909,7 @@ impl TypeIR {
                 || (*self == TypeIR::U64 && other == TypeIR::Bombom))
     }
 
+    // @pinker-nav:end ir.tipos.representacao-fisica
     // @pinker-nav:start ir.tipos.conversao-ast
     // @pinker-nav:domain tipos
     // @pinker-nav:layer ir
@@ -1029,6 +1069,10 @@ impl TypeIR {
             .map(|resolved| resolved.unwrap_or(TypeIR::Nulo))
     }
     // @pinker-nav:end ir.tipos.conversao-ast
+    // @pinker-nav:start ir.tipos.nome-e-render
+    // @pinker-nav:domain tipos
+    // @pinker-nav:layer ir
+    // @pinker-nav:summary Nome estavel e render textual de cada TypeIR, incluindo as formas compostas (lista, mapa, array fixo, ponteiro com volatilidade, struct e leque). E a grafia que aparece no render do programa e nos diagnosticos, e por isso precisa ser determinista.
 
     pub fn name(&self) -> &'static str {
         match self {
@@ -1096,7 +1140,12 @@ impl TypeIR {
         }
     }
 }
+// @pinker-nav:end ir.tipos.nome-e-render
 
+// @pinker-nav:start ir.tipos.escalares
+// @pinker-nav:domain tipos
+// @pinker-nav:layer ir
+// @pinker-nav:summary Escalares da IR: a projecao entre tipo escalar e tipo IR, largura em bits e sinal de cada um, e o nome estavel usado no render. E a base de array fixo e de qualquer decisao de largura no backend.
 impl ScalarTypeIR {
     fn from_type_ir(ty: TypeIR) -> Option<Self> {
         match ty {
@@ -1163,6 +1212,11 @@ impl ScalarTypeIR {
     }
 }
 
+// @pinker-nav:end ir.tipos.escalares
+// @pinker-nav:start ir.operadores.conversao-ast
+// @pinker-nav:domain operadores
+// @pinker-nav:layer ir
+// @pinker-nav:summary Conversao mecanica dos operadores unarios e binarios da AST para a IR e o nome estavel de cada um no render, sem nenhuma decisao semantica: a validade do operador para os tipos envolvidos ja foi decidida na checagem semantica.
 impl UnaryOpIR {
     fn from_ast(op: UnaryOp) -> Self {
         match op {
@@ -1231,6 +1285,11 @@ impl BinaryOpIR {
     }
 }
 
+// @pinker-nav:end ir.operadores.conversao-ast
+// @pinker-nav:start evidencia.ir.alias-de-objeto-de-trato
+// @pinker-nav:domain ir
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Provas do nome de objeto de trato na conversao para IR: alias externo e resolvido sem resolver o nome interno, e alias ciclico ou inexistente e recusado em vez de virar nome plausivel.
 #[cfg(test)]
 mod trait_object_alias_tests {
     use super::*;
@@ -1298,3 +1357,4 @@ mod trait_object_alias_tests {
         assert!(ausente.contains("tipo 'Ausente' não existe"));
     }
 }
+// @pinker-nav:end evidencia.ir.alias-de-objeto-de-trato

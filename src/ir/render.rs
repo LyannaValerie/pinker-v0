@@ -28,12 +28,12 @@
 //! `pub(super)` — exatamente os três `exports` que o `unit_costs.json` da #601
 //! nomeia para a IR-4.
 
-use super::*;
-
 // @pinker-nav:start ir.renderizacao.textual
 // @pinker-nav:domain renderizacao
 // @pinker-nav:layer ir
 // @pinker-nav:summary Renderização textual auditável da IR já construída: `render_function`/`render_block`/`render_instruction`/`render_value` (com o helper `line`) percorrem `FunctionIR`/`BlockIR`/`InstructionIR`/`ValueIR` e produzem a forma legível consumida por depuração e testes. Recebe uma `ProgramIR` pronta (a entrada pública `render_program` fica junto à orquestração e delega a estas funções); não modifica a IR, não valida invariantes, não executa e não gera assembly.
+use super::*;
+
 pub(super) fn render_function(function: &FunctionIR, indent: usize, out: &mut String) {
     line(
         out,

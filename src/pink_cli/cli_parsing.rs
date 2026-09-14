@@ -4,12 +4,12 @@
 //! Movimento físico: as decisões, o estado e a ordem são os do entrypoint.
 //! `main.rs` continua dono da orquestração; aqui mora só a implementação.
 
-use super::*;
-
 // @pinker-nav:start cli.parsing.subcomandos
 // @pinker-nav:domain parsing
 // @pinker-nav:layer cli
 // @pinker-nav:summary Parsers estritos dos subcomandos, incluindo estado, doctor e verificar: validam flags, posicionais, duplicatas e requisitos cruzados antes de produzir modelos tipados.
+use super::*;
+
 fn parse_build_args(binary: &str, args: &[String]) -> Result<BuildConfig, String> {
     let mut input: Option<String> = None;
     let mut out_dir = "build".to_string();

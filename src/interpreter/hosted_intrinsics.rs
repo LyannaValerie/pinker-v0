@@ -1,4 +1,9 @@
+// @pinker-nav:start interpreter.intrinsecos.preludio
+// @pinker-nav:domain intrinsecos
+// @pinker-nav:layer interpreter
+// @pinker-nav:summary Preludio do submodulo de intrinsecas hospedadas: reexporta o ambiente do interpretador que todos os bracos do dispatcher usam — valor de runtime, estado enderecavel, estado de mapas e o construtor de erro de runtime.
 use super::*;
+// @pinker-nav:end interpreter.intrinsecos.preludio
 
 // @pinker-nav:start interpreter.intrinsecos.despacho-hospedado
 // @pinker-nav:domain intrinsecos
@@ -524,6 +529,10 @@ pub(super) fn try_call_intrinsic(
             Ok(IntrinsicCall::Done(None))
         }
         // @pinker-nav:end interpreter.intrinsecos.listas
+        // @pinker-nav:start interpreter.intrinsecos.mapas-genericos
+        // @pinker-nav:domain intrinsecos
+        // @pinker-nav:layer interpreter
+        // @pinker-nav:summary Autoridade hospedada do mapa generico: criacao com chave bombom ou verso, escrita, leitura, presenca, tamanho e cursor de iteracao. A chave escolhe somente a igualdade e o valor e preservado como RuntimeValue completo, sem enumeracao K x V; nenhum layout nativo e definido aqui.
 
         // Autoridade hospedada genérica: K escolhe somente a igualdade; V é
         // preservado como RuntimeValue completo, sem enumeração K × V.
@@ -688,6 +697,7 @@ pub(super) fn try_call_intrinsic(
             Ok(IntrinsicCall::Done(Some(key)))
         }
 
+        // @pinker-nav:end interpreter.intrinsecos.mapas-genericos
         // @pinker-nav:start interpreter.intrinsecos.mapas-verso-bombom
         // @pinker-nav:domain intrinsecos
         // @pinker-nav:layer interpreter
@@ -2788,6 +2798,10 @@ pub(super) fn try_call_intrinsic(
             ))))
         }
         // @pinker-nav:end interpreter.intrinsecos.conversoes-numero-texto
+        // @pinker-nav:start interpreter.intrinsecos.aleatorio-entre
+        // @pinker-nav:domain intrinsecos
+        // @pinker-nav:layer interpreter
+        // @pinker-nav:summary Braco `aleatorio_entre` da familia `acaso`, fisicamente separado dela neste ponto do dispatcher: valida aridade e tipos de gerador, minimo e maximo, e delega ao mesmo gerador da regiao interpreter.intrinsecos.acaso, sem segunda fonte de aleatoriedade.
 
         // Arm isolado da família `acaso` (ver `interpreter.intrinsecos.acaso`),
         // fisicamente separado dela neste ponto do dispatcher; sem âncora própria.
@@ -2823,6 +2837,7 @@ pub(super) fn try_call_intrinsic(
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(result))))
         }
 
+        // @pinker-nav:end interpreter.intrinsecos.aleatorio-entre
         // @pinker-nav:start interpreter.intrinsecos.mapas-tipados
         // @pinker-nav:domain intrinsecos
         // @pinker-nav:layer interpreter
@@ -3425,6 +3440,10 @@ pub(super) fn try_call_intrinsic(
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(key_val))))
         }
         // @pinker-nav:end interpreter.intrinsecos.mapas-tipados
+        // @pinker-nav:start interpreter.intrinsecos.insercao-em-lista
+        // @pinker-nav:domain intrinsecos
+        // @pinker-nav:layer interpreter
+        // @pinker-nav:summary Braco `lista_bombom_inserir` da familia `listas`, fisicamente separado dela neste ponto do dispatcher, e o encerramento do dispatcher: indice validado contra os limites da lista e, no ramo final, a identidade nao intrinseca devolvida como tal em vez de virar erro.
 
         // Arm isolado da família `listas` (ver `interpreter.intrinsecos.listas`),
         // fisicamente separado dela neste ponto do dispatcher; sem âncora própria.
@@ -3466,3 +3485,4 @@ pub(super) fn try_call_intrinsic(
         _ => Ok(IntrinsicCall::NotIntrinsic),
     }
 }
+// @pinker-nav:end interpreter.intrinsecos.insercao-em-lista

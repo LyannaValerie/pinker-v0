@@ -1,10 +1,10 @@
+// @pinker-nav:start parser.expressoes.precedencia
+// @pinker-nav:domain expressoes
+// @pinker-nav:layer parser
+// @pinker-nav:summary Escada de precedência e operadores: `parse_expr`/`parse_expr_binary` com climbing por precedência e associatividade, e `parse_expr_unary`, produzindo `ast::Expr` com `BinaryOp`/`UnaryOp`.
 use super::*;
 
 impl Parser {
-    // @pinker-nav:start parser.expressoes.precedencia
-    // @pinker-nav:domain expressoes
-    // @pinker-nav:layer parser
-    // @pinker-nav:summary Escada de precedência e operadores: `parse_expr`/`parse_expr_binary` com climbing por precedência e associatividade, e `parse_expr_unary`, produzindo `ast::Expr` com `BinaryOp`/`UnaryOp`.
     pub(super) fn parse_expr(&mut self) -> Result<Expr, PinkerError> {
         let expr = self.parse_expr_binary(0)?;
         if self.match_token(TokenKind::Question) {
@@ -629,5 +629,5 @@ impl Parser {
             span,
         })
     }
-    // @pinker-nav:end parser.texto.interpolacao
 }
+// @pinker-nav:end parser.texto.interpolacao

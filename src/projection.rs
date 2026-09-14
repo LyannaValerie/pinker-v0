@@ -23,6 +23,10 @@
 //! Para outros nomes (ex.: `readme`, `manual`), só se gera dentro de uma região
 //! explícita; se a região não existir, a flag é recusada — nunca inventada.
 
+// @pinker-nav:start trama.projecoes.modelo
+// @pinker-nav:domain projecoes
+// @pinker-nav:layer trama
+// @pinker-nav:summary Preludio e modelo da projecao documental: os marcadores `@pinker-generated` que delimitam a regiao gerada, a taxonomia de erro de projecao com suas mensagens estaveis, e o plano de escrita — arquivo alvo, conteudo novo e a decisao de escrever ou nao — que torna a projecao idempotente e auditavel antes de tocar o disco.
 use crate::change::{Change, Manifests};
 use crate::doc::{DocConfig, DocProjection};
 use std::fmt;
@@ -147,6 +151,7 @@ impl Plan {
     }
 }
 
+// @pinker-nav:end trama.projecoes.modelo
 // @pinker-nav:start trama.projecoes.geracao
 // @pinker-nav:domain projecoes
 // @pinker-nav:layer trama
@@ -379,6 +384,10 @@ fn generate_roadmap(manifests: &Manifests) -> String {
     out
 }
 // @pinker-nav:end trama.projecoes.geracao
+// @pinker-nav:start evidencia.projecoes.geracao-idempotente
+// @pinker-nav:domain projecoes
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Provas da projecao documental: a emenda na regiao gerada preserva o texto humano ao redor, uma segunda emenda sobre o mesmo estado e idempotente, regiao gerada ausente e erro em vez de invencao, e a tabela de historico e deterministica.
 
 #[cfg(test)]
 mod tests {
@@ -456,3 +465,4 @@ mod tests {
         assert!(idx340 < idx341);
     }
 }
+// @pinker-nav:end evidencia.projecoes.geracao-idempotente

@@ -4,6 +4,12 @@
 //! textual já produzido pelo chamador; as relações vêm apenas dos catálogos e
 //! artefatos canônicos carregados pelo adaptador CLI.
 
+// @pinker-nav:start trama.diff-cobertura.modelo
+// @pinker-nav:domain diff-coverage
+// @pinker-nav:layer trama
+// @pinker-nav:symbol pinker_v0::diff_coverage::CoverageReport|CoverageReport|rust-type|declaration
+// @pinker-nav:symbol-doc pinker_v0::diff_coverage::CoverageReport|development.diff-coverage.contract
+// @pinker-nav:summary Modelo público schema 1 da cobertura de diff: arquivos e linhas vêm do unified diff; regiões, documentos, projeções e testes carregam autoridade explícita e estados KNOWN, UNKNOWN ou UNAVAILABLE, sem inferência heurística.
 use crate::change::Manifests;
 use crate::doc::{DocConfig, DocProjection};
 use crate::doc_index::{DocCatalog, DocDocument, DocSection};
@@ -17,13 +23,6 @@ use std::fmt;
 
 pub const DIFF_COVERAGE_SCHEMA: u64 = 2;
 pub const MAX_DIFF_BYTES: usize = 16 * 1024 * 1024;
-
-// @pinker-nav:start trama.diff-cobertura.modelo
-// @pinker-nav:domain diff-coverage
-// @pinker-nav:layer trama
-// @pinker-nav:symbol pinker_v0::diff_coverage::CoverageReport|CoverageReport|rust-type|declaration
-// @pinker-nav:symbol-doc pinker_v0::diff_coverage::CoverageReport|development.diff-coverage.contract
-// @pinker-nav:summary Modelo público schema 1 da cobertura de diff: arquivos e linhas vêm do unified diff; regiões, documentos, projeções e testes carregam autoridade explícita e estados KNOWN, UNKNOWN ou UNAVAILABLE, sem inferência heurística.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum RelationStatus {
@@ -1745,6 +1744,10 @@ fn json_string(value: &str) -> String {
     out
 }
 // @pinker-nav:end trama.diff-cobertura.renderizacao
+// @pinker-nav:start evidencia.diff-cobertura.parser-e-render
+// @pinker-nav:domain diff-cobertura
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Provas do diff de cobertura: o parser aceita modificacao, adicao, delecao, rename e binario, preserva caminho com espacos no cabecalho git, recusa travessia de caminho, hunk incompleto e caminho nao UTF-8, delecao pura nao fabrica linha corrente, e os renderizadores sao deterministicos e sem ANSI.
 
 #[cfg(test)]
 mod tests {
@@ -1813,3 +1816,4 @@ mod tests {
         assert!(!render_json(&report).contains('\u{1b}'));
     }
 }
+// @pinker-nav:end evidencia.diff-cobertura.parser-e-render

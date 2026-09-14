@@ -4,6 +4,10 @@
 //! observação, autorização, proteção stale e escrita passam pelo automation
 //! core; não existe `fs::write`, `rename` ou temporário neste módulo.
 
+// @pinker-nav:start trama.projecoes.lifecycle
+// @pinker-nav:domain projecoes
+// @pinker-nav:layer lifecycle
+// @pinker-nav:summary Lifecycle adulto de CANDIDATE: preparar exige predecessor FROZEN e recipe própria vazia, calcula medidas pelo resolvedor real e planeja dois targets; aceitar exige candidato canônico MATCH, preserva todos os campos exceto state e planeja exatamente um target, sempre via automation core e autorização por digest.
 use crate::automation::{
     apply, check, observe, Allowlist, ApplyReport, Authorization, CheckReport, Failure,
     Outcome as AutomationOutcome, Plan, PlanBuilder, RepoRoot,
@@ -24,11 +28,6 @@ use std::fmt;
 pub const PROJECTION_CLI_SCHEMA: u64 = 1;
 pub const PROJECTION_PRODUCER: &str = "nav.projecao.lifecycle";
 pub const RECIPE_PREFIX: &str = "normalizacao-corrente-para-";
-
-// @pinker-nav:start trama.projecoes.lifecycle
-// @pinker-nav:domain projecoes
-// @pinker-nav:layer lifecycle
-// @pinker-nav:summary Lifecycle adulto de CANDIDATE: preparar exige predecessor FROZEN e recipe própria vazia, calcula medidas pelo resolvedor real e planeja dois targets; aceitar exige candidato canônico MATCH, preserva todos os campos exceto state e planeja exatamente um target, sempre via automation core e autorização por digest.
 
 #[derive(Debug)]
 pub enum ProjectionError {

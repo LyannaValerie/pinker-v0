@@ -14,6 +14,10 @@
 //! intrínsecas de sistema. O runtime é substituível no futuro por uma
 //! implementação em Pinker (convergência com a direção self-hosting).
 
+// @pinker-nav:start runtime.inicializacao.bootstrap
+// @pinker-nav:domain inicializacao
+// @pinker-nav:layer runtime
+// @pinker-nav:summary Define constantes de layout do alocador (ALINHAMENTO, CABECALHO) e o estado global (ARGC/ARGV em atômicos) capturado por pinker_rt_iniciar; expõe leitura de argc/argv e a versão da ABI (pinker_rt_versao) — as constantes de alocação ficam fisicamente no preâmbulo, junto ao estado global de inicialização.
 use pinker_memory_contract::{
     release_public_live_bytes, reserve_public_allocation, PublicAllocationVerdict,
     PublicMemoryBudget, PublicMemoryLimits, PUBLIC_MEMORY_LIMITS,
@@ -23,10 +27,6 @@ use std::io::{self, Read, Write};
 use std::sync::atomic::{AtomicI64, AtomicUsize, Ordering};
 use std::sync::Once;
 
-// @pinker-nav:start runtime.inicializacao.bootstrap
-// @pinker-nav:domain inicializacao
-// @pinker-nav:layer runtime
-// @pinker-nav:summary Define constantes de layout do alocador (ALINHAMENTO, CABECALHO) e o estado global (ARGC/ARGV em atômicos) capturado por pinker_rt_iniciar; expõe leitura de argc/argv e a versão da ABI (pinker_rt_versao) — as constantes de alocação ficam fisicamente no preâmbulo, junto ao estado global de inicialização.
 /// Alinhamento garantido dos blocos devolvidos por `pinker_alocar`.
 const ALINHAMENTO: usize = 16;
 
@@ -2241,9 +2241,14 @@ pub unsafe extern "C" fn pinker_uniao_copiar_payload(
 // de acaso replica o MESMO LCG do interpretador (paridade de sementes).
 // ---------------------------------------------------------------------------
 
+// @pinker-nav:start runtime.arquivos.preludio
+// @pinker-nav:domain arquivos
+// @pinker-nav:layer runtime
+// @pinker-nav:summary Usos do bloco de arquivos e acaso do runtime nativo: mapa de descritores abertos por handle, posicionamento de arquivo e a inicializacao unica protegida por mutex que o modelo de arquivo e o gerador de acaso compartilham.
 use std::collections::HashMap;
 use std::io::Seek as _;
 use std::sync::{Mutex, OnceLock};
+// @pinker-nav:end runtime.arquivos.preludio
 
 // @pinker-nav:start runtime.arquivos.io
 // @pinker-nav:domain arquivos

@@ -2,8 +2,8 @@ schema = 3
 id = "normalizacao-corrente-para-historico"
 
 [reconstruction]
-expected_overrides = 197
-expected_exclusions = 160
+expected_overrides = 211
+expected_exclusions = 263
 
 [[rules]]
 op = "exclude-key"
@@ -67,6 +67,56 @@ expected_matches = 1
 
 [[rules]]
 op = "exclude-key"
+key = "backend-s.callable.referencias-de-funcao"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "backend-s.callconv.montagem-do-programa"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "backend-s.emissao.linha-e-erro"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "backend-s.modelo.superficie"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "backend-s.validacao.destino-local"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "backend-text.falar.argumentos"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "cfg.lowering.estado-por-funcao"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "cfg.lowering.operandos-de-chamada"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "cfg.lowering.ternario"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "cli.analise.ligacao"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
 key = "cli.nav.projecao"
 expected_matches = 1
 
@@ -82,6 +132,11 @@ expected_matches = 1
 
 [[rules]]
 op = "exclude-key"
+key = "error.diagnostico.mensagem"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
 key = "evidencia.ambiente.issue-492-paridade-argumento-nomeado"
 expected_matches = 1
 
@@ -92,12 +147,82 @@ expected_matches = 1
 
 [[rules]]
 op = "exclude-key"
+key = "evidencia.automacao.caminhos"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.automacao.causa-de-raiz"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.automacao.classificacao"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.automacao.limites-e-decisao"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.automacao.plano-canonico"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.automacao.raiz"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.automacao.relatorio-sem-payload"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
 key = "evidencia.backend-s.selecao-de-rota-nativa"
 expected_matches = 1
 
 [[rules]]
 op = "exclude-key"
+key = "evidencia.callables.tempo-de-vida"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.cobertura.autoridade-e-inventario"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.consultas.normalizacao"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
 key = "evidencia.diff-cobertura.cli"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.diff-cobertura.parser-e-render"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.documentos.catalogo-e-consulta"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.documentos.configuracao-e-baseline"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.editor.sessao-de-arquivo"
 expected_matches = 1
 
 [[rules]]
@@ -117,7 +242,22 @@ expected_matches = 1
 
 [[rules]]
 op = "exclude-key"
+key = "evidencia.estado.precedencia"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.estado.relatorio-json"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
 key = "evidencia.fatiar-verso.d9-unicode"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.ferramentas.preflight"
 expected_matches = 1
 
 [[rules]]
@@ -128,6 +268,11 @@ expected_matches = 1
 [[rules]]
 op = "exclude-key"
 key = "evidencia.formatar-verso.d7-pack"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.genericos.identidade-canonica"
 expected_matches = 1
 
 [[rules]]
@@ -192,12 +337,32 @@ expected_matches = 1
 
 [[rules]]
 op = "exclude-key"
+key = "evidencia.interpretador.ponte-de-modulo"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.ir.alias-de-objeto-de-trato"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
 key = "evidencia.json.nomes-e-assinaturas"
 expected_matches = 1
 
 [[rules]]
 op = "exclude-key"
 key = "evidencia.json.parte-e1-geral"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.jsonl.parser-minimo"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.limite-tempo.discriminantes"
 expected_matches = 1
 
 [[rules]]
@@ -212,12 +377,27 @@ expected_matches = 1
 
 [[rules]]
 op = "exclude-key"
+key = "evidencia.memoria.superficie-publica"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.metodos.identidade"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
 key = "evidencia.modulos.closure-sintetica-de-default-importado"
 expected_matches = 1
 
 [[rules]]
 op = "exclude-key"
 key = "evidencia.modulos.composicao-integridade"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.modulos.identidade-anonima"
 expected_matches = 1
 
 [[rules]]
@@ -242,7 +422,27 @@ expected_matches = 1
 
 [[rules]]
 op = "exclude-key"
+key = "evidencia.mudancas.manifesto-e-ledger"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
 key = "evidencia.nativo.simbolo"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.navegacao.varredura-catalogo"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.paleta.cores-e-ansi"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.printer.ponteiro-de-funcao"
 expected_matches = 1
 
 [[rules]]
@@ -312,6 +512,11 @@ expected_matches = 1
 
 [[rules]]
 op = "exclude-key"
+key = "evidencia.processos.handles-de-saida"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
 key = "evidencia.processos.parte-d-interpreter-step-3"
 expected_matches = 1
 
@@ -332,7 +537,17 @@ expected_matches = 1
 
 [[rules]]
 op = "exclude-key"
+key = "evidencia.projecoes.geracao-idempotente"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
 key = "evidencia.project-state.contrato"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.repl.trecho-e-import"
 expected_matches = 1
 
 [[rules]]
@@ -343,6 +558,11 @@ expected_matches = 1
 [[rules]]
 op = "exclude-key"
 key = "evidencia.runtime.json-familia"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.simbolos.derivacao-e-render"
 expected_matches = 1
 
 [[rules]]
@@ -377,7 +597,17 @@ expected_matches = 1
 
 [[rules]]
 op = "exclude-key"
+key = "evidencia.tratos.objeto-em-runtime"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
 key = "evidencia.tratos.relacao-de-impl-duplicada"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.unioes.orcamento"
 expected_matches = 1
 
 [[rules]]
@@ -422,6 +652,11 @@ expected_matches = 1
 
 [[rules]]
 op = "exclude-key"
+key = "interpreter.intrinsecos.aleatorio-entre"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
 key = "interpreter.intrinsecos.despacho-hospedado"
 expected_matches = 1
 
@@ -432,7 +667,32 @@ expected_matches = 1
 
 [[rules]]
 op = "exclude-key"
+key = "interpreter.intrinsecos.insercao-em-lista"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "interpreter.intrinsecos.mapas-genericos"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "interpreter.intrinsecos.preludio"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
 key = "interpreter.memoria.estado-enderecavel"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "interpreter.provas.ligacao"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "interpreter.unioes.estado-de-runtime"
 expected_matches = 1
 
 [[rules]]
@@ -452,7 +712,62 @@ expected_matches = 1
 
 [[rules]]
 op = "exclude-key"
+key = "ir.leques.metadata-publicada"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "ir.lowering.estado-por-funcao"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "ir.lowering.metadados-internos"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
 key = "ir.lowering.metodos-identidade"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "ir.lowering.reconhecimento-de-forma"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "ir.lowering.resolucao-de-tipo"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "ir.modulo.superficie"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "ir.operadores.conversao-ast"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "ir.render.programa"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "ir.tipos.escalares"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "ir.tipos.nome-e-render"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "ir.tipos.representacao-fisica"
 expected_matches = 1
 
 [[rules]]
@@ -463,6 +778,16 @@ expected_matches = 1
 [[rules]]
 op = "exclude-key"
 key = "json.superficie.nomes"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "lexer.cursor.leitura-de-caracteres"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "map-representation.provas.ligacao"
 expected_matches = 1
 
 [[rules]]
@@ -532,12 +857,42 @@ expected_matches = 1
 
 [[rules]]
 op = "exclude-key"
+key = "parser.colecoes.registro-de-tipo"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "parser.estado.modelo"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "parser.funcoes.parametro-funcao"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
 key = "parser.genericos.inferencia-local"
 expected_matches = 1
 
 [[rules]]
 op = "exclude-key"
+key = "parser.impl.materializacao-de-default"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "parser.importacoes.contexto"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
 key = "parser.importacoes.superficie-familia"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "parser.instanciacao.registros"
 expected_matches = 1
 
 [[rules]]
@@ -577,6 +932,11 @@ expected_matches = 1
 
 [[rules]]
 op = "exclude-key"
+key = "runtime.arquivos.preludio"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
 key = "runtime.falha-operacional.superficies"
 expected_matches = 1
 
@@ -607,7 +967,32 @@ expected_matches = 1
 
 [[rules]]
 op = "exclude-key"
+key = "semantic.asm.verificacao-inline"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "semantic.chamadas.contrato-interno"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "semantic.enums.casamento-exaustividade"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "semantic.falhas.identidade-do-leque"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
 key = "semantic.identificadores.namespace-produtor-de-simbolo"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "semantic.intrinsecas.colisao-de-declaracao"
 expected_matches = 1
 
 [[rules]]
@@ -617,7 +1002,32 @@ expected_matches = 1
 
 [[rules]]
 op = "exclude-key"
+key = "semantic.ninhos.tipo-de-campo"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "semantic.programa.pontos-de-entrada"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "semantic.verificador.construcao-e-grafia"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "semantic.verificador.estado"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
 key = "sha256.superficie.nomes"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "token.representacao.token-e-nomes"
 expected_matches = 1
 
 [[rules]]
@@ -667,6 +1077,21 @@ expected_matches = 1
 
 [[rules]]
 op = "exclude-key"
+key = "trama.codigo.comentario-real"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "trama.codigo.diagnosticos"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "trama.codigo.fechamento-regiao"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
 key = "trama.codigo.metadados-simbolos"
 expected_matches = 1
 
@@ -677,7 +1102,27 @@ expected_matches = 1
 
 [[rules]]
 op = "exclude-key"
+key = "trama.codigo.ranking-consulta"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
 key = "trama.codigo.relevancia-lexical"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "trama.codigo.serializacao-json"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "trama.codigo.sintaxe-marcador"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "trama.codigo.varredura-arquivo"
 expected_matches = 1
 
 [[rules]]
@@ -707,12 +1152,82 @@ expected_matches = 1
 
 [[rules]]
 op = "exclude-key"
+key = "trama.documentos.configuracao"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "trama.documentos.frontmatter"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "trama.documentos.modelo"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "trama.documentos.relevancia"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "trama.documentos.texto-e-serializacao"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "trama.documentos.toml-minimo"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "trama.documentos.varredura"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
 key = "trama.documentos.verificacao-reutilizavel"
 expected_matches = 1
 
 [[rules]]
 op = "exclude-key"
+key = "trama.mudancas.carga-e-problemas"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "trama.mudancas.lexico-de-valores"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "trama.mudancas.normalizacao-textual"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "trama.mudancas.sintaxe"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "trama.mudancas.vocabulario"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
 key = "trama.projecoes.lifecycle"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "trama.projecoes.modelo"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "trama.projecoes.provas-ligacao"
 expected_matches = 1
 
 [[rules]]
@@ -807,8 +1322,44 @@ expected_matches = 1
 
 [[rules]]
 op = "override-hash"
+key = "backend-text.modelo.representacao"
+from = "fnv1a64:71b9b40c73378a43"
+to = "fnv1a64:85f7b383e93628db"
+expect_file = "src/backend_text.rs"
+expect_domain = "modelo"
+expect_layer = "backend-text"
+
+[[rules]]
+op = "override-hash"
+key = "backend-text.validacao.invariantes"
+from = "fnv1a64:463429d41dee08f0"
+to = "fnv1a64:c39416c020acdcef"
+expect_file = "src/backend_text_validate.rs"
+expect_domain = "validacao"
+expect_layer = "backend-text"
+
+[[rules]]
+op = "override-hash"
+key = "cfg.lowering.construcao-blocos"
+from = "fnv1a64:890a36e2d01908cb"
+to = "fnv1a64:7fc6b7696e819936"
+expect_file = "src/cfg_ir.rs"
+expect_domain = "lowering"
+expect_layer = "cfg"
+
+[[rules]]
+op = "override-hash"
+key = "cfg.unioes.validacao-operacoes"
+from = "fnv1a64:4815ab0e5c92d717"
+to = "fnv1a64:e09da37ef5a8fa8e"
+expect_file = "src/cfg_ir_validate.rs"
+expect_domain = "unioes"
+expect_layer = "cfg"
+
+[[rules]]
+op = "override-hash"
 key = "cli.doc.consulta"
-from = "fnv1a64:c4263001ca831e1e"
+from = "fnv1a64:7072d67afe89778d"
 to = "fnv1a64:b538942c8ee175c8"
 expect_file = "src/pink_cli/doc_cli.rs"
 expect_domain = "doc"
@@ -822,6 +1373,33 @@ to = "fnv1a64:60b049063e3eae51"
 expect_file = "src/pink_cli/doc_cli.rs"
 expect_domain = "doc"
 expect_layer = "cli"
+
+[[rules]]
+op = "override-hash"
+key = "editor.estado.modelo"
+from = "fnv1a64:eafbec0333d4d1aa"
+to = "fnv1a64:732c0eb053617376"
+expect_file = "src/editor_tui.rs"
+expect_domain = "estado"
+expect_layer = "editor"
+
+[[rules]]
+op = "override-hash"
+key = "editor.render.saida"
+from = "fnv1a64:820aa05de9cb7755"
+to = "fnv1a64:ef5f0ce344943da4"
+expect_file = "src/editor_tui.rs"
+expect_domain = "render"
+expect_layer = "editor"
+
+[[rules]]
+op = "override-hash"
+key = "error.diagnostico.taxonomia"
+from = "fnv1a64:29809730b0f7d294"
+to = "fnv1a64:02c3b1d820001378"
+expect_file = "src/error.rs"
+expect_domain = "diagnostico"
+expect_layer = "error"
 
 [[rules]]
 op = "override-hash"
@@ -906,6 +1484,33 @@ expect_layer = "evidencia"
 
 [[rules]]
 op = "override-hash"
+key = "interpreter.modelo.valores-estado"
+from = "fnv1a64:d6a77508f7dae475"
+to = "fnv1a64:934e2bed27e9072b"
+expect_file = "src/interpreter.rs"
+expect_domain = "modelo"
+expect_layer = "interpreter"
+
+[[rules]]
+op = "override-hash"
+key = "layout.tipos.memoria"
+from = "fnv1a64:22548e053f0d0e30"
+to = "fnv1a64:a99dad8c28300e92"
+expect_file = "src/layout.rs"
+expect_domain = "tipos"
+expect_layer = "layout"
+
+[[rules]]
+op = "override-hash"
+key = "palette.visual.identidade"
+from = "fnv1a64:904eb30a88901260"
+to = "fnv1a64:951c4fad3b4cf451"
+expect_file = "src/palette.rs"
+expect_domain = "visual"
+expect_layer = "palette"
+
+[[rules]]
+op = "override-hash"
 key = "parser.callbacks.instanciacao-estatica"
 from = "fnv1a64:5d864fad2972681a"
 to = "fnv1a64:0710ab894b382a6b"
@@ -925,11 +1530,47 @@ expect_layer = "parser"
 [[rules]]
 op = "override-hash"
 key = "parser.texto.interpolacao"
-from = "fnv1a64:e52acbcb41a70e21"
+from = "fnv1a64:f84cdf12c1a80084"
 to = "fnv1a64:7b3d8b1505c94523"
 expect_file = "src/parser/expressoes.rs"
 expect_domain = "texto"
 expect_layer = "parser"
+
+[[rules]]
+op = "override-hash"
+key = "runtime.inicializacao.bootstrap"
+from = "fnv1a64:2420bbc48b98a427"
+to = "fnv1a64:2b89760d9fe7f571"
+expect_file = "runtime/pinker_rt/src/lib.rs"
+expect_domain = "inicializacao"
+expect_layer = "runtime"
+
+[[rules]]
+op = "override-hash"
+key = "token.lexico.vocabulario"
+from = "fnv1a64:22d0a3cc76a4a18a"
+to = "fnv1a64:653844565d2d2327"
+expect_file = "src/token.rs"
+expect_domain = "lexico"
+expect_layer = "token"
+
+[[rules]]
+op = "override-hash"
+key = "trama.catalogo.leitor-jsonl"
+from = "fnv1a64:5d064df12a2c7879"
+to = "fnv1a64:0905bf801e845e1f"
+expect_file = "src/jsonl.rs"
+expect_domain = "catalogo"
+expect_layer = "trama"
+
+[[rules]]
+op = "override-hash"
+key = "uniao.payload.classificacao"
+from = "fnv1a64:9569462301c0b637"
+to = "fnv1a64:a2be4fe73935e1c4"
+expect_file = "src/union_payload.rs"
+expect_domain = "unioes"
+expect_layer = "layout"
 
 [[rules]]
 op = "override-region"
@@ -970,7 +1611,7 @@ expect_layer = "ast"
 [[rules]]
 op = "override-region"
 key = "ast.programa.estrutura"
-from_hash = "fnv1a64:066262536408a80a"
+from_hash = "fnv1a64:3be7ef063f9d9acd"
 to_hash = "fnv1a64:cfb11086f045d187"
 from_summary = "Estrutura de topo do programa na AST: pacote, imports e itens (funções, structs, enums, tratos/impl, aliases e constantes), cada declaração com seu span e serialização JSON. `FunctionDecl` transporta dois fatos que o nome não pode responder: `impl_facts`, que diz de qual alvo de `impl` o método é, e — desde a #592 — `trait_default_body`, fonte única de que a função foi materializada a partir de um corpo default de trato, com o papel operacional (`SelectedAsImpl`, `CheckOnly`, `Dependency`) e a grafia do trato declarante. O corpo materializado pertence à unidade que DECLAROU o trato, e é o fato, não o prefixo do nome sintético, que diz isso à resolução modular; a distinção de papel existe porque só o primeiro entra em `method_index`/vtable, só o segundo é endereçado por conteúdo, e o terceiro nem é método."
 to_summary = "Estrutura de topo do programa na AST: pacote, imports e itens (funções, structs, enums, tratos/impl, aliases e constantes), cada declaração com seu span e serialização JSON."
@@ -1037,7 +1678,7 @@ expect_layer = "backend-s"
 [[rules]]
 op = "override-region"
 key = "backend-s.lowering.globais-rodata"
-from_hash = "fnv1a64:e86fa369546ec54e"
+from_hash = "fnv1a64:d576e0c54c07f2c5"
 to_hash = "fnv1a64:bfb8b321d0801139"
 expect_file = "src/backend_s/external_callconv.rs"
 to_file = "src/backend_s.rs"
@@ -1111,7 +1752,7 @@ expect_layer = "backend-s"
 [[rules]]
 op = "override-region"
 key = "backend-s.renderizacao.abi-textual-programa"
-from_hash = "fnv1a64:e7a6aa7b7cdd1011"
+from_hash = "fnv1a64:68aace0bb69269c2"
 to_hash = "fnv1a64:12c03f5d9127cecb"
 expect_file = "src/backend_s/render_abi.rs"
 to_file = "src/backend_s.rs"
@@ -1196,7 +1837,7 @@ expect_layer = "cfg"
 [[rules]]
 op = "override-region"
 key = "cfg.lowering.instrucoes-controle"
-from_hash = "fnv1a64:26815a1e09fba757"
+from_hash = "fnv1a64:b538426b6c59a7d0"
 to_hash = "fnv1a64:a745b15d02a48b90"
 expect_file = "src/cfg_ir.rs"
 expect_domain = "lowering"
@@ -1205,7 +1846,7 @@ expect_layer = "cfg"
 [[rules]]
 op = "override-region"
 key = "cfg.modelo.representacao"
-from_hash = "fnv1a64:b4ce1531432798fb"
+from_hash = "fnv1a64:22af0bb82652daee"
 to_hash = "fnv1a64:a917573744a4eb3c"
 expect_file = "src/cfg_ir.rs"
 expect_domain = "modelo"
@@ -1234,7 +1875,7 @@ expect_layer = "cli"
 [[rules]]
 op = "override-region"
 key = "cli.analise.pipeline"
-from_hash = "fnv1a64:1ffaf36f863a2116"
+from_hash = "fnv1a64:5e1418de5291e297"
 to_hash = "fnv1a64:8dfca2cbd60710cd"
 from_summary = "run_analyze lê o arquivo de entrada, registra-o como unidade-fonte primária no SourceMap para que todo span nasça vinculado, e conduz o pipeline de análise: tokeniza, parseia, compõe os módulos preservando a unidade (carregar_e_projetar, que devolve o programa projetado e o grafo resolvido), roda a verificação semântica ciente da composição (semantic::check_program_composto, que recebe os tratos visíveis por fonte) e, conforme as flags do Config, cada etapa a jusante (IR, CFG IR, seleção de instruções, máquina abstrata, backend `.s` textual, execução via interpretador, backend pseudo-asm) só é computada se alguma flag de saída a exigir (`needs_ir`/`needs_cfg`/`needs_selected`/`needs_machine`); a falha ao ler o arquivo é tratada diretamente com `eprintln!` e `process::exit(1)`, enquanto erros Pinker das etapas de tokenização, parsing, importação, semântica e lowerings são tratados por `try_or_exit!`; esta função não monta nem linka um binário — a emissão `--asm-s` é apenas texto impresso, e `--run` executa via interpreter::run_program_with_args, não via processo nativo."
 to_summary = "run_analyze lê o arquivo de entrada e conduz o pipeline de análise: tokeniza, parseia, resolve imports (load_program_with_imports), roda a verificação semântica (semantic::check_program) e, conforme as flags do Config, cada etapa a jusante (IR, CFG IR, seleção de instruções, máquina abstrata, backend `.s` textual, execução via interpretador, backend pseudo-asm) só é computada se alguma flag de saída a exigir (`needs_ir`/`needs_cfg`/`needs_selected`/`needs_machine`); a falha ao ler o arquivo é tratada diretamente com `eprintln!` e `process::exit(1)`, enquanto erros Pinker das etapas de tokenização, parsing, importação, semântica e lowerings são tratados por `try_or_exit!`; esta função não monta nem linka um binário — a emissão `--asm-s` é apenas texto impresso, e `--run` executa via interpreter::run_program_with_args, não via processo nativo."
@@ -1258,7 +1899,7 @@ expect_layer = "cli"
 [[rules]]
 op = "override-region"
 key = "cli.config.modelos"
-from_hash = "fnv1a64:1f1b6c16bf80df74"
+from_hash = "fnv1a64:fa012bdd3dba310e"
 to_hash = "fnv1a64:76a2365574c8b339"
 from_summary = "Constantes e helpers JSON, modelos dos comandos históricos e configurações de doctor/verificar usados pelo parsing e roteamento determinísticos da CLI."
 to_summary = "Constantes de códigos de saída (EXIT_OK/EXIT_USAGE/EXIT_CATALOG/EXIT_NORESULT/EXIT_SOURCE) e limites de paginação (LIMIT_MIN/MAX, LIMIT_DEFAULT_ROTA/BUSCAR); clamp_limit ajusta um Option<usize> aos limites via .clamp; json_escape escapa aspas/barra/controle para JSON; json_string_array serializa Vec<String>. Structs de configuração por subcomando (Config, BuildConfig, EditorConfig, ReplConfig, DocConfigCli, NavConfigCli) e os enums de subcomando (DocSub, NavSub, CliCommand) usados pelo parsing e roteamento a seguir."
@@ -1316,7 +1957,7 @@ expect_layer = "cli"
 [[rules]]
 op = "override-region"
 key = "cli.modulos.importacao"
-from_hash = "fnv1a64:5230d3086bc73488"
+from_hash = "fnv1a64:9a5f0be27e15eecb"
 to_hash = "fnv1a64:ec330060a090d4c0"
 from_summary = "parse_program_from_source tokeniza e parseia uma string de fonte já vinculada ao SourceId da unidade, entregando ao parser o contexto de import resolvido antes do parse. base_dir_de devolve o diretório de resolução dos `.pink`; contexto_de_import responde, ANTES do parse, as perguntas que o parser não pode responder sozinho: quais nomes de `trazer X.y;` são módulo Pinker real (via modulo_real_existe), que identidades de topo os `trazer <modulo>;` deste arquivo trazem, que tratos os imports explícitos autorizam como alvo de `impl` (#517), quais closures sintéticas os corpos default desses tratos citam (#567) e se alguma dessas leituras falhou (import_incompleto). As três últimas saem de uma leitura só por módulo em contexto_de_import_com_pilha, best-effort, sem diagnóstico próprio e DIRETA — só os itens do próprio módulo entram, então nenhum reexport implícito nasce daí. A leitura de cada módulo monta o contexto DELE pela mesma conta, porque ler o vizinho com contexto vazio era ler um arquivo diferente do que o carregador lê em seguida; a pilha `visitando` é o análogo de `loading` e para em ciclo sem contribuir. Ausência de `<módulo>.pink` na forma seletiva é classificada como o carregador a classifica: família built-in não corresponde a arquivo e a ausência é legítima; módulo que não existe é erro dele. Quando uma leitura falha ou o módulo pedido não existe, o parser não converte a própria cegueira em recusa: import_incompleto suspende a recusa de `impl` sobre trato não visto, e o carregador produz o erro real do módulo — ausente, ilegível ou em ciclo — com o span e a fonte certos. load_module_program registra a fonte do módulo no SourceMap antes de parseá-lo, detecta ciclo comparando com a pilha `loading`, recursa nos imports do módulo — pulando ali a mesma família built-in que o programa raiz pula — e só então insere a unidade no ModuleGraph, de modo que a ordem de inserção já seja ordem de dependência. carregar_e_projetar é o ponto de entrada: monta o grafo sem descartar nada da unidade, valida cada import da raiz pela superfície que o importador passa a enxergar (colisão com item local, colisão entre imports, import duplicado, símbolo inexistente) SEM materializar item algum, roda a validação modular local de cada unidade com os imports de família que ela escreveu, resolve o grafo para identidades canônicas e só então o projeta num Program único. Import de família built-in continua sem virar item e sobrevive na projeção para a autoridade semântica validá-lo. colher_closures_de_default acompanha o trato trazido, na mesma leitura que o produziu: um corpo default que contém closure cita uma função sintética que o parser da unidade declarante levantou para o topo, e entregar o corpo sem ela entrega uma referência sem referente. É um pool de templates — quem materializa é o parser da unidade que fez o `impl`, e só o que o corpo alcança entra no programa."
 to_summary = "parse_program_from_source tokeniza e parseia uma string de fonte (sem resolver imports). importable_item_name e importable_item_clone reconhecem e clonam os itens importáveis Function, Const, Struct, TypeAlias, Enum e Trait; qualified_type_item_clone requalifica com o prefixo `<módulo>.` somente Struct e TypeAlias, não Function, Const, Enum ou Trait. load_module_program lê o arquivo `<módulo>.pink` a partir de `base_dir`, detecta ciclo de módulos comparando com a pilha `loading` e recursa nos imports do módulo carregado antes de inserir o programa em `loaded`. load_program_with_imports é o ponto de entrada: para cada import do programa raiz, pula famílias built-in importáveis, detecta import duplicado pela chave `módulo::símbolo`, carrega o módulo via load_module_program e insere os itens importados (todo o módulo ou um símbolo específico) em `root_program.items`, reportando colisão de nome com itens locais ou com outro import antes de limpar `root_program.imports`."
@@ -1364,7 +2005,7 @@ expect_layer = "cli"
 [[rules]]
 op = "override-region"
 key = "cli.parsing.subcomandos"
-from_hash = "fnv1a64:90af3422708542ed"
+from_hash = "fnv1a64:3f3c08c850beda60"
 to_hash = "fnv1a64:52d92432d1b2f696"
 from_summary = "Parsers estritos dos subcomandos, incluindo estado, doctor e verificar: validam flags, posicionais, duplicatas e requisitos cruzados antes de produzir modelos tipados."
 to_summary = "Parsers de argumentos por subcomando (parse_build_args, parse_editor_args, parse_repl_args, parse_doc_args, parse_nav_args): percorrem `args: &[String]` reconhecendo flags (--out-dir, --nativo, --repo, --corpo, --check, --json, --limite, --help/-h) e o argumento posicional de entrada/subcomando, retornando Result<Config..., String> com a mensagem de uso correspondente em caso de flag desconhecida ou argumento ausente."
@@ -1459,7 +2100,7 @@ expect_layer = "evidencia"
 [[rules]]
 op = "override-region"
 key = "evidencia.backend-s.proveniencia-de-ponteiro"
-from_hash = "fnv1a64:dc7919db362c15af"
+from_hash = "fnv1a64:22c82458e1e50cd9"
 to_hash = "fnv1a64:e4b41744153e5b66"
 expect_file = "src/backend_s/tests.rs"
 to_file = "src/backend_s.rs"
@@ -2047,6 +2688,8 @@ expect_layer = "ir"
 [[rules]]
 op = "override-region"
 key = "ir.lowering.bindings-escopos"
+from_hash = "fnv1a64:03f40bd6fa823267"
+to_hash = "fnv1a64:46392b76ae302e0a"
 expect_file = "src/ir/lowering.rs"
 to_file = "src/ir.rs"
 expect_domain = "lowering"
@@ -2075,7 +2718,7 @@ expect_layer = "ir"
 [[rules]]
 op = "override-region"
 key = "ir.lowering.contexto-declaracoes"
-from_hash = "fnv1a64:1ecf44dce3feb0ae"
+from_hash = "fnv1a64:eb31b58e1d460659"
 to_hash = "fnv1a64:56184077c78a03b4"
 expect_file = "src/ir/context.rs"
 to_file = "src/ir.rs"
@@ -2097,7 +2740,7 @@ expect_layer = "ir"
 [[rules]]
 op = "override-region"
 key = "ir.lowering.funcoes-blocos"
-from_hash = "fnv1a64:3f0432af6b020c69"
+from_hash = "fnv1a64:3db7bbd233a2c8c7"
 to_hash = "fnv1a64:cb1a742852669151"
 from_summary = "Configuração do `FunctionLowerer` e lowering de funções/blocos estruturados: aloca parâmetros e preserva metadados nominais/estruturais de callables, ponteiros crus e pointees de ponteiros de dados em aliases, retornos, ternários, chamadas por expressão e capturas de closure. Inclui resolvedores de método de `impl` direto e qualificado por trato; o direto só constrói candidatos da visão derivada e delega o veredito a `method_dispatch`, a mesma autoridade que a semântica consulta, e o qualificado nomeia o trato e continua sendo consulta de identidade, correspondida desde a #647 por `method_identity`, autoridade única das três componentes da identidade, com a IR trazendo só o índice e a tradução para `Option`; preserva a estrutura aninhada, sem ainda dividir o fluxo em CFG."
 to_summary = "Configuração do `FunctionLowerer` e lowering de funções/blocos estruturados: aloca parâmetros e preserva metadados nominais/estruturais de callables, ponteiros crus e pointees de ponteiros de dados em aliases, retornos, ternários, chamadas por expressão e capturas de closure. Inclui resolvedores de método de `impl` direto e qualificado por trato; preserva a estrutura aninhada, sem ainda dividir o fluxo em CFG."
@@ -2109,7 +2752,7 @@ expect_layer = "ir"
 [[rules]]
 op = "override-region"
 key = "ir.lowering.identidade-resolvida"
-from_hash = "fnv1a64:bdd8530f08c95f35"
+from_hash = "fnv1a64:391a30c5b633c650"
 to_hash = "fnv1a64:082b4d3e42e1bd53"
 from_summary = "Internação da identidade semântica no lowering: `resolved_identity` resolve apelidos em profundidade e interna a identidade completa do tipo AST; `intern_resolved_ast` interna primeiro componentes de containers, ponteiros, arrays, assinaturas e uniões; `repr_identity` cobre somente categorias cuja identidade é derivável da representação e recusa nominais com `E-IR-TYPE-IDENTITY-LOST`; `internal_identity` reserva identidades sintéticas. Nenhuma função deriva identidade nominal de `TypeIR::name()`, span ou ordem de mapa."
 to_summary = "Internação da identidade semântica no lowering: `resolved_identity` resolve integralmente apelidos e interna a identidade completa de um tipo AST, `intern_resolved_ast` recorre por ponteiro/array/assinatura/união internando os componentes antes do agregado, `repr_identity` cobre apenas as categorias cuja identidade é integralmente derivável da representação (escalares, verso, listas, mapas, arrays de escalar, nulo e uniões já internadas) e recusa as categorias nominais com `E-IR-TYPE-IDENTITY-LOST`, e `internal_identity` interna identidades sintéticas do próprio lowering. Nenhuma destas funções deriva identidade de `TypeIR::name()`, de nome de apelido, de span ou de ordem de mapa."
@@ -2121,7 +2764,7 @@ expect_layer = "ir"
 [[rules]]
 op = "override-region"
 key = "ir.lowering.programa-orquestracao"
-from_hash = "fnv1a64:7f0cbff95ca90263"
+from_hash = "fnv1a64:8051ade11ca5e323"
 to_hash = "fnv1a64:4e1d3b50087502d1"
 expect_file = "src/ir/context.rs"
 to_file = "src/ir.rs"
@@ -2131,7 +2774,7 @@ expect_layer = "ir"
 [[rules]]
 op = "override-region"
 key = "ir.modelo.representacao"
-from_hash = "fnv1a64:5a148991e024cafa"
+from_hash = "fnv1a64:9ec861ce86474f3f"
 to_hash = "fnv1a64:a2c610ce2a27255e"
 expect_file = "src/ir/model.rs"
 to_file = "src/ir.rs"
@@ -2141,7 +2784,7 @@ expect_layer = "ir"
 [[rules]]
 op = "override-region"
 key = "ir.renderizacao.textual"
-from_hash = "fnv1a64:700928d8f402b997"
+from_hash = "fnv1a64:1dc7239b10b3ae02"
 to_hash = "fnv1a64:4f0f1b3967ac6cf5"
 expect_file = "src/ir/render.rs"
 to_file = "src/ir.rs"
@@ -2163,7 +2806,7 @@ expect_layer = "ir"
 [[rules]]
 op = "override-region"
 key = "ir.validacao.invariantes"
-from_hash = "fnv1a64:04060f0b666e9741"
+from_hash = "fnv1a64:588259c828fd331f"
 to_hash = "fnv1a64:2a5a15bb37f76889"
 expect_file = "src/ir_validate.rs"
 expect_domain = "validacao"
@@ -2172,7 +2815,7 @@ expect_layer = "ir"
 [[rules]]
 op = "override-region"
 key = "leque.carga.classificacao"
-from_hash = "fnv1a64:6f04291a90f98010"
+from_hash = "fnv1a64:0c07acfe10e7650f"
 to_hash = "fnv1a64:5f08cdd8f098b577"
 expect_file = "src/enum_payload.rs"
 expect_domain = "leques"
@@ -2181,7 +2824,7 @@ expect_layer = "semantica"
 [[rules]]
 op = "override-region"
 key = "lexer.fluxo.tokenizacao"
-from_hash = "fnv1a64:5e24d65a16d234cd"
+from_hash = "fnv1a64:ca08e14e76053f88"
 to_hash = "fnv1a64:19ac3ed0e784945d"
 expect_file = "src/lexer.rs"
 expect_domain = "lexico"
@@ -2190,7 +2833,7 @@ expect_layer = "lexer"
 [[rules]]
 op = "override-region"
 key = "lexer.identificadores.namespace-reservado"
-from_hash = "fnv1a64:b237098c9265994d"
+from_hash = "fnv1a64:873365270b501455"
 to_hash = "fnv1a64:63e8eb1e03e131f5"
 from_summary = "Fronteira única de identificadores originados da fonte: os namespaces de escopo `AnyIdentifier` da autoridade `native_symbol` — as dezenove formas que o compilador de fato materializa (`__pinker_internal_`, `__anon_carinho_`, `__impl_`, `__gen_`, `__gen_leque_`, `__fnref_env_`, os slots de iteração, os alvos de `tentar`/propagação, `__env`, `__ternario`, ...) — são recusados com `E-SEMANTIC-RESERVED-NAMESPACE` em toda posição de identificador: declaração de função, variável, parâmetro, constante, apelido, ninho, leque, trato, método e campo, e também qualquer referência. A reserva é da forma possuída, não do superprefixo `__` comum a elas, então `__usuario` continua identificador Pinker legal. Por estar no ponto em que o texto da fonte se torna `TokenKind::Ident`, nenhum consumidor a jusante pode observar um identificador reservado; identificadores sintéticos construídos diretamente pelo compilador não são lexados e portanto não passam por esta fronteira. A lista não é duplicada aqui: a tabela canônica é `native_symbol::PINKER_OWNED_NAMESPACES`."
 to_summary = "Fronteira única de identificadores originados da fonte: o prefixo `__pinker_internal_` é reservado ao compilador e recusado com `E-SEMANTIC-RESERVED-NAMESPACE` em toda posição de identificador — declaração de função, variável, parâmetro, constante, apelido, ninho, leque, trato, método e campo, e também qualquer referência. Por estar no ponto em que o texto da fonte se torna `TokenKind::Ident`, nenhum consumidor a jusante pode observar um identificador reservado; identificadores sintéticos construídos diretamente pelo compilador não são lexados e portanto não passam por esta fronteira."
@@ -2201,7 +2844,7 @@ expect_layer = "lexer"
 [[rules]]
 op = "override-region"
 key = "machine.modelo.representacao"
-from_hash = "fnv1a64:025b7ce10bff11c3"
+from_hash = "fnv1a64:380159269ebd08ec"
 to_hash = "fnv1a64:195cb6de1b4eba87"
 expect_file = "src/abstract_machine.rs"
 expect_domain = "modelo"
@@ -2210,7 +2853,7 @@ expect_layer = "machine"
 [[rules]]
 op = "override-region"
 key = "machine.validacao.invariantes"
-from_hash = "fnv1a64:21267c098af64a18"
+from_hash = "fnv1a64:7c9e7a05b36f1707"
 to_hash = "fnv1a64:fa626f77e9a0fa75"
 expect_file = "src/abstract_machine_validate.rs"
 expect_domain = "validacao"
@@ -2247,7 +2890,7 @@ expect_layer = "parser"
 [[rules]]
 op = "override-region"
 key = "parser.comandos.bloco"
-from_hash = "fnv1a64:226df5306c66c88e"
+from_hash = "fnv1a64:17da898318a71d6a"
 to_hash = "fnv1a64:b57c3f39100a2358"
 from_summary = "Blocos e comandos: reconhece `{ ... }`, declarações locais (`nova`/`muda`), atribuições, `mimo` (retorno), `talvez`/`senao`, laços (`sempre`/`repetir`), `quebrar`/`continuar`, `falar` e asm inline, produzindo `ast::Block`/`ast::Stmt`."
 to_summary = "Blocos e comandos: reconhece `{ ... }`, declarações locais (`nova`/`muda`), atribuições, `mimo` (retorno), `talvez`/`senao`, laços (`sempre`/`repetir`), `quebrar`/`continuar`, `falar` e asm inline, produzindo `ast::Block`/`ast::Stmt`."
@@ -2259,6 +2902,8 @@ expect_layer = "parser"
 [[rules]]
 op = "override-region"
 key = "parser.constantes.declaracao"
+from_hash = "fnv1a64:8ba7ea9a81542e56"
+to_hash = "fnv1a64:db0be667c14b5c9f"
 expect_file = "src/parser/mod.rs"
 to_file = "src/parser.rs"
 
@@ -2295,7 +2940,7 @@ expect_layer = "parser"
 [[rules]]
 op = "override-region"
 key = "parser.expressoes.precedencia"
-from_hash = "fnv1a64:ea8edd420f2a615b"
+from_hash = "fnv1a64:63e56da9198cd6bc"
 to_hash = "fnv1a64:06ba8bdd157f5210"
 expect_file = "src/parser/expressoes.rs"
 to_file = "src/parser.rs"
@@ -2351,7 +2996,7 @@ expect_layer = "parser"
 [[rules]]
 op = "override-region"
 key = "parser.genericos.leques-instanciacao"
-from_hash = "fnv1a64:88754539ff0c4231"
+from_hash = "fnv1a64:0ab2fe8a3c26e3f4"
 to_hash = "fnv1a64:4f2c13621156dcac"
 expect_file = "src/parser/genericos.rs"
 to_file = "src/parser.rs"
@@ -2383,7 +3028,7 @@ expect_layer = "parser"
 [[rules]]
 op = "override-region"
 key = "parser.lacos.for-each"
-from_hash = "fnv1a64:dfcc44f2a41701b3"
+from_hash = "fnv1a64:5bfc77656c188325"
 to_hash = "fnv1a64:a7df5729ec192ed2"
 from_summary = "Desugaring de `para cada X em COL { ... }`: reconhece a forma for-each e a reescreve em laço explícito com cursor/índice e chamadas de iteração conforme o tipo da coleção (listas e mapas, por chave/valor), produzindo `ast::Stmt`."
 to_summary = "Desugaring de `para cada X em COL { ... }`: reconhece a forma for-each e a reescreve em laço explícito com cursor/índice e chamadas de iteração conforme o tipo da coleção (listas e mapas, por chave/valor), produzindo `ast::Stmt`."
@@ -2407,7 +3052,7 @@ expect_layer = "parser"
 [[rules]]
 op = "override-region"
 key = "parser.resultado.tentar-propagar"
-from_hash = "fnv1a64:54f6cb65f2d46727"
+from_hash = "fnv1a64:4acb6231229ad01d"
 to_hash = "fnv1a64:5111f2f6558b0afb"
 expect_file = "src/parser/resultado.rs"
 to_file = "src/parser.rs"
@@ -2433,7 +3078,7 @@ expect_layer = "parser"
 [[rules]]
 op = "override-region"
 key = "printer.ast.renderizacao"
-from_hash = "fnv1a64:9ac0d27787908eaa"
+from_hash = "fnv1a64:16e5a87fa5100d31"
 to_hash = "fnv1a64:b84752baa2afebcf"
 expect_file = "src/printer.rs"
 expect_domain = "ast"
@@ -2451,7 +3096,7 @@ expect_layer = "repl"
 [[rules]]
 op = "override-region"
 key = "repl.ciclo.leitura-avaliacao"
-from_hash = "fnv1a64:a5abceaa53555435"
+from_hash = "fnv1a64:487a85e6ee122590"
 to_hash = "fnv1a64:ea1aea2493883154"
 expect_file = "src/repl.rs"
 expect_domain = "fluxo"
@@ -2524,7 +3169,7 @@ expect_layer = "runtime"
 [[rules]]
 op = "override-region"
 key = "select.modelo.representacao"
-from_hash = "fnv1a64:301750772639d9fd"
+from_hash = "fnv1a64:3360e43903982fd0"
 to_hash = "fnv1a64:9c0092e2379a337b"
 expect_file = "src/instr_select.rs"
 expect_domain = "modelo"
@@ -2533,7 +3178,7 @@ expect_layer = "select"
 [[rules]]
 op = "override-region"
 key = "select.validacao.invariantes"
-from_hash = "fnv1a64:ca469b9282a8fb1d"
+from_hash = "fnv1a64:5f265fc0821df524"
 to_hash = "fnv1a64:c355c9b186e3e67e"
 expect_file = "src/instr_select_validate.rs"
 expect_domain = "validacao"
@@ -2542,7 +3187,7 @@ expect_layer = "select"
 [[rules]]
 op = "override-region"
 key = "semantic.chamadas.despacho"
-from_hash = "fnv1a64:ee3e80c270e1879b"
+from_hash = "fnv1a64:086a6bff1e75d3fa"
 to_hash = "fnv1a64:786f0d551629e7a5"
 from_summary = "Despacho de chamadas: resolução de método de impl (direta e qualificada por trato), restringida aos tratos que a unidade-fonte da chamada autorizou — uma chamada de método não nomeia o trato, então sem esse filtro um trato da raiz forneceria método default ao corpo de um módulo que nunca o importou. Quem alcança, quem precede e quem vence entre os candidatos não é decidido aqui: esta camada só constrói candidatos a partir de `method_index` e traduz o veredito de `method_dispatch`, a autoridade única que o lowering consulta com a mesma regra; a chamada qualificada nomeia o trato e continua sendo resolução de identidade, sem candidatos a comparar, e a correspondência exata dessa identidade é de `method_identity` desde a #647 — aqui sobram o adaptador que resolve o alvo e a mensagem, que é da fase; desde a #649 ela também pergunta o ALCANCE da relação resolvida à mesma autoridade de `module_resolve` que o despacho não qualificado consulta, porque poder nomear o trato não autoriza relação de unidade que este contexto nunca pediu. Também: seleção monomórfica das intrínsecas genéricas de mapa, checagem de chamada nomeada (aridade e tipos de argumento) e o despachante `check_call_expr` — construção de variante de leque, desugaring de `encaixe`, a checagem genérica das grafias históricas de contrato declarado, dirigida por `intrinsics::registry`, e os contratos próprios que sobram (aridade variável, formas genéricas de lista/mapa e restrições que não cabem em `(params, ret)`), caindo para a chamada de função declarada."
 to_summary = "Despacho de chamadas: resolução de método de impl (direta e qualificada por trato, com detecção de ambiguidade), seleção monomórfica das intrínsecas genéricas de mapa, checagem de chamada nomeada (aridade e tipos de argumento) e o grande despachante `check_call_expr` — construção de variante de leque, desugaring de `encaixe`, intrínsecas genéricas de lista/mapa, texto/verso, CSV/JSON, tempo e processo, caindo para a chamada de função declarada."
@@ -2554,7 +3199,7 @@ expect_layer = "semantic"
 [[rules]]
 op = "override-region"
 key = "semantic.comandos.verificacao"
-from_hash = "fnv1a64:48324b734281b088"
+from_hash = "fnv1a64:0da18a4a3cf3373a"
 to_hash = "fnv1a64:1a8779bbb2a3e64f"
 expect_file = "src/semantic/statements.rs"
 to_file = "src/semantic.rs"
@@ -2564,7 +3209,7 @@ expect_layer = "semantic"
 [[rules]]
 op = "override-region"
 key = "semantic.expressoes.verificacao"
-from_hash = "fnv1a64:3e7334a86aad431f"
+from_hash = "fnv1a64:636f1beb3e6598d6"
 to_hash = "fnv1a64:e44e9bbce88ccd3a"
 expect_file = "src/semantic/expressions.rs"
 to_file = "src/semantic.rs"
@@ -2626,7 +3271,7 @@ expect_layer = "semantic"
 [[rules]]
 op = "override-region"
 key = "semantic.tratos.contratos"
-from_hash = "fnv1a64:eb7cd0883ac83a7e"
+from_hash = "fnv1a64:4f7beb8f9810b69e"
 to_hash = "fnv1a64:da684f6016d99d13"
 from_summary = "Autoridade semântica de relações, métodos e contratos de tratos. `validate_impl_relations` vem primeiro e é a única autoridade de cardinalidade da relação nominal: cada `ImplDecl` de `program.impls` vira a identidade `(trato canônico, alvo canônico)` — o mesmo `union_canon` que a identidade de método usa — e a segunda declaração da mesma identidade é recusada, sem olhar quantos métodos explícitos cada bloco materializou; bloco vazio continua sendo declaração da relação. Depois, `register_impl_methods` resolve integralmente o tipo-alvo declarado transportado em `ImplFunctionFacts`, deriva sua chave por `union_canon`, registra `MethodIdentity(trato, tipo resolvido, método)` e compara separadamente o receiver resolvido; `method_index` é somente a visão derivada para chamadas não qualificadas, e a recusa de método repetido continua endereçando repetição dentro do mesmo bloco. Qual das funções já materializadas representa a identidade — override explícito vence default, ordem total do símbolo desempata — é dito por `method_dispatch`, a mesma autoridade que o lowering consulta; aqui fica só a mensagem, que é da fase. Por último, `validate_impl_contracts` agrupa os métodos já materializados pela identidade resolvida e cobra cobertura do contrato do trato: ausência de método requerido é erro de cobertura, nunca duplicata."
 to_summary = "Contratos de tratos e implementações: agrupa os métodos `__impl_*` por (trato, tipo-alvo) e exige cobertura exata do trato (sem método estranho, sem duplicata, sem faltante), garante que todo trato tenha método compatível declarado no topo e confere aridade e tipos de parâmetros/retorno entre a assinatura do trato e a função."
@@ -2638,7 +3283,7 @@ expect_layer = "semantic"
 [[rules]]
 op = "override-region"
 key = "semantic.unioes.encaixe"
-from_hash = "fnv1a64:76097ac2e772aa08"
+from_hash = "fnv1a64:5b197f556dbe593f"
 to_hash = "fnv1a64:6466c6ae7996179b"
 expect_file = "src/semantic/expressions.rs"
 to_file = "src/semantic.rs"

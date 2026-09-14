@@ -7,13 +7,12 @@
 //! semântico completo após resolução de aliases. A renderização hexadecimal é
 //! integral: não é digest e não perde informação.
 
-use crate::ast::Type;
-pub use crate::source_origin::SourceOrigin as GenericOrigin;
-
 // @pinker-nav:start genericos.identidade-canonica
 // @pinker-nav:domain genericos
 // @pinker-nav:layer identidade
 // @pinker-nav:summary Autoridade única da identidade do estágio atual de monomorfização: consome a proveniência compartilhada builtin/raiz/módulo, preserva apenas equivalências AST já exigidas nesse estágio, enquadra kind/origem/nome/argumentos e tipos recursivos sem fingir resolução semântica de aliases, e fornece também um renderer injetivo estritamente de transporte parser-stage para tipos estruturais.
+use crate::ast::Type;
+pub use crate::source_origin::SourceOrigin as GenericOrigin;
 
 const FORMAT_MAGIC: &[u8] = b"pinker-generic-specialization-v1";
 
@@ -345,6 +344,10 @@ pub fn specialization_name(
 }
 
 // @pinker-nav:end genericos.identidade-canonica
+// @pinker-nav:start evidencia.genericos.identidade-canonica
+// @pinker-nav:domain genericos
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Provas da identidade canonica de especializacao generica: a proveniencia distingue builtin, raiz e modulo; mapas historicos normalizam para a autoridade adulta e fases nominais convergem mantendo o handle opaco distinto; nome de template e fronteira de argumento nao colidem; nominal e estrutura de mesmo texto nao colidem; fronteiras de argumento sao injetivas; aninhamento preserva nome, aridade e argumentos aplicados; leques do usuario nao colidem; e a origem de modulo participa da identidade.
 
 #[cfg(test)]
 mod tests {
@@ -707,3 +710,4 @@ mod tests {
         assert_eq!(&bytes[count_offset..count_offset + 8], &2_u64.to_be_bytes());
     }
 }
+// @pinker-nav:end evidencia.genericos.identidade-canonica

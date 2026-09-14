@@ -5,6 +5,10 @@
 //! independentes invisíveis. Escritas do lifecycle pertencem exclusivamente ao
 //! automation core.
 
+// @pinker-nav:start trama.projecoes.store
+// @pinker-nav:domain projecoes
+// @pinker-nav:layer store
+// @pinker-nav:summary Store somente leitura da autoridade de projeções: enumera snapshots e recipes em ordem determinística, valida filename contra id interno, preserva bytes e paths repo-relativos e isola falhas estruturais por artefato sem ocultar os demais.
 use crate::nav_projection_recipe::{parse_recipe, Library, Recipe, RECIPES_DIR};
 use crate::nav_projection_snapshot::{
     parse as parse_snapshot, HarnessFailure, ProjectionSnapshot, SNAPSHOTS_DIR,
@@ -14,11 +18,6 @@ use std::fmt;
 use std::fs;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
-
-// @pinker-nav:start trama.projecoes.store
-// @pinker-nav:domain projecoes
-// @pinker-nav:layer store
-// @pinker-nav:summary Store somente leitura da autoridade de projeções: enumera snapshots e recipes em ordem determinística, valida filename contra id interno, preserva bytes e paths repo-relativos e isola falhas estruturais por artefato sem ocultar os demais.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ArtifactKind {

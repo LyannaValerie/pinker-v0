@@ -54,12 +54,16 @@ const REGIOES_MOVIDAS: &[(&str, &str)] = &[
 /// varredura do catálogo e o `macro_rules! try_or_exit`; `cli.config.modelos` e
 /// `cli.ajuda.usage` são o vocabulário do binário, que a §7 da #601 rejeitou
 /// mover por custo de visibilidade desproporcional; `cli.execucao.editor-repl`
-/// não pertence a unidade nenhuma do inventário.
+/// não pertence a unidade nenhuma do inventário; `cli.analise.ligacao` é a
+/// declaração `mod analysis_build;` e a importação das suas duas entradas, que
+/// a T1 (#675) cartografou no pai porque a ligação do irmão vive aqui e não
+/// pode viajar com ele.
 const REGIOES_RETIDAS: &[&str] = &[
     "cli.config.modelos",
     "cli.ajuda.usage",
     "cli.execucao.entrada",
     "cli.execucao.editor-repl",
+    "cli.analise.ligacao",
 ];
 
 /// As três regiões da MAIN-1, a última unidade do inventário da #601. Elas são

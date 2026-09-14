@@ -1,3 +1,7 @@
+// @pinker-nav:start backend-s.modelo.superficie
+// @pinker-nav:domain modelo
+// @pinker-nav:layer backend-s
+// @pinker-nav:summary Preludio e superficie do backend S: os usos do texto selecionado, do boot freestanding, da selecao de instrucao e da autoridade de simbolo nativo, a declaracao dos submodulos de convencao externa e de render ABI, e a reexportacao do render de programa como unico ponto de entrada publico do backend.
 use crate::backend_text;
 use crate::backend_text::BackendTextProgram;
 use crate::boot::{
@@ -18,6 +22,7 @@ mod render_abi;
 use external_callconv::extract_external_callconv_program;
 pub use render_abi::render_program;
 
+// @pinker-nav:end backend-s.modelo.superficie
 // @pinker-nav:start backend-s.pipeline.textual-selecionado
 // @pinker-nav:domain pipeline
 // @pinker-nav:layer backend-s
@@ -191,6 +196,10 @@ const REG_RET: &str = "%rax";
 const ARG_REGS: [&str; 6] = ["%rdi", "%rsi", "%rdx", "%rcx", "%r8", "%r9"];
 const REG_TMP: &str = "%r10";
 // @pinker-nav:end backend-s.abi.registradores-argumentos
+// @pinker-nav:start backend-s.callable.referencias-de-funcao
+// @pinker-nav:domain callable
+// @pinker-nav:layer backend-s
+// @pinker-nav:summary Fase 242: varre uma funcao selecionada coletando todo nome de funcao referenciado como valor callable (`OperandIR::FunctionRef`) em qualquer posicao de operando, inclusive dentro de `call`, `call_indirect` e `falar`. E o que impede uma funcao usada apenas como valor de ficar sem definicao emitida.
 
 // Fase 242: varre uma função selecionada coletando todo nome de função
 // referenciado como valor callable (`OperandIR::FunctionRef`) em qualquer
@@ -293,6 +302,7 @@ fn collect_function_refs_in_function(
     }
 }
 
+// @pinker-nav:end backend-s.callable.referencias-de-funcao
 // @pinker-nav:start backend-s.renderizacao.callconv-programa
 // @pinker-nav:domain renderizacao
 // @pinker-nav:layer backend-s
@@ -626,6 +636,10 @@ fn function_carries_inline_asm_envelope(function: &ExternalCallConvFunction) -> 
     })
 }
 // @pinker-nav:end backend-s.abi.blocos-terminadores
+// @pinker-nav:start backend-s.validacao.destino-local
+// @pinker-nav:domain validacao
+// @pinker-nav:layer backend-s
+// @pinker-nav:summary Guarda do subset externo montavel (Fase 84): escrita so e aceita em parametro ou variavel local declarada da propria funcao selecionada, recusando destino que o subset nao pode garantir.
 
 fn ensure_dest_is_local_or_param(
     dest: &str,
@@ -642,6 +656,7 @@ fn ensure_dest_is_local_or_param(
     }
 }
 
+// @pinker-nav:end backend-s.validacao.destino-local
 // @pinker-nav:start backend-s.lowering.operacoes-lineares
 // @pinker-nav:domain lowering
 // @pinker-nav:layer backend-s
@@ -2364,6 +2379,10 @@ fn escape_gas_string(value: &str) -> String {
     escaped
 }
 // @pinker-nav:end backend-s.dados.strings-rodata
+// @pinker-nav:start backend-s.emissao.linha-e-erro
+// @pinker-nav:domain emissao
+// @pinker-nav:layer backend-s
+// @pinker-nav:summary Utilitarios de emissao do backend S: escrita de uma linha com indentacao fixa no buffer de saida e construcao do erro de validacao textual com span sintetico, mais a ligacao do modulo de provas do backend.
 
 fn line(out: &mut String, indent: usize, text: &str) {
     for _ in 0..indent {
@@ -2382,3 +2401,4 @@ fn err(msg: &str) -> PinkerError {
 
 #[cfg(test)]
 mod tests;
+// @pinker-nav:end backend-s.emissao.linha-e-erro

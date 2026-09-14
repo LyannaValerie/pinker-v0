@@ -29,13 +29,13 @@
 //! `lower_function` e `lower_const` são os três símbolos que o pai chama e, por
 //! isso, os únicos que passaram de privados a `pub(super)`.
 
+// @pinker-nav:start ir.lowering.funcoes-blocos
+// @pinker-nav:domain lowering
+// @pinker-nav:layer ir
+// @pinker-nav:summary Configuração do `FunctionLowerer` e lowering de funções/blocos estruturados: aloca parâmetros e preserva metadados nominais/estruturais de callables, ponteiros crus e pointees de ponteiros de dados em aliases, retornos, ternários, chamadas por expressão e capturas de closure. Inclui resolvedores de método de `impl` direto e qualificado por trato; o direto só constrói candidatos da visão derivada e delega o veredito a `method_dispatch`, a mesma autoridade que a semântica consulta, e o qualificado nomeia o trato e continua sendo consulta de identidade, correspondida desde a #647 por `method_identity`, autoridade única das três componentes da identidade, com a IR trazendo só o índice e a tradução para `Option`; preserva a estrutura aninhada, sem ainda dividir o fluxo em CFG.
 use super::*;
 
 impl<'a> FunctionLowerer<'a> {
-    // @pinker-nav:start ir.lowering.funcoes-blocos
-    // @pinker-nav:domain lowering
-    // @pinker-nav:layer ir
-    // @pinker-nav:summary Configuração do `FunctionLowerer` e lowering de funções/blocos estruturados: aloca parâmetros e preserva metadados nominais/estruturais de callables, ponteiros crus e pointees de ponteiros de dados em aliases, retornos, ternários, chamadas por expressão e capturas de closure. Inclui resolvedores de método de `impl` direto e qualificado por trato; o direto só constrói candidatos da visão derivada e delega o veredito a `method_dispatch`, a mesma autoridade que a semântica consulta, e o qualificado nomeia o trato e continua sendo consulta de identidade, correspondida desde a #647 por `method_identity`, autoridade única das três componentes da identidade, com a IR trazendo só o índice e a tradução para `Option`; preserva a estrutura aninhada, sem ainda dividir o fluxo em CFG.
     pub(super) fn new(context: &'a LoweringContext) -> Self {
         Self {
             context,
@@ -3575,8 +3575,8 @@ impl<'a> FunctionLowerer<'a> {
     fn pop_scope(&mut self) {
         self.scopes.pop();
     }
-    // @pinker-nav:end ir.lowering.bindings-escopos
 }
+// @pinker-nav:end ir.lowering.bindings-escopos
 
 // @pinker-nav:start ir.lowering.constantes
 // @pinker-nav:domain lowering

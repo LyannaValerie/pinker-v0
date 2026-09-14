@@ -18,6 +18,10 @@
 //! `check_call_expr` é o único símbolo que o pai chama e, por isso, o único que
 //! passou de privado a `pub(super)`.
 
+// @pinker-nav:start semantic.chamadas.contrato-interno
+// @pinker-nav:domain chamadas
+// @pinker-nav:layer semantic
+// @pinker-nav:summary U-01: aridade, contrato e classe declarada de cada operacao interna lidos da autoridade declarativa em vez de reimplantados aqui. A semantica continua decidindo o que e dela — o texto de cada diagnostico, a correspondencia entre Type e TypeIR, e as perguntas que so existem nesta fase, como se um valor e leque com carga — enquanto quantos operandos a operacao tem e qual a classe de cada um vem da autoridade.
 use super::*;
 use crate::map_specialization;
 
@@ -135,6 +139,7 @@ fn resultado_interno(name: &str, span: Span) -> Result<Type, PinkerError> {
 }
 
 impl SemanticChecker {
+    // @pinker-nav:end semantic.chamadas.contrato-interno
     // @pinker-nav:start semantic.chamadas.despacho
     // @pinker-nav:domain chamadas
     // @pinker-nav:layer semantic
@@ -1844,5 +1849,5 @@ impl SemanticChecker {
         let arg_refs: Vec<&Expr> = args.iter().collect();
         self.check_named_function_call(expr_span, callee.span, name, &arg_refs)
     }
-    // @pinker-nav:end semantic.chamadas.despacho
 }
+// @pinker-nav:end semantic.chamadas.despacho

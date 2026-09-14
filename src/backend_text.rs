@@ -1,13 +1,13 @@
+// @pinker-nav:start backend-text.modelo.representacao
+// @pinker-nav:domain modelo
+// @pinker-nav:layer backend-text
+// @pinker-nav:summary Modelo do backend textual: `BackendTextProgram` (nome de módulo, `is_freestanding`, globais e funções), `BackendTextFunction` (tipo de retorno, parâmetros e locais como nomes de slot — sem tipos correspondentes), `BackendTextBlock`, `BackendTextInstruction` (`Mov`/`Unary`/`Binary`/`Call`/`Falar`), `BackendTextFalarArg` e `BackendTextTerminator`. Representa operações textuais reutilizando `OperandIR`/`TempIR`/`TypeIR`/`UnaryOpIR`/`BinaryOpIR`; não define registradores físicos, stack frame nativo nem ABI.
 use crate::cfg_ir::{FalarArgCfgIR, InstructionCfgIR, OperandIR, ProgramCfgIR, TerminatorIR};
 use crate::error::PinkerError;
 use crate::instr_select::{FalarArgSelected, SelectedInstr, SelectedProgram, SelectedTerminator};
 use crate::ir::{BinaryOpIR, TypeIR, UnaryOpIR};
 use std::collections::HashMap;
 
-// @pinker-nav:start backend-text.modelo.representacao
-// @pinker-nav:domain modelo
-// @pinker-nav:layer backend-text
-// @pinker-nav:summary Modelo do backend textual: `BackendTextProgram` (nome de módulo, `is_freestanding`, globais e funções), `BackendTextFunction` (tipo de retorno, parâmetros e locais como nomes de slot — sem tipos correspondentes), `BackendTextBlock`, `BackendTextInstruction` (`Mov`/`Unary`/`Binary`/`Call`/`Falar`), `BackendTextFalarArg` e `BackendTextTerminator`. Representa operações textuais reutilizando `OperandIR`/`TempIR`/`TypeIR`/`UnaryOpIR`/`BinaryOpIR`; não define registradores físicos, stack frame nativo nem ABI.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BackendTextProgram {
     pub module_name: String,
@@ -1048,6 +1048,10 @@ fn render_instruction(inst: &BackendTextInstruction) -> String {
 
 // Ajudantes de lowering de argumentos de `falar` (de CFG e de seleção),
 // fisicamente entre os renderizadores; helpers triviais deixados sem âncora.
+// @pinker-nav:start backend-text.falar.argumentos
+// @pinker-nav:domain falar
+// @pinker-nav:layer backend-text
+// @pinker-nav:summary Projecao dos argumentos de `falar` para a forma do backend textual a partir das duas origens que chegam ate aqui, CFG e selecao de instrucao, preservando valor e tipo de cada argumento sem decidir formatacao.
 fn map_falar_args_from_cfg(args: &[FalarArgCfgIR]) -> Vec<BackendTextFalarArg> {
     args.iter()
         .map(|arg| BackendTextFalarArg {
@@ -1065,6 +1069,7 @@ fn map_falar_args_from_selected(args: &[FalarArgSelected]) -> Vec<BackendTextFal
         })
         .collect()
 }
+// @pinker-nav:end backend-text.falar.argumentos
 
 // @pinker-nav:start backend-text.renderizacao.componentes
 // @pinker-nav:domain renderizacao

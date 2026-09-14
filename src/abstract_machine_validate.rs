@@ -10,6 +10,10 @@
 //!
 //! Ponto de entrada: [`validate_program`].
 
+// @pinker-nav:start machine.validacao.invariantes
+// @pinker-nav:domain validacao
+// @pinker-nav:layer machine
+// @pinker-nav:summary Valida a máquina abstrata de pilha: balanceamento de push/pop, profundidade de pilha consistente por caminho, rótulos e saltos válidos e boa formação das operações antes da interpretação.
 use crate::abstract_machine::{MachineFunction, MachineInstr, MachineProgram, MachineTerminator};
 use crate::error::PinkerError;
 use crate::internal_operations::{InternalOperationFamily, InternalResult};
@@ -63,10 +67,6 @@ enum StackValueType {
     Unknown,
 }
 
-// @pinker-nav:start machine.validacao.invariantes
-// @pinker-nav:domain validacao
-// @pinker-nav:layer machine
-// @pinker-nav:summary Valida a máquina abstrata de pilha: balanceamento de push/pop, profundidade de pilha consistente por caminho, rótulos e saltos válidos e boa formação das operações antes da interpretação.
 pub fn validate_program(program: &MachineProgram) -> Result<(), PinkerError> {
     crate::ir::validate_union_registry(&program.union_types).map_err(|message| err(&message))?;
     let mut globals = HashMap::new();

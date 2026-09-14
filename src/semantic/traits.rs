@@ -37,13 +37,13 @@
 //! `validate_trait_method_function`) só têm chamadores dentro do próprio corte
 //! e continuam privadas.
 
+// @pinker-nav:start semantic.tratos.contratos
+// @pinker-nav:domain tratos
+// @pinker-nav:layer semantic
+// @pinker-nav:summary Autoridade semântica de relações, métodos e contratos de tratos. `validate_impl_relations` vem primeiro e é a única autoridade de cardinalidade da relação nominal: cada `ImplDecl` de `program.impls` vira a identidade `(trato canônico, alvo canônico)` — o mesmo `union_canon` que a identidade de método usa — e a segunda declaração da mesma identidade é recusada, sem olhar quantos métodos explícitos cada bloco materializou; bloco vazio continua sendo declaração da relação. Depois, `register_impl_methods` resolve integralmente o tipo-alvo declarado transportado em `ImplFunctionFacts`, deriva sua chave por `union_canon`, registra `MethodIdentity(trato, tipo resolvido, método)` e compara separadamente o receiver resolvido; `method_index` é somente a visão derivada para chamadas não qualificadas, e a recusa de método repetido continua endereçando repetição dentro do mesmo bloco. Qual das funções já materializadas representa a identidade — override explícito vence default, ordem total do símbolo desempata — é dito por `method_dispatch`, a mesma autoridade que o lowering consulta; aqui fica só a mensagem, que é da fase. Por último, `validate_impl_contracts` agrupa os métodos já materializados pela identidade resolvida e cobra cobertura do contrato do trato: ausência de método requerido é erro de cobertura, nunca duplicata.
 use super::*;
 
 impl SemanticChecker {
-    // @pinker-nav:start semantic.tratos.contratos
-    // @pinker-nav:domain tratos
-    // @pinker-nav:layer semantic
-    // @pinker-nav:summary Autoridade semântica de relações, métodos e contratos de tratos. `validate_impl_relations` vem primeiro e é a única autoridade de cardinalidade da relação nominal: cada `ImplDecl` de `program.impls` vira a identidade `(trato canônico, alvo canônico)` — o mesmo `union_canon` que a identidade de método usa — e a segunda declaração da mesma identidade é recusada, sem olhar quantos métodos explícitos cada bloco materializou; bloco vazio continua sendo declaração da relação. Depois, `register_impl_methods` resolve integralmente o tipo-alvo declarado transportado em `ImplFunctionFacts`, deriva sua chave por `union_canon`, registra `MethodIdentity(trato, tipo resolvido, método)` e compara separadamente o receiver resolvido; `method_index` é somente a visão derivada para chamadas não qualificadas, e a recusa de método repetido continua endereçando repetição dentro do mesmo bloco. Qual das funções já materializadas representa a identidade — override explícito vence default, ordem total do símbolo desempata — é dito por `method_dispatch`, a mesma autoridade que o lowering consulta; aqui fica só a mensagem, que é da fase. Por último, `validate_impl_contracts` agrupa os métodos já materializados pela identidade resolvida e cobra cobertura do contrato do trato: ausência de método requerido é erro de cobertura, nunca duplicata.
     /// Cardinalidade da relação nominal de `impl`, antes de qualquer
     /// materialização de método.
     ///
@@ -707,5 +707,5 @@ impl SemanticChecker {
         }
         Ok(())
     }
-    // @pinker-nav:end semantic.tratos.contratos
 }
+// @pinker-nav:end semantic.tratos.contratos

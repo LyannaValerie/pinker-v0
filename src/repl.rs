@@ -1,3 +1,7 @@
+// @pinker-nav:start repl.ciclo.leitura-avaliacao
+// @pinker-nav:domain fluxo
+// @pinker-nav:layer repl
+// @pinker-nav:summary Laço leitura-avaliação-impressão do REPL: lê uma linha, trata `:quit`/`:sair` e EOF, avalia o trecho e imprime o resultado ou o erro sem manter estado entre linhas.
 use crate::abstract_machine;
 use crate::abstract_machine_validate;
 use crate::cfg_ir;
@@ -14,10 +18,6 @@ use std::io::{self, BufRead, Write};
 
 const PROMPT: &str = "pinker> ";
 
-// @pinker-nav:start repl.ciclo.leitura-avaliacao
-// @pinker-nav:domain fluxo
-// @pinker-nav:layer repl
-// @pinker-nav:summary Laço leitura-avaliação-impressão do REPL: lê uma linha, trata `:quit`/`:sair` e EOF, avalia o trecho e imprime o resultado ou o erro sem manter estado entre linhas.
 pub fn run_repl() -> Result<(), String> {
     let stdin = io::stdin();
     let stdout = io::stdout();
@@ -206,6 +206,10 @@ fn snippet_has_explicit_return(snippet: &str) -> bool {
 }
 // @pinker-nav:end repl.avaliacao.pipeline
 
+// @pinker-nav:start evidencia.repl.trecho-e-import
+// @pinker-nav:domain repl
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Provas do REPL: o import escrito no trecho e icado para o topo do programa, import no meio do trecho nao e icado, o comando minimo de saida e reconhecido e o trecho e envolvido em uma funcao principal temporaria.
 #[cfg(test)]
 mod tests {
     use super::{is_exit_command, wrap_snippet};
@@ -264,3 +268,4 @@ mod tests {
         assert!(source.contains("mimo 0;"));
     }
 }
+// @pinker-nav:end evidencia.repl.trecho-e-import

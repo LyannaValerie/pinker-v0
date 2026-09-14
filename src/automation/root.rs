@@ -6,13 +6,12 @@
 //! link simbólico, outro por caminho relativo — têm de convergir para a mesma
 //! raiz, ou o confinamento vira ficção.
 
-use super::{Failure, HarnessCause};
-use std::path::{Component, Path, PathBuf};
-
 // @pinker-nav:start automation.raiz.descoberta
 // @pinker-nav:domain raiz
 // @pinker-nav:layer automation
 // @pinker-nav:summary Descoberta canônica da raiz do repositório subindo do diretório de partida até encontrar o marcador `.pinker/doc.toml`, com canonicalização que resolve links simbólicos e componentes relativos, de modo que caminhos distintos para o mesmo repositório convergem para a mesma raiz absoluta.
+use super::{Failure, HarnessCause};
+use std::path::{Component, Path, PathBuf};
 
 /// Marcador que identifica a raiz do repositório.
 ///
@@ -123,6 +122,10 @@ impl RepoRoot {
 }
 // @pinker-nav:end automation.raiz.descoberta
 
+// @pinker-nav:start evidencia.automacao.raiz
+// @pinker-nav:domain automacao
+// @pinker-nav:layer evidencia
+// @pinker-nav:summary Provas do confinamento pela raiz: a pergunta de contencao compara por componente e nao por prefixo textual, e a juncao relativa descarta componentes estranhos em vez de escapar da raiz.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -150,3 +153,4 @@ mod tests {
         );
     }
 }
+// @pinker-nav:end evidencia.automacao.raiz

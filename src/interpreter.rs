@@ -6,6 +6,10 @@
 //!
 //! Ponto de entrada: [`run_program`].
 
+// @pinker-nav:start interpreter.unioes.estado-de-runtime
+// @pinker-nav:domain unioes
+// @pinker-nav:layer interpreter
+// @pinker-nav:summary Preludio do interpretador e o dominio interno de uniao em runtime (HR3): o snapshot imutavel de carga — escalar e handle clonados na injecao, agregado copiado byte a byte, de modo que mudar a origem depois nao muda o que o `encaixe` observa —, o descritor com tag e layout, e o orcamento equivalente ao do runtime nativo, contabilizado com operacoes checked em descritores, bytes de carga e metadata. Nada deste dominio consome a cota vitalicia de identidades publicas, que pertence somente a `alocar`.
 use crate::abstract_machine::{
     MachineFunction, MachineGlobal, MachineInstr, MachineProgram, MachineTerminator,
 };
@@ -142,7 +146,12 @@ thread_local! {
     static UNION_RUNTIME_STATE: RefCell<UnionRuntimeState> =
         RefCell::new(UnionRuntimeState::default());
 }
+// @pinker-nav:end interpreter.unioes.estado-de-runtime
 
+// @pinker-nav:start interpreter.modelo.valores-estado
+// @pinker-nav:domain modelo
+// @pinker-nav:layer interpreter
+// @pinker-nav:summary Define valores executados, handles lógicos e estados hospedados do interpretador para IO, listas, mapas, leques, aleatoriedade, arquivos e frames de diagnóstico; diferencia slots e endereços simulados de ponteiros nativos e não define a representação do runtime nativo linkável.
 // Truncamento de stack trace longo (Fase 27b):
 // traces com mais de TRACE_TRUNC_THRESHOLD frames são resumidos mostrando
 // os primeiros TRACE_HEAD e os últimos TRACE_TAIL, com linha de omissão.
@@ -150,10 +159,6 @@ const TRACE_TRUNC_THRESHOLD: usize = 10;
 const TRACE_HEAD: usize = 5;
 const TRACE_TAIL: usize = 5;
 
-// @pinker-nav:start interpreter.modelo.valores-estado
-// @pinker-nav:domain modelo
-// @pinker-nav:layer interpreter
-// @pinker-nav:summary Define valores executados, handles lógicos e estados hospedados do interpretador para IO, listas, mapas, leques, aleatoriedade, arquivos e frames de diagnóstico; diferencia slots e endereços simulados de ponteiros nativos e não define a representação do runtime nativo linkável.
 enum IntrinsicCall {
     NotIntrinsic,
     Done(Option<RuntimeValue>),
@@ -4542,5 +4547,10 @@ fn machine_instr_name(instr: &MachineInstr) -> &'static str {
 }
 // @pinker-nav:end interpreter.diagnostico.stack-trace
 
+// @pinker-nav:start interpreter.provas.ligacao
+// @pinker-nav:domain provas
+// @pinker-nav:layer interpreter
+// @pinker-nav:summary Ligacao do modulo de provas do interpretador, movido para `interpreter/tests.rs` pela unidade INT-1: privado e `#[cfg(test)]`, nao amplia superficie nenhuma do interpretador.
 #[cfg(test)]
 mod tests;
+// @pinker-nav:end interpreter.provas.ligacao

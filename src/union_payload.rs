@@ -12,14 +12,13 @@
 //! ABI do runtime consomem o resultado desta função; nenhuma delas recalcula
 //! layout com regras próprias.
 
-use crate::ast::{StructDecl, Type};
-use crate::layout;
-use std::collections::HashMap;
-
 // @pinker-nav:start uniao.payload.classificacao
 // @pinker-nav:domain unioes
 // @pinker-nav:layer layout
 // @pinker-nav:summary Classificação exaustiva das representações de payload de união em escalar, handle opaco e agregado, com layout real, resolução transparente de apelidos em profundidade, limites explícitos de tamanho e alinhamento e diagnósticos estáveis para tipos sem representação conhecida; substitui integralmente o antigo fallback (8, 8).
+use crate::ast::{StructDecl, Type};
+use crate::layout;
+use std::collections::HashMap;
 
 /// Categoria operacional do payload de um membro de união.
 ///
