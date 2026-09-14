@@ -22,7 +22,10 @@
 //!   relevante fora de região. Não existe contagem tolerada, orçamento nem
 //!   registro de dívida: a única rota de aceitação para código descoberto é
 //!   cartografar a responsabilidade ou aprovar uma exceção estreita de arquivo
-//!   inteiro. A origem histórica de uma lacuna é fato, não autorização.
+//!   inteiro. A origem histórica de uma lacuna é fato, não autorização. O
+//!   próprio nível de obrigação de cada raiz é contrato do código: a
+//!   autoridade declara as raízes para que o escopo seja auditável, e não pode
+//!   rebaixar uma raiz de produção.
 //!
 //! ```text
 //! CATALOG_CONSISTENT           != CURRENT_CODE_COVERAGE_COMPLETE
@@ -31,6 +34,7 @@
 //! DERIVED_CATALOG              != EXCEPTION_AUTHORITY
 //! EXISTED_IN_BASELINE          != AUTHORIZED_TO_REMAIN
 //! INVENTORIED_DEBT             != COVERAGE
+//! DECLARED_SCOPE               != DECLARED_OBLIGATION_LEVEL
 //! ```
 //!
 //! Zero dependências externas.
@@ -40,7 +44,7 @@
 // @pinker-nav:layer trama
 // @pinker-nav:symbol pinker_v0::nav_coverage::CoveragePolicy|CoveragePolicy|rust-type|declaration
 // @pinker-nav:symbol pinker_v0::nav_coverage::CoveragePolicy|CoveragePolicy|rust-type|implementation
-// @pinker-nav:summary Autoridade unica e versionada de escopo, excecao e disposicao da cobertura de cartografia: le o JSONL revisavel, exige que os escopos declarem exatamente as raizes oficiais, recusa excecao ampla por construcao ao aceitar somente caminho de arquivo exato com razao e condicao de revisao, e nunca aceita o catalogo derivado como autoridade.
+// @pinker-nav:summary Autoridade unica e versionada de escopo, excecao e disposicao da cobertura de cartografia: le o JSONL revisavel, exige que os escopos declarem exatamente as raizes oficiais com a categoria e o nivel de obrigacao fixados pelo contrato do codigo, de modo que nenhuma politica rebaixe uma raiz de producao, recusa excecao ampla por construcao ao aceitar somente caminho de arquivo exato com razao e condicao de revisao, e nunca aceita o catalogo derivado como autoridade.
 use crate::jsonl::{self, JsonObject};
 use crate::nav::{
     self, official_scan_roots, official_source_files, relevant_source_lines, CodeIndex,
@@ -86,6 +90,22 @@ impl Enforcement {
         }
     }
 }
+
+/// Contrato de raiz: categoria e nível de obrigação de cada raiz oficial,
+/// fixados aqui, no código.
+///
+/// A autoridade versionada declara as raízes para que o escopo seja auditável
+/// num arquivo revisável; ela NÃO decide o nível de obrigação. Rebaixar uma
+/// raiz de produção para `inventory` na política aceitaria código descoberto
+/// por registro de política — a mesma rota que a dívida era, só que por raiz
+/// inteira em vez de por caminho exato. Uma raiz oficial que não aparecer aqui
+/// falha fechado em vez de herdar um nível por omissão.
+const ROOT_CONTRACT: &[(&str, &str, Enforcement)] = &[
+    ("src", "production", Enforcement::Required),
+    ("runtime/pinker_rt/src", "production", Enforcement::Required),
+    ("tests", "evidence", Enforcement::Inventory),
+    ("apps", "example", Enforcement::Inventory),
+];
 
 /// Escopo declarado para uma raiz oficial.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -200,6 +220,15 @@ pub enum PolicyError {
         declared: Vec<String>,
         official: Vec<String>,
     },
+    /// A política declarou categoria ou nível de obrigação diferente do
+    /// contrato fixado no código para aquela raiz.
+    ScopeContractMismatch {
+        root: String,
+        declared_category: String,
+        declared_enforcement: &'static str,
+        expected_category: &'static str,
+        expected_enforcement: &'static str,
+    },
 }
 
 impl fmt::Display for PolicyError {
@@ -251,6 +280,18 @@ impl fmt::Display for PolicyError {
                 write!(
                     f,
                     "E-COVERAGE-POLICY-DUP-DISPOSITION: disposição '{key}' declarada duas vezes"
+                )
+            }
+            PolicyError::ScopeContractMismatch {
+                root,
+                declared_category,
+                declared_enforcement,
+                expected_category,
+                expected_enforcement,
+            } => {
+                write!(
+                    f,
+                    "E-COVERAGE-POLICY-SCOPE-CONTRACT: a raiz '{root}' é '{expected_category}'/'{expected_enforcement}' por contrato do código e a política declara '{declared_category}'/'{declared_enforcement}'; o nível de obrigação de uma raiz não é declarável na autoridade"
                 )
             }
             PolicyError::ScopeRootsMismatch { declared, official } => {
@@ -336,6 +377,26 @@ impl CoveragePolicy {
                 declared: roots.into_iter().collect(),
                 official: official.into_iter().collect(),
             });
+        }
+        for scope in &self.scopes {
+            let contract = ROOT_CONTRACT
+                .iter()
+                .find(|(root, _, _)| *root == scope.root);
+            let (expected_category, expected_enforcement) = match contract {
+                Some((_, category, enforcement)) => (*category, *enforcement),
+                // Raiz oficial sem contrato declarado no código: falha fechado.
+                None => ("", Enforcement::Required),
+            };
+            if scope.category != expected_category || scope.file_enforcement != expected_enforcement
+            {
+                return Err(PolicyError::ScopeContractMismatch {
+                    root: scope.root.clone(),
+                    declared_category: scope.category.clone(),
+                    declared_enforcement: scope.file_enforcement.as_str(),
+                    expected_category,
+                    expected_enforcement: expected_enforcement.as_str(),
+                });
+            }
         }
         let mut paths = BTreeSet::new();
         for exception in &self.exceptions {
@@ -777,7 +838,9 @@ pub enum CoverageViolation {
     /// A origem histórica da lacuna não entra aqui: não existe rota pela qual
     /// declarar a lacuna na autoridade a transforme em aprovação. Ou a
     /// responsabilidade é cartografada, ou o arquivo inteiro recebe uma
-    /// exceção estreita aprovada.
+    /// exceção estreita aprovada. Nem rebaixar a raiz serve: o nível de
+    /// obrigação de cada raiz oficial é contrato do código (`ROOT_CONTRACT`),
+    /// e a política que o contradiz é recusada na carga.
     UncoveredRelevantInterval {
         path: String,
         uncovered_lines: usize,

@@ -237,7 +237,7 @@ fn autoridades<'a>(
 // @pinker-nav:test-for pinker_v0::nav_coverage::inventory
 // @pinker-nav:test-for pinker_v0::nav_coverage::verify
 // @pinker-nav:test-for pinker_v0::nav_coverage::CoveragePolicy
-// @pinker-nav:summary Controles C1 a C15 da cobertura corrente atingindo o consumidor real pink nav cobertura/verificar e a autoridade de relacao base-candidato: arquivo zero-ancora visivel e recusado, perda de marcador detectada, intervalo relevante fora de regiao exposto e recusado pelo gate, intersecao parcial nao promovida a completude, movimento e split/merge com disposicao preservada, excecao estreita aceita como unica rota e excecao ampla recusada na carga, base ausente como UNVERIFIABLE, catalogo derivado editado a mao incapaz de fabricar PASS, projecao FROZEN recalibrada recusada, declaracao de lacuna incapaz de devolver o gate ao verde e mesma contagem com conteudo novo ainda recusada por cobertura.
+// @pinker-nav:summary Controles C1 a C15 da cobertura corrente atingindo o consumidor real pink nav cobertura/verificar e a autoridade de relacao base-candidato: arquivo zero-ancora visivel e recusado, perda de marcador detectada, intervalo relevante fora de regiao exposto e recusado pelo gate, intersecao parcial nao promovida a completude, movimento e split/merge com disposicao preservada, excecao estreita aceita como unica rota e excecao ampla recusada na carga, base ausente como UNVERIFIABLE, catalogo derivado editado a mao incapaz de fabricar PASS, projecao FROZEN recalibrada recusada, declaracao de lacuna incapaz de devolver o gate ao verde, mesma contagem com conteudo novo ainda recusada por cobertura e nivel de obrigacao de raiz nao declaravel na autoridade.
 
 /// C1 — um arquivo de produção sem nenhum marcador aparece no inventário e o
 /// gate o recusa pela causa correta.
@@ -881,6 +881,73 @@ fn c15_mesma_contagem_com_conteudo_novo_continua_recusada() {
         stderr(&depois).contains("E-COVERAGE-UNCOVERED-INTERVAL: src/coberto.rs tem 2 linha(s)"),
         "a recusa precisa vir da cobertura: {}",
         stderr(&depois)
+    );
+}
+
+/// C16 — o nível de obrigação de uma raiz não é declarável na autoridade.
+///
+/// Rebaixar `src` de `required` para `inventory` na política versionada
+/// desligaria o gate de intervalo para toda a produção de uma vez — uma rota
+/// de aceitação por registro de política mais ampla do que a dívida que a
+/// #675 recusou. A categoria e o nível de cada raiz oficial são contrato do
+/// código; a autoridade declara as raízes para que o escopo seja auditável,
+/// nunca para decidir quanto se exige delas.
+#[test]
+fn c16_nivel_de_obrigacao_de_raiz_nao_e_declaravel_na_autoridade() {
+    let repo = fixture("c16");
+    write(repo.path(), "src/parcial.rs", PARCIAL);
+    sincronizar(repo.path());
+
+    // Sanidade: com a autoridade na forma canônica, o gate recusa o arquivo
+    // parcial pela causa de cobertura.
+    let antes = verificar(repo.path());
+    assert_ne!(
+        antes.status.code(),
+        Some(0),
+        "fixture deveria estar vermelha"
+    );
+    assert!(
+        stderr(&antes).contains("E-COVERAGE-UNCOVERED-INTERVAL: src/parcial.rs"),
+        "falhou por outra causa: {}",
+        stderr(&antes)
+    );
+
+    // Rebaixamento do nível: recusado na carga, e o gate continua vermelho.
+    let rebaixada = POLICY.replace(
+        r#"{"schema":1,"kind":"scope","root":"src","category":"production","file_enforcement":"required"}"#,
+        r#"{"schema":1,"kind":"scope","root":"src","category":"production","file_enforcement":"inventory"}"#,
+    );
+    assert_ne!(rebaixada, POLICY, "a substituição precisa ter acontecido");
+    write(
+        repo.path(),
+        ".pinker/cartography/coverage-policy-v1.jsonl",
+        &rebaixada,
+    );
+    let output = verificar(repo.path());
+    assert_ne!(
+        output.status.code(),
+        Some(0),
+        "rebaixar a raiz de produção desligou o gate"
+    );
+    assert!(
+        stderr(&output).contains("E-COVERAGE-POLICY-SCOPE-CONTRACT: a raiz 'src'"),
+        "falhou por outra causa: {}",
+        stderr(&output)
+    );
+
+    // Trocar a categoria é recusado pelo mesmo contrato.
+    let recategorizada = POLICY.replace(
+        r#""root":"src","category":"production""#,
+        r#""root":"src","category":"evidence""#,
+    );
+    write(
+        repo.path(),
+        ".pinker/cartography/coverage-policy-v1.jsonl",
+        &recategorizada,
+    );
+    assert!(
+        stderr(&verificar(repo.path())).contains("E-COVERAGE-POLICY-SCOPE-CONTRACT"),
+        "categoria trocada foi aceita"
     );
 }
 
