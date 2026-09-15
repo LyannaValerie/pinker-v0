@@ -17,10 +17,11 @@
 // @pinker-nav:layer cli
 // @pinker-nav:summary Final `pink nav projecao` adapter: dispatches listing, inspection, verification, lifecycle, and explicit recipe reconciliation; discovers the root through the automation core, derives text and JSON from shared models, recalculates plans before authorization, and preserves distinct drift, harness, policy, and stale exits.
 use super::*;
+use pinker_v0::automation as core;
 use std::process::Command;
 
 pub(super) fn run_nav_projecao(repo: &Path, json: bool, command: ProjectionSub) -> i32 {
-    let root = match pinker_v0::automation::RepoRoot::discover(repo) {
+    let root = match core::RepoRoot::discover(repo) {
         Ok(root) => root,
         Err(error) => {
             return print_projection_error("projecao", json, &ProjectionError::Automation(error))
@@ -175,13 +176,13 @@ pub(super) fn run_nav_projecao(repo: &Path, json: bool, command: ProjectionSub) 
 
 #[derive(Debug)]
 struct ReconcilePlan {
-    plan: pinker_v0::automation::Plan,
-    check: pinker_v0::automation::CheckReport,
+    plan: core::Plan,
+    check: core::CheckReport,
     changes: Vec<String>,
 }
 
 fn run_projection_reconcile(
-    root: &pinker_v0::automation::RepoRoot,
+    root: &core::RepoRoot,
     json: bool,
     authorization: Option<String>,
 ) -> i32 {
@@ -203,16 +204,16 @@ fn run_projection_reconcile(
                 return print_projection_error(
                     "reconciliar",
                     json,
-                    &ProjectionError::Automation(pinker_v0::automation::Failure::StalePlan {
+                    &ProjectionError::Automation(core::Failure::StalePlan {
                         plan_digest: planning.plan.digest(),
                         msg: "CURRENT_AUTHORITY_MATCHES_PLAN=false; regenerate the reconciliation plan before apply".to_string(),
                     }),
                 );
             }
-            let report = pinker_v0::automation::apply(
+            let report = core::apply(
                 root,
                 &planning.plan,
-                &pinker_v0::automation::Authorization::for_digest(&digest),
+                &core::Authorization::for_digest(&digest),
                 &planning.check,
             );
             if report.failure.is_some() {
@@ -260,7 +261,7 @@ fn run_projection_reconcile(
 }
 
 fn plan_recipe_reconciliation(
-    root: &pinker_v0::automation::RepoRoot,
+    root: &core::RepoRoot,
     catalog: &[pinker_v0::nav::CodeRegion],
 ) -> Result<ReconcilePlan, ProjectionError> {
     let store = ProjectionStore::load(root.path())?;
@@ -337,21 +338,18 @@ fn plan_recipe_reconciliation(
         }
     }
     let paths: Vec<_> = desired.iter().map(|(path, _)| path.as_str()).collect();
-    let allowlist =
-        pinker_v0::automation::Allowlist::new(&paths).map_err(|cause| ProjectionError::Policy {
-            message: cause.to_string(),
-        })?;
-    let mut builder = pinker_v0::automation::PlanBuilder::new("nav.projecao.reconcile", allowlist);
+    let allowlist = core::Allowlist::new(&paths).map_err(|cause| ProjectionError::Policy {
+        message: cause.to_string(),
+    })?;
+    let mut builder = core::PlanBuilder::new("nav.projecao.reconcile", allowlist);
     for (path, bytes) in desired {
         builder = builder
             .desire(&path, bytes)
             .map_err(ProjectionError::Automation)?;
     }
     let plan = builder.build().map_err(ProjectionError::Automation)?;
-    let observed =
-        pinker_v0::automation::observe(root, &plan).map_err(ProjectionError::Automation)?;
-    let check =
-        pinker_v0::automation::check(&plan, &observed).map_err(ProjectionError::Automation)?;
+    let observed = core::observe(root, &plan).map_err(ProjectionError::Automation)?;
+    let check = core::check(&plan, &observed).map_err(ProjectionError::Automation)?;
     Ok(ReconcilePlan {
         plan,
         check,
@@ -387,12 +385,7 @@ fn json_quote(value: &str) -> String {
     format!("{value:?}")
 }
 
-fn run_projection_show(
-    root: &pinker_v0::automation::RepoRoot,
-    json: bool,
-    id: &str,
-    observed: bool,
-) -> i32 {
+fn run_projection_show(root: &core::RepoRoot, json: bool, id: &str, observed: bool) -> i32 {
     let store = match ProjectionStore::load(root.path()) {
         Ok(store) => store,
         Err(error) => {
@@ -446,11 +439,7 @@ fn run_projection_show(
     }
 }
 
-fn run_projection_verify(
-    root: &pinker_v0::automation::RepoRoot,
-    json: bool,
-    id: Option<&str>,
-) -> i32 {
+fn run_projection_verify(root: &core::RepoRoot, json: bool, id: Option<&str>) -> i32 {
     let store = match ProjectionStore::load(root.path()) {
         Ok(store) => store,
         Err(error) => {
@@ -629,9 +618,7 @@ fn verify_historical_frozen_authority(
     Ok(())
 }
 
-fn load_projection_catalog(
-    root: &pinker_v0::automation::RepoRoot,
-) -> Result<nav::CodeCatalog, ProjectionError> {
+fn load_projection_catalog(root: &core::RepoRoot) -> Result<nav::CodeCatalog, ProjectionError> {
     nav::CodeCatalog::load(&root.path().join("src/navigation.jsonl")).map_err(|error| {
         ProjectionError::Harness {
             path: Some("src/navigation.jsonl".to_string()),
@@ -653,11 +640,9 @@ fn print_projection_error(command: &str, json: bool, error: &ProjectionError) ->
 }
 
 fn projection_error_exit(error: &ProjectionError) -> i32 {
-    use pinker_v0::automation::Failure;
+    use core::Failure;
     let failure_exit = |failure: &Failure| match failure {
-        Failure::HarnessFailure(pinker_v0::automation::HarnessCause::RootNotFound { .. }) => {
-            EXIT_CATALOG
-        }
+        Failure::HarnessFailure(core::HarnessCause::RootNotFound { .. }) => EXIT_CATALOG,
         Failure::HarnessFailure(_) => EXIT_HARNESS,
         Failure::PolicyViolation(_) => EXIT_POLICY,
         Failure::StalePlan { .. } => EXIT_STALE,
@@ -982,7 +967,7 @@ pub(super) fn run_nav_localizar(repo_root: &Path, symbol: &str, json: bool) -> i
 }
 
 pub(super) fn run_nav_cobertura_diff(repo_root: &Path, base: Option<&str>, json: bool) -> i32 {
-    let root = match pinker_v0::automation::RepoRoot::discover(repo_root) {
+    let root = match core::RepoRoot::discover(repo_root) {
         Ok(root) => root,
         Err(error) => {
             eprintln!("E-DIFF-ROOT\n{error}");

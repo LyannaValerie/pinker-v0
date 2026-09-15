@@ -1969,7 +1969,7 @@ expect_layer = "cli"
 [[rules]]
 op = "override-region"
 key = "cli.nav.consulta"
-from_hash = "fnv1a64:4d4cc88ba3c9c977"
+from_hash = "fnv1a64:0264f590b5204d53"
 to_hash = "fnv1a64:5427c227378dad57"
 from_summary = "Consultas nav read-only carregam catálogo e símbolos; cobertura-diff analisa stdin e impacto compõe git diff limitado com as autoridades correntes sem mutar o repositório."
 to_summary = "load_code_catalog lê o catálogo gerado (nav::CodeCatalog::load) sem escrever; run_nav_mostrar extrai e valida uma região pela fonte; run_nav_buscar/listar/mapa consultam somente o catálogo em memória. Mapa seleciona caminho exato ou reutiliza a busca textual integral, agrupa por arquivo e renderiza texto/JSON determinísticos sem ler fontes."
