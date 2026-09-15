@@ -61,7 +61,9 @@ fn doctor_json_declara_identidades_e_proxima_acao() {
         assert!(json.contains(&format!("\"{field}\":")), "{field}: {json}");
     }
     assert!(json.contains("\"doctor\"") && json.contains("\"verificar\""));
-    if option_env!("PINKER_BUILD_COMMIT").is_some() {
+    if json.contains("HISTORICAL_AUTHORITY_UNVERIFIABLE") {
+        assert!(!output.status.success());
+    } else if option_env!("PINKER_BUILD_COMMIT").is_some() {
         assert!(
             output.status.success(),
             "{}",

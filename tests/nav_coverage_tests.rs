@@ -606,6 +606,27 @@ fn c11_projecao_frozen_recalibrada_e_recusada() {
         ".pinker/projections/fixture-frozen.toml",
         &rendered,
     );
+    for args in [
+        vec!["init", "-q"],
+        vec!["add", "."],
+        vec![
+            "-c",
+            "user.name=projection-test",
+            "-c",
+            "user.email=projection-test@example.invalid",
+            "commit",
+            "-qm",
+            "trusted baseline",
+        ],
+        vec!["update-ref", "refs/remotes/origin/main", "HEAD"],
+    ] {
+        assert!(Command::new("git")
+            .args(args)
+            .current_dir(repo.path())
+            .status()
+            .unwrap()
+            .success());
+    }
     let output = run(repo.path(), &["nav", "projecao", "verificar"], "");
     assert_eq!(
         output.status.code(),

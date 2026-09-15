@@ -502,13 +502,10 @@ fn verify_historical_frozen_authority(
             ),
         })?;
     if !repository.status.success() {
-        if String::from_utf8_lossy(&repository.stderr).contains("not a git repository") {
-            return Ok(());
-        }
         return Err(ProjectionError::Harness {
             path: None,
             message: format!(
-                "HISTORICAL_AUTHORITY_UNVERIFIABLE: cannot inspect repository authority ({})",
+                "HISTORICAL_AUTHORITY_UNVERIFIABLE: trusted Git historical reference is unavailable ({})",
                 String::from_utf8_lossy(&repository.stderr).trim()
             ),
         });

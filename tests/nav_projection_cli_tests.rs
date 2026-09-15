@@ -9,7 +9,15 @@ struct TempRepo(PathBuf);
 
 impl TempRepo {
     fn full(label: &str) -> TempRepo {
-        let repo = TempRepo::empty(label);
+        TempRepo::full_in(std::env::temp_dir(), label)
+    }
+
+    fn full_without_git_context(label: &str) -> TempRepo {
+        TempRepo::full_in(PathBuf::from("/tmp"), label)
+    }
+
+    fn full_in(base: PathBuf, label: &str) -> TempRepo {
+        let repo = TempRepo::empty_in(base, label);
         let source = Path::new(env!("CARGO_MANIFEST_DIR"));
         fs::create_dir_all(repo.0.join(".pinker/projections/recipes")).unwrap();
         fs::create_dir_all(repo.0.join("src")).unwrap();
@@ -49,7 +57,11 @@ impl TempRepo {
     }
 
     fn empty(label: &str) -> TempRepo {
-        let path = std::env::temp_dir().join(format!(
+        TempRepo::empty_in(std::env::temp_dir(), label)
+    }
+
+    fn empty_in(base: PathBuf, label: &str) -> TempRepo {
+        let path = base.join(format!(
             "pinker_projection_cli_{}_{}_{}",
             label,
             std::process::id(),
@@ -191,6 +203,7 @@ fn help_publica_namespace_e_seis_subcomandos() {
 #[test]
 fn listar_mostrar_e_verificar_sao_deterministicos_e_repo_relativos() {
     let repo = TempRepo::full("readonly");
+    repo.trust_main();
     let list_a = projection(&repo, &["listar", "--json"]);
     let list_b = projection(&repo, &["listar", "--json"]);
     assert_eq!(list_a.status.code(), Some(0), "{}", stderr(&list_a));
@@ -223,6 +236,27 @@ fn listar_mostrar_e_verificar_sao_deterministicos_e_repo_relativos() {
 
 #[test]
 fn verificar_exige_autoridade_frozen_historica_confiavel() {
+    let non_git = TempRepo::full_without_git_context("historical-authority-non-git");
+    let git = Command::new("git")
+        .args([
+            "-C",
+            non_git.path().to_str().unwrap(),
+            "rev-parse",
+            "--is-inside-work-tree",
+        ])
+        .output()
+        .unwrap();
+    assert!(!git.status.success(), "unexpected Git authority");
+    let unavailable_without_git = projection(&non_git, &["verificar", "--json"]);
+    assert_eq!(
+        unavailable_without_git.status.code(),
+        Some(6),
+        "stdout={} stderr={}",
+        stdout(&unavailable_without_git),
+        stderr(&unavailable_without_git)
+    );
+    assert!(stdout(&unavailable_without_git).contains("HISTORICAL_AUTHORITY_UNVERIFIABLE"));
+
     let repo = TempRepo::full("historical-authority");
     repo.trust_main();
     let path = repo
