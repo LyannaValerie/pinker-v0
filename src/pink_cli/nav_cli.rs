@@ -490,6 +490,29 @@ fn verify_historical_frozen_authority(
     root: &Path,
     store: &ProjectionStore,
 ) -> Result<(), ProjectionError> {
+    let repository = Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(["rev-parse", "--is-inside-work-tree"])
+        .output()
+        .map_err(|error| ProjectionError::Harness {
+            path: None,
+            message: format!(
+                "HISTORICAL_AUTHORITY_UNVERIFIABLE: cannot inspect repository authority: {error}"
+            ),
+        })?;
+    if !repository.status.success() {
+        if String::from_utf8_lossy(&repository.stderr).contains("not a git repository") {
+            return Ok(());
+        }
+        return Err(ProjectionError::Harness {
+            path: None,
+            message: format!(
+                "HISTORICAL_AUTHORITY_UNVERIFIABLE: cannot inspect repository authority ({})",
+                String::from_utf8_lossy(&repository.stderr).trim()
+            ),
+        });
+    }
     let listing = Command::new("git")
         .arg("-C")
         .arg(root)
@@ -517,10 +540,12 @@ fn verify_historical_frozen_authority(
             ),
         });
     }
-    for path in String::from_utf8_lossy(&listing.stdout)
+    let historical_paths: Vec<_> = String::from_utf8_lossy(&listing.stdout)
         .lines()
         .filter(|path| path.ends_with(".toml") && !path.starts_with(".pinker/projections/recipes/"))
-    {
+        .map(str::to_owned)
+        .collect();
+    for path in &historical_paths {
         let output = Command::new("git")
             .arg("-C")
             .arg(root)
@@ -556,7 +581,7 @@ fn verify_historical_frozen_authority(
             ),
         })?;
         if historical.state == pinker_v0::nav_projection_snapshot::SnapshotState::Frozen
-            && !store.snapshots().any(|stored| stored.path == path)
+            && !store.snapshots().any(|stored| stored.path == *path)
         {
             return Err(ProjectionError::Harness {
                 path: Some(path.to_string()),
@@ -568,6 +593,7 @@ fn verify_historical_frozen_authority(
     }
     for stored in store.snapshots().filter(|stored| {
         stored.snapshot.state == pinker_v0::nav_projection_snapshot::SnapshotState::Frozen
+            && historical_paths.contains(&stored.path)
     }) {
         let spec = format!("origin/main:{}", stored.path);
         let output = Command::new("git")
