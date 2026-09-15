@@ -15,8 +15,9 @@
 // @pinker-nav:start cli.nav.projecao
 // @pinker-nav:domain projecoes
 // @pinker-nav:layer cli
-// @pinker-nav:summary Adaptador final `pink nav projecao`: despacha listar, mostrar, verificar, preparar e aceitar; descobre root pelo automation core, deriva texto e JSON dos mesmos modelos, recalcula planos antes de toda autorização e preserva exits distintos para drift, harness, política e stale.
+// @pinker-nav:summary Final `pink nav projecao` adapter: dispatches listing, inspection, verification, lifecycle, and explicit recipe reconciliation; discovers the root through the automation core, derives text and JSON from shared models, recalculates plans before authorization, and preserves distinct drift, harness, policy, and stale exits.
 use super::*;
+use std::process::Command;
 
 pub(super) fn run_nav_projecao(repo: &Path, json: bool, command: ProjectionSub) -> i32 {
     let root = match pinker_v0::automation::RepoRoot::discover(repo) {
@@ -166,7 +167,224 @@ pub(super) fn run_nav_projecao(repo: &Path, json: bool, command: ProjectionSub) 
                 },
             }
         }
+        ProjectionSub::Reconciliar { autorizar } => {
+            run_projection_reconcile(&root, json, autorizar)
+        }
     }
+}
+
+#[derive(Debug)]
+struct ReconcilePlan {
+    plan: pinker_v0::automation::Plan,
+    check: pinker_v0::automation::CheckReport,
+    changes: Vec<String>,
+}
+
+fn run_projection_reconcile(
+    root: &pinker_v0::automation::RepoRoot,
+    json: bool,
+    authorization: Option<String>,
+) -> i32 {
+    let catalog = match load_projection_catalog(root) {
+        Ok(catalog) => catalog,
+        Err(error) => return print_projection_error("reconciliar", json, &error),
+    };
+    let planning = match plan_recipe_reconciliation(root, &catalog.regions) {
+        Ok(plan) => plan,
+        Err(error) => return print_projection_error("reconciliar", json, &error),
+    };
+    match authorization {
+        None => {
+            print_reconcile_plan(json, &planning);
+            EXIT_OK
+        }
+        Some(digest) => {
+            if digest != planning.plan.digest() {
+                return print_projection_error(
+                    "reconciliar",
+                    json,
+                    &ProjectionError::Automation(pinker_v0::automation::Failure::StalePlan {
+                        plan_digest: planning.plan.digest(),
+                        msg: "CURRENT_AUTHORITY_MATCHES_PLAN=false; regenerate the reconciliation plan before apply".to_string(),
+                    }),
+                );
+            }
+            let report = pinker_v0::automation::apply(
+                root,
+                &planning.plan,
+                &pinker_v0::automation::Authorization::for_digest(&digest),
+                &planning.check,
+            );
+            if report.failure.is_some() {
+                return print_projection_error(
+                    "reconciliar",
+                    json,
+                    &ProjectionError::Apply(Box::new(report)),
+                );
+            }
+            let store = match ProjectionStore::load(root.path()) {
+                Ok(store) => store,
+                Err(error) => {
+                    return print_projection_error(
+                        "reconciliar",
+                        json,
+                        &ProjectionError::Authority(error),
+                    )
+                }
+            };
+            match verify_historical_frozen_authority(root.path(), &store) {
+                Ok(())
+                    if nav_projection_report::verify_all(&store, &catalog.regions).outcome()
+                        == "MATCH" =>
+                {
+                    if json {
+                        println!("{{\"schema\":1,\"command\":\"reconciliar\",\"outcome\":\"APPLIED\",\"digest\":{}}}", json_quote(&planning.plan.digest()));
+                    } else {
+                        println!("APPLIED\\ndigest: {}", planning.plan.digest());
+                    }
+                    EXIT_OK
+                }
+                Ok(()) => print_projection_error(
+                    "reconciliar",
+                    json,
+                    &ProjectionError::VerifyAfterApply {
+                        message: "reconstruction verification did not reach MATCH after apply"
+                            .to_string(),
+                        written: !report.applied.is_empty(),
+                    },
+                ),
+                Err(error) => print_projection_error("reconciliar", json, &error),
+            }
+        }
+    }
+}
+
+fn plan_recipe_reconciliation(
+    root: &pinker_v0::automation::RepoRoot,
+    catalog: &[pinker_v0::nav::CodeRegion],
+) -> Result<ReconcilePlan, ProjectionError> {
+    let store = ProjectionStore::load(root.path())?;
+    verify_historical_frozen_authority(root.path(), &store)?;
+    let mut desired = Vec::new();
+    let mut changes = Vec::new();
+    for stored in store.recipes() {
+        let mut recipe = stored.recipe.clone();
+        for rule in &mut recipe.rules {
+            if let pinker_v0::nav_projection_snapshot::Rule::OverrideHash {
+                key,
+                from,
+                expect_file,
+                expect_domain,
+                expect_layer,
+                ..
+            } = rule
+            {
+                let matches: Vec<_> = catalog.iter().filter(|region| region.key == *key).collect();
+                let [region] = matches.as_slice() else {
+                    return Err(ProjectionError::Policy { message: format!("SEMANTIC_AMBIGUITY_BLOCK: rule_key={key} requires exactly one current region") });
+                };
+                if region.hash != *from {
+                    if expect_file.as_deref() != Some(region.file.as_str())
+                        || expect_domain.as_deref() != region.domain.as_deref()
+                        || expect_layer.as_deref() != region.layer.as_deref()
+                    {
+                        return Err(ProjectionError::Policy { message: format!("SEMANTIC_AMBIGUITY_BLOCK: rule_key={key} structural identity changed") });
+                    }
+                    changes.push(format!("owner_file={} rule_key={} path={} domain={} layer={} expected={} observed={} planned_allowed_mutation=recipe.from reason=MECHANICALLY_RECONCILABLE", stored.path, key, region.file, region.domain.as_deref().unwrap_or("—"), region.layer.as_deref().unwrap_or("—"), from, region.hash));
+                    from.clone_from(&region.hash);
+                }
+            }
+            if let pinker_v0::nav_projection_snapshot::Rule::OverrideRegion {
+                key,
+                from_hash,
+                from_summary,
+                expect_file,
+                expect_domain,
+                expect_layer,
+                ..
+            } = rule
+            {
+                let matches: Vec<_> = catalog.iter().filter(|region| region.key == *key).collect();
+                let [region] = matches.as_slice() else {
+                    return Err(ProjectionError::Policy { message: format!("SEMANTIC_AMBIGUITY_BLOCK: rule_key={key} requires exactly one current region") });
+                };
+                let hash_changed = from_hash.as_deref().is_some_and(|hash| hash != region.hash);
+                let summary_changed = from_summary
+                    .as_deref()
+                    .is_some_and(|summary| summary != region.summary);
+                if hash_changed || summary_changed {
+                    if expect_file.as_deref() != Some(region.file.as_str())
+                        || expect_domain.as_deref() != region.domain.as_deref()
+                        || expect_layer.as_deref() != region.layer.as_deref()
+                    {
+                        return Err(ProjectionError::Policy { message: format!("SEMANTIC_AMBIGUITY_BLOCK: rule_key={key} structural identity changed") });
+                    }
+                    changes.push(format!("owner_file={} rule_key={} path={} domain={} layer={} expected_hash={} observed_hash={} expected_summary={} observed_summary={} planned_allowed_mutation=recipe.from_* reason=MECHANICALLY_RECONCILABLE", stored.path, key, region.file, region.domain.as_deref().unwrap_or("—"), region.layer.as_deref().unwrap_or("—"), from_hash.as_deref().unwrap_or("—"), region.hash, from_summary.as_deref().unwrap_or("—"), region.summary));
+                    if let Some(hash) = from_hash {
+                        hash.clone_from(&region.hash);
+                    }
+                    if let Some(summary) = from_summary {
+                        summary.clone_from(&region.summary);
+                    }
+                }
+            }
+        }
+        if recipe != stored.recipe {
+            desired.push((
+                stored.path.clone(),
+                pinker_v0::nav_projection_recipe::render_recipe(&recipe).into_bytes(),
+            ));
+        }
+    }
+    let paths: Vec<_> = desired.iter().map(|(path, _)| path.as_str()).collect();
+    let allowlist =
+        pinker_v0::automation::Allowlist::new(&paths).map_err(|cause| ProjectionError::Policy {
+            message: cause.to_string(),
+        })?;
+    let mut builder = pinker_v0::automation::PlanBuilder::new("nav.projecao.reconcile", allowlist);
+    for (path, bytes) in desired {
+        builder = builder
+            .desire(&path, bytes)
+            .map_err(ProjectionError::Automation)?;
+    }
+    let plan = builder.build().map_err(ProjectionError::Automation)?;
+    let observed =
+        pinker_v0::automation::observe(root, &plan).map_err(ProjectionError::Automation)?;
+    let check =
+        pinker_v0::automation::check(&plan, &observed).map_err(ProjectionError::Automation)?;
+    Ok(ReconcilePlan {
+        plan,
+        check,
+        changes,
+    })
+}
+
+fn print_reconcile_plan(json: bool, planning: &ReconcilePlan) {
+    if json {
+        let changes: Vec<_> = planning
+            .changes
+            .iter()
+            .map(|change| json_quote(change))
+            .collect();
+        println!("{{\"schema\":1,\"command\":\"reconciliar\",\"outcome\":{},\"digest\":{},\"changes\":[{}]}}", json_quote(if planning.changes.is_empty() { "NO_CHANGE" } else { "MECHANICALLY_RECONCILABLE" }), json_quote(&planning.plan.digest()), changes.join(","));
+    } else {
+        println!(
+            "{}\\ndigest: {}",
+            if planning.changes.is_empty() {
+                "NO_CHANGE"
+            } else {
+                "MECHANICALLY_RECONCILABLE"
+            },
+            planning.plan.digest()
+        );
+        for change in &planning.changes {
+            println!("{change}");
+        }
+    }
+}
+
+fn json_quote(value: &str) -> String {
+    format!("{value:?}")
 }
 
 fn run_projection_show(
@@ -239,6 +457,9 @@ fn run_projection_verify(
             return print_projection_error("verificar", json, &ProjectionError::Authority(error))
         }
     };
+    if let Err(error) = verify_historical_frozen_authority(root.path(), &store) {
+        return print_projection_error("verificar", json, &error);
+    }
     let catalog = match load_projection_catalog(root) {
         Ok(catalog) => catalog,
         Err(error) => return print_projection_error("verificar", json, &error),
@@ -272,6 +493,140 @@ fn run_projection_verify(
         "DRIFT" => EXIT_SOURCE,
         _ => EXIT_HARNESS,
     }
+}
+
+/// A reconstrução prova consistência; a base confiável prova que a autoridade
+/// FROZEN não foi recalibrada junto com a recipe no checkout candidato.
+fn verify_historical_frozen_authority(
+    root: &Path,
+    store: &ProjectionStore,
+) -> Result<(), ProjectionError> {
+    let listing = Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args([
+            "ls-tree",
+            "-r",
+            "--name-only",
+            "origin/main",
+            "--",
+            ".pinker/projections",
+        ])
+        .output()
+        .map_err(|error| ProjectionError::Harness {
+            path: None,
+            message: format!(
+                "HISTORICAL_AUTHORITY_UNVERIFIABLE: cannot list trusted origin/main reference: {error}"
+            ),
+        })?;
+    if !listing.status.success() {
+        return Err(ProjectionError::Harness {
+            path: None,
+            message: format!(
+                "HISTORICAL_AUTHORITY_UNVERIFIABLE: trusted origin/main reference is unavailable ({})",
+                String::from_utf8_lossy(&listing.stderr).trim()
+            ),
+        });
+    }
+    for path in String::from_utf8_lossy(&listing.stdout)
+        .lines()
+        .filter(|path| path.ends_with(".toml") && !path.starts_with(".pinker/projections/recipes/"))
+    {
+        let output = Command::new("git")
+            .arg("-C")
+            .arg(root)
+            .arg("show")
+            .arg(format!("origin/main:{path}"))
+            .output()
+            .map_err(|error| ProjectionError::Harness {
+                path: Some(path.to_string()),
+                message: format!(
+                    "HISTORICAL_AUTHORITY_UNVERIFIABLE: cannot read trusted origin/main snapshot: {error}"
+                ),
+            })?;
+        if !output.status.success() {
+            return Err(ProjectionError::Harness {
+                path: Some(path.to_string()),
+                message:
+                    "HISTORICAL_AUTHORITY_UNVERIFIABLE: trusted origin/main snapshot is unavailable"
+                        .to_string(),
+            });
+        }
+        let historical = pinker_v0::nav_projection_snapshot::parse(
+            std::str::from_utf8(&output.stdout).map_err(|error| ProjectionError::Harness {
+                path: Some(path.to_string()),
+                message: format!(
+                    "HISTORICAL_AUTHORITY_UNVERIFIABLE: trusted origin/main snapshot is not UTF-8: {error}"
+                ),
+            })?,
+        )
+        .map_err(|error| ProjectionError::Harness {
+            path: Some(path.to_string()),
+            message: format!(
+                "HISTORICAL_AUTHORITY_UNVERIFIABLE: trusted origin/main snapshot is invalid: {error}"
+            ),
+        })?;
+        if historical.state == pinker_v0::nav_projection_snapshot::SnapshotState::Frozen
+            && !store.snapshots().any(|stored| stored.path == path)
+        {
+            return Err(ProjectionError::Harness {
+                path: Some(path.to_string()),
+                message: format!(
+                    "HISTORICAL_AUTHORITY_MUTATED: protected FROZEN authority is absent; owner_file={path} safe_recovery=restore FROZEN authority from origin/main"
+                ),
+            });
+        }
+    }
+    for stored in store.snapshots().filter(|stored| {
+        stored.snapshot.state == pinker_v0::nav_projection_snapshot::SnapshotState::Frozen
+    }) {
+        let spec = format!("origin/main:{}", stored.path);
+        let output = Command::new("git")
+            .arg("-C")
+            .arg(root)
+            .arg("show")
+            .arg(&spec)
+            .output()
+            .map_err(|error| ProjectionError::Harness {
+                path: Some(stored.path.clone()),
+                message: format!(
+                    "HISTORICAL_AUTHORITY_UNVERIFIABLE: cannot read trusted origin/main reference: {error}"
+                ),
+            })?;
+        if !output.status.success() {
+            return Err(ProjectionError::Harness {
+                path: Some(stored.path.clone()),
+                message: format!(
+                    "HISTORICAL_AUTHORITY_UNVERIFIABLE: trusted origin/main reference is unavailable; restore the FROZEN authority from origin/main, then reconcile the recipe through the explicit plan/apply path ({})",
+                    String::from_utf8_lossy(&output.stderr).trim()
+                ),
+            });
+        }
+        let historical = pinker_v0::nav_projection_snapshot::parse(
+            std::str::from_utf8(&output.stdout).map_err(|error| ProjectionError::Harness {
+                path: Some(stored.path.clone()),
+                message: format!(
+                    "HISTORICAL_AUTHORITY_UNVERIFIABLE: trusted origin/main snapshot is not UTF-8: {error}"
+                ),
+            })?,
+        )
+        .map_err(|error| ProjectionError::Harness {
+            path: Some(stored.path.clone()),
+            message: format!(
+                "HISTORICAL_AUTHORITY_UNVERIFIABLE: trusted origin/main snapshot is invalid: {error}"
+            ),
+        })?;
+        if historical != stored.snapshot {
+            return Err(ProjectionError::Harness {
+                path: Some(stored.path.clone()),
+                message: format!(
+                    "HISTORICAL_AUTHORITY_MUTATED: protected FROZEN fields differ from origin/main; owner_file={} safe_recovery=restore FROZEN authority, then reconcile recipe only through the explicit plan/apply path",
+                    stored.path
+                ),
+            });
+        }
+    }
+    Ok(())
 }
 
 fn load_projection_catalog(
