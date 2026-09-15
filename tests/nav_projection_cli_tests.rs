@@ -9,7 +9,15 @@ struct TempRepo(PathBuf);
 
 impl TempRepo {
     fn full(label: &str) -> TempRepo {
-        let repo = TempRepo::empty(label);
+        TempRepo::full_in(std::env::temp_dir(), label)
+    }
+
+    fn full_without_git_context(label: &str) -> TempRepo {
+        TempRepo::full_in(PathBuf::from("/tmp"), label)
+    }
+
+    fn full_in(base: PathBuf, label: &str) -> TempRepo {
+        let repo = TempRepo::empty_in(base, label);
         let source = Path::new(env!("CARGO_MANIFEST_DIR"));
         fs::create_dir_all(repo.0.join(".pinker/projections/recipes")).unwrap();
         fs::create_dir_all(repo.0.join("src")).unwrap();
@@ -49,7 +57,11 @@ impl TempRepo {
     }
 
     fn empty(label: &str) -> TempRepo {
-        let path = std::env::temp_dir().join(format!(
+        TempRepo::empty_in(std::env::temp_dir(), label)
+    }
+
+    fn empty_in(base: PathBuf, label: &str) -> TempRepo {
+        let path = base.join(format!(
             "pinker_projection_cli_{}_{}_{}",
             label,
             std::process::id(),
@@ -62,6 +74,30 @@ impl TempRepo {
 
     fn path(&self) -> &Path {
         &self.0
+    }
+
+    fn trust_main(&self) {
+        for args in [
+            vec!["init", "-q"],
+            vec!["add", "."],
+            vec![
+                "-c",
+                "user.name=projection-test",
+                "-c",
+                "user.email=projection-test@example.invalid",
+                "commit",
+                "-qm",
+                "trusted baseline",
+            ],
+            vec!["update-ref", "refs/remotes/origin/main", "HEAD"],
+        ] {
+            assert!(Command::new("git")
+                .args(args)
+                .current_dir(&self.0)
+                .status()
+                .unwrap()
+                .success());
+        }
     }
 }
 
@@ -140,12 +176,19 @@ fn prepare_apply(repo: &TempRepo, id: &str) -> Output {
 }
 
 #[test]
-fn help_publica_namespace_e_cinco_subcomandos() {
+fn help_publica_namespace_e_seis_subcomandos() {
     let help = run(&["nav", "projecao", "--help"]);
     assert_eq!(help.status.code(), Some(0));
     assert!(help.stderr.is_empty());
     let text = stdout(&help);
-    for command in ["listar", "mostrar", "verificar", "preparar", "aceitar"] {
+    for command in [
+        "listar",
+        "mostrar",
+        "verificar",
+        "preparar",
+        "aceitar",
+        "reconciliar",
+    ] {
         assert!(text.contains(command), "{command}: {text}");
         let sub = run(&["nav", "projecao", command, "--help"]);
         assert_eq!(sub.status.code(), Some(0), "{command}");
@@ -160,6 +203,7 @@ fn help_publica_namespace_e_cinco_subcomandos() {
 #[test]
 fn listar_mostrar_e_verificar_sao_deterministicos_e_repo_relativos() {
     let repo = TempRepo::full("readonly");
+    repo.trust_main();
     let list_a = projection(&repo, &["listar", "--json"]);
     let list_b = projection(&repo, &["listar", "--json"]);
     assert_eq!(list_a.status.code(), Some(0), "{}", stderr(&list_a));
@@ -188,6 +232,64 @@ fn listar_mostrar_e_verificar_sao_deterministicos_e_repo_relativos() {
         assert_eq!(verified.status.code(), Some(0), "{}", stderr(&verified));
         assert!(stdout(&verified).contains("\"outcome\":\"MATCH\""));
     }
+}
+
+#[test]
+fn verificar_exige_autoridade_frozen_historica_confiavel() {
+    let non_git = TempRepo::full_without_git_context("historical-authority-non-git");
+    let git = Command::new("git")
+        .args([
+            "-C",
+            non_git.path().to_str().unwrap(),
+            "rev-parse",
+            "--is-inside-work-tree",
+        ])
+        .output()
+        .unwrap();
+    assert!(!git.status.success(), "unexpected Git authority");
+    let unavailable_without_git = projection(&non_git, &["verificar", "--json"]);
+    assert_eq!(
+        unavailable_without_git.status.code(),
+        Some(6),
+        "stdout={} stderr={}",
+        stdout(&unavailable_without_git),
+        stderr(&unavailable_without_git)
+    );
+    assert!(stdout(&unavailable_without_git).contains("HISTORICAL_AUTHORITY_UNVERIFIABLE"));
+
+    let repo = TempRepo::full("historical-authority");
+    repo.trust_main();
+    let path = repo
+        .path()
+        .join(".pinker/projections/onda-pink-agente-d.toml");
+    let original = fs::read_to_string(&path).unwrap();
+    let mutated = original.replacen(
+        "key = \"layout.tipos.memoria\"\nfrom = \"fnv1a64:a99dad8c28300e92\"",
+        "key = \"layout.tipos.memoria\"\nfrom = \"fnv1a64:0000000000000000\"",
+        1,
+    );
+    assert_ne!(original, mutated);
+    fs::write(&path, mutated).unwrap();
+
+    let protected = projection(&repo, &["verificar", "onda-pink-agente-d", "--json"]);
+    assert_eq!(protected.status.code(), Some(6));
+    assert!(stdout(&protected).contains("HISTORICAL_AUTHORITY_MUTATED"));
+
+    fs::write(&path, &original).unwrap();
+    fs::remove_file(&path).unwrap();
+    let removed = projection(&repo, &["verificar", "onda-pink-agente-d", "--json"]);
+    assert_eq!(removed.status.code(), Some(6));
+    assert!(stdout(&removed).contains("HISTORICAL_AUTHORITY_MUTATED"));
+    fs::write(&path, original).unwrap();
+    assert!(Command::new("git")
+        .args(["update-ref", "-d", "refs/remotes/origin/main"])
+        .current_dir(repo.path())
+        .status()
+        .unwrap()
+        .success());
+    let unavailable = projection(&repo, &["verificar", "onda-pink-agente-d", "--json"]);
+    assert_eq!(unavailable.status.code(), Some(6));
+    assert!(stdout(&unavailable).contains("HISTORICAL_AUTHORITY_UNVERIFIABLE"));
 }
 
 #[test]
@@ -336,4 +438,94 @@ fn artifact_target_invalido_sai_harness_6_sem_vazar_root() {
     let json = stdout(&output);
     assert!(json.contains("HARNESS_FAILURE"));
     assert!(!json.contains(repo.path().to_str().unwrap()));
+}
+
+#[test]
+fn reconciliar_planeja_sem_escrever_rejeita_stale_e_aplica_rota_legitima() {
+    let repo = TempRepo::full("reconcile");
+    repo.trust_main();
+    let catalog = repo.path().join("src/navigation.jsonl");
+    let changed = fs::read_to_string(&catalog).unwrap().replacen(
+        "fnv1a64:22548e053f0d0e30",
+        "fnv1a64:e9419517124b1183",
+        1,
+    );
+    fs::write(&catalog, changed).unwrap();
+
+    let recipe = repo
+        .path()
+        .join(".pinker/projections/recipes/normalizacao-corrente-para-historico.toml");
+    let before = fs::read(&recipe).unwrap();
+    let first = projection(&repo, &["reconciliar", "--json"]);
+    let second = projection(&repo, &["reconciliar", "--json"]);
+    assert_eq!(first.status.code(), Some(0), "{}", stderr(&first));
+    assert_eq!(first.stdout, second.stdout);
+    assert_eq!(fs::read(&recipe).unwrap(), before);
+    let first_json = stdout(&first);
+    assert!(first_json.contains("MECHANICALLY_RECONCILABLE"));
+    assert!(first_json.contains("owner_file="));
+    assert!(first_json.contains("planned_allowed_mutation=recipe.from"));
+    let stale_digest = digest(&first_json);
+
+    let changed_again = fs::read_to_string(&catalog).unwrap().replacen(
+        "fnv1a64:e9419517124b1183",
+        "fnv1a64:10d26d0524f20a0c",
+        1,
+    );
+    fs::write(&catalog, changed_again).unwrap();
+    let stale = projection(
+        &repo,
+        &["reconciliar", "--autorizar", &stale_digest, "--json"],
+    );
+    assert_eq!(stale.status.code(), Some(8), "{}", stderr(&stale));
+    assert!(stdout(&stale).contains("STALE_PLAN"));
+    assert_eq!(fs::read(&recipe).unwrap(), before);
+
+    let plan = projection(&repo, &["reconciliar", "--json"]);
+    let authorization = digest(&stdout(&plan));
+    let applied = projection(
+        &repo,
+        &["reconciliar", "--autorizar", &authorization, "--json"],
+    );
+    assert_eq!(applied.status.code(), Some(0), "{}", stderr(&applied));
+    assert!(stdout(&applied).contains("\"outcome\":\"APPLIED\""));
+    let verified = projection(&repo, &["verificar", "--json"]);
+    assert_eq!(verified.status.code(), Some(0), "{}", stderr(&verified));
+    assert!(stdout(&verified).contains("\"outcome\":\"MATCH\""));
+
+    let altered_recipe = fs::read_to_string(&recipe).unwrap().replacen(
+        "expect_layer = \"layout\"",
+        "expect_layer = \"other\"",
+        1,
+    );
+    fs::write(&recipe, altered_recipe).unwrap();
+    let source_again = fs::read_to_string(&catalog).unwrap().replacen(
+        "fnv1a64:10d26d0524f20a0c",
+        "fnv1a64:0000000000000000",
+        1,
+    );
+    fs::write(&catalog, source_again).unwrap();
+    let ambiguous = projection(&repo, &["reconciliar", "--json"]);
+    assert_eq!(ambiguous.status.code(), Some(7), "{}", stderr(&ambiguous));
+    assert!(stdout(&ambiguous).contains("SEMANTIC_AMBIGUITY_BLOCK"));
+}
+
+#[test]
+fn recipe_change_that_breaks_reconstruction_exits_as_drift() {
+    let repo = TempRepo::full("reconstruction-drift");
+    repo.trust_main();
+    let recipe = repo
+        .path()
+        .join(".pinker/projections/recipes/normalizacao-corrente-para-historico.toml");
+    let original = fs::read_to_string(&recipe).unwrap();
+    let mutated = original.replacen(
+        "to = \"fnv1a64:a99dad8c28300e92\"",
+        "to = \"fnv1a64:0000000000000000\"",
+        1,
+    );
+    assert_ne!(original, mutated);
+    fs::write(recipe, mutated).unwrap();
+    let output = projection(&repo, &["verificar", "--json"]);
+    assert_eq!(output.status.code(), Some(6), "{}", stderr(&output));
+    assert!(stdout(&output).contains("HARNESS_FAILURE"));
 }

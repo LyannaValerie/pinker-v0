@@ -663,6 +663,16 @@ fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String>
                         autorizar,
                     }
                 }
+                "reconciliar" => {
+                    if observado
+                        || justificativa.is_some()
+                        || predecessor.is_some()
+                        || !arguments.is_empty()
+                    {
+                        return Err(projection_subcommand_usage(binary, command));
+                    }
+                    ProjectionSub::Reconciliar { autorizar }
+                }
                 _ => {
                     return Err(format!(
                         "Subcomando nav projecao desconhecido: '{}'.\n\n{}",

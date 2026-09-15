@@ -232,6 +232,9 @@ enum ProjectionSub {
         id: String,
         autorizar: Option<String>,
     },
+    Reconciliar {
+        autorizar: Option<String>,
+    },
 }
 
 struct NavConfigCli {
@@ -403,8 +406,9 @@ fn projection_usage(binary: &str) -> String {
            verificar [ID]\n\
            preparar ID --justificativa TEXTO --predecessor ID [--autorizar DIGEST]\n\
            aceitar ID [--autorizar DIGEST]\n\
+           reconciliar [--autorizar DIGEST]\n\
          \n\
-         Sem --autorizar, preparar e aceitar exibem plano e digest sem escrever.\n\
+         Sem --autorizar, preparar, aceitar e reconciliar exibem plano e digest sem escrever.\n\
          Códigos adicionais: 6 harness · 7 política · 8 plano obsoleto\n"
     )
 }
@@ -416,6 +420,7 @@ fn projection_subcommand_usage(binary: &str, command: &str) -> String {
         "verificar" => format!("Uso: {binary} nav projecao verificar [ID] [--repo DIRETÓRIO] [--json]\n"),
         "preparar" => format!("Uso: {binary} nav projecao preparar ID --justificativa TEXTO --predecessor ID [--autorizar DIGEST] [--repo DIRETÓRIO] [--json]\n"),
         "aceitar" => format!("Uso: {binary} nav projecao aceitar ID [--autorizar DIGEST] [--repo DIRETÓRIO] [--json]\n"),
+        "reconciliar" => format!("Uso: {binary} nav projecao reconciliar [--autorizar DIGEST] [--repo DIRETÓRIO] [--json]\n"),
         _ => projection_usage(binary),
     }
 }
