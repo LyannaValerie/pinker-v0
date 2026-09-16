@@ -35,7 +35,7 @@ const SIGNATURE_LOOKAHEAD: usize = 12;
 /// não prosa: a saída precisa dizer o que ela *não* prova.
 pub const DECLARED_LIMITATIONS: [&str; 8] = [
     "macro_generated_declarations_not_expanded",
-    "macro_rules_token_tree_not_a_declaration",
+    "macro_token_tree_not_a_declaration",
     "cfg_attributes_not_evaluated",
     "semantic_name_resolution_absent",
     "reexports_and_aliases_not_resolved",
@@ -47,10 +47,11 @@ pub const DECLARED_LIMITATIONS: [&str; 8] = [
 /// Motivo estável de uma ocorrência textual comum.
 const TEXTUAL_LIMITATION: &str = "not_a_supported_structural_declaration";
 
-/// Motivo estável de uma ocorrência dentro do corpo de `macro_rules!`. O texto
-/// ali é token tree de um template, não Rust ordinário: ele só vira declaração
-/// depois de uma expansão que este módulo não faz.
-const MACRO_TEMPLATE_LIMITATION: &str = "macro_rules_token_tree_not_a_declaration";
+/// Motivo estável de uma ocorrência dentro de um token tree de macro, seja a
+/// definição `macro_rules!` ou uma invocação qualquer. O texto ali só vira
+/// declaração depois de uma expansão que este módulo não faz, e sintaxe que
+/// parece Rust ordinário continua sendo apenas token.
+const MACRO_TEMPLATE_LIMITATION: &str = "macro_token_tree_not_a_declaration";
 
 /// Palavras que podem preceder a palavra-chave de declaração sem que a linha
 /// deixe de abrir uma declaração.
@@ -243,22 +244,15 @@ fn scan_file(
     let mut depth: usize = 0;
     let mut attributes_present = false;
     let mut cfg_present = false;
-    // Profundidade em que o corpo de um `macro_rules!` aberto começa. Enquanto
-    // estamos dentro dele, nada é declaração estrutural.
-    let mut macro_body_depth: Option<usize> = None;
+    // Onde cada linha cai em relação aos token trees de macro do arquivo.
+    let macro_lines = macro_token_tree_lines(masked);
 
     for (index, masked_line) in masked_lines.iter().enumerate() {
         let trimmed = masked_line.trim();
         while contexts.last().is_some_and(|(opened, _)| *opened > depth) {
             contexts.pop();
         }
-        if macro_body_depth.is_some_and(|opened| depth < opened) {
-            macro_body_depth = None;
-        }
-        let inside_macro_template = macro_body_depth.is_some();
-        if !inside_macro_template && opens_macro_rules(trimmed) {
-            macro_body_depth = Some(depth + 1);
-        }
+        let inside_macro_template = macro_lines.get(index).copied().unwrap_or(false);
 
         if trimmed.starts_with("#[") || trimmed.starts_with("#![") {
             attributes_present = true;
@@ -267,8 +261,8 @@ fn scan_file(
             continue;
         }
 
-        // Dentro do template de uma macro a fonte não é Rust ordinário: o que
-        // parece declaração é token tree que ainda não foi expandido.
+        // Dentro de um token tree de macro a fonte não é Rust ordinário: o que
+        // parece declaração é token que ainda não foi expandido.
         let declared = if inside_macro_template {
             None
         } else {
@@ -443,10 +437,101 @@ fn words(masked_line: &str) -> Vec<&str> {
         .collect()
 }
 
-/// Reconhece a linha que abre o corpo de um `macro_rules!`. O nome da macro não
-/// importa aqui: o que importa é que tudo dali até o fecho é template.
-fn opens_macro_rules(masked_line: &str) -> bool {
-    masked_line.contains("macro_rules!") && masked_line.contains('{')
+/// Marca, linha a linha, se a primeira posição não-branca da linha está dentro
+/// de um token tree de macro.
+///
+/// A gramática de Rust é a autoridade aqui: uma invocação é `SimplePath !
+/// DelimTokenTree`, e o delimitador pode ser `(`, `[` ou `{`. `macro_rules!`
+/// não é caso especial nenhum — `macro_rules` é um identificador como qualquer
+/// outro, e sua definição também admite os três delimitadores. Espaço em branco
+/// separa tokens normalmente, inclusive quebra de linha, então o `!` e o
+/// delimitador podem estar em linhas diferentes.
+///
+/// Este módulo não expande macro, logo não tem autoridade para ler o conteúdo
+/// de um token tree como Rust ordinário — nem quando ele parece Rust ordinário.
+///
+/// A posição medida é o primeiro caractere não-branco de cada linha porque é
+/// dali que [`declaration`] parte: uma declaração depois do fecho da macro
+/// continua sendo declaração.
+fn macro_token_tree_lines(masked: &str) -> Vec<bool> {
+    let mut inside_line = Vec::new();
+    let mut closers: Vec<u8> = Vec::new();
+    let mut awaiting_delimiter = false;
+    let mut allow_macro_name = false;
+
+    for line in masked.lines() {
+        let mut recorded: Option<bool> = None;
+        let mut path_tail: Vec<u8> = Vec::new();
+        for byte in line.bytes() {
+            if recorded.is_none() && !byte.is_ascii_whitespace() {
+                recorded = Some(!closers.is_empty());
+            }
+
+            if !closers.is_empty() {
+                if let Some(closer) = closing_delimiter(byte) {
+                    closers.push(closer);
+                } else if closers.last() == Some(&byte) {
+                    closers.pop();
+                }
+                continue;
+            }
+
+            if byte == b'!' {
+                // Um `!` precedido de caminho abre uma invocação; precedido de
+                // espaço ou de `>` ele é negação ou o tipo `!`, nunca macro.
+                if !path_tail.is_empty() {
+                    awaiting_delimiter = true;
+                    allow_macro_name = path_tail == b"macro_rules";
+                }
+                path_tail.clear();
+                continue;
+            }
+
+            if awaiting_delimiter {
+                if byte.is_ascii_whitespace() {
+                    continue;
+                }
+                if let Some(closer) = closing_delimiter(byte) {
+                    closers.push(closer);
+                    awaiting_delimiter = false;
+                    allow_macro_name = false;
+                    continue;
+                }
+                // `macro_rules ! IDENTIFIER MacroRulesDef`: só essa forma tem um
+                // nome entre o `!` e o delimitador.
+                if allow_macro_name && is_identifier_byte(byte) {
+                    continue;
+                }
+                awaiting_delimiter = false;
+                allow_macro_name = false;
+            }
+
+            if is_identifier_byte(byte) {
+                path_tail.push(byte);
+            } else {
+                path_tail.clear();
+            }
+        }
+        inside_line.push(recorded.unwrap_or(!closers.is_empty()));
+    }
+    inside_line
+}
+
+/// O fechamento correspondente de um delimitador de token tree.
+fn closing_delimiter(byte: u8) -> Option<u8> {
+    match byte {
+        b'(' => Some(b')'),
+        b'[' => Some(b']'),
+        b'{' => Some(b'}'),
+        _ => None,
+    }
+}
+
+/// Byte que pode terminar o caminho de uma invocação de macro. Serve para
+/// separar `nome!` de `!=`, de negação e do tipo `!`, que nunca vêm depois de
+/// um caractere de identificador.
+fn is_identifier_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || byte == b'_'
 }
 
 /// Igualdade de palavra inteira, nunca substring.
