@@ -1,0 +1,9 @@
+pacote main;
+
+privado ninho Fechado {
+    campo: bombom;
+}
+
+carinho principal() -> bombom {
+    mimo 0;
+}

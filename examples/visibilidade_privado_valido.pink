@@ -1,0 +1,8 @@
+pacote main;
+trazer visibilidade_privado_modulo.exposta;
+
+carinho principal() -> bombom {
+    nova valor: bombom = exposta(20);
+    falar(valor);
+    mimo 0;
+}

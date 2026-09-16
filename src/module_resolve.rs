@@ -106,6 +106,20 @@ impl ModuleEnvironment {
 }
 
 /// Nome de topo importável de um item, se houver.
+/// Nome pelo qual OUTRA unidade pode trazer este item.
+///
+/// Distinto de `importable_item_name`, que responde "qual o nome declarado
+/// deste item" e governa canonicalização, projeção e colisão dentro da própria
+/// unidade. A superfície de export é a única pergunta que o marcador `privado`
+/// responde; confundir as duas apagaria o item do próprio módulo em vez de
+/// apenas fechá-lo para fora.
+pub fn exported_item_name(item: &Item) -> Option<&str> {
+    match item {
+        Item::Function(function) if function.visibilidade.eh_privada() => None,
+        outro => importable_item_name(outro),
+    }
+}
+
 pub fn importable_item_name(item: &Item) -> Option<&str> {
     match item {
         Item::Function(function) => Some(function.name.as_str()),
@@ -373,13 +387,27 @@ fn ambiente_da_unidade(
                 let existe = origem
                     .items
                     .iter()
-                    .any(|item| importable_item_name(item) == Some(symbol.as_str()));
+                    .any(|item| exported_item_name(item) == Some(symbol.as_str()));
                 if !existe {
-                    return Err(PinkerError::Semantic {
-                        msg: format!(
+                    // Declarado mas privado é uma causa diferente de ausente,
+                    // e o diagnóstico precisa dizer qual das duas é.
+                    let declarado = origem
+                        .items
+                        .iter()
+                        .any(|item| importable_item_name(item) == Some(symbol.as_str()));
+                    let msg = if declarado {
+                        format!(
+                            "símbolo '{}' é privado no módulo '{}' e não pode ser trazido",
+                            symbol, import.module
+                        )
+                    } else {
+                        format!(
                             "símbolo '{}' não encontrado no módulo '{}'",
                             symbol, import.module
-                        ),
+                        )
+                    };
+                    return Err(PinkerError::Semantic {
+                        msg,
                         span: import.span,
                     });
                 }
@@ -397,7 +425,9 @@ fn ambiente_da_unidade(
             None => {
                 env.modulos_inteiros.insert(import.module.clone());
                 for item in &origem.items {
-                    let Some(name) = importable_item_name(item) else {
+                    // `trazer <modulo>;` traz a SUPERFÍCIE, não as declarações:
+                    // o que o módulo fechou não entra no ambiente de ninguém.
+                    let Some(name) = exported_item_name(item) else {
                         continue;
                     };
                     if nao_e_entidade_de_unidade(name) {
@@ -2183,6 +2213,7 @@ mod anonymous_recognition_witness {
         let span = span_sintetico();
         Item::Function(crate::ast::FunctionDecl {
             name: nome.to_string(),
+            visibilidade: crate::ast::Visibilidade::Publica,
             impl_facts: None,
             trait_default_body: None,
             type_params: Vec::new(),

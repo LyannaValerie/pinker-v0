@@ -137,7 +137,15 @@ Nota factual: `encaixe` foi promovida de provisória a aceita/implementada na Fa
 
 ### Sistema de tipos e memória
 
-`apelido`, `ninho`, `leque`, `seta`, `virar`, `peso`, `alinhamento`, `fragil`, `sussurro`, `livre`, `trazer`, `verso`.
+`apelido`, `ninho`, `leque`, `seta`, `virar`, `peso`, `alinhamento`, `fragil`, `sussurro`, `livre`, `trazer`, `verso`, `privado`.
+
+Nota factual: `privado` é o marcador de visibilidade de superfície modular introduzido
+pela sonda instrumentada da Trama. Ele antecede `carinho` de topo e retira o item da
+superfície que `trazer` enxerga, sem retirá-lo da unidade que o declarou. A ausência do
+marcador continua significando público, o que preserva a superfície de todo programa
+anterior a ele. `privado` sobre qualquer outro construto é recusado no parser. O recorte
+é declarado: esta grafia **não** fecha o item 36 da Faixa 9 do Bloco 20, que exige
+também `publico` explícito e cobertura dos demais itens de topo.
 
 Nota factual: `leque` foi promovida de provisória a aceita/implementada na Fase 208 como enumeração nominal mínima (variantes sem dados; acesso `Leque.Variante`; despacho via `escolha`).
 

@@ -2,8 +2,8 @@ schema = 3
 id = "normalizacao-corrente-para-historico"
 
 [reconstruction]
-expected_overrides = 196
-expected_exclusions = 129
+expected_overrides = 197
+expected_exclusions = 130
 
 [[rules]]
 op = "exclude-key"
@@ -283,6 +283,11 @@ expected_matches = 1
 [[rules]]
 op = "exclude-key"
 key = "evidencia.tratos.relacao-de-impl-duplicada"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
+key = "evidencia.visibilidade.superficie-modular"
 expected_matches = 1
 
 [[rules]]
@@ -752,7 +757,7 @@ expect_layer = "evidencia"
 [[rules]]
 op = "override-hash"
 key = "parser.callbacks.instanciacao-estatica"
-from = "fnv1a64:5d864fad2972681a"
+from = "fnv1a64:f6114b9bf13b0683"
 to = "fnv1a64:0710ab894b382a6b"
 expect_file = "src/parser/genericos.rs"
 expect_domain = "callbacks"
@@ -761,7 +766,7 @@ expect_layer = "parser"
 [[rules]]
 op = "override-hash"
 key = "parser.declaracoes.tipos"
-from = "fnv1a64:a3292963e3af464b"
+from = "fnv1a64:ade31e8570ca1516"
 to = "fnv1a64:2170891af39bd205"
 expect_file = "src/parser/mod.rs"
 expect_domain = "declaracoes"
@@ -775,6 +780,15 @@ to = "fnv1a64:7b3d8b1505c94523"
 expect_file = "src/parser/expressoes.rs"
 expect_domain = "texto"
 expect_layer = "parser"
+
+[[rules]]
+op = "override-hash"
+key = "token.lexico.vocabulario"
+from = "fnv1a64:9fc6f2a2fdfdda7c"
+to = "fnv1a64:653844565d2d2327"
+expect_file = "src/token.rs"
+expect_domain = "lexico"
+expect_layer = "token"
 
 [[rules]]
 op = "override-region"
@@ -815,7 +829,7 @@ expect_layer = "ast"
 [[rules]]
 op = "override-region"
 key = "ast.programa.estrutura"
-from_hash = "fnv1a64:066262536408a80a"
+from_hash = "fnv1a64:1fbebb7b20aac74b"
 to_hash = "fnv1a64:cfb11086f045d187"
 from_summary = "Estrutura de topo do programa na AST: pacote, imports e itens (funções, structs, enums, tratos/impl, aliases e constantes), cada declaração com seu span e serialização JSON. `FunctionDecl` transporta dois fatos que o nome não pode responder: `impl_facts`, que diz de qual alvo de `impl` o método é, e — desde a #592 — `trait_default_body`, fonte única de que a função foi materializada a partir de um corpo default de trato, com o papel operacional (`SelectedAsImpl`, `CheckOnly`, `Dependency`) e a grafia do trato declarante. O corpo materializado pertence à unidade que DECLAROU o trato, e é o fato, não o prefixo do nome sintético, que diz isso à resolução modular; a distinção de papel existe porque só o primeiro entra em `method_index`/vtable, só o segundo é endereçado por conteúdo, e o terceiro nem é método."
 to_summary = "Estrutura de topo do programa na AST: pacote, imports e itens (funções, structs, enums, tratos/impl, aliases e constantes), cada declaração com seu span e serialização JSON."
@@ -1161,7 +1175,7 @@ expect_layer = "cli"
 [[rules]]
 op = "override-region"
 key = "cli.modulos.importacao"
-from_hash = "fnv1a64:5230d3086bc73488"
+from_hash = "fnv1a64:f3aa3630167666f4"
 to_hash = "fnv1a64:ec330060a090d4c0"
 from_summary = "parse_program_from_source tokeniza e parseia uma string de fonte já vinculada ao SourceId da unidade, entregando ao parser o contexto de import resolvido antes do parse. base_dir_de devolve o diretório de resolução dos `.pink`; contexto_de_import responde, ANTES do parse, as perguntas que o parser não pode responder sozinho: quais nomes de `trazer X.y;` são módulo Pinker real (via modulo_real_existe), que identidades de topo os `trazer <modulo>;` deste arquivo trazem, que tratos os imports explícitos autorizam como alvo de `impl` (#517), quais closures sintéticas os corpos default desses tratos citam (#567) e se alguma dessas leituras falhou (import_incompleto). As três últimas saem de uma leitura só por módulo em contexto_de_import_com_pilha, best-effort, sem diagnóstico próprio e DIRETA — só os itens do próprio módulo entram, então nenhum reexport implícito nasce daí. A leitura de cada módulo monta o contexto DELE pela mesma conta, porque ler o vizinho com contexto vazio era ler um arquivo diferente do que o carregador lê em seguida; a pilha `visitando` é o análogo de `loading` e para em ciclo sem contribuir. Ausência de `<módulo>.pink` na forma seletiva é classificada como o carregador a classifica: família built-in não corresponde a arquivo e a ausência é legítima; módulo que não existe é erro dele. Quando uma leitura falha ou o módulo pedido não existe, o parser não converte a própria cegueira em recusa: import_incompleto suspende a recusa de `impl` sobre trato não visto, e o carregador produz o erro real do módulo — ausente, ilegível ou em ciclo — com o span e a fonte certos. load_module_program registra a fonte do módulo no SourceMap antes de parseá-lo, detecta ciclo comparando com a pilha `loading`, recursa nos imports do módulo — pulando ali a mesma família built-in que o programa raiz pula — e só então insere a unidade no ModuleGraph, de modo que a ordem de inserção já seja ordem de dependência. carregar_e_projetar é o ponto de entrada: monta o grafo sem descartar nada da unidade, valida cada import da raiz pela superfície que o importador passa a enxergar (colisão com item local, colisão entre imports, import duplicado, símbolo inexistente) SEM materializar item algum, roda a validação modular local de cada unidade com os imports de família que ela escreveu, resolve o grafo para identidades canônicas e só então o projeta num Program único. Import de família built-in continua sem virar item e sobrevive na projeção para a autoridade semântica validá-lo. colher_closures_de_default acompanha o trato trazido, na mesma leitura que o produziu: um corpo default que contém closure cita uma função sintética que o parser da unidade declarante levantou para o topo, e entregar o corpo sem ela entrega uma referência sem referente. É um pool de templates — quem materializa é o parser da unidade que fez o `impl`, e só o que o corpo alcança entra no programa."
 to_summary = "parse_program_from_source tokeniza e parseia uma string de fonte (sem resolver imports). importable_item_name e importable_item_clone reconhecem e clonam os itens importáveis Function, Const, Struct, TypeAlias, Enum e Trait; qualified_type_item_clone requalifica com o prefixo `<módulo>.` somente Struct e TypeAlias, não Function, Const, Enum ou Trait. load_module_program lê o arquivo `<módulo>.pink` a partir de `base_dir`, detecta ciclo de módulos comparando com a pilha `loading` e recursa nos imports do módulo carregado antes de inserir o programa em `loaded`. load_program_with_imports é o ponto de entrada: para cada import do programa raiz, pula famílias built-in importáveis, detecta import duplicado pela chave `módulo::símbolo`, carrega o módulo via load_module_program e insere os itens importados (todo o módulo ou um símbolo específico) em `root_program.items`, reportando colisão de nome com itens locais ou com outro import antes de limpar `root_program.imports`."
@@ -2017,7 +2031,7 @@ expect_layer = "semantica"
 [[rules]]
 op = "override-region"
 key = "lexer.fluxo.tokenizacao"
-from_hash = "fnv1a64:5e24d65a16d234cd"
+from_hash = "fnv1a64:5e99bd53c2048429"
 to_hash = "fnv1a64:19ac3ed0e784945d"
 expect_file = "src/lexer.rs"
 expect_domain = "lexico"
@@ -2071,7 +2085,7 @@ expect_layer = "parser"
 [[rules]]
 op = "override-region"
 key = "parser.closures.expressao"
-from_hash = "fnv1a64:7a0b3821c81c9426"
+from_hash = "fnv1a64:ac46bca03fbf2736"
 to_hash = "fnv1a64:f374c2b2eb1b9d4c"
 from_summary = "Funções anônimas e vínculos de valor-função: reconhece a closure `(params) -> tipo { corpo }`, materializa sua identidade sintética com proveniência canônica da fonte mais índice local e reconhece os `nova f = ...` que ligam nomes a funções, mantendo o escopo de aliases de valor-função e produzindo `ast::Expr`/vínculos locais."
 to_summary = "Funções anônimas e vínculos de valor-função: reconhece a closure `(params) -> tipo { corpo }` e os `nova f = ...` que ligam nomes a funções, mantendo o escopo de aliases de valor-função e produzindo `ast::Expr`/vínculos locais."
@@ -2153,7 +2167,7 @@ to_file = "src/parser.rs"
 [[rules]]
 op = "override-region"
 key = "parser.funcoes.declaracao"
-from_hash = "fnv1a64:3150b41ae0cc4cf1"
+from_hash = "fnv1a64:24d78ef9c74154f7"
 to_hash = "fnv1a64:ed8f8585939365d0"
 from_summary = "Declaração de função: reconhece `carinho nome<params-de-tipo>(params) -> tipo { corpo }`, incluindo os parâmetros de tipo genéricos opcionais, e produz o nó `ast::FunctionDecl`."
 to_summary = "Declaração de função: reconhece `carinho nome<params-de-tipo>(params) -> tipo { corpo }`, incluindo os parâmetros de tipo genéricos opcionais, e produz o nó `ast::FunctionDecl`."
@@ -2165,7 +2179,7 @@ expect_layer = "parser"
 [[rules]]
 op = "override-region"
 key = "parser.genericos.funcoes-instanciacao"
-from_hash = "fnv1a64:2ad0b1bf357add02"
+from_hash = "fnv1a64:9302f240518134b7"
 to_hash = "fnv1a64:bebfe84d79c2f4c3"
 expect_file = "src/parser/genericos.rs"
 to_file = "src/parser.rs"
@@ -2231,7 +2245,7 @@ expect_layer = "parser"
 [[rules]]
 op = "override-region"
 key = "parser.programa.estrutura"
-from_hash = "fnv1a64:4cfe761e3e8caf63"
+from_hash = "fnv1a64:144684d3a7655277"
 to_hash = "fnv1a64:c8ac56b28a5a6113"
 from_summary = "Ponto de entrada do parser: constrói o `Program` reconhecendo `pacote`, `trazer` (imports) e a marca freestanding, e despacha os itens de topo via `parse_item`. Desde a #533 a declaração `trazer` aceita vários membros de UM módulo (`trazer M.a, b, c;`) e desaçucara ali mesmo para as unidades `Import` de sempre, na ordem textual, sem que nada a jusante conheça multi-import; a leitura da declaração é `ler_declaracao_trazer`, a mesma que os prepasses de import usam, e o caminho de cursor só produz o diagnóstico das formas recusadas (`M.a, b,;`, `M.a, N.b;`, `M, a;`). Dois prepasses estreitos de autoridade precedem qualquer resolução, ambos sobre tokens e sem resolver tipos: um detecta templates genéricos de usuário antes de registrar o `Resultado<T,E>` builtin, tornando USER_WINS independente da ordem textual; outro colhe as identidades de topo do arquivo (`coletar_nomes_de_topo`), que é o que dá à superfície por família a mesma independência de ordem. A redeclaração continua formando com a produção runtime a conjunção inválida da Parte B1."
 to_summary = "Ponto de entrada do parser: constrói o `Program` reconhecendo `pacote`, `trazer` (imports) e a marca freestanding, e despacha os itens de topo (funções, structs, leques, tratos, impl, aliases, constantes) via `parse_item`. Predeclara os leques genéricos da biblioteca padrão (Fase 241, `Resultado<T,E>`) antes do laço de itens e suprime o predeclarado quando o usuário declara o mesmo nome."

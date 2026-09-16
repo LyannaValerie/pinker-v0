@@ -1,0 +1,6 @@
+pacote main;
+trazer visibilidade_privado_modulo.dobrar;
+
+carinho principal() -> bombom {
+    mimo dobrar(1);
+}

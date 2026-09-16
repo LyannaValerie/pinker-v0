@@ -936,8 +936,36 @@ impl Parser {
     }
 
     fn parse_item(&mut self) -> Result<Item, PinkerError> {
+        // O marcador de visibilidade precede o item e não é ele mesmo um item.
+        // Recorte declarado: só `carinho` de topo o aceita. Recusar os demais
+        // aqui, com o nome do construto na mensagem, é mais honesto do que
+        // aceitar o token e ignorá-lo silenciosamente em ninho/leque/trato.
+        let privado_span = if self.match_token(TokenKind::KwPrivado) {
+            Some(self.previous().span)
+        } else {
+            None
+        };
+
+        if let Some(span) = privado_span {
+            if !self.check(TokenKind::KwCarinho) {
+                return Err(PinkerError::Expected {
+                    expected: "`carinho` após `privado` (neste recorte só funções de topo aceitam o marcador de visibilidade)".to_string(),
+                    found: self
+                        .peek()
+                        .map(|token| token.lexeme.clone())
+                        .unwrap_or_default(),
+                    span: merge_span(span, self.peek_span()),
+                });
+            }
+        }
+
         if self.match_token(TokenKind::KwCarinho) {
-            Ok(Item::Function(self.parse_function()?))
+            let mut funcao = self.parse_function()?;
+            if let Some(span) = privado_span {
+                funcao.visibilidade = Visibilidade::Privada;
+                funcao.span = merge_span(span, funcao.span);
+            }
+            Ok(Item::Function(funcao))
         } else if self.match_token(TokenKind::KwEterno) {
             Ok(Item::Const(self.parse_const()?))
         } else if self.match_token(TokenKind::KwApelido) {
@@ -1549,6 +1577,10 @@ impl Parser {
                 };
 
                 let mut function = FunctionDecl {
+                    // Método materializado de `trato` não é item de topo da
+                    // fonte e nunca foi alvo de `trazer`; nasce `Publica`
+                    // porque a superfície modular não passa por ele.
+                    visibilidade: Visibilidade::Publica,
                     name,
                     impl_facts: is_generated_impl_default.then(|| ImplFunctionFacts {
                         target_ty: target_ty.clone(),
@@ -2038,6 +2070,9 @@ impl Parser {
         self.collection_types = saved_collection_types;
         let span = merge_span(start_span, body.span);
         let function = FunctionDecl {
+            // Função sintética de literal `carinho`: não tem grafia de fonte
+            // no topo, logo não é superfície modular.
+            visibilidade: Visibilidade::Publica,
             name: name.clone(),
             impl_facts: None,
             trait_default_body: None,
@@ -2259,6 +2294,9 @@ impl Parser {
         let body = self.parse_callable_body(&params, ret_type.is_some())?;
 
         Ok(FunctionDecl {
+            // O ausente é `Publica`; `parse_item` sobrescreve quando a fonte
+            // escreveu o marcador.
+            visibilidade: Visibilidade::Publica,
             name,
             impl_facts: None,
             trait_default_body: None,

@@ -1,0 +1,12 @@
+pacote visibilidade_privado_modulo;
+
+// `privado` fecha a função para OUTRAS unidades, não para esta. `dobrar`
+// continua chamável aqui dentro, e é assim que a superfície do módulo fica
+// menor que a sua implementação.
+privado carinho dobrar(x: bombom) -> bombom {
+    mimo x + x;
+}
+
+carinho exposta(x: bombom) -> bombom {
+    mimo dobrar(x) + 1;
+}

@@ -244,8 +244,29 @@ fn ler_modulo_com_contexto(
         .ok()
 }
 
+/// Este item está DECLARADO no módulo (com qualquer visibilidade)?
+///
+/// Separado de `importable_item_name` de propósito: quem pergunta "existe?"
+/// não pode receber a mesma resposta de quem pergunta "posso trazer?", senão
+/// um item privado vira um item inexistente e o diagnóstico mente sobre a
+/// causa.
+fn declared_item_name(item: &ast::Item) -> Option<&str> {
+    match item {
+        ast::Item::Function(function) => Some(function.name.as_str()),
+        ast::Item::Const(constant) => Some(constant.name.as_str()),
+        ast::Item::Struct(struct_decl) => Some(struct_decl.name.as_str()),
+        ast::Item::TypeAlias(alias) => Some(alias.name.as_str()),
+        ast::Item::Enum(enum_decl) => Some(enum_decl.name.as_str()),
+        ast::Item::Trait(trait_decl) => Some(trait_decl.name.as_str()),
+    }
+}
+
 fn importable_item_name(item: &ast::Item) -> Option<&str> {
     match item {
+        // Item marcado `privado` sai da superfície que o importador enxerga,
+        // e só dela: continua declarado, continua chamável dentro do próprio
+        // módulo e continua atravessando todas as fases seguintes.
+        ast::Item::Function(function) if function.visibilidade.eh_privada() => None,
         ast::Item::Function(function) => Some(function.name.as_str()),
         ast::Item::Const(constant) => Some(constant.name.as_str()),
         ast::Item::Struct(struct_decl) => Some(struct_decl.name.as_str()),
@@ -404,7 +425,7 @@ pub(super) fn carregar_e_projetar(
     let local_names: HashSet<String> = root_program
         .items
         .iter()
-        .filter_map(importable_item_name)
+        .filter_map(declared_item_name)
         .map(ToOwned::to_owned)
         .collect();
 
@@ -519,11 +540,26 @@ pub(super) fn carregar_e_projetar(
                     .iter()
                     .any(|item| importable_item_name(item) == Some(symbol.as_str()));
                 if !existe {
-                    return Err(PinkerError::Semantic {
-                        msg: format!(
+                    // Declarado mas fora da superfície é uma causa DIFERENTE
+                    // de não declarado, e quem lê o erro precisa saber qual
+                    // das duas corrigir: escrever o item ou abrir o marcador.
+                    let declarado = module_program
+                        .items
+                        .iter()
+                        .any(|item| declared_item_name(item) == Some(symbol.as_str()));
+                    let msg = if declarado {
+                        format!(
+                            "símbolo '{}' é privado no módulo '{}' e não pode ser trazido",
+                            symbol, import.module
+                        )
+                    } else {
+                        format!(
                             "símbolo '{}' não encontrado no módulo '{}'",
                             symbol, import.module
-                        ),
+                        )
+                    };
+                    return Err(PinkerError::Semantic {
+                        msg,
                         span: import.span,
                     });
                 }

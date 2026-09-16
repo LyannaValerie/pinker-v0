@@ -1,0 +1,6 @@
+pacote main;
+trazer visibilidade_privado_modulo.inexistente;
+
+carinho principal() -> bombom {
+    mimo 0;
+}

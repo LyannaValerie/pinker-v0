@@ -338,6 +338,26 @@ pub struct TraitDefaultBody {
     pub trait_spelling: String,
 }
 
+/// Visibilidade de um item de topo perante OUTRA unidade de compilação.
+///
+/// Recorte deliberado: a visibilidade é uma propriedade da superfície modular,
+/// não do espaço de nomes local. `Privada` não esconde o item do próprio
+/// arquivo — só o retira da superfície que `trazer` enxerga. O ausente é
+/// `Publica`, e é isso que preserva a compatibilidade histórica: todo programa
+/// escrito antes deste marcador continua exportando exatamente o que exportava.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Visibilidade {
+    #[default]
+    Publica,
+    Privada,
+}
+
+impl Visibilidade {
+    pub fn eh_privada(self) -> bool {
+        matches!(self, Visibilidade::Privada)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct FunctionDecl {
     pub name: String,
@@ -353,6 +373,11 @@ pub struct FunctionDecl {
     pub ret_type: Option<Type>,
     pub body: Block,
     pub span: Span,
+    /// Superfície modular declarada pela fonte. Funções sintéticas que o
+    /// compilador materializa nascem `Publica` porque não são superfície de
+    /// `trazer`: quem decide o que o importador enxerga é a unidade que
+    /// escreveu o item, não o material derivado dela.
+    pub visibilidade: Visibilidade,
 }
 
 impl FunctionDecl {
@@ -374,6 +399,11 @@ impl FunctionDecl {
         writer.field_str("node", "FunctionDecl");
         writer.field_str("name", &self.name);
         writer.field_span("span", self.span);
+        // O ausente é `Publica`. Emitir o campo sempre reescreveria a AST
+        // textual de todo programa histórico para dizer o que já era verdade.
+        if self.visibilidade.eh_privada() {
+            writer.field_str("visibilidade", "privada");
+        }
         if !self.type_params.is_empty() {
             writer.field_array("type_params", &self.type_params, |writer, type_param| {
                 writer.value_str(type_param)

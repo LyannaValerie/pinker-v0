@@ -1182,6 +1182,11 @@ impl Parser {
                 name: mono_name,
                 impl_facts: None,
                 trait_default_body: template.trait_default_body.clone(),
+                // A cópia monomorfizada é a MESMA declaração da fonte vista
+                // por um tipo concreto; herdar a visibilidade do template é o
+                // que impede uma especialização de reabrir o que o autor
+                // fechou.
+                visibilidade: template.visibilidade,
                 type_params: Vec::new(),
                 params: template
                     .params
@@ -1239,6 +1244,11 @@ impl Parser {
                 name: mono_name,
                 impl_facts: None,
                 trait_default_body: template.trait_default_body.clone(),
+                // A cópia monomorfizada é a MESMA declaração da fonte vista
+                // por um tipo concreto; herdar a visibilidade do template é o
+                // que impede uma especialização de reabrir o que o autor
+                // fechou.
+                visibilidade: template.visibilidade,
                 type_params: Vec::new(),
                 params: template
                     .params
