@@ -18,6 +18,7 @@ use crate::symbol_index::{ExtractedCandidate, LocateReport, TextualOccurrence};
 use std::fmt;
 use std::fs;
 use std::io;
+use std::ops::Range;
 use std::path::Path;
 
 /// Orçamento determinístico de resultados por página, somando as três classes.
@@ -227,6 +228,10 @@ where
 /// original só é usada para compor o trecho devolvido; a decisão estrutural
 /// vem sempre do texto mascarado, então comentário, string, string crua e
 /// literal de caractere não podem virar declaração.
+///
+/// A fronteira de macro é consultada por posição de byte, nunca por linha: uma
+/// linha pode começar fora do token tree e continuar dentro, ou começar dentro
+/// e terminar fora, e nos dois casos só a posição do token observado decide.
 fn scan_file(
     path: &str,
     source: &str,
@@ -240,44 +245,48 @@ fn scan_file(
     }
     let source_lines: Vec<&str> = source.lines().collect();
     let masked_lines: Vec<&str> = masked.lines().collect();
+    let line_starts = line_offsets(masked);
     let mut contexts: Vec<(usize, String)> = Vec::new();
     let mut depth: usize = 0;
     let mut attributes_present = false;
     let mut cfg_present = false;
-    // Onde cada linha cai em relação aos token trees de macro do arquivo.
-    let macro_lines = macro_token_tree_lines(masked);
+    // Intervalos de bytes ocupados pelos token trees de macro do arquivo.
+    let macro_spans = macro_token_tree_spans(masked);
 
     for (index, masked_line) in masked_lines.iter().enumerate() {
         let trimmed = masked_line.trim();
+        // Deslocamento absoluto do primeiro byte de `trimmed` dentro da visão
+        // mascarada: é a partir dele que cada token recupera sua posição.
+        let base = line_starts[index] + (masked_line.len() - masked_line.trim_start().len());
         while contexts.last().is_some_and(|(opened, _)| *opened > depth) {
             contexts.pop();
         }
-        let inside_macro_template = macro_lines.get(index).copied().unwrap_or(false);
 
         if trimmed.starts_with("#[") || trimmed.starts_with("#![") {
             attributes_present = true;
             cfg_present = cfg_present || contains_word(trimmed, "cfg");
-            depth = next_depth(depth, trimmed);
+            depth = next_depth(depth, trimmed, base, &macro_spans);
             continue;
         }
 
         // Dentro de um token tree de macro a fonte não é Rust ordinário: o que
-        // parece declaração é token que ainda não foi expandido.
-        let declared = if inside_macro_template {
-            None
-        } else {
-            declaration(trimmed)
-        };
-        let structural_hit = declared.is_some_and(|(_, name)| name == query);
+        // parece declaração é token que ainda não foi expandido. O teste é
+        // sobre os tokens materiais do reconhecimento, não sobre a linha: uma
+        // linha que contém macro pode ainda declarar fora dela.
+        let declared = declaration(trimmed).filter(|found| {
+            !inside_macro(&macro_spans, base + found.keyword_at)
+                && !inside_macro(&macro_spans, base + found.name_at)
+        });
+        let structural_hit = declared.as_ref().is_some_and(|found| found.name == query);
 
-        if let Some((kind, name)) = declared {
-            if name == query {
+        if let Some(found) = &declared {
+            if found.name == query {
                 let end = signature_end(&masked_lines, index);
                 let (snippet, snippet_truncated) = snippet_for(&source_lines, index, end);
                 extracted.push(ExtractedCandidate {
                     path: path.to_string(),
-                    kind: kind.to_string(),
-                    name: name.to_string(),
+                    kind: found.kind.to_string(),
+                    name: found.name.to_string(),
                     start: index + 1,
                     end: end + 1,
                     context: context_label(&contexts),
@@ -289,46 +298,96 @@ fn scan_file(
             }
         }
 
-        if !structural_hit && contains_word(trimmed, query) {
-            let (snippet, snippet_truncated) = snippet_for(&source_lines, index, index);
-            textual.push(TextualOccurrence {
-                path: path.to_string(),
-                line: index + 1,
-                snippet,
-                snippet_truncated,
-                limitation: if inside_macro_template {
-                    MACRO_TEMPLATE_LIMITATION.to_string()
-                } else {
-                    TEXTUAL_LIMITATION.to_string()
-                },
-            });
+        // O fallback textual continua lendo a mesma visão mascarada: o token
+        // tree nunca é apagado, só delimitado, então o texto interno segue
+        // pesquisável — com a limitação de macro quando a palavra encontrada
+        // cai dentro do intervalo.
+        if !structural_hit {
+            if let Some(found_at) = word_at(trimmed, query) {
+                let (snippet, snippet_truncated) = snippet_for(&source_lines, index, index);
+                textual.push(TextualOccurrence {
+                    path: path.to_string(),
+                    line: index + 1,
+                    snippet,
+                    snippet_truncated,
+                    limitation: if inside_macro(&macro_spans, base + found_at) {
+                        MACRO_TEMPLATE_LIMITATION.to_string()
+                    } else {
+                        TEXTUAL_LIMITATION.to_string()
+                    },
+                });
+            }
         }
 
-        if let Some(label) = container_label(trimmed) {
-            if !inside_macro_template && trimmed.contains('{') {
+        // Chave e palavra-chave internas a token tree não abrem contexto Rust
+        // ordinário para candidato externo.
+        if let Some((keyword_at, label)) = container_label(trimmed) {
+            let brace_at = trimmed.find('{');
+            if !inside_macro(&macro_spans, base + keyword_at)
+                && brace_at.is_some_and(|at| !inside_macro(&macro_spans, base + at))
+            {
                 contexts.push((depth + 1, label));
             }
         }
 
-        depth = next_depth(depth, trimmed);
+        depth = next_depth(depth, trimmed, base, &macro_spans);
         attributes_present = false;
         cfg_present = false;
     }
 }
 
-/// Saldo de chaves da linha mascarada. Chave dentro de string ou comentário já
-/// foi apagada pela máscara e por isso não movimenta a profundidade.
-fn next_depth(depth: usize, masked_line: &str) -> usize {
-    let opens = masked_line.bytes().filter(|byte| *byte == b'{').count();
-    let closes = masked_line.bytes().filter(|byte| *byte == b'}').count();
-    depth.saturating_add(opens).saturating_sub(closes)
+/// Saldo de chaves da linha mascarada, ignorando as que pertencem a um token
+/// tree de macro. Chave dentro de string ou comentário já foi apagada pela
+/// máscara e por isso também não movimenta a profundidade.
+fn next_depth(depth: usize, masked_line: &str, base: usize, spans: &[Range<usize>]) -> usize {
+    let mut depth = depth;
+    for (offset, byte) in masked_line.bytes().enumerate() {
+        if inside_macro(spans, base + offset) {
+            continue;
+        }
+        match byte {
+            b'{' => depth = depth.saturating_add(1),
+            b'}' => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+    }
+    depth
+}
+
+/// Deslocamento de byte onde cada linha começa, na mesma ordem e na mesma
+/// quantidade que `lines()`.
+fn line_offsets(text: &str) -> Vec<usize> {
+    let mut offset = 0;
+    text.split_inclusive('\n')
+        .map(|chunk| {
+            let start = offset;
+            offset += chunk.len();
+            start
+        })
+        .collect()
+}
+
+/// Se a posição de byte pertence a algum token tree de macro.
+fn inside_macro(spans: &[Range<usize>], position: usize) -> bool {
+    spans.iter().any(|span| span.contains(&position))
+}
+
+/// Declaração reconhecida e onde os tokens materiais do reconhecimento foram
+/// observados, em deslocamento de byte relativo à linha mascarada. A posição
+/// existe porque a fronteira de macro é posicional: saber *que* uma declaração
+/// foi reconhecida não basta, é preciso saber *onde*.
+struct Declaration<'a> {
+    kind: &'static str,
+    name: &'a str,
+    keyword_at: usize,
+    name_at: usize,
 }
 
 /// Reconhece uma declaração suportada quando a palavra-chave abre a linha,
 /// admitidos apenas modificadores antes dela. A restrição é deliberada: ela
 /// mantém o extrator previsível e transforma a sintaxe fora do subconjunto em
 /// limitação declarada, nunca em identidade inventada.
-fn declaration(masked_line: &str) -> Option<(&'static str, &str)> {
+fn declaration(masked_line: &str) -> Option<Declaration<'_>> {
     // `$` fora de literal só existe em token tree de macro, e `words` apagaria
     // o sigilo: `pub fn $name()` viraria a declaração `name`. Uma metavariável
     // não é um nome declarado, então a linha inteira deixa de ser estrutural.
@@ -336,50 +395,57 @@ fn declaration(masked_line: &str) -> Option<(&'static str, &str)> {
         return None;
     }
     let tokens = words(masked_line);
-    for (position, token) in tokens.iter().enumerate() {
+    for (position, (keyword_at, token)) in tokens.iter().enumerate() {
         if let Some((_, kind)) = DECLARATION_KEYWORDS
             .iter()
             .find(|(keyword, _)| keyword == token)
         {
             if !tokens[..position]
                 .iter()
-                .all(|earlier| MODIFIERS.contains(earlier))
+                .all(|(_, earlier)| MODIFIERS.contains(earlier))
             {
                 return None;
             }
-            let name = tokens.get(position + 1)?;
+            let (name_at, name) = *tokens.get(position + 1)?;
             if name.chars().next().is_some_and(|c| c.is_ascii_digit()) {
                 return None;
             }
             if DECLARATION_KEYWORDS
                 .iter()
-                .any(|(keyword, _)| keyword == name)
+                .any(|(keyword, _)| *keyword == name)
             {
                 return None;
             }
-            return Some((kind, name));
+            return Some(Declaration {
+                kind,
+                name,
+                keyword_at: *keyword_at,
+                name_at,
+            });
         }
     }
     None
 }
 
-/// Rótulo do contexto aberto pela linha, preservado literalmente até a chave.
-/// Preservar o texto observado evita inventar uma resolução entre `impl` e
-/// `trait` que este módulo não possui.
-fn container_label(masked_line: &str) -> Option<String> {
+/// Rótulo do contexto aberto pela linha, preservado literalmente até a chave, e
+/// onde a palavra-chave do contêiner foi observada. Preservar o texto observado
+/// evita inventar uma resolução entre `impl` e `trait` que este módulo não
+/// possui; preservar a posição permite recusar um contêiner que só existe
+/// dentro de um token tree de macro.
+fn container_label(masked_line: &str) -> Option<(usize, String)> {
     let tokens = words(masked_line);
     let position = tokens
         .iter()
-        .position(|token| CONTAINER_KEYWORDS.contains(token))?;
+        .position(|(_, token)| CONTAINER_KEYWORDS.contains(token))?;
     if !tokens[..position]
         .iter()
-        .all(|earlier| MODIFIERS.contains(earlier))
+        .all(|(_, earlier)| MODIFIERS.contains(earlier))
     {
         return None;
     }
     let label = masked_line.split('{').next()?.split_whitespace();
     let label = label.collect::<Vec<_>>().join(" ");
-    (!label.is_empty()).then_some(label)
+    (!label.is_empty()).then_some((tokens[position].0, label))
 }
 
 /// Contexto estrutural acumulado, do mais externo ao mais interno. Homônimos
@@ -429,16 +495,27 @@ fn snippet_for(source_lines: &[&str], start: usize, end: usize) -> (String, bool
     (snippet, truncated)
 }
 
-/// Palavras de identificador da linha mascarada.
-fn words(masked_line: &str) -> Vec<&str> {
-    masked_line
-        .split(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
-        .filter(|word| !word.is_empty())
-        .collect()
+/// Palavras de identificador da linha mascarada, com o deslocamento de byte de
+/// cada uma dentro da linha.
+fn words(masked_line: &str) -> Vec<(usize, &str)> {
+    let bytes = masked_line.as_bytes();
+    let mut found = Vec::new();
+    let mut index = 0;
+    while index < bytes.len() {
+        if !is_identifier_byte(bytes[index]) {
+            index += 1;
+            continue;
+        }
+        let start = index;
+        while index < bytes.len() && is_identifier_byte(bytes[index]) {
+            index += 1;
+        }
+        found.push((start, &masked_line[start..index]));
+    }
+    found
 }
 
-/// Marca, linha a linha, se a primeira posição não-branca da linha está dentro
-/// de um token tree de macro.
+/// Intervalos de bytes ocupados pelos token trees de macro da visão mascarada.
 ///
 /// A gramática de Rust é a autoridade aqui: uma invocação é `SimplePath !
 /// DelimTokenTree`, e o delimitador pode ser `(`, `[` ou `{`. `macro_rules!`
@@ -450,71 +527,76 @@ fn words(masked_line: &str) -> Vec<&str> {
 /// Este módulo não expande macro, logo não tem autoridade para ler o conteúdo
 /// de um token tree como Rust ordinário — nem quando ele parece Rust ordinário.
 ///
-/// A posição medida é o primeiro caractere não-branco de cada linha porque é
-/// dali que [`declaration`] parte: uma declaração depois do fecho da macro
-/// continua sendo declaração.
-fn macro_token_tree_lines(masked: &str) -> Vec<bool> {
-    let mut inside_line = Vec::new();
+/// A granularidade é a posição de byte, não a linha: a mesma linha pode abrir
+/// um token tree depois de código externo, ou fechá-lo antes de código externo,
+/// e uma marca por linha mentiria nos dois casos. O intervalo devolvido cobre o
+/// delimitador de abertura, o conteúdo e o delimitador de fechamento; aninhamento
+/// é absorvido pelo intervalo mais externo. Um token tree que nunca fecha é
+/// reportado até o fim do arquivo, porque a fonte deixou de ser Rust ordinário
+/// dali em diante.
+fn macro_token_tree_spans(masked: &str) -> Vec<Range<usize>> {
+    let mut spans: Vec<Range<usize>> = Vec::new();
     let mut closers: Vec<u8> = Vec::new();
+    let mut opened_at = 0;
     let mut awaiting_delimiter = false;
     let mut allow_macro_name = false;
+    let mut path_tail: Vec<u8> = Vec::new();
 
-    for line in masked.lines() {
-        let mut recorded: Option<bool> = None;
-        let mut path_tail: Vec<u8> = Vec::new();
-        for byte in line.bytes() {
-            if recorded.is_none() && !byte.is_ascii_whitespace() {
-                recorded = Some(!closers.is_empty());
-            }
-
-            if !closers.is_empty() {
-                if let Some(closer) = closing_delimiter(byte) {
-                    closers.push(closer);
-                } else if closers.last() == Some(&byte) {
-                    closers.pop();
+    for (position, byte) in masked.bytes().enumerate() {
+        if !closers.is_empty() {
+            if let Some(closer) = closing_delimiter(byte) {
+                closers.push(closer);
+            } else if closers.last() == Some(&byte) {
+                closers.pop();
+                if closers.is_empty() {
+                    spans.push(opened_at..position + 1);
                 }
+            }
+            continue;
+        }
+
+        if byte == b'!' {
+            // Um `!` precedido de caminho abre uma invocação; precedido de
+            // espaço ou de `>` ele é negação ou o tipo `!`, nunca macro.
+            if !path_tail.is_empty() {
+                awaiting_delimiter = true;
+                allow_macro_name = path_tail == b"macro_rules";
+            }
+            path_tail.clear();
+            continue;
+        }
+
+        if awaiting_delimiter {
+            if byte.is_ascii_whitespace() {
                 continue;
             }
-
-            if byte == b'!' {
-                // Um `!` precedido de caminho abre uma invocação; precedido de
-                // espaço ou de `>` ele é negação ou o tipo `!`, nunca macro.
-                if !path_tail.is_empty() {
-                    awaiting_delimiter = true;
-                    allow_macro_name = path_tail == b"macro_rules";
-                }
-                path_tail.clear();
-                continue;
-            }
-
-            if awaiting_delimiter {
-                if byte.is_ascii_whitespace() {
-                    continue;
-                }
-                if let Some(closer) = closing_delimiter(byte) {
-                    closers.push(closer);
-                    awaiting_delimiter = false;
-                    allow_macro_name = false;
-                    continue;
-                }
-                // `macro_rules ! IDENTIFIER MacroRulesDef`: só essa forma tem um
-                // nome entre o `!` e o delimitador.
-                if allow_macro_name && is_identifier_byte(byte) {
-                    continue;
-                }
+            if let Some(closer) = closing_delimiter(byte) {
+                closers.push(closer);
+                opened_at = position;
                 awaiting_delimiter = false;
                 allow_macro_name = false;
+                continue;
             }
-
-            if is_identifier_byte(byte) {
-                path_tail.push(byte);
-            } else {
-                path_tail.clear();
+            // `macro_rules ! IDENTIFIER MacroRulesDef`: só essa forma tem um
+            // nome entre o `!` e o delimitador.
+            if allow_macro_name && is_identifier_byte(byte) {
+                continue;
             }
+            awaiting_delimiter = false;
+            allow_macro_name = false;
         }
-        inside_line.push(recorded.unwrap_or(!closers.is_empty()));
+
+        if is_identifier_byte(byte) {
+            path_tail.push(byte);
+        } else {
+            path_tail.clear();
+        }
     }
-    inside_line
+
+    if !closers.is_empty() {
+        spans.push(opened_at..masked.len());
+    }
+    spans
 }
 
 /// O fechamento correspondente de um delimitador de token tree.
@@ -534,8 +616,19 @@ fn is_identifier_byte(byte: u8) -> bool {
     byte.is_ascii_alphanumeric() || byte == b'_'
 }
 
+/// Deslocamento da primeira palavra inteira igual à consulta, nunca substring.
+fn word_at(masked_line: &str, query: &str) -> Option<usize> {
+    if query.is_empty() {
+        return None;
+    }
+    words(masked_line)
+        .into_iter()
+        .find(|(_, word)| *word == query)
+        .map(|(offset, _)| offset)
+}
+
 /// Igualdade de palavra inteira, nunca substring.
 fn contains_word(masked_line: &str, query: &str) -> bool {
-    !query.is_empty() && words(masked_line).iter().any(|word| *word == query)
+    word_at(masked_line, query).is_some()
 }
 // @pinker-nav:end trama.simbolos.extracao

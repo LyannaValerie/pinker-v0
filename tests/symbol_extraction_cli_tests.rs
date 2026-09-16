@@ -177,6 +177,61 @@ pub fn negation_and_inequality(flag: bool) -> bool {
 pub struct AfterNeverType;
 "####;
 
+/// Fonte dedicada à fronteira lexical de macro medida por posição, não por
+/// linha. Cada bloco existe para uma propriedade distinta: abertura na mesma
+/// linha do primeiro token interno, fechamento seguido de código externo na
+/// mesma linha, aninhamento, máscara lexical e contaminação de contexto.
+const MACRO_BOUNDARY: &str = r####"some_macro!
+{ pub struct GhostCurlySameLine; }
+
+some_macro!
+(pub struct GhostParenSameLine;);
+
+some_macro!
+[pub struct GhostBracketSameLine;];
+
+some_macro!
+{
+    pub struct InternalOnly;
+}
+
+pub struct LegitimateAfterMacro;
+
+outer_macro! {
+    inner_macro! {
+        pub struct NestedGhost;
+    }
+}
+
+pub struct AfterNestedMacro;
+
+pub fn lexical_mask_holder() -> usize {
+    let a = "{";
+    let b = "some_macro! { pub struct GhostInString; }";
+    // some_macro! { pub struct GhostInLineComment; }
+    /* some_macro! [ pub struct GhostInBlockComment; ] */
+    a.len() + b.len()
+}
+
+pub struct AfterLexicalMask;
+
+contaminating_macro! {
+    mod FakeContainer {
+        impl FakeThing {
+            pub fn ghost() {}
+} } } pub fn real_after_macro() {}
+
+pub fn boundary_negation(flag: bool) -> bool {
+    !flag && 3 != 4
+}
+
+pub fn boundary_never() -> ! {
+    loop {}
+}
+
+pub struct AfterBoundaryBang;
+"####;
+
 struct Repo(PathBuf);
 
 impl Repo {
@@ -275,6 +330,17 @@ fn assert_success(output: &Output) {
 fn count(json: &str, classification: &str) -> usize {
     json.matches(&format!("\"classification\":\"{classification}\""))
         .count()
+}
+
+/// Linha, contada de 1, onde a fixture grafou um nome. Calcular a linha a
+/// partir do próprio texto mantém a asserção de intervalo exata sem transformar
+/// a fixture num conjunto de números mágicos.
+fn line_of(source: &str, needle: &str) -> usize {
+    source
+        .lines()
+        .position(|line| line.contains(needle))
+        .unwrap_or_else(|| panic!("fixture perdeu {needle}"))
+        + 1
 }
 
 /// Recorta o objeto JSON de um candidato extraído por caminho e linha inicial,
@@ -879,6 +945,123 @@ fn token_tree_de_macro_nao_vira_declaracao_estrutural() {
     let invocation = locate_json(repo.path(), "macro_made_fn");
     assert_eq!(count(&invocation, "EXTRACTED_CANDIDATE"), 0, "{invocation}");
     assert_eq!(count(&invocation, "TEXTUAL_OCCURRENCE"), 1, "{invocation}");
+}
+
+// F6 — a fronteira do token tree de macro é posicional, não por linha.
+//
+// Uma marca por linha responde apenas "esta linha começa dentro de macro?", e
+// isso é granular demais em ambos os sentidos: a mesma linha pode começar fora
+// e abrir o token tree logo em seguida, ou começar dentro e continuar com
+// código externo depois do fechamento. Cada bloco abaixo ataca uma dessas duas
+// mentiras, mais o aninhamento, a máscara lexical e a contaminação de contexto
+// estrutural.
+#[test]
+fn fronteira_de_macro_e_posicional_nao_por_linha() {
+    let repo = fixture("f6");
+    let path = "src/macro_boundary.rs";
+    write(repo.path(), path, MACRO_BOUNDARY);
+
+    // Negativos: o nome só existe dentro do token tree, então ele nunca é
+    // declaração — mas continua pesquisável como ocorrência textual limitada.
+    for (case, name) in [
+        // Abertura na mesma linha do primeiro token interno, nos três
+        // delimitadores. É aqui que a marca por linha dizia "fora".
+        ("SAME_LINE_CURLY", "GhostCurlySameLine"),
+        ("SAME_LINE_PAREN", "GhostParenSameLine"),
+        ("SAME_LINE_BRACKET", "GhostBracketSameLine"),
+        // Interior de um token tree aberto em linha própria.
+        ("MACRO_INTERNAL", "InternalOnly"),
+        // Aninhamento: a pilha de delimitadores precisa provar seu valor.
+        ("NESTED", "NestedGhost"),
+        // Contaminação de contexto: nem o contêiner nem o item interno saem.
+        ("CONTAMINATION_MOD", "FakeContainer"),
+        ("CONTAMINATION_IMPL", "FakeThing"),
+        ("CONTAMINATION_ITEM", "ghost"),
+    ] {
+        let json = locate_json(repo.path(), name);
+        assert_eq!(
+            count(&json, "EXPLICIT_SYMBOL"),
+            0,
+            "{case}: {name} virou identidade: {json}"
+        );
+        assert_eq!(
+            count(&json, "EXTRACTED_CANDIDATE"),
+            0,
+            "{case}: {name} virou declaração estrutural: {json}"
+        );
+        assert_eq!(
+            count(&json, "TEXTUAL_OCCURRENCE"),
+            1,
+            "{case}: {name} perdeu o fallback textual: {json}"
+        );
+        assert!(
+            json.contains("\"limitation\":\"macro_token_tree_not_a_declaration\""),
+            "{case}: {name} sem a limitação de macro: {json}"
+        );
+    }
+
+    // O token tree não é apagado da visão pesquisada: o trecho devolvido é a
+    // linha original inteira, com os delimitadores no lugar. Apagar o intervalo
+    // uniria tokens vizinhos e fabricaria sintaxe que a fonte não tem.
+    let curly = locate_json(repo.path(), "GhostCurlySameLine");
+    assert!(
+        curly.contains("\"snippet\":\"{ pub struct GhostCurlySameLine; }\""),
+        "o trecho textual deixou de vir da fonte observada: {curly}"
+    );
+
+    // Positivos: a fronteira fecha no delimitador correspondente, e o que vem
+    // depois continua sendo Rust ordinário — inclusive na mesma linha do
+    // fechamento. Intervalo e contexto estrutural são afirmados junto com a
+    // classe: provar exclusão sem provar fechamento não prova fronteira.
+    for (case, name, kind, context) in [
+        ("AFTER_MACRO", "LegitimateAfterMacro", "struct", "null"),
+        ("AFTER_NESTED", "AfterNestedMacro", "struct", "null"),
+        ("AFTER_LEXICAL_MASK", "AfterLexicalMask", "struct", "null"),
+        // Fechamento e código externo na mesma linha: a representação distingue
+        // posição antes e depois do fecho, e o contexto não herda nada do
+        // interior do token tree.
+        (
+            "AFTER_SAME_LINE_CLOSE",
+            "real_after_macro",
+            "function",
+            "null",
+        ),
+        (
+            "NEGATION_AND_INEQUALITY",
+            "boundary_negation",
+            "function",
+            "null",
+        ),
+        ("NEVER_TYPE", "boundary_never", "function", "null"),
+        ("AFTER_BANG_FORMS", "AfterBoundaryBang", "struct", "null"),
+    ] {
+        let json = locate_json(repo.path(), name);
+        assert_eq!(
+            count(&json, "EXTRACTED_CANDIDATE"),
+            1,
+            "{case}: {name} deixou de ser declaração estrutural: {json}"
+        );
+        let start = line_of(MACRO_BOUNDARY, name);
+        assert!(
+            json.contains(&format!(
+                "\"classification\":\"EXTRACTED_CANDIDATE\",\"path\":\"{path}\",\"kind\":\"{kind}\",\"name\":\"{name}\",\"start\":{start},\"end\":{start},\"context\":{context},"
+            )),
+            "{case}: {name} perdeu caminho, intervalo ou contexto: {json}"
+        );
+        assert!(
+            !json.contains("FakeContainer") && !json.contains("FakeThing"),
+            "{case}: contexto de dentro do token tree vazou para {name}: {json}"
+        );
+    }
+
+    // Delimitador dentro de comentário ou literal não abre nem fecha intervalo:
+    // a detecção parte da visão lexical já mascarada, e o texto mascarado não é
+    // pesquisável nem como ocorrência textual.
+    for name in ["GhostInString", "GhostInLineComment", "GhostInBlockComment"] {
+        let json = locate_json(repo.path(), name);
+        assert_eq!(count(&json, "EXTRACTED_CANDIDATE"), 0, "{name}: {json}");
+        assert_eq!(count(&json, "TEXTUAL_OCCURRENCE"), 0, "{name}: {json}");
+    }
 }
 
 // C14 — a proveniência do binário é observável, então um `pink` plausível de
