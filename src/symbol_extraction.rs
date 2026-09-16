@@ -132,10 +132,12 @@ pub fn extend(
             }
         };
         let masked = nav::rust_code_mask(&source);
+        let doc_comments = nav::rust_doc_comment_spans(&source);
         scan_file(
             &file.path,
             &source,
             &masked,
+            &doc_comments,
             &query,
             &mut extracted,
             &mut textual,
@@ -236,6 +238,7 @@ fn scan_file(
     path: &str,
     source: &str,
     masked: &str,
+    doc_comments: &[Range<usize>],
     query: &str,
     extracted: &mut Vec<ExtractedCandidate>,
     textual: &mut Vec<TextualOccurrence>,
@@ -251,7 +254,7 @@ fn scan_file(
     let mut attributes_present = false;
     let mut cfg_present = false;
     // Intervalos de bytes ocupados pelos token trees de macro do arquivo.
-    let macro_spans = macro_token_tree_spans(masked);
+    let macro_spans = macro_token_tree_spans(masked, doc_comments);
 
     for (index, masked_line) in masked_lines.iter().enumerate() {
         let trimmed = masked_line.trim();
@@ -515,14 +518,201 @@ fn words(masked_line: &str) -> Vec<(usize, &str)> {
     found
 }
 
+/// Palavras-chave de Rust. Nenhuma delas é identificador, logo nenhuma delas
+/// pode ser o último segmento de um `SimplePath`: `return !flag` e `if !cond`
+/// são negação, não invocação de macro. Um identificador cru (`r#return`) é
+/// identificador mesmo quando grafado como palavra-chave, e por isso não é
+/// consultado aqui.
+const RUST_KEYWORDS: [&str; 51] = [
+    "as", "async", "await", "break", "const", "continue", "crate", "dyn", "else", "enum", "extern",
+    "false", "fn", "for", "if", "impl", "in", "let", "loop", "match", "mod", "move", "mut", "pub",
+    "ref", "return", "self", "Self", "static", "struct", "super", "trait", "true", "type", "union",
+    "unsafe", "use", "where", "while", "abstract", "become", "box", "do", "final", "macro",
+    "override", "priv", "try", "typeof", "unsized", "virtual",
+];
+
+/// Classe léxica de um token material para o reconhecimento de macro. Só
+/// existem as classes que a sequência reconhecida consome; todo o resto é
+/// `Incompatible` e cancela a tentativa em curso.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TokenKind {
+    Identifier,
+    /// `r#nome`: identificador cru, nunca palavra-chave.
+    RawIdentifier,
+    PathSeparator,
+    Bang,
+    /// Delimitador de abertura, carregando o fechamento que lhe corresponde.
+    Open(u8),
+    Close(u8),
+    Incompatible,
+}
+
+/// Token da visão mascarada, com o deslocamento de byte onde começa e o texto
+/// quando ele é identificador.
+struct Token<'a> {
+    kind: TokenKind,
+    start: usize,
+    text: &'a str,
+}
+
+/// Tokeniza a visão mascarada nas classes que o reconhecimento de macro
+/// consome.
+///
+/// Espaço em branco separa tokens e não é token. Comentário comum já virou
+/// espaço na máscara e por isso também separa. Comentário de documentação,
+/// porém, é atributo em Rust, não espaço em branco: seus bytes chegam aqui
+/// apagados como qualquer comentário, então os intervalos preservados por
+/// `rust_doc_comment_spans` são reintroduzidos como token incompatível — tratá-lo
+/// como separador reconheceria uma sequência que a linguagem recusa.
+fn macro_tokens<'a>(masked: &'a str, doc_comments: &[Range<usize>]) -> Vec<Token<'a>> {
+    let bytes = masked.as_bytes();
+    let mut tokens: Vec<Token<'a>> = Vec::new();
+    let mut doc = 0;
+    let mut index = 0;
+
+    while index < bytes.len() {
+        while doc < doc_comments.len() && doc_comments[doc].end <= index {
+            doc += 1;
+        }
+        if let Some(span) = doc_comments.get(doc).filter(|span| span.contains(&index)) {
+            push_token(&mut tokens, TokenKind::Incompatible, index, "");
+            index = span.end;
+            continue;
+        }
+
+        let byte = bytes[index];
+        if byte.is_ascii_whitespace() {
+            index += 1;
+            continue;
+        }
+
+        if let Some(length) = raw_identifier_length(&bytes[index..]) {
+            push_token(
+                &mut tokens,
+                TokenKind::RawIdentifier,
+                index,
+                &masked[index + 2..index + length],
+            );
+            index += length;
+            continue;
+        }
+
+        if byte.is_ascii_alphabetic() || byte == b'_' {
+            let start = index;
+            while index < bytes.len() && is_identifier_byte(bytes[index]) {
+                index += 1;
+            }
+            push_token(
+                &mut tokens,
+                TokenKind::Identifier,
+                start,
+                &masked[start..index],
+            );
+            continue;
+        }
+
+        if byte == b':' && bytes.get(index + 1) == Some(&b':') {
+            push_token(&mut tokens, TokenKind::PathSeparator, index, "");
+            index += 2;
+            continue;
+        }
+
+        let kind = match byte {
+            b'!' => TokenKind::Bang,
+            b'(' => TokenKind::Open(b')'),
+            b'[' => TokenKind::Open(b']'),
+            b'{' => TokenKind::Open(b'}'),
+            b')' | b']' | b'}' => TokenKind::Close(byte),
+            _ => TokenKind::Incompatible,
+        };
+        push_token(&mut tokens, kind, index, "");
+        index += 1;
+    }
+
+    tokens
+}
+
+/// Acrescenta o token, fundindo bytes incompatíveis consecutivos: um número, um
+/// operador composto ou uma pontuação qualquer cancelam a tentativa uma única
+/// vez, e guardar cada byte deles seria só volume.
+fn push_token<'a>(tokens: &mut Vec<Token<'a>>, kind: TokenKind, start: usize, text: &'a str) {
+    if kind == TokenKind::Incompatible
+        && tokens
+            .last()
+            .is_some_and(|last| last.kind == TokenKind::Incompatible)
+    {
+        return;
+    }
+    tokens.push(Token { kind, start, text });
+}
+
+/// Comprimento de `r#nome` quando ele é um identificador cru. A string crua
+/// `r#"..."#` já foi apagada pela máscara, então `r#` seguido de identificador
+/// só pode ser identificador cru.
+fn raw_identifier_length(bytes: &[u8]) -> Option<usize> {
+    if bytes.first() != Some(&b'r') || bytes.get(1) != Some(&b'#') {
+        return None;
+    }
+    let first = *bytes.get(2)?;
+    if !first.is_ascii_alphabetic() && first != b'_' {
+        return None;
+    }
+    let mut length = 2;
+    while bytes
+        .get(length)
+        .is_some_and(|byte| is_identifier_byte(*byte))
+    {
+        length += 1;
+    }
+    Some(length)
+}
+
+/// Se os tokens imediatamente anteriores ao `!` formam um `SimplePath`.
+/// Devolve, além do reconhecimento, se o caminho é exatamente o identificador
+/// `macro_rules` — a única forma que carrega o nome da macro entre o `!` e o
+/// delimitador.
+///
+/// O último segmento precisa ser identificador. Uma palavra-chave não é
+/// identificador, então `return !flag` e `if !cond` param aqui; um identificador
+/// cru continua sendo identificador. Antes dele, `::` só é aceito quando separa
+/// outro segmento, e um `::` inicial é caminho absoluto.
+fn simple_path_before(tokens: &[Token<'_>], bang: usize) -> Option<bool> {
+    let last = bang.checked_sub(1)?;
+    let token = &tokens[last];
+    match token.kind {
+        TokenKind::Identifier if !RUST_KEYWORDS.contains(&token.text) => {}
+        TokenKind::RawIdentifier => {}
+        _ => return None,
+    }
+
+    let mut segment = last;
+    while segment >= 2 && tokens[segment - 1].kind == TokenKind::PathSeparator {
+        if !matches!(
+            tokens[segment - 2].kind,
+            TokenKind::Identifier | TokenKind::RawIdentifier
+        ) {
+            return None;
+        }
+        segment -= 2;
+    }
+    let qualified =
+        segment != last || (segment >= 1 && tokens[segment - 1].kind == TokenKind::PathSeparator);
+
+    Some(!qualified && token.kind == TokenKind::Identifier && token.text == "macro_rules")
+}
+
 /// Intervalos de bytes ocupados pelos token trees de macro da visão mascarada.
 ///
-/// A gramática de Rust é a autoridade aqui: uma invocação é `SimplePath !
-/// DelimTokenTree`, e o delimitador pode ser `(`, `[` ou `{`. `macro_rules!`
-/// não é caso especial nenhum — `macro_rules` é um identificador como qualquer
-/// outro, e sua definição também admite os três delimitadores. Espaço em branco
-/// separa tokens normalmente, inclusive quebra de linha, então o `!` e o
-/// delimitador podem estar em linhas diferentes.
+/// A gramática de Rust é a autoridade aqui. A sequência reconhecida é
+/// `SimplePath ! DelimTokenTree`, e o delimitador pode ser `(`, `[` ou `{`.
+/// `macro_rules` não é palavra-chave e sim um identificador comum, mas sua
+/// definição tem uma forma própria: `macro_rules ! IDENTIFIER MacroRulesDef`.
+///
+/// O reconhecimento é por sequência de tokens, nunca por adjacência de bytes:
+/// espaço em branco — inclusive quebra de linha — e comentário comum separam
+/// esses tokens sem desfazer a sequência. Comentário de documentação não separa,
+/// porque é atributo. Qualquer outro token cancela a tentativa imediatamente, em
+/// vez de deixar sobrar "a última palavra vista".
 ///
 /// Este módulo não expande macro, logo não tem autoridade para ler o conteúdo
 /// de um token tree como Rust ordinário — nem quando ele parece Rust ordinário.
@@ -534,84 +724,67 @@ fn words(masked_line: &str) -> Vec<(usize, &str)> {
 /// é absorvido pelo intervalo mais externo. Um token tree que nunca fecha é
 /// reportado até o fim do arquivo, porque a fonte deixou de ser Rust ordinário
 /// dali em diante.
-fn macro_token_tree_spans(masked: &str) -> Vec<Range<usize>> {
+fn macro_token_tree_spans(masked: &str, doc_comments: &[Range<usize>]) -> Vec<Range<usize>> {
+    let tokens = macro_tokens(masked, doc_comments);
     let mut spans: Vec<Range<usize>> = Vec::new();
-    let mut closers: Vec<u8> = Vec::new();
-    let mut opened_at = 0;
-    let mut awaiting_delimiter = false;
-    let mut allow_macro_name = false;
-    let mut path_tail: Vec<u8> = Vec::new();
+    let mut index = 0;
 
-    for (position, byte) in masked.bytes().enumerate() {
-        if !closers.is_empty() {
-            if let Some(closer) = closing_delimiter(byte) {
-                closers.push(closer);
-            } else if closers.last() == Some(&byte) {
-                closers.pop();
-                if closers.is_empty() {
-                    spans.push(opened_at..position + 1);
-                }
-            }
+    while index < tokens.len() {
+        if tokens[index].kind != TokenKind::Bang {
+            index += 1;
+            continue;
+        }
+        let Some(macro_rules_form) = simple_path_before(&tokens, index) else {
+            index += 1;
+            continue;
+        };
+
+        let mut delimiter = index + 1;
+        if macro_rules_form
+            && tokens.get(delimiter).is_some_and(|token| {
+                matches!(token.kind, TokenKind::Identifier | TokenKind::RawIdentifier)
+            })
+        {
+            delimiter += 1;
+        }
+        if !tokens
+            .get(delimiter)
+            .is_some_and(|token| matches!(token.kind, TokenKind::Open(_)))
+        {
+            index += 1;
             continue;
         }
 
-        if byte == b'!' {
-            // Um `!` precedido de caminho abre uma invocação; precedido de
-            // espaço ou de `>` ele é negação ou o tipo `!`, nunca macro.
-            if !path_tail.is_empty() {
-                awaiting_delimiter = true;
-                allow_macro_name = path_tail == b"macro_rules";
-            }
-            path_tail.clear();
-            continue;
-        }
-
-        if awaiting_delimiter {
-            if byte.is_ascii_whitespace() {
-                continue;
-            }
-            if let Some(closer) = closing_delimiter(byte) {
-                closers.push(closer);
-                opened_at = position;
-                awaiting_delimiter = false;
-                allow_macro_name = false;
-                continue;
-            }
-            // `macro_rules ! IDENTIFIER MacroRulesDef`: só essa forma tem um
-            // nome entre o `!` e o delimitador.
-            if allow_macro_name && is_identifier_byte(byte) {
-                continue;
-            }
-            awaiting_delimiter = false;
-            allow_macro_name = false;
-        }
-
-        if is_identifier_byte(byte) {
-            path_tail.push(byte);
-        } else {
-            path_tail.clear();
-        }
+        let (end, resume) = close_token_tree(&tokens, delimiter, masked.len());
+        spans.push(tokens[delimiter].start..end);
+        index = resume;
     }
 
-    if !closers.is_empty() {
-        spans.push(opened_at..masked.len());
-    }
     spans
 }
 
-/// O fechamento correspondente de um delimitador de token tree.
-fn closing_delimiter(byte: u8) -> Option<u8> {
-    match byte {
-        b'(' => Some(b')'),
-        b'[' => Some(b']'),
-        b'{' => Some(b'}'),
-        _ => None,
+/// Fecha o token tree aberto em `open`, devolvendo o byte seguinte ao
+/// delimitador de fechamento e o token onde a varredura externa recomeça. Um
+/// token tree que nunca fecha consome o resto do arquivo.
+fn close_token_tree(tokens: &[Token<'_>], open: usize, end_of_file: usize) -> (usize, usize) {
+    let mut closers: Vec<u8> = Vec::new();
+    for (position, token) in tokens.iter().enumerate().skip(open) {
+        match token.kind {
+            TokenKind::Open(closer) => closers.push(closer),
+            TokenKind::Close(byte) if closers.last() == Some(&byte) => {
+                closers.pop();
+                if closers.is_empty() {
+                    return (token.start + 1, position + 1);
+                }
+            }
+            _ => {}
+        }
     }
+    (end_of_file, tokens.len())
 }
 
-/// Byte que pode terminar o caminho de uma invocação de macro. Serve para
-/// separar `nome!` de `!=`, de negação e do tipo `!`, que nunca vêm depois de
-/// um caractere de identificador.
+/// Byte que pode compor um identificador. O primeiro byte de um identificador
+/// nunca é dígito, e essa distinção é do chamador.
 fn is_identifier_byte(byte: u8) -> bool {
     byte.is_ascii_alphanumeric() || byte == b'_'
 }

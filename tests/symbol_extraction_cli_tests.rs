@@ -1159,4 +1159,247 @@ fn candidato_extraido_nunca_vira_identidade_semantica() {
         );
     }
 }
+
+/// Separadores léxicos entre o caminho, o `!` e o delimitador de uma macro.
+///
+/// A sequência reconhecida é de tokens, não de bytes adjacentes: espaço, quebra
+/// de linha e comentário comum separam `SimplePath`, `!` e `DelimTokenTree` sem
+/// desfazer a sequência. Comentário de documentação é atributo em Rust e por
+/// isso a desfaz. Palavra-chave não é identificador e nunca abre um
+/// `SimplePath`, então `return !` e `if !` continuam sendo negação.
+const MACRO_SEPARATION: &str = r####"some_macro ! {
+    pub struct GhostSpace;
+}
+
+pub struct RealAfterSpace;
+
+some_macro
+!
+(
+    pub struct GhostNewline;
+);
+
+pub struct RealAfterNewline;
+
+some_macro /* ordinary comment */ ! [
+    pub struct GhostComment;
+];
+
+pub struct RealAfterComment;
+
+macro_rules ! spaced_definition {
+    () => {
+        pub struct GhostDefinition;
+    };
+}
+
+pub struct RealAfterDefinition;
+
+foo::bar ! {
+    pub struct GhostQualified;
+}
+
+pub struct RealAfterQualified;
+
+r#macro_name ! {
+    pub struct GhostRaw;
+}
+
+pub struct RealAfterRaw;
+
+r#type ! {
+    pub struct GhostRawKeyword;
+}
+
+pub struct RealAfterRawKeyword;
+
+not_a_macro
+/// Atributo de documentação, não espaço em branco.
+!
+{
+    pub struct DocSeparated;
+}
+
+pub fn separation_return() -> bool {
+    return !{
+        struct RealInsideBlock;
+        false
+    };
+}
+
+pub fn separation_paren() -> bool {
+    return !({
+        struct RealInsideParen;
+        false
+    });
+}
+
+pub fn separation_if(flag: bool) -> bool {
+    if !{
+        struct RealInsideCondition;
+        flag
+    } {
+        return true;
+    }
+    false
+}
+
+pub fn separation_bang_forms(flag: bool) -> bool {
+    !flag && 1 != 2
+}
+
+pub fn separation_never() -> ! {
+    loop {}
+}
+
+pub struct RealAfterBangForms;
+"####;
+
+/// A mesma invocação válida, variando só o separador. A classificação precisa
+/// ser a mesma nas cinco formas: os deslocamentos mudam, a fronteira não.
+const MACRO_SEPARATORS: &str = r####"foo!{
+    pub struct MetaCompact;
+}
+
+foo ! {
+    pub struct MetaSpace;
+}
+
+foo
+!
+{
+    pub struct MetaNewline;
+}
+
+foo /* ordinary comment */ ! {
+    pub struct MetaCommentBefore;
+}
+
+foo ! /* ordinary comment */ {
+    pub struct MetaCommentAfter;
+}
+
+pub struct RealAfterSeparators;
+"####;
+
+// Espaço em branco, quebra de linha e comentário comum entre `SimplePath`, `!`
+// e o delimitador não desfazem a invocação; comentário de documentação e
+// palavra-chave desfazem.
+#[test]
+fn separador_lexical_entre_caminho_e_bang_nao_desfaz_a_macro() {
+    let repo = fixture("separation");
+    let path = "src/macro_separation.rs";
+    write(repo.path(), path, MACRO_SEPARATION);
+
+    // Negativos: o nome só existe dentro do token tree, então perder o caminho
+    // candidato por causa do separador o promoveria a declaração inventada.
+    for (case, name) in [
+        ("SPACE_BEFORE_BANG", "GhostSpace"),
+        ("NEWLINE_AROUND_BANG", "GhostNewline"),
+        ("COMMENT_BEFORE_BANG", "GhostComment"),
+        ("SPACED_MACRO_RULES", "GhostDefinition"),
+        ("QUALIFIED_PATH", "GhostQualified"),
+        ("RAW_IDENTIFIER", "GhostRaw"),
+        ("RAW_IDENTIFIER_SPELLED_AS_KEYWORD", "GhostRawKeyword"),
+    ] {
+        let json = locate_json(repo.path(), name);
+        assert_eq!(
+            count(&json, "EXPLICIT_SYMBOL"),
+            0,
+            "{case}: {name} virou identidade: {json}"
+        );
+        assert_eq!(
+            count(&json, "EXTRACTED_CANDIDATE"),
+            0,
+            "{case}: {name} virou declaração estrutural: {json}"
+        );
+        assert_eq!(
+            count(&json, "TEXTUAL_OCCURRENCE"),
+            1,
+            "{case}: {name} perdeu o fallback textual: {json}"
+        );
+        assert!(
+            json.contains("\"limitation\":\"macro_token_tree_not_a_declaration\""),
+            "{case}: {name} sem a limitação de macro: {json}"
+        );
+    }
+
+    // Positivos: a declaração seguinte continua estrutural nos três
+    // delimitadores, e o que a linguagem recusa como `SimplePath !` continua
+    // sendo Rust ordinário observável.
+    for (case, name) in [
+        ("AFTER_SPACE_CURLY", "RealAfterSpace"),
+        ("AFTER_NEWLINE_PAREN", "RealAfterNewline"),
+        ("AFTER_COMMENT_BRACKET", "RealAfterComment"),
+        ("AFTER_SPACED_MACRO_RULES", "RealAfterDefinition"),
+        ("AFTER_QUALIFIED_PATH", "RealAfterQualified"),
+        ("AFTER_RAW_IDENTIFIER", "RealAfterRaw"),
+        ("AFTER_RAW_KEYWORD", "RealAfterRawKeyword"),
+        // Comentário de documentação tem semântica de atributo: ele não separa
+        // `not_a_macro` do `!`, então nenhuma macro foi reconhecida ali.
+        ("DOC_COMMENT_IS_NOT_WHITESPACE", "DocSeparated"),
+        // `return` e `if` são palavras-chave, não identificadores de caminho.
+        ("KEYWORD_RETURN_BLOCK", "RealInsideBlock"),
+        ("KEYWORD_RETURN_PAREN", "RealInsideParen"),
+        ("KEYWORD_IF_CONDITION", "RealInsideCondition"),
+        // `!flag`, `1 != 2` e `-> !` seguem fora do reconhecimento.
+        ("BANG_FORMS_PRESERVED", "RealAfterBangForms"),
+    ] {
+        let json = locate_json(repo.path(), name);
+        assert_eq!(
+            count(&json, "EXTRACTED_CANDIDATE"),
+            1,
+            "{case}: {name} deixou de ser declaração estrutural: {json}"
+        );
+        let start = line_of(MACRO_SEPARATION, name);
+        assert!(
+            json.contains(&format!(
+                "\"classification\":\"EXTRACTED_CANDIDATE\",\"path\":\"{path}\",\"kind\":\"struct\",\"name\":\"{name}\",\"start\":{start},\"end\":{start},\"context\":null,"
+            )),
+            "{case}: {name} perdeu caminho, intervalo ou contexto: {json}"
+        );
+    }
+}
+
+// Metamórfico: uma invocação válida, cinco separadores, uma classificação.
+#[test]
+fn classificacao_de_macro_e_invariante_ao_separador() {
+    let repo = fixture("separators");
+    let path = "src/macro_separators.rs";
+    write(repo.path(), path, MACRO_SEPARATORS);
+
+    for name in [
+        "MetaCompact",
+        "MetaSpace",
+        "MetaNewline",
+        "MetaCommentBefore",
+        "MetaCommentAfter",
+    ] {
+        let json = locate_json(repo.path(), name);
+        assert_eq!(
+            count(&json, "EXTRACTED_CANDIDATE"),
+            0,
+            "{name}: o separador mudou a classe: {json}"
+        );
+        assert_eq!(
+            count(&json, "TEXTUAL_OCCURRENCE"),
+            1,
+            "{name}: o separador apagou o fallback textual: {json}"
+        );
+        assert!(
+            json.contains("\"limitation\":\"macro_token_tree_not_a_declaration\""),
+            "{name}: o separador apagou a limitação de macro: {json}"
+        );
+    }
+
+    let json = locate_json(repo.path(), "RealAfterSeparators");
+    let start = line_of(MACRO_SEPARATORS, "RealAfterSeparators");
+    assert_eq!(count(&json, "EXTRACTED_CANDIDATE"), 1, "{json}");
+    assert!(
+        json.contains(&format!(
+            "\"classification\":\"EXTRACTED_CANDIDATE\",\"path\":\"{path}\",\"kind\":\"struct\",\"name\":\"RealAfterSeparators\",\"start\":{start},\"end\":{start},\"context\":null,"
+        )),
+        "a última fronteira não fechou: {json}"
+    );
+}
 // @pinker-nav:end evidencia.simbolos.extracao
