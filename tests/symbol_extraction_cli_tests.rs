@@ -121,6 +121,17 @@ pub fn calls_only() {
     unregistered_helper(1);
     textual_only_name();
 }
+
+macro_rules! template_with_metavariable {
+    ($outer:ident) => {
+        pub fn $metavariable_template() {}
+        pub struct TemplateOnlyStruct;
+    };
+}
+
+some_macro! {
+    pub fn $invocation_metavariable() {}
+}
 "####;
 
 struct Repo(PathBuf);
@@ -694,6 +705,88 @@ fn edicao_manual_do_indice_derivado_nao_fabrica_fonte() {
     ));
     assert_eq!(count(&gone, "EXPLICIT_SYMBOL"), 0, "{gone}");
     assert_eq!(count(&gone, "EXTRACTED_CANDIDATE"), 1, "{gone}");
+}
+
+// F5 — token tree dentro de `macro_rules!` não é declaração Rust ordinária.
+//
+// São três causas distintas, e o negativo ataca as três: a metavariável, cujo
+// sigilo `$` desapareceria numa tokenização ingênua e deixaria `pub fn $name`
+// parecendo `pub fn name`; o template sem metavariável nenhuma, que parece Rust
+// perfeitamente comum e ainda assim só existe depois de uma expansão que este
+// módulo não faz; e a metavariável dentro do token tree de uma invocação, fora
+// de qualquer `macro_rules!`.
+#[test]
+fn token_tree_de_macro_rules_nao_vira_declaracao_estrutural() {
+    let repo = fixture("f5");
+    let plain = fs::read_to_string(repo.path().join("src/plain.rs")).unwrap();
+
+    for (name, expected_limitation) in [
+        // template sem metavariável: sintaxe ordinária, contexto que não é.
+        // Vem primeiro de propósito — é o único caso que só a proteção do
+        // corpo da macro sustenta, então é ele que falha se ela sumir.
+        (
+            "TemplateOnlyStruct",
+            "macro_rules_token_tree_not_a_declaration",
+        ),
+        // metavariável no corpo do template
+        (
+            "metavariable_template",
+            "macro_rules_token_tree_not_a_declaration",
+        ),
+        // metavariável no token tree de uma invocação, fora de macro_rules!
+        (
+            "invocation_metavariable",
+            "not_a_supported_structural_declaration",
+        ),
+    ] {
+        assert!(plain.contains(name), "fixture perdeu {name}");
+        let json = locate_json(repo.path(), name);
+        assert_eq!(
+            count(&json, "EXTRACTED_CANDIDATE"),
+            0,
+            "{name} virou declaração estrutural: {json}"
+        );
+        assert_eq!(
+            count(&json, "EXPLICIT_SYMBOL"),
+            0,
+            "{name} virou identidade: {json}"
+        );
+        assert_eq!(
+            count(&json, "TEXTUAL_OCCURRENCE"),
+            1,
+            "{name} perdeu o fallback textual: {json}"
+        );
+        assert!(
+            json.contains(&format!("\"limitation\":\"{expected_limitation}\"")),
+            "{name} sem a limitação {expected_limitation}: {json}"
+        );
+        assert!(
+            !json.contains("\"kind\":\"function\"") && !json.contains("\"kind\":\"struct\""),
+            "{name} publicou categoria estrutural: {json}"
+        );
+    }
+
+    // A limitação viaja no relatório, não só na ocorrência.
+    let json = locate_json(repo.path(), "TemplateOnlyStruct");
+    assert!(
+        json.contains("macro_rules_token_tree_not_a_declaration"),
+        "{json}"
+    );
+
+    // E a declaração gerada por macro continua não-expandida, do jeito que C6
+    // já exigia: a invocação é ocorrência textual comum, nunca declaração.
+    let invocation = locate_json(repo.path(), "macro_made_fn");
+    assert_eq!(count(&invocation, "EXTRACTED_CANDIDATE"), 0, "{invocation}");
+    assert_eq!(count(&invocation, "TEXTUAL_OCCURRENCE"), 1, "{invocation}");
+    assert!(
+        invocation.contains("\"limitation\":\"not_a_supported_structural_declaration\""),
+        "{invocation}"
+    );
+
+    // Uma declaração ordinária no mesmo arquivo continua sendo encontrada: a
+    // proteção recorta o corpo da macro, não o arquivo inteiro.
+    let ordinary = locate_json(repo.path(), "unregistered_helper");
+    assert_eq!(count(&ordinary, "EXTRACTED_CANDIDATE"), 1, "{ordinary}");
 }
 
 // C14 — a proveniência do binário é observável, então um `pink` plausível de

@@ -33,8 +33,9 @@ const SIGNATURE_LOOKAHEAD: usize = 12;
 
 /// Limitações declaradas da observação lexical. São dados estáveis em inglês,
 /// não prosa: a saída precisa dizer o que ela *não* prova.
-pub const DECLARED_LIMITATIONS: [&str; 7] = [
+pub const DECLARED_LIMITATIONS: [&str; 8] = [
     "macro_generated_declarations_not_expanded",
+    "macro_rules_token_tree_not_a_declaration",
     "cfg_attributes_not_evaluated",
     "semantic_name_resolution_absent",
     "reexports_and_aliases_not_resolved",
@@ -43,8 +44,13 @@ pub const DECLARED_LIMITATIONS: [&str; 7] = [
     "declaration_interval_covers_signature_only",
 ];
 
-/// Motivo estável de uma ocorrência textual.
+/// Motivo estável de uma ocorrência textual comum.
 const TEXTUAL_LIMITATION: &str = "not_a_supported_structural_declaration";
+
+/// Motivo estável de uma ocorrência dentro do corpo de `macro_rules!`. O texto
+/// ali é token tree de um template, não Rust ordinário: ele só vira declaração
+/// depois de uma expansão que este módulo não faz.
+const MACRO_TEMPLATE_LIMITATION: &str = "macro_rules_token_tree_not_a_declaration";
 
 /// Palavras que podem preceder a palavra-chave de declaração sem que a linha
 /// deixe de abrir uma declaração.
@@ -237,11 +243,21 @@ fn scan_file(
     let mut depth: usize = 0;
     let mut attributes_present = false;
     let mut cfg_present = false;
+    // Profundidade em que o corpo de um `macro_rules!` aberto começa. Enquanto
+    // estamos dentro dele, nada é declaração estrutural.
+    let mut macro_body_depth: Option<usize> = None;
 
     for (index, masked_line) in masked_lines.iter().enumerate() {
         let trimmed = masked_line.trim();
         while contexts.last().is_some_and(|(opened, _)| *opened > depth) {
             contexts.pop();
+        }
+        if macro_body_depth.is_some_and(|opened| depth < opened) {
+            macro_body_depth = None;
+        }
+        let inside_macro_template = macro_body_depth.is_some();
+        if !inside_macro_template && opens_macro_rules(trimmed) {
+            macro_body_depth = Some(depth + 1);
         }
 
         if trimmed.starts_with("#[") || trimmed.starts_with("#![") {
@@ -251,7 +267,13 @@ fn scan_file(
             continue;
         }
 
-        let declared = declaration(trimmed);
+        // Dentro do template de uma macro a fonte não é Rust ordinário: o que
+        // parece declaração é token tree que ainda não foi expandido.
+        let declared = if inside_macro_template {
+            None
+        } else {
+            declaration(trimmed)
+        };
         let structural_hit = declared.is_some_and(|(_, name)| name == query);
 
         if let Some((kind, name)) = declared {
@@ -280,12 +302,16 @@ fn scan_file(
                 line: index + 1,
                 snippet,
                 snippet_truncated,
-                limitation: TEXTUAL_LIMITATION.to_string(),
+                limitation: if inside_macro_template {
+                    MACRO_TEMPLATE_LIMITATION.to_string()
+                } else {
+                    TEXTUAL_LIMITATION.to_string()
+                },
             });
         }
 
         if let Some(label) = container_label(trimmed) {
-            if trimmed.contains('{') {
+            if !inside_macro_template && trimmed.contains('{') {
                 contexts.push((depth + 1, label));
             }
         }
@@ -309,6 +335,12 @@ fn next_depth(depth: usize, masked_line: &str) -> usize {
 /// mantém o extrator previsível e transforma a sintaxe fora do subconjunto em
 /// limitação declarada, nunca em identidade inventada.
 fn declaration(masked_line: &str) -> Option<(&'static str, &str)> {
+    // `$` fora de literal só existe em token tree de macro, e `words` apagaria
+    // o sigilo: `pub fn $name()` viraria a declaração `name`. Uma metavariável
+    // não é um nome declarado, então a linha inteira deixa de ser estrutural.
+    if masked_line.contains('$') {
+        return None;
+    }
     let tokens = words(masked_line);
     for (position, token) in tokens.iter().enumerate() {
         if let Some((_, kind)) = DECLARATION_KEYWORDS
@@ -409,6 +441,12 @@ fn words(masked_line: &str) -> Vec<&str> {
         .split(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
         .filter(|word| !word.is_empty())
         .collect()
+}
+
+/// Reconhece a linha que abre o corpo de um `macro_rules!`. O nome da macro não
+/// importa aqui: o que importa é que tudo dali até o fecho é template.
+fn opens_macro_rules(masked_line: &str) -> bool {
+    masked_line.contains("macro_rules!") && masked_line.contains('{')
 }
 
 /// Igualdade de palavra inteira, nunca substring.
