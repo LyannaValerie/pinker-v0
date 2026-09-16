@@ -276,7 +276,7 @@ fn localiza_simbolo_conhecido_e_todas_as_relacoes_explicitas() {
     assert_success(&json);
     assert!(json.stderr.is_empty());
     let json = stdout(&json);
-    assert!(json.starts_with("{\"schema\":1,"));
+    assert!(json.starts_with("{\"schema\":2,"));
     for expected in [
         "\"identity\":\"pkg_a::igual\"",
         "\"status\":\"KNOWN\"",
@@ -324,7 +324,7 @@ fn inexistente_retorna_quatro_com_json_unico_e_humano_equivalente() {
     assert!(json.stderr.is_empty());
     assert_eq!(
         stdout(&json),
-        "{\"schema\":1,\"query\":\"nao_existe\",\"candidates\":[]}\n"
+        "{\"schema\":2,\"query\":\"nao_existe\",\"candidates\":[],\"extracted_candidates\":[],\"textual_occurrences\":[],\"limitations\":[\"macro_generated_declarations_not_expanded\",\"cfg_attributes_not_evaluated\",\"semantic_name_resolution_absent\",\"reexports_and_aliases_not_resolved\",\"declaration_keyword_must_open_line_modulo_modifiers\",\"comment_and_string_text_excluded_from_extraction\",\"declaration_interval_covers_signature_only\"],\"unstable_sources\":[],\"total\":0,\"offset\":0,\"truncated\":false,\"continuation\":null}\n"
     );
     let human = locate(repo.path(), "nao_existe", false);
     assert_eq!(code(&human), 4);

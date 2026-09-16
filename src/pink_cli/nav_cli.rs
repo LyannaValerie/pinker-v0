@@ -18,6 +18,7 @@
 // @pinker-nav:summary Final `pink nav projecao` adapter: dispatches listing, inspection, verification, lifecycle, and explicit recipe reconciliation; discovers the root through the automation core, derives text and JSON from shared models, recalculates plans before authorization, and preserves distinct drift, harness, policy, and stale exits.
 use super::*;
 use pinker_v0::automation as core;
+use pinker_v0::symbol_extraction;
 use std::process::Command;
 
 pub(super) fn run_nav_projecao(repo: &Path, json: bool, command: ProjectionSub) -> i32 {
@@ -953,7 +954,12 @@ pub(super) fn run_nav_buscar(
     EXIT_OK
 }
 
-pub(super) fn run_nav_localizar(repo_root: &Path, symbol: &str, json: bool) -> i32 {
+pub(super) fn run_nav_localizar(
+    repo_root: &Path,
+    symbol: &str,
+    json: bool,
+    offset: Option<usize>,
+) -> i32 {
     let code = match load_code_catalog(repo_root) {
         Ok(catalog) => catalog,
         Err(code) => return code,
@@ -968,21 +974,33 @@ pub(super) fn run_nav_localizar(repo_root: &Path, symbol: &str, json: bool) -> i
             return EXIT_CATALOG;
         }
     };
-    let report = match symbol_index::locate(&code, docs.as_ref(), symbol) {
+    let mut report = match symbol_index::locate(&code, docs.as_ref(), symbol) {
         Ok(report) => report,
         Err(error) => {
             eprintln!("{error}");
             return EXIT_CATALOG;
         }
     };
+    // A extensão lexical lê a fonte corrente do worktree, então edição não
+    // commitada e arquivo untracked entram no universo observado. O derivador
+    // explícito permanece sem E/S: a leitura vive aqui, no adaptador.
+    if let Err(error) = symbol_extraction::extend(repo_root, &mut report, offset.unwrap_or(0)) {
+        eprintln!("{error}");
+        return EXIT_SOURCE;
+    }
+    // Um arquivo que mudou durante a leitura foi *não observado*, não
+    // observado como ausente. O resultado sai, e o exit recusa o sucesso.
+    let unstable = !report.unstable_sources.is_empty();
     if json {
         println!("{}", symbol_index::render_json(&report));
-    } else if report.found() {
+    } else if report.found() || unstable {
         print!("{}", symbol_index::render_human(&report));
     } else {
         eprint!("{}", symbol_index::render_human(&report));
     }
-    if report.found() {
+    if unstable {
+        EXIT_SOURCE
+    } else if report.found() {
         EXIT_OK
     } else {
         EXIT_NORESULT

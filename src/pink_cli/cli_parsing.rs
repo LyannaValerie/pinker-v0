@@ -501,9 +501,13 @@ fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String>
             nav_usage(binary)
         ));
     }
-    if desde.is_some() && subcommand != "mostrar" && subcommand != "buscar" {
+    if desde.is_some()
+        && subcommand != "mostrar"
+        && subcommand != "buscar"
+        && subcommand != "localizar"
+    {
         return Err(format!(
-            "A opção '--desde' pertence a nav mostrar e nav buscar.\n\n{}",
+            "A opção '--desde' pertence a nav mostrar, nav buscar e nav localizar.\n\n{}",
             nav_usage(binary)
         ));
     }
@@ -542,6 +546,7 @@ fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String>
             }
             NavSub::Localizar {
                 symbol: require_one("localizar")?,
+                desde,
             }
         }
         "cobertura" => {

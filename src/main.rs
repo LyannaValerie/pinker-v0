@@ -193,6 +193,7 @@ enum NavSub {
     },
     Localizar {
         symbol: String,
+        desde: Option<usize>,
     },
     Cobertura,
     CoberturaDiff {
@@ -367,7 +368,8 @@ fn nav_usage(binary: &str) -> String {
          Subcomandos:\n\
            mostrar CHAVE       extrai a região de código pela chave (sempre verificada)\n\
            buscar CONSULTA     busca regiões por chave, domínio, camada, resumo\n\
-           localizar SÍMBOLO   resolve identidade estrutural e vínculos explícitos\n\
+           localizar SÍMBOLO   identidade explícita, candidato extraído da fonte\n\
+                               corrente e ocorrência textual, separados\n\
            cobertura           inventaria a cobertura corrente das raízes oficiais\n\
            cobertura-diff      relaciona unified diff de stdin a superfícies explícitas\n\
            impacto --diff REF  obtém e relaciona um diff Git sem mutar o repositório\n\
@@ -383,8 +385,9 @@ fn nav_usage(binary: &str) -> String {
            --repo      raiz do repositório (padrão: .)\n\
            --json      saída estável em JSON (mostrar/buscar/localizar/cobertura/cobertura-diff/impacto/listar/mapa)\n\
            --limite N  máximo de resultados (1..20; buscar=10)\n\
-           --desde N   continuação determinística: buscar pula N resultados;\n\
-                       mostrar começa na linha N do corpo. A continuação vale\n\
+           --desde N   continuação determinística: buscar e localizar pulam N\n\
+                       resultados; mostrar começa na linha N do corpo. A\n\
+                       continuação vale\n\
                        para o mesmo catálogo/fonte; se eles mudarem entre as\n\
                        páginas, a página seguinte é de outro estado.\n\
            --resumo    mostrar devolve só o resumo verificado, sem corpo\n\
@@ -668,7 +671,9 @@ fn run_nav(config: NavConfigCli) -> i32 {
         NavSub::Buscar { consulta, desde } => {
             run_nav_buscar(repo_root, &consulta, config.json, config.limite, desde)
         }
-        NavSub::Localizar { symbol } => run_nav_localizar(repo_root, &symbol, config.json),
+        NavSub::Localizar { symbol, desde } => {
+            run_nav_localizar(repo_root, &symbol, config.json, desde)
+        }
         NavSub::CoberturaDiff { base } => {
             run_nav_cobertura_diff(repo_root, base.as_deref(), config.json)
         }
