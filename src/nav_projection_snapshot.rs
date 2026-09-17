@@ -51,8 +51,8 @@ use std::fmt;
 
 mod parser;
 pub(crate) use parser::{
-    build_rule, optional_list, parse_raw, reject_unknown, require_integer, require_text,
-    sort_rules, validate_id,
+    build_rule, optional_list, optional_text, parse_raw, parse_raw_with_array, reject_unknown,
+    require_integer, require_text, sort_rules, validate_id, Table,
 };
 pub use parser::{parse, validate_rules};
 
@@ -144,7 +144,7 @@ impl SchemaAuthority {
     pub fn supported_versions(&self) -> &'static str {
         match self {
             SchemaAuthority::Snapshot => "1, 2, 3, 4 ou 5",
-            SchemaAuthority::Recipe => "1, 2 ou 3",
+            SchemaAuthority::Recipe => "1, 2, 3 ou 4",
         }
     }
 
@@ -154,7 +154,7 @@ impl SchemaAuthority {
             SchemaAuthority::Snapshot => {
                 (SNAPSHOT_SCHEMA_V1..=SNAPSHOT_SCHEMA_V5).contains(&schema)
             }
-            SchemaAuthority::Recipe => (1..=3).contains(&schema),
+            SchemaAuthority::Recipe => (1..=4).contains(&schema),
         }
     }
 
@@ -257,9 +257,18 @@ pub enum Rule {
     },
     /// Restauração atômica de uma única região, selecionada por `key`.
     ///
-    /// Restaura `hash`, `summary`, `file`, ou qualquer combinação deles — e
-    /// nada além disso. Cada par `from`/`to` é individualmente opcional, mas ao
-    /// menos um par completo precisa existir, e meio par é inválido.
+    /// Restaura `hash`, `summary`, `file`, `key`, `domain`, `layer`, ou
+    /// qualquer combinação deles — e nada além disso. Cada par `from`/`to` é
+    /// individualmente opcional, mas ao menos um par completo precisa existir,
+    /// e meio par é inválido.
+    ///
+    /// # Identidade corrente e identidade histórica
+    ///
+    /// `key`, `expect_domain` e `expect_layer` descrevem sempre a região
+    /// **corrente**; `to_key`, `to_domain` e `to_layer` descrevem o valor
+    /// **histórico** que a reconstrução restaura. A direção é a mesma de
+    /// `expect_file`/`to_file` e não tem exceção: o seletor é o presente, o
+    /// destino é o passado.
     ///
     /// A relocação usa `expect_file` como origem declarada e `to_file` como
     /// destino histórico: o par é `expect_file`/`to_file` em vez de
@@ -286,6 +295,17 @@ pub enum Rule {
         to_file: Option<String>,
         expect_domain: Option<String>,
         expect_layer: Option<String>,
+        /// Chave histórica restaurada. `key` continua sendo o seletor corrente.
+        ///
+        /// Não há `expect_key`: `key` já é a única forma de dizer "a região
+        /// corrente é exatamente esta", e duplicá-la criaria duas guardas para
+        /// o mesmo campo. A restauração colide quando a chave histórica já
+        /// pertence a outra região do estado, e a colisão recusa.
+        to_key: Option<String>,
+        /// Domínio histórico restaurado. Exige `expect_domain` como origem.
+        to_domain: Option<String>,
+        /// Camada histórica restaurada. Exige `expect_layer` como origem.
+        to_layer: Option<String>,
     },
     /// Declara uma região que existia no estado histórico e **não existe mais**
     /// no catálogo corrente. Schema 4 em diante, somente em snapshot.
@@ -351,6 +371,7 @@ impl Rule {
     /// | `exclude-key-prefix` | 2 | 1 |
     /// | `override-region` | 3 | 2 |
     /// | `override-region` com `to_file` | 5 | 3 |
+    /// | `override-region` com `to_key`/`to_domain`/`to_layer` | — | 4 |
     /// | `materialize-region` | 4 | — |
     ///
     /// `materialize-region` não existe na autoridade de receita em versão
@@ -358,6 +379,14 @@ impl Rule {
     /// nem predecessor para responder por um fato histórico. A rejeição é
     /// explícita em [`crate::nav_projection_recipe::parse_recipe`], com
     /// diagnóstico próprio, e não uma versão mínima inalcançável.
+    ///
+    /// A restauração de identidade histórica — `to_key`, `to_domain`,
+    /// `to_layer` — é a simétrica dessa exclusão, e pela razão simétrica: ela é
+    /// uma normalização do corrente para o histórico, que é exatamente o que
+    /// uma receita é. Um snapshot já afirma o fato histórico por inteiro
+    /// quando precisa; dar-lhe também a normalização duplicaria autoridade sem
+    /// necessidade demonstrada. A recusa também é nomeada, em
+    /// [`validate_rules`], e não uma versão inalcançável.
     pub fn min_schema(&self, authority: SchemaAuthority) -> u64 {
         match (self, authority) {
             (Rule::OverrideHash { .. }, _) => 1,
@@ -367,6 +396,7 @@ impl Rule {
             (Rule::ExcludeFile { .. }, SchemaAuthority::Recipe) => 1,
             (Rule::ExcludeKeyPrefix { .. }, SchemaAuthority::Snapshot) => SNAPSHOT_SCHEMA_V2,
             (Rule::ExcludeKeyPrefix { .. }, SchemaAuthority::Recipe) => 1,
+            (rule, SchemaAuthority::Recipe) if rule.restores_historical_identity() => 4,
             (
                 Rule::OverrideRegion {
                     to_file: Some(_), ..
@@ -428,6 +458,30 @@ impl Rule {
         matches!(
             self,
             Rule::OverrideHash { .. } | Rule::OverrideRegion { .. }
+        )
+    }
+
+    /// Verdadeiro quando a regra restaura a identidade histórica de uma região
+    /// que continua existindo: chave, domínio ou camada.
+    ///
+    /// Distinta de restaurar conteúdo (`hash`, `summary`) e de restaurar
+    /// localização (`file`): estes três campos são a identidade pela qual a
+    /// projeção estável reconhece a região, e trocá-los é dizer que a região
+    /// corrente e a histórica são a mesma sob outro nome. Só uma autoridade de
+    /// normalização corrente-para-histórico pode afirmar isso.
+    pub fn restores_historical_identity(&self) -> bool {
+        matches!(
+            self,
+            Rule::OverrideRegion {
+                to_key: Some(_),
+                ..
+            } | Rule::OverrideRegion {
+                to_domain: Some(_),
+                ..
+            } | Rule::OverrideRegion {
+                to_layer: Some(_),
+                ..
+            }
         )
     }
 
@@ -684,6 +738,23 @@ pub enum HarnessFailure {
         authority: SchemaAuthority,
         op: String,
     },
+    /// Capacidade de uma operação existente declarada numa autoridade que não a
+    /// possui.
+    ///
+    /// Distinta de [`HarnessFailure::OperationOutsideAuthority`]: a operação
+    /// existe nas duas autoridades, e só o campo não. Dizer que a operação não
+    /// existe descreveria uma coisa falsa.
+    CapabilityOutsideAuthority {
+        authority: SchemaAuthority,
+        capability: String,
+    },
+    /// A identidade histórica restaurada já pertence a outra região do estado.
+    ///
+    /// Recusa mesmo quando as duas regiões pareçam equivalentes: duas regiões
+    /// com a mesma chave no estado reconstruído deixariam ambíguo qual delas a
+    /// projeção estável está medindo, e escolher uma seria o reconciliador
+    /// decidindo semântica que só o operador pode declarar.
+    IdentityRestorationCollision { key: String, to_key: String },
 }
 
 impl HarnessFailure {
@@ -742,6 +813,10 @@ impl HarnessFailure {
             HarnessFailure::OperationOutsideAuthority { .. } => {
                 "E-SNAP-OPERACAO-FORA-DA-AUTORIDADE"
             }
+            HarnessFailure::CapabilityOutsideAuthority { .. } => {
+                "E-SNAP-CAPACIDADE-FORA-DA-AUTORIDADE"
+            }
+            HarnessFailure::IdentityRestorationCollision { .. } => "E-SNAP-IDENTIDADE-COLISAO",
         }
     }
 }
@@ -996,6 +1071,20 @@ impl fmt::Display for HarnessFailure {
                 "operação '{}' não existe na autoridade de {}",
                 op,
                 authority.as_str()
+            ),
+            HarnessFailure::CapabilityOutsideAuthority {
+                authority,
+                capability,
+            } => write!(
+                f,
+                "{} não existe na autoridade de {}",
+                capability,
+                authority.as_str()
+            ),
+            HarnessFailure::IdentityRestorationCollision { key, to_key } => write!(
+                f,
+                "a identidade histórica '{}' restaurada a partir de '{}' já pertence a outra região do estado",
+                to_key, key
             ),
         }
     }
@@ -1271,8 +1360,14 @@ pub(crate) fn render_rule_body(rule: &Rule) -> String {
             to_file,
             expect_domain,
             expect_layer,
+            to_key,
+            to_domain,
+            to_layer,
         } => {
             out.push_str(&format!("key = {}\n", toml_escape(key)));
+            if let Some(valor) = to_key {
+                out.push_str(&format!("to_key = {}\n", toml_escape(valor)));
+            }
             if let Some(valor) = from_hash {
                 out.push_str(&format!("from_hash = {}\n", toml_escape(valor)));
             }
@@ -1294,8 +1389,14 @@ pub(crate) fn render_rule_body(rule: &Rule) -> String {
             if let Some(valor) = expect_domain {
                 out.push_str(&format!("expect_domain = {}\n", toml_escape(valor)));
             }
+            if let Some(valor) = to_domain {
+                out.push_str(&format!("to_domain = {}\n", toml_escape(valor)));
+            }
             if let Some(valor) = expect_layer {
                 out.push_str(&format!("expect_layer = {}\n", toml_escape(valor)));
+            }
+            if let Some(valor) = to_layer {
+                out.push_str(&format!("to_layer = {}\n", toml_escape(valor)));
             }
         }
         Rule::MaterializeRegion {
@@ -1579,6 +1680,9 @@ pub fn apply_rules(
                 to_file,
                 expect_domain,
                 expect_layer,
+                to_key,
+                to_domain,
+                to_layer,
             } => {
                 let matches: Vec<usize> = regions
                     .iter()
@@ -1658,6 +1762,24 @@ pub fn apply_rules(
                     }
                 }
 
+                // A chave histórica precisa estar livre no estado corrente
+                // deste escopo. A checagem pertence à fase de validação porque
+                // uma regra que já tivesse restaurado domínio e camada e só
+                // então descobrisse a colisão deixaria a região metade
+                // reconstruída — exatamente o que a atomicidade proíbe.
+                if let Some(destino) = to_key {
+                    if regions
+                        .iter()
+                        .enumerate()
+                        .any(|(index, region)| index != matches[0] && &region.key == destino)
+                    {
+                        return Err(HarnessFailure::IdentityRestorationCollision {
+                            key: key.clone(),
+                            to_key: destino.clone(),
+                        });
+                    }
+                }
+
                 // Fase de mutação. Só se chega aqui com tudo validado.
                 let region = &mut regions[matches[0]];
                 if let Some(valor) = to_hash {
@@ -1668,6 +1790,15 @@ pub fn apply_rules(
                 }
                 if let Some(valor) = to_file {
                     region.file.clone_from(valor);
+                }
+                if let Some(valor) = to_key {
+                    region.key.clone_from(valor);
+                }
+                if let Some(valor) = to_domain {
+                    region.domain = Some(valor.clone());
+                }
+                if let Some(valor) = to_layer {
+                    region.layer = Some(valor.clone());
                 }
                 ledger.push(RuleConsumption {
                     op: rule.op(),

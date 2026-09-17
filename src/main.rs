@@ -235,6 +235,7 @@ enum ProjectionSub {
     },
     Reconciliar {
         autorizar: Option<String>,
+        renomeacoes: Option<String>,
     },
 }
 
@@ -409,9 +410,11 @@ fn projection_usage(binary: &str) -> String {
            verificar [ID]\n\
            preparar ID --justificativa TEXTO --predecessor ID [--autorizar DIGEST]\n\
            aceitar ID [--autorizar DIGEST]\n\
-           reconciliar [--autorizar DIGEST]\n\
+           reconciliar [--renomeacoes ARQUIVO] [--autorizar DIGEST]\n\
          \n\
          Sem --autorizar, preparar, aceitar e reconciliar exibem plano e digest sem escrever.\n\
+         --renomeacoes declara explicitamente a relação corrente -> histórica de\n\
+         key/domain/layer; sem ela uma renomeação permanece ambiguidade semântica.\n\
          Códigos adicionais: 6 harness · 7 política · 8 plano obsoleto\n"
     )
 }
@@ -423,7 +426,7 @@ fn projection_subcommand_usage(binary: &str, command: &str) -> String {
         "verificar" => format!("Uso: {binary} nav projecao verificar [ID] [--repo DIRETÓRIO] [--json]\n"),
         "preparar" => format!("Uso: {binary} nav projecao preparar ID --justificativa TEXTO --predecessor ID [--autorizar DIGEST] [--repo DIRETÓRIO] [--json]\n"),
         "aceitar" => format!("Uso: {binary} nav projecao aceitar ID [--autorizar DIGEST] [--repo DIRETÓRIO] [--json]\n"),
-        "reconciliar" => format!("Uso: {binary} nav projecao reconciliar [--autorizar DIGEST] [--repo DIRETÓRIO] [--json]\n"),
+        "reconciliar" => format!("Uso: {binary} nav projecao reconciliar [--renomeacoes ARQUIVO] [--autorizar DIGEST] [--repo DIRETÓRIO] [--json]\n"),
         _ => projection_usage(binary),
     }
 }

@@ -7,7 +7,8 @@
 use pinker_v0::nav::{CodeCatalog, CodeRegion};
 use pinker_v0::nav_projection_recipe::{self, Library, Recipe, RECIPES_DIR, RECIPE_SCHEMA};
 use pinker_v0::nav_projection_snapshot::{
-    self as snapshot, Outcome, ProjectionSnapshot, SnapshotState, SNAPSHOTS_DIR, SNAPSHOT_SCHEMA,
+    self as snapshot, Outcome, ProjectionSnapshot, SchemaAuthority, SnapshotState, SNAPSHOTS_DIR,
+    SNAPSHOT_SCHEMA,
 };
 use std::collections::BTreeSet;
 use std::fs;
@@ -415,11 +416,36 @@ fn o_acervo_preserva_a_versao_congelada_de_cada_witness() {
         encontrados, SNAPSHOTS_ESPERADOS,
         "os treze snapshots do acervo precisam estar todos presentes"
     );
+    // Receita não é witness: ela é reescrita sempre que a normalização corrente
+    // muda, e por isso já esteve fixada na versão de emissão. #685 substitui
+    // essa expectativa: uma receita que não usa capacidade nova NÃO é
+    // reescrita só para acompanhar um bump de formato. O que continua
+    // obrigatório é o que de fato protege a reconstrução — a versão declarada
+    // é aceita pela autoridade de receita e nunca é menor do que as próprias
+    // regras exigem.
     for (caminho, receita) in carrega_receitas() {
-        assert_eq!(
+        assert!(
+            SchemaAuthority::Recipe.supports(receita.schema),
+            "{} declara schema {} fora do que a autoridade de receita aceita",
+            caminho.display(),
+            receita.schema
+        );
+        let exigido = receita
+            .rules
+            .iter()
+            .map(|regra| regra.min_schema(SchemaAuthority::Recipe))
+            .max()
+            .unwrap_or(1);
+        assert!(
+            receita.schema >= exigido,
+            "{} declara schema {} mas usa capacidade que exige {}",
+            caminho.display(),
             receita.schema,
-            RECIPE_SCHEMA,
-            "{} não está na versão de emissão corrente do formato de receita",
+            exigido
+        );
+        assert!(
+            receita.schema <= RECIPE_SCHEMA,
+            "{} declara schema acima da versão máxima aceita",
             caminho.display()
         );
     }

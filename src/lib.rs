@@ -47,6 +47,7 @@ pub mod nav;
 pub mod nav_coverage;
 pub mod nav_projection_lifecycle;
 pub mod nav_projection_recipe;
+pub mod nav_projection_rename_map;
 pub mod nav_projection_report;
 pub mod nav_projection_snapshot;
 pub mod nav_projection_store;

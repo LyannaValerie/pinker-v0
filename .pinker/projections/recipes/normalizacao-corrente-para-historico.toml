@@ -3,7 +3,7 @@ id = "normalizacao-corrente-para-historico"
 
 [reconstruction]
 expected_overrides = 211
-expected_exclusions = 265
+expected_exclusions = 266
 
 [[rules]]
 op = "exclude-key"
@@ -1312,6 +1312,11 @@ expected_matches = 1
 
 [[rules]]
 op = "exclude-key"
+key = "trama.snapshots.rename-map"
+expected_matches = 1
+
+[[rules]]
+op = "exclude-key"
 key = "trama.snapshots.renderizacao"
 expected_matches = 1
 
@@ -1874,7 +1879,7 @@ expect_layer = "cfg"
 [[rules]]
 op = "override-region"
 key = "cli.ajuda.usage"
-from_hash = "fnv1a64:8591356617e1899b"
+from_hash = "fnv1a64:e2964348e221231b"
 to_hash = "fnv1a64:ce2fe9866dbdcd8f"
 from_summary = "program_name reduz argv[0] ao componente final e as funções de ajuda formatam, sem side effects, a superfície principal e os nove comandos incluindo doctor e verificar."
 to_summary = "program_name reduz argv[0] ao componente final, preserva nomes alternativos e usa pink como fallback; as funções de ajuda consomem somente esse nome e formatam a ajuda principal ou dos seis comandos existentes, sem side effects."
@@ -1909,7 +1914,7 @@ expect_layer = "cli"
 [[rules]]
 op = "override-region"
 key = "cli.config.modelos"
-from_hash = "fnv1a64:d814aa709c72b438"
+from_hash = "fnv1a64:a6e2f18faa9af147"
 to_hash = "fnv1a64:76a2365574c8b339"
 from_summary = "Constantes e helpers JSON, modelos dos comandos históricos e configurações de doctor/verificar usados pelo parsing e roteamento determinísticos da CLI."
 to_summary = "Constantes de códigos de saída (EXIT_OK/EXIT_USAGE/EXIT_CATALOG/EXIT_NORESULT/EXIT_SOURCE) e limites de paginação (LIMIT_MIN/MAX, LIMIT_DEFAULT_ROTA/BUSCAR); clamp_limit ajusta um Option<usize> aos limites via .clamp; json_escape escapa aspas/barra/controle para JSON; json_string_array serializa Vec<String>. Structs de configuração por subcomando (Config, BuildConfig, EditorConfig, ReplConfig, DocConfigCli, NavConfigCli) e os enums de subcomando (DocSub, NavSub, CliCommand) usados pelo parsing e roteamento a seguir."
@@ -2015,7 +2020,7 @@ expect_layer = "cli"
 [[rules]]
 op = "override-region"
 key = "cli.parsing.subcomandos"
-from_hash = "fnv1a64:1615942d6eda26fe"
+from_hash = "fnv1a64:5f67b97d3e1af6d8"
 to_hash = "fnv1a64:52d92432d1b2f696"
 from_summary = "Parsers estritos dos subcomandos, incluindo estado, doctor e verificar: validam flags, posicionais, duplicatas e requisitos cruzados antes de produzir modelos tipados."
 to_summary = "Parsers de argumentos por subcomando (parse_build_args, parse_editor_args, parse_repl_args, parse_doc_args, parse_nav_args): percorrem `args: &[String]` reconhecendo flags (--out-dir, --nativo, --repo, --corpo, --check, --json, --limite, --help/-h) e o argumento posicional de entrada/subcomando, retornando Result<Config..., String> com a mensagem de uso correspondente em caso de flag desconhecida ou argumento ausente."
