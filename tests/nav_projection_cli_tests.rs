@@ -1673,3 +1673,492 @@ fn cada_campo_fundido_recusa_sua_propria_contradicao_antes_de_escrever() {
         assert_eq!(frozen_bytes(&repo), congelados_antes, "{campo}");
     }
 }
+
+// ---------------------------------------------------------------------------
+// #693 — ponte explícita de summary corrente → histórico
+//
+// `summary` participa da projeção estável como `key`, `domain` e `layer`, e
+// diferente deles não é identidade: restaurá-lo não muda qual região uma regra
+// seleciona. Os casos abaixo fixam as duas metades disso — a ponte existe e
+// reconstrói, e ela não vira renomeação de identidade por tabela.
+//
+// A fixture usa regiões reais, com a receita e os treze `FROZEN` reais: o
+// blocker que motivou a unidade é uma tradução de summary sobre regiões que já
+// participam da reconstrução, e uma fixture sintética não provaria que a
+// reconstrução volta a bater.
+// ---------------------------------------------------------------------------
+
+/// Região participante cuja regra de receita **já** restaura summary: a guarda
+/// é o texto corrente e o destino é um estado histórico mais antigo.
+const SUMMARY_COM_REGRA: &str = "ast.programa.estrutura";
+
+/// Região participante cuja receita tem regra de hash e **nenhuma** restauração
+/// de summary. É a classe das 428 regiões que o TL deixaria sem ponte.
+const SUMMARY_SEM_REGRA: &str = "ast.comandos.representacao";
+
+/// Texto corrente traduzido, no papel que o TL teria escrito.
+const SUMMARY_TRADUZIDO: &str =
+    "Representation of statements in the AST, with spans and JSON serialization.";
+
+fn write_summary_map(repo: &TempRepo, corpo: &str) -> PathBuf {
+    let path = repo.path().join("summary-renames.toml");
+    fs::write(&path, format!("schema = 2\n{corpo}")).unwrap();
+    path
+}
+
+/// Reescreve o summary corrente de uma região, como faria a migração do TL.
+fn translate_summary(repo: &TempRepo, key: &str, novo: &str) -> String {
+    let anterior = catalog_field(repo, key, "summary");
+    retag_in_catalog(repo, key, "summary", novo);
+    anterior
+}
+
+/// Entrada de mapa que declara só o par de summary.
+fn summary_entry(key: &str, corrente: &str, historico: &str) -> String {
+    format!(
+        "\n[[rename]]\ncurrent_key = \"{key}\"\ncurrent_summary = \"{corrente}\"\nhistorical_summary = \"{historico}\"\n"
+    )
+}
+
+/// Valor de um campo dentro do bloco de regra que restaura summary.
+fn summary_rule_field(recipe: &str, key: &str, campo: &str) -> Option<String> {
+    recipe
+        .split("[[rules]]")
+        .filter(|bloco| seleciona(bloco, key))
+        .find(|bloco| bloco.contains("from_summary = "))
+        .and_then(|bloco| {
+            bloco.lines().find_map(|linha| {
+                linha
+                    .strip_prefix(&format!("{campo} = \""))
+                    .and_then(|resto| resto.strip_suffix('"'))
+                    .map(str::to_string)
+            })
+        })
+}
+
+#[test]
+fn c1_regiao_sem_regra_de_summary_ganha_a_ponte_e_os_treze_frozen_voltam_a_bater() {
+    let repo = TempRepo::full("summary-bridge-new");
+    repo.trust_main();
+    let historico = translate_summary(&repo, SUMMARY_SEM_REGRA, SUMMARY_TRADUZIDO);
+    let recipe = recipe_path(&repo);
+    let antes = fs::read_to_string(&recipe).unwrap();
+    let congelados_antes = frozen_bytes(&repo);
+    let regras_antes = rule_blocks(&antes, SUMMARY_SEM_REGRA);
+    let orcamento_antes = expected_overrides(&antes);
+
+    // A tradução sozinha já quebra a reconstrução: é o blocker real.
+    let quebrado = projection(&repo, &["verificar", "--json"]);
+    assert_ne!(quebrado.status.code(), Some(0), "{}", stdout(&quebrado));
+
+    let map = write_summary_map(
+        &repo,
+        &summary_entry(SUMMARY_SEM_REGRA, SUMMARY_TRADUZIDO, &historico),
+    );
+
+    // C12: planejar é determinístico e não escreve byte nenhum.
+    let plano = reconcile(&repo, Some(&map), None);
+    assert_eq!(plano.status.code(), Some(0), "{}", stderr(&plano));
+    let repetido = reconcile(&repo, Some(&map), None);
+    assert_eq!(plano.stdout, repetido.stdout);
+    assert_eq!(fs::read_to_string(&recipe).unwrap(), antes);
+    assert_eq!(frozen_bytes(&repo), congelados_antes);
+    let json = stdout(&plano);
+    assert!(json.contains("planned_allowed_mutation=recipe.new_override_region"));
+    assert!(json.contains("restores_summary=true"), "{json}");
+
+    // C13: apply explícito, só sobre a receita.
+    let aplicado = reconcile(&repo, Some(&map), Some(&digest(&json)));
+    assert_eq!(aplicado.status.code(), Some(0), "{}", stdout(&aplicado));
+    let depois = fs::read_to_string(&recipe).unwrap();
+
+    // A ponte é uma regra nova, com a guarda no corrente e o destino no
+    // histórico; o orçamento de override sobe exatamente um.
+    assert_eq!(rule_blocks(&depois, SUMMARY_SEM_REGRA), regras_antes + 1);
+    assert_eq!(expected_overrides(&depois), orcamento_antes + 1);
+    assert_eq!(
+        summary_rule_field(&depois, SUMMARY_SEM_REGRA, "from_summary").as_deref(),
+        Some(SUMMARY_TRADUZIDO)
+    );
+    assert_eq!(
+        summary_rule_field(&depois, SUMMARY_SEM_REGRA, "to_summary").as_deref(),
+        Some(historico.as_str())
+    );
+    // C7 e C17: a regra de hash que já existia não virou restauradora de
+    // identidade nem de summary.
+    assert!(!depois.contains("to_key = "));
+    assert!(!depois.contains("to_domain = "));
+
+    // C15: os treze voltam a MATCH e nenhum byte FROZEN foi tocado.
+    let verificado = projection(&repo, &["verificar", "--json"]);
+    assert_eq!(verificado.status.code(), Some(0), "{}", stderr(&verificado));
+    assert!(!stdout(&verificado).contains("\"outcome\":\"DRIFT\""));
+    assert!(!stdout(&verificado).contains("HARNESS_FAILURE"));
+    assert_eq!(frozen_bytes(&repo), congelados_antes);
+}
+
+#[test]
+fn c2_regra_existente_troca_a_guarda_de_summary_e_preserva_o_destino_antigo() {
+    let repo = TempRepo::full("summary-bridge-existing");
+    repo.trust_main();
+    let recipe = recipe_path(&repo);
+    let antes = fs::read_to_string(&recipe).unwrap();
+    let destino_antigo = summary_rule_field(&antes, SUMMARY_COM_REGRA, "to_summary")
+        .expect("a região de fixture já restaura summary");
+    let historico = translate_summary(&repo, SUMMARY_COM_REGRA, SUMMARY_TRADUZIDO);
+    assert_ne!(
+        destino_antigo, historico,
+        "o destino existente precisa ser um estado mais antigo que o pré-TL"
+    );
+    let congelados_antes = frozen_bytes(&repo);
+    let regras_antes = rule_blocks(&antes, SUMMARY_COM_REGRA);
+
+    let map = write_summary_map(
+        &repo,
+        &summary_entry(SUMMARY_COM_REGRA, SUMMARY_TRADUZIDO, &historico),
+    );
+    let plano = reconcile(&repo, Some(&map), None);
+    assert_eq!(plano.status.code(), Some(0), "{}", stderr(&plano));
+    let json = stdout(&plano);
+    assert!(json.contains("to_summary=PRESERVED"), "{json}");
+    let aplicado = reconcile(&repo, Some(&map), Some(&digest(&json)));
+    assert_eq!(aplicado.status.code(), Some(0), "{}", stdout(&aplicado));
+
+    let depois = fs::read_to_string(&recipe).unwrap();
+    assert_eq!(rule_blocks(&depois, SUMMARY_COM_REGRA), regras_antes);
+    assert_eq!(
+        summary_rule_field(&depois, SUMMARY_COM_REGRA, "from_summary").as_deref(),
+        Some(SUMMARY_TRADUZIDO)
+    );
+    // O `historical_summary` do mapa é o summary imediatamente anterior, e não
+    // o destino terminal: o destino que a regra já tinha é mais antigo e fica.
+    assert_eq!(
+        summary_rule_field(&depois, SUMMARY_COM_REGRA, "to_summary").as_deref(),
+        Some(destino_antigo.as_str())
+    );
+    let verificado = projection(&repo, &["verificar", "--json"]);
+    assert_eq!(verificado.status.code(), Some(0), "{}", stderr(&verificado));
+    assert_eq!(frozen_bytes(&repo), congelados_antes);
+}
+
+#[test]
+fn c3_mapa_que_discorda_do_summary_da_regra_existente_recusa_antes_de_escrever() {
+    let repo = TempRepo::full("summary-contradiction");
+    repo.trust_main();
+    translate_summary(&repo, SUMMARY_COM_REGRA, SUMMARY_TRADUZIDO);
+    let recipe = recipe_path(&repo);
+    let antes = fs::read(&recipe).unwrap();
+    let map = write_summary_map(
+        &repo,
+        &summary_entry(
+            SUMMARY_COM_REGRA,
+            SUMMARY_TRADUZIDO,
+            "um summary histórico que a regra existente nunca declarou",
+        ),
+    );
+
+    let saida = reconcile(&repo, Some(&map), None);
+    assert_eq!(saida.status.code(), Some(7), "{}", stdout(&saida));
+    assert!(
+        stdout(&saida).contains("MAPPING_CONTRADICTS_AUTHORITY"),
+        "{}",
+        stdout(&saida)
+    );
+    assert_eq!(fs::read(&recipe).unwrap(), antes);
+}
+
+#[test]
+fn c4_current_summary_que_nao_e_o_do_catalogo_recusa_antes_de_escrever() {
+    let repo = TempRepo::full("summary-stale-guard");
+    repo.trust_main();
+    let historico = translate_summary(&repo, SUMMARY_SEM_REGRA, SUMMARY_TRADUZIDO);
+    let recipe = recipe_path(&repo);
+    let antes = fs::read(&recipe).unwrap();
+    // Uma letra a mais no lado corrente já é outro texto: a comparação é exata.
+    let map = write_summary_map(
+        &repo,
+        &summary_entry(
+            SUMMARY_SEM_REGRA,
+            &format!("{SUMMARY_TRADUZIDO} "),
+            &historico,
+        ),
+    );
+
+    let saida = reconcile(&repo, Some(&map), None);
+    assert_eq!(saida.status.code(), Some(7), "{}", stdout(&saida));
+    assert!(
+        stdout(&saida).contains("MAPPING_GUARD_STALE"),
+        "{}",
+        stdout(&saida)
+    );
+    assert!(
+        stdout(&saida).contains("current_summary"),
+        "{}",
+        stdout(&saida)
+    );
+    assert_eq!(fs::read(&recipe).unwrap(), antes);
+}
+
+#[test]
+fn c5_par_de_summary_pela_metade_recusa_no_parse() {
+    for corpo in [
+        format!("\n[[rename]]\ncurrent_key = \"{SUMMARY_SEM_REGRA}\"\ncurrent_summary = \"{SUMMARY_TRADUZIDO}\"\n"),
+        format!("\n[[rename]]\ncurrent_key = \"{SUMMARY_SEM_REGRA}\"\nhistorical_summary = \"{SUMMARY_TRADUZIDO}\"\n"),
+    ] {
+        let repo = TempRepo::full("summary-half-pair");
+        repo.trust_main();
+        let recipe = recipe_path(&repo);
+        let antes = fs::read(&recipe).unwrap();
+        let map = write_summary_map(&repo, &corpo);
+
+        let saida = reconcile(&repo, Some(&map), None);
+        assert_eq!(saida.status.code(), Some(7), "{}", stdout(&saida));
+        assert!(
+            stdout(&saida).contains("RENAME_MAP_INVALID"),
+            "{}",
+            stdout(&saida)
+        );
+        assert_eq!(fs::read(&recipe).unwrap(), antes);
+    }
+}
+
+#[test]
+fn c6_summary_igual_dos_dois_lados_recusa_como_restauracao_vazia() {
+    let repo = TempRepo::full("summary-noop");
+    repo.trust_main();
+    let corrente = catalog_field(&repo, SUMMARY_SEM_REGRA, "summary");
+    let recipe = recipe_path(&repo);
+    let antes = fs::read(&recipe).unwrap();
+    let map = write_summary_map(
+        &repo,
+        &summary_entry(SUMMARY_SEM_REGRA, &corrente, &corrente),
+    );
+
+    let saida = reconcile(&repo, Some(&map), None);
+    assert_eq!(saida.status.code(), Some(7), "{}", stdout(&saida));
+    assert!(
+        stdout(&saida).contains("RENAME_MAP_INVALID"),
+        "{}",
+        stdout(&saida)
+    );
+    assert_eq!(fs::read(&recipe).unwrap(), antes);
+}
+
+#[test]
+fn c7_mapa_so_de_summary_nao_funde_os_overrides_da_regiao_nem_toca_identidade() {
+    let repo = TempRepo::full("summary-no-coalesce");
+    repo.trust_main();
+    let recipe = recipe_path(&repo);
+    let antes = fs::read_to_string(&recipe).unwrap();
+    let duplicadas_antes = rule_blocks(&antes, DUPLICADA);
+    assert_eq!(duplicadas_antes, 2, "a fixture precisa das duas regras");
+    let dominio_antes = catalog_field(&repo, DUPLICADA, "domain");
+    let camada_antes = catalog_field(&repo, DUPLICADA, "layer");
+    let historico = translate_summary(&repo, DUPLICADA, SUMMARY_TRADUZIDO);
+    let orcamento_antes = expected_overrides(&antes);
+
+    let map = write_summary_map(
+        &repo,
+        &summary_entry(DUPLICADA, SUMMARY_TRADUZIDO, &historico),
+    );
+    let plano = reconcile(&repo, Some(&map), None);
+    assert_eq!(plano.status.code(), Some(0), "{}", stderr(&plano));
+    let json = stdout(&plano);
+    // Restaurar summary não tira a região do alcance de regra nenhuma, então
+    // não há dependência de ordem a resolver e nada é fundido.
+    assert!(!json.contains("DUPLICATE_OVERRIDE_COALESCED"), "{json}");
+    let aplicado = reconcile(&repo, Some(&map), Some(&digest(&json)));
+    assert_eq!(aplicado.status.code(), Some(0), "{}", stdout(&aplicado));
+
+    let depois = fs::read_to_string(&recipe).unwrap();
+    // As duas regras originais continuam sendo duas, e a ponte é uma terceira.
+    assert_eq!(rule_blocks(&depois, DUPLICADA), duplicadas_antes + 1);
+    assert_eq!(expected_overrides(&depois), orcamento_antes + 1);
+    // A identidade corrente da região não é tocada por uma ponte de summary.
+    assert_eq!(catalog_field(&repo, DUPLICADA, "domain"), dominio_antes);
+    assert_eq!(catalog_field(&repo, DUPLICADA, "layer"), camada_antes);
+    assert!(!depois.contains("to_key = "));
+    assert!(!depois.contains("to_domain = "));
+    assert!(!depois.contains("to_layer = "));
+}
+
+#[test]
+fn c8_identidade_e_summary_na_mesma_entrada_viram_uma_regra_atomica() {
+    let repo = TempRepo::full("summary-with-identity");
+    repo.trust_main();
+    let recipe = recipe_path(&repo);
+    let antes = fs::read_to_string(&recipe).unwrap();
+    let destino_antigo = summary_rule_field(&antes, SUMMARY_COM_REGRA, "to_summary").unwrap();
+    let dominio_antigo = catalog_field(&repo, SUMMARY_COM_REGRA, "domain");
+    let historico = translate_summary(&repo, SUMMARY_COM_REGRA, SUMMARY_TRADUZIDO);
+    retag_in_catalog(&repo, SUMMARY_COM_REGRA, "domain", "program");
+    let congelados_antes = frozen_bytes(&repo);
+
+    let map = write_summary_map(
+        &repo,
+        &format!(
+            "\n[[rename]]\ncurrent_key = \"{SUMMARY_COM_REGRA}\"\ncurrent_domain = \"program\"\nhistorical_domain = \"{dominio_antigo}\"\ncurrent_summary = \"{SUMMARY_TRADUZIDO}\"\nhistorical_summary = \"{historico}\"\n"
+        ),
+    );
+    let plano = reconcile(&repo, Some(&map), None);
+    assert_eq!(plano.status.code(), Some(0), "{}", stderr(&plano));
+    let json = stdout(&plano);
+    assert!(json.contains("restores_summary=true"), "{json}");
+    let aplicado = reconcile(&repo, Some(&map), Some(&digest(&json)));
+    assert_eq!(aplicado.status.code(), Some(0), "{}", stdout(&aplicado));
+
+    let depois = fs::read_to_string(&recipe).unwrap();
+    let bloco = rule_block(&depois, SUMMARY_COM_REGRA);
+    // Uma regra só carrega identidade e summary: a reconstrução aplica as duas
+    // restaurações como uma unidade ou não aplica nenhuma.
+    assert_eq!(rule_blocks(&depois, SUMMARY_COM_REGRA), 1);
+    assert!(
+        bloco.contains(&format!("to_domain = \"{dominio_antigo}\"")),
+        "{bloco}"
+    );
+    assert!(bloco.contains("expect_domain = \"program\""), "{bloco}");
+    assert!(
+        bloco.contains(&format!("from_summary = \"{SUMMARY_TRADUZIDO}\"")),
+        "{bloco}"
+    );
+    assert!(
+        bloco.contains(&format!("to_summary = \"{destino_antigo}\"")),
+        "{bloco}"
+    );
+
+    let verificado = projection(&repo, &["verificar", "--json"]);
+    assert_eq!(verificado.status.code(), Some(0), "{}", stderr(&verificado));
+    assert_eq!(frozen_bytes(&repo), congelados_antes);
+}
+
+#[test]
+fn c9_summary_declarado_para_regiao_excluida_recusa_em_vez_de_criar_override_morto() {
+    let repo = TempRepo::full("summary-excluded");
+    repo.trust_main();
+    let historico = translate_summary(&repo, RENOMEADA_EXCLUIDA, SUMMARY_TRADUZIDO);
+    let recipe = recipe_path(&repo);
+    let antes = fs::read(&recipe).unwrap();
+    let map = write_summary_map(
+        &repo,
+        &summary_entry(RENOMEADA_EXCLUIDA, SUMMARY_TRADUZIDO, &historico),
+    );
+
+    let saida = reconcile(&repo, Some(&map), None);
+    assert_eq!(saida.status.code(), Some(7), "{}", stdout(&saida));
+    let json = stdout(&saida);
+    assert!(
+        json.contains("MAPPING_ENTRY_UNUSED") || json.contains("MAPPING_RESTORES_EXCLUDED_REGION"),
+        "{json}"
+    );
+    assert_eq!(fs::read(&recipe).unwrap(), antes);
+}
+
+#[test]
+fn c9b_renomeacao_com_summary_sobre_regiao_excluida_e_nomeada_como_tal() {
+    let repo = TempRepo::full("summary-excluded-renamed");
+    repo.trust_main();
+    let historico = translate_summary(&repo, RENOMEADA_EXCLUIDA, SUMMARY_TRADUZIDO);
+    rename_in_catalog(
+        &repo,
+        RENOMEADA_EXCLUIDA,
+        "automation.contract.authorization",
+        None,
+    );
+    let recipe = recipe_path(&repo);
+    let antes = fs::read(&recipe).unwrap();
+    let map = write_summary_map(
+        &repo,
+        &format!(
+            "\n[[rename]]\ncurrent_key = \"automation.contract.authorization\"\nhistorical_key = \"{RENOMEADA_EXCLUIDA}\"\ncurrent_summary = \"{SUMMARY_TRADUZIDO}\"\nhistorical_summary = \"{historico}\"\n"
+        ),
+    );
+
+    let saida = reconcile(&repo, Some(&map), None);
+    assert_eq!(saida.status.code(), Some(7), "{}", stdout(&saida));
+    assert!(
+        stdout(&saida).contains("MAPPING_RESTORES_EXCLUDED_REGION"),
+        "{}",
+        stdout(&saida)
+    );
+    assert_eq!(fs::read(&recipe).unwrap(), antes);
+}
+
+#[test]
+fn c11_mapas_que_diferem_so_no_par_de_summary_produzem_digests_diferentes() {
+    let repo = TempRepo::full("summary-digest");
+    repo.trust_main();
+    let historico = translate_summary(&repo, SUMMARY_SEM_REGRA, SUMMARY_TRADUZIDO);
+    let recipe = recipe_path(&repo);
+    let antes = fs::read(&recipe).unwrap();
+
+    let primeiro = write_summary_map(
+        &repo,
+        &summary_entry(SUMMARY_SEM_REGRA, SUMMARY_TRADUZIDO, &historico),
+    );
+    let plano_um = reconcile(&repo, Some(&primeiro), None);
+    assert_eq!(plano_um.status.code(), Some(0), "{}", stderr(&plano_um));
+    let json_um = stdout(&plano_um);
+    let digest_um = digest(&json_um);
+    let fingerprint_um = field(&json_um, "rename_map");
+
+    // Mesmo mapa, outro destino histórico: outro fato declarado, outro plano.
+    let outro_historico = format!("{historico} ");
+    let segundo = write_summary_map(
+        &repo,
+        &summary_entry(SUMMARY_SEM_REGRA, SUMMARY_TRADUZIDO, &outro_historico),
+    );
+    let plano_dois = reconcile(&repo, Some(&segundo), None);
+    assert_eq!(plano_dois.status.code(), Some(0), "{}", stderr(&plano_dois));
+    let json_dois = stdout(&plano_dois);
+    assert_ne!(digest_um, digest(&json_dois));
+    assert_ne!(fingerprint_um, field(&json_dois, "rename_map"));
+
+    // C14: o digest do primeiro plano não autoriza o segundo.
+    let obsoleto = reconcile(&repo, Some(&segundo), Some(&digest_um));
+    assert_eq!(obsoleto.status.code(), Some(8), "{}", stdout(&obsoleto));
+    assert_eq!(fs::read(&recipe).unwrap(), antes);
+}
+
+#[test]
+fn c16_mapa_schema_1_nao_aceita_campo_de_summary_e_continua_valendo_para_identidade() {
+    let repo = TempRepo::full("summary-schema-1");
+    repo.trust_main();
+    let historico = translate_summary(&repo, SUMMARY_SEM_REGRA, SUMMARY_TRADUZIDO);
+    let recipe = recipe_path(&repo);
+    let antes = fs::read(&recipe).unwrap();
+
+    // Campo novo sob versão antiga: a recusa nomeia a versão, porque o campo
+    // existe — só não naquele schema.
+    let antigo = write_rename_map(
+        &repo,
+        &summary_entry(SUMMARY_SEM_REGRA, SUMMARY_TRADUZIDO, &historico),
+    );
+    let saida = reconcile(&repo, Some(&antigo), None);
+    assert_eq!(saida.status.code(), Some(7), "{}", stdout(&saida));
+    let json = stdout(&saida);
+    assert!(json.contains("RENAME_MAP_INVALID"), "{json}");
+    assert!(json.contains("schema 2"), "{json}");
+    assert_eq!(fs::read(&recipe).unwrap(), antes);
+}
+
+#[test]
+fn c11b_a_impressao_digital_distingue_os_dois_lados_do_par_de_summary() {
+    // O lado corrente é guarda: dois mapas válidos nunca diferem só nele, então
+    // a diferença não aparece por digest de plano. Ela precisa aparecer na
+    // forma canônica, que é o que entra no digest — sem isso um campo declarado
+    // ficaria fora da autorização.
+    let base = format!(
+        "schema = 2\n[[rename]]\ncurrent_key = \"{SUMMARY_SEM_REGRA}\"\ncurrent_summary = \"corrente\"\nhistorical_summary = \"historico\"\n"
+    );
+    let outro_corrente = base.replace("\"corrente\"", "\"corrente diferente\"");
+    let outro_historico = base.replace("\"historico\"", "\"historico diferente\"");
+
+    let impressao = |texto: &str| {
+        pinker_v0::nav_projection_rename_map::parse_rename_map(texto)
+            .unwrap()
+            .fingerprint()
+    };
+    assert_ne!(impressao(&base), impressao(&outro_corrente));
+    assert_ne!(impressao(&base), impressao(&outro_historico));
+    assert_ne!(impressao(&outro_corrente), impressao(&outro_historico));
+}

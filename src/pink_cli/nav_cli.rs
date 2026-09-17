@@ -15,7 +15,7 @@
 // @pinker-nav:start cli.nav.projecao
 // @pinker-nav:domain projecoes
 // @pinker-nav:layer cli
-// @pinker-nav:summary Final `pink nav projecao` adapter: dispatches listing, inspection, verification, lifecycle, and explicit recipe reconciliation; discovers the root through the automation core, derives text and JSON from shared models, recalculates plans before authorization, coalesces into a single atomic rule the overrides that select one region whose identity an explicit map restores — combining disjoint fields, deduplicating identical ones, refusing a contradictory guard or destination instead of choosing by order, and lowering the declared override budget by the rules it absorbed — and preserves distinct drift, harness, policy, and stale exits.
+// @pinker-nav:summary Final `pink nav projecao` adapter: dispatches listing, inspection, verification, lifecycle, and explicit recipe reconciliation; discovers the root through the automation core, derives text and JSON from shared models, recalculates plans before authorization, coalesces into a single atomic rule the overrides that select one region whose identity an explicit map restores — combining disjoint fields, deduplicating identical ones, refusing a contradictory guard or destination instead of choosing by order, and lowering the declared override budget by the rules it absorbed — bridges a translated summary back to the historical text by moving the guard of the rule that already restores summary while preserving its older destination, or by creating one new override for the region that has none, without coalescing and without touching identity; and preserves distinct drift, harness, policy, and stale exits.
 use super::*;
 use pinker_v0::automation as core;
 use pinker_v0::nav_projection_rename_map::{parse_rename_map, RenameEntry, RenameMap};
@@ -380,6 +380,13 @@ fn check_entry_guards(
     for (campo, declarado, observado) in [
         ("domain", &entry.current_domain, region.domain.as_deref()),
         ("layer", &entry.current_layer, region.layer.as_deref()),
+        // Comparação exata, byte a byte: normalizar espaço, caixa ou acento
+        // aqui faria o mapa casar com um summary que ninguém escreveu.
+        (
+            "summary",
+            &entry.current_summary,
+            Some(region.summary.as_str()),
+        ),
     ] {
         if let Some(declarado) = declarado {
             if Some(declarado.as_str()) != observado {
@@ -402,14 +409,29 @@ fn check_entry_guards(
 /// A regra existente guarda o valor que a reconstrução espera. Se o operador
 /// declarar outro, uma das duas afirmações está errada, e escolher entre elas
 /// seria o reconciliador decidindo história.
+#[allow(clippy::too_many_arguments)]
 fn check_rule_agrees_with_entry(
     owner: &str,
     rule_key: &str,
     expect_domain: Option<&str>,
     expect_layer: Option<&str>,
+    from_summary: Option<&str>,
     entry: &RenameEntry,
     region: &pinker_v0::nav::CodeRegion,
 ) -> Result<(), ProjectionError> {
+    // O summary é conferido só quando o mapa declara o par. Sem par declarado a
+    // guarda antiga continua sendo reconciliada mecanicamente, como em qualquer
+    // região que não foi renomeada: exigir aqui igualdade com o corrente
+    // transformaria um drift comum em recusa.
+    if let (Some(pela_regra), Some(historico_do_mapa)) = (from_summary, &entry.historical_summary) {
+        if pela_regra != historico_do_mapa {
+            return Err(ProjectionError::Policy {
+                message: format!(
+                    "MAPPING_CONTRADICTS_AUTHORITY: owner_file={owner} rule_key={rule_key} from_summary={pela_regra} map_historical_summary={historico_do_mapa}"
+                ),
+            });
+        }
+    }
     for (campo, declarado_pela_regra, historico_do_mapa, corrente) in [
         (
             "domain",
@@ -615,10 +637,20 @@ fn coalesce_identity_overrides(
             }
         };
         grupos.push(match resolve_selector(catalog, &chave, renames)? {
-            Resolved::DirectRenamed(region, _) | Resolved::Mapped(region, _) => {
+            // Só a restauração de identidade forma grupo. Restaurar `summary`
+            // devolve um campo medido e não muda qual região a regra seleciona,
+            // então as outras regras continuam encontrando a região em qualquer
+            // ordem — fundir por causa dele mudaria receitas que ninguém pediu
+            // para mudar.
+            Resolved::DirectRenamed(region, entry) | Resolved::Mapped(region, entry)
+                if entry.restores_identity() =>
+            {
                 Some(region.key.clone())
             }
-            Resolved::Direct(_) | Resolved::Absent => None,
+            Resolved::DirectRenamed(_, _)
+            | Resolved::Mapped(_, _)
+            | Resolved::Direct(_)
+            | Resolved::Absent => None,
         });
     }
 
@@ -661,14 +693,18 @@ fn coalesce_identity_overrides(
     Ok(())
 }
 
-/// Constrói a regra reconciliada de uma região renomeada.
+/// Constrói a regra reconciliada de uma região que o mapa declara.
 ///
 /// A regra resultante é sempre `override-region`: ela é a única operação capaz
 /// de restaurar mais de um campo como uma unidade, e uma renomeação de
 /// identidade quase nunca é de um campo só. Promover `override-hash` não muda o
 /// orçamento, porque as duas contam como override.
+///
+/// Identidade e summary entram pela mesma porta e numa regra só, porque a
+/// reconstrução aplica a regra atomicamente: uma entrada que restaura os dois
+/// nunca deixa metade aplicada.
 #[allow(clippy::too_many_arguments)]
-fn reconciled_identity_rule(
+fn reconciled_restoration_rule(
     entry: &RenameEntry,
     region: &pinker_v0::nav::CodeRegion,
     from_hash: Option<String>,
@@ -689,11 +725,20 @@ fn reconciled_identity_rule(
             anterior
         }
     };
+    // O destino histórico que a regra já tinha vence o do mapa, e não por
+    // preferência: `historical_summary` é o summary imediatamente anterior à
+    // renomeação corrente, enquanto um `to_summary` existente pode já apontar
+    // para um estado mais antigo. Trocar um pelo outro reescreveria história
+    // mais velha com a mais nova. Quando não havia regra, o mapa é a única
+    // autoridade que nomeia o destino.
+    let to_summary = to_summary.or_else(|| entry.historical_summary.clone());
     Rule::OverrideRegion {
         key: entry.current_key.clone(),
         to_key: entry.historical_key.clone(),
         from_hash,
         to_hash,
+        // A guarda de summary acompanha o destino: quem restaura precisa
+        // declarar de onde parte, e o ponto de partida é sempre o corrente.
         from_summary: to_summary.as_ref().map(|_| region.summary.clone()),
         to_summary,
         expect_file,
@@ -770,10 +815,13 @@ fn plan_recipe_reconciliation(
                         // nenhuma. Declarar identidade histórica de domínio ou
                         // camada para ela é declarar uma restauração que nada
                         // aplica, e aceitar em silêncio seria ignorar o mapa.
-                        if entry.historical_domain.is_some() || entry.historical_layer.is_some() {
+                        if entry.historical_domain.is_some()
+                            || entry.historical_layer.is_some()
+                            || entry.historical_summary.is_some()
+                        {
                             return Err(ProjectionError::Policy {
                                 message: format!(
-                                    "MAPPING_RESTORES_EXCLUDED_REGION: current_key={} is excluded from every historical projection and has no domain/layer identity to restore",
+                                    "MAPPING_RESTORES_EXCLUDED_REGION: current_key={} is excluded from every historical projection and has no domain/layer/summary value to restore",
                                     entry.current_key
                                 ),
                             });
@@ -795,25 +843,16 @@ fn plan_recipe_reconciliation(
                     expect_layer,
                 } => {
                     match resolve_selector(catalog, key, renames)? {
-                        Resolved::Direct(region) => {
-                            if region.hash != *from {
-                                if expect_file.as_deref() != Some(region.file.as_str())
-                                    || expect_domain.as_deref() != region.domain.as_deref()
-                                    || expect_layer.as_deref() != region.layer.as_deref()
-                                {
-                                    return Err(ProjectionError::Policy { message: format!("SEMANTIC_AMBIGUITY_BLOCK: rule_key={key} structural identity changed") });
-                                }
-                                changes.push(format!("owner_file={} rule_key={} path={} domain={} layer={} expected={} observed={} planned_allowed_mutation=recipe.from reason=MECHANICALLY_RECONCILABLE", stored.path, key, region.file, region.domain.as_deref().unwrap_or("—"), region.layer.as_deref().unwrap_or("—"), from, region.hash));
-                                from.clone_from(&region.hash);
-                            }
-                        }
-                        Resolved::Mapped(region, entry) | Resolved::DirectRenamed(region, entry) => {
+                        Resolved::Mapped(region, entry) | Resolved::DirectRenamed(region, entry)
+                            if entry.restores_identity() =>
+                        {
                             check_entry_guards(entry, region)?;
                             check_rule_agrees_with_entry(
                                 &stored.path,
                                 key,
                                 expect_domain.as_deref(),
                                 expect_layer.as_deref(),
+                                None,
                                 entry,
                                 region,
                             )?;
@@ -823,17 +862,18 @@ fn plan_recipe_reconciliation(
                                 return Err(ProjectionError::Policy { message: format!("SEMANTIC_AMBIGUITY_BLOCK: rule_key={key} structural identity changed") });
                             }
                             changes.push(format!(
-                                "owner_file={} rule_key={} path={} planned_allowed_mutation=recipe.override_region historical_key={} current_key={} historical_domain={} historical_layer={} reason=EXPLICIT_RENAME_MAPPED",
+                                "owner_file={} rule_key={} path={} planned_allowed_mutation=recipe.override_region historical_key={} current_key={} historical_domain={} historical_layer={} restores_summary={} reason=EXPLICIT_RENAME_MAPPED",
                                 stored.path,
                                 key,
                                 region.file,
                                 entry.historical_key.as_deref().unwrap_or("—"),
                                 entry.current_key,
                                 entry.historical_domain.as_deref().unwrap_or("—"),
-                                entry.historical_layer.as_deref().unwrap_or("—")
+                                entry.historical_layer.as_deref().unwrap_or("—"),
+                                entry.historical_summary.is_some()
                             ));
                             used.insert(entry.current_key.clone());
-                            *rule = reconciled_identity_rule(
+                            *rule = reconciled_restoration_rule(
                                 entry,
                                 region,
                                 Some(region.hash.clone()),
@@ -844,6 +884,25 @@ fn plan_recipe_reconciliation(
                                 expect_domain.clone(),
                                 expect_layer.clone(),
                             );
+                        }
+                        // Uma entrada só de summary não passa por aqui: um
+                        // `override-hash` não restaura summary, então não há o
+                        // que reescrever nele, e a ponte nasce como regra
+                        // própria. A guarda de hash continua sendo reconciliada
+                        // mecanicamente, como a de qualquer região não mapeada.
+                        Resolved::Direct(region)
+                        | Resolved::Mapped(region, _)
+                        | Resolved::DirectRenamed(region, _) => {
+                            if region.hash != *from {
+                                if expect_file.as_deref() != Some(region.file.as_str())
+                                    || expect_domain.as_deref() != region.domain.as_deref()
+                                    || expect_layer.as_deref() != region.layer.as_deref()
+                                {
+                                    return Err(ProjectionError::Policy { message: format!("SEMANTIC_AMBIGUITY_BLOCK: rule_key={key} structural identity changed") });
+                                }
+                                changes.push(format!("owner_file={} rule_key={} path={} domain={} layer={} expected={} observed={} planned_allowed_mutation=recipe.from reason=MECHANICALLY_RECONCILABLE", stored.path, key, region.file, region.domain.as_deref().unwrap_or("—"), region.layer.as_deref().unwrap_or("—"), from, region.hash));
+                                from.clone_from(&region.hash);
+                            }
                         }
                         Resolved::Absent => {
                             return Err(ProjectionError::Policy { message: format!("SEMANTIC_AMBIGUITY_BLOCK: rule_key={key} requires exactly one current region") })
@@ -862,8 +921,91 @@ fn plan_recipe_reconciliation(
                     expect_layer,
                     ..
                 } => {
-                    match resolve_selector(catalog, key, renames)? {
-                        Resolved::Direct(region) => {
+                    // Duas perguntas, não uma: *qual região a regra seleciona*
+                    // é sempre do catálogo; *o que aquela região precisa de
+                    // volta* é do mapa. Restaurar identidade tira a região do
+                    // alcance das outras regras e por isso tem caminho próprio;
+                    // restaurar summary não tira, e por isso reusa o caminho
+                    // mecânico.
+                    let (region, entry) = match resolve_selector(catalog, key, renames)? {
+                        Resolved::Absent => {
+                            return Err(ProjectionError::Policy { message: format!("SEMANTIC_AMBIGUITY_BLOCK: rule_key={key} requires exactly one current region") })
+                        }
+                        Resolved::Direct(region) => (region, None),
+                        Resolved::DirectRenamed(region, entry) | Resolved::Mapped(region, entry) => {
+                            (region, Some(entry))
+                        }
+                    };
+                    match entry.filter(|entry| entry.restores_identity()) {
+                        Some(entry) => {
+                            check_entry_guards(entry, region)?;
+                            check_rule_agrees_with_entry(
+                                &stored.path,
+                                key,
+                                expect_domain.as_deref(),
+                                expect_layer.as_deref(),
+                                from_summary.as_deref(),
+                                entry,
+                                region,
+                            )?;
+                            if expect_file.is_some()
+                                && expect_file.as_deref() != Some(region.file.as_str())
+                            {
+                                return Err(ProjectionError::Policy { message: format!("SEMANTIC_AMBIGUITY_BLOCK: rule_key={key} structural identity changed") });
+                            }
+                            changes.push(format!(
+                                "owner_file={} rule_key={} path={} planned_allowed_mutation=recipe.override_region historical_key={} current_key={} historical_domain={} historical_layer={} restores_summary={} reason=EXPLICIT_RENAME_MAPPED",
+                                stored.path,
+                                key,
+                                region.file,
+                                entry.historical_key.as_deref().unwrap_or("—"),
+                                entry.current_key,
+                                entry.historical_domain.as_deref().unwrap_or("—"),
+                                entry.historical_layer.as_deref().unwrap_or("—"),
+                                entry.historical_summary.is_some()
+                            ));
+                            used.insert(entry.current_key.clone());
+                            *rule = reconciled_restoration_rule(
+                                entry,
+                                region,
+                                from_hash.as_ref().map(|_| region.hash.clone()),
+                                to_hash.clone(),
+                                to_summary.clone(),
+                                expect_file.clone(),
+                                to_file.clone(),
+                                expect_domain.clone(),
+                                expect_layer.clone(),
+                            );
+                        }
+                        None => {
+                            // Entrada só de summary. A regra que já restaura
+                            // summary é a que responde por ele: sua guarda passa
+                            // a ser o texto corrente e seu destino histórico é
+                            // preservado byte a byte, porque ele pode ser mais
+                            // antigo que o summary imediatamente anterior que o
+                            // mapa declara. Uma regra que não restaura summary
+                            // não vira restauradora aqui — a ponte nasce como
+                            // regra própria, e assim nenhuma ordem de aplicação
+                            // decide o resultado.
+                            if let Some(entry) = entry {
+                                check_entry_guards(entry, region)?;
+                                check_rule_agrees_with_entry(
+                                    &stored.path,
+                                    key,
+                                    expect_domain.as_deref(),
+                                    expect_layer.as_deref(),
+                                    from_summary.as_deref(),
+                                    entry,
+                                    region,
+                                )?;
+                                if from_summary.is_some() {
+                                    changes.push(format!(
+                                        "owner_file={} rule_key={} path={} planned_allowed_mutation=recipe.from_summary current_key={} to_summary=PRESERVED reason=EXPLICIT_SUMMARY_MAPPED",
+                                        stored.path, key, region.file, entry.current_key
+                                    ));
+                                    used.insert(entry.current_key.clone());
+                                }
+                            }
                             let hash_changed =
                                 from_hash.as_deref().is_some_and(|hash| hash != region.hash);
                             let summary_changed = from_summary
@@ -885,47 +1027,6 @@ fn plan_recipe_reconciliation(
                                 }
                             }
                         }
-                        Resolved::Mapped(region, entry) | Resolved::DirectRenamed(region, entry) => {
-                            check_entry_guards(entry, region)?;
-                            check_rule_agrees_with_entry(
-                                &stored.path,
-                                key,
-                                expect_domain.as_deref(),
-                                expect_layer.as_deref(),
-                                entry,
-                                region,
-                            )?;
-                            if expect_file.is_some()
-                                && expect_file.as_deref() != Some(region.file.as_str())
-                            {
-                                return Err(ProjectionError::Policy { message: format!("SEMANTIC_AMBIGUITY_BLOCK: rule_key={key} structural identity changed") });
-                            }
-                            changes.push(format!(
-                                "owner_file={} rule_key={} path={} planned_allowed_mutation=recipe.override_region historical_key={} current_key={} historical_domain={} historical_layer={} reason=EXPLICIT_RENAME_MAPPED",
-                                stored.path,
-                                key,
-                                region.file,
-                                entry.historical_key.as_deref().unwrap_or("—"),
-                                entry.current_key,
-                                entry.historical_domain.as_deref().unwrap_or("—"),
-                                entry.historical_layer.as_deref().unwrap_or("—")
-                            ));
-                            used.insert(entry.current_key.clone());
-                            *rule = reconciled_identity_rule(
-                                entry,
-                                region,
-                                from_hash.as_ref().map(|_| region.hash.clone()),
-                                to_hash.clone(),
-                                to_summary.clone(),
-                                expect_file.clone(),
-                                to_file.clone(),
-                                expect_domain.clone(),
-                                expect_layer.clone(),
-                            );
-                        }
-                        Resolved::Absent => {
-                            return Err(ProjectionError::Policy { message: format!("SEMANTIC_AMBIGUITY_BLOCK: rule_key={key} requires exactly one current region") })
-                        }
                     }
                 }
                 _ => {}
@@ -933,7 +1034,7 @@ fn plan_recipe_reconciliation(
         }
 
         if let Some(map) = renames {
-            create_missing_identity_rules(
+            create_missing_restoration_rules(
                 &stored.path,
                 &mut recipe,
                 catalog,
@@ -1017,11 +1118,13 @@ fn plan_recipe_reconciliation(
 /// Uma região histórica não precisa ter regra: enquanto sua identidade corrente
 /// é a histórica, a reconstrução a carrega de graça. Renomeá-la é justamente o
 /// que cria a necessidade da regra, e nenhuma regra antiga nomeia a região nova.
+/// Vale igualmente para o summary: enquanto o texto corrente é o histórico,
+/// nada precisa restaurá-lo, e é traduzi-lo que cria a regra.
 ///
 /// Região que a própria receita exclui não recebe restauração: exclusões correm
 /// antes dos overrides, e um override sobre região excluída não teria o que
 /// consumir.
-fn create_missing_identity_rules(
+fn create_missing_restoration_rules(
     owner: &str,
     recipe: &mut pinker_v0::nav_projection_recipe::Recipe,
     catalog: &[pinker_v0::nav::CodeRegion],
@@ -1052,16 +1155,17 @@ fn create_missing_identity_rules(
         };
         check_entry_guards(entry, region)?;
         changes.push(format!(
-            "owner_file={owner} rule_key={} path={} planned_allowed_mutation=recipe.new_override_region historical_key={} current_key={} historical_domain={} historical_layer={} reason=EXPLICIT_RENAME_MAPPED",
+            "owner_file={owner} rule_key={} path={} planned_allowed_mutation=recipe.new_override_region historical_key={} current_key={} historical_domain={} historical_layer={} restores_summary={} reason=EXPLICIT_RENAME_MAPPED",
             entry.current_key,
             region.file,
             entry.historical_key.as_deref().unwrap_or("—"),
             entry.current_key,
             entry.historical_domain.as_deref().unwrap_or("—"),
-            entry.historical_layer.as_deref().unwrap_or("—")
+            entry.historical_layer.as_deref().unwrap_or("—"),
+            entry.historical_summary.is_some()
         ));
         used.insert(entry.current_key.clone());
-        novas.push(reconciled_identity_rule(
+        novas.push(reconciled_restoration_rule(
             entry, region, None, None, None, None, None, None, None,
         ));
     }
