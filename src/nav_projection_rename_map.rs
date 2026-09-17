@@ -28,7 +28,7 @@
 // @pinker-nav:start trama.snapshots.rename-map
 // @pinker-nav:domain snapshots
 // @pinker-nav:layer trama
-// @pinker-nav:summary Explicit operator-declared map from a current region identity to the historical identity a frozen reconstruction expects: parses its own strict TOML subset through the shared reader, keeps current and historical sides under distinct field names so direction cannot be read backwards, rejects a repeated current or historical key, an entry that declares half a pair, an entry that restores a value the region already has and an entry that declares nothing to restore, and publishes a canonical fingerprint so the map binds into the reconciliation plan digest.
+// @pinker-nav:summary Explicit operator-declared map from a current region identity to the historical identity a frozen reconstruction expects: parses its own strict TOML subset through the shared reader, keeps current and historical sides under distinct field names so direction cannot be read backwards, rejects a repeated current or historical key, an entry that declares half a pair, an entry that restores a value the region already has and an entry that declares nothing to restore, offers lookup both by historical key and by current key so a rename that moved only domain or layer is still found by a rule whose selector never changed, and publishes a canonical fingerprint so the map binds into the reconciliation plan digest.
 use crate::nav_projection_snapshot::{
     optional_text, parse_raw_with_array, reject_unknown, require_text, Table,
 };
@@ -91,6 +91,16 @@ impl RenameMap {
         self.entries
             .iter()
             .find(|entry| entry.historical_key.as_deref() == Some(key))
+    }
+
+    /// Entrada que nomeia a região corrente indicada.
+    ///
+    /// É a busca complementar: a chave da regra continua resolvendo no catálogo
+    /// e mesmo assim o operador declarou que a identidade histórica daquela
+    /// mesma região é outra. Sem esta busca, uma renomeação só de `domain` ou
+    /// `layer` ficaria invisível para o reconciliador.
+    pub fn by_current_key(&self, key: &str) -> Option<&RenameEntry> {
+        self.entries.iter().find(|entry| entry.current_key == key)
     }
 
     /// Impressão digital canônica do mapa.

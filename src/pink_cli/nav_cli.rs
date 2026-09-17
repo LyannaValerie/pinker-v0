@@ -292,8 +292,14 @@ fn load_rename_map(path: &str) -> Result<RenameMap, ProjectionError> {
 
 /// A região corrente que responde por um seletor de regra.
 enum Resolved<'a> {
-    /// A chave da regra ainda nomeia exatamente uma região corrente.
+    /// A chave da regra ainda nomeia exatamente uma região corrente, e o mapa
+    /// não declara nada sobre ela.
     Direct(&'a pinker_v0::nav::CodeRegion),
+    /// A chave da regra ainda nomeia exatamente uma região corrente, e o mapa
+    /// declara a identidade histórica dessa mesma região. É o caso da
+    /// renomeação que mudou só `domain` ou `layer`: a chave não se mexeu e a
+    /// identidade medida pela projeção congelada mudou assim mesmo.
+    DirectRenamed(&'a pinker_v0::nav::CodeRegion, &'a RenameEntry),
     /// A chave da regra é a identidade histórica declarada por uma entrada do
     /// mapa, e a região corrente é outra.
     Mapped(&'a pinker_v0::nav::CodeRegion, &'a RenameEntry),
@@ -310,10 +316,12 @@ fn regions_with_key<'a>(
 
 /// Resolve o seletor de uma regra contra o catálogo corrente e o mapa.
 ///
-/// O mapa nunca é consultado enquanto a chave corrente ainda resolve: uma regra
-/// que já encontra sua região não é candidata a renomeação, e deixar o mapa
-/// competir com a realidade seria exatamente a inferência que o contrato
-/// proíbe.
+/// São duas perguntas diferentes, e confundi-las foi o que deixou a renomeação
+/// só de metadata invisível: *qual região a regra seleciona* é decidida pelo
+/// catálogo corrente, sempre; *que identidade histórica aquela região precisa
+/// de volta* é decidida pelo mapa, e a chave corrente pode não ter mudado.
+/// O mapa nunca escolhe a região — só declara a relação da região que o
+/// catálogo já apontou.
 fn resolve_selector<'a>(
     catalog: &'a [pinker_v0::nav::CodeRegion],
     key: &str,
@@ -321,7 +329,12 @@ fn resolve_selector<'a>(
 ) -> Result<Resolved<'a>, ProjectionError> {
     let diretas = regions_with_key(catalog, key);
     match diretas.as_slice() {
-        [region] => return Ok(Resolved::Direct(region)),
+        [region] => {
+            return Ok(match renames.and_then(|map| map.by_current_key(key)) {
+                Some(entry) => Resolved::DirectRenamed(region, entry),
+                None => Resolved::Direct(region),
+            })
+        }
         [] => {}
         varias => {
             return Err(ProjectionError::Policy {
@@ -572,7 +585,7 @@ fn plan_recipe_reconciliation(
                                 from.clone_from(&region.hash);
                             }
                         }
-                        Resolved::Mapped(region, entry) => {
+                        Resolved::Mapped(region, entry) | Resolved::DirectRenamed(region, entry) => {
                             check_entry_guards(entry, region)?;
                             check_rule_agrees_with_entry(
                                 &stored.path,
@@ -650,7 +663,7 @@ fn plan_recipe_reconciliation(
                                 }
                             }
                         }
-                        Resolved::Mapped(region, entry) => {
+                        Resolved::Mapped(region, entry) | Resolved::DirectRenamed(region, entry) => {
                             check_entry_guards(entry, region)?;
                             check_rule_agrees_with_entry(
                                 &stored.path,

@@ -561,7 +561,7 @@ fn rename_in_catalog(repo: &TempRepo, key: &str, novo_key: &str, novo_domain: Op
                 &format!("\"key\":\"{novo_key}\""),
             );
             if let Some(dominio) = novo_domain {
-                let atual = domain_of(linha);
+                let atual = text_field(linha, "domain");
                 nova = nova.replace(
                     &format!("\"domain\":\"{atual}\""),
                     &format!("\"domain\":\"{dominio}\""),
@@ -578,20 +578,55 @@ fn rename_in_catalog(repo: &TempRepo, key: &str, novo_key: &str, novo_domain: Op
     fs::write(path, saida).unwrap();
 }
 
-fn domain_of(linha: &str) -> String {
-    let marker = "\"domain\":\"";
-    let start = linha.find(marker).unwrap() + marker.len();
+fn text_field(linha: &str, campo: &str) -> String {
+    let marker = format!("\"{campo}\":\"");
+    let start = linha.find(&marker).unwrap() + marker.len();
     let end = linha[start..].find('"').unwrap() + start;
     linha[start..end].to_string()
 }
 
-fn catalog_domain(repo: &TempRepo, key: &str) -> String {
+fn catalog_field(repo: &TempRepo, key: &str, campo: &str) -> String {
     let texto = fs::read_to_string(repo.path().join("src/navigation.jsonl")).unwrap();
     let linha = texto
         .lines()
         .find(|linha| linha.contains(&format!("\"key\":\"{key}\"")))
         .expect("região presente");
-    domain_of(linha)
+    text_field(linha, campo)
+}
+
+/// Reescreve só a metadata de uma região, preservando a chave corrente.
+///
+/// É a renomeação que o blocker desta unidade descreve: a chave continua
+/// resolvendo diretamente, e só `domain` ou `layer` mudou.
+fn retag_in_catalog(repo: &TempRepo, key: &str, campo: &str, valor: &str) {
+    let path = repo.path().join("src/navigation.jsonl");
+    let texto = fs::read_to_string(&path).unwrap();
+    let mut saida = String::with_capacity(texto.len());
+    let mut encontrada = false;
+    for linha in texto.lines() {
+        if linha.contains(&format!("\"key\":\"{key}\"")) {
+            let atual = text_field(linha, campo);
+            saida.push_str(&linha.replace(
+                &format!("\"{campo}\":\"{atual}\""),
+                &format!("\"{campo}\":\"{valor}\""),
+            ));
+            encontrada = true;
+        } else {
+            saida.push_str(linha);
+        }
+        saida.push('\n');
+    }
+    assert!(encontrada, "região {key} ausente do catálogo da fixture");
+    fs::write(path, saida).unwrap();
+}
+
+/// Bloco `[[rules]]` que nomeia a chave indicada, para inspeção pontual.
+fn rule_block(recipe: &str, key: &str) -> String {
+    recipe
+        .split("[[rules]]")
+        .find(|bloco| bloco.contains(&format!("key = \"{key}\"\n")))
+        .unwrap_or_else(|| panic!("nenhuma regra nomeia {key}"))
+        .to_string()
 }
 
 fn write_rename_map(repo: &TempRepo, corpo: &str) -> PathBuf {
@@ -634,7 +669,7 @@ fn renomeacao_sem_mapa_permanece_ambiguidade_semantica() {
 fn renomeacao_mapeada_reconstroi_identidade_e_todos_os_frozen_batem() {
     let repo = TempRepo::full("rename-mapped");
     repo.trust_main();
-    let dominio_antigo = catalog_domain(&repo, RENOMEADA_COM_REGRA);
+    let dominio_antigo = catalog_field(&repo, RENOMEADA_COM_REGRA, "domain");
     rename_in_catalog(
         &repo,
         RENOMEADA_COM_REGRA,
@@ -850,7 +885,7 @@ fn renomeacao_sem_regra_e_sem_mapa_nao_produz_plano_nem_conserto_silencioso() {
 fn mapa_que_contradiz_a_autoridade_existente_e_recusado() {
     let repo = TempRepo::full("rename-contradiction");
     repo.trust_main();
-    let dominio_antigo = catalog_domain(&repo, RENOMEADA_COM_REGRA);
+    let dominio_antigo = catalog_field(&repo, RENOMEADA_COM_REGRA, "domain");
     rename_in_catalog(
         &repo,
         RENOMEADA_COM_REGRA,
@@ -898,4 +933,212 @@ fn identidade_historica_para_regiao_excluida_e_recusada() {
     let saida = reconcile(&repo, Some(&map), None);
     assert_eq!(saida.status.code(), Some(7), "{}", stdout(&saida));
     assert!(stdout(&saida).contains("MAPPING_RESTORES_EXCLUDED_REGION"));
+}
+
+// ---------------------------------------------------------------------------
+// #685 — renomeação só de metadata sobre regra existente
+//
+// A chave continua resolvendo diretamente no catálogo corrente, e mesmo assim a
+// identidade histórica de `domain`/`layer` precisa ser reconstruída. O
+// reconciliador tem de reconhecer o mapa que nomeia essa mesma chave corrente,
+// sem por isso deixar o mapa competir com o catálogo.
+// ---------------------------------------------------------------------------
+
+/// Região com regra `override-region` na receita, participante da história.
+const REGIAO_COM_OVERRIDE_REGION: &str = "ast.closures.identificadores-livres";
+
+fn recipe_path(repo: &TempRepo) -> PathBuf {
+    repo.path()
+        .join(".pinker/projections/recipes/normalizacao-corrente-para-historico.toml")
+}
+
+#[test]
+fn renome_so_de_dominio_reconcilia_a_override_hash_existente() {
+    let repo = TempRepo::full("rename-domain-only-hash");
+    repo.trust_main();
+    let dominio_antigo = catalog_field(&repo, RENOMEADA_COM_REGRA, "domain");
+    let recipe = recipe_path(&repo);
+    let antes = fs::read_to_string(&recipe).unwrap();
+    let regra_antes = rule_block(&antes, RENOMEADA_COM_REGRA);
+    assert!(regra_antes.contains("op = \"override-hash\""));
+    let to_hash = regra_antes
+        .lines()
+        .find(|linha| linha.starts_with("to = "))
+        .unwrap()
+        .replace("to = ", "");
+
+    retag_in_catalog(&repo, RENOMEADA_COM_REGRA, "domain", "model");
+    let map = write_rename_map(
+        &repo,
+        &format!(
+            "\n[[rename]]\ncurrent_key = \"{RENOMEADA_COM_REGRA}\"\ncurrent_domain = \"model\"\nhistorical_domain = \"{dominio_antigo}\"\n"
+        ),
+    );
+
+    let plano = reconcile(&repo, Some(&map), None);
+    assert_eq!(plano.status.code(), Some(0), "{}", stderr(&plano));
+    let json = stdout(&plano);
+    assert!(json.contains("EXPLICIT_RENAME_MAPPED"), "{json}");
+    assert!(json.contains("planned_allowed_mutation=recipe.override_region"));
+    // A regra que já nomeia a região carrega a restauração: fabricar uma
+    // segunda regra para a mesma chave deixaria a `override-hash` correndo
+    // primeiro contra um domínio que ela não reconhece mais.
+    assert!(!json.contains("planned_allowed_mutation=recipe.new_override_region"));
+    assert_eq!(fs::read_to_string(&recipe).unwrap(), antes);
+
+    let aplicado = reconcile(&repo, Some(&map), Some(&digest(&json)));
+    assert_eq!(aplicado.status.code(), Some(0), "{}", stdout(&aplicado));
+    let depois = fs::read_to_string(&recipe).unwrap();
+    assert!(depois.starts_with("schema = 4\n"), "{}", &depois[..40]);
+    let regra = rule_block(&depois, RENOMEADA_COM_REGRA);
+    assert!(regra.contains("op = \"override-region\""), "{regra}");
+    assert!(regra.contains(&format!("to_hash = {to_hash}")), "{regra}");
+    assert!(regra.contains("expect_domain = \"model\""), "{regra}");
+    assert!(
+        regra.contains(&format!("to_domain = \"{dominio_antigo}\"")),
+        "{regra}"
+    );
+    assert!(!regra.contains("to_key"), "{regra}");
+
+    let verificado = projection(&repo, &["verificar", "--json"]);
+    assert_eq!(verificado.status.code(), Some(0), "{}", stderr(&verificado));
+    assert!(!stdout(&verificado).contains("\"outcome\":\"DRIFT\""));
+}
+
+#[test]
+fn renome_so_de_camada_reconcilia_a_override_region_existente() {
+    let repo = TempRepo::full("rename-layer-only-region");
+    repo.trust_main();
+    let camada_antiga = catalog_field(&repo, REGIAO_COM_OVERRIDE_REGION, "layer");
+    let recipe = recipe_path(&repo);
+    let antes = fs::read_to_string(&recipe).unwrap();
+    let regra_antes = rule_block(&antes, REGIAO_COM_OVERRIDE_REGION);
+    assert!(regra_antes.contains("op = \"override-region\""));
+    let to_hash = regra_antes
+        .lines()
+        .find(|linha| linha.starts_with("to_hash = "))
+        .unwrap()
+        .to_string();
+    let expect_file = regra_antes
+        .lines()
+        .find(|linha| linha.starts_with("expect_file = "))
+        .unwrap()
+        .to_string();
+
+    retag_in_catalog(&repo, REGIAO_COM_OVERRIDE_REGION, "layer", "syntax");
+    let map = write_rename_map(
+        &repo,
+        &format!(
+            "\n[[rename]]\ncurrent_key = \"{REGIAO_COM_OVERRIDE_REGION}\"\ncurrent_layer = \"syntax\"\nhistorical_layer = \"{camada_antiga}\"\n"
+        ),
+    );
+
+    let plano = reconcile(&repo, Some(&map), None);
+    assert_eq!(plano.status.code(), Some(0), "{}", stderr(&plano));
+    let json = stdout(&plano);
+    assert!(json.contains("EXPLICIT_RENAME_MAPPED"), "{json}");
+    assert!(!json.contains("planned_allowed_mutation=recipe.new_override_region"));
+    assert_eq!(fs::read_to_string(&recipe).unwrap(), antes);
+
+    let aplicado = reconcile(&repo, Some(&map), Some(&digest(&json)));
+    assert_eq!(aplicado.status.code(), Some(0), "{}", stdout(&aplicado));
+    let depois = fs::read_to_string(&recipe).unwrap();
+    let regra = rule_block(&depois, REGIAO_COM_OVERRIDE_REGION);
+    // A capacidade antiga sobrevive inteira: hash, caminho e o resto da regra.
+    assert!(regra.contains(&to_hash), "{regra}");
+    assert!(regra.contains(&expect_file), "{regra}");
+    assert!(regra.contains("expect_layer = \"syntax\""), "{regra}");
+    assert!(
+        regra.contains(&format!("to_layer = \"{camada_antiga}\"")),
+        "{regra}"
+    );
+
+    let verificado = projection(&repo, &["verificar", "--json"]);
+    assert_eq!(verificado.status.code(), Some(0), "{}", stderr(&verificado));
+    assert!(!stdout(&verificado).contains("\"outcome\":\"DRIFT\""));
+}
+
+#[test]
+fn renome_so_de_metadata_sem_mapa_nao_e_inferido_nem_escrito() {
+    for (key, campo, valor) in [
+        (RENOMEADA_COM_REGRA, "domain", "model"),
+        (REGIAO_COM_OVERRIDE_REGION, "layer", "syntax"),
+    ] {
+        let repo = TempRepo::full("rename-metadata-unmapped");
+        repo.trust_main();
+        retag_in_catalog(&repo, key, campo, valor);
+        let recipe = recipe_path(&repo);
+        let antes = fs::read(&recipe).unwrap();
+
+        let saida = reconcile(&repo, None, None);
+        let json = stdout(&saida);
+        // Sem mapa não há relação declarada: semelhança de valores não autoriza
+        // reconstrução, e nada é escrito.
+        assert!(
+            !json.contains("MECHANICALLY_RECONCILABLE"),
+            "{campo}: {json}"
+        );
+        assert!(!json.contains("to_domain"), "{campo}: {json}");
+        assert!(!json.contains("to_layer"), "{campo}: {json}");
+        assert_eq!(fs::read(&recipe).unwrap(), antes, "{campo}");
+
+        // E a projeção congelada continua acusando a divergência em vez de
+        // passar a bater por conta própria.
+        let verificado = projection(&repo, &["verificar", "--json"]);
+        assert_ne!(verificado.status.code(), Some(0), "{campo}: deveria acusar");
+    }
+}
+
+#[test]
+fn mapa_que_nomeia_chave_corrente_sem_efeito_material_e_recusado() {
+    let repo = TempRepo::full("rename-metadata-irrelevant");
+    repo.trust_main();
+    // A região é excluída por toda projeção histórica: restaurar domínio para
+    // ela não participa de reconciliação nenhuma.
+    let dominio_antigo = catalog_field(&repo, RENOMEADA_EXCLUIDA, "domain");
+    retag_in_catalog(&repo, RENOMEADA_EXCLUIDA, "domain", "contract");
+    let recipe = recipe_path(&repo);
+    let antes = fs::read(&recipe).unwrap();
+    let map = write_rename_map(
+        &repo,
+        &format!(
+            "\n[[rename]]\ncurrent_key = \"{RENOMEADA_EXCLUIDA}\"\ncurrent_domain = \"contract\"\nhistorical_domain = \"{dominio_antigo}\"\n"
+        ),
+    );
+
+    let saida = reconcile(&repo, Some(&map), None);
+    assert_eq!(saida.status.code(), Some(7), "{}", stdout(&saida));
+    let json = stdout(&saida);
+    assert!(
+        json.contains("MAPPING_ENTRY_UNUSED") || json.contains("MAPPING_RESTORES_EXCLUDED_REGION"),
+        "{json}"
+    );
+    assert_eq!(fs::read(&recipe).unwrap(), antes);
+}
+
+#[test]
+fn mapa_que_contradiz_guarda_de_metadata_da_regra_existente_e_recusado() {
+    let repo = TempRepo::full("rename-metadata-contradiction");
+    repo.trust_main();
+    retag_in_catalog(&repo, RENOMEADA_COM_REGRA, "domain", "model");
+    let recipe = recipe_path(&repo);
+    let antes = fs::read(&recipe).unwrap();
+    // A regra existente já afirma `expect_domain = "modelo"`. O mapa afirma
+    // outra grafia histórica: escolher entre as duas seria o reconciliador
+    // decidindo história.
+    let map = write_rename_map(
+        &repo,
+        &format!(
+            "\n[[rename]]\ncurrent_key = \"{RENOMEADA_COM_REGRA}\"\ncurrent_domain = \"model\"\nhistorical_domain = \"modelo-antigo\"\n"
+        ),
+    );
+
+    let saida = reconcile(&repo, Some(&map), None);
+    assert_eq!(saida.status.code(), Some(7), "{}", stdout(&saida));
+    assert!(
+        stdout(&saida).contains("MAPPING_CONTRADICTS_AUTHORITY"),
+        "{}",
+        stdout(&saida)
+    );
+    assert_eq!(fs::read(&recipe).unwrap(), antes);
 }
