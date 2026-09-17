@@ -64,6 +64,7 @@ pub mod semantic;
 pub mod sha256;
 pub mod source_map;
 pub mod source_origin;
+pub mod symbol_extraction;
 pub mod symbol_index;
 pub mod text_norm;
 pub mod tipo_entrada;

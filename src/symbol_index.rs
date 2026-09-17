@@ -16,7 +16,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 /// Schema público próprio de `pink nav localizar`.
-pub const SYMBOL_LOCATION_SCHEMA: u64 = 1;
+pub const SYMBOL_LOCATION_SCHEMA: u64 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RelationStatus {
@@ -129,12 +129,67 @@ pub struct SymbolCandidate {
 pub struct LocateReport {
     pub schema: u64,
     pub query: String,
+    /// Identidades explícitas sob o contrato de metadados já existente.
     pub candidates: Vec<SymbolCandidate>,
+    /// Declarações observadas lexicalmente na fonte corrente. Não são
+    /// identidade semântica e nunca carregam vínculos explícitos.
+    pub extracted_candidates: Vec<ExtractedCandidate>,
+    /// Ocorrências textuais delimitadas, fora da extração estrutural.
+    pub textual_occurrences: Vec<TextualOccurrence>,
+    /// Limitações declaradas da observação, como dados estáveis em inglês.
+    pub limitations: Vec<String>,
+    /// Arquivos cuja fonte mudou durante a leitura e não puderam ser
+    /// observados de forma estável. Nunca viram resultado silencioso.
+    pub unstable_sources: Vec<String>,
+    /// Total de resultados das três classes antes da janela de orçamento.
+    pub total: usize,
+    /// Início da janela efetivamente devolvida.
+    pub offset: usize,
+    pub truncated: bool,
+    pub continuation: Option<usize>,
+}
+
+/// Uma declaração reconhecida na fonte corrente. Deliberadamente não é
+/// identidade semântica: o nome foi observado lexicalmente, não resolvido.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExtractedCandidate {
+    pub path: String,
+    pub kind: String,
+    pub name: String,
+    /// Primeira linha do intervalo de declaração observado (1-based).
+    pub start: usize,
+    /// Última linha do intervalo de declaração observado (1-based).
+    pub end: usize,
+    /// Contexto estrutural reconhecível (`mod`, `impl`, `trait`) quando houver.
+    pub context: Option<String>,
+    /// Havia atributo imediatamente antes da declaração. Presença observada,
+    /// nunca avaliada.
+    pub attributes_present: bool,
+    /// Algum desses atributos mencionava `cfg`. Presença observada, nunca
+    /// avaliada.
+    pub cfg_present: bool,
+    /// Texto exatamente correspondente a `start..=end`, possivelmente cortado.
+    pub snippet: String,
+    pub snippet_truncated: bool,
+}
+
+/// Ocorrência textual delimitada: o nome apareceu em código que o extrator não
+/// reconheceu como declaração suportada. Não é declaração nem identidade.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TextualOccurrence {
+    pub path: String,
+    pub line: usize,
+    pub snippet: String,
+    pub snippet_truncated: bool,
+    /// Motivo estável, em inglês, pelo qual a ocorrência não foi promovida.
+    pub limitation: String,
 }
 
 impl LocateReport {
     pub fn found(&self) -> bool {
         !self.candidates.is_empty()
+            || !self.extracted_candidates.is_empty()
+            || !self.textual_occurrences.is_empty()
     }
 }
 // @pinker-nav:end trama.simbolos.modelo
@@ -149,6 +204,7 @@ impl LocateReport {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SymbolIndexError {
+    SourceScan(String),
     ConflictingIdentity {
         identity: String,
     },
@@ -176,6 +232,7 @@ pub enum SymbolIndexError {
 impl fmt::Display for SymbolIndexError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            SymbolIndexError::SourceScan(message) => write!(f, "E-NAV-SOURCE\n{message}"),
             SymbolIndexError::ConflictingIdentity { identity } => write!(
                 f,
                 "E-NAV-SYMBOL-INDEX\nIdentidade de símbolo '{}' possui nome ou categoria conflitante.",
@@ -336,14 +393,26 @@ pub fn locate(
             .then(a.kind.cmp(&b.kind))
             .then(a.name.cmp(&b.name))
     });
+    let total = candidates.len();
 
     Ok(LocateReport {
         schema: SYMBOL_LOCATION_SCHEMA,
         query: query.to_string(),
         candidates,
+        extracted_candidates: Vec::new(),
+        textual_occurrences: Vec::new(),
+        limitations: Vec::new(),
+        unstable_sources: Vec::new(),
+        total,
+        offset: 0,
+        truncated: false,
+        continuation: None,
     })
 }
 
+/// Extends explicit navigation with bounded lexical observations from the
+/// current worktree. Source is read directly, so dirty and untracked files are
+/// part of the observed universe; no cache participates in this result.
 fn missing_target(region: &CodeRegion, field: &str, identity: &str) -> SymbolIndexError {
     SymbolIndexError::MissingTarget {
         region: region.key.clone(),
@@ -540,16 +609,51 @@ pub fn render_json(report: &LocateReport) -> String {
         .map(candidate_json)
         .collect::<Vec<_>>()
         .join(",");
+    let extracted = report
+        .extracted_candidates
+        .iter()
+        .map(extracted_json)
+        .collect::<Vec<_>>()
+        .join(",");
+    let textual = report
+        .textual_occurrences
+        .iter()
+        .map(textual_json)
+        .collect::<Vec<_>>()
+        .join(",");
     format!(
-        "{{\"schema\":{},\"query\":{},\"candidates\":[{}]}}",
+        "{{\"schema\":{},\"query\":{},\"candidates\":[{}],\"extracted_candidates\":[{}],\"textual_occurrences\":[{}],\"limitations\":{},\"unstable_sources\":{},\"total\":{},\"offset\":{},\"truncated\":{},\"continuation\":{}}}",
         report.schema,
         json_string(&report.query),
-        candidates
+        candidates,
+        extracted,
+        textual,
+        json_string_list(&report.limitations),
+        json_string_list(&report.unstable_sources),
+        report.total,
+        report.offset,
+        report.truncated,
+        report
+            .continuation
+            .map_or_else(|| "null".to_string(), |value| value.to_string())
+    )
+}
+
+fn json_string_list(values: &[String]) -> String {
+    format!(
+        "[{}]",
+        values
+            .iter()
+            .map(|value| json_string(value))
+            .collect::<Vec<_>>()
+            .join(",")
     )
 }
 
 pub fn render_human(report: &LocateReport) -> String {
-    if report.candidates.is_empty() {
+    // Fonte instável não pode sair como "nada encontrado": não observar é
+    // diferente de observar ausência.
+    if !report.found() && report.unstable_sources.is_empty() {
         return format!(
             "Nenhum símbolo estruturado encontrado para: {}\n",
             report.query
@@ -559,7 +663,7 @@ pub fn render_human(report: &LocateReport) -> String {
     out.push_str(&format!("Símbolos para '{}'\n", report.query));
     for candidate in &report.candidates {
         out.push_str(&format!(
-            "\n{} [{}]\n  nome: {}\n  estabilidade: {}\n",
+            "\n{} [{}]\n  classificação: EXPLICIT_SYMBOL\n  nome: {}\n  estabilidade: {}\n",
             candidate.identity,
             candidate.kind.as_str(),
             candidate.name,
@@ -571,7 +675,87 @@ pub fn render_human(report: &LocateReport) -> String {
         append_document_relation(&mut out, &candidate.documentation);
         append_test_relation(&mut out, &candidate.tests);
     }
+    for candidate in &report.extracted_candidates {
+        out.push_str(&format!(
+            "\n{} [{}]\n  classificação: EXTRACTED_CANDIDATE\n  local: {}:{}-{}\n  contexto: {}\n  atributos: {}\n  cfg: {}\n  trecho: {}{}\n",
+            candidate.name,
+            candidate.kind,
+            candidate.path,
+            candidate.start,
+            candidate.end,
+            candidate.context.as_deref().unwrap_or("UNKNOWN"),
+            candidate.attributes_present,
+            candidate.cfg_present,
+            candidate.snippet,
+            if candidate.snippet_truncated {
+                " [SNIPPET_TRUNCATED]"
+            } else {
+                ""
+            }
+        ));
+    }
+    for occurrence in &report.textual_occurrences {
+        out.push_str(&format!(
+            "\n{}\n  classificação: TEXTUAL_OCCURRENCE\n  local: {}:{}\n  trecho: {}{}\n  limitação: {}\n",
+            report.query,
+            occurrence.path,
+            occurrence.line,
+            occurrence.snippet,
+            if occurrence.snippet_truncated {
+                " [SNIPPET_TRUNCATED]"
+            } else {
+                ""
+            },
+            occurrence.limitation
+        ));
+    }
+    if !report.limitations.is_empty() {
+        out.push_str("\nLimitações declaradas:\n");
+        for limitation in &report.limitations {
+            out.push_str(&format!("  - {limitation}\n"));
+        }
+    }
+    if !report.unstable_sources.is_empty() {
+        out.push_str("\nUNSTABLE_SOURCE = TRUE\n");
+        for path in &report.unstable_sources {
+            out.push_str(&format!("  - {path}\n"));
+        }
+    }
+    if report.truncated {
+        out.push_str(&format!(
+            "\nTRUNCATED = TRUE; total {}; continue com --desde {}\n",
+            report.total,
+            report.continuation.unwrap_or_default()
+        ));
+    }
     out
+}
+
+fn extracted_json(item: &ExtractedCandidate) -> String {
+    format!(
+        "{{\"classification\":\"EXTRACTED_CANDIDATE\",\"path\":{},\"kind\":{},\"name\":{},\"start\":{},\"end\":{},\"context\":{},\"attributes_present\":{},\"cfg_present\":{},\"snippet\":{},\"snippet_truncated\":{}}}",
+        json_string(&item.path),
+        json_string(&item.kind),
+        json_string(&item.name),
+        item.start,
+        item.end,
+        option_string(item.context.as_deref()),
+        item.attributes_present,
+        item.cfg_present,
+        json_string(&item.snippet),
+        item.snippet_truncated
+    )
+}
+
+fn textual_json(item: &TextualOccurrence) -> String {
+    format!(
+        "{{\"classification\":\"TEXTUAL_OCCURRENCE\",\"path\":{},\"line\":{},\"snippet\":{},\"snippet_truncated\":{},\"limitation\":{}}}",
+        json_string(&item.path),
+        item.line,
+        json_string(&item.snippet),
+        item.snippet_truncated,
+        json_string(&item.limitation)
+    )
 }
 
 fn append_relation_status<T>(out: &mut String, label: &str, relation: &Relation<T>) -> bool {
@@ -651,7 +835,7 @@ fn append_test_relation(out: &mut String, relation: &Relation<TestRelation>) {
 
 fn candidate_json(candidate: &SymbolCandidate) -> String {
     format!(
-        "{{\"identity\":{},\"name\":{},\"kind\":{},\"stability\":{},\"declaration\":{},\"implementation\":{},\"regions\":{},\"documentation\":{},\"tests\":{}}}",
+        "{{\"classification\":\"EXPLICIT_SYMBOL\",\"identity\":{},\"name\":{},\"kind\":{},\"stability\":{},\"declaration\":{},\"implementation\":{},\"regions\":{},\"documentation\":{},\"tests\":{}}}",
         json_string(&candidate.identity),
         json_string(&candidate.name),
         json_string(candidate.kind.as_str()),

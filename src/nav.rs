@@ -19,6 +19,7 @@ use crate::text_norm;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::fs;
+use std::ops::Range;
 use std::path::{Path, PathBuf};
 
 const START: &str = "@pinker-nav:start";
@@ -1385,6 +1386,150 @@ fn char_literal_len(bytes: &[u8]) -> Option<usize> {
     let character = std::str::from_utf8(bytes.get(1..)?).ok()?.chars().next()?;
     let closing_quote = 1 + character.len_utf8();
     (bytes.get(closing_quote) == Some(&b'\'')).then_some(closing_quote + 1)
+}
+
+/// Produz uma visão de Rust com comentários e literais substituídos por
+/// espaços. Mantém novas linhas e offsets para consumidores lexicais que não
+/// podem tratar texto escondido como código.
+pub fn rust_code_mask(text: &str) -> String {
+    mask_rust(text).0
+}
+
+/// Intervalos de bytes ocupados pelos comentários de documentação (`///`,
+/// `//!`, `/** */`, `/*! */`). A máscara os apaga junto com os comentários
+/// comuns, mas em Rust um comentário de documentação é atributo, não espaço em
+/// branco: um consumidor léxico que separe tokens precisa saber distinguir os
+/// dois em vez de tratar todo texto apagado como separador.
+pub fn rust_doc_comment_spans(text: &str) -> Vec<Range<usize>> {
+    mask_rust(text).1
+}
+
+/// Núcleo único da visão mascarada: um só percurso produz a máscara e os
+/// intervalos de comentário de documentação, para que as duas respostas nunca
+/// divirjam sobre o mesmo texto.
+fn mask_rust(text: &str) -> (String, Vec<Range<usize>>) {
+    let bytes = text.as_bytes();
+    let mut state = LexicalState::Code;
+    let mut out = bytes.to_vec();
+    let mut doc_comments: Vec<Range<usize>> = Vec::new();
+    let mut doc_block_start: Option<usize> = None;
+    let mut i = 0;
+    while i < bytes.len() {
+        match state {
+            LexicalState::Code => {
+                if bytes[i..].starts_with(b"//") {
+                    let end = bytes[i..]
+                        .iter()
+                        .position(|b| *b == b'\n')
+                        .map(|n| i + n)
+                        .unwrap_or(bytes.len());
+                    if is_doc_line_comment(&bytes[i..]) {
+                        doc_comments.push(i..end);
+                    }
+                    out[i..end].fill(b' ');
+                    i = end;
+                } else if bytes[i..].starts_with(b"/*") {
+                    if is_doc_block_comment(&bytes[i..]) {
+                        doc_block_start = Some(i);
+                    }
+                    out[i..i + 2].fill(b' ');
+                    state = LexicalState::BlockComment(1);
+                    i += 2;
+                } else if let Some((len, hashes, byte)) = raw_string_start(&bytes[i..]) {
+                    out[i..i + len].fill(b' ');
+                    state = if byte {
+                        LexicalState::RawByteString(hashes)
+                    } else {
+                        LexicalState::RawString(hashes)
+                    };
+                    i += len;
+                } else if bytes[i..].starts_with(b"b\"") {
+                    out[i..i + 2].fill(b' ');
+                    state = LexicalState::ByteString;
+                    i += 2;
+                } else if let Some(len) = char_literal_len(&bytes[i..]) {
+                    out[i..i + len].fill(b' ');
+                    i += len;
+                } else if bytes[i] == b'\"' {
+                    out[i] = b' ';
+                    state = LexicalState::NormalString;
+                    i += 1;
+                } else {
+                    i += 1;
+                }
+            }
+            LexicalState::NormalString | LexicalState::ByteString => {
+                out[i] = if bytes[i] == b'\n' { b'\n' } else { b' ' };
+                if bytes[i] == b'\\' {
+                    if i + 1 < bytes.len() {
+                        out[i + 1] = if bytes[i + 1] == b'\n' { b'\n' } else { b' ' };
+                    }
+                    i += 2;
+                } else if bytes[i] == b'\"' {
+                    state = LexicalState::Code;
+                    i += 1;
+                } else {
+                    i += 1;
+                }
+            }
+            LexicalState::RawString(hashes) | LexicalState::RawByteString(hashes) => {
+                out[i] = if bytes[i] == b'\n' { b'\n' } else { b' ' };
+                if bytes[i] == b'\"' && bytes[i + 1..].starts_with(&vec![b'#'; hashes]) {
+                    for slot in &mut out[i + 1..i + 1 + hashes] {
+                        *slot = b' ';
+                    }
+                    state = LexicalState::Code;
+                    i += hashes + 1;
+                } else {
+                    i += 1;
+                }
+            }
+            LexicalState::BlockComment(depth) => {
+                out[i] = if bytes[i] == b'\n' { b'\n' } else { b' ' };
+                if bytes[i..].starts_with(b"/*") {
+                    if i + 1 < out.len() {
+                        out[i + 1] = b' ';
+                    }
+                    state = LexicalState::BlockComment(depth + 1);
+                    i += 2;
+                } else if bytes[i..].starts_with(b"*/") {
+                    if i + 1 < out.len() {
+                        out[i + 1] = b' ';
+                    }
+                    state = if depth == 1 {
+                        if let Some(start) = doc_block_start.take() {
+                            doc_comments.push(start..i + 2);
+                        }
+                        LexicalState::Code
+                    } else {
+                        LexicalState::BlockComment(depth - 1)
+                    };
+                    i += 2;
+                } else {
+                    i += 1;
+                }
+            }
+        }
+    }
+    // Um comentário de documentação de bloco que nunca fecha esconde o resto do
+    // arquivo; ele é reportado até o fim em vez de desaparecer.
+    if let Some(start) = doc_block_start {
+        doc_comments.push(start..bytes.len());
+    }
+    let masked = String::from_utf8(out).expect("Rust source remains UTF-8 after masking");
+    (masked, doc_comments)
+}
+
+/// `///` e `//!` são documentação; `////` é apenas um separador visual comum.
+fn is_doc_line_comment(bytes: &[u8]) -> bool {
+    (bytes.starts_with(b"///") && !bytes.starts_with(b"////")) || bytes.starts_with(b"//!")
+}
+
+/// `/** */` e `/*! */` são documentação; `/***` é ornamento comum e `/**/` é o
+/// comentário de bloco vazio.
+fn is_doc_block_comment(bytes: &[u8]) -> bool {
+    (bytes.starts_with(b"/**") && !bytes.starts_with(b"/***") && !bytes.starts_with(b"/**/"))
+        || bytes.starts_with(b"/*!")
 }
 
 /// Estado léxico mínimo do dialeto Pinker (§ Onda 9). Como no rastreador Rust,
