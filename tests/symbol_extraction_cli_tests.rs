@@ -11,7 +11,7 @@
 // @pinker-nav:domain simbolos
 // @pinker-nav:layer evidencia
 // @pinker-nav:test-for pinker_v0::symbol_extraction::extend
-// @pinker-nav:summary Causal controls for bounded lexical extraction: an unregistered declaration is found, every supported kind keeps its own category and structural context, associated items and homonyms stay separated, fake declarations hidden in comments, normal strings and raw strings never become structural, macro output and cfg attributes stay declared limitations, a dirty or untracked worktree changes the current answer, no cache is materialised, the budget truncates deterministically with a usable continuation, explicit identity keeps precedence, unstable source refuses to pass silently, textual fallback stays outside the structural counts, a hand-edited derived catalog manufactures no source authority, and binary provenance stays observable.
+// @pinker-nav:summary Causal controls for bounded lexical extraction: an unregistered declaration is found, every supported kind keeps its own category and structural context, associated items and homonyms stay separated, fake declarations hidden in comments, normal strings and raw strings never become structural, macro output and cfg attributes stay declared limitations, a dirty or untracked worktree changes the current answer, no cache is materialised, the budget truncates deterministically with a usable continuation, explicit identity keeps precedence, unstable source refuses to pass silently, textual fallback stays outside the structural counts, a hand-edited derived catalog manufactures no source authority, binary provenance stays observable, a lexical separator between the path and the `!` does not undo the macro while a doc comment does, one valid invocation keeps one classification across six separator forms including non-ASCII `Pattern_White_Space`, and every `SimplePathSegment` is classified by one grammar rule: weak keywords and edition 2021 identifiers stay identifiers, Unicode identifiers stay in the class under a declared conservative approximation that still ends at its closing delimiter, `self`, `super` and `crate` stay grammar segments, reserved raw forms stay refused, and an invalid earlier segment is not accepted for having preceded `::`.
 
 use pinker_v0::symbol_extraction;
 use pinker_v0::symbol_index::{LocateReport, TextualOccurrence};
@@ -1256,7 +1256,9 @@ pub struct RealAfterBangForms;
 "####;
 
 /// A mesma invocação válida, variando só o separador. A classificação precisa
-/// ser a mesma nas cinco formas: os deslocamentos mudam, a fronteira não.
+/// ser a mesma em todas as formas: os deslocamentos mudam, a fronteira não. A
+/// sexta forma é montada em `classificacao_de_macro_e_invariante_ao_separador`
+/// com espaço em branco não-ASCII, que não caberia num literal legível.
 const MACRO_SEPARATORS: &str = r####"foo!{
     pub struct MetaCompact;
 }
@@ -1366,7 +1368,14 @@ fn separador_lexical_entre_caminho_e_bang_nao_desfaz_a_macro() {
 fn classificacao_de_macro_e_invariante_ao_separador() {
     let repo = fixture("separators");
     let path = "src/macro_separators.rs";
-    write(repo.path(), path, MACRO_SEPARATORS);
+    // O sexto separador é `U+0085`: `Pattern_White_Space` de Rust e fora de
+    // `is_ascii_whitespace`. Sem ele, a bateria não distinguiria o espaço em
+    // branco da linguagem do subconjunto ASCII.
+    let nel = RUST_NON_ASCII_WHITESPACE;
+    let source = format!(
+        "{MACRO_SEPARATORS}\nfoo{nel}!{nel}{{\n    pub struct MetaNonAsciiSpace;\n}}\n\npub struct RealAfterNonAsciiSpace;\n"
+    );
+    write(repo.path(), path, &source);
 
     for name in [
         "MetaCompact",
@@ -1374,6 +1383,7 @@ fn classificacao_de_macro_e_invariante_ao_separador() {
         "MetaNewline",
         "MetaCommentBefore",
         "MetaCommentAfter",
+        "MetaNonAsciiSpace",
     ] {
         let json = locate_json(repo.path(), name);
         assert_eq!(
@@ -1392,14 +1402,241 @@ fn classificacao_de_macro_e_invariante_ao_separador() {
         );
     }
 
-    let json = locate_json(repo.path(), "RealAfterSeparators");
-    let start = line_of(MACRO_SEPARATORS, "RealAfterSeparators");
-    assert_eq!(count(&json, "EXTRACTED_CANDIDATE"), 1, "{json}");
+    for name in ["RealAfterSeparators", "RealAfterNonAsciiSpace"] {
+        let json = locate_json(repo.path(), name);
+        let start = line_of(&source, name);
+        assert_eq!(count(&json, "EXTRACTED_CANDIDATE"), 1, "{name}: {json}");
+        assert!(
+            json.contains(&format!(
+                "\"classification\":\"EXTRACTED_CANDIDATE\",\"path\":\"{path}\",\"kind\":\"struct\",\"name\":\"{name}\",\"start\":{start},\"end\":{start},\"context\":null,"
+            )),
+            "{name}: a última fronteira não fechou: {json}"
+        );
+    }
+}
+
+/// Classificação léxica dos segmentos de `SimplePath`. Cada bloco foi
+/// confirmado contra rustc 1.78.0 / edition 2021: os `Ghost*` estão dentro de
+/// uma invocação que a toolchain pinada aceita, e os `Real*` de controle estão
+/// dentro de uma sequência que ela recusa e que por isso continua Rust
+/// ordinário observável.
+///
+/// Os dois blocos de caminho Unicode ficam no fim de propósito. A supressão
+/// conservadora termina no delimitador de fechamento, e uma fronteira que
+/// consumisse até o fim do arquivo só pode ser detectada pelo que vem *depois*
+/// dela: com o bloco no fim, o único item atingido é o positivo pós-macro, que
+/// é justamente a propriedade sob prova.
+const MACRO_SIMPLE_PATH: &str = r####"union ! {
+    pub struct GhostUnion;
+}
+
+pub struct RealAfterUnion;
+
+gen ! {
+    pub struct GhostGen;
+}
+
+pub struct RealAfterGen;
+
+foo::bar::baz ! {
+    pub struct GhostQualified;
+}
+
+pub struct RealAfterQualified;
+
+r#return ! {
+    pub struct GhostRaw;
+}
+
+pub struct RealAfterRaw;
+
+crate::declara ! {
+    pub struct GhostCrateSegment;
+}
+
+pub struct RealAfterCrateSegment;
+
+self::declara ! {
+    pub struct GhostSelfSegment;
+}
+
+pub struct RealAfterSelfSegment;
+
+super::declara ! {
+    pub struct GhostSuperSegment;
+}
+
+pub struct RealAfterSuperSegment;
+
+return::baz ! {
+    pub struct RealEarlierSegment;
+}
+
+r#crate ! {
+    pub struct RealRawCrate;
+}
+
+r#Self ! {
+    pub struct RealRawSelf;
+}
+
+r#_ ! {
+    pub struct RealRawWildcard;
+}
+
+Self ! {
+    pub struct RealSelfKeyword;
+}
+
+pub struct RealAfterControls;
+
+東京 ! {
+    pub struct GhostUnicode;
+}
+
+pub struct RealAfterUnicode;
+"####;
+
+/// Identificador cuja validade depende de `XID_Continue`, não de alfabeto:
+/// `cafe` seguido de `U+0301` (marca combinante, categoria `Mn`). A toolchain
+/// pinada aceita `macro_rules! cafe\u{0301}` e a invocação correspondente, então
+/// a classe testada aqui é XID, não "japonês".
+const COMBINING_IDENTIFIER: &str = "cafe\u{0301}";
+
+/// Separador não-ASCII aceito pela toolchain pinada: `U+0085` (NEL) pertence a
+/// `Pattern_White_Space` e está fora de `is_ascii_whitespace`. Ele é o
+/// discriminante que separa o espaço em branco de Rust do subconjunto ASCII.
+const RUST_NON_ASCII_WHITESPACE: &str = "\u{0085}";
+
+// A classe de segmento de `SimplePath` é uma só, e vale para todo segmento:
+// palavra-chave fraca é identificador, identificador Unicode não desaparece da
+// classe, `self`/`super`/`crate` são segmentos da gramática, `r#` não valida
+// forma reservada, e um segmento anterior inválido não é aceito por ter vindo
+// antes de `::`.
+#[test]
+fn classificacao_de_segmento_de_simple_path_segue_a_gramatica() {
+    let repo = fixture("simple-path");
+    let path = "src/macro_simple_path.rs";
+    let source = format!(
+        "{MACRO_SIMPLE_PATH}\n{COMBINING_IDENTIFIER} ! {{\n    pub struct GhostCombining;\n}}\n\npub struct RealAfterCombining;\n"
+    );
+    write(repo.path(), path, &source);
+
+    // Negativos: o nome só existe dentro do token tree. Perder o caminho
+    // candidato por causa da classe léxica do segmento o promoveria a
+    // declaração inventada.
+    for (case, name, limitation) in [
+        // `union` é palavra-chave fraca na edition 2021: pode ser identificador.
+        (
+            "WEAK_KEYWORD_UNION",
+            "GhostUnion",
+            "macro_token_tree_not_a_declaration",
+        ),
+        // `gen` só é reservada a partir da edition 2024.
+        (
+            "EDITION_2021_GEN",
+            "GhostGen",
+            "macro_token_tree_not_a_declaration",
+        ),
+        (
+            "QUALIFIED_PATH_THREE_SEGMENTS",
+            "GhostQualified",
+            "macro_token_tree_not_a_declaration",
+        ),
+        (
+            "RAW_IDENTIFIER_RETURN",
+            "GhostRaw",
+            "macro_token_tree_not_a_declaration",
+        ),
+        (
+            "SPECIAL_SEGMENT_CRATE",
+            "GhostCrateSegment",
+            "macro_token_tree_not_a_declaration",
+        ),
+        (
+            "SPECIAL_SEGMENT_SELF",
+            "GhostSelfSegment",
+            "macro_token_tree_not_a_declaration",
+        ),
+        (
+            "SPECIAL_SEGMENT_SUPER",
+            "GhostSuperSegment",
+            "macro_token_tree_not_a_declaration",
+        ),
+        // Identificador Unicode: a classe XID não é decidida aqui, então a
+        // supressão vale e a etiqueta publicada é a conservadora.
+        (
+            "UNICODE_IDENTIFIER",
+            "GhostUnicode",
+            "possible_macro_token_tree_not_a_declaration",
+        ),
+        (
+            "XID_CONTINUE_COMBINING_MARK",
+            "GhostCombining",
+            "possible_macro_token_tree_not_a_declaration",
+        ),
+    ] {
+        let json = locate_json(repo.path(), name);
+        assert_eq!(
+            count(&json, "EXTRACTED_CANDIDATE"),
+            0,
+            "{case}: {name} virou declaração estrutural: {json}"
+        );
+        assert_eq!(
+            count(&json, "TEXTUAL_OCCURRENCE"),
+            1,
+            "{case}: {name} perdeu o fallback textual: {json}"
+        );
+        assert!(
+            json.contains(&format!("\"limitation\":\"{limitation}\"")),
+            "{case}: {name} sem a limitação esperada: {json}"
+        );
+    }
+
+    // Positivos: o delimitador de fechamento encerra a supressão exatamente
+    // nele, e o que a linguagem recusa como `SimplePath !` segue observável.
+    for (case, name) in [
+        ("AFTER_WEAK_KEYWORD", "RealAfterUnion"),
+        ("AFTER_UNICODE_IDENTIFIER", "RealAfterUnicode"),
+        ("AFTER_XID_CONTINUE", "RealAfterCombining"),
+        ("AFTER_EDITION_2021_GEN", "RealAfterGen"),
+        ("AFTER_QUALIFIED_PATH", "RealAfterQualified"),
+        ("AFTER_RAW_IDENTIFIER", "RealAfterRaw"),
+        ("AFTER_SPECIAL_SEGMENT_CRATE", "RealAfterCrateSegment"),
+        ("AFTER_SPECIAL_SEGMENT_SELF", "RealAfterSelfSegment"),
+        ("AFTER_SPECIAL_SEGMENT_SUPER", "RealAfterSuperSegment"),
+        // Um segmento anterior inválido não é aceito por ter vindo antes de
+        // `::`: `return::baz !` não é macro, então o item continua declaração.
+        ("EARLIER_SEGMENT_KEYWORD", "RealEarlierSegment"),
+        // `r#` não transforma forma reservada em identificador cru.
+        ("RESERVED_RAW_CRATE", "RealRawCrate"),
+        ("RESERVED_RAW_SELF_TYPE", "RealRawSelf"),
+        ("RESERVED_RAW_WILDCARD", "RealRawWildcard"),
+        // `Self` é palavra-chave estrita e não é `SimplePathSegment`, ao
+        // contrário de `self`.
+        ("STRICT_KEYWORD_SELF_TYPE", "RealSelfKeyword"),
+        ("AFTER_ALL_CONTROLS", "RealAfterControls"),
+    ] {
+        let json = locate_json(repo.path(), name);
+        assert_eq!(
+            count(&json, "EXTRACTED_CANDIDATE"),
+            1,
+            "{case}: {name} deixou de ser declaração estrutural: {json}"
+        );
+        let start = line_of(&source, name);
+        assert!(
+            json.contains(&format!(
+                "\"classification\":\"EXTRACTED_CANDIDATE\",\"path\":\"{path}\",\"kind\":\"struct\",\"name\":\"{name}\",\"start\":{start},\"end\":{start},\"context\":null,"
+            )),
+            "{case}: {name} perdeu caminho, intervalo ou contexto: {json}"
+        );
+    }
+
+    // A aproximação conservadora da classe Unicode é declarada, não silenciosa.
+    let json = locate_json(repo.path(), "GhostUnicode");
     assert!(
-        json.contains(&format!(
-            "\"classification\":\"EXTRACTED_CANDIDATE\",\"path\":\"{path}\",\"kind\":\"struct\",\"name\":\"RealAfterSeparators\",\"start\":{start},\"end\":{start},\"context\":null,"
-        )),
-        "a última fronteira não fechou: {json}"
+        json.contains("\"unicode_identifier_class_conservatively_approximated\""),
+        "a aproximação da classe Unicode não foi declarada: {json}"
     );
 }
 // @pinker-nav:end evidencia.simbolos.extracao

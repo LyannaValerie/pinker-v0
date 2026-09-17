@@ -11,7 +11,7 @@
 // @pinker-nav:layer trama
 // @pinker-nav:symbol pinker_v0::symbol_extraction::extend|extend|rust-function|declaration
 // @pinker-nav:symbol pinker_v0::symbol_extraction::extend|extend|rust-function|implementation
-// @pinker-nav:summary Bounded lexical extraction of ordinary Rust declarations from the current worktree, kept strictly below semantic identity: masked source hides comments, strings, raw strings and character literals, supported declaration keywords in opening position become EXTRACTED_CANDIDATE with structural context, every other word hit degrades to TEXTUAL_OCCURRENCE, explicit symbol locations keep precedence, declared limitations travel as stable English data, snippets match the observed interval, unstable files are reported instead of silently returned, and one deterministic budget paginates the three classes without any cache.
+// @pinker-nav:summary Bounded lexical extraction of ordinary Rust declarations from the current worktree, kept strictly below semantic identity: masked source hides comments, strings, raw strings and character literals, supported declaration keywords in opening position become EXTRACTED_CANDIDATE with structural context, every other word hit degrades to TEXTUAL_OCCURRENCE, explicit symbol locations keep precedence, declared limitations travel as stable English data, snippets match the observed interval, unstable files are reported instead of silently returned, one deterministic budget paginates the three classes without any cache, and the macro boundary is lexical: `SimplePath ! DelimTokenTree` and `macro_rules ! IDENTIFIER MacroRulesDef` are recognised over tokens separated by Rust `Pattern_White_Space` and ordinary comments but not by doc comments, every path segment is classified by one edition 2021 rule that keeps weak keywords and the `self`/`super`/`crate` grammar segments while refusing strict keywords, reserved forms and reserved raw identifiers, and a path whose Unicode class this module cannot decide suppresses structural promotion only up to its closing delimiter under a declared conservative limitation instead of publishing a proven macro.
 
 use crate::nav::{self, MarkerDialect};
 use crate::symbol_index::{ExtractedCandidate, LocateReport, TextualOccurrence};
@@ -34,9 +34,10 @@ const SIGNATURE_LOOKAHEAD: usize = 12;
 
 /// Limitações declaradas da observação lexical. São dados estáveis em inglês,
 /// não prosa: a saída precisa dizer o que ela *não* prova.
-pub const DECLARED_LIMITATIONS: [&str; 8] = [
+pub const DECLARED_LIMITATIONS: [&str; 9] = [
     "macro_generated_declarations_not_expanded",
     "macro_token_tree_not_a_declaration",
+    "unicode_identifier_class_conservatively_approximated",
     "cfg_attributes_not_evaluated",
     "semantic_name_resolution_absent",
     "reexports_and_aliases_not_resolved",
@@ -53,6 +54,13 @@ const TEXTUAL_LIMITATION: &str = "not_a_supported_structural_declaration";
 /// declaração depois de uma expansão que este módulo não faz, e sintaxe que
 /// parece Rust ordinário continua sendo apenas token.
 const MACRO_TEMPLATE_LIMITATION: &str = "macro_token_tree_not_a_declaration";
+
+/// Motivo estável de uma ocorrência dentro de um token tree cujo caminho não
+/// pôde ser *provado* identificador. A supressão de promoção estrutural vale
+/// igual — o conteúdo não vira declaração —, mas a saída não afirma que ali
+/// existe macro: `POTENTIAL_MACRO` não é `PROVEN_MACRO`, e publicar a mesma
+/// etiqueta dos dois casos seria vender certeza que este módulo não tem.
+const POSSIBLE_MACRO_LIMITATION: &str = "possible_macro_token_tree_not_a_declaration";
 
 /// Palavras que podem preceder a palavra-chave de declaração sem que a linha
 /// deixe de abrir uma declaração.
@@ -313,10 +321,10 @@ fn scan_file(
                     line: index + 1,
                     snippet,
                     snippet_truncated,
-                    limitation: if inside_macro(&macro_spans, base + found_at) {
-                        MACRO_TEMPLATE_LIMITATION.to_string()
-                    } else {
-                        TEXTUAL_LIMITATION.to_string()
+                    limitation: match macro_span_at(&macro_spans, base + found_at) {
+                        Some(span) if span.proven => MACRO_TEMPLATE_LIMITATION.to_string(),
+                        Some(_) => POSSIBLE_MACRO_LIMITATION.to_string(),
+                        None => TEXTUAL_LIMITATION.to_string(),
                     },
                 });
             }
@@ -342,7 +350,7 @@ fn scan_file(
 /// Saldo de chaves da linha mascarada, ignorando as que pertencem a um token
 /// tree de macro. Chave dentro de string ou comentário já foi apagada pela
 /// máscara e por isso também não movimenta a profundidade.
-fn next_depth(depth: usize, masked_line: &str, base: usize, spans: &[Range<usize>]) -> usize {
+fn next_depth(depth: usize, masked_line: &str, base: usize, spans: &[MacroSpan]) -> usize {
     let mut depth = depth;
     for (offset, byte) in masked_line.bytes().enumerate() {
         if inside_macro(spans, base + offset) {
@@ -371,8 +379,14 @@ fn line_offsets(text: &str) -> Vec<usize> {
 }
 
 /// Se a posição de byte pertence a algum token tree de macro.
-fn inside_macro(spans: &[Range<usize>], position: usize) -> bool {
-    spans.iter().any(|span| span.contains(&position))
+fn inside_macro(spans: &[MacroSpan], position: usize) -> bool {
+    macro_span_at(spans, position).is_some()
+}
+
+/// O token tree que cobre a posição de byte, para que o chamador leia o grau de
+/// certeza do reconhecimento junto com o fato da cobertura.
+fn macro_span_at(spans: &[MacroSpan], position: usize) -> Option<&MacroSpan> {
+    spans.iter().find(|span| span.range.contains(&position))
 }
 
 /// Declaração reconhecida e onde os tokens materiais do reconhecimento foram
@@ -518,27 +532,91 @@ fn words(masked_line: &str) -> Vec<(usize, &str)> {
     found
 }
 
-/// Palavras-chave de Rust. Nenhuma delas é identificador, logo nenhuma delas
-/// pode ser o último segmento de um `SimplePath`: `return !flag` e `if !cond`
-/// são negação, não invocação de macro. Um identificador cru (`r#return`) é
-/// identificador mesmo quando grafado como palavra-chave, e por isso não é
-/// consultado aqui.
-const RUST_KEYWORDS: [&str; 51] = [
-    "as", "async", "await", "break", "const", "continue", "crate", "dyn", "else", "enum", "extern",
-    "false", "fn", "for", "if", "impl", "in", "let", "loop", "match", "mod", "move", "mut", "pub",
-    "ref", "return", "self", "Self", "static", "struct", "super", "trait", "true", "type", "union",
-    "unsafe", "use", "where", "while", "abstract", "become", "box", "do", "final", "macro",
-    "override", "priv", "try", "typeof", "unsized", "virtual",
+/// Palavras-chave estritas de Rust na edition 2021. Uma palavra-chave estrita
+/// não é identificador, logo não pode ser segmento de um `SimplePath` — e é
+/// essa distinção que separa `some_macro !` de `return !`, que é negação.
+/// `async`, `await` e `dyn` passaram a estritas na edition 2018 e continuam
+/// estritas aqui.
+const STRICT_KEYWORDS: [&str; 38] = [
+    "as", "break", "const", "continue", "crate", "else", "enum", "extern", "false", "fn", "for",
+    "if", "impl", "in", "let", "loop", "match", "mod", "move", "mut", "pub", "ref", "return",
+    "self", "Self", "static", "struct", "super", "trait", "true", "type", "unsafe", "use", "where",
+    "while", "async", "await", "dyn",
 ];
+
+/// Palavras reservadas para uso futuro *nesta* edition. Também não são
+/// identificadores, mas a lista pertence à edition e não à linguagem em geral:
+/// `gen` só é reservada a partir da edition 2024, e esta crate declara
+/// `edition = "2021"`. Importar a política de 2024 recusaria `gen ! { … }`, que
+/// a toolchain pinada aceita.
+const RESERVED_FOR_EDITION_2021: [&str; 13] = [
+    "abstract", "become", "box", "do", "final", "macro", "override", "priv", "try", "typeof",
+    "unsized", "virtual", "yield",
+];
+
+/// Palavras-chave fracas: contextuais, e portanto identificadores fora do
+/// contexto que lhes dá sentido. `union ! { … }` é invocação de macro na
+/// edition 2021, e classificá-la como estrita publicaria o conteúdo do token
+/// tree como declaração ordinária. `macro_rules` é a outra: ela não é
+/// palavra-chave nenhuma, é o identificador cuja forma de definição carrega o
+/// nome da macro entre o `!` e o delimitador.
+const WEAK_KEYWORDS: [&str; 2] = ["macro_rules", "union"];
+
+/// Segmentos que `SimplePathSegment` admite além de IDENTIFIER, apesar de serem
+/// palavras-chave estritas. Recusá-los só por serem palavras-chave rejeitaria
+/// `crate::declara ! { … }`, que a gramática e a toolchain pinada aceitam.
+///
+/// `$crate` também pertence à gramática, mas só existe dentro do corpo de uma
+/// definição de macro — isto é, dentro de um token tree já delimitado. Este
+/// módulo não expande macro e não tem autoridade de higiene, então `$` segue
+/// sendo token incompatível: transformar `$qualquer_coisa` em caminho ampliaria
+/// o produto em vez de aplicar a gramática.
+const SPECIAL_SIMPLE_PATH_SEGMENTS: [&str; 3] = ["super", "self", "crate"];
+
+/// Formas que `r#` não transforma em identificador cru. `r#` não é passe livre:
+/// a linguagem recusa exatamente estas cinco, e aceitá-las indiscriminadamente
+/// abriria um token tree em `r#crate ! { … }`, que a toolchain pinada rejeita.
+const RESERVED_RAW_IDENTIFIERS: [&str; 5] = ["_", "crate", "self", "Self", "super"];
+
+/// Espaço em branco de Rust, que é `Pattern_White_Space` e não ASCII.
+/// `is_ascii_whitespace` não serve como equivalente: ele omite a tabulação
+/// vertical e todas as cinco formas não-ASCII, e a sequência
+/// `SimplePath ! DelimTokenTree` precisa ser invariante às formas que a
+/// toolchain aceita. Confirmado contra rustc 1.78.0 / edition 2021, que recusa
+/// `U+00A0` e `U+3000` como `unknown start of token` — por isso eles não estão
+/// aqui.
+const RUST_WHITESPACE: [char; 11] = [
+    '\u{0009}', '\u{000A}', '\u{000B}', '\u{000C}', '\u{000D}', '\u{0020}', '\u{0085}', '\u{200E}',
+    '\u{200F}', '\u{2028}', '\u{2029}',
+];
+
+/// Se a palavra ASCII é IDENTIFIER pela classificação da edition. Palavra-chave
+/// fraca é identificador mesmo aparecendo em qualquer outra lista: a
+/// contextualidade é a definição dela, não uma exceção.
+fn word_is_identifier(word: &str) -> bool {
+    // `_` é o curinga, não um identificador: `r#_` é recusado pela linguagem
+    // pela mesma razão.
+    word != "_"
+        && (WEAK_KEYWORDS.contains(&word)
+            || (!STRICT_KEYWORDS.contains(&word) && !RESERVED_FOR_EDITION_2021.contains(&word)))
+}
 
 /// Classe léxica de um token material para o reconhecimento de macro. Só
 /// existem as classes que a sequência reconhecida consome; todo o resto é
 /// `Incompatible` e cancela a tentativa em curso.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum TokenKind {
+    /// Identificador ASCII, classificado exatamente contra as palavras-chave da
+    /// edition.
     Identifier,
-    /// `r#nome`: identificador cru, nunca palavra-chave.
+    /// `r#nome`: identificador cru ASCII, nunca palavra-chave.
     RawIdentifier,
+    /// Corrida que contém caractere não-ASCII. Rust define identificador por
+    /// `XID_Start`/`XID_Continue`, e este módulo não carrega as tabelas do
+    /// Unicode nem pode adquirir dependência para obtê-las, então a classe é
+    /// aproximada por excesso: a corrida *pode* ser identificador, e nada aqui
+    /// prova que ela é. `POTENTIAL_MACRO` não é `PROVEN_MACRO`.
+    Uncertain,
     PathSeparator,
     Bang,
     /// Delimitador de abertura, carregando o fechamento que lhe corresponde.
@@ -548,7 +626,7 @@ enum TokenKind {
 }
 
 /// Token da visão mascarada, com o deslocamento de byte onde começa e o texto
-/// quando ele é identificador.
+/// quando ele é identificador ASCII.
 struct Token<'a> {
     kind: TokenKind,
     start: usize,
@@ -565,12 +643,11 @@ struct Token<'a> {
 /// `rust_doc_comment_spans` são reintroduzidos como token incompatível — tratá-lo
 /// como separador reconheceria uma sequência que a linguagem recusa.
 fn macro_tokens<'a>(masked: &'a str, doc_comments: &[Range<usize>]) -> Vec<Token<'a>> {
-    let bytes = masked.as_bytes();
     let mut tokens: Vec<Token<'a>> = Vec::new();
     let mut doc = 0;
     let mut index = 0;
 
-    while index < bytes.len() {
+    while index < masked.len() {
         while doc < doc_comments.len() && doc_comments[doc].end <= index {
             doc += 1;
         }
@@ -580,53 +657,69 @@ fn macro_tokens<'a>(masked: &'a str, doc_comments: &[Range<usize>]) -> Vec<Token
             continue;
         }
 
-        let byte = bytes[index];
-        if byte.is_ascii_whitespace() {
-            index += 1;
+        let rest = &masked[index..];
+        let character = rest.chars().next().unwrap_or('\0');
+        if RUST_WHITESPACE.contains(&character) {
+            index += character.len_utf8();
             continue;
         }
 
-        if let Some(length) = raw_identifier_length(&bytes[index..]) {
-            push_token(
-                &mut tokens,
-                TokenKind::RawIdentifier,
-                index,
-                &masked[index + 2..index + length],
-            );
+        if let Some((length, valid)) = raw_identifier(rest) {
+            let text = &rest[2..length];
+            let kind = match (valid, text.is_ascii()) {
+                (false, _) => TokenKind::Incompatible,
+                (true, true) => TokenKind::RawIdentifier,
+                (true, false) => TokenKind::Uncertain,
+            };
+            push_token(&mut tokens, kind, index, "");
             index += length;
             continue;
         }
 
-        if byte.is_ascii_alphabetic() || byte == b'_' {
-            let start = index;
-            while index < bytes.len() && is_identifier_byte(bytes[index]) {
-                index += 1;
-            }
-            push_token(
-                &mut tokens,
-                TokenKind::Identifier,
-                start,
-                &masked[start..index],
-            );
+        // A corrida precisa consumir pelo menos um caractere. O `length == 0`
+        // não é alcançável pelas classes acima — espaço em branco já foi
+        // consumido antes —, mas amarrar o avanço ao teste em vez de à leitura
+        // do código mantém a varredura terminante por construção: um `index`
+        // que não anda aqui é um laço infinito que aloca token sem parar.
+        let (run, ascii) = identifier_run(rest);
+        if run > 0 && (character.is_ascii_alphabetic() || character == '_' || !character.is_ascii())
+        {
+            let kind = if ascii {
+                TokenKind::Identifier
+            } else {
+                TokenKind::Uncertain
+            };
+            push_token(&mut tokens, kind, index, &rest[..run]);
+            index += run;
             continue;
         }
 
-        if byte == b':' && bytes.get(index + 1) == Some(&b':') {
+        // Literal numérico: a corrida inteira cancela a tentativa uma vez, em
+        // vez de deixar o sufixo (`1u8`) virar identificador de caminho.
+        if run > 0 && character.is_ascii_digit() {
+            push_token(&mut tokens, TokenKind::Incompatible, index, "");
+            index += run;
+            continue;
+        }
+
+        if character == ':' && rest.as_bytes().get(1) == Some(&b':') {
             push_token(&mut tokens, TokenKind::PathSeparator, index, "");
             index += 2;
             continue;
         }
 
-        let kind = match byte {
-            b'!' => TokenKind::Bang,
-            b'(' => TokenKind::Open(b')'),
-            b'[' => TokenKind::Open(b']'),
-            b'{' => TokenKind::Open(b'}'),
-            b')' | b']' | b'}' => TokenKind::Close(byte),
+        let kind = match character {
+            '!' => TokenKind::Bang,
+            '(' => TokenKind::Open(b')'),
+            '[' => TokenKind::Open(b']'),
+            '{' => TokenKind::Open(b'}'),
+            ')' => TokenKind::Close(b')'),
+            ']' => TokenKind::Close(b']'),
+            '}' => TokenKind::Close(b'}'),
             _ => TokenKind::Incompatible,
         };
         push_token(&mut tokens, kind, index, "");
-        index += 1;
+        index += character.len_utf8();
     }
 
     tokens
@@ -646,59 +739,114 @@ fn push_token<'a>(tokens: &mut Vec<Token<'a>>, kind: TokenKind, start: usize, te
     tokens.push(Token { kind, start, text });
 }
 
-/// Comprimento de `r#nome` quando ele é um identificador cru. A string crua
-/// `r#"..."#` já foi apagada pela máscara, então `r#` seguido de identificador
-/// só pode ser identificador cru.
-fn raw_identifier_length(bytes: &[u8]) -> Option<usize> {
-    if bytes.first() != Some(&b'r') || bytes.get(1) != Some(&b'#') {
+/// Corrida de caracteres que pode compor um identificador, e se ela é
+/// inteiramente ASCII.
+///
+/// Em ASCII a classe é exata. Fora dela a corrida é aproximada por excesso: ela
+/// absorve todo caractere não-ASCII que não seja espaço em branco de Rust,
+/// porque distinguir `XID_Continue` de pontuação Unicode exigiria as tabelas do
+/// Unicode que este módulo não tem autoridade para adquirir. A corrida nunca
+/// atravessa um caractere ASCII estrutural — `!`, `::` e os delimitadores são
+/// ASCII —, então a aproximação não pode engolir a sequência que vem depois.
+fn identifier_run(rest: &str) -> (usize, bool) {
+    let mut length = 0;
+    let mut ascii = true;
+    for character in rest.chars() {
+        if character.is_ascii() {
+            if !character.is_ascii_alphanumeric() && character != '_' {
+                break;
+            }
+        } else if RUST_WHITESPACE.contains(&character) {
+            break;
+        } else {
+            ascii = false;
+        }
+        length += character.len_utf8();
+    }
+    (length, ascii)
+}
+
+/// Comprimento de `r#nome` e se ele é identificador cru válido. A string crua
+/// `r#"..."#` já foi apagada pela máscara, então `r#` seguido de corrida de
+/// identificador só pode ser tentativa de identificador cru — mas `r#` não
+/// valida a corrida: as formas reservadas continuam recusadas, e o token
+/// devolvido cobre `r#nome` inteiro para que o nome recusado não sobre solto
+/// como segmento de caminho.
+fn raw_identifier(rest: &str) -> Option<(usize, bool)> {
+    let after = rest.strip_prefix("r#")?;
+    let first = after.chars().next()?;
+    if !first.is_ascii_alphabetic() && first != '_' && first.is_ascii() {
         return None;
     }
-    let first = *bytes.get(2)?;
-    if !first.is_ascii_alphabetic() && first != b'_' {
+    let (length, _) = identifier_run(after);
+    if length == 0 {
         return None;
     }
-    let mut length = 2;
-    while bytes
-        .get(length)
-        .is_some_and(|byte| is_identifier_byte(*byte))
-    {
-        length += 1;
+    let valid = !RESERVED_RAW_IDENTIFIERS.contains(&&after[..length]);
+    Some((2 + length, valid))
+}
+
+/// Classificação de um único `SimplePathSegment`. `None` quando o token não
+/// pode ser segmento; `Some(true)` quando ele é comprovadamente IDENTIFIER ou
+/// um dos segmentos especiais da gramática; `Some(false)` quando a classe
+/// Unicode ficou na aproximação conservadora.
+///
+/// A mesma regra vale para todos os segmentos do caminho. Uma palavra-chave
+/// inválida não passa a ser aceita por ter aparecido antes de `::`.
+fn segment_accepts(token: &Token<'_>) -> Option<bool> {
+    match token.kind {
+        TokenKind::RawIdentifier => Some(true),
+        TokenKind::Uncertain => Some(false),
+        TokenKind::Identifier => (word_is_identifier(token.text)
+            || SPECIAL_SIMPLE_PATH_SEGMENTS.contains(&token.text))
+        .then_some(true),
+        _ => None,
     }
-    Some(length)
+}
+
+/// Reconhecimento do `SimplePath` imediatamente anterior ao `!`.
+struct PathBeforeBang {
+    /// O caminho é exatamente o identificador `macro_rules`, sem qualificação —
+    /// a única forma que carrega o nome da macro entre o `!` e o delimitador.
+    macro_rules_form: bool,
+    /// Todos os segmentos foram classificados com certeza. Quando falso, o
+    /// reconhecimento é conservador e a saída precisa dizer isso.
+    proven: bool,
 }
 
 /// Se os tokens imediatamente anteriores ao `!` formam um `SimplePath`.
-/// Devolve, além do reconhecimento, se o caminho é exatamente o identificador
-/// `macro_rules` — a única forma que carrega o nome da macro entre o `!` e o
-/// delimitador.
 ///
-/// O último segmento precisa ser identificador. Uma palavra-chave não é
-/// identificador, então `return !flag` e `if !cond` param aqui; um identificador
-/// cru continua sendo identificador. Antes dele, `::` só é aceito quando separa
-/// outro segmento, e um `::` inicial é caminho absoluto.
-fn simple_path_before(tokens: &[Token<'_>], bang: usize) -> Option<bool> {
+/// `SimplePath` é `::? SimplePathSegment (:: SimplePathSegment)*`, e cada
+/// segmento é validado pela mesma regra: conferir só o último e confiar em todo
+/// `Identifier` anterior aceitaria `return::baz !`, que a toolchain pinada
+/// recusa com `expected item, found keyword `return``.
+fn simple_path_before(tokens: &[Token<'_>], bang: usize) -> Option<PathBeforeBang> {
     let last = bang.checked_sub(1)?;
-    let token = &tokens[last];
-    match token.kind {
-        TokenKind::Identifier if !RUST_KEYWORDS.contains(&token.text) => {}
-        TokenKind::RawIdentifier => {}
-        _ => return None,
+    let mut proven = segment_accepts(&tokens[last])?;
+    let mut first = last;
+    while first >= 2 && tokens[first - 1].kind == TokenKind::PathSeparator {
+        proven &= segment_accepts(&tokens[first - 2])?;
+        first -= 2;
     }
+    let leading = first >= 1 && tokens[first - 1].kind == TokenKind::PathSeparator;
+    let qualified = first != last || leading;
 
-    let mut segment = last;
-    while segment >= 2 && tokens[segment - 1].kind == TokenKind::PathSeparator {
-        if !matches!(
-            tokens[segment - 2].kind,
-            TokenKind::Identifier | TokenKind::RawIdentifier
-        ) {
-            return None;
-        }
-        segment -= 2;
-    }
-    let qualified =
-        segment != last || (segment >= 1 && tokens[segment - 1].kind == TokenKind::PathSeparator);
+    Some(PathBeforeBang {
+        macro_rules_form: !qualified
+            && tokens[last].kind == TokenKind::Identifier
+            && tokens[last].text == "macro_rules",
+        proven,
+    })
+}
 
-    Some(!qualified && token.kind == TokenKind::Identifier && token.text == "macro_rules")
+/// Intervalo de bytes de um token tree de macro e o grau de certeza do
+/// reconhecimento que o abriu.
+struct MacroSpan {
+    range: Range<usize>,
+    /// `false` quando algum segmento do caminho caiu na aproximação Unicode
+    /// conservadora: o intervalo continua suprimindo promoção estrutural, mas
+    /// nada ali prova que a fonte tem uma macro.
+    proven: bool,
 }
 
 /// Intervalos de bytes ocupados pelos token trees de macro da visão mascarada.
@@ -709,10 +857,11 @@ fn simple_path_before(tokens: &[Token<'_>], bang: usize) -> Option<bool> {
 /// definição tem uma forma própria: `macro_rules ! IDENTIFIER MacroRulesDef`.
 ///
 /// O reconhecimento é por sequência de tokens, nunca por adjacência de bytes:
-/// espaço em branco — inclusive quebra de linha — e comentário comum separam
-/// esses tokens sem desfazer a sequência. Comentário de documentação não separa,
-/// porque é atributo. Qualquer outro token cancela a tentativa imediatamente, em
-/// vez de deixar sobrar "a última palavra vista".
+/// espaço em branco de Rust — inclusive as formas não-ASCII de
+/// `Pattern_White_Space` — e comentário comum separam esses tokens sem desfazer
+/// a sequência. Comentário de documentação não separa, porque é atributo.
+/// Qualquer outro token cancela a tentativa imediatamente, em vez de deixar
+/// sobrar "a última palavra vista".
 ///
 /// Este módulo não expande macro, logo não tem autoridade para ler o conteúdo
 /// de um token tree como Rust ordinário — nem quando ele parece Rust ordinário.
@@ -723,10 +872,12 @@ fn simple_path_before(tokens: &[Token<'_>], bang: usize) -> Option<bool> {
 /// delimitador de abertura, o conteúdo e o delimitador de fechamento; aninhamento
 /// é absorvido pelo intervalo mais externo. Um token tree que nunca fecha é
 /// reportado até o fim do arquivo, porque a fonte deixou de ser Rust ordinário
-/// dali em diante.
-fn macro_token_tree_spans(masked: &str, doc_comments: &[Range<usize>]) -> Vec<Range<usize>> {
+/// dali em diante — mas um que fecha termina exatamente no seu delimitador de
+/// fechamento, e o código seguinte continua observável, inclusive quando o
+/// caminho ficou na classe conservadora.
+fn macro_token_tree_spans(masked: &str, doc_comments: &[Range<usize>]) -> Vec<MacroSpan> {
     let tokens = macro_tokens(masked, doc_comments);
-    let mut spans: Vec<Range<usize>> = Vec::new();
+    let mut spans: Vec<MacroSpan> = Vec::new();
     let mut index = 0;
 
     while index < tokens.len() {
@@ -734,15 +885,18 @@ fn macro_token_tree_spans(masked: &str, doc_comments: &[Range<usize>]) -> Vec<Ra
             index += 1;
             continue;
         }
-        let Some(macro_rules_form) = simple_path_before(&tokens, index) else {
+        let Some(path) = simple_path_before(&tokens, index) else {
             index += 1;
             continue;
         };
 
         let mut delimiter = index + 1;
-        if macro_rules_form
+        if path.macro_rules_form
             && tokens.get(delimiter).is_some_and(|token| {
-                matches!(token.kind, TokenKind::Identifier | TokenKind::RawIdentifier)
+                matches!(
+                    token.kind,
+                    TokenKind::Identifier | TokenKind::RawIdentifier | TokenKind::Uncertain
+                )
             })
         {
             delimiter += 1;
@@ -756,7 +910,10 @@ fn macro_token_tree_spans(masked: &str, doc_comments: &[Range<usize>]) -> Vec<Ra
         }
 
         let (end, resume) = close_token_tree(&tokens, delimiter, masked.len());
-        spans.push(tokens[delimiter].start..end);
+        spans.push(MacroSpan {
+            range: tokens[delimiter].start..end,
+            proven: path.proven,
+        });
         index = resume;
     }
 
