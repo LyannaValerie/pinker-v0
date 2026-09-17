@@ -21,21 +21,42 @@
 //!
 //! A direção não tem exceção e os dois lados nunca compartilham nome de campo.
 //! Para uma região que participa de alguma projeção congelada, `historical_*` é
-//! o valor que a medida exige de volta. Para uma região que nenhuma projeção
+//! o valor que a medida exige de volta.
+//!
+//! # Identidade e summary
+//!
+//! `summary` também é medido pela projeção estável, mas não é identidade: a
+//! região continua sendo selecionada por `current_key` depois de restaurado. O
+//! mapa declara os dois tipos de restauração na mesma entrada, e quem consome
+//! precisa distingui-los — restaurar identidade tira a região do alcance das
+//! outras regras, restaurar summary não. Para uma região que nenhuma projeção
 //! histórica contém, a única autoridade que a nomeia é o seletor de exclusão da
 //! própria receita, e `historical_key` é a grafia que aquele seletor usa.
 
 // @pinker-nav:start trama.snapshots.rename-map
 // @pinker-nav:domain snapshots
 // @pinker-nav:layer trama
-// @pinker-nav:summary Explicit operator-declared map from a current region identity to the historical identity a frozen reconstruction expects: parses its own strict TOML subset through the shared reader, keeps current and historical sides under distinct field names so direction cannot be read backwards, rejects a repeated current or historical key, an entry that declares half a pair, an entry that restores a value the region already has and an entry that declares nothing to restore, offers lookup both by historical key and by current key so a rename that moved only domain or layer is still found by a rule whose selector never changed, and publishes a canonical fingerprint so the map binds into the reconciliation plan digest.
+// @pinker-nav:summary Explicit operator-declared map from a current region to the historical identity and summary a frozen reconstruction expects: parses its own strict TOML subset through the shared reader, keeps current and historical sides under distinct field names so direction cannot be read backwards, versions the format so schema 1 keeps its identity-only meaning and only schema 2 may declare a summary pair, rejects a repeated current or historical key, an entry that declares half a pair, an entry that restores a value the region already has and an entry that declares nothing to restore, separates restoring identity from restoring summary because only the first changes which region a rule selects, offers lookup both by historical key and by current key so a rename that moved only domain, layer or summary is still found by a rule whose selector never changed, and publishes a canonical fingerprint over every declared field so the map binds into the reconciliation plan digest.
 use crate::nav_projection_snapshot::{
     optional_text, parse_raw_with_array, reject_unknown, require_text, Table,
 };
 use std::collections::BTreeSet;
 
-/// Primeira versão do formato do mapa de renomeação.
-pub const RENAME_MAP_SCHEMA: u64 = 1;
+/// Primeira versão do formato do mapa de renomeação: identidade apenas —
+/// `historical_key`, `historical_domain` e `historical_layer`.
+pub const RENAME_MAP_SCHEMA_V1: u64 = 1;
+
+/// Segunda versão: acrescenta o par de summary (#693).
+///
+/// `summary` participa da projeção estável como `key`, `domain` e `layer`, mas
+/// não é identidade: restaurá-lo não muda qual região a regra seleciona. A
+/// capacidade nasce numa versão nova porque um mapa schema 1 não podia
+/// declará-la, e aceitar o campo novo sob a versão antiga faria um mapa velho
+/// significar uma coisa que seu autor não escreveu.
+pub const RENAME_MAP_SCHEMA_V2: u64 = 2;
+
+/// Versão máxima aceita do formato do mapa de renomeação.
+pub const RENAME_MAP_SCHEMA: u64 = RENAME_MAP_SCHEMA_V2;
 
 /// Uma relação declarada entre a identidade corrente e a identidade histórica
 /// de uma mesma região.
@@ -54,6 +75,29 @@ pub struct RenameEntry {
     pub current_layer: Option<String>,
     /// Camada histórica restaurada.
     pub historical_layer: Option<String>,
+    /// Summary corrente declarado. É guarda exata sobre o catálogo corrente, e
+    /// nunca seletor: a região continua sendo escolhida por `current_key`.
+    pub current_summary: Option<String>,
+    /// Summary imediatamente anterior à renomeação corrente, restaurado.
+    ///
+    /// É o valor que a reconstrução espera **agora**, não necessariamente o
+    /// destino histórico final: uma regra existente pode já encadear uma
+    /// transição mais antiga, e o destino dela é preservado.
+    pub historical_summary: Option<String>,
+}
+
+impl RenameEntry {
+    /// Verdadeiro quando a entrada restaura a identidade pela qual a projeção
+    /// reconhece a região: chave, domínio ou camada.
+    ///
+    /// Restaurar `summary` não entra: o campo participa da medida e não da
+    /// seleção, então uma entrada só de summary não tira a região do alcance de
+    /// nenhuma outra regra.
+    pub fn restores_identity(&self) -> bool {
+        self.historical_key.is_some()
+            || self.historical_domain.is_some()
+            || self.historical_layer.is_some()
+    }
 }
 
 impl RenameEntry {
@@ -64,13 +108,15 @@ impl RenameEntry {
             None => format!("{nome}=;"),
         };
         format!(
-            "current_key={};{}{}{}{}{}",
+            "current_key={};{}{}{}{}{}{}{}",
             self.current_key,
             campo("historical_key", &self.historical_key),
             campo("current_domain", &self.current_domain),
             campo("historical_domain", &self.historical_domain),
             campo("current_layer", &self.current_layer),
             campo("historical_layer", &self.historical_layer),
+            campo("current_summary", &self.current_summary),
+            campo("historical_summary", &self.historical_summary),
         )
     }
 }
@@ -119,14 +165,19 @@ impl RenameMap {
 }
 
 const ROOT_KEYS: [&str; 1] = ["schema"];
-const ENTRY_KEYS: [&str; 6] = [
+const ENTRY_KEYS: [&str; 8] = [
     "current_key",
     "historical_key",
     "current_domain",
     "historical_domain",
     "current_layer",
     "historical_layer",
+    "current_summary",
+    "historical_summary",
 ];
+
+/// Campos que só existem a partir do schema 2.
+const V2_ONLY_KEYS: [&str; 2] = ["current_summary", "historical_summary"];
 
 /// Interpreta o texto de um mapa de renomeação. Não toca no filesystem.
 ///
@@ -145,9 +196,9 @@ pub fn parse_rename_map(text: &str) -> Result<RenameMap, String> {
         Some(valor) => valor,
         None => return Err("campo 'schema' ausente ou não inteiro".to_string()),
     };
-    if schema != RENAME_MAP_SCHEMA {
+    if schema != RENAME_MAP_SCHEMA_V1 && schema != RENAME_MAP_SCHEMA_V2 {
         return Err(format!(
-            "schema {schema} desconhecido para mapa de renomeação; este formato aceita {RENAME_MAP_SCHEMA}"
+            "schema {schema} desconhecido para mapa de renomeação; este formato aceita {RENAME_MAP_SCHEMA_V1} e {RENAME_MAP_SCHEMA_V2}"
         ));
     }
     if raw.rules.is_empty() {
@@ -156,7 +207,7 @@ pub fn parse_rename_map(text: &str) -> Result<RenameMap, String> {
 
     let mut entries = Vec::with_capacity(raw.rules.len());
     for (index, table) in raw.rules.iter().enumerate() {
-        entries.push(build_entry(table, index)?);
+        entries.push(build_entry(table, index, schema)?);
     }
 
     // Duas entradas para a mesma região corrente, ou duas entradas reivindicando
@@ -195,9 +246,22 @@ pub fn parse_rename_map(text: &str) -> Result<RenameMap, String> {
     Ok(RenameMap { schema, entries })
 }
 
-fn build_entry(table: &Table, index: usize) -> Result<RenameEntry, String> {
+fn build_entry(table: &Table, index: usize, schema: u64) -> Result<RenameEntry, String> {
     let scope = format!("rename[{index}].");
     reject_unknown(table, &ENTRY_KEYS, &scope).map_err(|erro| erro.to_string())?;
+    // Um mapa schema 1 não podia declarar summary, então um campo de summary
+    // nele não é um mapa novo: é um mapa antigo que ganhou um campo que sua
+    // versão não define. A recusa é nomeada — "chave desconhecida" diria que o
+    // campo não existe em versão nenhuma, que é outra coisa.
+    if schema < RENAME_MAP_SCHEMA_V2 {
+        for campo in V2_ONLY_KEYS {
+            if table.get(campo).is_some() {
+                return Err(format!(
+                    "{scope}{campo} exige schema {RENAME_MAP_SCHEMA_V2}; o mapa declara schema {schema}"
+                ));
+            }
+        }
+    }
     let current_key = require_text(table, "current_key", &scope).map_err(|e| e.to_string())?;
     if current_key.is_empty() {
         return Err(format!("{scope}current_key vazio"));
@@ -210,6 +274,8 @@ fn build_entry(table: &Table, index: usize) -> Result<RenameEntry, String> {
     let historical_domain = leitura("historical_domain")?;
     let current_layer = leitura("current_layer")?;
     let historical_layer = leitura("historical_layer")?;
+    let current_summary = leitura("current_summary")?;
+    let historical_summary = leitura("historical_summary")?;
 
     for (campo, valor) in [
         ("historical_key", &historical_key),
@@ -217,6 +283,8 @@ fn build_entry(table: &Table, index: usize) -> Result<RenameEntry, String> {
         ("historical_domain", &historical_domain),
         ("current_layer", &current_layer),
         ("historical_layer", &historical_layer),
+        ("current_summary", &current_summary),
+        ("historical_summary", &historical_summary),
     ] {
         if valor.as_deref() == Some("") {
             return Err(format!("{scope}{campo} vazio"));
@@ -229,6 +297,7 @@ fn build_entry(table: &Table, index: usize) -> Result<RenameEntry, String> {
     for (guarda, destino, nome) in [
         (&current_domain, &historical_domain, "domain"),
         (&current_layer, &historical_layer, "layer"),
+        (&current_summary, &historical_summary, "summary"),
     ] {
         if guarda.is_some() != destino.is_some() {
             return Err(format!(
@@ -248,7 +317,11 @@ fn build_entry(table: &Table, index: usize) -> Result<RenameEntry, String> {
             "{scope}historical_key repete a chave corrente e não restaura nada"
         ));
     }
-    if historical_key.is_none() && historical_domain.is_none() && historical_layer.is_none() {
+    if historical_key.is_none()
+        && historical_domain.is_none()
+        && historical_layer.is_none()
+        && historical_summary.is_none()
+    {
         return Err(format!("{scope}não declara nenhuma restauração"));
     }
 
@@ -259,6 +332,8 @@ fn build_entry(table: &Table, index: usize) -> Result<RenameEntry, String> {
         historical_domain,
         current_layer,
         historical_layer,
+        current_summary,
+        historical_summary,
     })
 }
 // @pinker-nav:end trama.snapshots.rename-map
