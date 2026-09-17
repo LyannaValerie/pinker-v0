@@ -94,6 +94,16 @@ pub fn parse(text: &str) -> Result<ProjectionSnapshot, HarnessFailure> {
 }
 
 pub(crate) fn parse_raw(text: &str) -> Result<RawDocument, TomlError> {
+    parse_raw_with_array(text, "rules")
+}
+
+/// A mesma leitura, com o nome do array de tabelas declarado pelo chamador.
+///
+/// O subconjunto TOML aceito é propriedade da Trama, não do formato de
+/// snapshot: quem precisa de um artefato com outra seção repetida reusa este
+/// leitor em vez de escrever um segundo parser com outra tolerância a escape,
+/// duplicidade e lixo residual.
+pub(crate) fn parse_raw_with_array(text: &str, array: &str) -> Result<RawDocument, TomlError> {
     let mut doc = RawDocument::default();
     let mut current = Section::Root;
     let mut seen_reconstruction = false;
@@ -113,7 +123,7 @@ pub(crate) fn parse_raw(text: &str) -> Result<RawDocument, TomlError> {
                     msg: "cabeçalho de array de tabelas sem ']]'".to_string(),
                 });
             };
-            if name.trim() != "rules" {
+            if name.trim() != array {
                 return Err(TomlError {
                     line: line_no,
                     msg: format!("array de tabelas desconhecido '[[{}]]'", name.trim()),
@@ -366,6 +376,7 @@ const RULE_KEYS_BY_OP: [(&str, &[&str]); 7] = [
         &[
             "op",
             "key",
+            "to_key",
             "from_hash",
             "to_hash",
             "from_summary",
@@ -373,7 +384,9 @@ const RULE_KEYS_BY_OP: [(&str, &[&str]); 7] = [
             "expect_file",
             "to_file",
             "expect_domain",
+            "to_domain",
             "expect_layer",
+            "to_layer",
         ],
     ),
     ("exclude-key", &["op", "key", "expected_matches"]),
@@ -396,9 +409,10 @@ fn allowed_keys_for_op(op: &str) -> Option<&'static [&'static str]> {
         .map(|(_, campos)| *campos)
 }
 
-const RULE_KEYS: [&str; 21] = [
+const RULE_KEYS: [&str; 24] = [
     "op",
     "key",
+    "to_key",
     "from",
     "to",
     "from_hash",
@@ -408,7 +422,9 @@ const RULE_KEYS: [&str; 21] = [
     "expect_file",
     "to_file",
     "expect_domain",
+    "to_domain",
     "expect_layer",
+    "to_layer",
     "prefix",
     "file",
     "expected_matches",
@@ -611,6 +627,16 @@ pub fn validate_rules(
             return Err(HarnessFailure::OperationOutsideAuthority {
                 authority,
                 op: rule.op().to_string(),
+            });
+        }
+        // A simétrica: restaurar identidade histórica é normalização do
+        // corrente para o histórico, e é a receita que existe para isso. Um
+        // snapshot que precisasse afirmar identidade histórica já tem
+        // `materialize-region`, que afirma o fato inteiro.
+        if authority == SchemaAuthority::Snapshot && rule.restores_historical_identity() {
+            return Err(HarnessFailure::CapabilityOutsideAuthority {
+                authority,
+                capability: "restauração de identidade histórica em 'override-region'".to_string(),
             });
         }
         let exigido = rule.min_schema(authority);
@@ -1027,7 +1053,69 @@ pub(crate) fn build_rule(table: &Table, index: usize) -> Result<Rule, HarnessFai
                     msg: "'to_file' exige 'expect_file' como origem declarada".to_string(),
                 });
             }
-            if from_hash.is_none() && from_summary.is_none() && to_file.is_none() {
+            let expect_domain = optional_text(table, "expect_domain", &scope)?;
+            let to_domain = optional_text(table, "to_domain", &scope)?;
+            let expect_layer = optional_text(table, "expect_layer", &scope)?;
+            let to_layer = optional_text(table, "to_layer", &scope)?;
+            let to_key = optional_text(table, "to_key", &scope)?;
+
+            // `expect_domain` e `expect_layer` são a origem declarada da
+            // restauração, pela mesma razão que `expect_file` é a de `to_file`:
+            // sem ela a regra mutaria identidade sem precondição. `to_key` não
+            // precisa de par porque `key` já é o seletor corrente.
+            if to_domain.is_some() && expect_domain.is_none() {
+                return Err(HarnessFailure::OverrideRegionPairInvalid {
+                    key,
+                    msg: "'to_domain' exige 'expect_domain' como origem declarada".to_string(),
+                });
+            }
+            if to_layer.is_some() && expect_layer.is_none() {
+                return Err(HarnessFailure::OverrideRegionPairInvalid {
+                    key,
+                    msg: "'to_layer' exige 'expect_layer' como origem declarada".to_string(),
+                });
+            }
+
+            // Restaurar identidade para o valor que a região já tem não é
+            // restauração: é uma declaração sem efeito que o autor acredita ter
+            // efeito. A recusa também atinge o erro real de confundir a
+            // identidade corrente com a histórica ao escrever a regra.
+            for (campo, corrente, historico) in [
+                ("key", Some(&key), to_key.as_ref()),
+                ("domain", expect_domain.as_ref(), to_domain.as_ref()),
+                ("layer", expect_layer.as_ref(), to_layer.as_ref()),
+            ] {
+                if let (Some(corrente), Some(historico)) = (corrente, historico) {
+                    if corrente == historico {
+                        return Err(HarnessFailure::OverrideRegionPairInvalid {
+                            key: key.clone(),
+                            msg: format!(
+                                "'to_{campo}' repete o valor corrente e não restaura nada"
+                            ),
+                        });
+                    }
+                }
+            }
+            for (campo, valor) in [
+                ("to_key", &to_key),
+                ("to_domain", &to_domain),
+                ("to_layer", &to_layer),
+            ] {
+                if valor.as_deref() == Some("") {
+                    return Err(HarnessFailure::InvalidField {
+                        field: format!("{}{}", scope, campo),
+                        msg: "valor vazio".to_string(),
+                    });
+                }
+            }
+
+            if from_hash.is_none()
+                && from_summary.is_none()
+                && to_file.is_none()
+                && to_key.is_none()
+                && to_domain.is_none()
+                && to_layer.is_none()
+            {
                 return Err(HarnessFailure::OverrideRegionPairInvalid {
                     key,
                     msg: "ao menos um par completo é obrigatório".to_string(),
@@ -1053,8 +1141,11 @@ pub(crate) fn build_rule(table: &Table, index: usize) -> Result<Rule, HarnessFai
                 to_summary,
                 expect_file,
                 to_file,
-                expect_domain: optional_text(table, "expect_domain", &scope)?,
-                expect_layer: optional_text(table, "expect_layer", &scope)?,
+                expect_domain,
+                expect_layer,
+                to_key,
+                to_domain,
+                to_layer,
             })
         }
         "exclude-file" => {

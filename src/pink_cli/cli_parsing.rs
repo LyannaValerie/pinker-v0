@@ -312,6 +312,7 @@ fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String>
     let mut justificativa: Option<String> = None;
     let mut predecessor: Option<String> = None;
     let mut autorizar: Option<String> = None;
+    let mut renomeacoes: Option<String> = None;
     let mut diff: Option<String> = None;
     let mut base: Option<String> = None;
     let mut desde: Option<usize> = None;
@@ -388,6 +389,16 @@ fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String>
                     ));
                 }
                 predecessor = Some(args[i].clone());
+            }
+            "--renomeacoes" => {
+                i += 1;
+                if i >= args.len() {
+                    return Err(format!(
+                        "Flag '--renomeacoes' requer um valor.\n\n{}",
+                        nav_usage(binary)
+                    ));
+                }
+                renomeacoes = Some(args[i].clone());
             }
             "--autorizar" => {
                 i += 1;
@@ -511,8 +522,11 @@ fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String>
             nav_usage(binary)
         ));
     }
-    let has_projection_options =
-        observado || justificativa.is_some() || predecessor.is_some() || autorizar.is_some();
+    let has_projection_options = observado
+        || justificativa.is_some()
+        || predecessor.is_some()
+        || autorizar.is_some()
+        || renomeacoes.is_some();
     let sub = match subcommand.as_str() {
         "mostrar" => NavSub::Mostrar {
             key: require_one("mostrar")?,
@@ -629,7 +643,11 @@ fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String>
                     ProjectionSub::Listar
                 }
                 "mostrar" => {
-                    if justificativa.is_some() || predecessor.is_some() || autorizar.is_some() {
+                    if justificativa.is_some()
+                        || predecessor.is_some()
+                        || autorizar.is_some()
+                        || renomeacoes.is_some()
+                    {
                         return Err(projection_subcommand_usage(binary, command));
                     }
                     ProjectionSub::Mostrar {
@@ -649,7 +667,7 @@ fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String>
                     }
                 }
                 "preparar" => {
-                    if observado {
+                    if observado || renomeacoes.is_some() {
                         return Err(projection_subcommand_usage(binary, command));
                     }
                     ProjectionSub::Preparar {
@@ -660,7 +678,11 @@ fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String>
                     }
                 }
                 "aceitar" => {
-                    if observado || justificativa.is_some() || predecessor.is_some() {
+                    if observado
+                        || justificativa.is_some()
+                        || predecessor.is_some()
+                        || renomeacoes.is_some()
+                    {
                         return Err(projection_subcommand_usage(binary, command));
                     }
                     ProjectionSub::Aceitar {
@@ -676,7 +698,10 @@ fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String>
                     {
                         return Err(projection_subcommand_usage(binary, command));
                     }
-                    ProjectionSub::Reconciliar { autorizar }
+                    ProjectionSub::Reconciliar {
+                        autorizar,
+                        renomeacoes,
+                    }
                 }
                 _ => {
                     return Err(format!(

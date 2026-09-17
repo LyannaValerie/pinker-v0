@@ -526,8 +526,17 @@ fn rule_json(rule: &Rule) -> String {
             to_file,
             expect_domain,
             expect_layer,
+            to_key,
+            to_domain,
+            to_layer,
             ..
         } => {
+            fields.push(format!("\"to_key\":{}", option_json(to_key.as_deref())));
+            fields.push(format!(
+                "\"to_domain\":{}",
+                option_json(to_domain.as_deref())
+            ));
+            fields.push(format!("\"to_layer\":{}", option_json(to_layer.as_deref())));
             fields.push(format!(
                 "\"from_hash\":{}",
                 option_json(from_hash.as_deref())

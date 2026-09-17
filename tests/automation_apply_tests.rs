@@ -1170,3 +1170,25 @@ fn observacao_nao_escreve() {
         assert!(!corpo.contains(proibido), "observação escreveu: {proibido}");
     }
 }
+
+/// O produtor participa do digest do plano.
+///
+/// Dois planos com alvos e payloads byte-idênticos, produzidos por adaptadores
+/// distintos, precisam de autorizações distintas. É o que permite a um
+/// adaptador vincular ao digest uma entrada que não aparece nos bytes do
+/// resultado — por exemplo o mapa explícito de renomeação da reconciliação de
+/// projeções, cujo efeito pode ser idêntico e cuja declaração não é.
+#[test]
+fn produtor_participa_do_digest_do_plano() {
+    let um = PlanBuilder::new("adaptador-um", allowlist())
+        .desire("docs/a.md", b"mesmo conteudo\n".to_vec())
+        .unwrap()
+        .build()
+        .unwrap();
+    let outro = PlanBuilder::new("adaptador-outro", allowlist())
+        .desire("docs/a.md", b"mesmo conteudo\n".to_vec())
+        .unwrap()
+        .build()
+        .unwrap();
+    assert_ne!(um.digest(), outro.digest());
+}

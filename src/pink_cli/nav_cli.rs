@@ -18,6 +18,8 @@
 // @pinker-nav:summary Final `pink nav projecao` adapter: dispatches listing, inspection, verification, lifecycle, and explicit recipe reconciliation; discovers the root through the automation core, derives text and JSON from shared models, recalculates plans before authorization, and preserves distinct drift, harness, policy, and stale exits.
 use super::*;
 use pinker_v0::automation as core;
+use pinker_v0::nav_projection_rename_map::{parse_rename_map, RenameEntry, RenameMap};
+use pinker_v0::nav_projection_snapshot::{Rule, SchemaAuthority};
 use pinker_v0::symbol_extraction;
 use std::process::Command;
 
@@ -169,9 +171,10 @@ pub(super) fn run_nav_projecao(repo: &Path, json: bool, command: ProjectionSub) 
                 },
             }
         }
-        ProjectionSub::Reconciliar { autorizar } => {
-            run_projection_reconcile(&root, json, autorizar)
-        }
+        ProjectionSub::Reconciliar {
+            autorizar,
+            renomeacoes,
+        } => run_projection_reconcile(&root, json, autorizar, renomeacoes),
     }
 }
 
@@ -180,18 +183,28 @@ struct ReconcilePlan {
     plan: core::Plan,
     check: core::CheckReport,
     changes: Vec<String>,
+    /// Impressão digital do mapa explícito que produziu este plano, quando há
+    /// um. O plano publica de qual relação declarada ele nasceu; o digest é o
+    /// que a torna inseparável da autorização.
+    rename_map: Option<String>,
 }
 
 fn run_projection_reconcile(
     root: &core::RepoRoot,
     json: bool,
     authorization: Option<String>,
+    rename_map_path: Option<String>,
 ) -> i32 {
     let catalog = match load_projection_catalog(root) {
         Ok(catalog) => catalog,
         Err(error) => return print_projection_error("reconciliar", json, &error),
     };
-    let planning = match plan_recipe_reconciliation(root, &catalog.regions) {
+    let renames = match rename_map_path.as_deref().map(load_rename_map) {
+        None => None,
+        Some(Ok(map)) => Some(map),
+        Some(Err(error)) => return print_projection_error("reconciliar", json, &error),
+    };
+    let planning = match plan_recipe_reconciliation(root, &catalog.regions, renames.as_ref()) {
         Ok(plan) => plan,
         Err(error) => return print_projection_error("reconciliar", json, &error),
     };
@@ -261,76 +274,470 @@ fn run_projection_reconcile(
     }
 }
 
+/// Carrega o mapa explícito de renomeação a partir do caminho fornecido.
+///
+/// O mapa é entrada do operador, não autoridade do acervo: nada o lê por
+/// omissão, ele não vive sob `.pinker/projections/` e não sobrevive à
+/// invocação. Falha de leitura e falha de formato recusam pela mesma porta,
+/// porque as duas significam a mesma coisa para o plano — a relação declarada
+/// não pôde ser estabelecida.
+fn load_rename_map(path: &str) -> Result<RenameMap, ProjectionError> {
+    let text = std::fs::read_to_string(path).map_err(|erro| ProjectionError::Policy {
+        message: format!("RENAME_MAP_UNREADABLE: {path}: {erro}"),
+    })?;
+    parse_rename_map(&text).map_err(|erro| ProjectionError::Policy {
+        message: format!("RENAME_MAP_INVALID: {path}: {erro}"),
+    })
+}
+
+/// A região corrente que responde por um seletor de regra.
+enum Resolved<'a> {
+    /// A chave da regra ainda nomeia exatamente uma região corrente, e o mapa
+    /// não declara nada sobre ela.
+    Direct(&'a pinker_v0::nav::CodeRegion),
+    /// A chave da regra ainda nomeia exatamente uma região corrente, e o mapa
+    /// declara a identidade histórica dessa mesma região. É o caso da
+    /// renomeação que mudou só `domain` ou `layer`: a chave não se mexeu e a
+    /// identidade medida pela projeção congelada mudou assim mesmo.
+    DirectRenamed(&'a pinker_v0::nav::CodeRegion, &'a RenameEntry),
+    /// A chave da regra é a identidade histórica declarada por uma entrada do
+    /// mapa, e a região corrente é outra.
+    Mapped(&'a pinker_v0::nav::CodeRegion, &'a RenameEntry),
+    /// Nenhuma região corresponde e nenhuma entrada de mapa a reivindica.
+    Absent,
+}
+
+fn regions_with_key<'a>(
+    catalog: &'a [pinker_v0::nav::CodeRegion],
+    key: &str,
+) -> Vec<&'a pinker_v0::nav::CodeRegion> {
+    catalog.iter().filter(|region| region.key == key).collect()
+}
+
+/// Resolve o seletor de uma regra contra o catálogo corrente e o mapa.
+///
+/// São duas perguntas diferentes, e confundi-las foi o que deixou a renomeação
+/// só de metadata invisível: *qual região a regra seleciona* é decidida pelo
+/// catálogo corrente, sempre; *que identidade histórica aquela região precisa
+/// de volta* é decidida pelo mapa, e a chave corrente pode não ter mudado.
+/// O mapa nunca escolhe a região — só declara a relação da região que o
+/// catálogo já apontou.
+fn resolve_selector<'a>(
+    catalog: &'a [pinker_v0::nav::CodeRegion],
+    key: &str,
+    renames: Option<&'a RenameMap>,
+) -> Result<Resolved<'a>, ProjectionError> {
+    let diretas = regions_with_key(catalog, key);
+    match diretas.as_slice() {
+        [region] => {
+            return Ok(match renames.and_then(|map| map.by_current_key(key)) {
+                Some(entry) => Resolved::DirectRenamed(region, entry),
+                None => Resolved::Direct(region),
+            })
+        }
+        [] => {}
+        varias => {
+            return Err(ProjectionError::Policy {
+                message: format!(
+                    "SEMANTIC_AMBIGUITY_BLOCK: rule_key={key} matches {} current regions",
+                    varias.len()
+                ),
+            })
+        }
+    }
+    let Some(entry) = renames.and_then(|map| map.by_historical_key(key)) else {
+        return Ok(Resolved::Absent);
+    };
+    let correntes = regions_with_key(catalog, &entry.current_key);
+    match correntes.as_slice() {
+        [region] => Ok(Resolved::Mapped(region, entry)),
+        [] => Err(ProjectionError::Policy {
+            message: format!(
+                "MAPPING_CURRENT_ABSENT: current_key={} declared for historical_key={key} does not exist in the current catalog",
+                entry.current_key
+            ),
+        }),
+        varias => Err(ProjectionError::Policy {
+            message: format!(
+                "MAPPING_CURRENT_AMBIGUOUS: current_key={} matches {} current regions",
+                entry.current_key,
+                varias.len()
+            ),
+        }),
+    }
+}
+
+/// Confere a entrada do mapa contra a região corrente que ela seleciona.
+///
+/// O mapa é declaração do operador e envelhece: se ele diz que o domínio
+/// corrente é `X` e a região já mostra `Y`, a relação descrita não é a que
+/// existe, e aplicar mesmo assim restauraria identidade a partir de uma origem
+/// que ninguém conferiu.
+fn check_entry_guards(
+    entry: &RenameEntry,
+    region: &pinker_v0::nav::CodeRegion,
+) -> Result<(), ProjectionError> {
+    for (campo, declarado, observado) in [
+        ("domain", &entry.current_domain, region.domain.as_deref()),
+        ("layer", &entry.current_layer, region.layer.as_deref()),
+    ] {
+        if let Some(declarado) = declarado {
+            if Some(declarado.as_str()) != observado {
+                return Err(ProjectionError::Policy {
+                    message: format!(
+                        "MAPPING_GUARD_STALE: current_key={} current_{campo} declared={declarado} observed={}",
+                        entry.current_key,
+                        observado.unwrap_or("—")
+                    ),
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Confere que a identidade histórica declarada pelo mapa é a mesma que a regra
+/// já esperava.
+///
+/// A regra existente guarda o valor que a reconstrução espera. Se o operador
+/// declarar outro, uma das duas afirmações está errada, e escolher entre elas
+/// seria o reconciliador decidindo história.
+fn check_rule_agrees_with_entry(
+    owner: &str,
+    rule_key: &str,
+    expect_domain: Option<&str>,
+    expect_layer: Option<&str>,
+    entry: &RenameEntry,
+    region: &pinker_v0::nav::CodeRegion,
+) -> Result<(), ProjectionError> {
+    for (campo, declarado_pela_regra, historico_do_mapa, corrente) in [
+        (
+            "domain",
+            expect_domain,
+            entry.historical_domain.as_deref(),
+            region.domain.as_deref(),
+        ),
+        (
+            "layer",
+            expect_layer,
+            entry.historical_layer.as_deref(),
+            region.layer.as_deref(),
+        ),
+    ] {
+        let Some(pela_regra) = declarado_pela_regra else {
+            continue;
+        };
+        let esperado = historico_do_mapa.or(corrente);
+        if Some(pela_regra) != esperado {
+            return Err(ProjectionError::Policy {
+                message: format!(
+                    "MAPPING_CONTRADICTS_AUTHORITY: owner_file={owner} rule_key={rule_key} expect_{campo}={pela_regra} map_historical_{campo}={}",
+                    historico_do_mapa.unwrap_or("—")
+                ),
+            });
+        }
+    }
+    Ok(())
+}
+
+/// Constrói a regra reconciliada de uma região renomeada.
+///
+/// A regra resultante é sempre `override-region`: ela é a única operação capaz
+/// de restaurar mais de um campo como uma unidade, e uma renomeação de
+/// identidade quase nunca é de um campo só. Promover `override-hash` não muda o
+/// orçamento, porque as duas contam como override.
+#[allow(clippy::too_many_arguments)]
+fn reconciled_identity_rule(
+    entry: &RenameEntry,
+    region: &pinker_v0::nav::CodeRegion,
+    from_hash: Option<String>,
+    to_hash: Option<String>,
+    to_summary: Option<String>,
+    expect_file: Option<String>,
+    to_file: Option<String>,
+    expect_domain: Option<String>,
+    expect_layer: Option<String>,
+) -> Rule {
+    // A guarda declarada pela regra que já existia é preservada, e só é
+    // substituída quando a restauração a exige. Reconciliar nunca é ocasião
+    // para uma regra sair mais fraca do que entrou.
+    let guarda = |restaura: bool, anterior: Option<String>, corrente: Option<String>| {
+        if restaura {
+            corrente
+        } else {
+            anterior
+        }
+    };
+    Rule::OverrideRegion {
+        key: entry.current_key.clone(),
+        to_key: entry.historical_key.clone(),
+        from_hash,
+        to_hash,
+        from_summary: to_summary.as_ref().map(|_| region.summary.clone()),
+        to_summary,
+        expect_file,
+        to_file,
+        expect_domain: guarda(
+            entry.historical_domain.is_some(),
+            expect_domain,
+            region.domain.clone(),
+        ),
+        to_domain: entry.historical_domain.clone(),
+        expect_layer: guarda(
+            entry.historical_layer.is_some(),
+            expect_layer,
+            region.layer.clone(),
+        ),
+        to_layer: entry.historical_layer.clone(),
+    }
+}
+
 fn plan_recipe_reconciliation(
     root: &core::RepoRoot,
     catalog: &[pinker_v0::nav::CodeRegion],
+    renames: Option<&RenameMap>,
 ) -> Result<ReconcilePlan, ProjectionError> {
     let store = ProjectionStore::load(root.path())?;
     verify_historical_frozen_authority(root.path(), &store)?;
     let mut desired = Vec::new();
     let mut changes = Vec::new();
-    for stored in store.recipes() {
-        let mut recipe = stored.recipe.clone();
-        for rule in &mut recipe.rules {
-            if let pinker_v0::nav_projection_snapshot::Rule::OverrideHash {
-                key,
-                from,
-                expect_file,
-                expect_domain,
-                expect_layer,
-                ..
-            } = rule
-            {
-                let matches: Vec<_> = catalog.iter().filter(|region| region.key == *key).collect();
-                let [region] = matches.as_slice() else {
-                    return Err(ProjectionError::Policy { message: format!("SEMANTIC_AMBIGUITY_BLOCK: rule_key={key} requires exactly one current region") });
-                };
-                if region.hash != *from {
-                    if expect_file.as_deref() != Some(region.file.as_str())
-                        || expect_domain.as_deref() != region.domain.as_deref()
-                        || expect_layer.as_deref() != region.layer.as_deref()
-                    {
-                        return Err(ProjectionError::Policy { message: format!("SEMANTIC_AMBIGUITY_BLOCK: rule_key={key} structural identity changed") });
-                    }
-                    changes.push(format!("owner_file={} rule_key={} path={} domain={} layer={} expected={} observed={} planned_allowed_mutation=recipe.from reason=MECHANICALLY_RECONCILABLE", stored.path, key, region.file, region.domain.as_deref().unwrap_or("—"), region.layer.as_deref().unwrap_or("—"), from, region.hash));
-                    from.clone_from(&region.hash);
+    let mut used: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+
+    // O lado corrente de cada entrada é conferido antes de qualquer
+    // planejamento: um mapa que nomeia região inexistente ou ambígua descreve
+    // uma relação que não existe, e descobrir isso só no fim confundiria a
+    // causa com "entrada sem uso".
+    if let Some(map) = renames {
+        for entry in &map.entries {
+            match regions_with_key(catalog, &entry.current_key).as_slice() {
+                [_] => {}
+                [] => {
+                    return Err(ProjectionError::Policy {
+                        message: format!(
+                            "MAPPING_CURRENT_ABSENT: current_key={} does not exist in the current catalog",
+                            entry.current_key
+                        ),
+                    })
                 }
-            }
-            if let pinker_v0::nav_projection_snapshot::Rule::OverrideRegion {
-                key,
-                from_hash,
-                from_summary,
-                expect_file,
-                expect_domain,
-                expect_layer,
-                ..
-            } = rule
-            {
-                let matches: Vec<_> = catalog.iter().filter(|region| region.key == *key).collect();
-                let [region] = matches.as_slice() else {
-                    return Err(ProjectionError::Policy { message: format!("SEMANTIC_AMBIGUITY_BLOCK: rule_key={key} requires exactly one current region") });
-                };
-                let hash_changed = from_hash.as_deref().is_some_and(|hash| hash != region.hash);
-                let summary_changed = from_summary
-                    .as_deref()
-                    .is_some_and(|summary| summary != region.summary);
-                if hash_changed || summary_changed {
-                    if expect_file.as_deref() != Some(region.file.as_str())
-                        || expect_domain.as_deref() != region.domain.as_deref()
-                        || expect_layer.as_deref() != region.layer.as_deref()
-                    {
-                        return Err(ProjectionError::Policy { message: format!("SEMANTIC_AMBIGUITY_BLOCK: rule_key={key} structural identity changed") });
-                    }
-                    changes.push(format!("owner_file={} rule_key={} path={} domain={} layer={} expected_hash={} observed_hash={} expected_summary={} observed_summary={} planned_allowed_mutation=recipe.from_* reason=MECHANICALLY_RECONCILABLE", stored.path, key, region.file, region.domain.as_deref().unwrap_or("—"), region.layer.as_deref().unwrap_or("—"), from_hash.as_deref().unwrap_or("—"), region.hash, from_summary.as_deref().unwrap_or("—"), region.summary));
-                    if let Some(hash) = from_hash {
-                        hash.clone_from(&region.hash);
-                    }
-                    if let Some(summary) = from_summary {
-                        summary.clone_from(&region.summary);
-                    }
+                varias => {
+                    return Err(ProjectionError::Policy {
+                        message: format!(
+                            "MAPPING_CURRENT_AMBIGUOUS: current_key={} matches {} current regions",
+                            entry.current_key,
+                            varias.len()
+                        ),
+                    })
                 }
             }
         }
+    }
+
+    for stored in store.recipes() {
+        let mut recipe = stored.recipe.clone();
+        for rule in &mut recipe.rules {
+            match rule {
+                Rule::ExcludeKey { key, .. } => {
+                    // Uma exclusão só é candidata quando sua chave deixou de
+                    // existir: enquanto ela casa, o orçamento declarado decide,
+                    // e mexer nela seria inventar trabalho.
+                    if !regions_with_key(catalog, key).is_empty() {
+                        continue;
+                    }
+                    if let Resolved::Mapped(_, entry) = resolve_selector(catalog, key, renames)? {
+                        // A região excluída não chega a projeção histórica
+                        // nenhuma. Declarar identidade histórica de domínio ou
+                        // camada para ela é declarar uma restauração que nada
+                        // aplica, e aceitar em silêncio seria ignorar o mapa.
+                        if entry.historical_domain.is_some() || entry.historical_layer.is_some() {
+                            return Err(ProjectionError::Policy {
+                                message: format!(
+                                    "MAPPING_RESTORES_EXCLUDED_REGION: current_key={} is excluded from every historical projection and has no domain/layer identity to restore",
+                                    entry.current_key
+                                ),
+                            });
+                        }
+                        changes.push(format!(
+                            "owner_file={} rule_key={} planned_allowed_mutation=recipe.exclude_key historical_key={} current_key={} reason=EXPLICIT_RENAME_MAPPED",
+                            stored.path, key, key, entry.current_key
+                        ));
+                        used.insert(entry.current_key.clone());
+                        key.clone_from(&entry.current_key);
+                    }
+                }
+                Rule::OverrideHash {
+                    key,
+                    from,
+                    to,
+                    expect_file,
+                    expect_domain,
+                    expect_layer,
+                } => {
+                    match resolve_selector(catalog, key, renames)? {
+                        Resolved::Direct(region) => {
+                            if region.hash != *from {
+                                if expect_file.as_deref() != Some(region.file.as_str())
+                                    || expect_domain.as_deref() != region.domain.as_deref()
+                                    || expect_layer.as_deref() != region.layer.as_deref()
+                                {
+                                    return Err(ProjectionError::Policy { message: format!("SEMANTIC_AMBIGUITY_BLOCK: rule_key={key} structural identity changed") });
+                                }
+                                changes.push(format!("owner_file={} rule_key={} path={} domain={} layer={} expected={} observed={} planned_allowed_mutation=recipe.from reason=MECHANICALLY_RECONCILABLE", stored.path, key, region.file, region.domain.as_deref().unwrap_or("—"), region.layer.as_deref().unwrap_or("—"), from, region.hash));
+                                from.clone_from(&region.hash);
+                            }
+                        }
+                        Resolved::Mapped(region, entry) | Resolved::DirectRenamed(region, entry) => {
+                            check_entry_guards(entry, region)?;
+                            check_rule_agrees_with_entry(
+                                &stored.path,
+                                key,
+                                expect_domain.as_deref(),
+                                expect_layer.as_deref(),
+                                entry,
+                                region,
+                            )?;
+                            if expect_file.is_some()
+                                && expect_file.as_deref() != Some(region.file.as_str())
+                            {
+                                return Err(ProjectionError::Policy { message: format!("SEMANTIC_AMBIGUITY_BLOCK: rule_key={key} structural identity changed") });
+                            }
+                            changes.push(format!(
+                                "owner_file={} rule_key={} path={} planned_allowed_mutation=recipe.override_region historical_key={} current_key={} historical_domain={} historical_layer={} reason=EXPLICIT_RENAME_MAPPED",
+                                stored.path,
+                                key,
+                                region.file,
+                                entry.historical_key.as_deref().unwrap_or("—"),
+                                entry.current_key,
+                                entry.historical_domain.as_deref().unwrap_or("—"),
+                                entry.historical_layer.as_deref().unwrap_or("—")
+                            ));
+                            used.insert(entry.current_key.clone());
+                            *rule = reconciled_identity_rule(
+                                entry,
+                                region,
+                                Some(region.hash.clone()),
+                                Some(to.clone()),
+                                None,
+                                expect_file.clone(),
+                                None,
+                                expect_domain.clone(),
+                                expect_layer.clone(),
+                            );
+                        }
+                        Resolved::Absent => {
+                            return Err(ProjectionError::Policy { message: format!("SEMANTIC_AMBIGUITY_BLOCK: rule_key={key} requires exactly one current region") })
+                        }
+                    }
+                }
+                Rule::OverrideRegion {
+                    key,
+                    from_hash,
+                    to_hash,
+                    from_summary,
+                    to_summary,
+                    expect_file,
+                    to_file,
+                    expect_domain,
+                    expect_layer,
+                    ..
+                } => {
+                    match resolve_selector(catalog, key, renames)? {
+                        Resolved::Direct(region) => {
+                            let hash_changed =
+                                from_hash.as_deref().is_some_and(|hash| hash != region.hash);
+                            let summary_changed = from_summary
+                                .as_deref()
+                                .is_some_and(|summary| summary != region.summary);
+                            if hash_changed || summary_changed {
+                                if expect_file.as_deref() != Some(region.file.as_str())
+                                    || expect_domain.as_deref() != region.domain.as_deref()
+                                    || expect_layer.as_deref() != region.layer.as_deref()
+                                {
+                                    return Err(ProjectionError::Policy { message: format!("SEMANTIC_AMBIGUITY_BLOCK: rule_key={key} structural identity changed") });
+                                }
+                                changes.push(format!("owner_file={} rule_key={} path={} domain={} layer={} expected_hash={} observed_hash={} expected_summary={} observed_summary={} planned_allowed_mutation=recipe.from_* reason=MECHANICALLY_RECONCILABLE", stored.path, key, region.file, region.domain.as_deref().unwrap_or("—"), region.layer.as_deref().unwrap_or("—"), from_hash.as_deref().unwrap_or("—"), region.hash, from_summary.as_deref().unwrap_or("—"), region.summary));
+                                if let Some(hash) = from_hash {
+                                    hash.clone_from(&region.hash);
+                                }
+                                if let Some(summary) = from_summary {
+                                    summary.clone_from(&region.summary);
+                                }
+                            }
+                        }
+                        Resolved::Mapped(region, entry) | Resolved::DirectRenamed(region, entry) => {
+                            check_entry_guards(entry, region)?;
+                            check_rule_agrees_with_entry(
+                                &stored.path,
+                                key,
+                                expect_domain.as_deref(),
+                                expect_layer.as_deref(),
+                                entry,
+                                region,
+                            )?;
+                            if expect_file.is_some()
+                                && expect_file.as_deref() != Some(region.file.as_str())
+                            {
+                                return Err(ProjectionError::Policy { message: format!("SEMANTIC_AMBIGUITY_BLOCK: rule_key={key} structural identity changed") });
+                            }
+                            changes.push(format!(
+                                "owner_file={} rule_key={} path={} planned_allowed_mutation=recipe.override_region historical_key={} current_key={} historical_domain={} historical_layer={} reason=EXPLICIT_RENAME_MAPPED",
+                                stored.path,
+                                key,
+                                region.file,
+                                entry.historical_key.as_deref().unwrap_or("—"),
+                                entry.current_key,
+                                entry.historical_domain.as_deref().unwrap_or("—"),
+                                entry.historical_layer.as_deref().unwrap_or("—")
+                            ));
+                            used.insert(entry.current_key.clone());
+                            *rule = reconciled_identity_rule(
+                                entry,
+                                region,
+                                from_hash.as_ref().map(|_| region.hash.clone()),
+                                to_hash.clone(),
+                                to_summary.clone(),
+                                expect_file.clone(),
+                                to_file.clone(),
+                                expect_domain.clone(),
+                                expect_layer.clone(),
+                            );
+                        }
+                        Resolved::Absent => {
+                            return Err(ProjectionError::Policy { message: format!("SEMANTIC_AMBIGUITY_BLOCK: rule_key={key} requires exactly one current region") })
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        if let Some(map) = renames {
+            create_missing_identity_rules(
+                &stored.path,
+                &mut recipe,
+                catalog,
+                map,
+                &mut used,
+                &mut changes,
+            )?;
+        }
+
+        // A versão sobe quando — e só quando — a receita passa a usar
+        // capacidade que a versão declarada não possui. Uma receita que não
+        // ganhou capacidade nova continua exatamente na versão em que estava.
+        let exigido = recipe
+            .rules
+            .iter()
+            .map(|rule| rule.min_schema(SchemaAuthority::Recipe))
+            .max()
+            .unwrap_or(recipe.schema);
+        if exigido > recipe.schema {
+            changes.push(format!(
+                "owner_file={} planned_allowed_mutation=recipe.schema from={} to={exigido} reason=CAPABILITY_REQUIRES_SCHEMA",
+                stored.path, recipe.schema
+            ));
+            recipe.schema = exigido;
+        }
+
         if recipe != stored.recipe {
             desired.push((
                 stored.path.clone(),
@@ -338,11 +745,35 @@ fn plan_recipe_reconciliation(
             ));
         }
     }
+
+    // Entrada declarada e não usada não é ruído: ou o operador descreveu uma
+    // renomeação que não aconteceu, ou descreveu a errada. Ignorá-la deixaria
+    // passar um mapa que o autor acredita ter efeito e não tem.
+    if let Some(map) = renames {
+        for entry in &map.entries {
+            if !used.contains(&entry.current_key) {
+                return Err(ProjectionError::Policy {
+                    message: format!(
+                        "MAPPING_ENTRY_UNUSED: current_key={} produced no reconciliation",
+                        entry.current_key
+                    ),
+                });
+            }
+        }
+    }
+
     let paths: Vec<_> = desired.iter().map(|(path, _)| path.as_str()).collect();
     let allowlist = core::Allowlist::new(&paths).map_err(|cause| ProjectionError::Policy {
         message: cause.to_string(),
     })?;
-    let mut builder = core::PlanBuilder::new("nav.projecao.reconcile", allowlist);
+    // O mapa entra no produtor do plano, e o produtor entra na forma canônica
+    // que o digest assina. Dois mapas distintos nunca autorizam o mesmo plano,
+    // ainda que por acaso produzissem os mesmos bytes de receita.
+    let producer = match renames {
+        None => "nav.projecao.reconcile".to_string(),
+        Some(map) => format!("nav.projecao.reconcile+renames:{}", map.fingerprint()),
+    };
+    let mut builder = core::PlanBuilder::new(&producer, allowlist);
     for (path, bytes) in desired {
         builder = builder
             .desire(&path, bytes)
@@ -355,7 +786,68 @@ fn plan_recipe_reconciliation(
         plan,
         check,
         changes,
+        rename_map: renames.map(RenameMap::fingerprint),
     })
+}
+
+/// Cria a regra de restauração das entradas que nenhuma regra existente cobre.
+///
+/// Uma região histórica não precisa ter regra: enquanto sua identidade corrente
+/// é a histórica, a reconstrução a carrega de graça. Renomeá-la é justamente o
+/// que cria a necessidade da regra, e nenhuma regra antiga nomeia a região nova.
+///
+/// Região que a própria receita exclui não recebe restauração: exclusões correm
+/// antes dos overrides, e um override sobre região excluída não teria o que
+/// consumir.
+fn create_missing_identity_rules(
+    owner: &str,
+    recipe: &mut pinker_v0::nav_projection_recipe::Recipe,
+    catalog: &[pinker_v0::nav::CodeRegion],
+    map: &RenameMap,
+    used: &mut std::collections::BTreeSet<String>,
+    changes: &mut Vec<String>,
+) -> Result<(), ProjectionError> {
+    let sobreviventes = match recipe.keys_surviving_exclusions(catalog) {
+        Ok(chaves) => chaves,
+        Err(failure) => {
+            return Err(ProjectionError::Policy {
+                message: format!("RECIPE_EXCLUSIONS_UNRESOLVED: owner_file={owner} {failure}"),
+            })
+        }
+    };
+
+    let mut novas = Vec::new();
+    for entry in &map.entries {
+        if used.contains(&entry.current_key) {
+            continue;
+        }
+        if !sobreviventes.contains(&entry.current_key) {
+            continue;
+        }
+        let correntes = regions_with_key(catalog, &entry.current_key);
+        let [region] = correntes.as_slice() else {
+            continue;
+        };
+        check_entry_guards(entry, region)?;
+        changes.push(format!(
+            "owner_file={owner} rule_key={} path={} planned_allowed_mutation=recipe.new_override_region historical_key={} current_key={} historical_domain={} historical_layer={} reason=EXPLICIT_RENAME_MAPPED",
+            entry.current_key,
+            region.file,
+            entry.historical_key.as_deref().unwrap_or("—"),
+            entry.current_key,
+            entry.historical_domain.as_deref().unwrap_or("—"),
+            entry.historical_layer.as_deref().unwrap_or("—")
+        ));
+        used.insert(entry.current_key.clone());
+        novas.push(reconciled_identity_rule(
+            entry, region, None, None, None, None, None, None, None,
+        ));
+    }
+    if !novas.is_empty() {
+        recipe.expected_overrides += novas.len() as u64;
+        recipe.rules.extend(novas);
+    }
+    Ok(())
 }
 
 fn print_reconcile_plan(json: bool, planning: &ReconcilePlan) {
@@ -365,7 +857,7 @@ fn print_reconcile_plan(json: bool, planning: &ReconcilePlan) {
             .iter()
             .map(|change| json_quote(change))
             .collect();
-        println!("{{\"schema\":1,\"command\":\"reconciliar\",\"outcome\":{},\"digest\":{},\"changes\":[{}]}}", json_quote(if planning.changes.is_empty() { "NO_CHANGE" } else { "MECHANICALLY_RECONCILABLE" }), json_quote(&planning.plan.digest()), changes.join(","));
+        println!("{{\"schema\":1,\"command\":\"reconciliar\",\"outcome\":{},\"digest\":{},\"producer\":{},\"rename_map\":{},\"changes\":[{}]}}", json_quote(if planning.changes.is_empty() { "NO_CHANGE" } else { "MECHANICALLY_RECONCILABLE" }), json_quote(&planning.plan.digest()), json_quote(planning.plan.producer()), planning.rename_map.as_deref().map_or("null".to_string(), json_quote), changes.join(","));
     } else {
         println!(
             "{}\\ndigest: {}",
@@ -376,6 +868,10 @@ fn print_reconcile_plan(json: bool, planning: &ReconcilePlan) {
             },
             planning.plan.digest()
         );
+        println!("producer: {}", planning.plan.producer());
+        if let Some(fingerprint) = &planning.rename_map {
+            println!("rename_map: {fingerprint}");
+        }
         for change in &planning.changes {
             println!("{change}");
         }

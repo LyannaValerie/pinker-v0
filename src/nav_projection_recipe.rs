@@ -47,7 +47,7 @@ use crate::nav_projection_snapshot::{
     HarnessFailure, Measures, Outcome, ProjectionRegion, ProjectionSnapshot, Rule, RuleConsumption,
     SchemaAuthority, SnapshotState, VerifyReport,
 };
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 /// Primeira versão do formato de receita.
 pub const RECIPE_SCHEMA_V1: u64 = 1;
@@ -65,8 +65,25 @@ pub const RECIPE_SCHEMA_V2: u64 = 2;
 /// no snapshot.
 pub const RECIPE_SCHEMA_V3: u64 = 3;
 
+/// Quarta versão: acrescenta a restauração de identidade histórica a
+/// `override-region` — `to_key`, `to_domain` e `to_layer`.
+///
+/// `key`, `domain` e `layer` participam da projeção estável, então uma
+/// renomeação corrente autorizada apaga a identidade que a medida congelada
+/// espera. Até aqui a receita sabia restaurar conteúdo (`hash`, `summary`) e
+/// localização (`file`), e a identidade só podia ser **conferida**. Restaurá-la
+/// é a mesma classe de normalização corrente-para-histórico, e pertence à mesma
+/// autoridade: o snapshot é byte-imutável e `materialize-region` afirma uma
+/// região ausente, que não é o caso de uma região que continua existindo sob
+/// outro nome.
+///
+/// A capacidade não existe na autoridade de snapshot em versão alguma, e a
+/// recusa é nomeada em
+/// [`crate::nav_projection_snapshot::validate_rules`].
+pub const RECIPE_SCHEMA_V4: u64 = 4;
+
 /// Versão máxima aceita do formato de receita.
-pub const RECIPE_SCHEMA: u64 = RECIPE_SCHEMA_V3;
+pub const RECIPE_SCHEMA: u64 = RECIPE_SCHEMA_V4;
 
 /// Diretório repo-relativo canônico das receitas.
 pub const RECIPES_DIR: &str = ".pinker/projections/recipes/";
@@ -94,6 +111,33 @@ impl Recipe {
     /// checagem que o texto passaria.
     pub fn validate_model(&self) -> Result<(), HarnessFailure> {
         validate_rules(self.schema, &self.rules, SchemaAuthority::Recipe)
+    }
+
+    /// Chaves correntes que sobrevivem às exclusões locais desta receita.
+    ///
+    /// Responde a pergunta que um adaptador precisa fazer antes de propor uma
+    /// regra de restauração: a região ainda chega à reconstrução, ou esta
+    /// receita já a removeu? Exclusões correm antes dos overrides, e um
+    /// override sobre região excluída não teria o que consumir.
+    ///
+    /// Aplica **somente** as exclusões, no mesmo motor e com o mesmo orçamento
+    /// que a reconstrução usa, porque responder com uma varredura própria seria
+    /// uma segunda semântica de exclusão convivendo com a primeira. A
+    /// reconstrução continua sendo do núcleo: quem chama recebe um conjunto de
+    /// chaves, nunca um estado reconstruído.
+    pub fn keys_surviving_exclusions(
+        &self,
+        catalog: &[CodeRegion],
+    ) -> Result<BTreeSet<String>, HarnessFailure> {
+        let exclusoes: Vec<Rule> = self
+            .rules
+            .iter()
+            .filter(|rule| !rule.is_override() && !rule.is_materialization())
+            .cloned()
+            .collect();
+        let entrada: Vec<ProjectionRegion> = catalog.iter().map(ProjectionRegion::from).collect();
+        let (regions, _) = apply_rules(entrada, &exclusoes)?;
+        Ok(regions.into_iter().map(|region| region.key).collect())
     }
 }
 // @pinker-nav:end trama.snapshots.receita
@@ -155,7 +199,7 @@ pub fn parse_recipe(text: &str) -> Result<Recipe, HarnessFailure> {
             })
         }
     };
-    if !(RECIPE_SCHEMA_V1..=RECIPE_SCHEMA_V3).contains(&schema) {
+    if !(RECIPE_SCHEMA_V1..=RECIPE_SCHEMA_V4).contains(&schema) {
         return Err(HarnessFailure::SchemaUnknown {
             authority: SchemaAuthority::Recipe,
             found: schema,

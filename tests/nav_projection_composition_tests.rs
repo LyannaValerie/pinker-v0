@@ -1072,7 +1072,7 @@ fn receita_com_schema_desconhecido_e_rejeitada() {
                 "a mensagem não identifica a autoridade: {msg}"
             );
             assert!(
-                msg.contains("aceita 1, 2 ou 3"),
+                msg.contains("aceita 1, 2, 3 ou 4"),
                 "a mensagem não diz o que a receita aceita: {msg}"
             );
             assert!(
@@ -1099,7 +1099,7 @@ fn o_diagnostico_de_schema_e_separado_por_autoridade() {
     let de_receita = parse_recipe(&RECEITA_V1.replace("schema = 1", "schema = 9"))
         .expect_err("schema 9 é inválido para receita");
     assert_eq!(de_receita.code(), "E-RECEITA-SCHEMA");
-    assert!(de_receita.to_string().contains("aceita 1, 2 ou 3"));
+    assert!(de_receita.to_string().contains("aceita 1, 2, 3 ou 4"));
     assert!(
         !de_receita.to_string().contains("1, 2, 3, 4 ou 5"),
         "a receita citou o conjunto do snapshot"
@@ -1416,6 +1416,9 @@ fn override_region(
         to_file: None,
         expect_domain: None,
         expect_layer: None,
+        to_key: None,
+        to_domain: None,
+        to_layer: None,
     }
 }
 
@@ -1715,6 +1718,9 @@ fn expectativa_de_identidade_protege_antes_da_mutacao() {
                 to_file: None,
                 expect_domain: None,
                 expect_layer: None,
+                to_key: None,
+                to_domain: None,
+                to_layer: None,
             },
         ),
         (
@@ -1729,6 +1735,9 @@ fn expectativa_de_identidade_protege_antes_da_mutacao() {
                 to_file: None,
                 expect_domain: Some("outro".to_string()),
                 expect_layer: None,
+                to_key: None,
+                to_domain: None,
+                to_layer: None,
             },
         ),
         (
@@ -1743,6 +1752,9 @@ fn expectativa_de_identidade_protege_antes_da_mutacao() {
                 to_file: None,
                 expect_domain: None,
                 expect_layer: Some("outra".to_string()),
+                to_key: None,
+                to_domain: None,
+                to_layer: None,
             },
         ),
     ] {
@@ -1863,6 +1875,9 @@ fn override_region_com_seletor_sem_correspondencia_falha() {
         to_file: None,
         expect_domain: None,
         expect_layer: None,
+        to_key: None,
+        to_domain: None,
+        to_layer: None,
     };
     assert!(matches!(
         aplicar_regra(regra, regiao_alvo()),

@@ -130,6 +130,7 @@ const PUB_RESTRITO_AUTORIZADO: &[(&str, &[&str])] = &[
             "pub(crate) measures: Option<Table>,",
             "pub(crate) rules: Vec<Table>,",
             "pub(crate) fn parse_raw(",
+            "pub(crate) fn parse_raw_with_array(",
             "pub(crate) fn reject_unknown(",
             "pub(crate) fn require_text(",
             "pub(crate) fn optional_text(",
