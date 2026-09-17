@@ -1520,3 +1520,156 @@ fn regiao_que_o_mapa_nao_renomeia_mantem_seus_overrides_separados() {
         .any(|b| b.contains("op = \"override-region\"")));
     assert_eq!(expected_overrides(&depois), orcamento_antes + 1);
 }
+
+/// Sobe a versão declarada da receita, para as capacidades que exigem uma
+/// versão maior do que a receita publicada declara hoje.
+fn bump_recipe_schema(repo: &TempRepo, versao: u32) {
+    let path = recipe_path(repo);
+    let texto = fs::read_to_string(&path).unwrap();
+    let novo = texto.replacen("schema = 3", &format!("schema = {versao}"), 1);
+    assert_ne!(novo, texto, "a receita não declara schema = 3");
+    fs::write(path, novo).unwrap();
+}
+
+/// Cada campo que a fusão carrega, provado por uma contradição própria.
+///
+/// `absorb_override` é uma tabela: todo campo passa pelo mesmo
+/// `merge_override_field`, e a única forma de um deles deixar de ser fundido é
+/// sumir dessa tabela. Sem um controle por campo isso é invisível de fora — foi
+/// exatamente o que aconteceu com `to_hash`, porque em toda receita publicada
+/// hoje quem carrega o hash histórico é também a regra que abre o grupo, então
+/// tirá-lo da tabela não fazia nenhum teste falhar.
+///
+/// Cada caso declara duas regras sobre a mesma região que só divergem no campo
+/// sob teste e espera a recusa nomeando esse campo, antes de qualquer escrita.
+/// Perder o campo e eleger vencedor por ordem são o mesmo defeito visto de dois
+/// lados: quem não funde o campo também não vê a contradição nele.
+#[test]
+fn cada_campo_fundido_recusa_sua_propria_contradicao_antes_de_escrever() {
+    const FROM: &str = "fnv1a64:7072d67afe89778d";
+    const TO: &str = "fnv1a64:b538942c8ee175c8";
+    const ARQUIVO: &str = "src/pink_cli/doc_cli.rs";
+    let par_hash = format!("from_hash = \"{FROM}\"\nto_hash = \"{TO}\"\n");
+
+    // `identidade` marca os campos cuja capacidade a receita publicada ainda não
+    // declara: restaurar `key`, `domain` ou `layer` exige a versão 4.
+    let casos: Vec<(&str, bool, String, String, String)> = vec![
+        (
+            "from_hash",
+            false,
+            format!("to_hash = \"{TO}\"\n"),
+            FROM.to_string(),
+            "fnv1a64:0000000000000001".to_string(),
+        ),
+        (
+            "to_hash",
+            false,
+            format!("from_hash = \"{FROM}\"\n"),
+            TO.to_string(),
+            "fnv1a64:0000000000000000".to_string(),
+        ),
+        (
+            "from_summary",
+            false,
+            "to_summary = \"resumo historico\"\n".to_string(),
+            "resumo corrente a".to_string(),
+            "resumo corrente b".to_string(),
+        ),
+        (
+            "to_summary",
+            false,
+            "from_summary = \"resumo corrente\"\n".to_string(),
+            "resumo historico a".to_string(),
+            "resumo historico b".to_string(),
+        ),
+        (
+            "expect_file",
+            false,
+            par_hash.clone(),
+            ARQUIVO.to_string(),
+            "src/outro.rs".to_string(),
+        ),
+        (
+            "to_file",
+            false,
+            format!("expect_file = \"{ARQUIVO}\"\n"),
+            "src/main.rs".to_string(),
+            "src/outro.rs".to_string(),
+        ),
+        (
+            "expect_domain",
+            false,
+            par_hash.clone(),
+            "doc".to_string(),
+            "outro".to_string(),
+        ),
+        (
+            "to_domain",
+            true,
+            "expect_domain = \"doc\"\n".to_string(),
+            "doc-antigo-a".to_string(),
+            "doc-antigo-b".to_string(),
+        ),
+        (
+            "expect_layer",
+            false,
+            par_hash.clone(),
+            "cli".to_string(),
+            "outra".to_string(),
+        ),
+        (
+            "to_layer",
+            true,
+            "expect_layer = \"cli\"\n".to_string(),
+            "cli-antiga-a".to_string(),
+            "cli-antiga-b".to_string(),
+        ),
+        (
+            "to_key",
+            true,
+            String::new(),
+            "cli.doc.antiga-a".to_string(),
+            "cli.doc.antiga-b".to_string(),
+        ),
+    ];
+
+    for (campo, identidade, comum, valor_a, valor_b) in casos {
+        let repo = TempRepo::full(&format!("dup-merge-{campo}"));
+        repo.trust_main();
+        if identidade {
+            bump_recipe_schema(&repo, 4);
+        }
+        for valor in [&valor_a, &valor_b] {
+            add_override_rule(
+                &repo,
+                &format!(
+                    "op = \"override-region\"\nkey = \"{DUPLICADA}\"\n{comum}{campo} = \"{valor}\"\n"
+                ),
+            );
+        }
+        rename_in_catalog(&repo, DUPLICADA, DUPLICADA_CORRENTE, None);
+        let recipe = recipe_path(&repo);
+        let antes = fs::read(&recipe).unwrap();
+        let congelados_antes = frozen_bytes(&repo);
+        let map = write_rename_map(
+            &repo,
+            &format!(
+                "\n[[rename]]\ncurrent_key = \"{DUPLICADA_CORRENTE}\"\nhistorical_key = \"{DUPLICADA}\"\n"
+            ),
+        );
+
+        let saida = reconcile(&repo, Some(&map), None);
+        let texto = stdout(&saida);
+        assert_eq!(saida.status.code(), Some(7), "{campo}: {texto}");
+        assert!(
+            texto.contains("DUPLICATE_OVERRIDE_CONFLICTING_"),
+            "{campo}: {texto}"
+        );
+        assert!(
+            texto.contains(&format!("field={campo}")),
+            "{campo}: {texto}"
+        );
+        assert_eq!(fs::read(&recipe).unwrap(), antes, "{campo}");
+        assert_eq!(frozen_bytes(&repo), congelados_antes, "{campo}");
+    }
+}
