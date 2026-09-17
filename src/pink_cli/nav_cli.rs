@@ -15,7 +15,7 @@
 // @pinker-nav:start cli.nav.projecao
 // @pinker-nav:domain projecoes
 // @pinker-nav:layer cli
-// @pinker-nav:summary Final `pink nav projecao` adapter: dispatches listing, inspection, verification, lifecycle, and explicit recipe reconciliation; discovers the root through the automation core, derives text and JSON from shared models, recalculates plans before authorization, and preserves distinct drift, harness, policy, and stale exits.
+// @pinker-nav:summary Final `pink nav projecao` adapter: dispatches listing, inspection, verification, lifecycle, and explicit recipe reconciliation; discovers the root through the automation core, derives text and JSON from shared models, recalculates plans before authorization, coalesces into a single atomic rule the overrides that select one region whose identity an explicit map restores — combining disjoint fields, deduplicating identical ones, refusing a contradictory guard or destination instead of choosing by order, and lowering the declared override budget by the rules it absorbed — and preserves distinct drift, harness, policy, and stale exits.
 use super::*;
 use pinker_v0::automation as core;
 use pinker_v0::nav_projection_rename_map::{parse_rename_map, RenameEntry, RenameMap};
@@ -440,6 +440,227 @@ fn check_rule_agrees_with_entry(
     Ok(())
 }
 
+/// Reescreve um `override-hash` na forma equivalente de `override-region`.
+///
+/// A fusão precisa de uma forma de destino só. `override-region` é essa forma
+/// porque é a única operação capaz de carregar mais de uma restauração, e
+/// promover `override-hash` não muda orçamento: as duas contam como override.
+fn as_override_region(rule: Rule) -> Rule {
+    match rule {
+        Rule::OverrideHash {
+            key,
+            from,
+            to,
+            expect_file,
+            expect_domain,
+            expect_layer,
+        } => Rule::OverrideRegion {
+            key,
+            from_hash: Some(from),
+            to_hash: Some(to),
+            from_summary: None,
+            to_summary: None,
+            expect_file,
+            to_file: None,
+            expect_domain,
+            expect_layer,
+            to_key: None,
+            to_domain: None,
+            to_layer: None,
+        },
+        outra => outra,
+    }
+}
+
+/// Funde um campo de duas regras sobre a mesma região.
+///
+/// A álgebra tem exatamente três casos, e nenhum deles escolhe vencedor: campos
+/// disjuntos se combinam, a mesma afirmação repetida vira uma, e duas
+/// afirmações diferentes sobre o mesmo campo recusam. Preferir a primeira
+/// declaração seria decidir por ordem textual qual das duas guardas a receita
+/// perde.
+fn merge_override_field(
+    owner: &str,
+    key: &str,
+    campo: &str,
+    classe: &str,
+    alvo: &mut Option<String>,
+    origem: Option<String>,
+) -> Result<(), ProjectionError> {
+    match (alvo.as_deref(), origem) {
+        (_, None) => Ok(()),
+        (None, Some(valor)) => {
+            *alvo = Some(valor);
+            Ok(())
+        }
+        (Some(atual), Some(valor)) if atual == valor => Ok(()),
+        (Some(atual), Some(valor)) => Err(ProjectionError::Policy {
+            message: format!(
+                "DUPLICATE_OVERRIDE_CONFLICTING_{classe}: owner_file={owner} rule_key={key} field={campo} declared={atual} other={valor}"
+            ),
+        }),
+    }
+}
+
+/// Absorve na regra acumulada todos os campos de outra regra sobre a mesma
+/// região, recusando qualquer contradição antes de escrever.
+fn absorb_override(owner: &str, destino: &mut Rule, origem: Rule) -> Result<(), ProjectionError> {
+    let origem = as_override_region(origem);
+    let (
+        Rule::OverrideRegion {
+            key,
+            from_hash,
+            to_hash,
+            from_summary,
+            to_summary,
+            expect_file,
+            to_file,
+            expect_domain,
+            expect_layer,
+            to_key,
+            to_domain,
+            to_layer,
+        },
+        Rule::OverrideRegion {
+            from_hash: o_from_hash,
+            to_hash: o_to_hash,
+            from_summary: o_from_summary,
+            to_summary: o_to_summary,
+            expect_file: o_expect_file,
+            to_file: o_to_file,
+            expect_domain: o_expect_domain,
+            expect_layer: o_expect_layer,
+            to_key: o_to_key,
+            to_domain: o_to_domain,
+            to_layer: o_to_layer,
+            ..
+        },
+    ) = (destino, origem)
+    else {
+        return Err(ProjectionError::Policy {
+            message: format!(
+                "DUPLICATE_OVERRIDE_UNFUSABLE: owner_file={owner} a rule that is not an override reached the coalescing step"
+            ),
+        });
+    };
+    let key = key.clone();
+    // Guardas e destinos são fundidos pela mesma regra e recusam pela mesma
+    // razão; a classe separa as duas causas no diagnóstico, porque uma guarda
+    // contraditória e um destino contraditório descrevem erros diferentes do
+    // autor da receita.
+    for (campo, classe, alvo, valor) in [
+        ("from_hash", "GUARD", from_hash, o_from_hash),
+        ("from_summary", "GUARD", from_summary, o_from_summary),
+        ("expect_file", "GUARD", expect_file, o_expect_file),
+        ("expect_domain", "GUARD", expect_domain, o_expect_domain),
+        ("expect_layer", "GUARD", expect_layer, o_expect_layer),
+        ("to_hash", "DESTINATION", to_hash, o_to_hash),
+        ("to_summary", "DESTINATION", to_summary, o_to_summary),
+        ("to_file", "DESTINATION", to_file, o_to_file),
+        ("to_key", "DESTINATION", to_key, o_to_key),
+        ("to_domain", "DESTINATION", to_domain, o_to_domain),
+        ("to_layer", "DESTINATION", to_layer, o_to_layer),
+    ] {
+        merge_override_field(owner, &key, campo, classe, alvo, valor)?;
+    }
+    Ok(())
+}
+
+/// Funde, **antes** da reconciliação de identidade, os overrides que selecionam
+/// a mesma região quando o mapa declara que aquela região terá identidade
+/// restaurada.
+///
+/// Duas regras sobre a mesma região convivem enquanto nenhuma restaura
+/// identidade: as duas casam, em qualquer ordem. A partir do momento em que uma
+/// delas devolve `key`, `domain` ou `layer` ao valor histórico, a outra deixa de
+/// encontrar a região — e qual das duas roda primeiro é decidido pela ordem
+/// canônica de renderização, não pelo autor. Fundir as duas numa regra atômica
+/// preserva cada guarda e cada restauração das originais, mantém "um override,
+/// um consumo" e elimina a dependência de ordem na origem.
+///
+/// O agrupamento é pela **região que a regra seleciona**, nunca pela grafia da
+/// regra. Numa receita em transição as duas regras da mesma região podem estar
+/// escritas em grafias diferentes — uma ainda na histórica, a outra já na
+/// corrente — e agrupar por texto deixaria justamente esse par fora da fusão,
+/// que é o caso em que a reconstrução falha.
+///
+/// Sem mapa nada é fundido: fora de uma renomeação as duas regras continuam
+/// corretas, e mexer nelas seria mudar a semântica de receitas que ninguém
+/// pediu para mudar.
+fn coalesce_identity_overrides(
+    owner: &str,
+    recipe: &mut pinker_v0::nav_projection_recipe::Recipe,
+    catalog: &[pinker_v0::nav::CodeRegion],
+    renames: Option<&RenameMap>,
+    changes: &mut Vec<String>,
+) -> Result<(), ProjectionError> {
+    // Saída antecipada sem mapa. Ela não é o que impede a fusão — sem mapa
+    // nenhuma regra resolve como renomeada, logo nenhum grupo se forma — mas
+    // evita resolver o seletor de cada regra da receita para nada.
+    if renames.is_none() {
+        return Ok(());
+    }
+
+    // A região corrente que cada regra seleciona, quando o mapa restaura a
+    // identidade dela. `Direct` fica de fora porque nada vai restaurar aquela
+    // região, e `Absent` porque a regra não seleciona nada — o laço principal
+    // decide o que fazer com as duas.
+    let mut grupos: Vec<Option<String>> = Vec::with_capacity(recipe.rules.len());
+    for rule in &recipe.rules {
+        let chave = match rule {
+            Rule::OverrideHash { key, .. } | Rule::OverrideRegion { key, .. } => key.clone(),
+            _ => {
+                grupos.push(None);
+                continue;
+            }
+        };
+        grupos.push(match resolve_selector(catalog, &chave, renames)? {
+            Resolved::DirectRenamed(region, _) | Resolved::Mapped(region, _) => {
+                Some(region.key.clone())
+            }
+            Resolved::Direct(_) | Resolved::Absent => None,
+        });
+    }
+
+    // Uma região com uma única regra não é fundida: converter a regra sozinha
+    // mudaria a receita sem necessidade, e a reconciliação já a transforma.
+    let mut contagem: std::collections::BTreeMap<&str, usize> = std::collections::BTreeMap::new();
+    for grupo in grupos.iter().flatten() {
+        *contagem.entry(grupo.as_str()).or_default() += 1;
+    }
+
+    let mut fundidas: Vec<Rule> = Vec::with_capacity(recipe.rules.len());
+    let mut primeira: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
+    let mut absorvidas: u64 = 0;
+    for (indice, rule) in recipe.rules.drain(..).enumerate() {
+        let candidata = grupos[indice]
+            .clone()
+            .filter(|grupo| contagem.get(grupo.as_str()).copied().unwrap_or(0) > 1);
+        let Some(grupo) = candidata else {
+            fundidas.push(rule);
+            continue;
+        };
+        match primeira.get(&grupo) {
+            Some(&posicao) => {
+                absorb_override(owner, &mut fundidas[posicao], rule)?;
+                absorvidas += 1;
+                changes.push(format!(
+                    "owner_file={owner} rule_key={grupo} planned_allowed_mutation=recipe.coalesce_override reason=DUPLICATE_OVERRIDE_COALESCED"
+                ));
+            }
+            None => {
+                primeira.insert(grupo, fundidas.len());
+                fundidas.push(as_override_region(rule));
+            }
+        }
+    }
+    recipe.rules = fundidas;
+    // N regras viraram uma: o orçamento declarado desce exatamente N-1 por
+    // região fundida, porque a reconstrução cobra um consumo por override.
+    recipe.expected_overrides = recipe.expected_overrides.saturating_sub(absorvidas);
+    Ok(())
+}
+
 /// Constrói a regra reconciliada de uma região renomeada.
 ///
 /// A regra resultante é sempre `override-region`: ela é a única operação capaz
@@ -534,6 +755,7 @@ fn plan_recipe_reconciliation(
 
     for stored in store.recipes() {
         let mut recipe = stored.recipe.clone();
+        coalesce_identity_overrides(&stored.path, &mut recipe, catalog, renames, &mut changes)?;
         for rule in &mut recipe.rules {
             match rule {
                 Rule::ExcludeKey { key, .. } => {

@@ -1142,3 +1142,381 @@ fn mapa_que_contradiz_guarda_de_metadata_da_regra_existente_e_recusado() {
     );
     assert_eq!(fs::read(&recipe).unwrap(), antes);
 }
+
+/// Região real cuja receita tem **duas** regras de override com o mesmo seletor
+/// corrente: `override-hash` restaura o hash e `override-region` restaura o
+/// arquivo. Enquanto nenhuma delas restaura identidade, as duas casam; quando
+/// uma passa a devolver a chave histórica, a outra deixa de encontrar a região.
+const DUPLICADA: &str = "cli.doc.consulta";
+const DUPLICADA_CORRENTE: &str = "cli.doc.query";
+
+/// Quantos blocos `[[rules]]` têm a chave indicada como **seletor**.
+///
+/// A comparação é por linha inteira: `to_key = "x"` contém `key = "x"` como
+/// substring, e contar o destino como seletor leria uma regra fundida como duas.
+fn rule_blocks(recipe: &str, key: &str) -> usize {
+    recipe
+        .split("[[rules]]")
+        .filter(|bloco| seleciona(bloco, key))
+        .count()
+}
+
+fn seleciona(bloco: &str, key: &str) -> bool {
+    bloco
+        .lines()
+        .any(|linha| linha == format!("key = \"{key}\""))
+}
+
+fn expected_overrides(recipe: &str) -> u64 {
+    let marker = "expected_overrides = ";
+    let start = recipe.find(marker).unwrap() + marker.len();
+    let end = recipe[start..].find('\n').unwrap() + start;
+    recipe[start..end].trim().parse().unwrap()
+}
+
+/// Acrescenta uma regra de override à receita, ajustando o orçamento declarado.
+fn add_override_rule(repo: &TempRepo, bloco: &str) {
+    let path = recipe_path(repo);
+    let texto = fs::read_to_string(&path).unwrap();
+    let orcamento = expected_overrides(&texto);
+    let texto = texto.replace(
+        &format!("expected_overrides = {orcamento}"),
+        &format!("expected_overrides = {}", orcamento + 1),
+    );
+    fs::write(&path, format!("{texto}\n[[rules]]\n{bloco}")).unwrap();
+}
+
+/// Bytes de todo artefato congelado, para provar que a reconciliação não os
+/// toca.
+fn frozen_bytes(repo: &TempRepo) -> Vec<(String, Vec<u8>)> {
+    let mut saida = Vec::new();
+    for entry in fs::read_dir(repo.path().join(".pinker/projections")).unwrap() {
+        let path = entry.unwrap().path();
+        if path.is_file() {
+            saida.push((
+                path.file_name().unwrap().to_string_lossy().to_string(),
+                fs::read(&path).unwrap(),
+            ));
+        }
+    }
+    saida.sort();
+    saida
+}
+
+#[test]
+fn overrides_duplicados_da_mesma_regiao_fundem_numa_regra_atomica() {
+    let repo = TempRepo::full("dup-coalesce");
+    repo.trust_main();
+    rename_in_catalog(&repo, DUPLICADA, DUPLICADA_CORRENTE, None);
+    let recipe = recipe_path(&repo);
+    let antes = fs::read(&recipe).unwrap();
+    let orcamento_antes = expected_overrides(&String::from_utf8(antes.clone()).unwrap());
+    let congelados_antes = frozen_bytes(&repo);
+    let map = write_rename_map(
+        &repo,
+        &format!(
+            "\n[[rename]]\ncurrent_key = \"{DUPLICADA_CORRENTE}\"\nhistorical_key = \"{DUPLICADA}\"\n"
+        ),
+    );
+
+    // C7 + C8: planejar é determinístico e não escreve byte nenhum.
+    let plano = reconcile(&repo, Some(&map), None);
+    assert_eq!(plano.status.code(), Some(0), "{}", stderr(&plano));
+    let repetido = reconcile(&repo, Some(&map), None);
+    assert_eq!(plano.stdout, repetido.stdout);
+    assert_eq!(fs::read(&recipe).unwrap(), antes);
+    let json = stdout(&plano);
+    assert!(json.contains("DUPLICATE_OVERRIDE_COALESCED"), "{json}");
+
+    // C1 + C9: o apply autorizado muta só a receita e alcança MATCH.
+    let aplicado = reconcile(&repo, Some(&map), Some(&digest(&json)));
+    assert_eq!(aplicado.status.code(), Some(0), "{}", stdout(&aplicado));
+    assert!(stdout(&aplicado).contains("\"outcome\":\"APPLIED\""));
+
+    let depois = fs::read_to_string(&recipe).unwrap();
+    assert_eq!(rule_blocks(&depois, DUPLICADA_CORRENTE), 1, "{depois}");
+    assert_eq!(rule_blocks(&depois, DUPLICADA), 0, "{depois}");
+
+    // C2: a regra única preserva cada efeito das duas originais — identidade,
+    // hash e arquivo históricos — e cada guarda que elas declaravam.
+    let bloco = rule_block(&depois, DUPLICADA_CORRENTE);
+    for esperado in [
+        "op = \"override-region\"",
+        "to_key = \"cli.doc.consulta\"",
+        "from_hash = \"fnv1a64:7072d67afe89778d\"",
+        "to_hash = \"fnv1a64:b538942c8ee175c8\"",
+        "expect_file = \"src/pink_cli/doc_cli.rs\"",
+        "to_file = \"src/main.rs\"",
+        "expect_domain = \"doc\"",
+        "expect_layer = \"cli\"",
+    ] {
+        assert!(bloco.contains(esperado), "{esperado} ausente de {bloco}");
+    }
+
+    // C11: duas regras viraram uma, e o orçamento desce exatamente um.
+    assert_eq!(expected_overrides(&depois), orcamento_antes - 1);
+
+    // C10: nenhum byte congelado mudou.
+    assert_eq!(frozen_bytes(&repo), congelados_antes);
+
+    // C12: a reconstrução histórica volta a bater nos treze congelados.
+    let verificado = projection(&repo, &["verificar", "--json"]);
+    assert_eq!(verificado.status.code(), Some(0), "{}", stderr(&verificado));
+    assert!(stdout(&verificado).contains("\"outcome\":\"MATCH\""));
+    assert!(!stdout(&verificado).contains("\"outcome\":\"DRIFT\""));
+    assert!(!stdout(&verificado).contains("E-SNAP-REGIAO-REMOVIDA"));
+}
+
+#[test]
+fn tres_overrides_da_mesma_regiao_com_campos_disjuntos_fundem_deterministicamente() {
+    let repo = TempRepo::full("dup-coalesce-disjoint");
+    repo.trust_main();
+    let resumo = catalog_field(&repo, DUPLICADA, "summary");
+    // Uma terceira regra sobre a mesma região, restaurando um campo que
+    // nenhuma das outras duas toca.
+    add_override_rule(
+        &repo,
+        &format!(
+            "op = \"override-region\"\nkey = \"{DUPLICADA}\"\nfrom_summary = \"{resumo}\"\nto_summary = \"{resumo}\"\n"
+        ),
+    );
+    rename_in_catalog(&repo, DUPLICADA, DUPLICADA_CORRENTE, None);
+    let recipe = recipe_path(&repo);
+    let orcamento_antes = expected_overrides(&fs::read_to_string(&recipe).unwrap());
+    let map = write_rename_map(
+        &repo,
+        &format!(
+            "\n[[rename]]\ncurrent_key = \"{DUPLICADA_CORRENTE}\"\nhistorical_key = \"{DUPLICADA}\"\n"
+        ),
+    );
+
+    let plano = reconcile(&repo, Some(&map), None);
+    assert_eq!(plano.status.code(), Some(0), "{}", stderr(&plano));
+    assert_eq!(reconcile(&repo, Some(&map), None).stdout, plano.stdout);
+
+    let aplicado = reconcile(&repo, Some(&map), Some(&digest(&stdout(&plano))));
+    assert_eq!(aplicado.status.code(), Some(0), "{}", stdout(&aplicado));
+
+    // C3: os três campos disjuntos sobrevivem numa regra só.
+    let depois = fs::read_to_string(&recipe).unwrap();
+    assert_eq!(rule_blocks(&depois, DUPLICADA_CORRENTE), 1, "{depois}");
+    let bloco = rule_block(&depois, DUPLICADA_CORRENTE);
+    for esperado in ["to_hash = ", "to_file = ", "to_summary = ", "to_key = "] {
+        assert!(bloco.contains(esperado), "{esperado} ausente de {bloco}");
+    }
+    // C11: três regras viraram uma, e o orçamento desce exatamente dois.
+    assert_eq!(expected_overrides(&depois), orcamento_antes - 2);
+
+    let verificado = projection(&repo, &["verificar", "--json"]);
+    assert_eq!(verificado.status.code(), Some(0), "{}", stderr(&verificado));
+    assert!(!stdout(&verificado).contains("\"outcome\":\"DRIFT\""));
+}
+
+#[test]
+fn destinos_contraditorios_na_mesma_regiao_recusam_antes_de_escrever() {
+    let repo = TempRepo::full("dup-coalesce-destino");
+    repo.trust_main();
+    // A receita já restaura `src/main.rs` para esta região. Uma segunda regra
+    // que restaura outro arquivo é uma contradição: preferir a primeira seria
+    // escolher vencedor por ordem textual.
+    add_override_rule(
+        &repo,
+        &format!(
+            "op = \"override-region\"\nkey = \"{DUPLICADA}\"\nexpect_file = \"src/pink_cli/doc_cli.rs\"\nto_file = \"src/outro.rs\"\n"
+        ),
+    );
+    rename_in_catalog(&repo, DUPLICADA, DUPLICADA_CORRENTE, None);
+    let recipe = recipe_path(&repo);
+    let antes = fs::read(&recipe).unwrap();
+    let map = write_rename_map(
+        &repo,
+        &format!(
+            "\n[[rename]]\ncurrent_key = \"{DUPLICADA_CORRENTE}\"\nhistorical_key = \"{DUPLICADA}\"\n"
+        ),
+    );
+
+    let saida = reconcile(&repo, Some(&map), None);
+    assert_eq!(saida.status.code(), Some(7), "{}", stdout(&saida));
+    assert!(
+        stdout(&saida).contains("DUPLICATE_OVERRIDE_CONFLICTING_DESTINATION"),
+        "{}",
+        stdout(&saida)
+    );
+    assert_eq!(fs::read(&recipe).unwrap(), antes);
+}
+
+#[test]
+fn guardas_contraditorias_na_mesma_regiao_recusam_antes_de_escrever() {
+    let repo = TempRepo::full("dup-coalesce-guarda");
+    repo.trust_main();
+    // As duas regras existentes declaram o mesmo `expect_file`. Uma terceira
+    // que declara outro caminho corrente para a mesma região afirma um presente
+    // diferente, e fundir teria de descartar uma das duas guardas.
+    add_override_rule(
+        &repo,
+        &format!(
+            "op = \"override-region\"\nkey = \"{DUPLICADA}\"\nexpect_file = \"src/outro.rs\"\nto_file = \"src/main.rs\"\n"
+        ),
+    );
+    rename_in_catalog(&repo, DUPLICADA, DUPLICADA_CORRENTE, None);
+    let recipe = recipe_path(&repo);
+    let antes = fs::read(&recipe).unwrap();
+    let map = write_rename_map(
+        &repo,
+        &format!(
+            "\n[[rename]]\ncurrent_key = \"{DUPLICADA_CORRENTE}\"\nhistorical_key = \"{DUPLICADA}\"\n"
+        ),
+    );
+
+    let saida = reconcile(&repo, Some(&map), None);
+    assert_eq!(saida.status.code(), Some(7), "{}", stdout(&saida));
+    assert!(
+        stdout(&saida).contains("DUPLICATE_OVERRIDE_CONFLICTING_GUARD"),
+        "{}",
+        stdout(&saida)
+    );
+    assert_eq!(fs::read(&recipe).unwrap(), antes);
+}
+
+#[test]
+fn sem_mapa_overrides_duplicados_permanecem_duas_regras() {
+    let repo = TempRepo::full("dup-sem-mapa");
+    repo.trust_main();
+    let recipe = recipe_path(&repo);
+    let orcamento_antes = expected_overrides(&fs::read_to_string(&recipe).unwrap());
+    // Deriva do hash corrente: a rota legada reconcilia a base da regra sem
+    // tocar em identidade nenhuma.
+    retag_in_catalog(&repo, DUPLICADA, "hash", "fnv1a64:0123456789abcdef");
+
+    let plano = reconcile(&repo, None, None);
+    assert_eq!(plano.status.code(), Some(0), "{}", stderr(&plano));
+    let json = stdout(&plano);
+    assert!(
+        json.contains("planned_allowed_mutation=recipe.from"),
+        "{json}"
+    );
+    assert!(!json.contains("DUPLICATE_OVERRIDE_COALESCED"), "{json}");
+
+    let aplicado = reconcile(&repo, None, Some(&digest(&json)));
+    assert_eq!(aplicado.status.code(), Some(0), "{}", stdout(&aplicado));
+
+    // C6: sem mapa a receita mantém as duas regras, a operação de cada uma e o
+    // orçamento declarado.
+    let depois = fs::read_to_string(&recipe).unwrap();
+    assert_eq!(rule_blocks(&depois, DUPLICADA), 2, "{depois}");
+    let blocos: Vec<&str> = depois
+        .split("[[rules]]")
+        .filter(|bloco| seleciona(bloco, DUPLICADA))
+        .collect();
+    assert!(blocos.iter().any(|b| b.contains("op = \"override-hash\"")));
+    assert!(blocos
+        .iter()
+        .any(|b| b.contains("op = \"override-region\"")));
+    assert_eq!(expected_overrides(&depois), orcamento_antes);
+}
+
+/// Reescreve o seletor de uma regra identificada por operação e chave.
+fn retitle_rule(repo: &TempRepo, op: &str, key: &str, novo: &str) {
+    let path = recipe_path(repo);
+    let texto = fs::read_to_string(&path).unwrap();
+    let mut saida = String::with_capacity(texto.len());
+    let mut trocada = false;
+    for (indice, bloco) in texto.split("[[rules]]").enumerate() {
+        if indice > 0 {
+            saida.push_str("[[rules]]");
+        }
+        if bloco.contains(&format!("op = \"{op}\"\n")) && seleciona(bloco, key) && !trocada {
+            saida.push_str(&bloco.replace(
+                &format!("key = \"{key}\"\n"),
+                &format!("key = \"{novo}\"\n"),
+            ));
+            trocada = true;
+        } else {
+            saida.push_str(bloco);
+        }
+    }
+    assert!(trocada, "nenhuma regra {op} nomeia {key}");
+    fs::write(path, saida).unwrap();
+}
+
+#[test]
+fn overrides_da_mesma_regiao_em_grafias_diferentes_tambem_fundem() {
+    let repo = TempRepo::full("dup-coalesce-grafias");
+    repo.trust_main();
+    // Receita em transição: uma regra já foi escrita na grafia corrente e a
+    // outra continua na histórica. As duas selecionam a mesma região, e agrupar
+    // por texto deixaria justamente este par fora da fusão.
+    retitle_rule(&repo, "override-region", DUPLICADA, DUPLICADA_CORRENTE);
+    rename_in_catalog(&repo, DUPLICADA, DUPLICADA_CORRENTE, None);
+    let recipe = recipe_path(&repo);
+    let orcamento_antes = expected_overrides(&fs::read_to_string(&recipe).unwrap());
+    let map = write_rename_map(
+        &repo,
+        &format!(
+            "\n[[rename]]\ncurrent_key = \"{DUPLICADA_CORRENTE}\"\nhistorical_key = \"{DUPLICADA}\"\n"
+        ),
+    );
+
+    let plano = reconcile(&repo, Some(&map), None);
+    assert_eq!(plano.status.code(), Some(0), "{}", stderr(&plano));
+    let json = stdout(&plano);
+    assert!(json.contains("DUPLICATE_OVERRIDE_COALESCED"), "{json}");
+
+    let aplicado = reconcile(&repo, Some(&map), Some(&digest(&json)));
+    assert_eq!(aplicado.status.code(), Some(0), "{}", stdout(&aplicado));
+
+    let depois = fs::read_to_string(&recipe).unwrap();
+    assert_eq!(rule_blocks(&depois, DUPLICADA_CORRENTE), 1, "{depois}");
+    assert_eq!(rule_blocks(&depois, DUPLICADA), 0, "{depois}");
+    let bloco = rule_block(&depois, DUPLICADA_CORRENTE);
+    for esperado in ["to_key = ", "to_hash = ", "to_file = "] {
+        assert!(bloco.contains(esperado), "{esperado} ausente de {bloco}");
+    }
+    assert_eq!(expected_overrides(&depois), orcamento_antes - 1);
+
+    let verificado = projection(&repo, &["verificar", "--json"]);
+    assert_eq!(verificado.status.code(), Some(0), "{}", stderr(&verificado));
+    assert!(!stdout(&verificado).contains("E-SNAP-REGIAO-REMOVIDA"));
+    assert!(!stdout(&verificado).contains("\"outcome\":\"DRIFT\""));
+}
+
+#[test]
+fn regiao_que_o_mapa_nao_renomeia_mantem_seus_overrides_separados() {
+    let repo = TempRepo::full("dup-nao-renomeada");
+    repo.trust_main();
+    // O mapa renomeia outra região. A região de regras duplicadas não muda de
+    // identidade, e fundir as regras dela seria reescrever a receita por conta
+    // própria.
+    rename_in_catalog(&repo, RENOMEADA_SEM_REGRA, "ast.types.form", None);
+    let recipe = recipe_path(&repo);
+    let orcamento_antes = expected_overrides(&fs::read_to_string(&recipe).unwrap());
+    let map = write_rename_map(
+        &repo,
+        &format!(
+            "\n[[rename]]\ncurrent_key = \"ast.types.form\"\nhistorical_key = \"{RENOMEADA_SEM_REGRA}\"\n"
+        ),
+    );
+
+    let plano = reconcile(&repo, Some(&map), None);
+    assert_eq!(plano.status.code(), Some(0), "{}", stderr(&plano));
+    let json = stdout(&plano);
+    assert!(!json.contains("DUPLICATE_OVERRIDE_COALESCED"), "{json}");
+
+    let aplicado = reconcile(&repo, Some(&map), Some(&digest(&json)));
+    assert_eq!(aplicado.status.code(), Some(0), "{}", stdout(&aplicado));
+
+    // C6: as duas regras da região não renomeada continuam duas, com as
+    // operações originais, e o orçamento só sobe pela regra nova da região que
+    // o mapa de fato renomeia.
+    let depois = fs::read_to_string(&recipe).unwrap();
+    assert_eq!(rule_blocks(&depois, DUPLICADA), 2, "{depois}");
+    let blocos: Vec<&str> = depois
+        .split("[[rules]]")
+        .filter(|bloco| seleciona(bloco, DUPLICADA))
+        .collect();
+    assert!(blocos.iter().any(|b| b.contains("op = \"override-hash\"")));
+    assert!(blocos
+        .iter()
+        .any(|b| b.contains("op = \"override-region\"")));
+    assert_eq!(expected_overrides(&depois), orcamento_antes + 1);
+}
