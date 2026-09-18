@@ -763,7 +763,7 @@ fn collect_projections(root: &RepoRoot) -> CollectedDomain {
                 &mut item,
                 "projections.archive_unavailable",
                 DomainId::Projections,
-                &format!("O índice do arquivo histórico não pôde ser lido: {failure}"),
+                &format!("A autoridade do arquivo histórico não pôde ser estabelecida: {failure}"),
                 "historical_archive_unavailable",
                 source,
             );

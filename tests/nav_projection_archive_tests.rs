@@ -234,6 +234,288 @@ fn medidas_frozen(toml: &str, id: &str) -> (u64, u64, String) {
     )
 }
 
+// ------------------------------------------- R1 · ancoragem em tempo de execução
+
+/// CASE R1 — recalibrar payload e índice de forma coerente não produz INTACT.
+///
+/// É o controle que separa uma asserção de teste de uma garantia de produto. O
+/// mutante edita os bytes materializados e, em seguida, edita o índice para que
+/// ele concorde com os novos bytes: comprimento, contagem de registros, FNV-1a64
+/// e SHA-256. Contra o índice sozinho tudo fecha. O que não fecha é o
+/// `[measures]` do TOML congelado, e é ele que o verificador em produção lê.
+#[test]
+fn r1_recalibracao_coerente_de_payload_e_indice_nao_e_intacta() {
+    let fixture = MinimalRepo::new("r1-recalibracao");
+    let id = "onda-8j-anterior";
+    let alvo = fixture.payload(id);
+
+    // Um registro a mais: bytes coerentes, medidas todas diferentes.
+    let mut payload = fs::read_to_string(&alvo).unwrap();
+    payload.push_str("(1, \"zzz-registro-fabricado\")\n");
+    fs::write(&alvo, payload.as_bytes()).unwrap();
+
+    let original = index()
+        .entries
+        .iter()
+        .find(|entry| entry.id == id)
+        .expect("entrada")
+        .clone();
+    let texto = fs::read_to_string(fixture.index_path()).unwrap();
+    let recalibrado = texto
+        .replacen(
+            &format!("regions = {}", original.regions),
+            &format!("regions = {}", original.regions + 1),
+            1,
+        )
+        .replacen(
+            &format!("length = {}", original.length),
+            &format!("length = {}", payload.len()),
+            1,
+        )
+        .replacen(
+            &original.fnv1a64,
+            &archive::fnv1a64_canonical(payload.as_bytes()),
+            1,
+        )
+        .replacen(
+            &original.sha256,
+            &pinker_sha256_contract::sha256_hex(payload.as_bytes()),
+            1,
+        );
+    fs::write(fixture.index_path(), recalibrado).unwrap();
+
+    // A premissa do mutante: o índice agora concorda consigo mesmo.
+    let index = archive::load(fixture.path()).expect("índice");
+    let entrada = index
+        .entries
+        .iter()
+        .find(|entry| entry.id == id)
+        .expect("entrada recalibrada");
+    assert_eq!(
+        entrada.length,
+        payload.len() as u64,
+        "MUTANT_NOT_APPLIED: o índice não foi recalibrado"
+    );
+    assert_ne!(
+        entrada.regions, original.regions,
+        "MUTANT_NOT_APPLIED: regions não mudou"
+    );
+
+    let verification = archive::verify(fixture.path(), &index);
+    assert_eq!(
+        verification.outcome(),
+        "ALTERED",
+        "recalibração coerente aceita como íntegra"
+    );
+    let archive::EntryOutcome::Altered(divergences) = &verification
+        .entries
+        .iter()
+        .find(|entry| entry.id == id)
+        .expect("entrada")
+        .outcome
+    else {
+        panic!("a recalibração não foi classificada como alteração");
+    };
+    let medidas: Vec<&str> = divergences
+        .iter()
+        .map(|divergence| divergence.measure)
+        .collect();
+    for esperada in ["frozen_regions", "frozen_length", "frozen_fnv1a64"] {
+        assert!(
+            medidas.contains(&esperada),
+            "{esperada} não foi ancorada no TOML congelado: {medidas:?}"
+        );
+    }
+
+    // E o produto, não só a biblioteca: `pink nav projecao verificar` recusa.
+    let output = pink(fixture.path(), &["nav", "projecao", "verificar"]);
+    assert_eq!(output.status.code(), Some(5), "{}", stdout(&output));
+    assert!(!stdout(&output).starts_with("verificar: INTACT"));
+}
+
+/// O metadado histórico é a autoridade das medidas, inclusive quando ilegível.
+#[test]
+fn r1_measures_ilegivel_no_toml_congelado_e_recusado() {
+    let fixture = MinimalRepo::new("r1-measures-ilegivel");
+    let toml = fixture
+        .path()
+        .join(".pinker/projections/onda-8j-anterior.toml");
+    let texto = fs::read_to_string(&toml).unwrap();
+    let sem_measures = texto.replacen("[measures]", "[nao-measures]", 1);
+    assert_ne!(texto, sem_measures, "MUTANT_NOT_APPLIED");
+    fs::write(&toml, sem_measures).unwrap();
+
+    let index = archive::load(fixture.path()).expect("índice");
+    let verification = archive::verify(fixture.path(), &index);
+    assert_eq!(verification.outcome(), "ALTERED");
+    let archive::EntryOutcome::Altered(divergences) = &verification
+        .entries
+        .iter()
+        .find(|entry| entry.id == "onda-8j-anterior")
+        .expect("entrada")
+        .outcome
+    else {
+        panic!("metadado sem [measures] não foi classificado como alteração");
+    };
+    let medidas: Vec<&str> = divergences
+        .iter()
+        .map(|divergence| divergence.measure)
+        .collect();
+    assert!(medidas.contains(&"frozen_measures"), "{medidas:?}");
+}
+
+// ------------------------------------------------- R2 · conjunto histórico completo
+
+/// CASE R2A — retirar uma entrada e o seu payload faz a verificação falhar.
+///
+/// É o buraco que a iteração sobre `index.entries` deixava: quem itera apenas o
+/// que o índice declara não tem como notar o que ele deixou de declarar. A
+/// cobertura é estabelecida contra os metadados preservados, que são a
+/// autoridade do conjunto aceito.
+#[test]
+fn r2a_estado_aceito_ausente_do_indice_falha() {
+    let fixture = MinimalRepo::new("r2a-estado-ausente");
+    let id = "onda-8j-anterior";
+    let texto = fs::read_to_string(fixture.index_path()).unwrap();
+    let sem_entrada = remove_entrada(&texto, id);
+    assert_ne!(texto, sem_entrada, "MUTANT_NOT_APPLIED");
+    fs::write(fixture.index_path(), sem_entrada).unwrap();
+    fs::remove_file(fixture.payload(id)).unwrap();
+
+    match archive::load(fixture.path()) {
+        Err(archive::ArchiveFailure::MissingArchivedState { id: ausente }) => {
+            assert_eq!(ausente, id);
+        }
+        outro => panic!("estado aceito omitido foi aceito: {outro:?}"),
+    }
+
+    let output = pink(fixture.path(), &["nav", "projecao", "verificar"]);
+    assert_ne!(output.status.code(), Some(0), "{}", stdout(&output));
+}
+
+/// CASE R2B — uma entrada que não nomeia estado aceito algum é recusada.
+#[test]
+fn r2b_entrada_desconhecida_falha() {
+    let fixture = MinimalRepo::new("r2b-entrada-desconhecida");
+    let texto = fs::read_to_string(fixture.index_path()).unwrap();
+    let inventado = format!(
+        "{texto}\n[[entries]]\n         id = \"onda-inventada\"\n         metadata_path = \".pinker/projections/onda-inventada.toml\"\n         metadata_sha256 = \"{h}\"\n         payload_path = \".pinker/archive/onda-inventada.stable\"\n         regions = 1\n         length = 1\n         fnv1a64 = \"fnv1a64:0000000000000000\"\n         sha256 = \"{h}\"\n",
+        h = "0".repeat(64)
+    );
+    fs::write(fixture.index_path(), inventado).unwrap();
+
+    match archive::load(fixture.path()) {
+        Err(archive::ArchiveFailure::UnknownArchivedState { id }) => {
+            assert_eq!(id, "onda-inventada");
+        }
+        outro => panic!("entrada sem metadado aceito foi aceita: {outro:?}"),
+    }
+
+    let output = pink(fixture.path(), &["nav", "projecao", "verificar"]);
+    assert_ne!(output.status.code(), Some(0), "{}", stdout(&output));
+}
+
+/// CASE R2C — redirecionar uma entrada para outra identidade aceita é recusado.
+#[test]
+fn r2c_entrada_redirecionada_para_outra_identidade_falha() {
+    let texto = fs::read_to_string(repo().join(".pinker/archive/index.toml")).unwrap();
+    let redirecionado = texto.replacen(
+        "metadata_path = \".pinker/projections/onda-8j-anterior.toml\"",
+        "metadata_path = \".pinker/projections/onda-8i-anterior.toml\"",
+        1,
+    );
+    assert_ne!(texto, redirecionado, "MUTANT_NOT_APPLIED");
+    match archive::parse_index(&redirecionado) {
+        Err(archive::ArchiveFailure::UnconfinedPath { field, .. }) => {
+            assert_eq!(field, "metadata_path");
+        }
+        outro => panic!("metadado de outra identidade foi aceito: {outro:?}"),
+    }
+}
+
+/// Um arquivo estranho na autoridade dos metadados não passa despercebido.
+///
+/// Sem isto, retirar um estado da história seria só renomear a sua extensão.
+#[test]
+fn r2_arquivo_estranho_na_autoridade_dos_metadados_falha() {
+    let fixture = MinimalRepo::new("r2-metadado-estranho");
+    fs::rename(
+        fixture
+            .path()
+            .join(".pinker/projections/onda-8j-anterior.toml"),
+        fixture
+            .path()
+            .join(".pinker/projections/onda-8j-anterior.toml.bak"),
+    )
+    .unwrap();
+    assert!(matches!(
+        archive::load(fixture.path()),
+        Err(archive::ArchiveFailure::ForeignMetadata { .. })
+    ));
+}
+
+// ------------------------------------------------------ R3 · confinamento de path
+
+/// CASE R3 — path absoluto, travessia ou autoridade errada falham antes do disco.
+///
+/// A recusa é lexical e acontece em `parse_index`, que não toca no filesystem:
+/// um path que escapa nunca chega a ser um `root.join`.
+#[test]
+fn r3_paths_fora_da_autoridade_falham_antes_de_ler_o_disco() {
+    let base = "schema = 1\n                export_source_main = \"aaa\"\n                export_source_tree = \"bbb\"\n                export_method = \"m\"\n                provenance = \"p\"\n";
+    let entrada = |payload: &str, metadata: &str| {
+        format!(
+            "{base}\n[[entries]]\n             id = \"um\"\n             metadata_path = \"{metadata}\"\n             metadata_sha256 = \"{h}\"\n             payload_path = \"{payload}\"\n             regions = 1\n             length = 1\n             fnv1a64 = \"fnv1a64:0000000000000000\"\n             sha256 = \"{h}\"\n",
+            h = "0".repeat(64)
+        )
+    };
+    let canonico_meta = ".pinker/projections/um.toml";
+    let canonico_payload = ".pinker/archive/um.stable";
+
+    // A premissa: a forma canônica é aceita.
+    assert!(archive::parse_index(&entrada(canonico_payload, canonico_meta)).is_ok());
+
+    // CASE R3A — travessia no payload.
+    // CASE R3B — payload absoluto.
+    // CASE R3D — diretório repo-local, mas autoridade errada.
+    for payload in [
+        "../outside",
+        "/etc/passwd",
+        ".pinker/archive/../../outside.stable",
+        "docs/um.stable",
+        ".pinker/projections/um.stable",
+        ".pinker/archive/./um.stable",
+        ".pinker/archive/outro.stable",
+        "",
+    ] {
+        assert!(
+            matches!(
+                archive::parse_index(&entrada(payload, canonico_meta)),
+                Err(archive::ArchiveFailure::UnconfinedPath { .. })
+            ),
+            "payload_path '{payload}' foi aceito"
+        );
+    }
+
+    // CASE R3C — travessia e autoridade errada no metadado.
+    for metadata in [
+        "../outside.toml",
+        "/etc/passwd",
+        ".pinker/projections/../../outside.toml",
+        ".pinker/archive/um.toml",
+        "docs/um.toml",
+        "",
+    ] {
+        assert!(
+            matches!(
+                archive::parse_index(&entrada(canonico_payload, metadata)),
+                Err(archive::ArchiveFailure::UnconfinedPath { .. })
+            ),
+            "metadata_path '{metadata}' foi aceito"
+        );
+    }
+}
+
 // -------------------------------------------------------------- A3 · SHA-256
 
 /// CASE A3 — o SHA-256 declarado corresponde a cada payload.
@@ -696,6 +978,26 @@ fn assert_arquivo_intacto(root: &Path) {
         "INTACT",
         "o arquivo histórico deixou de estar íntegro"
     );
+}
+
+/// Remove do texto do índice o bloco `[[entries]]` de um id.
+fn remove_entrada(texto: &str, id: &str) -> String {
+    let marcador = format!("id = \"{id}\"");
+    let mut out = String::new();
+    let mut primeiro = true;
+    for bloco in texto.split("[[entries]]") {
+        if primeiro {
+            primeiro = false;
+            out.push_str(bloco);
+            continue;
+        }
+        if bloco.lines().any(|linha| linha.trim() == marcador) {
+            continue;
+        }
+        out.push_str("[[entries]]");
+        out.push_str(bloco);
+    }
+    out
 }
 
 /// Todo byte sob `.pinker/archive/`, para provar ausência de edição.

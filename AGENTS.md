@@ -33,9 +33,12 @@ Rust/Cargo.
   ela é o arquivo materializado em `.pinker/archive/`, verificado por
   `pink nav projecao verificar`. Uma mudança legítima do presente não exige
   manutenção histórica nenhuma.
-- Medidas e metadados históricos `FROZEN` são imutáveis. Nunca recalibre
-  `regions`, `length` ou `fnv1a64`, e nunca edite um payload do arquivo para
-  esconder drift.
+- Medidas e metadados históricos `FROZEN` são imutáveis, e são a autoridade em
+  tempo de execução: o índice do arquivo tem de repetir exatamente o
+  `[measures]` do TOML congelado, e o acervo tem de cobrir um-para-um os
+  metadados preservados. Nunca recalibre `regions`, `length` ou `fnv1a64`, nunca
+  edite um payload do arquivo para esconder drift, e nunca retire um estado
+  aceito do índice.
 - Documentação só muda quando a Task exige ajuste de superfície; não faça
   rebuild documental amplo.
 

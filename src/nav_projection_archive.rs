@@ -19,7 +19,7 @@
 // @pinker-nav:start trama.arquivo.modelo
 // @pinker-nav:domain archive
 // @pinker-nav:layer trama
-// @pinker-nav:summary Model of the materialized historical archive: the index schema, one entry per accepted snapshot with its preserved measures and its archive SHA-256, and the closed failure taxonomy of an unreadable, malformed, ambiguous or incomplete index — no current catalog field, no recipe and no reconstruction rule participates in this model.
+// @pinker-nav:summary Model of the materialized historical archive: the archive and preserved-metadata authorities with their canonical suffixes, the index schema, one entry per accepted snapshot with its preserved measures and its archive SHA-256, and the closed failure taxonomy of an unreadable, malformed, ambiguous or incomplete index plus an unconfined path, an accepted state the index omits, an entry naming no accepted state and a foreign file in the metadata authority — no current catalog field, no recipe and no reconstruction rule participates in this model.
 use std::collections::BTreeSet;
 use std::fmt;
 use std::fs;
@@ -34,6 +34,19 @@ pub const ARCHIVE_DIR: &str = ".pinker/archive";
 
 /// Índice de proveniência do arquivo, repo-relativo.
 pub const INDEX_PATH: &str = ".pinker/archive/index.toml";
+
+/// Autoridade dos metadados históricos preservados, repo-relativa.
+///
+/// É a raiz da história aceita: um TOML FROZEN por estado, e o `[measures]` de
+/// cada um é a autoridade das medidas históricas. O índice do arquivo é uma
+/// cópia escrita no cutover, e uma cópia nunca é a autoridade daquilo que copia.
+pub const METADATA_DIR: &str = ".pinker/projections";
+
+/// Sufixo canônico do payload materializado.
+const PAYLOAD_SUFFIX: &str = ".stable";
+
+/// Sufixo canônico do metadado histórico preservado.
+const METADATA_SUFFIX: &str = ".toml";
 
 /// Versão do formato do índice.
 pub const ARCHIVE_SCHEMA: u64 = 1;
@@ -110,6 +123,25 @@ pub enum ArchiveFailure {
         field: String,
         msg: String,
     },
+    /// Um path do índice que não é o path canônico e confinado da sua entrada.
+    UnconfinedPath {
+        scope: String,
+        field: String,
+        path: String,
+        msg: String,
+    },
+    /// Um estado histórico aceito que o índice não arquiva.
+    MissingArchivedState {
+        id: String,
+    },
+    /// Uma entrada do índice que não nomeia nenhum estado histórico aceito.
+    UnknownArchivedState {
+        id: String,
+    },
+    /// Um arquivo na autoridade dos metadados que não é um estado preservado.
+    ForeignMetadata {
+        path: String,
+    },
 }
 
 impl fmt::Display for ArchiveFailure {
@@ -149,6 +181,27 @@ impl fmt::Display for ArchiveFailure {
                 f,
                 "E-ARCHIVE-SCHEMA\nvalor inválido em '{scope}{field}': {msg}"
             ),
+            ArchiveFailure::UnconfinedPath {
+                scope,
+                field,
+                path,
+                msg,
+            } => write!(
+                f,
+                "E-ARCHIVE-PATH\n'{scope}{field}' declara '{path}' fora da autoridade do arquivo: {msg}"
+            ),
+            ArchiveFailure::MissingArchivedState { id } => write!(
+                f,
+                "E-ARCHIVE-COVERAGE\no estado histórico aceito '{id}' não tem entrada no índice de arquivo"
+            ),
+            ArchiveFailure::UnknownArchivedState { id } => write!(
+                f,
+                "E-ARCHIVE-COVERAGE\na entrada '{id}' não corresponde a nenhum estado histórico aceito em '{METADATA_DIR}/'"
+            ),
+            ArchiveFailure::ForeignMetadata { path } => write!(
+                f,
+                "E-ARCHIVE-COVERAGE\n'{path}' não é um metadado histórico preservado"
+            ),
         }
     }
 }
@@ -159,7 +212,7 @@ impl std::error::Error for ArchiveFailure {}
 // @pinker-nav:start trama.arquivo.leitura
 // @pinker-nav:domain archive
 // @pinker-nav:layer trama
-// @pinker-nav:summary Strict reader of the archive index: a root table of provenance fields plus one `[[entries]]` table per archived state, rejecting an unknown key, a duplicate key, a duplicate section, an unterminated string, an unsupported escape, trailing data after a value, a negative or overflowing integer, a measure outside its canonical form, a repeated id or payload path, and an index that declares nothing.
+// @pinker-nav:summary Strict reader of the archive index: a root table of provenance fields plus one `[[entries]]` table per archived state, rejecting an unknown key, a duplicate key, a duplicate section, an unterminated string, an unsupported escape, trailing data after a value, a negative or overflowing integer, a measure outside its canonical form, a repeated id or payload path, an index that declares nothing, and a payload or metadata path that is not the lexically valid canonical path of its own entry — and a load that additionally proves one-to-one coverage against the enumerated preserved metadata, so an omitted accepted state, an entry naming no accepted state and a foreign file in that authority all fail before any consumer reads `entries`.
 
 /// Valor escalar aceito pelo subconjunto TOML do índice.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -427,6 +480,43 @@ fn require_nonempty(table: &Table, scope: &str, field: &str) -> Result<String, A
     Ok(value)
 }
 
+/// Exige que um path declarado seja exatamente o path canônico da sua entrada.
+///
+/// Duas obrigações distintas, nesta ordem. Primeiro a política lexical já
+/// validada do núcleo de automação, que recusa path vazio, absoluto, com
+/// travessia, com componente degenerado, com barra invertida, com caractere de
+/// controle ou longo demais. Depois a identidade canônica: o arquivo nomeia
+/// cada payload e cada metadado pelo id do estado, então um path que não é
+/// `<dir>/<id><sufixo>` não descreve aquela entrada, ainda que seja
+/// lexicamente inocente.
+fn require_canonical_path(
+    declared: &str,
+    id: &str,
+    dir: &str,
+    suffix: &str,
+    scope: &str,
+    field: &str,
+) -> Result<(), ArchiveFailure> {
+    let relative = crate::automation::RelativePath::new(declared).map_err(|cause| {
+        ArchiveFailure::UnconfinedPath {
+            scope: scope.to_string(),
+            field: field.to_string(),
+            path: declared.to_string(),
+            msg: cause.to_string(),
+        }
+    })?;
+    let canonical = format!("{dir}/{id}{suffix}");
+    if relative.as_str() != canonical {
+        return Err(ArchiveFailure::UnconfinedPath {
+            scope: scope.to_string(),
+            field: field.to_string(),
+            path: declared.to_string(),
+            msg: format!("esperado o path canônico '{canonical}'"),
+        });
+    }
+    Ok(())
+}
+
 fn build_entries(tables: &[Table]) -> Result<Vec<ArchiveEntry>, ArchiveFailure> {
     if tables.is_empty() {
         return Err(ArchiveFailure::Empty);
@@ -472,25 +562,127 @@ fn build_entries(tables: &[Table]) -> Result<Vec<ArchiveEntry>, ArchiveFailure> 
             });
         }
     }
+
+    // Confinamento canônico depois da identidade: um índice ambíguo é um
+    // defeito mais fundamental que um path fora do lugar, e reportá-lo
+    // primeiro diz ao leitor o que consertar antes.
+    for (position, entry) in entries.iter().enumerate() {
+        let scope = format!("entries[{position}].");
+        require_canonical_path(
+            &entry.payload_path,
+            &entry.id,
+            ARCHIVE_DIR,
+            PAYLOAD_SUFFIX,
+            &scope,
+            "payload_path",
+        )?;
+        require_canonical_path(
+            &entry.metadata_path,
+            &entry.id,
+            METADATA_DIR,
+            METADATA_SUFFIX,
+            &scope,
+            "metadata_path",
+        )?;
+    }
+
     entries.sort_by(|a, b| a.id.cmp(&b.id));
     Ok(entries)
 }
 
+/// Enumera os estados históricos aceitos pela autoridade dos metadados.
+///
+/// Estritamente os TOML na raiz de `.pinker/projections/`. Um diretório aninhado
+/// não é um estado — é o que sobrou de mecanismos aposentados, e ninguém o lê.
+/// Um arquivo que não termina em `.toml` é recusado em vez de ignorado: ignorá-lo
+/// permitiria retirar um estado da história apenas renomeando a sua extensão.
+pub fn preserved_states(root: &Path) -> Result<Vec<String>, ArchiveFailure> {
+    let dir = root.join(METADATA_DIR);
+    let reader = fs::read_dir(dir).map_err(|error| ArchiveFailure::Unreadable {
+        path: METADATA_DIR.to_string(),
+        msg: error.to_string(),
+    })?;
+    let mut ids = Vec::new();
+    for entry in reader {
+        let entry = entry.map_err(|error| ArchiveFailure::Unreadable {
+            path: METADATA_DIR.to_string(),
+            msg: error.to_string(),
+        })?;
+        let path = entry.path();
+        if path.is_dir() {
+            continue;
+        }
+        let name = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or_default()
+            .to_string();
+        match name.strip_suffix(METADATA_SUFFIX) {
+            Some(id) if !id.is_empty() => ids.push(id.to_string()),
+            _ => {
+                return Err(ArchiveFailure::ForeignMetadata {
+                    path: format!("{METADATA_DIR}/{name}"),
+                })
+            }
+        }
+    }
+    ids.sort();
+    Ok(ids)
+}
+
+/// Exige correspondência um-para-um entre a história aceita e o índice.
+///
+/// A contagem sozinha não estabelece identidade: treze entradas podem ser treze
+/// cópias do mesmo estado, ou doze estados mais um desconhecido. O que este
+/// controle exige é que cada estado aceito tenha exatamente uma entrada e que
+/// cada entrada nomeie exatamente um estado aceito.
+fn require_complete_coverage(
+    index: &ArchiveIndex,
+    preserved: &[String],
+) -> Result<(), ArchiveFailure> {
+    let archived: BTreeSet<&str> = index
+        .entries
+        .iter()
+        .map(|entry| entry.id.as_str())
+        .collect();
+    for id in preserved {
+        if !archived.contains(id.as_str()) {
+            return Err(ArchiveFailure::MissingArchivedState { id: id.clone() });
+        }
+    }
+    let accepted: BTreeSet<&str> = preserved.iter().map(String::as_str).collect();
+    for entry in &index.entries {
+        if !accepted.contains(entry.id.as_str()) {
+            return Err(ArchiveFailure::UnknownArchivedState {
+                id: entry.id.clone(),
+            });
+        }
+    }
+    Ok(())
+}
+
 /// Carrega o índice a partir da raiz do repositório.
+///
+/// O índice sozinho não é a autoridade do conjunto histórico: ele enumera o que
+/// alguém escreveu nele. Por isso carregar inclui provar cobertura contra os
+/// metadados preservados, antes que qualquer consumidor derive uma conclusão
+/// de `entries`.
 pub fn load(root: &Path) -> Result<ArchiveIndex, ArchiveFailure> {
     let path = root.join(INDEX_PATH);
     let text = fs::read_to_string(path).map_err(|error| ArchiveFailure::Unreadable {
         path: INDEX_PATH.to_string(),
         msg: error.to_string(),
     })?;
-    parse_index(&text)
+    let index = parse_index(&text)?;
+    require_complete_coverage(&index, &preserved_states(root)?)?;
+    Ok(index)
 }
 // @pinker-nav:end trama.arquivo.leitura
 
 // @pinker-nav:start trama.arquivo.verificacao
 // @pinker-nav:domain archive
 // @pinker-nav:layer trama
-// @pinker-nav:summary Read-only integrity verification of the materialized archive: for each entry the payload must exist and reproduce the preserved length, record count and FNV-1a64 plus the declared SHA-256, and the preserved FROZEN metadata must still hash to what the index recorded — an altered or missing payload is ALTERED, never drift, and no current navigation catalog, key, summary, hash, path, rename map or recipe is read to decide it.
+// @pinker-nav:summary Read-only integrity verification of the materialized archive anchored to the preserved FROZEN metadata: each entry reads its historical metadata first, requires it to still hash to what the index recorded and requires the index regions, length and FNV-1a64 to be exactly the literals of its `[measures]`, then measures the payload against those preserved measures plus the declared SHA-256 — so a coherent payload-and-index recalibration is ALTERED, never drift, and no current navigation catalog, key, summary, hash, path, rename map or recipe is read to decide it.
 
 /// Uma medida divergente entre o índice e o payload observado.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -577,6 +769,65 @@ pub fn fnv1a64_canonical(bytes: &[u8]) -> String {
     format!("{}{:016x}", FNV_PREFIX, fnv1a64(bytes))
 }
 
+/// As medidas históricas como o metadado FROZEN preservado as declara.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FrozenMeasures {
+    pub regions: u64,
+    pub length: u64,
+    pub fnv1a64: String,
+}
+
+/// Lê `[measures]` de um metadado histórico preservado.
+///
+/// Leitor mínimo e específico do arquivo, deliberadamente escopado à seção: o
+/// mesmo TOML carrega `[reconstruction]` e `[[rules]]`, que também trazem
+/// contagens e hashes, e um leitor frouxo confundiria uma regra com uma medida.
+/// Nada aqui interpreta essas seções — elas descrevem um mecanismo aposentado e
+/// permanecem nos bytes apenas porque os bytes preservados não se editam.
+pub fn frozen_measures(text: &str) -> Result<FrozenMeasures, String> {
+    let mut regions = None;
+    let mut length = None;
+    let mut fnv1a64 = None;
+    let mut inside = false;
+    for raw_line in text.lines() {
+        let line = raw_line.trim();
+        if line.starts_with('[') {
+            inside = line == "[measures]";
+            continue;
+        }
+        if !inside || line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let Some((key, value)) = line.split_once('=') else {
+            continue;
+        };
+        let value = value.trim().trim_matches('"');
+        match key.trim() {
+            "regions" => {
+                regions = Some(
+                    value
+                        .parse::<u64>()
+                        .map_err(|_| format!("regions não é um inteiro: '{value}'"))?,
+                )
+            }
+            "length" => {
+                length = Some(
+                    value
+                        .parse::<u64>()
+                        .map_err(|_| format!("length não é um inteiro: '{value}'"))?,
+                )
+            }
+            "fnv1a64" => fnv1a64 = Some(value.to_string()),
+            _ => {}
+        }
+    }
+    Ok(FrozenMeasures {
+        regions: regions.ok_or_else(|| "[measures] não declara regions".to_string())?,
+        length: length.ok_or_else(|| "[measures] não declara length".to_string())?,
+        fnv1a64: fnv1a64.ok_or_else(|| "[measures] não declara fnv1a64".to_string())?,
+    })
+}
+
 /// Registros de uma projeção estável: um por linha terminada em `\n`.
 fn record_count(bytes: &[u8]) -> u64 {
     bytes.iter().filter(|byte| **byte == b'\n').count() as u64
@@ -595,53 +846,14 @@ fn divergence(
 }
 
 /// Verifica uma entrada contra os bytes que o repositório guarda.
+///
+/// A ordem é a da autoridade, não a da conveniência: o metadado histórico
+/// preservado vem primeiro porque é ele que diz quais são as medidas, o índice
+/// é obrigado a repetir o que ele diz, e só então o payload é medido contra
+/// elas. Verificar o payload contra o índice sozinho deixaria a história
+/// recalibrável por uma edição coerente dos dois.
 pub fn verify_entry(root: &Path, entry: &ArchiveEntry) -> EntryReport {
-    let outcome = match fs::read(root.join(&entry.payload_path)) {
-        Err(error) => EntryOutcome::Missing {
-            path: entry.payload_path.clone(),
-            msg: error.to_string(),
-        },
-        Ok(payload) => {
-            let mut divergences = Vec::new();
-            let observed_length = payload.len() as u64;
-            if observed_length != entry.length {
-                divergences.push(divergence("length", entry.length, observed_length));
-            }
-            let observed_regions = record_count(&payload);
-            if observed_regions != entry.regions {
-                divergences.push(divergence("regions", entry.regions, observed_regions));
-            }
-            let observed_fnv = fnv1a64_canonical(&payload);
-            if observed_fnv != entry.fnv1a64 {
-                divergences.push(divergence("fnv1a64", &entry.fnv1a64, observed_fnv));
-            }
-            let observed_sha = pinker_sha256_contract::sha256_hex(&payload);
-            if observed_sha != entry.sha256 {
-                divergences.push(divergence("sha256", &entry.sha256, observed_sha));
-            }
-            match fs::read(root.join(&entry.metadata_path)) {
-                Err(error) => EntryOutcome::Missing {
-                    path: entry.metadata_path.clone(),
-                    msg: error.to_string(),
-                },
-                Ok(metadata) => {
-                    let observed = pinker_sha256_contract::sha256_hex(&metadata);
-                    if observed != entry.metadata_sha256 {
-                        divergences.push(divergence(
-                            "metadata_sha256",
-                            &entry.metadata_sha256,
-                            observed,
-                        ));
-                    }
-                    if divergences.is_empty() {
-                        EntryOutcome::Intact
-                    } else {
-                        EntryOutcome::Altered(divergences)
-                    }
-                }
-            }
-        }
-    };
+    let outcome = verify_outcome(root, entry);
     EntryReport {
         id: entry.id.clone(),
         payload_path: entry.payload_path.clone(),
@@ -651,6 +863,98 @@ pub fn verify_entry(root: &Path, entry: &ArchiveEntry) -> EntryReport {
         fnv1a64: entry.fnv1a64.clone(),
         sha256: entry.sha256.clone(),
         outcome,
+    }
+}
+
+fn verify_outcome(root: &Path, entry: &ArchiveEntry) -> EntryOutcome {
+    let metadata = match fs::read(root.join(&entry.metadata_path)) {
+        Err(error) => {
+            return EntryOutcome::Missing {
+                path: entry.metadata_path.clone(),
+                msg: error.to_string(),
+            }
+        }
+        Ok(metadata) => metadata,
+    };
+    let mut divergences = Vec::new();
+    let observed_metadata_sha = pinker_sha256_contract::sha256_hex(&metadata);
+    if observed_metadata_sha != entry.metadata_sha256 {
+        divergences.push(divergence(
+            "metadata_sha256",
+            &entry.metadata_sha256,
+            observed_metadata_sha,
+        ));
+    }
+
+    // A terceira aresta: o índice ainda diz o que o TOML congelado sempre disse.
+    let frozen = match std::str::from_utf8(&metadata)
+        .map_err(|error| error.to_string())
+        .and_then(frozen_measures)
+    {
+        Ok(frozen) => {
+            if frozen.regions != entry.regions {
+                divergences.push(divergence("frozen_regions", frozen.regions, entry.regions));
+            }
+            if frozen.length != entry.length {
+                divergences.push(divergence("frozen_length", frozen.length, entry.length));
+            }
+            if frozen.fnv1a64 != entry.fnv1a64 {
+                divergences.push(divergence(
+                    "frozen_fnv1a64",
+                    &frozen.fnv1a64,
+                    &entry.fnv1a64,
+                ));
+            }
+            Some(frozen)
+        }
+        Err(msg) => {
+            divergences.push(divergence(
+                "frozen_measures",
+                "regions, length e fnv1a64 preservados",
+                msg,
+            ));
+            None
+        }
+    };
+
+    let payload = match fs::read(root.join(&entry.payload_path)) {
+        Err(error) => {
+            return EntryOutcome::Missing {
+                path: entry.payload_path.clone(),
+                msg: error.to_string(),
+            }
+        }
+        Ok(payload) => payload,
+    };
+
+    // Medido contra a medida preservada. O índice só serve de referência
+    // quando o metadado histórico não pôde ser lido — e nesse caso a
+    // divergência de `frozen_measures` já marcou a entrada.
+    let (regions, length, fnv1a64) = match &frozen {
+        Some(frozen) => (frozen.regions, frozen.length, frozen.fnv1a64.as_str()),
+        None => (entry.regions, entry.length, entry.fnv1a64.as_str()),
+    };
+    let observed_length = payload.len() as u64;
+    if observed_length != length {
+        divergences.push(divergence("length", length, observed_length));
+    }
+    let observed_regions = record_count(&payload);
+    if observed_regions != regions {
+        divergences.push(divergence("regions", regions, observed_regions));
+    }
+    let observed_fnv = fnv1a64_canonical(&payload);
+    if observed_fnv != fnv1a64 {
+        divergences.push(divergence("fnv1a64", fnv1a64, observed_fnv));
+    }
+    let observed_sha = pinker_sha256_contract::sha256_hex(&payload);
+    if observed_sha != entry.sha256 {
+        divergences.push(divergence("sha256", &entry.sha256, observed_sha));
+    }
+
+    if divergences.is_empty() {
+        EntryOutcome::Intact
+    } else {
+        EntryOutcome::Altered(divergences)
     }
 }
 

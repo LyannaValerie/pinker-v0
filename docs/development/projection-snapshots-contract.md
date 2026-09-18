@@ -127,37 +127,84 @@ overflow, string incompleta, escape não suportado, dado residual após o valor,
 medida fora da forma canônica, índice sem nenhuma entrada, `id` repetido e
 caminho de payload repetido.
 
+**Caminhos canônicos e confinados.** `payload_path` e `metadata_path` não são
+strings livres. Cada um passa primeiro pela política lexical do núcleo de
+automação (`RelativePath`), que recusa caminho vazio, absoluto, com `..`, com
+componente degenerado, com barra invertida, com caractere de controle ou longo
+demais — e portanto nenhum caminho que escapa chega a virar um `root.join`.
+Depois, cada um tem de ser exatamente o caminho canônico da sua própria
+entrada: `.pinker/archive/<id>.stable` e `.pinker/projections/<id>.toml`. Um
+caminho lexicamente inocente mas apontando para outro diretório, ou para a
+identidade de outro estado, não descreve aquela entrada e é recusado.
+
 **Proveniência declarada.** Os bytes materializados são a projeção histórica
 reconstruída e aceita, exportada no momento do cutover. Não se afirma que eles
 tenham sido capturados contemporaneamente à data histórica original. O índice
 carrega essa afirmação explicitamente, em `provenance`, para que nenhum leitor
 futuro precise inferi-la.
 
+## Qual é a autoridade das medidas
+
+O índice **não** é a autoridade da história. Ele é uma cópia escrita no
+cutover, e uma cópia nunca é a autoridade daquilo que copia. A autoridade das
+medidas históricas é o `[measures]` de cada TOML FROZEN preservado em
+`.pinker/projections/`, e a autoridade do *conjunto* aceito é o próprio
+diretório: um TOML por estado, nem mais nem menos.
+
+Isso decide a ordem em que `pink nav projecao verificar` trabalha:
+
+```text
+enumerar os metadados históricos preservados
+-> exigir correspondência um-para-um entre eles e as entradas do índice
+-> validar os caminhos canônicos confinados
+-> ler as medidas preservadas no [measures] de cada TOML FROZEN
+-> exigir que as medidas do índice sejam exatamente essas
+-> medir o payload contra as medidas preservadas
+-> exigir o SHA-256 do payload declarado no índice
+-> exigir o SHA-256 do metadado declarado no índice
+-> INTACT
+```
+
+Conferir o payload apenas contra o índice fecharia sozinho: bastaria editar os
+bytes e, em seguida, editar o índice para concordar com eles, e a história
+estaria recalibrada em silêncio. É por isso que a ancoragem no `[measures]`
+congelado é verificação de produto, não asserção de suíte.
+
+E iterar apenas `index.entries` teria o defeito simétrico: quem percorre o que
+o índice declara não tem como notar o que ele deixou de declarar. Retirar uma
+entrada junto com o seu payload deixaria as restantes íntegras. A cobertura
+um-para-um contra os metadados preservados é o que fecha essa porta — um estado
+aceito sem entrada falha, uma entrada que não nomeia estado aceito algum falha,
+e um arquivo que não seja um TOML preservado nessa autoridade também falha,
+para que retirar um estado da história não seja apenas renomear uma extensão.
+
 ## O que a verificação confere
 
 Para cada entrada, `pink nav projecao verificar` exige:
 
+- o metadado histórico original existe e ainda tem o `metadata_sha256` que o
+  índice registrou;
+- o `[measures]` desse metadado declara `regions`, `length` e `fnv1a64`;
+- `regions`, `length` e `fnv1a64` do índice são exatamente esses literais;
 - o payload existe;
 - o comprimento em bytes é o `length` preservado;
 - a contagem de registros é o `regions` preservado;
 - o FNV-1a64 sobre os bytes é o `fnv1a64` preservado;
 - o SHA-256 sobre os bytes é o `sha256` declarado;
-- o metadado histórico original existe e ainda tem o `metadata_sha256` que o
-  índice registrou;
-- `id` e `payload_path` são únicos no índice.
+- `id` e `payload_path` são únicos no índice, e os caminhos são canônicos.
 
 | Resultado | Quando |
 |---|---|
 | `INTACT` | toda entrada íntegra |
-| `ALTERED` | ao menos uma medida ou digest diverge dos bytes observados |
+| `ALTERED` | ao menos uma medida ou digest diverge da autoridade preservada |
 | `MISSING` | um payload ou metadado histórico não existe |
 
-O índice declara as medidas preservadas, e o verificador confere o payload
-contra elas. A terceira aresta — que o índice ainda diga o que o TOML congelado
-sempre disse — é controle da suíte, não da CLI:
-`medidas_do_indice_sao_os_literais_do_toml_frozen` lê `regions`, `length` e
-`fnv1a64` direto do `[measures]` de cada TOML FROZEN. Sem ela, editar payload e
-índice de forma coerente recalibraria a história em silêncio.
+As divergências de ancoragem aparecem nomeadas: `frozen_regions`,
+`frozen_length` e `frozen_fnv1a64` dizem que o índice deixou de repetir o TOML
+congelado, e `frozen_measures` diz que o próprio `[measures]` não pôde ser
+lido. A cobertura e o confinamento falham antes disso, ao carregar o índice,
+porque um acervo incompleto ou com caminho fora da autoridade não descreve um
+arquivo do qual se possa concluir coisa alguma.
 
 ## O que a verificação não lê
 
