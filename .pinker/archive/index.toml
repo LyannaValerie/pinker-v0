@@ -1,0 +1,135 @@
+schema = 1
+export_source_main = "57e7c5999fe1105d72615f8940847d097397a296"
+export_source_tree = "6d11bc40696c790d5e41d94aab45e3a10b10e64d"
+export_method = "stable_projection(resolve(frozen snapshot, current catalog)) verified MATCH before export"
+provenance = "materialized bytes are the accepted reconstructed historical projection exported at cutover and are not claimed to have been captured contemporaneously at the original historical date"
+
+[[entries]]
+id = "capsula-doc-catalog"
+metadata_path = ".pinker/projections/capsula-doc-catalog.toml"
+metadata_sha256 = "afb5bdbd75904eb5691ace255d3ade8d613b499aab8a1923a8d305c27c50f9b0"
+payload_path = ".pinker/archive/capsula-doc-catalog.stable"
+regions = 428
+length = 196111
+fnv1a64 = "fnv1a64:7765a8d8cead63f4"
+sha256 = "d058323c5fc2fb041bf5dfb28565201db0ab004248fa31feaeba9e3a33495502"
+
+[[entries]]
+id = "capsula-nav-catalog"
+metadata_path = ".pinker/projections/capsula-nav-catalog.toml"
+metadata_sha256 = "a1a56716eecab50eb678ae8594083792a5b3b982ed32f508b326ea50d856ca97"
+payload_path = ".pinker/archive/capsula-nav-catalog.stable"
+regions = 422
+length = 194446
+fnv1a64 = "fnv1a64:65e32e1a20e72e85"
+sha256 = "f37b9792e4a6ed82857535627111ef72865fe65ba42530a6464132715262ae6d"
+
+[[entries]]
+id = "capsula-trama-query"
+metadata_path = ".pinker/projections/capsula-trama-query.toml"
+metadata_sha256 = "1a590ed5206929e0d75b8ebf9d2e99bf61e53129d2e4514e65a53d2d8393362f"
+payload_path = ".pinker/archive/capsula-trama-query.stable"
+regions = 437
+length = 198426
+fnv1a64 = "fnv1a64:3c11c888567c3757"
+sha256 = "b88d9b15c3861b4d935e1bef856d1ec97aa34eda1815e58e31f1b6b3cf2f1201"
+
+[[entries]]
+id = "onda-8-convergencia"
+metadata_path = ".pinker/projections/onda-8-convergencia.toml"
+metadata_sha256 = "353bdbdd09199f33a14413442797bbbbf6cade278700248dccbe6992f4cefe6c"
+payload_path = ".pinker/archive/onda-8-convergencia.stable"
+regions = 416
+length = 192709
+fnv1a64 = "fnv1a64:6dd6fef55bf7eeac"
+sha256 = "500335c928e780aeee41fe4b20b98dd067ef4dbb847f6a796f852d1ff021661a"
+
+[[entries]]
+id = "onda-8f-anterior"
+metadata_path = ".pinker/projections/onda-8f-anterior.toml"
+metadata_sha256 = "6103c45eea53e1ec9f36b89fc9d6d0bd2c275883254ef30ead41f5478a0343e6"
+payload_path = ".pinker/archive/onda-8f-anterior.stable"
+regions = 365
+length = 166075
+fnv1a64 = "fnv1a64:42dde50750133512"
+sha256 = "8fa7b77db1114ba6355927b144af79f96f723e09c59baf173770ff2608cd9319"
+
+[[entries]]
+id = "onda-8g-anterior"
+metadata_path = ".pinker/projections/onda-8g-anterior.toml"
+metadata_sha256 = "156d9d225b84431d606720e2e50948d5c4b39f311a44304ff58f543d61196791"
+payload_path = ".pinker/archive/onda-8g-anterior.stable"
+regions = 374
+length = 169826
+fnv1a64 = "fnv1a64:b4ce5f1b161361e2"
+sha256 = "1142a639106fd5e4772ffde1117a16dff5955de2023d0a99dcdc128aa9eda2ea"
+
+[[entries]]
+id = "onda-8h-anterior"
+metadata_path = ".pinker/projections/onda-8h-anterior.toml"
+metadata_sha256 = "a6e02a789ecab97592b3468160d529791b858e5e2fb5a743030b539f0773981a"
+payload_path = ".pinker/archive/onda-8h-anterior.stable"
+regions = 381
+length = 172687
+fnv1a64 = "fnv1a64:35ed3ef314acc35d"
+sha256 = "a907684454cbaecb85927eb6c135ba9f04fe02b73155dabd68b56d7a240cc57e"
+
+[[entries]]
+id = "onda-8i-anterior"
+metadata_path = ".pinker/projections/onda-8i-anterior.toml"
+metadata_sha256 = "0ad1a0e57a2fc9bf481966e5a3cb6b62d191ac8d4d4e93b98ea8b8fe32d023ea"
+payload_path = ".pinker/archive/onda-8i-anterior.stable"
+regions = 391
+length = 179196
+fnv1a64 = "fnv1a64:f9583cc58d20330c"
+sha256 = "a9df86a06e6f5338627e0f76ea28af5c8da6a67af12eb19e79ebdc49bb24d295"
+
+[[entries]]
+id = "onda-8j-anterior"
+metadata_path = ".pinker/projections/onda-8j-anterior.toml"
+metadata_sha256 = "0a233fba6d8e9d61bff8e2fa1cfa19e146fc432c073f220b954f5472dc9d53d8"
+payload_path = ".pinker/archive/onda-8j-anterior.stable"
+regions = 405
+length = 186892
+fnv1a64 = "fnv1a64:a77974535bcb999c"
+sha256 = "0acffa1e7cc93bc74cbe1f128d337de352fe1b4a007dc602d6a017b09d080a2d"
+
+[[entries]]
+id = "onda-pink-agente-a"
+metadata_path = ".pinker/projections/onda-pink-agente-a.toml"
+metadata_sha256 = "84f10cce37ddee7b64a54dc47c7c81f0f09ced200d1aac1975acecda85b42d13"
+payload_path = ".pinker/archive/onda-pink-agente-a.stable"
+regions = 456
+length = 204698
+fnv1a64 = "fnv1a64:d450b85df4649586"
+sha256 = "a3213e148527fc16fc7c1b9a86fc213c4d0b3dd3b2cb0c97d9e53674fa12f8c6"
+
+[[entries]]
+id = "onda-pink-agente-b"
+metadata_path = ".pinker/projections/onda-pink-agente-b.toml"
+metadata_sha256 = "ce65dd02dcc81dffb4031862d9c2db6e14f09fea74dcd228da693b2d9abf3943"
+payload_path = ".pinker/archive/onda-pink-agente-b.stable"
+regions = 470
+length = 208737
+fnv1a64 = "fnv1a64:ed11e65e5f18f151"
+sha256 = "0bd2a0dc4395cbdf80ba243c7d292ca5a0f78e0fdb5051cdbba7cb5061b2ebf8"
+
+[[entries]]
+id = "onda-pink-agente-c"
+metadata_path = ".pinker/projections/onda-pink-agente-c.toml"
+metadata_sha256 = "ba9fe1f913670f653ac1f66ad208ec20fa87b9df1d856c61954c284e4663c1bf"
+payload_path = ".pinker/archive/onda-pink-agente-c.stable"
+regions = 483
+length = 212658
+fnv1a64 = "fnv1a64:93eee583780ed7bd"
+sha256 = "3194362ad860569be146a27f563c402e33a26d53478047620034e567f9ce00ff"
+
+[[entries]]
+id = "onda-pink-agente-d"
+metadata_path = ".pinker/projections/onda-pink-agente-d.toml"
+metadata_sha256 = "b70ae3e8e584a6723ca12b146e3c84a03ddf9dd03de42b608ee1d4f38088a46a"
+payload_path = ".pinker/archive/onda-pink-agente-d.stable"
+regions = 484
+length = 213110
+fnv1a64 = "fnv1a64:82f01949c23e3019"
+sha256 = "8dcbefedffc1bc40d4574cc729c6e0732456d4689d9b12eeecc2dd9f78d80844"
