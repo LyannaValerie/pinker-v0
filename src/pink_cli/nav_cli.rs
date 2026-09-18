@@ -9,1507 +9,155 @@
 //! decide qual `NavSub` roda continua sendo `run_nav` em `src/main.rs`, e a
 //! autoridade real das consultas e dos snapshots continua sendo a biblioteca
 //! (`pinker_v0::nav`, `pinker_v0::symbol_index`, `pinker_v0::diff_coverage`,
-//! `pinker_v0::nav_projection_lifecycle`). Este arquivo é o adaptador de CLI
+//! `pinker_v0::nav_projection_archive`). Este arquivo é o adaptador de CLI
 //! dessas autoridades, exatamente como era dentro do pai.
 
 // @pinker-nav:start cli.nav.projecao
-// @pinker-nav:domain projecoes
+// @pinker-nav:domain archive
 // @pinker-nav:layer cli
-// @pinker-nav:summary Final `pink nav projecao` adapter: dispatches listing, inspection, verification, lifecycle, and explicit recipe reconciliation; discovers the root through the automation core, derives text and JSON from shared models, recalculates plans before authorization, coalesces into a single atomic rule the overrides that select one region whose identity an explicit map restores — combining disjoint fields, deduplicating identical ones, refusing a contradictory guard or destination instead of choosing by order, and lowering the declared override budget by the rules it absorbed — bridges a translated summary back to the historical text by moving the guard of the rule that already restores summary while preserving its older destination, or by creating one new override for the region that has none, without coalescing and without touching identity; and preserves distinct drift, harness, policy, and stale exits.
+// @pinker-nav:summary Final `pink nav projecao` adapter over the materialized historical archive: discovers the root through the automation core, reads the archive index once, and derives listing, single-entry inspection and integrity verification from that one model in deterministic text and JSON — no current navigation catalog, key, summary, hash, path, rename map or recipe is consulted, and a malformed index, an unknown id, an altered payload and a missing payload keep distinct exits.
 use super::*;
 use pinker_v0::automation as core;
-use pinker_v0::nav_projection_rename_map::{parse_rename_map, RenameEntry, RenameMap};
-use pinker_v0::nav_projection_snapshot::{Rule, SchemaAuthority};
-use pinker_v0::symbol_extraction;
-use std::process::Command;
+use pinker_v0::nav_projection_archive as archive;
 
 pub(super) fn run_nav_projecao(repo: &Path, json: bool, command: ProjectionSub) -> i32 {
     let root = match core::RepoRoot::discover(repo) {
         Ok(root) => root,
         Err(error) => {
-            return print_projection_error("projecao", json, &ProjectionError::Automation(error))
+            if json {
+                println!(
+                    "{}",
+                    archive::render_failure_json(
+                        "projecao",
+                        &archive::ArchiveFailure::Unreadable {
+                            path: archive::ARCHIVE_DIR.to_string(),
+                            msg: error.to_string(),
+                        }
+                    )
+                );
+            } else {
+                eprintln!("{error}");
+            }
+            return EXIT_CATALOG;
         }
+    };
+    let command_name = match &command {
+        ProjectionSub::Listar => "listar",
+        ProjectionSub::Mostrar { .. } => "mostrar",
+        ProjectionSub::Verificar { .. } => "verificar",
+    };
+    let index = match archive::load(root.path()) {
+        Ok(index) => index,
+        Err(failure) => return print_archive_failure(command_name, json, &failure),
     };
     match command {
         ProjectionSub::Listar => {
-            let store = match ProjectionStore::load(root.path()) {
-                Ok(store) => store,
-                Err(error) => {
-                    return print_projection_error(
-                        "listar",
-                        json,
-                        &ProjectionError::Authority(error),
-                    )
-                }
-            };
             if json {
-                println!("{}", nav_projection_report::render_inventory_json(&store));
+                println!("{}", archive::render_inventory_json(&index));
             } else {
-                print!("{}", nav_projection_report::render_inventory_human(&store));
+                print!("{}", archive::render_inventory_human(&index));
             }
-            if store.errors().is_empty() {
-                EXIT_OK
-            } else {
-                EXIT_HARNESS
-            }
-        }
-        ProjectionSub::Mostrar { id, observado } => {
-            run_projection_show(&root, json, &id, observado)
-        }
-        ProjectionSub::Verificar { id } => run_projection_verify(&root, json, id.as_deref()),
-        ProjectionSub::Preparar {
-            id,
-            justificativa,
-            predecessor,
-            autorizar,
-        } => {
-            let Some(justification) = justificativa else {
-                return print_projection_error(
-                    "preparar",
-                    json,
-                    &ProjectionError::Policy {
-                        message: "--justificativa é obrigatória".to_string(),
-                    },
-                );
-            };
-            let Some(predecessor) = predecessor else {
-                return print_projection_error(
-                    "preparar",
-                    json,
-                    &ProjectionError::Policy {
-                        message: "--predecessor é obrigatório".to_string(),
-                    },
-                );
-            };
-            let catalog = match load_projection_catalog(&root) {
-                Ok(catalog) => catalog,
-                Err(error) => return print_projection_error("preparar", json, &error),
-            };
-            let planning = match nav_projection_lifecycle::plan_prepare(
-                &root,
-                &catalog.regions,
-                &id,
-                &predecessor,
-                &justification,
-            ) {
-                Ok(planning) => planning,
-                Err(error) => return print_projection_error("preparar", json, &error),
-            };
-            match autorizar {
-                None => {
-                    if json {
-                        println!(
-                            "{}",
-                            nav_projection_report::render_plan_json("preparar", &planning)
-                        );
-                    } else {
-                        print!("{}", nav_projection_report::render_plan_human(&planning));
-                    }
-                    EXIT_OK
-                }
-                Some(digest) => match nav_projection_lifecycle::apply_prepare(
-                    &root,
-                    &catalog.regions,
-                    &planning,
-                    &digest,
-                ) {
-                    Ok(applied) => {
-                        if json {
-                            println!(
-                                "{}",
-                                nav_projection_report::render_apply_json("preparar", &applied)
-                            );
-                        } else {
-                            print!("{}", nav_projection_report::render_apply_human(&applied));
-                        }
-                        EXIT_OK
-                    }
-                    Err(error) => print_projection_error("preparar", json, &error),
-                },
-            }
-        }
-        ProjectionSub::Aceitar { id, autorizar } => {
-            let catalog = match load_projection_catalog(&root) {
-                Ok(catalog) => catalog,
-                Err(error) => return print_projection_error("aceitar", json, &error),
-            };
-            let planning = match nav_projection_lifecycle::plan_accept(&root, &catalog.regions, &id)
-            {
-                Ok(planning) => planning,
-                Err(error) => return print_projection_error("aceitar", json, &error),
-            };
-            match autorizar {
-                None => {
-                    if json {
-                        println!(
-                            "{}",
-                            nav_projection_report::render_plan_json("aceitar", &planning)
-                        );
-                    } else {
-                        print!("{}", nav_projection_report::render_plan_human(&planning));
-                    }
-                    EXIT_OK
-                }
-                Some(digest) => match nav_projection_lifecycle::apply_accept(
-                    &root,
-                    &catalog.regions,
-                    &planning,
-                    &digest,
-                ) {
-                    Ok(applied) => {
-                        if json {
-                            println!(
-                                "{}",
-                                nav_projection_report::render_apply_json("aceitar", &applied)
-                            );
-                        } else {
-                            print!("{}", nav_projection_report::render_apply_human(&applied));
-                        }
-                        EXIT_OK
-                    }
-                    Err(error) => print_projection_error("aceitar", json, &error),
-                },
-            }
-        }
-        ProjectionSub::Reconciliar {
-            autorizar,
-            renomeacoes,
-        } => run_projection_reconcile(&root, json, autorizar, renomeacoes),
-    }
-}
-
-#[derive(Debug)]
-struct ReconcilePlan {
-    plan: core::Plan,
-    check: core::CheckReport,
-    changes: Vec<String>,
-    /// Impressão digital do mapa explícito que produziu este plano, quando há
-    /// um. O plano publica de qual relação declarada ele nasceu; o digest é o
-    /// que a torna inseparável da autorização.
-    rename_map: Option<String>,
-}
-
-fn run_projection_reconcile(
-    root: &core::RepoRoot,
-    json: bool,
-    authorization: Option<String>,
-    rename_map_path: Option<String>,
-) -> i32 {
-    let catalog = match load_projection_catalog(root) {
-        Ok(catalog) => catalog,
-        Err(error) => return print_projection_error("reconciliar", json, &error),
-    };
-    let renames = match rename_map_path.as_deref().map(load_rename_map) {
-        None => None,
-        Some(Ok(map)) => Some(map),
-        Some(Err(error)) => return print_projection_error("reconciliar", json, &error),
-    };
-    let planning = match plan_recipe_reconciliation(root, &catalog.regions, renames.as_ref()) {
-        Ok(plan) => plan,
-        Err(error) => return print_projection_error("reconciliar", json, &error),
-    };
-    match authorization {
-        None => {
-            print_reconcile_plan(json, &planning);
             EXIT_OK
         }
-        Some(digest) => {
-            if digest != planning.plan.digest() {
-                return print_projection_error(
-                    "reconciliar",
-                    json,
-                    &ProjectionError::Automation(core::Failure::StalePlan {
-                        plan_digest: planning.plan.digest(),
-                        msg: "CURRENT_AUTHORITY_MATCHES_PLAN=false; regenerate the reconciliation plan before apply".to_string(),
-                    }),
-                );
-            }
-            let report = core::apply(
-                root,
-                &planning.plan,
-                &core::Authorization::for_digest(&digest),
-                &planning.check,
-            );
-            if report.failure.is_some() {
-                return print_projection_error(
-                    "reconciliar",
-                    json,
-                    &ProjectionError::Apply(Box::new(report)),
-                );
-            }
-            let store = match ProjectionStore::load(root.path()) {
-                Ok(store) => store,
-                Err(error) => {
-                    return print_projection_error(
-                        "reconciliar",
-                        json,
-                        &ProjectionError::Authority(error),
-                    )
-                }
-            };
-            match verify_historical_frozen_authority(root.path(), &store) {
-                Ok(())
-                    if nav_projection_report::verify_all(&store, &catalog.regions).outcome()
-                        == "MATCH" =>
-                {
-                    if json {
-                        println!("{{\"schema\":1,\"command\":\"reconciliar\",\"outcome\":\"APPLIED\",\"digest\":{}}}", json_quote(&planning.plan.digest()));
-                    } else {
-                        println!("APPLIED\\ndigest: {}", planning.plan.digest());
-                    }
-                    EXIT_OK
-                }
-                Ok(()) => print_projection_error(
-                    "reconciliar",
-                    json,
-                    &ProjectionError::VerifyAfterApply {
-                        message: "reconstruction verification did not reach MATCH after apply"
-                            .to_string(),
-                        written: !report.applied.is_empty(),
-                    },
-                ),
-                Err(error) => print_projection_error("reconciliar", json, &error),
-            }
-        }
+        ProjectionSub::Mostrar { id } => run_archive_show(&root, json, &index, &id),
+        ProjectionSub::Verificar { id } => run_archive_verify(&root, json, &index, id.as_deref()),
     }
 }
 
-/// Carrega o mapa explícito de renomeação a partir do caminho fornecido.
-///
-/// O mapa é entrada do operador, não autoridade do acervo: nada o lê por
-/// omissão, ele não vive sob `.pinker/projections/` e não sobrevive à
-/// invocação. Falha de leitura e falha de formato recusam pela mesma porta,
-/// porque as duas significam a mesma coisa para o plano — a relação declarada
-/// não pôde ser estabelecida.
-fn load_rename_map(path: &str) -> Result<RenameMap, ProjectionError> {
-    let text = std::fs::read_to_string(path).map_err(|erro| ProjectionError::Policy {
-        message: format!("RENAME_MAP_UNREADABLE: {path}: {erro}"),
-    })?;
-    parse_rename_map(&text).map_err(|erro| ProjectionError::Policy {
-        message: format!("RENAME_MAP_INVALID: {path}: {erro}"),
-    })
-}
-
-/// A região corrente que responde por um seletor de regra.
-enum Resolved<'a> {
-    /// A chave da regra ainda nomeia exatamente uma região corrente, e o mapa
-    /// não declara nada sobre ela.
-    Direct(&'a pinker_v0::nav::CodeRegion),
-    /// A chave da regra ainda nomeia exatamente uma região corrente, e o mapa
-    /// declara a identidade histórica dessa mesma região. É o caso da
-    /// renomeação que mudou só `domain` ou `layer`: a chave não se mexeu e a
-    /// identidade medida pela projeção congelada mudou assim mesmo.
-    DirectRenamed(&'a pinker_v0::nav::CodeRegion, &'a RenameEntry),
-    /// A chave da regra é a identidade histórica declarada por uma entrada do
-    /// mapa, e a região corrente é outra.
-    Mapped(&'a pinker_v0::nav::CodeRegion, &'a RenameEntry),
-    /// Nenhuma região corresponde e nenhuma entrada de mapa a reivindica.
-    Absent,
-}
-
-fn regions_with_key<'a>(
-    catalog: &'a [pinker_v0::nav::CodeRegion],
-    key: &str,
-) -> Vec<&'a pinker_v0::nav::CodeRegion> {
-    catalog.iter().filter(|region| region.key == key).collect()
-}
-
-/// Resolve o seletor de uma regra contra o catálogo corrente e o mapa.
-///
-/// São duas perguntas diferentes, e confundi-las foi o que deixou a renomeação
-/// só de metadata invisível: *qual região a regra seleciona* é decidida pelo
-/// catálogo corrente, sempre; *que identidade histórica aquela região precisa
-/// de volta* é decidida pelo mapa, e a chave corrente pode não ter mudado.
-/// O mapa nunca escolhe a região — só declara a relação da região que o
-/// catálogo já apontou.
-fn resolve_selector<'a>(
-    catalog: &'a [pinker_v0::nav::CodeRegion],
-    key: &str,
-    renames: Option<&'a RenameMap>,
-) -> Result<Resolved<'a>, ProjectionError> {
-    let diretas = regions_with_key(catalog, key);
-    match diretas.as_slice() {
-        [region] => {
-            return Ok(match renames.and_then(|map| map.by_current_key(key)) {
-                Some(entry) => Resolved::DirectRenamed(region, entry),
-                None => Resolved::Direct(region),
-            })
-        }
-        [] => {}
-        varias => {
-            return Err(ProjectionError::Policy {
-                message: format!(
-                    "SEMANTIC_AMBIGUITY_BLOCK: rule_key={key} matches {} current regions",
-                    varias.len()
-                ),
-            })
-        }
-    }
-    let Some(entry) = renames.and_then(|map| map.by_historical_key(key)) else {
-        return Ok(Resolved::Absent);
-    };
-    let correntes = regions_with_key(catalog, &entry.current_key);
-    match correntes.as_slice() {
-        [region] => Ok(Resolved::Mapped(region, entry)),
-        [] => Err(ProjectionError::Policy {
-            message: format!(
-                "MAPPING_CURRENT_ABSENT: current_key={} declared for historical_key={key} does not exist in the current catalog",
-                entry.current_key
-            ),
-        }),
-        varias => Err(ProjectionError::Policy {
-            message: format!(
-                "MAPPING_CURRENT_AMBIGUOUS: current_key={} matches {} current regions",
-                entry.current_key,
-                varias.len()
-            ),
-        }),
-    }
-}
-
-/// Confere a entrada do mapa contra a região corrente que ela seleciona.
-///
-/// O mapa é declaração do operador e envelhece: se ele diz que o domínio
-/// corrente é `X` e a região já mostra `Y`, a relação descrita não é a que
-/// existe, e aplicar mesmo assim restauraria identidade a partir de uma origem
-/// que ninguém conferiu.
-fn check_entry_guards(
-    entry: &RenameEntry,
-    region: &pinker_v0::nav::CodeRegion,
-) -> Result<(), ProjectionError> {
-    for (campo, declarado, observado) in [
-        ("domain", &entry.current_domain, region.domain.as_deref()),
-        ("layer", &entry.current_layer, region.layer.as_deref()),
-        // Comparação exata, byte a byte: normalizar espaço, caixa ou acento
-        // aqui faria o mapa casar com um summary que ninguém escreveu.
-        (
-            "summary",
-            &entry.current_summary,
-            Some(region.summary.as_str()),
-        ),
-    ] {
-        if let Some(declarado) = declarado {
-            if Some(declarado.as_str()) != observado {
-                return Err(ProjectionError::Policy {
-                    message: format!(
-                        "MAPPING_GUARD_STALE: current_key={} current_{campo} declared={declarado} observed={}",
-                        entry.current_key,
-                        observado.unwrap_or("—")
-                    ),
-                });
-            }
-        }
-    }
-    Ok(())
-}
-
-/// Confere que a identidade histórica declarada pelo mapa é a mesma que a regra
-/// já esperava.
-///
-/// A regra existente guarda o valor que a reconstrução espera. Se o operador
-/// declarar outro, uma das duas afirmações está errada, e escolher entre elas
-/// seria o reconciliador decidindo história.
-#[allow(clippy::too_many_arguments)]
-fn check_rule_agrees_with_entry(
-    owner: &str,
-    rule_key: &str,
-    expect_domain: Option<&str>,
-    expect_layer: Option<&str>,
-    from_summary: Option<&str>,
-    entry: &RenameEntry,
-    region: &pinker_v0::nav::CodeRegion,
-) -> Result<(), ProjectionError> {
-    // O summary é conferido só quando o mapa declara o par. Sem par declarado a
-    // guarda antiga continua sendo reconciliada mecanicamente, como em qualquer
-    // região que não foi renomeada: exigir aqui igualdade com o corrente
-    // transformaria um drift comum em recusa.
-    if let (Some(pela_regra), Some(historico_do_mapa)) = (from_summary, &entry.historical_summary) {
-        if pela_regra != historico_do_mapa {
-            return Err(ProjectionError::Policy {
-                message: format!(
-                    "MAPPING_CONTRADICTS_AUTHORITY: owner_file={owner} rule_key={rule_key} from_summary={pela_regra} map_historical_summary={historico_do_mapa}"
-                ),
-            });
-        }
-    }
-    for (campo, declarado_pela_regra, historico_do_mapa, corrente) in [
-        (
-            "domain",
-            expect_domain,
-            entry.historical_domain.as_deref(),
-            region.domain.as_deref(),
-        ),
-        (
-            "layer",
-            expect_layer,
-            entry.historical_layer.as_deref(),
-            region.layer.as_deref(),
-        ),
-    ] {
-        let Some(pela_regra) = declarado_pela_regra else {
-            continue;
-        };
-        let esperado = historico_do_mapa.or(corrente);
-        if Some(pela_regra) != esperado {
-            return Err(ProjectionError::Policy {
-                message: format!(
-                    "MAPPING_CONTRADICTS_AUTHORITY: owner_file={owner} rule_key={rule_key} expect_{campo}={pela_regra} map_historical_{campo}={}",
-                    historico_do_mapa.unwrap_or("—")
-                ),
-            });
-        }
-    }
-    Ok(())
-}
-
-/// Reescreve um `override-hash` na forma equivalente de `override-region`.
-///
-/// A fusão precisa de uma forma de destino só. `override-region` é essa forma
-/// porque é a única operação capaz de carregar mais de uma restauração, e
-/// promover `override-hash` não muda orçamento: as duas contam como override.
-fn as_override_region(rule: Rule) -> Rule {
-    match rule {
-        Rule::OverrideHash {
-            key,
-            from,
-            to,
-            expect_file,
-            expect_domain,
-            expect_layer,
-        } => Rule::OverrideRegion {
-            key,
-            from_hash: Some(from),
-            to_hash: Some(to),
-            from_summary: None,
-            to_summary: None,
-            expect_file,
-            to_file: None,
-            expect_domain,
-            expect_layer,
-            to_key: None,
-            to_domain: None,
-            to_layer: None,
-        },
-        outra => outra,
-    }
-}
-
-/// Funde um campo de duas regras sobre a mesma região.
-///
-/// A álgebra tem exatamente três casos, e nenhum deles escolhe vencedor: campos
-/// disjuntos se combinam, a mesma afirmação repetida vira uma, e duas
-/// afirmações diferentes sobre o mesmo campo recusam. Preferir a primeira
-/// declaração seria decidir por ordem textual qual das duas guardas a receita
-/// perde.
-fn merge_override_field(
-    owner: &str,
-    key: &str,
-    campo: &str,
-    classe: &str,
-    alvo: &mut Option<String>,
-    origem: Option<String>,
-) -> Result<(), ProjectionError> {
-    match (alvo.as_deref(), origem) {
-        (_, None) => Ok(()),
-        (None, Some(valor)) => {
-            *alvo = Some(valor);
-            Ok(())
-        }
-        (Some(atual), Some(valor)) if atual == valor => Ok(()),
-        (Some(atual), Some(valor)) => Err(ProjectionError::Policy {
-            message: format!(
-                "DUPLICATE_OVERRIDE_CONFLICTING_{classe}: owner_file={owner} rule_key={key} field={campo} declared={atual} other={valor}"
-            ),
-        }),
-    }
-}
-
-/// Absorve na regra acumulada todos os campos de outra regra sobre a mesma
-/// região, recusando qualquer contradição antes de escrever.
-fn absorb_override(owner: &str, destino: &mut Rule, origem: Rule) -> Result<(), ProjectionError> {
-    let origem = as_override_region(origem);
-    let (
-        Rule::OverrideRegion {
-            key,
-            from_hash,
-            to_hash,
-            from_summary,
-            to_summary,
-            expect_file,
-            to_file,
-            expect_domain,
-            expect_layer,
-            to_key,
-            to_domain,
-            to_layer,
-        },
-        Rule::OverrideRegion {
-            from_hash: o_from_hash,
-            to_hash: o_to_hash,
-            from_summary: o_from_summary,
-            to_summary: o_to_summary,
-            expect_file: o_expect_file,
-            to_file: o_to_file,
-            expect_domain: o_expect_domain,
-            expect_layer: o_expect_layer,
-            to_key: o_to_key,
-            to_domain: o_to_domain,
-            to_layer: o_to_layer,
-            ..
-        },
-    ) = (destino, origem)
-    else {
-        return Err(ProjectionError::Policy {
-            message: format!(
-                "DUPLICATE_OVERRIDE_UNFUSABLE: owner_file={owner} a rule that is not an override reached the coalescing step"
-            ),
-        });
-    };
-    let key = key.clone();
-    // Guardas e destinos são fundidos pela mesma regra e recusam pela mesma
-    // razão; a classe separa as duas causas no diagnóstico, porque uma guarda
-    // contraditória e um destino contraditório descrevem erros diferentes do
-    // autor da receita.
-    for (campo, classe, alvo, valor) in [
-        ("from_hash", "GUARD", from_hash, o_from_hash),
-        ("from_summary", "GUARD", from_summary, o_from_summary),
-        ("expect_file", "GUARD", expect_file, o_expect_file),
-        ("expect_domain", "GUARD", expect_domain, o_expect_domain),
-        ("expect_layer", "GUARD", expect_layer, o_expect_layer),
-        ("to_hash", "DESTINATION", to_hash, o_to_hash),
-        ("to_summary", "DESTINATION", to_summary, o_to_summary),
-        ("to_file", "DESTINATION", to_file, o_to_file),
-        ("to_key", "DESTINATION", to_key, o_to_key),
-        ("to_domain", "DESTINATION", to_domain, o_to_domain),
-        ("to_layer", "DESTINATION", to_layer, o_to_layer),
-    ] {
-        merge_override_field(owner, &key, campo, classe, alvo, valor)?;
-    }
-    Ok(())
-}
-
-/// Funde, **antes** da reconciliação de identidade, os overrides que selecionam
-/// a mesma região quando o mapa declara que aquela região terá identidade
-/// restaurada.
-///
-/// Duas regras sobre a mesma região convivem enquanto nenhuma restaura
-/// identidade: as duas casam, em qualquer ordem. A partir do momento em que uma
-/// delas devolve `key`, `domain` ou `layer` ao valor histórico, a outra deixa de
-/// encontrar a região — e qual das duas roda primeiro é decidido pela ordem
-/// canônica de renderização, não pelo autor. Fundir as duas numa regra atômica
-/// preserva cada guarda e cada restauração das originais, mantém "um override,
-/// um consumo" e elimina a dependência de ordem na origem.
-///
-/// O agrupamento é pela **região que a regra seleciona**, nunca pela grafia da
-/// regra. Numa receita em transição as duas regras da mesma região podem estar
-/// escritas em grafias diferentes — uma ainda na histórica, a outra já na
-/// corrente — e agrupar por texto deixaria justamente esse par fora da fusão,
-/// que é o caso em que a reconstrução falha.
-///
-/// Sem mapa nada é fundido: fora de uma renomeação as duas regras continuam
-/// corretas, e mexer nelas seria mudar a semântica de receitas que ninguém
-/// pediu para mudar.
-fn coalesce_identity_overrides(
-    owner: &str,
-    recipe: &mut pinker_v0::nav_projection_recipe::Recipe,
-    catalog: &[pinker_v0::nav::CodeRegion],
-    renames: Option<&RenameMap>,
-    changes: &mut Vec<String>,
-) -> Result<(), ProjectionError> {
-    // Saída antecipada sem mapa. Ela não é o que impede a fusão — sem mapa
-    // nenhuma regra resolve como renomeada, logo nenhum grupo se forma — mas
-    // evita resolver o seletor de cada regra da receita para nada.
-    if renames.is_none() {
-        return Ok(());
-    }
-
-    // A região corrente que cada regra seleciona, quando o mapa restaura a
-    // identidade dela. `Direct` fica de fora porque nada vai restaurar aquela
-    // região, e `Absent` porque a regra não seleciona nada — o laço principal
-    // decide o que fazer com as duas.
-    let mut grupos: Vec<Option<String>> = Vec::with_capacity(recipe.rules.len());
-    for rule in &recipe.rules {
-        let chave = match rule {
-            Rule::OverrideHash { key, .. } | Rule::OverrideRegion { key, .. } => key.clone(),
-            _ => {
-                grupos.push(None);
-                continue;
-            }
-        };
-        grupos.push(match resolve_selector(catalog, &chave, renames)? {
-            // Só a restauração de identidade forma grupo. Restaurar `summary`
-            // devolve um campo medido e não muda qual região a regra seleciona,
-            // então as outras regras continuam encontrando a região em qualquer
-            // ordem — fundir por causa dele mudaria receitas que ninguém pediu
-            // para mudar.
-            Resolved::DirectRenamed(region, entry) | Resolved::Mapped(region, entry)
-                if entry.restores_identity() =>
-            {
-                Some(region.key.clone())
-            }
-            Resolved::DirectRenamed(_, _)
-            | Resolved::Mapped(_, _)
-            | Resolved::Direct(_)
-            | Resolved::Absent => None,
-        });
-    }
-
-    // Uma região com uma única regra não é fundida: converter a regra sozinha
-    // mudaria a receita sem necessidade, e a reconciliação já a transforma.
-    let mut contagem: std::collections::BTreeMap<&str, usize> = std::collections::BTreeMap::new();
-    for grupo in grupos.iter().flatten() {
-        *contagem.entry(grupo.as_str()).or_default() += 1;
-    }
-
-    let mut fundidas: Vec<Rule> = Vec::with_capacity(recipe.rules.len());
-    let mut primeira: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
-    let mut absorvidas: u64 = 0;
-    for (indice, rule) in recipe.rules.drain(..).enumerate() {
-        let candidata = grupos[indice]
-            .clone()
-            .filter(|grupo| contagem.get(grupo.as_str()).copied().unwrap_or(0) > 1);
-        let Some(grupo) = candidata else {
-            fundidas.push(rule);
-            continue;
-        };
-        match primeira.get(&grupo) {
-            Some(&posicao) => {
-                absorb_override(owner, &mut fundidas[posicao], rule)?;
-                absorvidas += 1;
-                changes.push(format!(
-                    "owner_file={owner} rule_key={grupo} planned_allowed_mutation=recipe.coalesce_override reason=DUPLICATE_OVERRIDE_COALESCED"
-                ));
-            }
-            None => {
-                primeira.insert(grupo, fundidas.len());
-                fundidas.push(as_override_region(rule));
-            }
-        }
-    }
-    recipe.rules = fundidas;
-    // N regras viraram uma: o orçamento declarado desce exatamente N-1 por
-    // região fundida, porque a reconstrução cobra um consumo por override.
-    recipe.expected_overrides = recipe.expected_overrides.saturating_sub(absorvidas);
-    Ok(())
-}
-
-/// Constrói a regra reconciliada de uma região que o mapa declara.
-///
-/// A regra resultante é sempre `override-region`: ela é a única operação capaz
-/// de restaurar mais de um campo como uma unidade, e uma renomeação de
-/// identidade quase nunca é de um campo só. Promover `override-hash` não muda o
-/// orçamento, porque as duas contam como override.
-///
-/// Identidade e summary entram pela mesma porta e numa regra só, porque a
-/// reconstrução aplica a regra atomicamente: uma entrada que restaura os dois
-/// nunca deixa metade aplicada.
-#[allow(clippy::too_many_arguments)]
-fn reconciled_restoration_rule(
-    entry: &RenameEntry,
-    region: &pinker_v0::nav::CodeRegion,
-    from_hash: Option<String>,
-    to_hash: Option<String>,
-    to_summary: Option<String>,
-    expect_file: Option<String>,
-    to_file: Option<String>,
-    expect_domain: Option<String>,
-    expect_layer: Option<String>,
-) -> Rule {
-    // A guarda declarada pela regra que já existia é preservada, e só é
-    // substituída quando a restauração a exige. Reconciliar nunca é ocasião
-    // para uma regra sair mais fraca do que entrou.
-    let guarda = |restaura: bool, anterior: Option<String>, corrente: Option<String>| {
-        if restaura {
-            corrente
-        } else {
-            anterior
-        }
-    };
-    // O destino histórico que a regra já tinha vence o do mapa, e não por
-    // preferência: `historical_summary` é o summary imediatamente anterior à
-    // renomeação corrente, enquanto um `to_summary` existente pode já apontar
-    // para um estado mais antigo. Trocar um pelo outro reescreveria história
-    // mais velha com a mais nova. Quando não havia regra, o mapa é a única
-    // autoridade que nomeia o destino.
-    let to_summary = to_summary.or_else(|| entry.historical_summary.clone());
-    Rule::OverrideRegion {
-        key: entry.current_key.clone(),
-        to_key: entry.historical_key.clone(),
-        from_hash,
-        to_hash,
-        // A guarda de summary acompanha o destino: quem restaura precisa
-        // declarar de onde parte, e o ponto de partida é sempre o corrente.
-        from_summary: to_summary.as_ref().map(|_| region.summary.clone()),
-        to_summary,
-        expect_file,
-        to_file,
-        expect_domain: guarda(
-            entry.historical_domain.is_some(),
-            expect_domain,
-            region.domain.clone(),
-        ),
-        to_domain: entry.historical_domain.clone(),
-        expect_layer: guarda(
-            entry.historical_layer.is_some(),
-            expect_layer,
-            region.layer.clone(),
-        ),
-        to_layer: entry.historical_layer.clone(),
-    }
-}
-
-fn plan_recipe_reconciliation(
+fn run_archive_show(
     root: &core::RepoRoot,
-    catalog: &[pinker_v0::nav::CodeRegion],
-    renames: Option<&RenameMap>,
-) -> Result<ReconcilePlan, ProjectionError> {
-    let store = ProjectionStore::load(root.path())?;
-    verify_historical_frozen_authority(root.path(), &store)?;
-    let mut desired = Vec::new();
-    let mut changes = Vec::new();
-    let mut used: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
-
-    // O lado corrente de cada entrada é conferido antes de qualquer
-    // planejamento: um mapa que nomeia região inexistente ou ambígua descreve
-    // uma relação que não existe, e descobrir isso só no fim confundiria a
-    // causa com "entrada sem uso".
-    if let Some(map) = renames {
-        for entry in &map.entries {
-            match regions_with_key(catalog, &entry.current_key).as_slice() {
-                [_] => {}
-                [] => {
-                    return Err(ProjectionError::Policy {
-                        message: format!(
-                            "MAPPING_CURRENT_ABSENT: current_key={} does not exist in the current catalog",
-                            entry.current_key
-                        ),
-                    })
-                }
-                varias => {
-                    return Err(ProjectionError::Policy {
-                        message: format!(
-                            "MAPPING_CURRENT_AMBIGUOUS: current_key={} matches {} current regions",
-                            entry.current_key,
-                            varias.len()
-                        ),
-                    })
-                }
-            }
-        }
-    }
-
-    for stored in store.recipes() {
-        let mut recipe = stored.recipe.clone();
-        coalesce_identity_overrides(&stored.path, &mut recipe, catalog, renames, &mut changes)?;
-        for rule in &mut recipe.rules {
-            match rule {
-                Rule::ExcludeKey { key, .. } => {
-                    // Uma exclusão só é candidata quando sua chave deixou de
-                    // existir: enquanto ela casa, o orçamento declarado decide,
-                    // e mexer nela seria inventar trabalho.
-                    if !regions_with_key(catalog, key).is_empty() {
-                        continue;
+    json: bool,
+    index: &archive::ArchiveIndex,
+    id: &str,
+) -> i32 {
+    let Some(entry) = index.entries.iter().find(|entry| entry.id == id) else {
+        if json {
+            println!(
+                "{}",
+                archive::render_failure_json(
+                    "mostrar",
+                    &archive::ArchiveFailure::InvalidValue {
+                        scope: String::new(),
+                        field: "id".to_string(),
+                        msg: format!("'{id}' não está no arquivo histórico"),
                     }
-                    if let Resolved::Mapped(_, entry) = resolve_selector(catalog, key, renames)? {
-                        // A região excluída não chega a projeção histórica
-                        // nenhuma. Declarar identidade histórica de domínio ou
-                        // camada para ela é declarar uma restauração que nada
-                        // aplica, e aceitar em silêncio seria ignorar o mapa.
-                        if entry.historical_domain.is_some()
-                            || entry.historical_layer.is_some()
-                            || entry.historical_summary.is_some()
-                        {
-                            return Err(ProjectionError::Policy {
-                                message: format!(
-                                    "MAPPING_RESTORES_EXCLUDED_REGION: current_key={} is excluded from every historical projection and has no domain/layer/summary value to restore",
-                                    entry.current_key
-                                ),
-                            });
-                        }
-                        changes.push(format!(
-                            "owner_file={} rule_key={} planned_allowed_mutation=recipe.exclude_key historical_key={} current_key={} reason=EXPLICIT_RENAME_MAPPED",
-                            stored.path, key, key, entry.current_key
-                        ));
-                        used.insert(entry.current_key.clone());
-                        key.clone_from(&entry.current_key);
-                    }
-                }
-                Rule::OverrideHash {
-                    key,
-                    from,
-                    to,
-                    expect_file,
-                    expect_domain,
-                    expect_layer,
-                } => {
-                    match resolve_selector(catalog, key, renames)? {
-                        Resolved::Mapped(region, entry) | Resolved::DirectRenamed(region, entry)
-                            if entry.restores_identity() =>
-                        {
-                            check_entry_guards(entry, region)?;
-                            check_rule_agrees_with_entry(
-                                &stored.path,
-                                key,
-                                expect_domain.as_deref(),
-                                expect_layer.as_deref(),
-                                None,
-                                entry,
-                                region,
-                            )?;
-                            if expect_file.is_some()
-                                && expect_file.as_deref() != Some(region.file.as_str())
-                            {
-                                return Err(ProjectionError::Policy { message: format!("SEMANTIC_AMBIGUITY_BLOCK: rule_key={key} structural identity changed") });
-                            }
-                            changes.push(format!(
-                                "owner_file={} rule_key={} path={} planned_allowed_mutation=recipe.override_region historical_key={} current_key={} historical_domain={} historical_layer={} restores_summary={} reason=EXPLICIT_RENAME_MAPPED",
-                                stored.path,
-                                key,
-                                region.file,
-                                entry.historical_key.as_deref().unwrap_or("—"),
-                                entry.current_key,
-                                entry.historical_domain.as_deref().unwrap_or("—"),
-                                entry.historical_layer.as_deref().unwrap_or("—"),
-                                entry.historical_summary.is_some()
-                            ));
-                            used.insert(entry.current_key.clone());
-                            *rule = reconciled_restoration_rule(
-                                entry,
-                                region,
-                                Some(region.hash.clone()),
-                                Some(to.clone()),
-                                None,
-                                expect_file.clone(),
-                                None,
-                                expect_domain.clone(),
-                                expect_layer.clone(),
-                            );
-                        }
-                        // Uma entrada só de summary não passa por aqui: um
-                        // `override-hash` não restaura summary, então não há o
-                        // que reescrever nele, e a ponte nasce como regra
-                        // própria. A guarda de hash continua sendo reconciliada
-                        // mecanicamente, como a de qualquer região não mapeada.
-                        Resolved::Direct(region)
-                        | Resolved::Mapped(region, _)
-                        | Resolved::DirectRenamed(region, _) => {
-                            if region.hash != *from {
-                                if expect_file.as_deref() != Some(region.file.as_str())
-                                    || expect_domain.as_deref() != region.domain.as_deref()
-                                    || expect_layer.as_deref() != region.layer.as_deref()
-                                {
-                                    return Err(ProjectionError::Policy { message: format!("SEMANTIC_AMBIGUITY_BLOCK: rule_key={key} structural identity changed") });
-                                }
-                                changes.push(format!("owner_file={} rule_key={} path={} domain={} layer={} expected={} observed={} planned_allowed_mutation=recipe.from reason=MECHANICALLY_RECONCILABLE", stored.path, key, region.file, region.domain.as_deref().unwrap_or("—"), region.layer.as_deref().unwrap_or("—"), from, region.hash));
-                                from.clone_from(&region.hash);
-                            }
-                        }
-                        Resolved::Absent => {
-                            return Err(ProjectionError::Policy { message: format!("SEMANTIC_AMBIGUITY_BLOCK: rule_key={key} requires exactly one current region") })
-                        }
-                    }
-                }
-                Rule::OverrideRegion {
-                    key,
-                    from_hash,
-                    to_hash,
-                    from_summary,
-                    to_summary,
-                    expect_file,
-                    to_file,
-                    expect_domain,
-                    expect_layer,
-                    ..
-                } => {
-                    // Duas perguntas, não uma: *qual região a regra seleciona*
-                    // é sempre do catálogo; *o que aquela região precisa de
-                    // volta* é do mapa. Restaurar identidade tira a região do
-                    // alcance das outras regras e por isso tem caminho próprio;
-                    // restaurar summary não tira, e por isso reusa o caminho
-                    // mecânico.
-                    let (region, entry) = match resolve_selector(catalog, key, renames)? {
-                        Resolved::Absent => {
-                            return Err(ProjectionError::Policy { message: format!("SEMANTIC_AMBIGUITY_BLOCK: rule_key={key} requires exactly one current region") })
-                        }
-                        Resolved::Direct(region) => (region, None),
-                        Resolved::DirectRenamed(region, entry) | Resolved::Mapped(region, entry) => {
-                            (region, Some(entry))
-                        }
-                    };
-                    match entry.filter(|entry| entry.restores_identity()) {
-                        Some(entry) => {
-                            check_entry_guards(entry, region)?;
-                            check_rule_agrees_with_entry(
-                                &stored.path,
-                                key,
-                                expect_domain.as_deref(),
-                                expect_layer.as_deref(),
-                                from_summary.as_deref(),
-                                entry,
-                                region,
-                            )?;
-                            if expect_file.is_some()
-                                && expect_file.as_deref() != Some(region.file.as_str())
-                            {
-                                return Err(ProjectionError::Policy { message: format!("SEMANTIC_AMBIGUITY_BLOCK: rule_key={key} structural identity changed") });
-                            }
-                            changes.push(format!(
-                                "owner_file={} rule_key={} path={} planned_allowed_mutation=recipe.override_region historical_key={} current_key={} historical_domain={} historical_layer={} restores_summary={} reason=EXPLICIT_RENAME_MAPPED",
-                                stored.path,
-                                key,
-                                region.file,
-                                entry.historical_key.as_deref().unwrap_or("—"),
-                                entry.current_key,
-                                entry.historical_domain.as_deref().unwrap_or("—"),
-                                entry.historical_layer.as_deref().unwrap_or("—"),
-                                entry.historical_summary.is_some()
-                            ));
-                            used.insert(entry.current_key.clone());
-                            *rule = reconciled_restoration_rule(
-                                entry,
-                                region,
-                                from_hash.as_ref().map(|_| region.hash.clone()),
-                                to_hash.clone(),
-                                to_summary.clone(),
-                                expect_file.clone(),
-                                to_file.clone(),
-                                expect_domain.clone(),
-                                expect_layer.clone(),
-                            );
-                        }
-                        None => {
-                            // Entrada só de summary. A regra que já restaura
-                            // summary é a que responde por ele: sua guarda passa
-                            // a ser o texto corrente e seu destino histórico é
-                            // preservado byte a byte, porque ele pode ser mais
-                            // antigo que o summary imediatamente anterior que o
-                            // mapa declara. Uma regra que não restaura summary
-                            // não vira restauradora aqui — a ponte nasce como
-                            // regra própria, e assim nenhuma ordem de aplicação
-                            // decide o resultado.
-                            if let Some(entry) = entry {
-                                check_entry_guards(entry, region)?;
-                                check_rule_agrees_with_entry(
-                                    &stored.path,
-                                    key,
-                                    expect_domain.as_deref(),
-                                    expect_layer.as_deref(),
-                                    from_summary.as_deref(),
-                                    entry,
-                                    region,
-                                )?;
-                                if from_summary.is_some() {
-                                    changes.push(format!(
-                                        "owner_file={} rule_key={} path={} planned_allowed_mutation=recipe.from_summary current_key={} to_summary=PRESERVED reason=EXPLICIT_SUMMARY_MAPPED",
-                                        stored.path, key, region.file, entry.current_key
-                                    ));
-                                    used.insert(entry.current_key.clone());
-                                }
-                            }
-                            let hash_changed =
-                                from_hash.as_deref().is_some_and(|hash| hash != region.hash);
-                            let summary_changed = from_summary
-                                .as_deref()
-                                .is_some_and(|summary| summary != region.summary);
-                            if hash_changed || summary_changed {
-                                if expect_file.as_deref() != Some(region.file.as_str())
-                                    || expect_domain.as_deref() != region.domain.as_deref()
-                                    || expect_layer.as_deref() != region.layer.as_deref()
-                                {
-                                    return Err(ProjectionError::Policy { message: format!("SEMANTIC_AMBIGUITY_BLOCK: rule_key={key} structural identity changed") });
-                                }
-                                changes.push(format!("owner_file={} rule_key={} path={} domain={} layer={} expected_hash={} observed_hash={} expected_summary={} observed_summary={} planned_allowed_mutation=recipe.from_* reason=MECHANICALLY_RECONCILABLE", stored.path, key, region.file, region.domain.as_deref().unwrap_or("—"), region.layer.as_deref().unwrap_or("—"), from_hash.as_deref().unwrap_or("—"), region.hash, from_summary.as_deref().unwrap_or("—"), region.summary));
-                                if let Some(hash) = from_hash {
-                                    hash.clone_from(&region.hash);
-                                }
-                                if let Some(summary) = from_summary {
-                                    summary.clone_from(&region.summary);
-                                }
-                            }
-                        }
-                    }
-                }
-                _ => {}
-            }
+                )
+            );
+        } else {
+            eprintln!("E-ARCHIVE-IDENTITY\n'{id}' não está no arquivo histórico");
         }
-
-        if let Some(map) = renames {
-            create_missing_restoration_rules(
-                &stored.path,
-                &mut recipe,
-                catalog,
-                map,
-                &mut used,
-                &mut changes,
-            )?;
-        }
-
-        // A versão sobe quando — e só quando — a receita passa a usar
-        // capacidade que a versão declarada não possui. Uma receita que não
-        // ganhou capacidade nova continua exatamente na versão em que estava.
-        let exigido = recipe
-            .rules
-            .iter()
-            .map(|rule| rule.min_schema(SchemaAuthority::Recipe))
-            .max()
-            .unwrap_or(recipe.schema);
-        if exigido > recipe.schema {
-            changes.push(format!(
-                "owner_file={} planned_allowed_mutation=recipe.schema from={} to={exigido} reason=CAPABILITY_REQUIRES_SCHEMA",
-                stored.path, recipe.schema
-            ));
-            recipe.schema = exigido;
-        }
-
-        if recipe != stored.recipe {
-            desired.push((
-                stored.path.clone(),
-                pinker_v0::nav_projection_recipe::render_recipe(&recipe).into_bytes(),
-            ));
-        }
-    }
-
-    // Entrada declarada e não usada não é ruído: ou o operador descreveu uma
-    // renomeação que não aconteceu, ou descreveu a errada. Ignorá-la deixaria
-    // passar um mapa que o autor acredita ter efeito e não tem.
-    if let Some(map) = renames {
-        for entry in &map.entries {
-            if !used.contains(&entry.current_key) {
-                return Err(ProjectionError::Policy {
-                    message: format!(
-                        "MAPPING_ENTRY_UNUSED: current_key={} produced no reconciliation",
-                        entry.current_key
-                    ),
-                });
-            }
-        }
-    }
-
-    let paths: Vec<_> = desired.iter().map(|(path, _)| path.as_str()).collect();
-    let allowlist = core::Allowlist::new(&paths).map_err(|cause| ProjectionError::Policy {
-        message: cause.to_string(),
-    })?;
-    // O mapa entra no produtor do plano, e o produtor entra na forma canônica
-    // que o digest assina. Dois mapas distintos nunca autorizam o mesmo plano,
-    // ainda que por acaso produzissem os mesmos bytes de receita.
-    let producer = match renames {
-        None => "nav.projecao.reconcile".to_string(),
-        Some(map) => format!("nav.projecao.reconcile+renames:{}", map.fingerprint()),
+        return EXIT_NORESULT;
     };
-    let mut builder = core::PlanBuilder::new(&producer, allowlist);
-    for (path, bytes) in desired {
-        builder = builder
-            .desire(&path, bytes)
-            .map_err(ProjectionError::Automation)?;
-    }
-    let plan = builder.build().map_err(ProjectionError::Automation)?;
-    let observed = core::observe(root, &plan).map_err(ProjectionError::Automation)?;
-    let check = core::check(&plan, &observed).map_err(ProjectionError::Automation)?;
-    Ok(ReconcilePlan {
-        plan,
-        check,
-        changes,
-        rename_map: renames.map(RenameMap::fingerprint),
-    })
-}
-
-/// Cria a regra de restauração das entradas que nenhuma regra existente cobre.
-///
-/// Uma região histórica não precisa ter regra: enquanto sua identidade corrente
-/// é a histórica, a reconstrução a carrega de graça. Renomeá-la é justamente o
-/// que cria a necessidade da regra, e nenhuma regra antiga nomeia a região nova.
-/// Vale igualmente para o summary: enquanto o texto corrente é o histórico,
-/// nada precisa restaurá-lo, e é traduzi-lo que cria a regra.
-///
-/// Região que a própria receita exclui não recebe restauração: exclusões correm
-/// antes dos overrides, e um override sobre região excluída não teria o que
-/// consumir.
-fn create_missing_restoration_rules(
-    owner: &str,
-    recipe: &mut pinker_v0::nav_projection_recipe::Recipe,
-    catalog: &[pinker_v0::nav::CodeRegion],
-    map: &RenameMap,
-    used: &mut std::collections::BTreeSet<String>,
-    changes: &mut Vec<String>,
-) -> Result<(), ProjectionError> {
-    let sobreviventes = match recipe.keys_surviving_exclusions(catalog) {
-        Ok(chaves) => chaves,
-        Err(failure) => {
-            return Err(ProjectionError::Policy {
-                message: format!("RECIPE_EXCLUSIONS_UNRESOLVED: owner_file={owner} {failure}"),
-            })
-        }
-    };
-
-    let mut novas = Vec::new();
-    for entry in &map.entries {
-        if used.contains(&entry.current_key) {
-            continue;
-        }
-        if !sobreviventes.contains(&entry.current_key) {
-            continue;
-        }
-        let correntes = regions_with_key(catalog, &entry.current_key);
-        let [region] = correntes.as_slice() else {
-            continue;
-        };
-        check_entry_guards(entry, region)?;
-        changes.push(format!(
-            "owner_file={owner} rule_key={} path={} planned_allowed_mutation=recipe.new_override_region historical_key={} current_key={} historical_domain={} historical_layer={} restores_summary={} reason=EXPLICIT_RENAME_MAPPED",
-            entry.current_key,
-            region.file,
-            entry.historical_key.as_deref().unwrap_or("—"),
-            entry.current_key,
-            entry.historical_domain.as_deref().unwrap_or("—"),
-            entry.historical_layer.as_deref().unwrap_or("—"),
-            entry.historical_summary.is_some()
-        ));
-        used.insert(entry.current_key.clone());
-        novas.push(reconciled_restoration_rule(
-            entry, region, None, None, None, None, None, None, None,
-        ));
-    }
-    if !novas.is_empty() {
-        recipe.expected_overrides += novas.len() as u64;
-        recipe.rules.extend(novas);
-    }
-    Ok(())
-}
-
-fn print_reconcile_plan(json: bool, planning: &ReconcilePlan) {
+    let report = archive::verify_entry(root.path(), entry);
     if json {
-        let changes: Vec<_> = planning
-            .changes
-            .iter()
-            .map(|change| json_quote(change))
-            .collect();
-        println!("{{\"schema\":1,\"command\":\"reconciliar\",\"outcome\":{},\"digest\":{},\"producer\":{},\"rename_map\":{},\"changes\":[{}]}}", json_quote(if planning.changes.is_empty() { "NO_CHANGE" } else { "MECHANICALLY_RECONCILABLE" }), json_quote(&planning.plan.digest()), json_quote(planning.plan.producer()), planning.rename_map.as_deref().map_or("null".to_string(), json_quote), changes.join(","));
+        println!("{}", archive::render_entry_json(index, &report));
     } else {
-        println!(
-            "{}\\ndigest: {}",
-            if planning.changes.is_empty() {
-                "NO_CHANGE"
-            } else {
-                "MECHANICALLY_RECONCILABLE"
-            },
-            planning.plan.digest()
-        );
-        println!("producer: {}", planning.plan.producer());
-        if let Some(fingerprint) = &planning.rename_map {
-            println!("rename_map: {fingerprint}");
-        }
-        for change in &planning.changes {
-            println!("{change}");
-        }
+        print!("{}", archive::render_entry_human(index, &report));
     }
+    archive_exit(report.outcome.as_str())
 }
 
-fn json_quote(value: &str) -> String {
-    format!("{value:?}")
-}
-
-fn run_projection_show(root: &core::RepoRoot, json: bool, id: &str, observed: bool) -> i32 {
-    let store = match ProjectionStore::load(root.path()) {
-        Ok(store) => store,
-        Err(error) => {
-            return print_projection_error("mostrar", json, &ProjectionError::Authority(error))
-        }
+fn run_archive_verify(
+    root: &core::RepoRoot,
+    json: bool,
+    index: &archive::ArchiveIndex,
+    id: Option<&str>,
+) -> i32 {
+    let selected = match id {
+        None => index.entries.clone(),
+        Some(id) => match index.entries.iter().find(|entry| entry.id == id) {
+            Some(entry) => vec![entry.clone()],
+            None => {
+                if json {
+                    println!(
+                        "{}",
+                        archive::render_failure_json(
+                            "verificar",
+                            &archive::ArchiveFailure::InvalidValue {
+                                scope: String::new(),
+                                field: "id".to_string(),
+                                msg: format!("'{id}' não está no arquivo histórico"),
+                            }
+                        )
+                    );
+                } else {
+                    eprintln!("E-ARCHIVE-IDENTITY\n'{id}' não está no arquivo histórico");
+                }
+                return EXIT_NORESULT;
+            }
+        },
     };
-    if let Some(error) = store.snapshot_error(id) {
-        return print_projection_error(
-            "mostrar",
-            json,
-            &ProjectionError::Harness {
-                path: Some(error.path.clone()),
-                message: error.message.clone(),
-            },
-        );
-    }
-    let Some(stored) = store.snapshot(id) else {
-        return print_projection_error(
-            "mostrar",
-            json,
-            &ProjectionError::NotFound { id: id.to_string() },
-        );
+    let scoped = archive::ArchiveIndex {
+        entries: selected,
+        ..index.clone()
     };
-    let verification = if observed {
-        let catalog = match load_projection_catalog(root) {
-            Ok(catalog) => catalog,
-            Err(error) => return print_projection_error("mostrar", json, &error),
-        };
-        match nav_projection_report::verify_one(&store, id, &catalog.regions) {
-            Ok(item) => Some(item.report),
-            Err(error) => return print_projection_error("mostrar", json, &error),
-        }
-    } else {
-        None
-    };
+    let verification = archive::verify(root.path(), &scoped);
     if json {
-        println!(
-            "{}",
-            nav_projection_report::render_show_json(stored, verification.as_ref())
-        );
+        println!("{}", archive::render_verification_json(&verification));
     } else {
-        print!(
-            "{}",
-            nav_projection_report::render_show_human(stored, verification.as_ref())
-        );
+        print!("{}", archive::render_verification_human(&verification));
     }
-    match verification.as_ref().map(|report| &report.outcome) {
-        Some(pinker_v0::nav_projection_snapshot::Outcome::Drift(_)) => EXIT_SOURCE,
-        Some(pinker_v0::nav_projection_snapshot::Outcome::HarnessFailure(_)) => EXIT_HARNESS,
-        _ => EXIT_OK,
+    archive_exit(verification.outcome())
+}
+
+/// POT/LPT: INVARIANT archive integrity failure != current catalog drift
+fn archive_exit(outcome: &str) -> i32 {
+    match outcome {
+        "INTACT" => EXIT_OK,
+        "MISSING" => EXIT_CATALOG,
+        _ => EXIT_SOURCE,
     }
 }
 
-fn run_projection_verify(root: &core::RepoRoot, json: bool, id: Option<&str>) -> i32 {
-    let store = match ProjectionStore::load(root.path()) {
-        Ok(store) => store,
-        Err(error) => {
-            return print_projection_error("verificar", json, &ProjectionError::Authority(error))
-        }
-    };
-    if let Err(error) = verify_historical_frozen_authority(root.path(), &store) {
-        return print_projection_error("verificar", json, &error);
-    }
-    let catalog = match load_projection_catalog(root) {
-        Ok(catalog) => catalog,
-        Err(error) => return print_projection_error("verificar", json, &error),
-    };
-    let batch = if let Some(id) = id {
-        let item = match nav_projection_report::verify_one(&store, id, &catalog.regions) {
-            Ok(item) => item,
-            Err(error) => return print_projection_error("verificar", json, &error),
-        };
-        nav_projection_report::VerificationBatch {
-            results: vec![item],
-            causes: Vec::new(),
-            errors: Vec::new(),
-        }
-    } else {
-        nav_projection_report::verify_all(&store, &catalog.regions)
-    };
+fn print_archive_failure(command: &str, json: bool, failure: &archive::ArchiveFailure) -> i32 {
     if json {
-        println!(
-            "{}",
-            nav_projection_report::render_verification_json(&batch)
-        );
+        println!("{}", archive::render_failure_json(command, failure));
     } else {
-        print!(
-            "{}",
-            nav_projection_report::render_verification_human(&batch)
-        );
+        eprintln!("{failure}");
     }
-    match batch.outcome() {
-        "MATCH" => EXIT_OK,
-        "DRIFT" => EXIT_SOURCE,
+    match failure {
+        archive::ArchiveFailure::Unreadable { .. } => EXIT_CATALOG,
         _ => EXIT_HARNESS,
-    }
-}
-
-/// A reconstrução prova consistência; a base confiável prova que a autoridade
-/// FROZEN não foi recalibrada junto com a recipe no checkout candidato.
-fn verify_historical_frozen_authority(
-    root: &Path,
-    store: &ProjectionStore,
-) -> Result<(), ProjectionError> {
-    let repository = Command::new("git")
-        .arg("-C")
-        .arg(root)
-        .args(["rev-parse", "--is-inside-work-tree"])
-        .output()
-        .map_err(|error| ProjectionError::Harness {
-            path: None,
-            message: format!(
-                "HISTORICAL_AUTHORITY_UNVERIFIABLE: cannot inspect repository authority: {error}"
-            ),
-        })?;
-    if !repository.status.success() {
-        return Err(ProjectionError::Harness {
-            path: None,
-            message: format!(
-                "HISTORICAL_AUTHORITY_UNVERIFIABLE: trusted Git historical reference is unavailable ({})",
-                String::from_utf8_lossy(&repository.stderr).trim()
-            ),
-        });
-    }
-    let listing = Command::new("git")
-        .arg("-C")
-        .arg(root)
-        .args([
-            "ls-tree",
-            "-r",
-            "--name-only",
-            "origin/main",
-            "--",
-            ".pinker/projections",
-        ])
-        .output()
-        .map_err(|error| ProjectionError::Harness {
-            path: None,
-            message: format!(
-                "HISTORICAL_AUTHORITY_UNVERIFIABLE: cannot list trusted origin/main reference: {error}"
-            ),
-        })?;
-    if !listing.status.success() {
-        return Err(ProjectionError::Harness {
-            path: None,
-            message: format!(
-                "HISTORICAL_AUTHORITY_UNVERIFIABLE: trusted origin/main reference is unavailable ({})",
-                String::from_utf8_lossy(&listing.stderr).trim()
-            ),
-        });
-    }
-    let historical_paths: Vec<_> = String::from_utf8_lossy(&listing.stdout)
-        .lines()
-        .filter(|path| path.ends_with(".toml") && !path.starts_with(".pinker/projections/recipes/"))
-        .map(str::to_owned)
-        .collect();
-    for path in &historical_paths {
-        let output = Command::new("git")
-            .arg("-C")
-            .arg(root)
-            .arg("show")
-            .arg(format!("origin/main:{path}"))
-            .output()
-            .map_err(|error| ProjectionError::Harness {
-                path: Some(path.to_string()),
-                message: format!(
-                    "HISTORICAL_AUTHORITY_UNVERIFIABLE: cannot read trusted origin/main snapshot: {error}"
-                ),
-            })?;
-        if !output.status.success() {
-            return Err(ProjectionError::Harness {
-                path: Some(path.to_string()),
-                message:
-                    "HISTORICAL_AUTHORITY_UNVERIFIABLE: trusted origin/main snapshot is unavailable"
-                        .to_string(),
-            });
-        }
-        let historical = pinker_v0::nav_projection_snapshot::parse(
-            std::str::from_utf8(&output.stdout).map_err(|error| ProjectionError::Harness {
-                path: Some(path.to_string()),
-                message: format!(
-                    "HISTORICAL_AUTHORITY_UNVERIFIABLE: trusted origin/main snapshot is not UTF-8: {error}"
-                ),
-            })?,
-        )
-        .map_err(|error| ProjectionError::Harness {
-            path: Some(path.to_string()),
-            message: format!(
-                "HISTORICAL_AUTHORITY_UNVERIFIABLE: trusted origin/main snapshot is invalid: {error}"
-            ),
-        })?;
-        if historical.state == pinker_v0::nav_projection_snapshot::SnapshotState::Frozen
-            && !store.snapshots().any(|stored| stored.path == *path)
-        {
-            return Err(ProjectionError::Harness {
-                path: Some(path.to_string()),
-                message: format!(
-                    "HISTORICAL_AUTHORITY_MUTATED: protected FROZEN authority is absent; owner_file={path} safe_recovery=restore FROZEN authority from origin/main"
-                ),
-            });
-        }
-    }
-    for stored in store.snapshots().filter(|stored| {
-        stored.snapshot.state == pinker_v0::nav_projection_snapshot::SnapshotState::Frozen
-            && historical_paths.contains(&stored.path)
-    }) {
-        let spec = format!("origin/main:{}", stored.path);
-        let output = Command::new("git")
-            .arg("-C")
-            .arg(root)
-            .arg("show")
-            .arg(&spec)
-            .output()
-            .map_err(|error| ProjectionError::Harness {
-                path: Some(stored.path.clone()),
-                message: format!(
-                    "HISTORICAL_AUTHORITY_UNVERIFIABLE: cannot read trusted origin/main reference: {error}"
-                ),
-            })?;
-        if !output.status.success() {
-            return Err(ProjectionError::Harness {
-                path: Some(stored.path.clone()),
-                message: format!(
-                    "HISTORICAL_AUTHORITY_UNVERIFIABLE: trusted origin/main reference is unavailable; restore the FROZEN authority from origin/main, then reconcile the recipe through the explicit plan/apply path ({})",
-                    String::from_utf8_lossy(&output.stderr).trim()
-                ),
-            });
-        }
-        let historical = pinker_v0::nav_projection_snapshot::parse(
-            std::str::from_utf8(&output.stdout).map_err(|error| ProjectionError::Harness {
-                path: Some(stored.path.clone()),
-                message: format!(
-                    "HISTORICAL_AUTHORITY_UNVERIFIABLE: trusted origin/main snapshot is not UTF-8: {error}"
-                ),
-            })?,
-        )
-        .map_err(|error| ProjectionError::Harness {
-            path: Some(stored.path.clone()),
-            message: format!(
-                "HISTORICAL_AUTHORITY_UNVERIFIABLE: trusted origin/main snapshot is invalid: {error}"
-            ),
-        })?;
-        if historical != stored.snapshot {
-            return Err(ProjectionError::Harness {
-                path: Some(stored.path.clone()),
-                message: format!(
-                    "HISTORICAL_AUTHORITY_MUTATED: protected FROZEN fields differ from origin/main; owner_file={} safe_recovery=restore FROZEN authority, then reconcile recipe only through the explicit plan/apply path",
-                    stored.path
-                ),
-            });
-        }
-    }
-    Ok(())
-}
-
-fn load_projection_catalog(root: &core::RepoRoot) -> Result<nav::CodeCatalog, ProjectionError> {
-    nav::CodeCatalog::load(&root.path().join("src/navigation.jsonl")).map_err(|error| {
-        ProjectionError::Harness {
-            path: Some("src/navigation.jsonl".to_string()),
-            message: error.to_string(),
-        }
-    })
-}
-
-fn print_projection_error(command: &str, json: bool, error: &ProjectionError) -> i32 {
-    if json {
-        println!(
-            "{}",
-            nav_projection_report::render_error_json(command, error)
-        );
-    } else {
-        eprintln!("{error}");
-    }
-    projection_error_exit(error)
-}
-
-fn projection_error_exit(error: &ProjectionError) -> i32 {
-    use core::Failure;
-    let failure_exit = |failure: &Failure| match failure {
-        Failure::HarnessFailure(core::HarnessCause::RootNotFound { .. }) => EXIT_CATALOG,
-        Failure::HarnessFailure(_) => EXIT_HARNESS,
-        Failure::PolicyViolation(_) => EXIT_POLICY,
-        Failure::StalePlan { .. } => EXIT_STALE,
-        Failure::IoFailure { .. } | Failure::VerifyAfterApplyFailure { .. } => EXIT_FAILURE,
-    };
-    match error {
-        ProjectionError::Authority(_) => EXIT_CATALOG,
-        ProjectionError::NotFound { .. } => EXIT_NORESULT,
-        ProjectionError::Harness { path, .. }
-            if path.as_deref() == Some("src/navigation.jsonl") =>
-        {
-            EXIT_CATALOG
-        }
-        ProjectionError::Harness { .. } => EXIT_HARNESS,
-        ProjectionError::Policy { .. } => EXIT_POLICY,
-        ProjectionError::Drift { .. } => EXIT_SOURCE,
-        ProjectionError::Automation(failure) => failure_exit(failure),
-        ProjectionError::Apply(report) => {
-            report.failure.as_ref().map_or(EXIT_FAILURE, failure_exit)
-        }
-        ProjectionError::VerifyAfterApply { .. } => EXIT_FAILURE,
     }
 }
 // @pinker-nav:end cli.nav.projecao
@@ -1520,6 +168,8 @@ fn projection_error_exit(error: &ProjectionError) -> i32 {
 // @pinker-nav:related-symbol pinker_v0::symbol_index::locate
 // @pinker-nav:related-symbol pinker_v0::diff_coverage::analyze
 // @pinker-nav:summary Consultas nav read-only carregam catálogo e símbolos; cobertura-diff analisa stdin e impacto compõe git diff limitado com as autoridades correntes sem mutar o repositório.
+use pinker_v0::symbol_extraction;
+
 /// Carrega o catálogo de código versionado (superfície de consulta — §5).
 fn load_code_catalog(repo_root: &Path) -> Result<nav::CodeCatalog, i32> {
     let doc_config = load_doc_config(repo_root);
@@ -1886,7 +536,6 @@ pub(super) fn run_nav_cobertura_diff(repo_root: &Path, base: Option<&str>, json:
             return EXIT_CATALOG;
         }
     };
-    let projection_store = ProjectionStore::load(root.path()).ok();
     let manifests = change::Manifests::load(&root.path().join(".pinker/changes"));
     let base_code = match base {
         Some(reference) => {
@@ -1912,7 +561,6 @@ pub(super) fn run_nav_cobertura_diff(repo_root: &Path, base: Option<&str>, json:
             base_code: base_code.as_ref(),
             policy: policy.as_ref(),
             docs: docs.as_ref(),
-            projection_store: projection_store.as_ref(),
             doc_config: Some(&config),
             manifests: Some(&manifests),
         },

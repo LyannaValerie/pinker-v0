@@ -252,14 +252,16 @@ fn schema_ordem_fontes_e_estado_saudavel_sao_deterministicos() {
     }
     assert_eq!(state.overall, StateStatus::Ok);
     let projections = projection_details(&state);
-    assert_eq!(projections.frozen, 13);
-    assert_eq!(projections.candidate, 0);
-    assert_eq!(projections.verification, "MATCH");
-    assert!(projections.items.iter().all(|item| item.outcome == "MATCH"));
+    assert_eq!(projections.archived, 13);
+    assert_eq!(projections.verification, "INTACT");
+    assert!(projections
+        .items
+        .iter()
+        .all(|item| item.outcome == "INTACT"));
 
     let json = render_json(&state);
     assert!(json_is_valid(&json));
-    assert!(json.starts_with("{\"schema\":1,\"overall\":\"OK\",\"domains\":"));
+    assert!(json.starts_with("{\"schema\":2,\"overall\":\"OK\",\"domains\":"));
     assert!(!json.contains('\u{1b}'));
     assert!(!json.contains(env!("CARGO_MANIFEST_DIR")));
     assert_eq!(json, render_json(&state));
@@ -291,7 +293,7 @@ fn documentacao_invalida_ou_com_drift_preserva_outros_dominios() {
         StateStatus::Blocked
     );
     assert_eq!(status(&observed, DomainId::Trama), StateStatus::Ok);
-    assert!(projection_details(&observed).frozen > 0);
+    assert!(projection_details(&observed).archived > 0);
 }
 
 #[test]
@@ -300,14 +302,17 @@ fn trama_ausente_invalida_e_divergente_sao_estados_distintos() {
     fs::remove_file(missing.path().join("src/navigation.jsonl")).unwrap();
     let observed = state(missing.path());
     assert_eq!(status(&observed, DomainId::Trama), StateStatus::Blocked);
-    assert_eq!(
-        status(&observed, DomainId::Projections),
-        StateStatus::Partial
-    );
-    assert!(projection_details(&observed)
+    // TA/#697: o arquivo histórico é materializado, não reconstruído. A ausência
+    // completa do catálogo corrente bloqueia a Trama e deixa a integridade
+    // histórica intacta.
+    assert_eq!(status(&observed, DomainId::Projections), StateStatus::Ok);
+    let projections = projection_details(&observed);
+    assert_eq!(projections.archived, 13);
+    assert_eq!(projections.verification, "INTACT");
+    assert!(projections
         .items
         .iter()
-        .all(|item| item.outcome == "UNKNOWN"));
+        .all(|item| item.outcome == "INTACT"));
 
     let invalid = Fixture::copy("trama-invalid");
     fs::write(invalid.path().join("src/navigation.jsonl"), "não-json\n").unwrap();
@@ -328,34 +333,25 @@ fn trama_ausente_invalida_e_divergente_sao_estados_distintos() {
         .any(|operation| operation.reason == "code_catalog_out_of_date"));
 }
 
+/// A integridade do arquivo histórico não é ocultada, e ela não depende do
+/// catálogo corrente.
+///
+/// TA/#697: um estado congelado deixou de ser reconstruído. O estado do projeto
+/// reporta integridade de arquivo — payload alterado, payload ausente ou índice
+/// ilegível — e nunca descreve o arquivo como precisando sincronizar com o
+/// catálogo corrente.
 #[test]
-fn projection_drift_harness_candidate_e_causas_nao_sao_ocultados() {
-    let drift = Fixture::copy("projection-drift");
-    replace_once(
-        &drift
-            .path()
-            .join(".pinker/projections/onda-8j-anterior.toml"),
-        "regions = 405",
-        "regions = 406",
-    );
-    let observed = state(drift.path());
-    assert_eq!(projection_details(&observed).verification, "DRIFT");
-    assert_eq!(
-        status(&observed, DomainId::Projections),
-        StateStatus::Warning
-    );
-
-    let harness = Fixture::copy("projection-harness");
-    replace_once(
-        &harness
-            .path()
-            .join(".pinker/projections/onda-pink-agente-d.toml"),
-        "state = \"FROZEN\"",
-        "state = \"CANDIDATE\"",
-    );
-    let observed = state(harness.path());
+fn integridade_do_arquivo_historico_nao_e_ocultada() {
+    let alterado = Fixture::copy("archive-altered");
+    let payload = alterado
+        .path()
+        .join(".pinker/archive/onda-8j-anterior.stable");
+    let mut bytes = fs::read(&payload).unwrap();
+    bytes[0] ^= 0x01;
+    fs::write(&payload, &bytes).unwrap();
+    let observed = state(alterado.path());
     let projections = projection_details(&observed);
-    assert_eq!(projections.verification, "HARNESS_FAILURE");
+    assert_eq!(projections.verification, "ALTERED");
     assert_eq!(
         status(&observed, DomainId::Projections),
         StateStatus::Blocked
@@ -363,27 +359,45 @@ fn projection_drift_harness_candidate_e_causas_nao_sao_ocultados() {
     assert!(projections
         .items
         .iter()
-        .any(|item| item.failure_code.as_deref() == Some("E-SNAP-CONGELADO-SOBRE-CANDIDATO")));
+        .any(|item| item.id == "onda-8j-anterior" && item.outcome == "ALTERED"));
     assert!(observed
-        .pending_operations
+        .blockers
         .iter()
-        .any(|operation| operation.reason == "projection_candidate_pending"));
+        .any(|blocker| blocker.reason == "historical_archive_compromised"));
 
-    let grouped = Fixture::copy("projection-causes");
-    replace_once(
-        &grouped
+    let ausente = Fixture::copy("archive-missing");
+    fs::remove_file(
+        ausente
             .path()
-            .join(".pinker/projections/onda-pink-agente-d.toml"),
-        "regions = 484",
-        "regions = 485",
+            .join(".pinker/archive/onda-8j-anterior.stable"),
+    )
+    .unwrap();
+    let observed = state(ausente.path());
+    assert_eq!(projection_details(&observed).verification, "MISSING");
+    assert_eq!(
+        status(&observed, DomainId::Projections),
+        StateStatus::Blocked
     );
-    let observed = state(grouped.path());
-    let projections = projection_details(&observed);
-    assert_eq!(projections.verification, "HARNESS_FAILURE");
-    assert!(projections
-        .causes
-        .iter()
-        .any(|cause| cause.cause == "onda-pink-agente-d" && !cause.blocked.is_empty()));
+
+    let sem_indice = Fixture::copy("archive-index-missing");
+    fs::remove_file(sem_indice.path().join(".pinker/archive/index.toml")).unwrap();
+    let observed = state(sem_indice.path());
+    assert_eq!(projection_details(&observed).verification, "UNAVAILABLE");
+    assert_eq!(
+        status(&observed, DomainId::Projections),
+        StateStatus::Blocked
+    );
+
+    // Uma mudança legítima do catálogo corrente não altera a integridade do
+    // arquivo histórico.
+    let corrente = Fixture::copy("archive-current-change");
+    replace_once(
+        &corrente.path().join("src/navigation.jsonl"),
+        "\"status\":\"active\"",
+        "\"status\":\"retired\"",
+    );
+    let observed = state(corrente.path());
+    assert_eq!(projection_details(&observed).verification, "INTACT");
 }
 
 fn authority_snapshot(root: &Path) -> BTreeMap<String, (u64, u64, Vec<u8>)> {
@@ -513,7 +527,7 @@ fn sensibilidade_protege_reuso_read_only_e_renderer_unico() {
     assert!(collector.contains("RepoRoot::discover"));
     assert!(collector.contains("nav::verify_repository"));
     assert!(collector.contains("doc::verify_repository"));
-    assert!(collector.contains("nav_projection_report::verify_all"));
+    assert!(collector.contains("nav_projection_archive::verify"));
     assert!(!collector.contains("agent::observe_status"));
     assert!(!collector.contains("Command::new"));
     assert!(!collector.contains("fs::write"));

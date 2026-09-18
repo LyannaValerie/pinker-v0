@@ -527,10 +527,8 @@ fn a_autoridade_de_nav_e_projecao_nao_foi_duplicada() {
 
     for autoridade in [
         "nav::verify_repository(",
-        "nav_projection_lifecycle::plan_prepare(",
-        "nav_projection_lifecycle::plan_accept(",
-        "nav_projection_lifecycle::apply_prepare(",
-        "nav_projection_lifecycle::apply_accept(",
+        "archive::verify(",
+        "archive::load(",
         "symbol_index::locate(",
         "diff_coverage::analyze(",
     ] {
@@ -562,7 +560,6 @@ fn os_codigos_de_saida_continuam_declarados_uma_vez_no_entrypoint() {
         "EXIT_SOURCE",
         "EXIT_HARNESS",
         "EXIT_POLICY",
-        "EXIT_STALE",
     ] {
         let declaracao = format!("const {codigo}: i32 =");
         assert_eq!(

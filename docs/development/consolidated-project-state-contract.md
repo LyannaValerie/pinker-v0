@@ -24,7 +24,7 @@ related:
 
 Este documento define o recorte somente leitura da Issue #387, autorizado pela
 janela da Issue #417. A superfície reúne fatos já possuídos pela Trama, pela
-documentação, pelas projeções históricas e pelo automation core; ela não cria
+documentação, pelo arquivo histórico e pelo automation core; ela não cria
 uma segunda fonte de verdade para nenhum deles.
 
 <!-- @pinker-doc:start
@@ -68,13 +68,13 @@ precedência `BLOCKED`, `WARNING`, `PARTIAL`, `OK`; um domínio `UNKNOWN` ou
 
 Cada domínio e cada fato material identifica uma `source` tipada. Os kinds
 iniciais são `repo_file`, `derived`, `local_check`, `catalog` e
-`projection_store`; `authority` carrega um identificador interno estável e
+`historical_archive`; `authority` carrega um identificador interno estável e
 `path`, quando existe, é sempre repo-relativo. Root absoluto, mtime, usuário,
 hostname, PID e horário corrente não fazem parte do protocolo.
 
 Disponibilidade parcial é parte do modelo. Uma autoridade inválida bloqueia o
-domínio correspondente sem apagar os demais. Falha de harness de projeção é
-`BLOCKED`, nunca `UNKNOWN`.
+domínio correspondente sem apagar os demais. Índice de arquivo histórico
+ilegível é `BLOCKED`, nunca `UNKNOWN`.
 <!-- @pinker-doc:end development.consolidated-project-state-contract.modelo -->
 
 <!-- @pinker-doc:start
@@ -97,11 +97,11 @@ manifestos e projeções documentais do mesmo verificador usado por
 `pink doc verificar`. A consulta não executa essas CLIs como subprocessos e não
 interpreta sua saída.
 
-`projections` reutiliza `ProjectionStore` e a verificação composta do Stage E.
-O inventário preserva `FROZEN` e `CANDIDATE`; os outcomes preservam `MATCH`,
-`DRIFT` e `HARNESS_FAILURE`, inclusive códigos estáveis de falha e o agrupamento
-de causa com dependentes bloqueados. Um `CANDIDATE` vira operação pendente, mas
-o estado consolidado nunca prepara nem aceita snapshots.
+`projections` reutiliza o arquivo histórico materializado e a sua verificação de
+integridade. O inventário publica quantos estados estão arquivados; os outcomes
+preservam `INTACT`, `ALTERED` e `MISSING`, por entrada. O estado consolidado
+nunca descreve o arquivo histórico como precisando sincronizar com o catálogo
+corrente: um arquivo materializado é íntegro ou comprometido, nunca defasado.
 
 `local_checks` lista somente verificações locais já possuídas pelas autoridades
 acima. Ele não introduz `doctor` nem probes ambientais. `diagnostics` agrega os
@@ -140,12 +140,12 @@ documento JSON.
 Warnings e blockers carregam `id`, `domain`, `summary`, `source` e `reason`. O
 identificador e o reason são estáveis e não são derivados da mensagem humana.
 Operações pendentes têm também `kind` e só aparecem quando uma autoridade
-declara um fato suficiente: catálogo com drift, `CANDIDATE` explícito ou
-Efeitos descendentes de uma
-causa de projeção permanecem agrupados.
+declara um fato suficiente, como um catálogo corrente com drift. A integridade
+do arquivo histórico não gera operação pendente: um arquivo comprometido é
+blocker, não trabalho pendente de sincronização.
 
 A coleta é somente leitura por construção: não grava no repositório ou no
-estado do agente, não sincroniza catálogos, não prepara/aceita projeções, não
+estado do agente, não sincroniza catálogos, não muta o arquivo histórico, não
 executa Git remoto, `gh`, `curl` ou qualquer rede e não altera mtime de
 autoridades. O automation core fornece `RepoRoot` e convenções determinísticas;
 não se cria plan, desired state ou apply artificial para uma consulta.

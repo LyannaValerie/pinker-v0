@@ -15,7 +15,6 @@ use crate::doc::{self, DocConfig};
 use crate::doc_index::DocCatalog;
 use crate::nav::{self, CodeCatalog};
 use crate::nav_coverage;
-use crate::nav_projection_store::ProjectionStore;
 use crate::project_state::{self, DomainDetails, DomainId, StateStatus};
 use std::collections::BTreeSet;
 use std::fs;
@@ -171,6 +170,13 @@ fn navigation_status(state: &project_state::ProjectState) -> String {
     }
 }
 
+/// Integridade do arquivo histórico materializado.
+///
+/// POT/LPT: INVARIANT a historical archive is intact or compromised, never stale
+///
+/// `STALE` saiu daqui com TA/#697: um arquivo materializado não tem por que
+/// ficar defasado em relação ao catálogo corrente, e descrevê-lo assim
+/// convidaria exatamente a manutenção histórica que a unidade aposentou.
 fn projection_status(state: &project_state::ProjectState) -> String {
     let Some(domain) = state.domain(DomainId::Projections) else {
         return "UNAVAILABLE".to_string();
@@ -182,11 +188,7 @@ fn projection_status(state: &project_state::ProjectState) -> String {
         StateStatus::Unavailable | StateStatus::Unknown | StateStatus::Partial => {
             "UNAVAILABLE".to_string()
         }
-        StateStatus::Blocked => "BLOCKED".to_string(),
-        StateStatus::Warning if details.verification == "DRIFT" => "STALE".to_string(),
-        StateStatus::Warning => "WARNING".to_string(),
-        StateStatus::Ok if details.verification == "MATCH" => "CURRENT".to_string(),
-        StateStatus::Ok => details.verification.clone(),
+        _ => details.verification.clone(),
     }
 }
 
@@ -201,7 +203,7 @@ pub fn recommended_action(
     if navigation_catalog != "CURRENT" {
         return "pink nav sincronizar".to_string();
     }
-    if projection_state != "CURRENT" {
+    if projection_state != "INTACT" {
         return "pink nav projecao verificar".to_string();
     }
     "no_action".to_string()
@@ -408,7 +410,6 @@ pub fn collect_impact(repo: &Path, diff: &str, base: Option<&str>) -> Result<Imp
         .map_err(|error| error.to_string())?;
     let docs_path = root.path().join(&config.generated.docs_index);
     let docs = DocCatalog::load(&docs_path).ok();
-    let projection_store = ProjectionStore::load(root.path()).ok();
     let manifests = change::Manifests::load(&root.path().join(".pinker/changes"));
     let base_code = match base {
         Some(reference) => Some(load_base_code_catalog(
@@ -426,7 +427,6 @@ pub fn collect_impact(repo: &Path, diff: &str, base: Option<&str>) -> Result<Imp
             base_code: base_code.as_ref(),
             policy: policy.as_ref(),
             docs: docs.as_ref(),
-            projection_store: projection_store.as_ref(),
             doc_config: Some(&config),
             manifests: Some(&manifests),
         },
@@ -771,9 +771,9 @@ pub fn collect_preflight(
         });
         recommended.insert("pink nav sincronizar".to_string());
     }
-    if doctor.projection_state != "CURRENT" {
+    if doctor.projection_state != "INTACT" {
         blocking.push(Finding {
-            id: "projection_validation_not_current".to_string(),
+            id: "historical_archive_not_intact".to_string(),
             detail: doctor.projection_state.clone(),
         });
         recommended.insert("pink nav projecao verificar".to_string());
@@ -925,19 +925,19 @@ mod tests {
     #[test]
     fn recommended_action_has_deterministic_priority() {
         assert_eq!(
-            recommended_action(Compatibility::Incompatible, "STALE", "STALE"),
+            recommended_action(Compatibility::Incompatible, "STALE", "ALTERED"),
             "rebuild or reinstall pink from the current Pinker release"
         );
         assert_eq!(
-            recommended_action(Compatibility::Exact, "STALE", "STALE"),
+            recommended_action(Compatibility::Exact, "STALE", "ALTERED"),
             "pink nav sincronizar"
         );
         assert_eq!(
-            recommended_action(Compatibility::Exact, "CURRENT", "STALE"),
+            recommended_action(Compatibility::Exact, "CURRENT", "ALTERED"),
             "pink nav projecao verificar"
         );
         assert_eq!(
-            recommended_action(Compatibility::Exact, "CURRENT", "CURRENT"),
+            recommended_action(Compatibility::Exact, "CURRENT", "INTACT"),
             "no_action"
         );
     }

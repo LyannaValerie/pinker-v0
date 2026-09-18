@@ -78,12 +78,15 @@ relações documentais.
 
 ### Projeções afetadas
 
-Dois domínios canônicos permanecem distintos:
+Só um domínio permanece aqui: as **projeções documentais**. `.pinker/doc.toml`
+relaciona targets diretos e os campos `updates.*: true` do manifesto corrente
+alterado.
 
-- snapshots históricos de navegação: `.pinker/projections` e a composição
-  oficial relacionam regiões presentes, inputs diretos e receitas consumidas;
-- projeções documentais: `.pinker/doc.toml` relaciona targets diretos e os
-  campos `updates.*: true` do manifesto corrente alterado.
+O arquivo histórico das projeções de navegação saiu desta análise com a unidade
+TA (Issue #697). Ele deixou de ser reconstruído a partir do catálogo corrente, e
+por isso nenhuma mudança corrente pode afetá-lo: relacionar um diff de hoje a um
+estado congelado passou a ser uma relação sem consequência. A ausência é
+declarada, não simulada com campo vazio.
 
 Uma projeção não é declarada afetada por extensão, nome de arquivo ou
 semelhança. Artefato inválido ou autoridade ausente produz aviso e

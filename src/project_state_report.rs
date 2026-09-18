@@ -9,8 +9,8 @@
 // @pinker-nav:summary Renderers humano e JSON determinísticos derivados exclusivamente de ProjectState, com ordem fixa, UTF-8, paths repo-relativos e ausência de ANSI, timestamps e root absoluto.
 use crate::project_state::{
     AuthorityAvailability, Diagnostic, DocumentationState, DomainDetails, DomainState, Finding,
-    LocalCheck, PendingOperation, ProjectState, ProjectionCause, ProjectionItem, ProjectionsState,
-    RepositoryState, Source, TramaState,
+    LocalCheck, PendingOperation, ProjectState, ProjectionItem, ProjectionsState, RepositoryState,
+    Source, TramaState,
 };
 
 pub fn render_json(state: &ProjectState) -> String {
@@ -98,8 +98,8 @@ fn append_domain_summary(out: &mut String, domain: &DomainState) {
             details.known_drift
         )),
         DomainDetails::Projections(details) => out.push_str(&format!(
-            "  FROZEN={} CANDIDATE={} verificar={}\n",
-            details.frozen, details.candidate, details.verification
+            "  arquivados={} integridade={}\n",
+            details.archived, details.verification
         )),
         DomainDetails::LocalChecks(details) => out.push_str(&format!(
             "  checks={}\n",
@@ -257,39 +257,20 @@ fn projections_json(details: &ProjectionsState) -> String {
         .map(projection_item_json)
         .collect::<Vec<_>>()
         .join(",");
-    let causes = details
-        .causes
-        .iter()
-        .map(projection_cause_json)
-        .collect::<Vec<_>>()
-        .join(",");
     format!(
-        "{{\"frozen\":{},\"candidate\":{},\"recipes\":{},\"verification\":{},\"items\":[{}],\"causes\":[{}]}}",
-        details.frozen,
-        details.candidate,
-        details.recipes,
+        "{{\"archived\":{},\"verification\":{},\"items\":[{}]}}",
+        details.archived,
         json_string(&details.verification),
-        items,
-        causes
+        items
     )
 }
 
 fn projection_item_json(item: &ProjectionItem) -> String {
     format!(
-        "{{\"id\":{},\"state\":{},\"path\":{},\"outcome\":{},\"failure_code\":{}}}",
+        "{{\"id\":{},\"payload\":{},\"outcome\":{}}}",
         json_string(&item.id),
-        json_string(&item.state),
-        json_string(&item.path),
-        json_string(&item.outcome),
-        option_string(item.failure_code.as_deref())
-    )
-}
-
-fn projection_cause_json(cause: &ProjectionCause) -> String {
-    format!(
-        "{{\"cause\":{},\"blocked\":{}}}",
-        json_string(&cause.cause),
-        string_array(&cause.blocked)
+        json_string(&item.payload),
+        json_string(&item.outcome)
     )
 }
 
@@ -360,17 +341,6 @@ fn option_bool(value: Option<bool>) -> &'static str {
         Some(false) => "false",
         None => "null",
     }
-}
-
-fn string_array(values: &[String]) -> String {
-    format!(
-        "[{}]",
-        values
-            .iter()
-            .map(|value| json_string(value))
-            .collect::<Vec<_>>()
-            .join(",")
-    )
 }
 
 fn json_string(value: &str) -> String {
