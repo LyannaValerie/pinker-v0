@@ -8,7 +8,7 @@
 // @pinker-nav:start cli.doc.consulta
 // @pinker-nav:domain doc
 // @pinker-nav:layer cli
-// @pinker-nav:summary load_doc_config carrega doc::DocConfig::load (sai com 1 em erro); run_doc despacha DocSub (Marco/ImportarPr/Mostrar/Listar/Buscar/Rota/Sincronizar/Verificar) para as funções correspondentes; scan_docs varre docs/ via doc_index::DocIndex::scan; load_doc_catalog lê o catálogo gerado; write_atomic é o único mecanismo desta base que grava atomicamente — escreve um arquivo `.jsonl.tmp` e usa fs::rename por cima do caminho final, usado pelas rotinas de sincronização (não pelas consultas abaixo); run_doc_mostrar/run_doc_listar/run_doc_buscar/run_doc_rota e print_doc_results_json apenas leem o catálogo e imprimem resultados em texto ou JSON, sem escrever em disco.
+// @pinker-nav:summary load_doc_config carrega doc::DocConfig::load (sai com 1 em erro); run_doc despacha DocSub (Marco/Mostrar/Listar/Buscar/Rota/Sincronizar/Verificar) para as funções correspondentes; scan_docs varre docs/ via doc_index::DocIndex::scan; load_doc_catalog lê o catálogo gerado; write_atomic é o único mecanismo desta base que grava atomicamente — escreve um arquivo `.jsonl.tmp` e usa fs::rename por cima do caminho final, usado pelas rotinas de sincronização (não pelas consultas abaixo); run_doc_mostrar/run_doc_listar/run_doc_buscar/run_doc_rota e print_doc_results_json apenas leem o catálogo e imprimem resultados em texto ou JSON, sem escrever em disco.
 use super::*;
 
 pub(super) fn load_doc_config(repo_root: &Path) -> doc::DocConfig {
@@ -46,57 +46,6 @@ pub(super) fn run_doc(config: DocConfigCli) -> i32 {
             println!("  docs:    {}", doc_config.generated.docs_index);
             println!("  código:  {}", doc_config.generated.code_index);
             EXIT_OK
-        }
-        DocSub::ImportarPr {
-            pr,
-            corpo,
-            check,
-            freeze,
-            artifact,
-        } => {
-            if let Err(rejection) = doc_config.baseline_gate(pr) {
-                eprintln!("{rejection}");
-                return EXIT_SOURCE;
-            }
-            if freeze {
-                let body = corpo.expect("parser garante --corpo com --freeze");
-                let artifact = artifact.expect("parser garante --artifact com --freeze");
-                let report = tooling::freeze_import(
-                    repo_root,
-                    &doc_config,
-                    pr,
-                    Path::new(&body),
-                    Path::new(&artifact),
-                );
-                if config.json {
-                    println!("{}", tooling::render_freeze_import_json(&report));
-                } else {
-                    println!("{}: {}", report.classification.as_str(), report.detail);
-                    if let Some(path) = &report.artifact {
-                        println!("artifact: {path}");
-                    }
-                }
-                return if report.classification
-                    == tooling::FreezeImportClassification::ValidatedDeferredByFreeze
-                {
-                    EXIT_OK
-                } else {
-                    EXIT_SOURCE
-                };
-            }
-            match corpo {
-                None => {
-                    println!(
-                        "PR #{pr} posterior ao marco #{} — elegível para importação.",
-                        doc_config.github.baseline_pr
-                    );
-                    println!(
-                        "Forneça --corpo <arquivo> para gerar o manifesto .pinker/changes/pr-{pr}.yaml."
-                    );
-                    EXIT_OK
-                }
-                Some(corpo) => run_doc_importar(repo_root, &doc_config, pr, &corpo, check),
-            }
         }
         DocSub::Mostrar { id } => run_doc_mostrar(repo_root, &doc_config, &id, config.json),
         DocSub::Listar { territorio } => {
@@ -517,7 +466,7 @@ fn run_doc_sincronizar(repo_root: &Path, config: &doc::DocConfig) -> i32 {
 // @pinker-nav:start cli.doc.mudancas
 // @pinker-nav:domain doc
 // @pinker-nav:layer cli
-// @pinker-nav:summary CHANGE_LEDGER_RELATIVE_PATH é o caminho canônico do histórico mecânico; write_ledger renderiza os manifestos e grava via write_atomic, ou remove o arquivo quando não há manifestos; run_doc_importar lê, valida e serializa canonicamente um bloco novo e preserva manifestos existentes byte a byte.
+// @pinker-nav:summary CHANGE_LEDGER_RELATIVE_PATH é o caminho canônico do histórico mecânico; write_ledger renderiza os manifestos já aceitos e grava via write_atomic, ou remove o arquivo quando não há manifestos. Não existe caminho de autoria: nenhum manifesto novo é criado a partir de corpo de PR.
 fn write_ledger(repo_root: &Path, manifests: &change::Manifests) -> Result<(), i32> {
     let rendered = manifests.render_ledger();
     let path = repo_root.join(doc::CHANGE_LEDGER_RELATIVE_PATH);
@@ -529,110 +478,6 @@ fn write_ledger(repo_root: &Path, manifests: &change::Manifests) -> Result<(), i
     write_atomic(&path, &rendered)
 }
 
-fn run_doc_importar(
-    repo_root: &Path,
-    config: &doc::DocConfig,
-    pr: u64,
-    corpo: &str,
-    check: bool,
-) -> i32 {
-    let body = match fs::read_to_string(corpo) {
-        Ok(body) => body,
-        Err(err) => {
-            eprintln!("Falha ao ler corpo do PR '{}': {}", corpo, err);
-            return EXIT_SOURCE;
-        }
-    };
-    let mut manifest = match change::Change::parse_pr_body(&body) {
-        Ok(manifest) => manifest,
-        Err(err) => {
-            eprintln!("{err}");
-            return EXIT_SOURCE;
-        }
-    };
-    if let Err(err) = manifest.validate() {
-        eprintln!("{err}");
-        return EXIT_SOURCE;
-    }
-    manifest.source = Some(change::Source {
-        kind: "github-pr".to_string(),
-        number: pr,
-        repository: config.github.repository.clone(),
-    });
-    let rendered = manifest.render_yaml();
-
-    let changes_dir = repo_root.join(".pinker/changes");
-    let manifest_path = changes_dir.join(format!("pr-{pr}.yaml"));
-
-    // Contrato de imutabilidade (§10): os bytes existentes são preservados. Uma
-    // representação diferente só é idempotente quando o modelo integral coincide.
-    if manifest_path.exists() {
-        let existing = match fs::read_to_string(&manifest_path) {
-            Ok(existing) => existing,
-            Err(_) => {
-                eprintln!("{}", change::immutable_error(pr));
-                return EXIT_SOURCE;
-            }
-        };
-        if existing == rendered {
-            if check {
-                println!("Manifesto pr-{pr}.yaml já sincronizado (idempotente).");
-            } else {
-                println!("Manifesto pr-{pr}.yaml inalterado (idempotente).");
-            }
-            return EXIT_OK;
-        }
-        let existing_manifest = match change::Change::parse_manifest(&existing) {
-            Ok(existing_manifest) => existing_manifest,
-            Err(_) => {
-                eprintln!("{}", change::immutable_error(pr));
-                return EXIT_SOURCE;
-            }
-        };
-        let existing_valid = existing_manifest.validate().is_ok()
-            && existing_manifest
-                .source
-                .as_ref()
-                .is_some_and(|source| source.number == pr);
-        if existing_valid && existing_manifest.semantically_equal(&manifest) {
-            if check {
-                println!("Manifesto pr-{pr}.yaml semanticamente sincronizado (bytes preservados).");
-            } else {
-                println!("Manifesto pr-{pr}.yaml semanticamente inalterado (bytes preservados).");
-            }
-            return EXIT_OK;
-        }
-        eprintln!("{}", change::immutable_error(pr));
-        return EXIT_SOURCE;
-    }
-
-    if check {
-        println!("Modo --check: manifesto pr-{pr}.yaml válido e ausente (seria criado).");
-        return EXIT_OK;
-    }
-
-    if let Err(err) = fs::create_dir_all(&changes_dir) {
-        eprintln!("Falha ao criar '{}': {}", changes_dir.display(), err);
-        return 1;
-    }
-    if let Err(err) = fs::write(&manifest_path, &rendered) {
-        eprintln!("Falha ao gravar '{}': {}", manifest_path.display(), err);
-        return 1;
-    }
-
-    // Atualiza o histórico mecânico (idempotente por número de PR).
-    let manifests = change::Manifests::load(&changes_dir);
-    if let Err(code) = write_ledger(repo_root, &manifests) {
-        return code;
-    }
-
-    println!(
-        "Manifesto importado: .pinker/changes/pr-{pr}.yaml (fase {:?}, bloco {:?}).",
-        manifest.phase, manifest.block
-    );
-    println!("Rode `pink doc sincronizar` e revise os documentos derivados.");
-    EXIT_OK
-}
 // @pinker-nav:end cli.doc.mudancas
 
 // @pinker-nav:start cli.doc.verificacao

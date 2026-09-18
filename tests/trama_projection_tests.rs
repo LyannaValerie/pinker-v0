@@ -9,7 +9,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 // @pinker-nav:start evidencia.trama.projection.fixture-config
 // @pinker-nav:domain development
 // @pinker-nav:layer support
-// @pinker-nav:summary Quatro constantes definem configurações documentais completas ou sem state e corpos de PR para projeções integrais e isoladas.
+// @pinker-nav:summary Quatro constantes definem configurações documentais completas ou sem state e manifestos históricos aceitos para projeções integrais e isoladas.
 const DOC_TOML_FULL: &str = r#"schema = 1
 
 [github]
@@ -55,15 +55,20 @@ file = "docs/history/changes.md"
 region = "change.history"
 "#;
 
-const BODY: &str = "## Resumo\ntexto\n\n```pinker-change\nschema: 1\nkind: phase\nphase: 241\nblock: 20\ntitle: Biblioteca de Resultado\narea:\n  - language.result\nstatus: completed\nupdates:\n  state: true\n  history: true\n  roadmap: true\nsections:\n  implemented:\n    - result.predeclared\n```\n";
+// Manifesto histórico já aceito, na forma em que vive em `.pinker/changes/`.
+//
+// POT/LPT: AUTHORITY #698
+// POT/LPT: INVARIANT a fixture grava o manifesto aceito diretamente; não existe
+// importação de corpo de PR depois do corte.
+const MANIFEST: &str = "schema: 1\nsource:\n  type: github-pr\n  number: 341\n  repository: LyannaValerie/pinker-v0\nkind: phase\nphase: 241\nblock: 20\ntitle: Biblioteca de Resultado\narea:\n  - language.result\nstatus: completed\nupdates:\n  state: true\n  history: true\n  roadmap: true\nsections:\n  implemented:\n    - result.predeclared\n";
 
-const BODY_STATE_ONLY: &str = "## Resumo\ntexto\n\n```pinker-change\nschema: 1\nkind: phase\ntitle: X\nstatus: completed\nupdates:\n  state: true\n```\n";
+const MANIFEST_STATE_ONLY: &str = "schema: 1\nsource:\n  type: github-pr\n  number: 341\n  repository: LyannaValerie/pinker-v0\nkind: phase\ntitle: X\nstatus: completed\nupdates:\n  state: true\n";
 // @pinker-nav:end evidencia.trama.projection.fixture-config
 
 // @pinker-nav:start evidencia.trama.projection.process-support
 // @pinker-nav:domain development
 // @pinker-nav:layer support
-// @pinker-nav:summary Sete helpers constroem portais, destinos, repositórios temporários, arquivos, processos doc, importação e a fixture documental completa.
+// @pinker-nav:summary Sete helpers constroem portais, destinos, repositórios temporários, arquivos, processos doc, manifestos históricos e a fixture documental completa.
 fn portal(id: &str, domain: &str) -> String {
     format!("---\npinker-doc: 1\nid: {id}\ndomain: {domain}\nkind: portal\nstatus: active\nparent: atlas\n---\n\n# {id}\n\nPortal.\n")
 }
@@ -98,14 +103,13 @@ fn doc(root: &Path, args: &[&str]) -> std::process::Output {
         .expect("executar pink")
 }
 
-fn import(root: &Path, pr: &str) -> std::process::Output {
-    let body_path = root.join("body.md").to_string_lossy().to_string();
-    doc(root, &["importar-pr", pr, "--corpo", &body_path])
+fn manifesto(root: &Path, pr: &str, manifest: &str) {
+    write(root, &format!(".pinker/changes/pr-{pr}.yaml"), manifest);
 }
 
-fn full_fixture(root: &Path, body: &str) {
+fn full_fixture(root: &Path, manifest: &str) {
     write(root, ".pinker/doc.toml", DOC_TOML_FULL);
-    write(root, "body.md", body);
+    manifesto(root, "341", manifest);
     write(root, "docs/engine/README.md", &portal("engine", "engine"));
     write(
         root,
@@ -157,8 +161,7 @@ fn full_fixture(root: &Path, body: &str) {
 #[test]
 fn projecoes_history_state_roadmap_e_regioes_humanas() {
     let root = temp_repo("full");
-    full_fixture(&root, BODY);
-    assert!(import(&root, "341").status.success());
+    full_fixture(&root, MANIFEST);
     let sync = doc(&root, &["sincronizar"]);
     assert!(
         sync.status.success(),
@@ -195,8 +198,7 @@ fn projecoes_history_state_roadmap_e_regioes_humanas() {
 #[test]
 fn projecoes_sao_idempotentes() {
     let root = temp_repo("idem");
-    full_fixture(&root, BODY);
-    assert!(import(&root, "341").status.success());
+    full_fixture(&root, MANIFEST);
     assert!(doc(&root, &["sincronizar"]).status.success());
     let once = fs::read_to_string(root.join("docs/history/changes.md")).unwrap();
     // Segundo sync não deve alterar nada.
@@ -223,7 +225,7 @@ fn projecoes_sao_idempotentes() {
 fn flag_updates_sem_consumidor_causa_erro() {
     let root = temp_repo("no_consumer");
     write(&root, ".pinker/doc.toml", DOC_TOML_NO_STATE);
-    write(&root, "body.md", BODY_STATE_ONLY);
+    manifesto(&root, "341", MANIFEST_STATE_ONLY);
     write(
         &root,
         "docs/history/README.md",
@@ -234,7 +236,6 @@ fn flag_updates_sem_consumidor_causa_erro() {
         "docs/history/changes.md",
         &target("history.changes", "history", "change.history", "H"),
     );
-    assert!(import(&root, "341").status.success());
 
     // `state: true` sem [projections.state] configurado deve falhar.
     let sync = doc(&root, &["sincronizar"]);

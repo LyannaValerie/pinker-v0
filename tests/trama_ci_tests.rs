@@ -1,8 +1,12 @@
 //! Trama Pinker — CI permanente somente leitura (§14; §20 item 29).
 //!
-//! Estes testes leem o workflow versionado e garantem que ele nunca escreve:
+//! Estes testes leem os workflows versionados e garantem que nenhum escreve:
 //! permissões mínimas, sem push, sem commit, sem reconstrução de Base64, e que
-//! o runner temporário da tentativa anterior foi removido.
+//! nem o runner temporário nem o portão de autoria de `pinker-change` voltam.
+//!
+//! POT/LPT: AUTHORITY #698
+//! POT/LPT: INVARIANT nenhum workflow exige bloco `pinker-change` de um PR.
+//! POT/LPT: INVARIANT workflow inexistente não é portão remoto reprovado.
 
 use std::path::PathBuf;
 
@@ -29,10 +33,10 @@ fn runner_temporario_foi_removido() {
 // @pinker-nav:start evidencia.trama.ci.readonly-workflow
 // @pinker-nav:domain trama
 // @pinker-nav:layer evidencia
-// @pinker-nav:summary Inspeção textual do workflow permanente: contents read, gatilho pull_request, make ci e ausência de push, commit, Base64 ou upload de artefato.
+// @pinker-nav:summary Inspeção textual do workflow permanente de CI: contents read, gatilho pull_request, make ci e ausência de push, commit, Base64 ou upload de artefato.
 #[test]
 fn workflow_permanente_e_somente_leitura() {
-    let path = workflow_dir().join("trama.yml");
+    let path = workflow_dir().join("ci.yml");
     let text = std::fs::read_to_string(path).expect("workflow permanente presente");
 
     // Permissões mínimas de leitura declaradas.
@@ -60,46 +64,60 @@ fn workflow_permanente_e_somente_leitura() {
 }
 // @pinker-nav:end evidencia.trama.ci.readonly-workflow
 
-// @pinker-nav:start evidencia.trama.ci.change-validation
+// @pinker-nav:start evidencia.trama.ci.change-authoring-retired
 // @pinker-nav:domain trama
 // @pinker-nav:layer evidencia
-// @pinker-nav:summary Contrato do gatilho edited e da validação incondicional somente leitura de pinker-change, sem escapes por grep ou nada a validar.
-/// Contrato do gatilho e da validação do bloco pinker-change.
+// @pinker-nav:summary Contrato do corte de #698: o workflow dedicado de autoria foi retirado e nenhum workflow remanescente exige bloco pinker-change, valida corpo de PR ou chama importar-pr.
+/// O workflow dedicado de autoria não existe mais.
 #[test]
-fn workflow_valida_bloco_incondicionalmente_e_reage_a_edicao() {
+fn workflow_de_autoria_foi_retirado() {
     let path = workflow_dir().join("trama.yml");
-    let text = std::fs::read_to_string(path).expect("workflow permanente presente");
-
-    // Editar o corpo do PR deve re-executar a validação: `edited` precisa estar
-    // entre os tipos de evento (não faz parte dos três eventos padrão).
     assert!(
-        text.contains("edited"),
-        "o gatilho pull_request deve incluir o tipo 'edited'"
-    );
-
-    // O importador roda em modo --check (somente leitura).
-    assert!(
-        text.contains("importar-pr") && text.contains("--check"),
-        "deve validar com `doc importar-pr ... --check`"
-    );
-
-    // Não pode mais existir o escape silencioso: PR posterior ao marco sem
-    // bloco tem de falhar (E-CHANGE-BLOCK), nunca cair em "nada a validar".
-    assert!(
-        !text.contains("nada a validar"),
-        "o workflow não pode ter o escape 'nada a validar'"
-    );
-    assert!(
-        !text.contains("if grep"),
-        "a presença do bloco não deve ser decidida por grep no Bash"
+        !path.exists(),
+        "o workflow dedicado de autoria de pinker-change não deve existir"
     );
 }
-// @pinker-nav:end evidencia.trama.ci.change-validation
+
+/// Nenhum workflow remanescente cobra o bloco de nenhum PR.
+#[test]
+fn nenhum_workflow_exige_bloco_pinker_change() {
+    let dir = workflow_dir();
+    let mut checked = 0usize;
+    for entry in std::fs::read_dir(dir)
+        .expect("diretório de workflows presente")
+        .flatten()
+    {
+        let path = entry.path();
+        if !matches!(
+            path.extension().and_then(|e| e.to_str()),
+            Some("yml") | Some("yaml")
+        ) {
+            continue;
+        }
+        checked += 1;
+        let name = path.file_name().unwrap().to_string_lossy().to_string();
+        let text = std::fs::read_to_string(&path).expect("workflow legível");
+        for forbidden in [
+            "pinker-change",
+            "importar-pr",
+            "E-CHANGE-BLOCK",
+            "pull_request.body",
+            "PR_BODY",
+        ] {
+            assert!(
+                !text.contains(forbidden),
+                "workflow '{name}' reintroduz a cobrança do bloco: '{forbidden}'"
+            );
+        }
+    }
+    assert!(checked >= 1, "deve haver ao menos um workflow permanente");
+}
+// @pinker-nav:end evidencia.trama.ci.change-authoring-retired
 
 // @pinker-nav:start evidencia.trama.ci.temporary-artifacts
 // @pinker-nav:domain trama
 // @pinker-nav:layer evidencia
-// @pinker-nav:summary Evidência de ausência dos artefatos da tentativa temporária e varredura recursiva por qualquer pacote .b64 restante.
+// @pinker-nav:summary Evidência de ausência dos artefatos da tentativa temporária e do workflow de autoria retirado, mais varredura recursiva por qualquer pacote .b64 restante.
 /// Nenhum arquivo da tentativa temporária pode voltar à árvore.
 #[test]
 fn artefatos_temporarios_nao_existem() {
@@ -107,6 +125,7 @@ fn artefatos_temporarios_nao_existem() {
     for rel in [
         ".github/workflows/trama-temporary-runner.yml",
         ".github/workflows/trama-completion.yml",
+        ".github/workflows/trama.yml",
         "scripts/trama_patch_chunks",
         "scripts/apply_trama_completion.py",
         "trama-run-error.log",

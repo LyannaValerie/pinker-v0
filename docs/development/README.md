@@ -46,9 +46,10 @@ Quando a intenção já é um símbolo estruturado, use `pink nav localizar
 SÍMBOLO`; ele não substitui a busca textual de regiões.
 
 Sincronização (`pink doc sincronizar`, `pink nav sincronizar`) regenera os
-catálogos a partir das fontes marcadas; `make ci` valida sem corrigir. Mudanças
-posteriores ao marco #330 carregam o bloco `pinker-change` e viram manifestos em
-`.pinker/changes/`.
+catálogos a partir das fontes marcadas; `make ci` valida sem corrigir. O acervo
+`.pinker/changes/` é histórico e finito: ele preserva os manifestos de um
+intervalo antigo de PRs, continua sendo lido pela verificação e pelas projeções,
+e não recebe manifesto novo.
 <!-- @pinker-doc:end development.trama -->
 
 ## Propósito

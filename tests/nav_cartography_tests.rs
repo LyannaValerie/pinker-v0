@@ -518,13 +518,18 @@ fn catalogo_real_cartografa_o_guardiao_pinker_da_onda_9() {
     // (`evidencia.tipos.mapa-representacao-equivalente`), 611 -> 613.
     // A T1 (#675) acrescenta 103 regiões: toda linha relevante de produção que
     // ainda estava fora de qualquer região passou a pertencer a uma
-    // responsabilidade publicada, 644 -> 747; a extração lexical de símbolos da #680 e a sua região de evidência levam a 749; a restauração explícita de identidade histórica da #685 leva a 750. Nenhuma região foi retirada.
+    // responsabilidade publicada, 644 -> 747; a extração lexical de símbolos da #680 e a sua região de evidência levam a 749; a restauração explícita de identidade histórica da #685 leva a 750. A TM (#698) é a
+    // primeira a retirar regiões: o corte da autoria de `pinker-change` aposenta
+    // nove regiões (a validação de bloco do CI, três evidências de manifesto
+    // ligadas à importação, quatro do template do PR e a importação
+    // freeze-aware do tooling) e publica três no lugar (a retirada do workflow
+    // de autoria, a leitura histórica e a detecção de adulteração), 737 -> 731.
     // Este é o único total vivo desta suíte;
     // todos os demais são reconstruções históricas e continuam com os literais
     // congelados, porque `project_pre_automation_core` e
     // `project_pre_projection_snapshot_contract` removem as regiões novas antes
     // de qualquer reconstrução.
-    assert_eq!(index.regions.len(), 737);
+    assert_eq!(index.regions.len(), 731);
 
     // Exatamente uma região Pinker, a do Guardião, com metadados congelados.
     let guardiao: Vec<_> = index
@@ -539,8 +544,12 @@ fn catalogo_real_cartografa_o_guardiao_pinker_da_onda_9() {
     assert_eq!(g.layer.as_deref(), Some("apps"));
     assert!(g.content_end > g.content_start);
 
-    // Contagens vivas por camada após a evidência da cobertura de diff #438 e
-    // a evidência da identidade genérica injetiva da #476.
+    // Contagens vivas por camada após a evidência da cobertura de diff #438, a
+    // evidência da identidade genérica injetiva da #476 e o corte da autoria de
+    // `pinker-change` da #698. Na camada `evidencia` a TM retira cinco regiões
+    // (a validação de bloco do CI e as quatro do template do PR) e publica uma
+    // (a retirada do workflow de autoria), 359 -> 355. As três evidências de
+    // manifesto trocadas ficam na camada `evidence` e não entram nesta conta.
     let by_layer = |layer: &str| {
         index
             .regions
@@ -548,7 +557,7 @@ fn catalogo_real_cartografa_o_guardiao_pinker_da_onda_9() {
             .filter(|r| r.layer.as_deref() == Some(layer))
             .count()
     };
-    assert_eq!(by_layer("evidencia"), 359);
+    assert_eq!(by_layer("evidencia"), 355);
     assert_eq!(by_layer("runtime"), 23);
     assert_eq!(by_layer("apps"), 1);
 }

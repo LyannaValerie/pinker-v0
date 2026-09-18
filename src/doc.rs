@@ -123,7 +123,11 @@ impl fmt::Display for ConfigError {
     }
 }
 
-/// Rejeição de importação por violar o marco.
+/// Rejeição de um manifesto que viola o marco documental.
+///
+/// POT/LPT: AUTHORITY #698
+/// POT/LPT: INVARIANT o marco fecha a fronteira retroativa do acervo histórico;
+/// nenhum manifesto pode existir para PR anterior a ele.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BaselineRejection {
     pub pr: u64,
@@ -147,7 +151,7 @@ impl fmt::Display for BaselineRejection {
             f,
             "E-DOC-BASELINE\n\
              O PR #{pr} é {relacao} ao marco documental #{baseline}.\n\
-             A importação retroativa está desativada.\n\
+             O acervo histórico não cobre PRs anteriores ao marco.\n\
              Marco atual:\n    \
              PR #{baseline}, {limite}",
             pr = self.pr,
@@ -162,7 +166,7 @@ impl fmt::Display for BaselineRejection {
 // @pinker-nav:start trama.documentos.marco
 // @pinker-nav:domain documentos
 // @pinker-nav:layer trama
-// @pinker-nav:summary Carrega e valida `.pinker/doc.toml` (marco, política forward-only e projeções) e aplica o gate anti-retroatividade: PRs anteriores ou iguais ao baseline são rejeitados com E-DOC-BASELINE, sem backfill.
+// @pinker-nav:summary Carrega e valida `.pinker/doc.toml` (marco, política forward-only e projeções) e aplica o gate anti-retroatividade na leitura do acervo: manifestos de PRs anteriores ou iguais ao baseline são rejeitados com E-DOC-BASELINE, sem backfill.
 impl DocConfig {
     /// Carrega e valida a configuração a partir da raiz do repositório.
     pub fn load(repo_root: &Path) -> Result<DocConfig, ConfigError> {
@@ -303,10 +307,7 @@ pub fn verify_repository(
     for manifest in &manifests.changes {
         if let Some(source) = &manifest.source {
             if let Err(rejection) = config.baseline_gate(source.number) {
-                manifest_errors.push(format!(
-                    "manifesto pr-{} anterior ou igual ao marco #{}",
-                    source.number, rejection.baseline_pr
-                ));
+                manifest_errors.push(format!("manifesto pr-{}: {rejection}", source.number));
             }
         } else {
             manifest_errors.push(format!("manifesto '{}' sem source.number", manifest.title));
@@ -603,7 +604,7 @@ code_index = "src/navigation.jsonl"
         let rendered = rejection.to_string();
         assert!(rendered.starts_with("E-DOC-BASELINE"));
         assert!(rendered.contains("O PR #329 é anterior ou igual ao marco documental #330."));
-        assert!(rendered.contains("A importação retroativa está desativada."));
+        assert!(rendered.contains("O acervo histórico não cobre PRs anteriores ao marco."));
         assert!(rendered.contains("PR #330, exclusivo"));
     }
 
