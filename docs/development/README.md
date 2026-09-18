@@ -91,6 +91,8 @@ permanecem em `janela-infraestrutura-deterministica.md`.
   somente leitura de localização;
 - `diff-coverage.md` — unified diff, autoridades, ausências, schema e CLI
   somente leitura de cobertura;
+- `trama-utilidade-auditoria.md` — auditoria medida de recuperação, economia de
+  contexto, custo de escrita e preenchimento das capacidades da Trama;
 
 | Necessidade | Documento |
 |---|---|
@@ -104,6 +106,7 @@ permanecem em `janela-infraestrutura-deterministica.md`.
 | estado consolidado somente leitura | `consolidated-project-state-contract.md` |
 | índice derivado de símbolos | `symbol-index.md` |
 | cobertura de diff somente leitura | `diff-coverage.md` |
+| utilidade medida da Trama | `trama-utilidade-auditoria.md` |
 
 ## Rotas de leitura
 
