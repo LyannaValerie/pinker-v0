@@ -152,6 +152,13 @@ Para cada entrada, `pink nav projecao verificar` exige:
 | `ALTERED` | ao menos uma medida ou digest diverge dos bytes observados |
 | `MISSING` | um payload ou metadado histórico não existe |
 
+O índice declara as medidas preservadas, e o verificador confere o payload
+contra elas. A terceira aresta — que o índice ainda diga o que o TOML congelado
+sempre disse — é controle da suíte, não da CLI:
+`medidas_do_indice_sao_os_literais_do_toml_frozen` lê `regions`, `length` e
+`fnv1a64` direto do `[measures]` de cada TOML FROZEN. Sem ela, editar payload e
+índice de forma coerente recalibraria a história em silêncio.
+
 ## O que a verificação não lê
 
 Esta é a propriedade que a unidade TA entregou, e ela é verificada por prova

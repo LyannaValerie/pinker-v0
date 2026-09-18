@@ -169,6 +169,71 @@ fn a2_medidas_do_payload_sao_as_medidas_preservadas() {
     }
 }
 
+/// CASE A2, ancoragem — as medidas do índice são as medidas escritas no TOML
+/// FROZEN, não uma cópia que possa ser recalibrada junto com o payload.
+///
+/// O verificador confere o payload contra o índice e prende os bytes do
+/// metadado histórico por `metadata_sha256`. Falta a terceira aresta: que o
+/// índice ainda diga o que o TOML congelado sempre disse. Sem ela, editar
+/// payload e índice de forma coerente recalibraria a história sem que nada
+/// reclamasse. Este controle lê os literais históricos direto do `[measures]`
+/// do TOML, sem passar pelo índice.
+#[test]
+fn medidas_do_indice_sao_os_literais_do_toml_frozen() {
+    for entry in &index().entries {
+        let toml = fs::read_to_string(repo().join(&entry.metadata_path))
+            .unwrap_or_else(|_| panic!("metadado histórico ausente: {}", entry.metadata_path));
+        let (regions, length, fnv1a64) = medidas_frozen(&toml, &entry.id);
+        assert_eq!(
+            regions, entry.regions,
+            "regions recalibrado em '{}'",
+            entry.id
+        );
+        assert_eq!(length, entry.length, "length recalibrado em '{}'", entry.id);
+        assert_eq!(
+            fnv1a64, entry.fnv1a64,
+            "fnv1a64 recalibrado em '{}'",
+            entry.id
+        );
+    }
+}
+
+/// Lê `regions`, `length` e `fnv1a64` da seção `[measures]` de um TOML FROZEN.
+///
+/// Deliberadamente escopado à seção: `[[rules]]` também carrega hashes e
+/// contagens, e um leitor frouxo confundiria uma regra com uma medida.
+fn medidas_frozen(toml: &str, id: &str) -> (u64, u64, String) {
+    let mut regions = None;
+    let mut length = None;
+    let mut fnv1a64 = None;
+    let mut dentro = false;
+    for linha in toml.lines() {
+        let linha = linha.trim();
+        if linha.starts_with('[') {
+            dentro = linha == "[measures]";
+            continue;
+        }
+        if !dentro {
+            continue;
+        }
+        let Some((chave, valor)) = linha.split_once('=') else {
+            continue;
+        };
+        let valor = valor.trim().trim_matches('"');
+        match chave.trim() {
+            "regions" => regions = valor.parse::<u64>().ok(),
+            "length" => length = valor.parse::<u64>().ok(),
+            "fnv1a64" => fnv1a64 = Some(valor.to_string()),
+            _ => {}
+        }
+    }
+    (
+        regions.unwrap_or_else(|| panic!("'{id}' não declara regions em [measures]")),
+        length.unwrap_or_else(|| panic!("'{id}' não declara length em [measures]")),
+        fnv1a64.unwrap_or_else(|| panic!("'{id}' não declara fnv1a64 em [measures]")),
+    )
+}
+
 // -------------------------------------------------------------- A3 · SHA-256
 
 /// CASE A3 — o SHA-256 declarado corresponde a cada payload.
