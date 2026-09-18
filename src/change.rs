@@ -1,37 +1,26 @@
-//! Trama Pinker — Etapa 4 (Manifestos estruturados de mudança).
+//! Trama Pinker — leitor do acervo histórico de manifestos de mudança.
 //!
-//! Lê o bloco ` ```pinker-change ` do corpo de um PR, constrói um manifesto
-//! versionado `.pinker/changes/pr-N.yaml` e gera um histórico mecânico derivado
-//! (`.pinker/changes/index.jsonl`). Especificação, seções 14, 15, 17 e 21.
+//! Lê os manifestos versionados `.pinker/changes/pr-N.yaml` já aceitos e deriva
+//! o histórico mecânico `.pinker/changes/index.jsonl`. Especificação, seções 14,
+//! 15, 17 e 21.
 //!
-//! O manifesto é a fonte estrutural; o corpo do PR é a origem humana. Nenhum
-//! conteúdo narrativo é inventado — apenas os campos declarados são propagados.
+//! POT/LPT: AUTHORITY #698
+//! POT/LPT: INVARIANT o acervo é histórico e finito; nenhum PR novo produz
+//! manifesto e nenhum manifesto é sintetizado a partir de corpo de PR.
+//! POT/LPT: MUST NOT reintroduzir autoria contínua ou backfill retroativo.
 
 // @pinker-nav:start trama.mudancas.vocabulario
 // @pinker-nav:domain mudancas
 // @pinker-nav:layer trama
-// @pinker-nav:summary Preludio e vocabulario do manifesto de mudanca: as cercas do bloco `pinker-change`, os enums fechados de kind e de status, a fonte (PR ou issue) e o registro de mudanca, mais a taxonomia de erro com suas mensagens estaveis — incluindo a recusa de alterar manifesto ja imutavel de um PR fechado.
+// @pinker-nav:summary Preludio e vocabulario do manifesto historico de mudanca: os enums fechados de kind e de status, a fonte (PR ou issue) e o registro de mudanca, mais a taxonomia de erro com suas mensagens estaveis. Nao ha vocabulario de autoria: o bloco de corpo de PR deixou de existir em #698.
 use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
-
-const FENCE_OPEN: &str = "```pinker-change";
-const FENCE_CLOSE: &str = "```";
 
 /// Valores aceitos para `kind` (§11, enum do schema).
 const KIND_ENUM: &[&str] = &["phase", "hotfix", "documentation", "parallel-phase"];
 /// Valores aceitos para `status` (§11, enum do schema).
 const STATUS_ENUM: &[&str] = &["completed", "in-progress", "planned"];
-
-/// Mensagem canônica de violação de imutabilidade de manifesto (§10).
-pub fn immutable_error(pr: u64) -> String {
-    format!(
-        "E-CHANGE-IMMUTABLE\n\
-         O manifesto .pinker/changes/pr-{pr}.yaml já existe com dados estruturados diferentes.\n\
-         Os dados do manifesto são imutáveis após a primeira importação; nenhuma\n\
-         alteração silenciosa é permitida. Reverta a mudança ou registre um novo PR."
-    )
-}
 
 /// Origem de um manifesto (presente no arquivo versionado).
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -66,8 +55,6 @@ pub struct Change {
 /// Falhas de manifesto.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ChangeError {
-    NoBlock,
-    UnterminatedBlock,
     UnsupportedSchema {
         found: u64,
     },
@@ -114,14 +101,6 @@ pub enum ChangeError {
 impl fmt::Display for ChangeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ChangeError::NoBlock => write!(
-                f,
-                "E-CHANGE-BLOCK\nBloco ```pinker-change``` ausente no corpo do PR."
-            ),
-            ChangeError::UnterminatedBlock => write!(
-                f,
-                "E-CHANGE-BLOCK\nBloco ```pinker-change``` sem cerca de fechamento."
-            ),
             ChangeError::UnsupportedSchema { found } => write!(
                 f,
                 "E-CHANGE-SCHEMA\nEsquema {} não suportado; esperado schema: 1.",
@@ -188,14 +167,8 @@ impl fmt::Display for ChangeError {
 // @pinker-nav:start trama.mudancas.manifesto
 // @pinker-nav:domain mudancas
 // @pinker-nav:layer trama
-// @pinker-nav:summary Manifesto estruturado de mudança: extrai o bloco `pinker-change` do corpo do PR, aplica de fato o schema (enums de kind/status, rejeição de campos desconhecidos, source.type/número, formato de ids) e renderiza o YAML versionado determinístico.
+// @pinker-nav:summary Manifesto estruturado de mudança já aceito: interpreta o arquivo versionado e aplica de fato o schema (enums de kind/status, rejeição de campos desconhecidos, source.type/número, formato de ids) e deriva a linha do histórico mecânico. Só lê; não serializa manifesto novo.
 impl Change {
-    /// Extrai e interpreta o bloco `pinker-change` de um corpo de PR.
-    pub fn parse_pr_body(body: &str) -> Result<Change, ChangeError> {
-        let block = extract_block(body)?;
-        Self::parse_block(&block)
-    }
-
     /// Interpreta um manifesto já versionado usando o subconjunto YAML estrito
     /// emitido pelo projeto e as representações legadas compatíveis.
     pub fn parse_manifest(block: &str) -> Result<Change, ChangeError> {
@@ -378,23 +351,6 @@ impl Change {
         Ok(())
     }
 
-    /// Compara todos os dados estruturados do schema, preservando a ordem das
-    /// listas e de `updates`. Metadados transitórios do parser não participam.
-    pub fn semantically_equal(&self, other: &Change) -> bool {
-        self.schema == other.schema
-            && self.source == other.source
-            && self.kind == other.kind
-            && self.phase == other.phase
-            && self.block == other.block
-            && self.title == other.title
-            && self.area == other.area
-            && self.status == other.status
-            && self.updates == other.updates
-            && self.implemented == other.implemented
-            && self.pending_remove == other.pending_remove
-            && self.validation_required == other.validation_required
-    }
-
     /// Campos escalares e de lista sujeitos a sentinela do template, com um
     /// rótulo estável para diagnóstico. `validation.required` fica de fora: o
     /// template não coloca sentinela ali (é sempre `- make ci`).
@@ -414,65 +370,6 @@ impl Change {
             fields.push((format!("sections.pending_remove[{i}]"), v.as_str()));
         }
         fields
-    }
-
-    /// Serializa o manifesto versionado (`.pinker/changes/pr-N.yaml`) de forma
-    /// determinística — idempotente para o mesmo bloco de entrada.
-    pub fn render_yaml(&self) -> String {
-        let mut out = String::new();
-        out.push_str(&format!("schema: {}\n", self.schema));
-        if let Some(source) = &self.source {
-            out.push_str("source:\n");
-            out.push_str(&format!("  type: {}\n", source.kind));
-            out.push_str(&format!("  number: {}\n", source.number));
-            if let Some(repo) = &source.repository {
-                out.push_str(&format!("  repository: {}\n", json_string(repo)));
-            }
-        }
-        out.push_str(&format!("kind: {}\n", self.kind));
-        if let Some(phase) = self.phase {
-            out.push_str(&format!("phase: {}\n", phase));
-        }
-        if let Some(block) = self.block {
-            out.push_str(&format!("block: {}\n", block));
-        }
-        out.push_str(&format!("title: {}\n", json_string(&self.title)));
-        if !self.area.is_empty() {
-            out.push_str("area:\n");
-            for item in &self.area {
-                out.push_str(&format!("  - {}\n", item));
-            }
-        }
-        out.push_str(&format!("status: {}\n", self.status));
-        if !self.updates.is_empty() {
-            out.push_str("updates:\n");
-            for (key, value) in &self.updates {
-                out.push_str(&format!("  {}: {}\n", key, value));
-            }
-        }
-        if !self.implemented.is_empty() || !self.pending_remove.is_empty() {
-            out.push_str("sections:\n");
-            if !self.implemented.is_empty() {
-                out.push_str("  implemented:\n");
-                for item in &self.implemented {
-                    out.push_str(&format!("    - {}\n", item));
-                }
-            }
-            if !self.pending_remove.is_empty() {
-                out.push_str("  pending_remove:\n");
-                for item in &self.pending_remove {
-                    out.push_str(&format!("    - {}\n", item));
-                }
-            }
-        }
-        if !self.validation_required.is_empty() {
-            out.push_str("validation:\n");
-            out.push_str("  required:\n");
-            for item in &self.validation_required {
-                out.push_str(&format!("    - {}\n", item));
-            }
-        }
-        out
     }
 
     /// Linha do histórico mecânico derivado (`.pinker/changes/index.jsonl`).
@@ -583,27 +480,7 @@ impl Manifests {
 // @pinker-nav:start trama.mudancas.sintaxe
 // @pinker-nav:domain mudancas
 // @pinker-nav:layer trama
-// @pinker-nav:summary Sintaxe do manifesto antes de qualquer interpretacao semantica: extrai o bloco entre as cercas exigindo abertura e fechamento proprios, e valida a forma do YAML versionado linha a linha — indentacao, chave conhecida, escalar bem formado e ausencia de campo repetido — reportando a linha exata da divergencia.
-
-fn extract_block(body: &str) -> Result<String, ChangeError> {
-    let lines: Vec<&str> = body.lines().collect();
-    let mut start = None;
-    for (i, line) in lines.iter().enumerate() {
-        if line.trim() == FENCE_OPEN {
-            start = Some(i + 1);
-            break;
-        }
-    }
-    let Some(start) = start else {
-        return Err(ChangeError::NoBlock);
-    };
-    for (i, line) in lines.iter().enumerate().skip(start) {
-        if line.trim() == FENCE_CLOSE {
-            return Ok(lines[start..i].join("\n"));
-        }
-    }
-    Err(ChangeError::UnterminatedBlock)
-}
+// @pinker-nav:summary Sintaxe do manifesto antes de qualquer interpretacao semantica: valida a forma do YAML versionado linha a linha — indentacao, chave conhecida, escalar bem formado e ausencia de campo repetido — reportando a linha exata da divergencia.
 
 fn validate_manifest_syntax(block: &str) -> Result<(), ChangeError> {
     use std::collections::BTreeSet;
@@ -972,17 +849,21 @@ fn json_string(value: &str) -> String {
 // @pinker-nav:start evidencia.mudancas.manifesto-e-ledger
 // @pinker-nav:domain mudancas
 // @pinker-nav:layer evidencia
-// @pinker-nav:summary Provas do manifesto de mudanca: extracao do bloco `pinker-change`, remocao de comentario de template, valor de preenchimento reportado por campo e dentro de item de area, bloco ausente como erro, ida e volta idempotente do YAML com aspas no subconjunto canonico, e recusa de enum invalido, campo desconhecido, fonte malformada, id fora do formato e campo obrigatorio ausente.
+// @pinker-nav:summary Provas do leitor historico de manifestos: leitura do manifesto versionado, remocao de comentario de template, valor de preenchimento reportado por campo e dentro de item de area, leitura de escalar citado no subconjunto canonico, e recusa de enum invalido, campo desconhecido, fonte malformada, id fora do formato e campo obrigatorio ausente.
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    const BODY: &str = "## Resumo\nImplementa Resultado.\n\n```pinker-change\nschema: 1\nkind: phase\nphase: 241\nblock: 20\ntitle: Biblioteca predeclarada de Resultado<T,E>\narea:\n  - language.result\nstatus: completed\nupdates:\n  state: true\n  history: true\n  roadmap: false\nsections:\n  implemented:\n    - result.predeclared\n  pending_remove:\n    - result.standard-library\nvalidation:\n  required:\n    - make ci\n```\n\nfim\n";
+    /// Manifesto versionado tal como vive em `.pinker/changes/pr-N.yaml`.
+    ///
+    /// POT/LPT: INVARIANT a entrada do leitor e o arquivo aceito, nao o corpo de
+    /// um PR: apos #698 nenhum corpo de PR e convertido em manifesto.
+    const MANIFEST: &str = "schema: 1\nkind: phase\nphase: 241\nblock: 20\ntitle: Biblioteca predeclarada de Resultado<T,E>\narea:\n  - language.result\nstatus: completed\nupdates:\n  state: true\n  history: true\n  roadmap: false\nsections:\n  implemented:\n    - result.predeclared\n  pending_remove:\n    - result.standard-library\nvalidation:\n  required:\n    - make ci\n";
 
     #[test]
-    fn parses_pinker_change_block() {
-        let change = Change::parse_pr_body(BODY).unwrap();
+    fn reads_versioned_manifest() {
+        let change = Change::parse_manifest(MANIFEST).unwrap();
         assert_eq!(change.schema, 1);
         assert_eq!(change.kind, "phase");
         assert_eq!(change.phase, Some(241));
@@ -999,9 +880,9 @@ mod tests {
 
     #[test]
     fn strips_inline_template_comments() {
-        // Bloco com comentários inline deixados no template do PR.
-        let body = "```pinker-change\nschema: 1\nkind: phase  # phase | hotfix | documentation | parallel-phase\ntitle: build#42  # nota inline\nstatus: completed # ok\narea:\n  - language.result  # comentário no item\n```\n";
-        let change = Change::parse_pr_body(body).unwrap();
+        // Manifestos historicos aceitos podem carregar comentarios inline.
+        let block = "schema: 1\nkind: phase  # phase | hotfix | documentation | parallel-phase\ntitle: build#42  # nota inline\nstatus: completed # ok\narea:\n  - language.result  # comentário no item\n";
+        let change = Change::parse_manifest(block).unwrap();
         assert_eq!(change.kind, "phase");
         assert_eq!(change.status, "completed");
         // `#` colado (sem espaço antes) é mantido; o ` # nota inline` é removido.
@@ -1011,9 +892,8 @@ mod tests {
 
     #[test]
     fn template_placeholder_is_reported_per_field() {
-        // Bloco cru do template: sentinelas ainda não preenchidas.
-        let body = "```pinker-change\nschema: 1\nkind: <preencher-kind>\ntitle: <preencher-titulo>\nstatus: <preencher-status>\narea:\n  - <preencher-area>\nvalidation:\n  required:\n    - make ci\n```\n";
-        let change = Change::parse_pr_body(body).unwrap();
+        let block = "schema: 1\nkind: <preencher-kind>\ntitle: <preencher-titulo>\nstatus: <preencher-status>\narea:\n  - <preencher-area>\nvalidation:\n  required:\n    - make ci\n";
+        let change = Change::parse_manifest(block).unwrap();
         match change.validate() {
             Err(ChangeError::TemplatePlaceholder { field, value }) => {
                 // Primeiro campo escaneado é `kind`.
@@ -1026,8 +906,8 @@ mod tests {
 
     #[test]
     fn template_placeholder_detected_in_area_item() {
-        let body = "```pinker-change\nschema: 1\nkind: hotfix\ntitle: Título real\nstatus: completed\narea:\n  - <territorio.ou.dominio>\nvalidation:\n  required:\n    - make ci\n```\n";
-        let change = Change::parse_pr_body(body).unwrap();
+        let block = "schema: 1\nkind: hotfix\ntitle: Título real\nstatus: completed\narea:\n  - <territorio.ou.dominio>\nvalidation:\n  required:\n    - make ci\n";
+        let change = Change::parse_manifest(block).unwrap();
         match change.validate() {
             Err(ChangeError::TemplatePlaceholder { field, value }) => {
                 assert_eq!(field, "area[0]");
@@ -1038,75 +918,35 @@ mod tests {
     }
 
     #[test]
-    fn missing_block_is_error() {
-        assert_eq!(
-            Change::parse_pr_body("sem bloco algum").unwrap_err(),
-            ChangeError::NoBlock
-        );
-    }
-
-    #[test]
-    fn yaml_roundtrip_is_idempotent() {
-        let mut change = Change::parse_pr_body(BODY).unwrap();
-        change.source = Some(Source {
-            kind: "github-pr".to_string(),
-            number: 341,
-            repository: Some("LyannaValerie/pinker-v0".to_string()),
-        });
-        let once = change.render_yaml();
-        let reparsed = Change::parse_block(&once).unwrap();
-        let twice = reparsed.render_yaml();
-        assert_eq!(once, twice);
-        assert!(once.contains("number: 341"));
-        assert!(once.contains("title: \"Biblioteca predeclarada"));
-    }
-
-    #[test]
-    fn yaml_text_scalars_use_canonical_json_subset_quoting() {
+    fn quoted_scalars_are_read_back_verbatim() {
+        // O acervo aceito guarda titulos e repositorios no subconjunto citado
+        // canonico; o leitor precisa devolver o texto original.
         let cases = [
-            "dois: pontos",
-            "hash # literal",
-            "aspas \"duplas\"",
-            "barra \\ invertida",
-            "linha\nseguinte",
-            "- leading dash",
-            "? leading question",
-            "null",
-            "true",
-            "1234",
-            "---",
-            "&anchor",
-            "*alias",
-            "!tag",
-            "controle\u{0001}",
+            ("dois: pontos", "\"dois: pontos\""),
+            ("hash # literal", "\"hash # literal\""),
+            ("aspas \"duplas\"", "\"aspas \\\"duplas\\\"\""),
+            ("barra \\ invertida", "\"barra \\\\ invertida\""),
+            ("linha\nseguinte", "\"linha\\nseguinte\""),
+            ("- leading dash", "\"- leading dash\""),
+            ("null", "\"null\""),
+            ("1234", "\"1234\""),
+            ("controle\u{0001}", "\"controle\\u0001\""),
         ];
 
-        for title in cases {
-            let change = Change {
-                schema: 1,
-                source: Some(Source {
-                    kind: "github-pr".to_string(),
-                    number: 411,
-                    repository: Some(format!("repo:{title}")),
-                }),
-                kind: "phase".to_string(),
-                title: title.to_string(),
-                status: "completed".to_string(),
-                ..Default::default()
-            };
-            let yaml = change.render_yaml();
-            let reparsed = Change::parse_block(&yaml).unwrap();
-            assert_eq!(reparsed.title, title, "{yaml}");
+        for (expected, encoded) in cases {
+            let block = format!(
+                "schema: 1\nsource:\n  type: github-pr\n  number: 411\n  repository: {encoded}\nkind: phase\ntitle: {encoded}\nstatus: completed\n"
+            );
+            let change = Change::parse_manifest(&block).unwrap();
+            assert_eq!(change.title, expected, "{block}");
             assert_eq!(
-                reparsed
+                change
                     .source
                     .as_ref()
                     .and_then(|source| source.repository.as_deref()),
-                Some(format!("repo:{title}").as_str()),
-                "{yaml}"
+                Some(expected),
+                "{block}"
             );
-            assert_eq!(reparsed.render_yaml(), yaml);
-            assert_eq!(reparsed.ledger_json(), change.ledger_json());
         }
     }
 
@@ -1201,7 +1041,7 @@ mod tests {
 
     #[test]
     fn ledger_line_has_pr_and_title() {
-        let mut change = Change::parse_pr_body(BODY).unwrap();
+        let mut change = Change::parse_manifest(MANIFEST).unwrap();
         change.source = Some(Source {
             kind: "github-pr".to_string(),
             number: 341,

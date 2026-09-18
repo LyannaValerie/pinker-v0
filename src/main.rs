@@ -144,16 +144,6 @@ struct ReplConfig;
 
 /// Subcomando de `pink doc` (Trama Pinker — Etapas 0 e 2).
 enum DocSub {
-    /// Aplica a política do marco a um número de PR; com `corpo`, importa o
-    /// bloco `pinker-change` e grava o manifesto versionado. Com `check`,
-    /// valida sem escrever (modo somente-leitura).
-    ImportarPr {
-        pr: u64,
-        corpo: Option<String>,
-        check: bool,
-        freeze: bool,
-        artifact: Option<String>,
-    },
     /// Exibe o marco documental configurado.
     Marco,
     /// Extrai uma seção ou documento pelo id semântico.
@@ -236,8 +226,6 @@ struct DoctorConfigCli {
 struct VerifyConfigCli {
     repo: String,
     diff: String,
-    documentation_frozen: bool,
-    corpo: Option<PathBuf>,
     json: bool,
 }
 
@@ -297,7 +285,7 @@ fn usage(program: &str) -> String {
           build       gera artefato textual `.s` em disco\n\
           editor      abre a TUI oficial mínima da Pinker (Fase 136)\n\
           repl        abre o REPL mínimo auditável (Fase 167)\n\
-          doc         ferramenta documental da Trama Pinker (marco / importação)\n\
+          doc         ferramenta documental da Trama Pinker (marco / navegação)\n\
           nav         navegação semântica do código da Trama Pinker\n\
            estado      estado consolidado somente leitura do projeto\n\
            doctor      identidade e compatibilidade operacional do pink\n\
@@ -331,7 +319,7 @@ fn doctor_usage(binary: &str) -> String {
 
 fn verify_usage(binary: &str) -> String {
     format!(
-        "Uso: {binary} verificar --diff REF [--repo DIRETÓRIO] [--documentation-frozen] [--corpo ARQUIVO] --json\n\
+        "Uso: {binary} verificar --diff REF [--repo DIRETÓRIO] --json\n\
          Compõe doctor, nav impacto, projeções, pinker-change e estado documental.\n"
     )
 }
@@ -415,10 +403,6 @@ fn doc_usage(binary: &str) -> String {
          \n\
          Subcomandos:\n\
            marco               exibe o marco documental configurado em {config}\n\
-           importar-pr N       aplica a política do marco a um PR (E-DOC-BASELINE);\n\
-                               com --corpo ARQUIVO, importa o bloco pinker-change\n\
-                               e grava .pinker/changes/pr-N.yaml;\n\
-                               com --check, valida sem escrever\n\
            mostrar ID          extrai a seção/documento pelo id semântico\n\
            listar TERRITÓRIO   lista documentos de um território (domain)\n\
            buscar CONSULTA     busca seções por id, título, tags, aliases, resumo\n\
@@ -428,10 +412,6 @@ fn doc_usage(binary: &str) -> String {
          \n\
          Opções:\n\
            --repo      raiz do repositório (padrão: .)\n\
-           --corpo     arquivo com o corpo do PR (para importar-pr)\n\
-           --check     valida sem escrever (importar-pr)\n\
-           --freeze    valida e preserva artifact sem mutar documentação canônica\n\
-           --artifact  destino obrigatório da evidência quando --freeze é usado\n\
            --json      saída estável em JSON (mostrar/buscar/rota/listar)\n\
            --limite N  máximo de resultados (1..20; rota=5, buscar=10)\n\
          \n\
@@ -584,12 +564,7 @@ fn run_doctor(config: DoctorConfigCli) -> i32 {
 }
 
 fn run_verify(config: VerifyConfigCli) -> i32 {
-    match tooling::collect_preflight(
-        Path::new(&config.repo),
-        &config.diff,
-        config.documentation_frozen,
-        config.corpo.as_deref(),
-    ) {
+    match tooling::collect_preflight(Path::new(&config.repo), &config.diff) {
         Ok(report) => {
             if config.json {
                 println!("{}", tooling::render_preflight_json(&report));
@@ -603,8 +578,6 @@ fn run_verify(config: VerifyConfigCli) -> i32 {
                     }
                 );
                 println!("blocking: {}", report.blocking.len());
-                println!("warnings: {}", report.warnings.len());
-                println!("expected_deferred: {}", report.expected_deferred.len());
             }
             tooling::preflight_exit_code(&report)
         }

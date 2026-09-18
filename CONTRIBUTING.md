@@ -190,20 +190,11 @@ make docs-check
 make nav-check
 ```
 
-Pull requests posteriores ao marco #330 usam o único bloco estruturado
-`pinker-change`. [O template de pull request](.github/pull_request_template.md)
-é a fonte operacional para seus campos, enums e sentinelas. O bloco permite que
-a automação valide e projete metadados sem interpretar a narrativa humana; ele
-não exige conhecer a arquitetura interna da Trama. Mantenha-o separado da
-narrativa e, se a classificação da mudança não estiver clara, peça decisão da
-manutenção. Com o número real do PR, importe-o por:
-
-```bash
-./ci_env.sh cargo run --bin pink -- doc importar-pr <n> --corpo <arquivo>
-```
-
-A política é forward-only: PRs de número menor ou igual a #330 não recebem
-backfill. A sincronização cabe a quem prepara a mudança; o CI apenas verifica.
+Um pull request não precisa carregar bloco estruturado algum. O diretório
+`.pinker/changes/` guarda um acervo histórico e finito de manifestos de mudança:
+ele cobre um intervalo antigo de PRs já encerrado e não recebe entrada nova. Os
+manifestos preservados continuam sendo lidos por `pink doc verificar` e pelas
+projeções documentais; o CI apenas verifica e nunca sincroniza sozinho.
 
 ## Commits e pull requests
 
@@ -215,8 +206,7 @@ No pull request, use o template existente e descreva:
 
 - o que mudou e por que a mudança é necessária;
 - decisões técnicas relevantes e limites honestos;
-- os comandos de validação executados e seus resultados;
-- o bloco `pinker-change`, conforme o template e o marco da Trama.
+- os comandos de validação executados e seus resultados.
 
 Um pull request é uma proposta para revisão; este guia não estabelece prazo de
 resposta nem garantia de merge.

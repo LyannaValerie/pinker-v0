@@ -1,7 +1,11 @@
 //! Testes de ponta a ponta da Etapa 0 (Marco) da Trama Pinker.
 //!
-//! Exercitam o binário `pink doc` real: política forward-only, código de erro
-//! `E-DOC-BASELINE` e exibição do marco.
+//! Exercitam o binário `pink doc` real: exibição do marco, erro de configuração
+//! ausente e a ausência definitiva da superfície de autoria de manifestos.
+//!
+//! POT/LPT: AUTHORITY #698
+//! POT/LPT: INVARIANT `pink doc` não possui subcomando de importação; o marco
+//! sobrevive como fronteira de leitura do acervo histórico.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -46,53 +50,6 @@ fn run_doc(root: &Path, args: &[&str]) -> std::process::Output {
 }
 
 #[test]
-fn importar_pr_anterior_ao_marco_e_rejeitado() {
-    let root = temp_repo("reject_before");
-    write_config(&root);
-
-    let out = run_doc(&root, &["importar-pr", "329"]);
-    let stderr = String::from_utf8_lossy(&out.stderr);
-
-    assert!(!out.status.success(), "PR anterior deve falhar");
-    assert!(stderr.contains("E-DOC-BASELINE"), "stderr: {stderr}");
-    assert!(
-        stderr.contains("O PR #329 é anterior ou igual ao marco documental #330."),
-        "stderr: {stderr}"
-    );
-    assert!(stderr.contains("PR #330, exclusivo"), "stderr: {stderr}");
-    fs::remove_dir_all(root).unwrap();
-}
-
-#[test]
-fn importar_pr_igual_ao_marco_e_rejeitado() {
-    let root = temp_repo("reject_equal");
-    write_config(&root);
-
-    let out = run_doc(&root, &["importar-pr", "330"]);
-    let stderr = String::from_utf8_lossy(&out.stderr);
-
-    assert!(!out.status.success(), "o próprio marco é exclusivo");
-    assert!(stderr.contains("E-DOC-BASELINE"), "stderr: {stderr}");
-    fs::remove_dir_all(root).unwrap();
-}
-
-#[test]
-fn importar_pr_posterior_ao_marco_e_elegivel() {
-    let root = temp_repo("accept_after");
-    write_config(&root);
-
-    let out = run_doc(&root, &["importar-pr", "331"]);
-    let stdout = String::from_utf8_lossy(&out.stdout);
-
-    assert!(out.status.success(), "PR posterior deve ser aceito");
-    assert!(
-        stdout.contains("elegível para importação"),
-        "stdout: {stdout}"
-    );
-    fs::remove_dir_all(root).unwrap();
-}
-
-#[test]
 fn marco_exibe_configuracao() {
     let root = temp_repo("marco");
     write_config(&root);
@@ -115,7 +72,7 @@ fn configuracao_ausente_falha_com_erro_claro() {
     let root = temp_repo("missing_config");
     fs::create_dir_all(&root).unwrap();
 
-    let out = run_doc(&root, &["importar-pr", "999"]);
+    let out = run_doc(&root, &["marco"]);
     let stderr = String::from_utf8_lossy(&out.stderr);
 
     assert!(!out.status.success());
@@ -123,12 +80,38 @@ fn configuracao_ausente_falha_com_erro_claro() {
     fs::remove_dir_all(root).unwrap();
 }
 
+/// Controle causal do corte de #698: a superfície de autoria não existe mais.
 #[test]
-fn numero_de_pr_invalido_e_rejeitado() {
-    let root = temp_repo("bad_number");
+fn importar_pr_nao_e_mais_um_subcomando() {
+    let root = temp_repo("no_import");
     write_config(&root);
 
-    let out = run_doc(&root, &["importar-pr", "abc"]);
-    assert!(!out.status.success());
+    let out = run_doc(&root, &["importar-pr", "331"]);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+
+    assert!(!out.status.success(), "stderr: {stderr}");
+    assert!(
+        !stderr.contains("elegível para importação"),
+        "stderr: {stderr}"
+    );
+    fs::remove_dir_all(root).unwrap();
+}
+
+/// A ajuda do comando não pode reanunciar a obrigação retirada.
+#[test]
+fn ajuda_de_doc_nao_menciona_autoria_de_manifesto() {
+    let root = temp_repo("help");
+    write_config(&root);
+
+    let out = run_doc(&root, &["--help"]);
+    let texto = format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+
+    for proibido in ["importar-pr", "pinker-change", "--corpo", "--freeze"] {
+        assert!(!texto.contains(proibido), "ajuda ainda cita '{proibido}'");
+    }
     fs::remove_dir_all(root).unwrap();
 }

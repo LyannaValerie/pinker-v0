@@ -5,7 +5,15 @@ use std::{
     process::Command,
 };
 
+// POT/LPT: AUTHORITY #698
+// POT/LPT: INVARIANT HISTORICAL_INTERVAL_IS_FINITE — a cobertura obrigatória
+// vale para os merges de PR alcançáveis a partir de `CUTOVER` e maiores que
+// `BASELINE_PR`. Nenhum merge posterior ao cutover deve manifesto ou exceção.
+// POT/LPT: MUST NOT estender o intervalo histórico para PRs novos.
+
+/// Marco documental: o próprio PR #330 é exclusivo.
 const BASELINE_PR: u64 = 330;
+/// Fim do intervalo histórico: merge do PR #410.
 const CUTOVER: &str = "1df2a6afff423bc7564e7322880e24af683f6089";
 
 /// Código do diagnóstico de clone raso.
@@ -262,15 +270,31 @@ fn clone_completo_nao_muda_de_comportamento() {
 }
 // @pinker-nav:end evidencia.hotfix.clone-raso-diagnostico
 
+/// O gate histórico roda sem rede; todo workflow que exista precisa materializar
+/// o histórico local. Um workflow inexistente não é um portão reprovado.
 #[test]
-fn workflows_disponibilizam_historico_local_completo() {
-    for workflow in [".github/workflows/ci.yml", ".github/workflows/trama.yml"] {
-        let text = fs::read_to_string(workflow).expect("ler workflow");
+fn workflows_existentes_disponibilizam_historico_local_completo() {
+    let mut checked = 0usize;
+    for entry in fs::read_dir(".github/workflows")
+        .expect("diretório de workflows presente")
+        .flatten()
+    {
+        let path = entry.path();
+        if !matches!(
+            path.extension().and_then(|e| e.to_str()),
+            Some("yml") | Some("yaml")
+        ) {
+            continue;
+        }
+        checked += 1;
+        let text = fs::read_to_string(&path).expect("ler workflow");
         assert!(
             text.contains("fetch-depth: 0"),
-            "{workflow} precisa materializar o histórico para o gate local sem rede"
+            "{} precisa materializar o histórico para o gate local sem rede",
+            path.display()
         );
     }
+    assert!(checked >= 1, "deve haver ao menos um workflow permanente");
 }
 
 #[test]
@@ -337,6 +361,82 @@ fn excecoes_sao_proibidas_depois_do_cutover() {
                 .lines()
                 .any(|line| line.contains(&format!("Merge pull request #{pr} "))),
             "exceção histórica posterior ao cutover para PR #{pr}"
+        );
+    }
+}
+
+/// Controle causal de #698 (M3/M7): todo merge posterior ao cutover fica fora da
+/// obrigação de cobertura. Um PR novo sem bloco `pinker-change` não produz
+/// manifesto, não produz exceção e não reprova o gate histórico.
+#[test]
+fn merges_posteriores_ao_cutover_nao_devem_cobertura() {
+    exigir_historico_completo();
+    let output = Command::new("git")
+        .args([
+            "log",
+            "--merges",
+            "--format=%H%x09%s",
+            &format!("{CUTOVER}..HEAD"),
+        ])
+        .output()
+        .expect("executar git log local");
+    assert!(output.status.success());
+    let text = String::from_utf8(output.stdout).expect("git log UTF-8");
+
+    let posteriores: Vec<u64> = text
+        .lines()
+        .filter_map(|line| {
+            let (_, subject) = line.split_once('\t')?;
+            let rest = subject.strip_prefix("Merge pull request #")?;
+            let digits = rest.bytes().take_while(u8::is_ascii_digit).count();
+            rest[..digits].parse::<u64>().ok()
+        })
+        .collect();
+    assert!(
+        !posteriores.is_empty(),
+        "o intervalo histórico precisa ser estritamente menor que a main atual"
+    );
+
+    let cobertos = reachable_merges();
+    for pr in &posteriores {
+        assert!(
+            !cobertos.contains_key(pr),
+            "PR #{pr} é posterior ao cutover e não pertence ao intervalo histórico"
+        );
+    }
+
+    // Nenhum backfill retroativo é exigido: o acervo cobre o intervalo finito,
+    // não a main inteira.
+    let manifests = manifest_prs();
+    assert!(
+        manifests.len() < posteriores.len() + cobertos.len(),
+        "o acervo não pode cobrir um-para-um todos os merges da main"
+    );
+}
+
+/// Controle causal de #698 (M1): dentro do intervalo finito preservado, cada PR
+/// continua coberto por exatamente uma forma aceita.
+#[test]
+fn intervalo_historico_preservado_e_finito_e_completo() {
+    exigir_historico_completo();
+    let merges = reachable_merges();
+    let manifests = manifest_prs();
+    let exceptions = exceptions();
+
+    assert!(
+        !merges.is_empty(),
+        "o intervalo histórico não pode ser vazio"
+    );
+    let maior = merges.keys().max().copied().expect("maior PR do intervalo");
+    assert!(
+        maior <= 410,
+        "o intervalo histórico terminou no merge do PR #410, veio #{maior}"
+    );
+
+    for &pr in merges.keys() {
+        assert!(
+            manifests.contains(&pr) ^ exceptions.contains_key(&pr),
+            "PR #{pr} precisa de exatamente uma forma de cobertura"
         );
     }
 }

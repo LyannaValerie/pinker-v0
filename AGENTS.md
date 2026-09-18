@@ -78,4 +78,9 @@ de produto; remover testes exclusivamente organizacionais é esperado.
 - Corpo estruturado válido e referências `Refs` às Issues relacionadas.
 - Exatamente um revisor read-only depois de todos os gates; registre a evidência
   em `<TASK_ROOT>/memory` ou `<TASK_ROOT>/artifacts`.
-- Após CI e Trama remotos verdes, pare em `PR_GREEN_AWAITING_HUMAN_DECISION`.
+- Os portões remotos exigidos são os workflows realmente configurados em
+  `.github/workflows/` que disparam no candidato. Workflow inexistente não é
+  portão reprovado; workflow que existe e falha continua sendo. Após esses
+  portões verdes, pare em `PR_GREEN_AWAITING_HUMAN_DECISION`.
+- Nenhum PR precisa de bloco `pinker-change`. O acervo `.pinker/changes/` é
+  histórico e finito, e não recebe manifesto novo.

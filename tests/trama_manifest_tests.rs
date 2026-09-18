@@ -1,5 +1,9 @@
-//! Trama Pinker — manifestos imutáveis e validação real de schema
-//! (§10, §11; §20 itens 15, 16, 17, 18).
+//! Trama Pinker — acervo histórico de manifestos: leitura, validação real de
+//! schema e detecção de adulteração (§10, §11; §20 itens 15, 16, 17, 18).
+//!
+//! POT/LPT: AUTHORITY #698
+//! POT/LPT: INVARIANT o acervo é histórico e finito; `pink doc` lê e valida os
+//! manifestos aceitos e nunca cria, reescreve ou sintetiza um manifesto novo.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -28,10 +32,10 @@ code_index = "src/navigation.jsonl"
 // @pinker-nav:start evidencia.trama.manifest.process-support
 // @pinker-nav:domain development
 // @pinker-nav:layer support
-// @pinker-nav:summary Helpers que montam corpos, repositórios temporários, arquivos, importações e configuração dos testes.
-fn body(title: &str, kind: &str, status: &str) -> String {
+// @pinker-nav:summary Helpers que montam manifestos aceitos, repositórios temporários, arquivos, processos doc e configuração dos testes.
+fn manifest(pr: u64, title: &str, kind: &str, status: &str) -> String {
     format!(
-        "## Resumo\ntexto\n\n```pinker-change\nschema: 1\nkind: {kind}\ntitle: {title}\nstatus: {status}\narea:\n  - language.result\n```\n"
+        "schema: 1\nsource:\n  type: github-pr\n  number: {pr}\n  repository: LyannaValerie/pinker-v0\nkind: {kind}\ntitle: {title}\narea:\n  - language.result\nstatus: {status}\n"
     )
 }
 
@@ -49,18 +53,10 @@ fn write(root: &Path, rel: &str, content: &str) {
     fs::write(path, content).unwrap();
 }
 
-fn import(root: &Path, pr: &str, body_rel: &str) -> std::process::Output {
-    import_with_mode(root, pr, body_rel, false)
-}
-
-fn import_with_mode(root: &Path, pr: &str, body_rel: &str, check: bool) -> std::process::Output {
-    let body_path = root.join(body_rel).to_string_lossy().to_string();
-    let mut command = Command::new(env!("CARGO_BIN_EXE_pink"));
-    command.args(["doc", "importar-pr", pr, "--corpo", &body_path]);
-    if check {
-        command.arg("--check");
-    }
-    command
+fn doc(root: &Path, args: &[&str]) -> std::process::Output {
+    Command::new(env!("CARGO_BIN_EXE_pink"))
+        .arg("doc")
+        .args(args)
         .arg("--repo")
         .arg(root)
         .output()
@@ -70,240 +66,163 @@ fn import_with_mode(root: &Path, pr: &str, body_rel: &str, check: bool) -> std::
 fn setup(root: &Path) {
     write(root, ".pinker/doc.toml", DOC_TOML);
 }
+
+/// Grava um manifesto aceito e sincroniza o histórico mecânico derivado.
+fn acervo(root: &Path, pr: u64, content: &str) {
+    setup(root);
+    write(root, &format!(".pinker/changes/pr-{pr}.yaml"), content);
+    let sync = doc(root, &["sincronizar"]);
+    assert!(
+        sync.status.success(),
+        "{}",
+        String::from_utf8_lossy(&sync.stderr)
+    );
+}
 // @pinker-nav:end evidencia.trama.manifest.process-support
 
-// @pinker-nav:start evidencia.trama.manifest.idempotence-immutability
+// @pinker-nav:start evidencia.trama.manifest.historical-read
 // @pinker-nav:domain development
 // @pinker-nav:layer evidence
-// @pinker-nav:summary Evidência de idempotência para conteúdo igual e imutabilidade para conteúdo divergente.
+// @pinker-nav:summary Evidência de que os manifestos aceitos permanecem legíveis, verificáveis e byte a byte intactos, e de que sincronizar não inventa manifesto para PR nenhum.
 #[test]
-fn manifesto_idempotente_com_conteudo_igual() {
-    let root = temp_repo("idem");
-    setup(&root);
-    write(&root, "a.md", &body("Resultado", "phase", "completed"));
+fn manifesto_aceito_permanece_legivel_e_verificavel() {
+    let root = temp_repo("read");
+    let original = manifest(341, "Título real", "phase", "completed");
+    acervo(&root, 341, &original);
 
-    assert!(import(&root, "341", "a.md").status.success());
-    let first = fs::read_to_string(root.join(".pinker/changes/pr-341.yaml")).unwrap();
-    let second = import(&root, "341", "a.md");
-    assert!(second.status.success());
-    let again = fs::read_to_string(root.join(".pinker/changes/pr-341.yaml")).unwrap();
-    assert_eq!(first, again);
-
-    fs::remove_dir_all(root).unwrap();
-}
-
-#[test]
-fn manifesto_imutavel_com_conteudo_diferente() {
-    let root = temp_repo("immutable");
-    setup(&root);
-    write(&root, "a.md", &body("Resultado", "phase", "completed"));
-    write(&root, "b.md", &body("Outro Titulo", "phase", "completed"));
-
-    assert!(import(&root, "341", "a.md").status.success());
-    let before = fs::read_to_string(root.join(".pinker/changes/pr-341.yaml")).unwrap();
-
-    // Reimportar o MESMO PR com corpo diferente deve falhar e não reescrever.
-    let out = import(&root, "341", "b.md");
-    assert!(!out.status.success());
-    assert!(String::from_utf8_lossy(&out.stderr).contains("E-CHANGE-IMMUTABLE"));
-    let after = fs::read_to_string(root.join(".pinker/changes/pr-341.yaml")).unwrap();
-    assert_eq!(before, after, "manifesto imutável não pode mudar");
-
-    fs::remove_dir_all(root).unwrap();
-}
-
-#[test]
-fn pr411_legado_e_bloco_atual_sao_idempotentes_sem_reescrita() {
-    const LEGACY: &str = "schema: 1\nsource:\n  type: github-pr\n  number: 411\n  repository: LyannaValerie/pinker-v0\nkind: phase\nphase: 248\nblock: 20\ntitle: Uniões estruturais tagged\narea:\n  - language.inline-assembly\n  - language.union-types\n  - runtime.integer-semantics\n  - runtime.public-memory\n  - development.test-integrity\nstatus: completed\nupdates:\n  state: true\n  history: true\n  roadmap: true\nvalidation:\n  required:\n    - make ci\n";
-    const CURRENT_BODY: &str = "```pinker-change\nschema: 1\nkind: phase\nphase: 248\nblock: 20\ntitle: Uniões estruturais tagged\nstatus: completed\narea:\n  - language.inline-assembly\n  - language.union-types\n  - runtime.integer-semantics\n  - runtime.public-memory\n  - development.test-integrity\nupdates:\n  state: true\n  history: true\n  roadmap: true\nvalidation:\n  required:\n    - make ci\n```\n";
-
-    let root = temp_repo("pr411_legacy");
-    setup(&root);
-    write(&root, "body.md", CURRENT_BODY);
-    write(&root, ".pinker/changes/pr-411.yaml", LEGACY);
-    let before = fs::read(root.join(".pinker/changes/pr-411.yaml")).unwrap();
-
-    let checked = import_with_mode(&root, "411", "body.md", true);
+    let verify = doc(&root, &["verificar"]);
     assert!(
-        checked.status.success(),
+        verify.status.success(),
         "{}",
-        String::from_utf8_lossy(&checked.stderr)
-    );
-    assert_eq!(
-        before,
-        fs::read(root.join(".pinker/changes/pr-411.yaml")).unwrap()
+        String::from_utf8_lossy(&verify.stderr)
     );
 
-    let mutable = import_with_mode(&root, "411", "body.md", false);
-    assert!(
-        mutable.status.success(),
-        "{}",
-        String::from_utf8_lossy(&mutable.stderr)
-    );
-    assert_eq!(
-        before,
-        fs::read(root.join(".pinker/changes/pr-411.yaml")).unwrap()
-    );
+    // Bytes do manifesto aceito preservados.
+    let on_disk = fs::read_to_string(root.join(".pinker/changes/pr-341.yaml")).unwrap();
+    assert_eq!(on_disk, original);
+
+    // Histórico mecânico derivado do acervo, e só dele.
+    let ledger = fs::read_to_string(root.join(".pinker/changes/index.jsonl")).unwrap();
+    assert!(ledger.contains("\"pr\":341"), "{ledger}");
+    assert_eq!(ledger.lines().count(), 1, "{ledger}");
+
     fs::remove_dir_all(root).unwrap();
 }
 
 #[test]
-fn toda_mudanca_estrutural_permanece_imutavel() {
-    const BODY: &str = "```pinker-change\nschema: 1\nkind: phase\nphase: 248\nblock: 20\ntitle: Entrega canônica\narea:\n  - language.alpha\n  - runtime.beta\nstatus: completed\nupdates:\n  state: true\n  history: false\nsections:\n  implemented:\n    - feature.ready\n  pending_remove:\n    - feature.legacy\nvalidation:\n  required:\n    - make ci\n    - cargo test\n```\n";
-    const EXISTING: &str = "schema: 1\nsource:\n  type: github-pr\n  number: 411\n  repository: LyannaValerie/pinker-v0\nkind: phase\nphase: 248\nblock: 20\ntitle: Entrega canônica\narea:\n  - language.alpha\n  - runtime.beta\nstatus: completed\nupdates:\n  state: true\n  history: false\nsections:\n  implemented:\n    - feature.ready\n  pending_remove:\n    - feature.legacy\nvalidation:\n  required:\n    - make ci\n    - cargo test\n";
-    let cases = [
-        ("schema", EXISTING.replacen("schema: 1", "schema: 2", 1)),
-        (
-            "repository",
-            EXISTING.replace(
-                "repository: LyannaValerie/pinker-v0",
-                "repository: LyannaValerie/outro",
-            ),
-        ),
-        ("number", EXISTING.replace("number: 411", "number: 412")),
-        (
-            "kind",
-            EXISTING.replace("\nkind: phase\n", "\nkind: hotfix\n"),
-        ),
-        ("phase", EXISTING.replace("phase: 248", "phase: 247")),
-        ("block", EXISTING.replace("block: 20", "block: 19")),
-        (
-            "title",
-            EXISTING.replace("title: Entrega canônica", "title: Entrega alterada"),
-        ),
-        (
-            "area",
-            EXISTING.replace("  - runtime.beta", "  - runtime.gamma"),
-        ),
-        (
-            "area_order",
-            EXISTING.replace(
-                "  - language.alpha\n  - runtime.beta",
-                "  - runtime.beta\n  - language.alpha",
-            ),
-        ),
-        (
-            "status",
-            EXISTING.replace("status: completed", "status: planned"),
-        ),
-        (
-            "updates",
-            EXISTING.replace("  history: false", "  history: true"),
-        ),
-        (
-            "sections",
-            EXISTING.replace("  - feature.ready", "  - feature.changed"),
-        ),
-        (
-            "validation",
-            EXISTING.replace("    - cargo test", "    - cargo check"),
-        ),
-    ];
+fn sincronizar_nao_sintetiza_manifesto_novo() {
+    let root = temp_repo("no_synth");
+    acervo(
+        &root,
+        341,
+        &manifest(341, "Título real", "phase", "completed"),
+    );
 
-    for (name, existing) in cases {
-        let root = temp_repo(name);
-        setup(&root);
-        write(&root, "body.md", BODY);
-        write(&root, ".pinker/changes/pr-411.yaml", &existing);
-        let before = fs::read(root.join(".pinker/changes/pr-411.yaml")).unwrap();
-        let out = import_with_mode(&root, "411", "body.md", false);
-        assert_eq!(out.status.code(), Some(5), "{name}");
-        assert!(
-            String::from_utf8_lossy(&out.stderr).contains("E-CHANGE-IMMUTABLE"),
-            "{name}: {}",
-            String::from_utf8_lossy(&out.stderr)
-        );
-        assert_eq!(
-            before,
-            fs::read(root.join(".pinker/changes/pr-411.yaml")).unwrap(),
-            "{name}"
-        );
-        fs::remove_dir_all(root).unwrap();
-    }
+    // Uma segunda sincronização não pode fabricar manifesto para PR algum.
+    assert!(doc(&root, &["sincronizar"]).status.success());
+    let mut nomes: Vec<String> = fs::read_dir(root.join(".pinker/changes"))
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().to_string())
+        .collect();
+    nomes.sort();
+    assert_eq!(nomes, vec!["index.jsonl", "pr-341.yaml"], "{nomes:?}");
+
+    fs::remove_dir_all(root).unwrap();
 }
+// @pinker-nav:end evidencia.trama.manifest.historical-read
 
-#[test]
-fn manifesto_existente_invalido_falha_fechado_sem_reescrita() {
-    const BODY: &str = "```pinker-change\nschema: 1\nkind: phase\nphase: 248\nblock: 20\ntitle: Entrega canônica\narea:\n  - language.alpha\nstatus: completed\n```\n";
-    const VALID: &str = "schema: 1\nsource:\n  type: github-pr\n  number: 411\n  repository: LyannaValerie/pinker-v0\nkind: phase\nphase: 248\nblock: 20\ntitle: Entrega canônica\narea:\n  - language.alpha\nstatus: completed\n";
-    let cases = [
-        ("malformed", "schema: 1\nsource\n".to_string()),
-        (
-            "invalid_escape",
-            VALID.replace("title: Entrega canônica", "title: \"Entrega\\q\""),
-        ),
-        (
-            "unknown",
-            VALID.replace("  repository:", "  unknown: value\n  repository:"),
-        ),
-        (
-            "source",
-            VALID.replace("type: github-pr", "type: delegated-input"),
-        ),
-        ("schema", VALID.replacen("schema: 1", "schema: 9", 1)),
-        ("filename", VALID.replace("number: 411", "number: 412")),
-    ];
-
-    for (name, existing) in cases {
-        let root = temp_repo(name);
-        setup(&root);
-        write(&root, "body.md", BODY);
-        write(&root, ".pinker/changes/pr-411.yaml", &existing);
-        let before = fs::read(root.join(".pinker/changes/pr-411.yaml")).unwrap();
-        let out = import_with_mode(&root, "411", "body.md", false);
-        assert_eq!(out.status.code(), Some(5), "{name}");
-        assert!(String::from_utf8_lossy(&out.stderr).contains("E-CHANGE-IMMUTABLE"));
-        assert_eq!(
-            before,
-            fs::read(root.join(".pinker/changes/pr-411.yaml")).unwrap(),
-            "{name}"
-        );
-        fs::remove_dir_all(root).unwrap();
-    }
-}
-// @pinker-nav:end evidencia.trama.manifest.idempotence-immutability
-
-// @pinker-nav:start evidencia.trama.manifest.enum-validation
+// @pinker-nav:start evidencia.trama.manifest.tamper-detection
 // @pinker-nav:domain development
 // @pinker-nav:layer evidence
-// @pinker-nav:summary Evidência de rejeição dos valores inválidos dos enums kind e status.
+// @pinker-nav:summary Evidência de que adulterar o payload aceito, o histórico mecânico ou o marco do acervo é detectado por pink doc verificar com E-DOC-VERIFY.
 #[test]
-fn enum_de_kind_invalido_falha() {
-    let root = temp_repo("kind");
-    setup(&root);
-    write(&root, "a.md", &body("Titulo", "banana", "completed"));
-    let out = import(&root, "341", "a.md");
-    assert!(!out.status.success());
-    assert!(String::from_utf8_lossy(&out.stderr).contains("E-CHANGE-SCHEMA"));
-    assert!(!root.join(".pinker/changes/pr-341.yaml").exists());
+fn payload_adulterado_e_detectado() {
+    let root = temp_repo("tamper_payload");
+    acervo(
+        &root,
+        341,
+        &manifest(341, "Título real", "phase", "completed"),
+    );
+
+    write(
+        &root,
+        ".pinker/changes/pr-341.yaml",
+        &manifest(341, "Título real", "banana", "completed"),
+    );
+    let verify = doc(&root, &["verificar"]);
+    assert!(!verify.status.success());
+    let stderr = String::from_utf8_lossy(&verify.stderr);
+    assert!(stderr.contains("E-DOC-VERIFY"), "{stderr}");
+    assert!(stderr.contains("E-CHANGE-SCHEMA"), "{stderr}");
+
     fs::remove_dir_all(root).unwrap();
 }
 
 #[test]
-fn enum_de_status_invalido_falha() {
-    let root = temp_repo("status");
-    setup(&root);
-    write(&root, "a.md", &body("Titulo", "phase", "talvez"));
-    let out = import(&root, "341", "a.md");
-    assert!(!out.status.success());
-    assert!(String::from_utf8_lossy(&out.stderr).contains("E-CHANGE-SCHEMA"));
-    fs::remove_dir_all(root).unwrap();
-}
-// @pinker-nav:end evidencia.trama.manifest.enum-validation
+fn historico_mecanico_adulterado_e_detectado() {
+    let root = temp_repo("tamper_ledger");
+    acervo(
+        &root,
+        341,
+        &manifest(341, "Título real", "phase", "completed"),
+    );
 
-// @pinker-nav:start evidencia.trama.manifest.unknown-field
-// @pinker-nav:domain development
-// @pinker-nav:layer evidence
-// @pinker-nav:summary Evidência de rejeição de campo desconhecido no manifesto de mudança.
-#[test]
-fn campo_desconhecido_falha() {
-    let root = temp_repo("unknown");
-    setup(&root);
-    let body = "## Resumo\ntexto\n\n```pinker-change\nschema: 1\nkind: phase\ntitle: Titulo\nstatus: completed\nbanana: 42\n```\n";
-    write(&root, "a.md", body);
-    let out = import(&root, "341", "a.md");
-    assert!(!out.status.success());
-    assert!(String::from_utf8_lossy(&out.stderr).contains("E-CHANGE-SCHEMA"));
+    write(&root, ".pinker/changes/index.jsonl", "{\"schema\":1}\n");
+    let verify = doc(&root, &["verificar"]);
+    assert!(!verify.status.success());
+    let stderr = String::from_utf8_lossy(&verify.stderr);
+    assert!(stderr.contains("dessincronizado"), "{stderr}");
+
     fs::remove_dir_all(root).unwrap();
 }
-// @pinker-nav:end evidencia.trama.manifest.unknown-field
+
+#[test]
+fn numero_interno_divergente_e_detectado() {
+    let root = temp_repo("tamper_number");
+    setup(&root);
+    write(
+        &root,
+        ".pinker/changes/pr-341.yaml",
+        &manifest(342, "Título real", "phase", "completed"),
+    );
+    let verify = doc(&root, &["verificar"]);
+    assert!(!verify.status.success());
+    let stderr = String::from_utf8_lossy(&verify.stderr);
+    assert!(stderr.contains("E-CHANGE-NUMBER"), "{stderr}");
+
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn manifesto_anterior_ao_marco_e_recusado_na_leitura() {
+    let root = temp_repo("baseline");
+    setup(&root);
+    write(
+        &root,
+        ".pinker/changes/pr-329.yaml",
+        &manifest(329, "Antigo", "phase", "completed"),
+    );
+    let verify = doc(&root, &["verificar"]);
+    assert!(!verify.status.success());
+    let stderr = String::from_utf8_lossy(&verify.stderr);
+    assert!(stderr.contains("E-DOC-BASELINE"), "{stderr}");
+    assert!(stderr.contains("manifesto pr-329"), "{stderr}");
+
+    fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn campo_desconhecido_e_detectado() {
+    let root = temp_repo("tamper_field");
+    setup(&root);
+    let mut corrompido = manifest(341, "Título real", "phase", "completed");
+    corrompido.push_str("banana: 42\n");
+    write(&root, ".pinker/changes/pr-341.yaml", &corrompido);
+    let verify = doc(&root, &["verificar"]);
+    assert!(!verify.status.success());
+    let stderr = String::from_utf8_lossy(&verify.stderr);
+    assert!(stderr.contains("E-CHANGE-SCHEMA"), "{stderr}");
+
+    fs::remove_dir_all(root).unwrap();
+}
+// @pinker-nav:end evidencia.trama.manifest.tamper-detection

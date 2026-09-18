@@ -17,9 +17,8 @@ use crate::nav::{self, CodeCatalog};
 use crate::nav_coverage;
 use crate::project_state::{self, DomainDetails, DomainId, StateStatus};
 use std::collections::BTreeSet;
-use std::fs;
 use std::io::Read;
-use std::path::{Component, Path, PathBuf};
+use std::path::Path;
 use std::process::{Command, Stdio};
 
 /// Versão do contrato JSON das ferramentas de apoio.
@@ -29,7 +28,7 @@ use std::process::{Command, Stdio};
 /// necessidade de override de projeção, uma capacidade que não existe mais;
 /// mantê-lo respondendo `UNKNOWN` com lista vazia simularia um comportamento
 /// aposentado em vez de relatar o que é verdade agora.
-pub const TOOLING_SCHEMA: u64 = 2;
+pub const TOOLING_SCHEMA: u64 = 3;
 pub const AVAILABLE_SUBCOMMANDS: &[&str] = &[
     "build",
     "doc",
@@ -525,192 +524,12 @@ pub fn render_impact_json(report: &ImpactReport) -> String {
 }
 // @pinker-nav:end tooling.f1.impact
 
-// @pinker-nav:start tooling.f1.freeze-import
-// @pinker-nav:domain tooling
-// @pinker-nav:layer documentation
-// @pinker-nav:summary Importação freeze-aware que reutiliza change e doc verification, preserva artifact idempotente e impede escrita nas autoridades documentais congeladas.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FreezeImportClassification {
-    ValidatedDeferredByFreeze,
-    InvalidManifest,
-    UnexpectedDocumentaryInconsistency,
-}
-
-impl FreezeImportClassification {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            FreezeImportClassification::ValidatedDeferredByFreeze => "VALIDATED_DEFERRED_BY_FREEZE",
-            FreezeImportClassification::InvalidManifest => "INVALID_MANIFEST",
-            FreezeImportClassification::UnexpectedDocumentaryInconsistency => {
-                "UNEXPECTED_DOCUMENTARY_INCONSISTENCY"
-            }
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FreezeImportReport {
-    pub classification: FreezeImportClassification,
-    pub pr: u64,
-    pub artifact: Option<String>,
-    pub detail: String,
-}
-
-fn normalize_lexical(path: &Path) -> Result<PathBuf, String> {
-    let mut out = PathBuf::new();
-    for component in path.components() {
-        match component {
-            Component::Prefix(_) | Component::RootDir | Component::Normal(_) => out.push(component),
-            Component::CurDir => {}
-            Component::ParentDir => {
-                if !out.pop() {
-                    return Err("artifact escapa da raiz lexical".to_string());
-                }
-            }
-        }
-    }
-    Ok(out)
-}
-
-fn artifact_path(repo: &Path, raw: &Path) -> Result<PathBuf, String> {
-    let absolute = if raw.is_absolute() {
-        raw.to_path_buf()
-    } else {
-        repo.join(raw)
-    };
-    let normalized = normalize_lexical(&absolute)?;
-    if let Ok(relative) = normalized.strip_prefix(repo) {
-        let first = relative
-            .components()
-            .next()
-            .and_then(|component| match component {
-                Component::Normal(value) => value.to_str(),
-                _ => None,
-            });
-        if matches!(first, Some("docs" | ".pinker" | "README.md" | "MANUAL.md")) {
-            return Err("artifact aponta para autoridade documental congelada".to_string());
-        }
-    }
-    Ok(normalized)
-}
-
-fn preserve_artifact(path: &Path, bytes: &[u8]) -> Result<(), String> {
-    if path.exists() {
-        let existing = fs::read(path).map_err(|error| error.to_string())?;
-        return if existing == bytes {
-            Ok(())
-        } else {
-            Err("artifact existente possui conteúdo diferente".to_string())
-        };
-    }
-    let parent = path
-        .parent()
-        .ok_or_else(|| "artifact não possui diretório pai".to_string())?;
-    fs::create_dir_all(parent).map_err(|error| error.to_string())?;
-    let temporary = parent.join(format!(
-        ".{}.tmp-{}",
-        path.file_name()
-            .and_then(|value| value.to_str())
-            .unwrap_or("pink-artifact"),
-        std::process::id()
-    ));
-    fs::write(&temporary, bytes).map_err(|error| error.to_string())?;
-    match fs::rename(&temporary, path) {
-        Ok(()) => Ok(()),
-        Err(error) => {
-            let _ = fs::remove_file(&temporary);
-            Err(error.to_string())
-        }
-    }
-}
-
-pub fn freeze_import(
-    repo: &Path,
-    config: &DocConfig,
-    pr: u64,
-    body_path: &Path,
-    artifact: &Path,
-) -> FreezeImportReport {
-    let invalid = |detail: String| FreezeImportReport {
-        classification: FreezeImportClassification::InvalidManifest,
-        pr,
-        artifact: None,
-        detail,
-    };
-    let body = match fs::read_to_string(body_path) {
-        Ok(body) => body,
-        Err(error) => return invalid(format!("falha ao ler corpo: {error}")),
-    };
-    let mut manifest = match change::Change::parse_pr_body(&body) {
-        Ok(manifest) => manifest,
-        Err(error) => return invalid(error.to_string()),
-    };
-    if let Err(error) = manifest.validate() {
-        return invalid(error.to_string());
-    }
-    let verification = match doc::verify_repository(repo, config) {
-        Ok(verification) => verification,
-        Err(error) => {
-            return FreezeImportReport {
-                classification: FreezeImportClassification::UnexpectedDocumentaryInconsistency,
-                pr,
-                artifact: None,
-                detail: error.to_string(),
-            }
-        }
-    };
-    if !verification.is_ok() {
-        return FreezeImportReport {
-            classification: FreezeImportClassification::UnexpectedDocumentaryInconsistency,
-            pr,
-            artifact: None,
-            detail: format!(
-                "verificação documental vigente possui {} inconsistência(s)",
-                verification.total_errors()
-            ),
-        };
-    }
-    manifest.source = Some(change::Source {
-        kind: "github-pr".to_string(),
-        number: pr,
-        repository: config.github.repository.clone(),
-    });
-    let output = manifest.render_yaml();
-    let path = match artifact_path(repo, artifact) {
-        Ok(path) => path,
-        Err(detail) => return invalid(detail),
-    };
-    if let Err(detail) = preserve_artifact(&path, output.as_bytes()) {
-        return invalid(detail);
-    }
-    FreezeImportReport {
-        classification: FreezeImportClassification::ValidatedDeferredByFreeze,
-        pr,
-        artifact: Some(path.to_string_lossy().into_owned()),
-        detail: "pinker-change válido; evidência preservada sem mutar documentação congelada"
-            .to_string(),
-    }
-}
-
-pub fn render_freeze_import_json(report: &FreezeImportReport) -> String {
-    format!(
-        "{{\"schema\":{TOOLING_SCHEMA},\"classification\":{},\"pr\":{},\"artifact\":{},\"canonical_documentation_mutated\":false,\"detail\":{}}}",
-        json_string(report.classification.as_str()),
-        report.pr,
-        report
-            .artifact
-            .as_deref()
-            .map(json_string)
-            .unwrap_or_else(|| "null".to_string()),
-        json_string(&report.detail),
-    )
-}
-// @pinker-nav:end tooling.f1.freeze-import
-
 // @pinker-nav:start tooling.f1.unified-preflight
 // @pinker-nav:domain tooling
 // @pinker-nav:layer preflight
-// @pinker-nav:summary Preflight único que compõe doctor, impacto, projeções, pinker-change, estado documental e freeze em blocking, warnings, deferred e ações recomendadas antes de make ci.
+// @pinker-nav:summary Preflight único que compõe doctor, impacto, projeções e estado documental em blocking, warnings, deferred e ações recomendadas antes de make ci.
+// POT/LPT: AUTHORITY #698
+// POT/LPT: INVARIANT ausência de bloco `pinker-change` não é achado do preflight.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Finding {
     pub id: String,
@@ -723,25 +542,15 @@ pub struct PreflightReport {
     pub impact: Option<ImpactReport>,
     pub impact_error: Option<String>,
     pub projection_validation: String,
-    pub pinker_change: String,
     pub documentary_state: String,
     pub blocking: Vec<Finding>,
-    pub warnings: Vec<Finding>,
-    pub expected_deferred: Vec<Finding>,
     pub recommended_actions: Vec<String>,
 }
 
-pub fn collect_preflight(
-    repo: &Path,
-    diff: &str,
-    documentation_frozen: bool,
-    body: Option<&Path>,
-) -> Result<PreflightReport, String> {
+pub fn collect_preflight(repo: &Path, diff: &str) -> Result<PreflightReport, String> {
     let root = RepoRoot::discover(repo).map_err(|error| error.to_string())?;
     let doctor = collect_doctor(root.path())?;
     let mut blocking = Vec::new();
-    let mut warnings = Vec::new();
-    let mut expected_deferred = Vec::new();
     let mut recommended = BTreeSet::new();
     if !doctor.compatibility.usable() {
         blocking.push(Finding {
@@ -789,59 +598,13 @@ pub fn collect_preflight(
         "INCONSISTENT"
     }
     .to_string();
-    let pinker_change = if let Some(body_path) = body {
-        match fs::read_to_string(body_path)
-            .map_err(|error| error.to_string())
-            .and_then(|body| {
-                change::Change::parse_pr_body(&body).map_err(|error| error.to_string())
-            })
-            .and_then(|manifest| {
-                manifest
-                    .validate()
-                    .map(|_| ())
-                    .map_err(|error| error.to_string())
-            }) {
-            Ok(()) => {
-                if documentation_frozen {
-                    expected_deferred.push(Finding {
-                        id: "pinker_change_import".to_string(),
-                        detail: "VALIDATED_DEFERRED_BY_FREEZE".to_string(),
-                    });
-                }
-                "VALID"
-            }
-            Err(error) => {
-                blocking.push(Finding {
-                    id: "invalid_pinker_change".to_string(),
-                    detail: error,
-                });
-                "INVALID"
-            }
-        }
-    } else {
-        warnings.push(Finding {
-            id: "pinker_change_body_unavailable".to_string(),
-            detail: "use --corpo para validar o corpo local da PR".to_string(),
-        });
-        "UNAVAILABLE"
-    }
-    .to_string();
-    if !documentation_frozen {
-        warnings.push(Finding {
-            id: "documentation_freeze_not_declared".to_string(),
-            detail: "o preflight não classificará obrigações documentais como deferred".to_string(),
-        });
-    }
     Ok(PreflightReport {
         projection_validation: doctor.projection_state.clone(),
         doctor,
         impact,
         impact_error,
-        pinker_change,
         documentary_state,
         blocking,
-        warnings,
-        expected_deferred,
         recommended_actions: recommended.into_iter().collect(),
     })
 }
@@ -861,12 +624,10 @@ fn render_findings(findings: &[Finding]) -> String {
 }
 
 pub fn render_preflight_json(report: &PreflightReport) -> String {
-    let status = if !report.blocking.is_empty() {
-        "BLOCKED"
-    } else if !report.warnings.is_empty() {
-        "WARNING"
-    } else {
+    let status = if report.blocking.is_empty() {
         "READY"
+    } else {
+        "BLOCKED"
     };
     let impact = report
         .impact
@@ -874,11 +635,9 @@ pub fn render_preflight_json(report: &PreflightReport) -> String {
         .map(render_impact_json)
         .unwrap_or_else(|| "null".to_string());
     format!(
-        "{{\"schema\":{TOOLING_SCHEMA},\"status\":{},\"blocking\":[{}],\"warnings\":[{}],\"expected_deferred\":[{}],\"recommended_actions\":[{}],\"doctor\":{},\"navigation_impact\":{},\"navigation_impact_error\":{},\"projection_validation\":{},\"pinker_change\":{},\"documentary_state\":{}}}",
+        "{{\"schema\":{TOOLING_SCHEMA},\"status\":{},\"blocking\":[{}],\"recommended_actions\":[{}],\"doctor\":{},\"navigation_impact\":{},\"navigation_impact_error\":{},\"projection_validation\":{},\"documentary_state\":{}}}",
         json_string(status),
         render_findings(&report.blocking),
-        render_findings(&report.warnings),
-        render_findings(&report.expected_deferred),
         json_strings(&report.recommended_actions),
         render_doctor_json(&report.doctor),
         impact,
@@ -888,7 +647,6 @@ pub fn render_preflight_json(report: &PreflightReport) -> String {
             .map(json_string)
             .unwrap_or_else(|| "null".to_string()),
         json_string(&report.projection_validation),
-        json_string(&report.pinker_change),
         json_string(&report.documentary_state),
     )
 }

@@ -3,19 +3,18 @@
 #[path = "common/fonte_de_modulo.rs"]
 mod fonte_de_modulo;
 
-use pinker_v0::doc::DocConfig;
-use pinker_v0::tooling::{self, FreezeImportClassification};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::{Command, Output};
 use std::time::{SystemTime, UNIX_EPOCH};
-
-const VALID_BODY: &str = "## Resumo\nF1 de tooling.\n\n```pinker-change\nschema: 1\nkind: parallel-phase\ntitle: Pink bootstrap preflight\nstatus: completed\narea:\n  - development.tooling\nupdates:\n  state: false\n  history: false\n  roadmap: false\nvalidation:\n  required:\n    - make ci\n```\n";
 
 // @pinker-nav:start evidencia.tooling.f1.contracts
 // @pinker-nav:domain tooling
 // @pinker-nav:layer evidence
-// @pinker-nav:summary Contratos positivos, negativos e de sensibilidade para doctor, nav impacto, import freeze-aware, preflight composto e lifecycle do baseline publicado.
+// @pinker-nav:summary Contratos positivos, negativos e de sensibilidade para doctor, nav impacto, preflight composto e lifecycle do baseline publicado.
+// POT/LPT: AUTHORITY #698
+// POT/LPT: INVARIANT o preflight não conhece bloco `pinker-change`: a ausência
+// dele nunca é achado, bloqueante ou não.
 
 fn root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -108,7 +107,7 @@ fn nav_impacto_diff_vazio_e_known_no_schema_migrado() {
         String::from_utf8_lossy(&output.stderr)
     );
     let json = stdout(&output);
-    assert!(json.contains("\"schema\":2"), "{json}");
+    assert!(json.contains("\"schema\":3"), "{json}");
     assert!(json.contains("\"changed_files\":[]"), "{json}");
     assert!(
         json.contains("\"changed_regions\":{\"status\":\"KNOWN\",\"reason\":null,\"items\":[]}")
@@ -176,7 +175,7 @@ fn nav_impacto_diff_real_expoe_relacoes_correntes_sem_campo_aposentado() {
     // A migração de schema é parte do contrato: o campo de override de projeção
     // foi retirado com a capacidade, e não renomeado nem preenchido com nulo.
     assert!(
-        json.contains("\"schema\":2"),
+        json.contains("\"schema\":3"),
         "PINK_BEHAVIOR_FAILURE: {json}"
     );
     assert!(
@@ -198,131 +197,34 @@ fn nav_impacto_rejeita_ref_com_opcao_ou_espaco() {
 }
 
 #[test]
-fn importar_pr_freeze_preserva_artifact_sem_mutar_autoridade() {
-    let directory = temp("freeze");
-    fs::create_dir_all(&directory).unwrap();
-    let body = directory.join("body.md");
-    let artifact = directory.join("pr-454.yaml");
-    fs::write(&body, VALID_BODY).unwrap();
-    let ledger = root().join("docs/history/changes.md");
-    let ledger_before = fs::read(&ledger).unwrap();
-    let canonical = root().join(".pinker/changes/pr-454.yaml");
-    assert!(!canonical.exists());
-    let output = run(&[
-        "doc",
-        "importar-pr",
-        "454",
-        "--corpo",
-        &body.to_string_lossy(),
-        "--freeze",
-        "--artifact",
-        &artifact.to_string_lossy(),
-        "--repo",
-        &root().to_string_lossy(),
-        "--json",
-    ]);
-    assert!(
-        output.status.success(),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let json = stdout(&output);
-    assert!(json.contains("\"classification\":\"VALIDATED_DEFERRED_BY_FREEZE\""));
-    assert!(json.contains("\"canonical_documentation_mutated\":false"));
-    assert!(artifact.is_file());
-    assert!(!canonical.exists());
-    assert_eq!(fs::read(&ledger).unwrap(), ledger_before);
-}
-
-#[test]
-fn importar_pr_freeze_invalido_nao_cria_artifact() {
-    let directory = temp("invalid");
-    fs::create_dir_all(&directory).unwrap();
-    let body = directory.join("body.md");
-    let artifact = directory.join("artifact.yaml");
-    fs::write(&body, "sem bloco pinker-change\n").unwrap();
-    let output = run(&[
-        "doc",
-        "importar-pr",
-        "454",
-        "--corpo",
-        &body.to_string_lossy(),
-        "--freeze",
-        "--artifact",
-        &artifact.to_string_lossy(),
-        "--repo",
-        &root().to_string_lossy(),
-        "--json",
-    ]);
-    assert_eq!(output.status.code(), Some(5));
-    assert!(stdout(&output).contains("\"classification\":\"INVALID_MANIFEST\""));
-    assert!(!artifact.exists());
-}
-
-#[test]
-fn freeze_classifica_inconsistencia_documental_inesperada() {
-    let directory = temp("inconsistent");
-    fs::create_dir_all(&directory).unwrap();
-    let body = directory.join("body.md");
-    let artifact = directory.join("artifact.yaml");
-    fs::write(&body, VALID_BODY).unwrap();
-    let config = DocConfig::load(&root()).unwrap();
-    let report = tooling::freeze_import(&directory, &config, 454, &body, &artifact);
-    assert_eq!(
-        report.classification,
-        FreezeImportClassification::UnexpectedDocumentaryInconsistency
-    );
-    assert!(!artifact.exists());
-}
-
-#[test]
-fn freeze_rejeita_artifact_em_autoridade_canonica() {
-    let directory = temp("canonical");
-    fs::create_dir_all(&directory).unwrap();
-    let body = directory.join("body.md");
-    fs::write(&body, VALID_BODY).unwrap();
-    let config = DocConfig::load(&root()).unwrap();
-    let artifact = root().join("docs/pr-454.yaml");
-    let report = tooling::freeze_import(&root(), &config, 454, &body, &artifact);
-    assert_eq!(
-        report.classification,
-        FreezeImportClassification::InvalidManifest
-    );
-    assert!(!artifact.exists());
-}
-
-#[test]
-fn preflight_unificado_compoe_campos_e_deferred() {
-    let directory = temp("preflight");
-    fs::create_dir_all(&directory).unwrap();
-    let body = directory.join("body.md");
-    fs::write(&body, VALID_BODY).unwrap();
+fn preflight_unificado_compoe_campos_do_schema_migrado() {
     let output = run(&[
         "verificar",
         "--diff",
         "origin/main",
-        "--documentation-frozen",
-        "--corpo",
-        &body.to_string_lossy(),
         "--repo",
         &root().to_string_lossy(),
         "--json",
     ]);
     let json = stdout(&output);
+    assert!(json.contains("\"schema\":3"), "{json}");
     for field in [
         "blocking",
-        "warnings",
-        "expected_deferred",
         "recommended_actions",
         "doctor",
         "navigation_impact",
         "projection_validation",
-        "pinker_change",
         "documentary_state",
     ] {
         assert!(json.contains(&format!("\"{field}\":")), "{field}: {json}");
     }
-    assert!(json.contains("VALIDATED_DEFERRED_BY_FREEZE"), "{json}");
+    // Campos aposentados com a autoria de manifestos (#698).
+    for retirado in ["pinker_change", "expected_deferred", "warnings"] {
+        assert!(
+            !json.contains(&format!("\"{retirado}\":")),
+            "{retirado} ainda exposto: {json}"
+        );
+    }
     if option_env!("PINKER_BUILD_COMMIT").is_some() {
         assert!(
             output.status.success(),
@@ -332,27 +234,25 @@ fn preflight_unificado_compoe_campos_e_deferred() {
     }
 }
 
+/// Controle causal de #698: sem bloco `pinker-change` em lugar nenhum, o
+/// preflight de um candidato saudável continua READY.
 #[test]
-fn preflight_manifesto_invalido_bloqueia_antes_de_ci() {
-    let directory = temp("preflight-invalid");
-    fs::create_dir_all(&directory).unwrap();
-    let body = directory.join("body.md");
-    fs::write(&body, "inválido\n").unwrap();
+fn preflight_sem_bloco_pinker_change_nao_bloqueia() {
     let output = run(&[
         "verificar",
         "--diff",
         "HEAD...HEAD",
-        "--documentation-frozen",
-        "--corpo",
-        &body.to_string_lossy(),
         "--repo",
         &root().to_string_lossy(),
         "--json",
     ]);
-    assert_eq!(output.status.code(), Some(1));
     let json = stdout(&output);
-    assert!(json.contains("\"status\":\"BLOCKED\""));
-    assert!(json.contains("invalid_pinker_change"));
+    assert!(!json.contains("pinker_change"), "{json}");
+    if option_env!("PINKER_BUILD_COMMIT").is_some() {
+        assert_eq!(output.status.code(), Some(0), "{json}");
+        assert!(json.contains("\"status\":\"READY\""), "{json}");
+        assert!(json.contains("\"blocking\":[]"), "{json}");
+    }
 }
 
 #[test]
@@ -362,10 +262,12 @@ fn sensitivity_mantem_composicao_em_uma_autoridade() {
     assert!(main.contains("tooling::collect_doctor"));
     assert!(main.contains("tooling::collect_impact"));
     assert!(main.contains("tooling::collect_preflight"));
-    assert!(main.contains("tooling::freeze_import"));
+    assert!(!main.contains("tooling::freeze_import"));
     assert_eq!(tooling.matches("diff_coverage::analyze(").count(), 1);
     assert_eq!(tooling.matches("project_state::collect(").count(), 1);
-    assert_eq!(tooling.matches("change::Change::parse_pr_body").count(), 2);
+    // POT/LPT: INVARIANT o tooling lê o acervo histórico e não conhece autoria.
+    assert_eq!(tooling.matches("change::Manifests::load").count(), 1);
+    assert_eq!(tooling.matches("parse_pr_body").count(), 0);
     assert!(!tooling.contains("Command::new(\"sh\")"));
     assert!(!tooling.contains("Command::new(\"bash\")"));
 }
@@ -375,43 +277,11 @@ fn cli_rejeita_flags_incompletas_e_mistura_de_modos() {
     for args in [
         vec!["nav", "impacto", "--json"],
         vec!["verificar", "--json"],
-        vec!["doc", "importar-pr", "454", "--freeze"],
-        vec![
-            "doc",
-            "importar-pr",
-            "454",
-            "--check",
-            "--freeze",
-            "--corpo",
-            "x",
-            "--artifact",
-            "y",
-        ],
+        vec!["verificar", "--diff", "HEAD", "--corpo", "x"],
+        vec!["doc", "importar-pr", "454"],
     ] {
         assert_eq!(run(&args).status.code(), Some(2), "{args:?}");
     }
 }
 
-#[test]
-fn artifact_path_relative_fora_de_docs_e_aceito_lexicalmente() {
-    let directory = temp("relative");
-    fs::create_dir_all(&directory).unwrap();
-    let body = directory.join("body.md");
-    fs::write(&body, VALID_BODY).unwrap();
-    let config = DocConfig::load(&root()).unwrap();
-    let report = tooling::freeze_import(
-        &root(),
-        &config,
-        454,
-        &body,
-        Path::new("build/f1-artifact.yaml"),
-    );
-    assert_eq!(
-        report.classification,
-        FreezeImportClassification::ValidatedDeferredByFreeze
-    );
-    let artifact = root().join("build/f1-artifact.yaml");
-    assert!(artifact.is_file());
-    fs::remove_file(artifact).unwrap();
-}
 // @pinker-nav:end evidencia.tooling.f1.contracts

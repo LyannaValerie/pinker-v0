@@ -115,10 +115,6 @@ fn parse_repl_args(binary: &str, args: &[String]) -> Result<ReplConfig, String> 
 
 fn parse_doc_args(binary: &str, args: &[String]) -> Result<DocConfigCli, String> {
     let mut repo = ".".to_string();
-    let mut corpo: Option<String> = None;
-    let mut check = false;
-    let mut freeze = false;
-    let mut artifact: Option<String> = None;
     let mut json = false;
     let mut limite: Option<usize> = None;
     let mut subcommand: Option<String> = None;
@@ -138,28 +134,6 @@ fn parse_doc_args(binary: &str, args: &[String]) -> Result<DocConfigCli, String>
                     ));
                 }
                 repo.clone_from(&args[i]);
-            }
-            "--corpo" => {
-                i += 1;
-                if i >= args.len() {
-                    return Err(format!(
-                        "Flag '--corpo' requer um caminho de arquivo.\n\n{}",
-                        doc_usage(binary)
-                    ));
-                }
-                corpo = Some(args[i].clone());
-            }
-            "--check" => check = true,
-            "--freeze" => freeze = true,
-            "--artifact" => {
-                i += 1;
-                if i >= args.len() {
-                    return Err(format!(
-                        "Flag '--artifact' requer um caminho de arquivo.\n\n{}",
-                        doc_usage(binary)
-                    ));
-                }
-                artifact = Some(args[i].clone());
             }
             "--json" => json = true,
             "--limite" => {
@@ -224,37 +198,6 @@ fn parse_doc_args(binary: &str, args: &[String]) -> Result<DocConfigCli, String>
     };
 
     let sub = match subcommand.as_str() {
-        "importar-pr" => {
-            let raw = require_one("importar-pr")?;
-            let pr = raw.parse::<u64>().map_err(|_| {
-                format!("Número de PR inválido: '{}'\n\n{}", raw, doc_usage(binary))
-            })?;
-            if freeze && check {
-                return Err(format!(
-                    "Use --freeze ou --check, não ambos.\n\n{}",
-                    doc_usage(binary)
-                ));
-            }
-            if freeze && (corpo.is_none() || artifact.is_none()) {
-                return Err(format!(
-                    "--freeze exige --corpo e --artifact.\n\n{}",
-                    doc_usage(binary)
-                ));
-            }
-            if !freeze && artifact.is_some() {
-                return Err(format!(
-                    "--artifact exige --freeze.\n\n{}",
-                    doc_usage(binary)
-                ));
-            }
-            DocSub::ImportarPr {
-                pr,
-                corpo,
-                check,
-                freeze,
-                artifact,
-            }
-        }
         "marco" => {
             require_none("marco")?;
             DocSub::Marco
@@ -740,14 +683,12 @@ fn parse_doctor_args(binary: &str, args: &[String]) -> Result<DoctorConfigCli, S
 fn parse_verify_args(binary: &str, args: &[String]) -> Result<VerifyConfigCli, String> {
     let mut repo: Option<String> = None;
     let mut diff: Option<String> = None;
-    let mut corpo: Option<PathBuf> = None;
-    let mut documentation_frozen = false;
     let mut json = false;
     let mut i = 0usize;
     while i < args.len() {
         match args[i].as_str() {
             "--help" | "-h" => return Err(verify_usage(binary)),
-            "--repo" | "--diff" | "--corpo" => {
+            "--repo" | "--diff" => {
                 let flag = args[i].clone();
                 i += 1;
                 if i >= args.len() {
@@ -760,7 +701,6 @@ fn parse_verify_args(binary: &str, args: &[String]) -> Result<VerifyConfigCli, S
                 match flag.as_str() {
                     "--repo" if repo.is_none() => repo = Some(args[i].clone()),
                     "--diff" if diff.is_none() => diff = Some(args[i].clone()),
-                    "--corpo" if corpo.is_none() => corpo = Some(PathBuf::from(&args[i])),
                     _ => {
                         return Err(format!(
                             "A opção '{}' não pode ser repetida.\n\n{}",
@@ -770,9 +710,8 @@ fn parse_verify_args(binary: &str, args: &[String]) -> Result<VerifyConfigCli, S
                     }
                 }
             }
-            "--documentation-frozen" if !documentation_frozen => documentation_frozen = true,
             "--json" if !json => json = true,
-            "--documentation-frozen" | "--json" => {
+            "--json" => {
                 return Err(format!(
                     "A opção '{}' não pode ser repetida.\n\n{}",
                     args[i],
@@ -798,8 +737,6 @@ fn parse_verify_args(binary: &str, args: &[String]) -> Result<VerifyConfigCli, S
     Ok(VerifyConfigCli {
         repo: repo.unwrap_or_else(|| ".".to_string()),
         diff,
-        documentation_frozen,
-        corpo,
         json,
     })
 }
