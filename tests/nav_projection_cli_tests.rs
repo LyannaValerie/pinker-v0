@@ -2331,6 +2331,56 @@ fn h2_regra_existente_troca_a_guarda_de_hash_e_preserva_o_destino_antigo() {
 }
 
 #[test]
+fn h2b_identidade_sobre_regra_com_hash_preserva_o_destino_mais_antigo() {
+    // É a classe das duas regiões que a TL/#681 já tinha coberto: a entrada
+    // restaura identidade **e** hash, e a regra existente já carrega um destino
+    // histórico mais velho que o par declarado. A regra reconciliada nasce
+    // inteira, e o destino velho é o que fica.
+    let repo = TempRepo::full("hash-identity-existing");
+    repo.trust_main();
+    const CORRENTE: &str = "ast.statements.form";
+    let antes = fs::read_to_string(recipe_path(&repo)).unwrap();
+    let destino_antigo =
+        hash_rule_field(&antes, HASH_COM_REGRA, "to_hash").expect("a fixture já restaura hash");
+    let historico_hash = rehash_in_catalog(&repo, HASH_COM_REGRA, HASH_POS_TL);
+    rename_in_catalog(&repo, HASH_COM_REGRA, CORRENTE, None);
+    let congelados_antes = frozen_bytes(&repo);
+
+    let map = write_hash_map(
+        &repo,
+        &format!(
+            "\n[[rename]]\ncurrent_key = \"{CORRENTE}\"\nhistorical_key = \"{HASH_COM_REGRA}\"\ncurrent_hash = \"{HASH_POS_TL}\"\nhistorical_hash = \"{historico_hash}\"\n"
+        ),
+    );
+    let plano = reconcile(&repo, Some(&map), None);
+    assert_eq!(plano.status.code(), Some(0), "{}", stderr(&plano));
+    let json = stdout(&plano);
+    let aplicado = reconcile(&repo, Some(&map), Some(&digest(&json)));
+    assert_eq!(aplicado.status.code(), Some(0), "{}", stdout(&aplicado));
+
+    let depois = fs::read_to_string(recipe_path(&repo)).unwrap();
+    assert_eq!(rule_blocks(&depois, CORRENTE), 1);
+    assert_eq!(
+        hash_rule_field(&depois, CORRENTE, "to_key").as_deref(),
+        Some(HASH_COM_REGRA)
+    );
+    // A guarda passa a ser o `current_hash` declarado pelo mapa...
+    assert_eq!(
+        hash_rule_field(&depois, CORRENTE, "from_hash").as_deref(),
+        Some(HASH_POS_TL)
+    );
+    // ...e o destino histórico mais antigo continua byte a byte o mesmo.
+    assert_eq!(
+        hash_rule_field(&depois, CORRENTE, "to_hash").as_deref(),
+        Some(destino_antigo.as_str())
+    );
+    assert_ne!(destino_antigo, historico_hash);
+    let verificado = projection(&repo, &["verificar", "--json"]);
+    assert_eq!(verificado.status.code(), Some(0), "{}", stderr(&verificado));
+    assert_eq!(frozen_bytes(&repo), congelados_antes);
+}
+
+#[test]
 fn h3_mapa_que_discorda_do_hash_da_regra_existente_recusa_antes_de_escrever() {
     let repo = TempRepo::full("hash-contradiction");
     repo.trust_main();
