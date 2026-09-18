@@ -547,7 +547,7 @@ pub(crate) fn validate_id(value: &str, field: &str) -> Result<(), HarnessFailure
     Ok(())
 }
 
-fn validate_hash(value: &str, field: &str) -> Result<u64, HarnessFailure> {
+pub(crate) fn validate_hash(value: &str, field: &str) -> Result<u64, HarnessFailure> {
     let invalid = || HarnessFailure::HashInvalid {
         field: field.to_string(),
         value: value.to_string(),

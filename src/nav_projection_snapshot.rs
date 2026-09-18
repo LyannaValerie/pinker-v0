@@ -52,7 +52,7 @@ use std::fmt;
 mod parser;
 pub(crate) use parser::{
     build_rule, optional_list, optional_text, parse_raw, parse_raw_with_array, reject_unknown,
-    require_integer, require_text, sort_rules, validate_id, Table,
+    require_integer, require_text, sort_rules, validate_hash, validate_id, Table,
 };
 pub use parser::{parse, validate_rules};
 

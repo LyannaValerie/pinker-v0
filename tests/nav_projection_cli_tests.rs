@@ -2162,3 +2162,780 @@ fn c11b_a_impressao_digital_distingue_os_dois_lados_do_par_de_summary() {
     assert_ne!(impressao(&base), impressao(&outro_historico));
     assert_ne!(impressao(&outro_corrente), impressao(&outro_historico));
 }
+
+// TH/#695 — ponte explícita do hash corrente para o hash histórico.
+//
+// `hash` é o quarto campo medido que uma renomeação corrente move sem tocar na
+// identidade: migrar um literal de chave reescreve o corpo das regiões que
+// citam aquela chave. A receita preserva um destino histórico que já exista e
+// não tem de onde inventar um que ninguém escreveu, então as regiões sem regra
+// de hash ficavam sem rota autorizada nenhuma. Estes casos fixam a capacidade e,
+// principalmente, o que ela não é: hash não é identidade, o par nunca é
+// inferido, o destino mais antigo nunca é sobrescrito e a transição não
+// reintroduz dependência de ordem.
+
+/// Região participante cuja regra de receita **já** restaura hash: a guarda é o
+/// hash corrente e o destino é um estado histórico mais antigo.
+const HASH_COM_REGRA: &str = "ast.comandos.representacao";
+
+/// Região participante que regra nenhuma nomeia. É uma das quatro do blocker
+/// real da TL/#681.
+const HASH_SEM_REGRA: &str = "evidencia.trama.nav-catalog.fixture-config";
+
+/// Hash que a migração da TL produziu para `HASH_SEM_REGRA`, lido da evidência
+/// preservada da TL.
+const HASH_POS_TL: &str = "fnv1a64:f6320b22a35a0d86";
+
+fn write_hash_map(repo: &TempRepo, corpo: &str) -> PathBuf {
+    let path = repo.path().join("hash-renames.toml");
+    fs::write(&path, format!("schema = 3\n{corpo}")).unwrap();
+    path
+}
+
+/// Reescreve o hash corrente de uma região, como faria a mudança de corpo que a
+/// migração da TL provoca. Devolve o hash anterior.
+fn rehash_in_catalog(repo: &TempRepo, key: &str, novo: &str) -> String {
+    let anterior = catalog_field(repo, key, "hash");
+    retag_in_catalog(repo, key, "hash", novo);
+    anterior
+}
+
+/// Entrada de mapa que declara só o par de hash.
+fn hash_entry(key: &str, corrente: &str, historico: &str) -> String {
+    format!(
+        "\n[[rename]]\ncurrent_key = \"{key}\"\ncurrent_hash = \"{corrente}\"\nhistorical_hash = \"{historico}\"\n"
+    )
+}
+
+/// Valor de um campo dentro do bloco de regra que restaura hash.
+fn hash_rule_field(recipe: &str, key: &str, campo: &str) -> Option<String> {
+    recipe
+        .split("[[rules]]")
+        .filter(|bloco| seleciona(bloco, key))
+        .find(|bloco| bloco.contains("from_hash = "))
+        .and_then(|bloco| {
+            bloco.lines().find_map(|linha| {
+                linha
+                    .strip_prefix(&format!("{campo} = \""))
+                    .and_then(|resto| resto.strip_suffix('"'))
+                    .map(str::to_string)
+            })
+        })
+}
+
+#[test]
+fn h1_regiao_sem_regra_de_hash_ganha_a_ponte_e_os_treze_frozen_voltam_a_bater() {
+    let repo = TempRepo::full("hash-bridge-new");
+    repo.trust_main();
+    let historico = rehash_in_catalog(&repo, HASH_SEM_REGRA, HASH_POS_TL);
+    let recipe = recipe_path(&repo);
+    let antes = fs::read_to_string(&recipe).unwrap();
+    let congelados_antes = frozen_bytes(&repo);
+    let regras_antes = rule_blocks(&antes, HASH_SEM_REGRA);
+    let orcamento_antes = expected_overrides(&antes);
+    assert_eq!(regras_antes, 0, "a fixture precisa de região sem regra");
+
+    // A mudança de corpo sozinha já quebra a reconstrução: é o blocker real.
+    let quebrado = projection(&repo, &["verificar", "--json"]);
+    assert_ne!(quebrado.status.code(), Some(0), "{}", stdout(&quebrado));
+
+    let map = write_hash_map(&repo, &hash_entry(HASH_SEM_REGRA, HASH_POS_TL, &historico));
+
+    // Planejar é determinístico e não escreve byte nenhum.
+    let plano = reconcile(&repo, Some(&map), None);
+    assert_eq!(plano.status.code(), Some(0), "{}", stderr(&plano));
+    let repetido = reconcile(&repo, Some(&map), None);
+    assert_eq!(plano.stdout, repetido.stdout);
+    assert_eq!(fs::read_to_string(&recipe).unwrap(), antes);
+    assert_eq!(frozen_bytes(&repo), congelados_antes);
+    let json = stdout(&plano);
+    assert!(json.contains("planned_allowed_mutation=recipe.new_override_region"));
+    assert!(json.contains("restores_hash=true"), "{json}");
+
+    // Digest obsoleto não autoriza.
+    let obsoleto = reconcile(&repo, Some(&map), Some(&"0".repeat(64)));
+    assert_eq!(obsoleto.status.code(), Some(8), "{}", stdout(&obsoleto));
+    assert_eq!(fs::read_to_string(&recipe).unwrap(), antes);
+
+    let aplicado = reconcile(&repo, Some(&map), Some(&digest(&json)));
+    assert_eq!(aplicado.status.code(), Some(0), "{}", stdout(&aplicado));
+    let depois = fs::read_to_string(&recipe).unwrap();
+
+    assert_eq!(rule_blocks(&depois, HASH_SEM_REGRA), 1);
+    assert_eq!(expected_overrides(&depois), orcamento_antes + 1);
+    assert_eq!(
+        hash_rule_field(&depois, HASH_SEM_REGRA, "from_hash").as_deref(),
+        Some(HASH_POS_TL)
+    );
+    assert_eq!(
+        hash_rule_field(&depois, HASH_SEM_REGRA, "to_hash").as_deref(),
+        Some(historico.as_str())
+    );
+    // H8: restaurar hash não restaura identidade.
+    assert_eq!(hash_rule_field(&depois, HASH_SEM_REGRA, "to_key"), None);
+    assert_eq!(hash_rule_field(&depois, HASH_SEM_REGRA, "to_domain"), None);
+    assert_eq!(hash_rule_field(&depois, HASH_SEM_REGRA, "to_layer"), None);
+    assert_eq!(hash_rule_field(&depois, HASH_SEM_REGRA, "to_summary"), None);
+
+    // H21: os treze voltam a MATCH e nenhum byte FROZEN foi tocado.
+    let verificado = projection(&repo, &["verificar", "--json"]);
+    assert_eq!(verificado.status.code(), Some(0), "{}", stderr(&verificado));
+    assert!(!stdout(&verificado).contains("\"outcome\":\"DRIFT\""));
+    assert_eq!(frozen_bytes(&repo), congelados_antes);
+}
+
+#[test]
+fn h2_regra_existente_troca_a_guarda_de_hash_e_preserva_o_destino_antigo() {
+    let repo = TempRepo::full("hash-bridge-existing");
+    repo.trust_main();
+    let recipe = recipe_path(&repo);
+    let antes = fs::read_to_string(&recipe).unwrap();
+    let destino_antigo = hash_rule_field(&antes, HASH_COM_REGRA, "to_hash")
+        .expect("a região de fixture já restaura hash");
+    let historico = rehash_in_catalog(&repo, HASH_COM_REGRA, HASH_POS_TL);
+    assert_eq!(
+        hash_rule_field(&antes, HASH_COM_REGRA, "from_hash").as_deref(),
+        Some(historico.as_str()),
+        "a guarda existente é o hash imediatamente anterior"
+    );
+    assert_ne!(
+        destino_antigo, historico,
+        "o destino existente precisa ser um estado mais antigo que o pré-TL"
+    );
+    let congelados_antes = frozen_bytes(&repo);
+    let regras_antes = rule_blocks(&antes, HASH_COM_REGRA);
+
+    let map = write_hash_map(&repo, &hash_entry(HASH_COM_REGRA, HASH_POS_TL, &historico));
+    let plano = reconcile(&repo, Some(&map), None);
+    assert_eq!(plano.status.code(), Some(0), "{}", stderr(&plano));
+    let json = stdout(&plano);
+    assert!(json.contains("to_hash=PRESERVED"), "{json}");
+    let aplicado = reconcile(&repo, Some(&map), Some(&digest(&json)));
+    assert_eq!(aplicado.status.code(), Some(0), "{}", stdout(&aplicado));
+
+    let depois = fs::read_to_string(&recipe).unwrap();
+    assert_eq!(rule_blocks(&depois, HASH_COM_REGRA), regras_antes);
+    assert_eq!(
+        hash_rule_field(&depois, HASH_COM_REGRA, "from_hash").as_deref(),
+        Some(HASH_POS_TL)
+    );
+    // O `historical_hash` do mapa é o estado imediatamente anterior, não o
+    // destino terminal: o destino que a regra já tinha é mais antigo e fica.
+    assert_eq!(
+        hash_rule_field(&depois, HASH_COM_REGRA, "to_hash").as_deref(),
+        Some(destino_antigo.as_str())
+    );
+    let verificado = projection(&repo, &["verificar", "--json"]);
+    assert_eq!(verificado.status.code(), Some(0), "{}", stderr(&verificado));
+    assert_eq!(frozen_bytes(&repo), congelados_antes);
+}
+
+#[test]
+fn h3_mapa_que_discorda_do_hash_da_regra_existente_recusa_antes_de_escrever() {
+    let repo = TempRepo::full("hash-contradiction");
+    repo.trust_main();
+    rehash_in_catalog(&repo, HASH_COM_REGRA, HASH_POS_TL);
+    let recipe = recipe_path(&repo);
+    let antes = fs::read(&recipe).unwrap();
+
+    // O operador declara um histórico que não é o que a regra guarda. Uma das
+    // duas afirmações está errada e escolher entre elas seria decidir história.
+    let map = write_hash_map(
+        &repo,
+        &hash_entry(HASH_COM_REGRA, HASH_POS_TL, "fnv1a64:0123456789abcdef"),
+    );
+    let saida = reconcile(&repo, Some(&map), None);
+    assert_eq!(saida.status.code(), Some(7), "{}", stdout(&saida));
+    let json = stdout(&saida);
+    assert!(json.contains("MAPPING_CONTRADICTS_AUTHORITY"), "{json}");
+    assert!(json.contains("from_hash="), "{json}");
+    assert_eq!(fs::read(&recipe).unwrap(), antes);
+}
+
+#[test]
+fn h4_current_hash_que_nao_e_o_do_catalogo_recusa_antes_de_escrever() {
+    let repo = TempRepo::full("hash-stale-guard");
+    repo.trust_main();
+    let historico = rehash_in_catalog(&repo, HASH_SEM_REGRA, HASH_POS_TL);
+    let recipe = recipe_path(&repo);
+    let antes = fs::read(&recipe).unwrap();
+
+    let map = write_hash_map(
+        &repo,
+        &hash_entry(HASH_SEM_REGRA, "fnv1a64:0123456789abcdef", &historico),
+    );
+    let saida = reconcile(&repo, Some(&map), None);
+    assert_eq!(saida.status.code(), Some(7), "{}", stdout(&saida));
+    let json = stdout(&saida);
+    assert!(json.contains("MAPPING_GUARD_STALE"), "{json}");
+    assert!(json.contains("current_hash"), "{json}");
+    assert_eq!(fs::read(&recipe).unwrap(), antes);
+}
+
+#[test]
+fn h5_par_de_hash_pela_metade_recusa_no_parse() {
+    for corpo in [
+        format!("\n[[rename]]\ncurrent_key = \"{HASH_SEM_REGRA}\"\ncurrent_hash = \"{HASH_POS_TL}\"\n"),
+        format!("\n[[rename]]\ncurrent_key = \"{HASH_SEM_REGRA}\"\nhistorical_hash = \"{HASH_POS_TL}\"\n"),
+    ] {
+        let repo = TempRepo::full("hash-half-pair");
+        repo.trust_main();
+        let recipe = recipe_path(&repo);
+        let antes = fs::read(&recipe).unwrap();
+        let map = write_hash_map(&repo, &corpo);
+
+        let saida = reconcile(&repo, Some(&map), None);
+        assert_eq!(saida.status.code(), Some(7), "{}", stdout(&saida));
+        assert!(
+            stdout(&saida).contains("RENAME_MAP_INVALID"),
+            "{}",
+            stdout(&saida)
+        );
+        assert_eq!(fs::read(&recipe).unwrap(), antes);
+    }
+}
+
+#[test]
+fn h6_hash_igual_dos_dois_lados_recusa_como_restauracao_vazia() {
+    let repo = TempRepo::full("hash-noop");
+    repo.trust_main();
+    let corrente = catalog_field(&repo, HASH_SEM_REGRA, "hash");
+    let recipe = recipe_path(&repo);
+    let antes = fs::read(&recipe).unwrap();
+    let map = write_hash_map(&repo, &hash_entry(HASH_SEM_REGRA, &corrente, &corrente));
+
+    let saida = reconcile(&repo, Some(&map), None);
+    assert_eq!(saida.status.code(), Some(7), "{}", stdout(&saida));
+    assert!(
+        stdout(&saida).contains("RENAME_MAP_INVALID"),
+        "{}",
+        stdout(&saida)
+    );
+    assert_eq!(fs::read(&recipe).unwrap(), antes);
+}
+
+#[test]
+fn h7_hash_malformado_recusa_no_parse() {
+    let repo = TempRepo::full("hash-malformed");
+    repo.trust_main();
+    let recipe = recipe_path(&repo);
+    let antes = fs::read(&recipe).unwrap();
+    for valor in [
+        // Sem o prefixo canônico.
+        "4b67c90d1cb5f96a",
+        // Quinze dígitos.
+        "fnv1a64:4b67c90d1cb5f9",
+        // Dezessete dígitos.
+        "fnv1a64:4b67c90d1cb5f96a0",
+        // Hexadecimal maiúsculo.
+        "fnv1a64:4B67C90D1CB5F96A",
+        // Não hexadecimal.
+        "fnv1a64:zzzzzzzzzzzzzzzz",
+        // Outro algoritmo.
+        "sha256:4b67c90d1cb5f96a",
+    ] {
+        let map = write_hash_map(&repo, &hash_entry(HASH_SEM_REGRA, valor, HASH_POS_TL));
+        let saida = reconcile(&repo, Some(&map), None);
+        assert_eq!(saida.status.code(), Some(7), "{valor}: {}", stdout(&saida));
+        let json = stdout(&saida);
+        assert!(json.contains("RENAME_MAP_INVALID"), "{valor}: {json}");
+        assert!(json.contains("hash inv"), "{valor}: {json}");
+        assert_eq!(fs::read(&recipe).unwrap(), antes);
+    }
+}
+
+/// Troca a ordem textual das duas regras que selecionam a mesma região.
+///
+/// A ordem de escrita é do autor da receita; o resultado da reconciliação não
+/// pode ser.
+fn swap_rule_order(repo: &TempRepo, key: &str) {
+    let path = recipe_path(repo);
+    let texto = fs::read_to_string(&path).unwrap();
+    let mut partes: Vec<String> = texto.split("[[rules]]").map(str::to_string).collect();
+    let alvos: Vec<usize> = partes
+        .iter()
+        .enumerate()
+        .filter(|(indice, bloco)| *indice > 0 && seleciona(bloco, key))
+        .map(|(indice, _)| indice)
+        .collect();
+    let [primeiro, segundo] = alvos.as_slice() else {
+        panic!("esperava exatamente duas regras para {key}");
+    };
+    partes.swap(*primeiro, *segundo);
+    fs::write(path, partes.join("[[rules]]")).unwrap();
+}
+
+#[test]
+fn h8_mapa_so_de_hash_nao_toca_identidade_nem_funde_regra_que_atravessa_a_transicao() {
+    let repo = TempRepo::full("hash-not-identity");
+    repo.trust_main();
+    let historico = rehash_in_catalog(&repo, HASH_COM_REGRA, HASH_POS_TL);
+    let historico_summary = translate_summary(&repo, HASH_COM_REGRA, SUMMARY_TRADUZIDO);
+    // Uma segunda regra sobre a mesma região que não guarda nem restaura hash:
+    // ela atravessa a transição sem notá-la, e por isso não entra no grupo.
+    add_override_rule(
+        &repo,
+        &format!(
+            "op = \"override-region\"\nkey = \"{HASH_COM_REGRA}\"\nfrom_summary = \"{SUMMARY_TRADUZIDO}\"\nto_summary = \"{historico_summary}\"\nexpect_file = \"src/ast.rs\"\nexpect_domain = \"comandos\"\nexpect_layer = \"ast\"\n"
+        ),
+    );
+    let recipe = recipe_path(&repo);
+    let antes = fs::read_to_string(&recipe).unwrap();
+    let orcamento_antes = expected_overrides(&antes);
+
+    let map = write_hash_map(&repo, &hash_entry(HASH_COM_REGRA, HASH_POS_TL, &historico));
+    let plano = reconcile(&repo, Some(&map), None);
+    assert_eq!(plano.status.code(), Some(0), "{}", stderr(&plano));
+    let json = stdout(&plano);
+    assert!(!json.contains("DUPLICATE_OVERRIDE_COALESCED"), "{json}");
+    assert!(!json.contains("restores_summary=true"), "{json}");
+
+    let aplicado = reconcile(&repo, Some(&map), Some(&digest(&json)));
+    assert_eq!(aplicado.status.code(), Some(0), "{}", stdout(&aplicado));
+    let depois = fs::read_to_string(recipe).unwrap();
+    // As duas regras continuam duas, o orçamento não mexeu, e restaurar hash
+    // não devolveu identidade nenhuma.
+    assert_eq!(rule_blocks(&depois, HASH_COM_REGRA), 2);
+    assert_eq!(expected_overrides(&depois), orcamento_antes);
+    assert_eq!(hash_rule_field(&depois, HASH_COM_REGRA, "to_key"), None);
+    assert_eq!(hash_rule_field(&depois, HASH_COM_REGRA, "to_domain"), None);
+    assert_eq!(hash_rule_field(&depois, HASH_COM_REGRA, "to_layer"), None);
+    assert_eq!(
+        catalog_field(&repo, HASH_COM_REGRA, "key"),
+        HASH_COM_REGRA,
+        "o catálogo corrente não é reescrito por reconciliação"
+    );
+    let verificado = projection(&repo, &["verificar", "--json"]);
+    assert_eq!(verificado.status.code(), Some(0), "{}", stderr(&verificado));
+}
+
+#[test]
+fn h9_identidade_e_hash_na_mesma_entrada_viram_uma_regra_atomica() {
+    let repo = TempRepo::full("hash-and-identity");
+    repo.trust_main();
+    const CORRENTE: &str = "evidence.trama.nav-catalog.fixture-config";
+    let historico_hash = rehash_in_catalog(&repo, HASH_SEM_REGRA, HASH_POS_TL);
+    rename_in_catalog(&repo, HASH_SEM_REGRA, CORRENTE, None);
+    let recipe = recipe_path(&repo);
+    let congelados_antes = frozen_bytes(&repo);
+
+    let map = write_hash_map(
+        &repo,
+        &format!(
+            "\n[[rename]]\ncurrent_key = \"{CORRENTE}\"\nhistorical_key = \"{HASH_SEM_REGRA}\"\ncurrent_hash = \"{HASH_POS_TL}\"\nhistorical_hash = \"{historico_hash}\"\n"
+        ),
+    );
+    let plano = reconcile(&repo, Some(&map), None);
+    assert_eq!(plano.status.code(), Some(0), "{}", stderr(&plano));
+    let json = stdout(&plano);
+    assert!(json.contains("restores_hash=true"), "{json}");
+    let aplicado = reconcile(&repo, Some(&map), Some(&digest(&json)));
+    assert_eq!(aplicado.status.code(), Some(0), "{}", stdout(&aplicado));
+
+    // Uma regra só, com as duas restaurações: a reconstrução aplica a regra
+    // atomicamente e nunca deixa metade da região restaurada.
+    let depois = fs::read_to_string(recipe).unwrap();
+    assert_eq!(rule_blocks(&depois, CORRENTE), 1);
+    assert_eq!(
+        hash_rule_field(&depois, CORRENTE, "to_key").as_deref(),
+        Some(HASH_SEM_REGRA)
+    );
+    assert_eq!(
+        hash_rule_field(&depois, CORRENTE, "from_hash").as_deref(),
+        Some(HASH_POS_TL)
+    );
+    assert_eq!(
+        hash_rule_field(&depois, CORRENTE, "to_hash").as_deref(),
+        Some(historico_hash.as_str())
+    );
+    let verificado = projection(&repo, &["verificar", "--json"]);
+    assert_eq!(verificado.status.code(), Some(0), "{}", stderr(&verificado));
+    assert_eq!(frozen_bytes(&repo), congelados_antes);
+}
+
+#[test]
+fn h10_summary_e_hash_na_mesma_entrada_preservam_os_dois_destinos() {
+    let repo = TempRepo::full("hash-and-summary");
+    repo.trust_main();
+    let recipe = recipe_path(&repo);
+    let antes = fs::read_to_string(&recipe).unwrap();
+    let destino_hash_antigo =
+        hash_rule_field(&antes, HASH_COM_REGRA, "to_hash").expect("a fixture já restaura hash");
+    let historico_hash = rehash_in_catalog(&repo, HASH_COM_REGRA, HASH_POS_TL);
+    let historico_summary = translate_summary(&repo, HASH_COM_REGRA, SUMMARY_TRADUZIDO);
+    let congelados_antes = frozen_bytes(&repo);
+    let orcamento_antes = expected_overrides(&antes);
+
+    // Uma entrada, duas restaurações que regras diferentes respondem: o hash
+    // pela regra que já o restaura, o summary por uma ponte nova.
+    let map = write_hash_map(
+        &repo,
+        &format!(
+            "\n[[rename]]\ncurrent_key = \"{HASH_COM_REGRA}\"\ncurrent_summary = \"{SUMMARY_TRADUZIDO}\"\nhistorical_summary = \"{historico_summary}\"\ncurrent_hash = \"{HASH_POS_TL}\"\nhistorical_hash = \"{historico_hash}\"\n"
+        ),
+    );
+    let plano = reconcile(&repo, Some(&map), None);
+    assert_eq!(plano.status.code(), Some(0), "{}", stderr(&plano));
+    let json = stdout(&plano);
+    assert!(json.contains("to_hash=PRESERVED"), "{json}");
+    assert!(json.contains("recipe.new_override_region"), "{json}");
+    let aplicado = reconcile(&repo, Some(&map), Some(&digest(&json)));
+    assert_eq!(aplicado.status.code(), Some(0), "{}", stdout(&aplicado));
+
+    let depois = fs::read_to_string(&recipe).unwrap();
+    assert_eq!(rule_blocks(&depois, HASH_COM_REGRA), 2);
+    assert_eq!(expected_overrides(&depois), orcamento_antes + 1);
+    // A regra de hash guarda o corrente e preserva o destino mais antigo.
+    assert_eq!(
+        hash_rule_field(&depois, HASH_COM_REGRA, "from_hash").as_deref(),
+        Some(HASH_POS_TL)
+    );
+    assert_eq!(
+        hash_rule_field(&depois, HASH_COM_REGRA, "to_hash").as_deref(),
+        Some(destino_hash_antigo.as_str())
+    );
+    // A ponte de summary nasceu como regra própria e não guarda hash nenhum.
+    assert_eq!(
+        summary_rule_field(&depois, HASH_COM_REGRA, "to_summary").as_deref(),
+        Some(historico_summary.as_str())
+    );
+    let ponte = depois
+        .split("[[rules]]")
+        .filter(|bloco| seleciona(bloco, HASH_COM_REGRA))
+        .find(|bloco| bloco.contains("from_summary = "))
+        .expect("a ponte de summary existe");
+    assert!(!ponte.contains("from_hash = "), "{ponte}");
+
+    let verificado = projection(&repo, &["verificar", "--json"]);
+    assert_eq!(verificado.status.code(), Some(0), "{}", stderr(&verificado));
+    assert_eq!(frozen_bytes(&repo), congelados_antes);
+}
+
+/// Segunda regra hash-sensível sobre a mesma região, com efeito disjunto.
+fn segunda_regra_hash_sensivel(historico_summary: &str, guarda: &str, destino: &str) -> String {
+    format!(
+        "op = \"override-region\"\nkey = \"{HASH_COM_REGRA}\"\nfrom_hash = \"{guarda}\"\nto_hash = \"{destino}\"\nfrom_summary = \"{SUMMARY_TRADUZIDO}\"\nto_summary = \"{historico_summary}\"\nexpect_file = \"src/ast.rs\"\nexpect_domain = \"comandos\"\nexpect_layer = \"ast\"\n"
+    )
+}
+
+#[test]
+fn h11_regras_hash_sensiveis_fundem_em_resultado_independente_de_ordem() {
+    let preparar = |label: &str, trocar: bool| {
+        let repo = TempRepo::full(label);
+        repo.trust_main();
+        let antes = fs::read_to_string(recipe_path(&repo)).unwrap();
+        let destino_antigo = hash_rule_field(&antes, HASH_COM_REGRA, "to_hash").unwrap();
+        let historico_hash = rehash_in_catalog(&repo, HASH_COM_REGRA, HASH_POS_TL);
+        let historico_summary = translate_summary(&repo, HASH_COM_REGRA, SUMMARY_TRADUZIDO);
+        add_override_rule(
+            &repo,
+            &segunda_regra_hash_sensivel(&historico_summary, &historico_hash, &destino_antigo),
+        );
+        if trocar {
+            swap_rule_order(&repo, HASH_COM_REGRA);
+        }
+        let map = write_hash_map(
+            &repo,
+            &hash_entry(HASH_COM_REGRA, HASH_POS_TL, &historico_hash),
+        );
+        let plano = reconcile(&repo, Some(&map), None);
+        assert_eq!(plano.status.code(), Some(0), "{}", stderr(&plano));
+        let json = stdout(&plano);
+        assert!(json.contains("DUPLICATE_OVERRIDE_COALESCED"), "{json}");
+        let aplicado = reconcile(&repo, Some(&map), Some(&digest(&json)));
+        assert_eq!(aplicado.status.code(), Some(0), "{}", stdout(&aplicado));
+        let depois = fs::read_to_string(recipe_path(&repo)).unwrap();
+
+        // Uma regra atômica com as duas restaurações, e o orçamento desce um.
+        assert_eq!(rule_blocks(&depois, HASH_COM_REGRA), 1);
+        assert_eq!(
+            hash_rule_field(&depois, HASH_COM_REGRA, "from_hash").as_deref(),
+            Some(HASH_POS_TL)
+        );
+        assert_eq!(
+            hash_rule_field(&depois, HASH_COM_REGRA, "to_hash").as_deref(),
+            Some(destino_antigo.as_str())
+        );
+        assert_eq!(
+            hash_rule_field(&depois, HASH_COM_REGRA, "to_summary").as_deref(),
+            Some(historico_summary.as_str())
+        );
+        let verificado = projection(&repo, &["verificar", "--json"]);
+        assert_eq!(verificado.status.code(), Some(0), "{}", stderr(&verificado));
+        (rule_block(&depois, HASH_COM_REGRA), digest(&json))
+    };
+
+    let direto = preparar("hash-order-a", false);
+    let trocado = preparar("hash-order-b", true);
+    // A ordem textual é do autor da receita; o resultado autorizado não é.
+    assert_eq!(direto, trocado);
+}
+
+#[test]
+fn h12_h13_guardas_e_destinos_de_hash_contraditorios_recusam_antes_de_escrever() {
+    for (campo, classe, guarda, destino) in [
+        (
+            "from_hash",
+            "GUARD",
+            "fnv1a64:0123456789abcdef",
+            "fnv1a64:bfbb7ac8bdd2c678",
+        ),
+        (
+            "to_hash",
+            "DESTINATION",
+            "fnv1a64:2030049f99e2be32",
+            "fnv1a64:0123456789abcdef",
+        ),
+    ] {
+        let repo = TempRepo::full("hash-conflict");
+        repo.trust_main();
+        let historico_hash = rehash_in_catalog(&repo, HASH_COM_REGRA, HASH_POS_TL);
+        let historico_summary = translate_summary(&repo, HASH_COM_REGRA, SUMMARY_TRADUZIDO);
+        add_override_rule(
+            &repo,
+            &segunda_regra_hash_sensivel(&historico_summary, guarda, destino),
+        );
+        let recipe = recipe_path(&repo);
+        let antes = fs::read(&recipe).unwrap();
+        let map = write_hash_map(
+            &repo,
+            &hash_entry(HASH_COM_REGRA, HASH_POS_TL, &historico_hash),
+        );
+
+        let saida = reconcile(&repo, Some(&map), None);
+        assert_eq!(saida.status.code(), Some(7), "{campo}: {}", stdout(&saida));
+        let json = stdout(&saida);
+        assert!(
+            json.contains(&format!("DUPLICATE_OVERRIDE_CONFLICTING_{classe}")),
+            "{campo}: {json}"
+        );
+        assert!(json.contains(&format!("field={campo}")), "{campo}: {json}");
+        assert_eq!(fs::read(&recipe).unwrap(), antes);
+    }
+}
+
+#[test]
+fn h14_a_impressao_digital_distingue_os_dois_lados_do_par_de_hash() {
+    // O lado corrente é guarda: dois mapas válidos nunca diferem só nele, então
+    // a diferença não aparece por digest de plano. Ela precisa aparecer na
+    // forma canônica, que é o que entra no digest.
+    let base = format!(
+        "schema = 3\n[[rename]]\ncurrent_key = \"{HASH_SEM_REGRA}\"\ncurrent_hash = \"fnv1a64:1111111111111111\"\nhistorical_hash = \"fnv1a64:2222222222222222\"\n"
+    );
+    let outro_corrente = base.replace("1111111111111111", "3333333333333333");
+    let outro_historico = base.replace("2222222222222222", "4444444444444444");
+
+    let impressao = |texto: &str| {
+        pinker_v0::nav_projection_rename_map::parse_rename_map(texto)
+            .unwrap()
+            .fingerprint()
+    };
+    assert_ne!(impressao(&base), impressao(&outro_corrente));
+    assert_ne!(impressao(&base), impressao(&outro_historico));
+    assert_ne!(impressao(&outro_corrente), impressao(&outro_historico));
+}
+
+#[test]
+fn h15_mapas_que_diferem_so_no_historical_hash_produzem_digests_diferentes() {
+    let repo = TempRepo::full("hash-digest");
+    repo.trust_main();
+    let historico = rehash_in_catalog(&repo, HASH_SEM_REGRA, HASH_POS_TL);
+    let recipe = recipe_path(&repo);
+    let antes = fs::read(&recipe).unwrap();
+
+    let primeiro = write_hash_map(&repo, &hash_entry(HASH_SEM_REGRA, HASH_POS_TL, &historico));
+    let plano_um = reconcile(&repo, Some(&primeiro), None);
+    assert_eq!(plano_um.status.code(), Some(0), "{}", stderr(&plano_um));
+    let json_um = stdout(&plano_um);
+    let digest_um = digest(&json_um);
+    let fingerprint_um = field(&json_um, "rename_map");
+
+    // Outro destino histórico declarado: outro fato, outro plano, outro digest.
+    let segundo = write_hash_map(
+        &repo,
+        &hash_entry(HASH_SEM_REGRA, HASH_POS_TL, "fnv1a64:0123456789abcdef"),
+    );
+    let plano_dois = reconcile(&repo, Some(&segundo), None);
+    assert_eq!(plano_dois.status.code(), Some(0), "{}", stderr(&plano_dois));
+    let json_dois = stdout(&plano_dois);
+    assert_ne!(digest_um, digest(&json_dois));
+    assert_ne!(fingerprint_um, field(&json_dois, "rename_map"));
+
+    // O digest do primeiro plano não autoriza o segundo.
+    let obsoleto = reconcile(&repo, Some(&segundo), Some(&digest_um));
+    assert_eq!(obsoleto.status.code(), Some(8), "{}", stdout(&obsoleto));
+    assert_eq!(fs::read(&recipe).unwrap(), antes);
+}
+
+#[test]
+fn h16_hash_declarado_para_regiao_excluida_recusa_em_vez_de_criar_override_morto() {
+    let repo = TempRepo::full("hash-excluded");
+    repo.trust_main();
+    let historico = rehash_in_catalog(&repo, RENOMEADA_EXCLUIDA, HASH_POS_TL);
+    let recipe = recipe_path(&repo);
+    let antes = fs::read(&recipe).unwrap();
+    let map = write_hash_map(
+        &repo,
+        &hash_entry(RENOMEADA_EXCLUIDA, HASH_POS_TL, &historico),
+    );
+
+    let saida = reconcile(&repo, Some(&map), None);
+    assert_eq!(saida.status.code(), Some(7), "{}", stdout(&saida));
+    assert!(
+        stdout(&saida).contains("MAPPING_ENTRY_UNUSED"),
+        "{}",
+        stdout(&saida)
+    );
+    assert_eq!(fs::read(&recipe).unwrap(), antes);
+}
+
+#[test]
+fn h17_h18_schemas_antigos_nao_aceitam_campo_de_hash_e_a_recusa_nomeia_a_versao() {
+    let repo = TempRepo::full("hash-old-schema");
+    repo.trust_main();
+    let historico = rehash_in_catalog(&repo, HASH_SEM_REGRA, HASH_POS_TL);
+    let recipe = recipe_path(&repo);
+    let antes = fs::read(&recipe).unwrap();
+    let corpo = hash_entry(HASH_SEM_REGRA, HASH_POS_TL, &historico);
+
+    for (versao, escrever) in [
+        (
+            1u32,
+            &write_rename_map as &dyn Fn(&TempRepo, &str) -> PathBuf,
+        ),
+        (
+            2u32,
+            &write_summary_map as &dyn Fn(&TempRepo, &str) -> PathBuf,
+        ),
+    ] {
+        let map = escrever(&repo, &corpo);
+        let saida = reconcile(&repo, Some(&map), None);
+        assert_eq!(saida.status.code(), Some(7), "{versao}: {}", stdout(&saida));
+        let json = stdout(&saida);
+        // A recusa nomeia a versão porque o campo existe — só não naquele
+        // schema. "chave desconhecida" diria que ele não existe em nenhum.
+        assert!(json.contains("RENAME_MAP_INVALID"), "{versao}: {json}");
+        assert!(json.contains("exige schema 3"), "{versao}: {json}");
+        assert!(
+            json.contains(&format!("declara schema {versao}")),
+            "{versao}: {json}"
+        );
+        assert_eq!(fs::read(&recipe).unwrap(), antes);
+    }
+}
+
+/// As quatro regiões que a TL/#681 deixa sem rota autorizada: a migração de
+/// literais de chave reescreve o corpo delas, e nenhuma regra da receita base
+/// as nomeia, então não há destino histórico para a reconciliação preservar.
+///
+/// Chave histórica, chave corrente e o hash que a migração produz — os três
+/// lidos da evidência preservada da TL, não inventados aqui.
+const BLOCKER_TL: [(&str, &str, &str); 4] = [
+    (
+        "evidencia.hotfix.r5-sigpipe-familias",
+        "evidence.hotfix.r5-sigpipe-families",
+        "fnv1a64:6a8afdfe724b4634",
+    ),
+    (
+        "evidencia.trama.nav-catalog.fixture-config",
+        "evidence.trama.nav-catalog.fixture-config",
+        "fnv1a64:f6320b22a35a0d86",
+    ),
+    (
+        "evidencia.trama.nav-catalog.show-extraction",
+        "evidence.trama.nav-catalog.show-extraction",
+        "fnv1a64:17547f0a5cd1c089",
+    ),
+    (
+        "evidencia.trama.nav-catalog.sync-verify-roots",
+        "evidence.trama.nav-catalog.sync-verify-roots",
+        "fnv1a64:77a3f6abe7769484",
+    ),
+];
+
+/// Aplica no catálogo a migração da TL sobre as quatro regiões e devolve o hash
+/// histórico de cada uma.
+fn aplicar_migracao_tl(repo: &TempRepo) -> Vec<String> {
+    BLOCKER_TL
+        .iter()
+        .map(|(historica, corrente, pos_tl)| {
+            let historico = rehash_in_catalog(repo, historica, pos_tl);
+            rename_in_catalog(repo, historica, corrente, None);
+            historico
+        })
+        .collect()
+}
+
+#[test]
+fn h22_o_blocker_real_de_quatro_regioes_so_fecha_pelo_schema_3() {
+    // Schema 2: a relação de hash não é declarável, a reconciliação autorizada
+    // cria regras sem `from_hash`/`to_hash` e o apply termina em
+    // VERIFY_AFTER_APPLY_FAILURE. É o blocker da TL reproduzido pela rota
+    // autorizada, sem nenhuma edição textual de receita.
+    let repo = TempRepo::full("tl-blocker-schema2");
+    repo.trust_main();
+    aplicar_migracao_tl(&repo);
+    let mut corpo_identidade = String::new();
+    for (historica, corrente, _) in BLOCKER_TL {
+        corpo_identidade.push_str(&format!(
+            "\n[[rename]]\ncurrent_key = \"{corrente}\"\nhistorical_key = \"{historica}\"\n"
+        ));
+    }
+    let map = write_summary_map(&repo, &corpo_identidade);
+    let plano = reconcile(&repo, Some(&map), None);
+    assert_eq!(plano.status.code(), Some(0), "{}", stderr(&plano));
+    let aplicado = reconcile(&repo, Some(&map), Some(&digest(&stdout(&plano))));
+    assert_ne!(aplicado.status.code(), Some(0), "{}", stdout(&aplicado));
+    assert!(
+        stdout(&aplicado).contains("VERIFY_AFTER_APPLY_FAILURE"),
+        "{}",
+        stdout(&aplicado)
+    );
+    let reconciliada = fs::read_to_string(recipe_path(&repo)).unwrap();
+    for (_, corrente, _) in BLOCKER_TL {
+        assert_eq!(
+            hash_rule_field(&reconciliada, corrente, "to_hash"),
+            None,
+            "{corrente}: a reconciliação não tem de onde tirar o destino histórico"
+        );
+    }
+
+    // Schema 3: a mesma rota autorizada, com a relação declarada, fecha as
+    // treze projeções congeladas.
+    let repo = TempRepo::full("tl-blocker-schema3");
+    repo.trust_main();
+    let congelados_antes = frozen_bytes(&repo);
+    let historicos = aplicar_migracao_tl(&repo);
+    let mut corpo = String::new();
+    for ((historica, corrente, pos_tl), historico) in BLOCKER_TL.iter().zip(&historicos) {
+        corpo.push_str(&format!(
+            "\n[[rename]]\ncurrent_key = \"{corrente}\"\nhistorical_key = \"{historica}\"\ncurrent_hash = \"{pos_tl}\"\nhistorical_hash = \"{historico}\"\n"
+        ));
+    }
+    let map = write_hash_map(&repo, &corpo);
+    let plano = reconcile(&repo, Some(&map), None);
+    assert_eq!(plano.status.code(), Some(0), "{}", stderr(&plano));
+    let json = stdout(&plano);
+    let aplicado = reconcile(&repo, Some(&map), Some(&digest(&json)));
+    assert_eq!(aplicado.status.code(), Some(0), "{}", stdout(&aplicado));
+
+    let depois = fs::read_to_string(recipe_path(&repo)).unwrap();
+    for ((historica, corrente, pos_tl), historico) in BLOCKER_TL.iter().zip(&historicos) {
+        assert_eq!(
+            hash_rule_field(&depois, corrente, "to_key").as_deref(),
+            Some(*historica)
+        );
+        assert_eq!(
+            hash_rule_field(&depois, corrente, "from_hash").as_deref(),
+            Some(*pos_tl)
+        );
+        assert_eq!(
+            hash_rule_field(&depois, corrente, "to_hash").as_deref(),
+            Some(historico.as_str())
+        );
+    }
+    let verificado = projection(&repo, &["verificar", "--json"]);
+    assert_eq!(verificado.status.code(), Some(0), "{}", stderr(&verificado));
+    assert!(!stdout(&verificado).contains("\"outcome\":\"DRIFT\""));
+    assert_eq!(frozen_bytes(&repo), congelados_antes);
+}

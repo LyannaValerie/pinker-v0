@@ -136,6 +136,7 @@ const PUB_RESTRITO_AUTORIZADO: &[(&str, &[&str])] = &[
             "pub(crate) fn optional_text(",
             "pub(crate) fn require_integer(",
             "pub(crate) fn optional_list(",
+            "pub(crate) fn validate_hash(",
             "pub(crate) fn validate_id(",
             "pub(crate) fn sort_rules(",
             "pub(crate) fn build_rule(",

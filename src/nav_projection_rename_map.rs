@@ -23,7 +23,7 @@
 //! Para uma região que participa de alguma projeção congelada, `historical_*` é
 //! o valor que a medida exige de volta.
 //!
-//! # Identidade e summary
+//! # Identidade, summary e hash
 //!
 //! `summary` também é medido pela projeção estável, mas não é identidade: a
 //! região continua sendo selecionada por `current_key` depois de restaurado. O
@@ -32,13 +32,20 @@
 //! outras regras, restaurar summary não. Para uma região que nenhuma projeção
 //! histórica contém, a única autoridade que a nomeia é o seletor de exclusão da
 //! própria receita, e `historical_key` é a grafia que aquele seletor usa.
+//!
+//! `hash` é o terceiro campo medido que uma renomeação corrente move sem tocar
+//! na identidade: migrar um literal de chave reescreve o corpo das regiões que
+//! citam aquela chave, e o corpo é o que o hash mede. Como `summary`, ele não
+//! seleciona nada; ao contrário de `summary`, ele é a guarda que outras regras
+//! da mesma região usam, e por isso quem consome precisa fechar a ordem entre
+//! elas.
 
 // @pinker-nav:start trama.snapshots.rename-map
 // @pinker-nav:domain snapshots
 // @pinker-nav:layer trama
-// @pinker-nav:summary Explicit operator-declared map from a current region to the historical identity and summary a frozen reconstruction expects: parses its own strict TOML subset through the shared reader, keeps current and historical sides under distinct field names so direction cannot be read backwards, versions the format so schema 1 keeps its identity-only meaning and only schema 2 may declare a summary pair, rejects a repeated current or historical key, an entry that declares half a pair, an entry that restores a value the region already has and an entry that declares nothing to restore, separates restoring identity from restoring summary because only the first changes which region a rule selects, offers lookup both by historical key and by current key so a rename that moved only domain, layer or summary is still found by a rule whose selector never changed, and publishes a canonical fingerprint over every declared field so the map binds into the reconciliation plan digest.
+// @pinker-nav:summary Explicit operator-declared map from a current region to the historical identity, summary and hash a frozen reconstruction expects: parses its own strict TOML subset through the shared reader, keeps current and historical sides under distinct field names so direction cannot be read backwards, versions the format so schema 1 keeps its identity-only meaning, only schema 2 may declare a summary pair and only schema 3 may declare a hash pair, validates each declared hash against the canonical fnv1a64 form through the same reader the snapshot uses, rejects a repeated current or historical key, an entry that declares half a pair, an entry that restores a value the region already has and an entry that declares nothing to restore, separates restoring identity from restoring summary or hash because only the first changes which region a rule selects, offers lookup both by historical key and by current key so a rename that moved only domain, layer, summary or hash is still found by a rule whose selector never changed, and publishes a canonical fingerprint over every declared field so the map binds into the reconciliation plan digest.
 use crate::nav_projection_snapshot::{
-    optional_text, parse_raw_with_array, reject_unknown, require_text, Table,
+    optional_text, parse_raw_with_array, reject_unknown, require_text, validate_hash, Table,
 };
 use std::collections::BTreeSet;
 
@@ -55,8 +62,18 @@ pub const RENAME_MAP_SCHEMA_V1: u64 = 1;
 /// significar uma coisa que seu autor não escreveu.
 pub const RENAME_MAP_SCHEMA_V2: u64 = 2;
 
+/// Terceira versão: acrescenta o par de hash (#695).
+///
+/// O hash da região é o quarto campo medido que uma renomeação corrente move, e
+/// o único que nenhuma autoridade conseguia declarar: a receita preserva um
+/// destino histórico que já exista, e não tem de onde inventar um que ninguém
+/// escreveu. Nasce numa versão nova pela mesma razão que o summary nasceu: um
+/// mapa schema 2 não podia declarar hash, e aceitar o campo sob a versão antiga
+/// faria um mapa velho significar o que seu autor não escreveu.
+pub const RENAME_MAP_SCHEMA_V3: u64 = 3;
+
 /// Versão máxima aceita do formato do mapa de renomeação.
-pub const RENAME_MAP_SCHEMA: u64 = RENAME_MAP_SCHEMA_V2;
+pub const RENAME_MAP_SCHEMA: u64 = RENAME_MAP_SCHEMA_V3;
 
 /// Uma relação declarada entre a identidade corrente e a identidade histórica
 /// de uma mesma região.
@@ -84,19 +101,37 @@ pub struct RenameEntry {
     /// destino histórico final: uma regra existente pode já encadear uma
     /// transição mais antiga, e o destino dela é preservado.
     pub historical_summary: Option<String>,
+    /// Hash corrente declarado. É guarda exata sobre o catálogo corrente, e
+    /// nunca seletor: a região continua sendo escolhida por `current_key`.
+    pub current_hash: Option<String>,
+    /// Hash imediatamente anterior à renomeação corrente, restaurado.
+    ///
+    /// Como `historical_summary`, é o valor que a reconstrução espera **agora**:
+    /// uma regra existente pode já encadear um destino mais antigo, e aquele
+    /// destino é preservado.
+    pub historical_hash: Option<String>,
 }
 
 impl RenameEntry {
     /// Verdadeiro quando a entrada restaura a identidade pela qual a projeção
     /// reconhece a região: chave, domínio ou camada.
     ///
-    /// Restaurar `summary` não entra: o campo participa da medida e não da
-    /// seleção, então uma entrada só de summary não tira a região do alcance de
-    /// nenhuma outra regra.
+    /// Restaurar `summary` ou `hash` não entra: os dois campos participam da
+    /// medida e não da seleção, então uma entrada que só os declara não tira a
+    /// região do alcance de nenhuma outra regra.
     pub fn restores_identity(&self) -> bool {
         self.historical_key.is_some()
             || self.historical_domain.is_some()
             || self.historical_layer.is_some()
+    }
+
+    /// Verdadeiro quando a entrada declara a relação de hash.
+    ///
+    /// Não é identidade — a região continua sendo selecionada por
+    /// `current_key` — mas é a guarda que outras regras da mesma região usam, e
+    /// por isso quem consome precisa saber que aquele campo vai mudar.
+    pub fn restores_hash(&self) -> bool {
+        self.historical_hash.is_some()
     }
 }
 
@@ -108,7 +143,7 @@ impl RenameEntry {
             None => format!("{nome}=;"),
         };
         format!(
-            "current_key={};{}{}{}{}{}{}{}",
+            "current_key={};{}{}{}{}{}{}{}{}{}",
             self.current_key,
             campo("historical_key", &self.historical_key),
             campo("current_domain", &self.current_domain),
@@ -117,6 +152,8 @@ impl RenameEntry {
             campo("historical_layer", &self.historical_layer),
             campo("current_summary", &self.current_summary),
             campo("historical_summary", &self.historical_summary),
+            campo("current_hash", &self.current_hash),
+            campo("historical_hash", &self.historical_hash),
         )
     }
 }
@@ -165,7 +202,7 @@ impl RenameMap {
 }
 
 const ROOT_KEYS: [&str; 1] = ["schema"];
-const ENTRY_KEYS: [&str; 8] = [
+const ENTRY_KEYS: [&str; 10] = [
     "current_key",
     "historical_key",
     "current_domain",
@@ -174,10 +211,15 @@ const ENTRY_KEYS: [&str; 8] = [
     "historical_layer",
     "current_summary",
     "historical_summary",
+    "current_hash",
+    "historical_hash",
 ];
 
 /// Campos que só existem a partir do schema 2.
 const V2_ONLY_KEYS: [&str; 2] = ["current_summary", "historical_summary"];
+
+/// Campos que só existem a partir do schema 3.
+const V3_ONLY_KEYS: [&str; 2] = ["current_hash", "historical_hash"];
 
 /// Interpreta o texto de um mapa de renomeação. Não toca no filesystem.
 ///
@@ -196,9 +238,12 @@ pub fn parse_rename_map(text: &str) -> Result<RenameMap, String> {
         Some(valor) => valor,
         None => return Err("campo 'schema' ausente ou não inteiro".to_string()),
     };
-    if schema != RENAME_MAP_SCHEMA_V1 && schema != RENAME_MAP_SCHEMA_V2 {
+    if schema != RENAME_MAP_SCHEMA_V1
+        && schema != RENAME_MAP_SCHEMA_V2
+        && schema != RENAME_MAP_SCHEMA_V3
+    {
         return Err(format!(
-            "schema {schema} desconhecido para mapa de renomeação; este formato aceita {RENAME_MAP_SCHEMA_V1} e {RENAME_MAP_SCHEMA_V2}"
+            "schema {schema} desconhecido para mapa de renomeação; este formato aceita {RENAME_MAP_SCHEMA_V1}, {RENAME_MAP_SCHEMA_V2} e {RENAME_MAP_SCHEMA_V3}"
         ));
     }
     if raw.rules.is_empty() {
@@ -253,11 +298,17 @@ fn build_entry(table: &Table, index: usize, schema: u64) -> Result<RenameEntry, 
     // nele não é um mapa novo: é um mapa antigo que ganhou um campo que sua
     // versão não define. A recusa é nomeada — "chave desconhecida" diria que o
     // campo não existe em versão nenhuma, que é outra coisa.
-    if schema < RENAME_MAP_SCHEMA_V2 {
-        for campo in V2_ONLY_KEYS {
+    for (minima, campos) in [
+        (RENAME_MAP_SCHEMA_V2, V2_ONLY_KEYS),
+        (RENAME_MAP_SCHEMA_V3, V3_ONLY_KEYS),
+    ] {
+        if schema >= minima {
+            continue;
+        }
+        for campo in campos {
             if table.get(campo).is_some() {
                 return Err(format!(
-                    "{scope}{campo} exige schema {RENAME_MAP_SCHEMA_V2}; o mapa declara schema {schema}"
+                    "{scope}{campo} exige schema {minima}; o mapa declara schema {schema}"
                 ));
             }
         }
@@ -276,6 +327,8 @@ fn build_entry(table: &Table, index: usize, schema: u64) -> Result<RenameEntry, 
     let historical_layer = leitura("historical_layer")?;
     let current_summary = leitura("current_summary")?;
     let historical_summary = leitura("historical_summary")?;
+    let current_hash = leitura("current_hash")?;
+    let historical_hash = leitura("historical_hash")?;
 
     for (campo, valor) in [
         ("historical_key", &historical_key),
@@ -285,9 +338,24 @@ fn build_entry(table: &Table, index: usize, schema: u64) -> Result<RenameEntry, 
         ("historical_layer", &historical_layer),
         ("current_summary", &current_summary),
         ("historical_summary", &historical_summary),
+        ("current_hash", &current_hash),
+        ("historical_hash", &historical_hash),
     ] {
         if valor.as_deref() == Some("") {
             return Err(format!("{scope}{campo} vazio"));
+        }
+    }
+
+    // O hash tem forma canônica e é lido pelo mesmo validador do acervo: um
+    // valor que não seja `fnv1a64:` seguido de dezesseis hexadecimais
+    // minúsculos não nomeia estado nenhum, e aceitá-lo aqui escreveria na
+    // receita uma guarda que nunca casaria.
+    for (campo, valor) in [
+        ("current_hash", &current_hash),
+        ("historical_hash", &historical_hash),
+    ] {
+        if let Some(valor) = valor {
+            validate_hash(valor, &format!("{scope}{campo}")).map_err(|erro| erro.to_string())?;
         }
     }
 
@@ -298,6 +366,7 @@ fn build_entry(table: &Table, index: usize, schema: u64) -> Result<RenameEntry, 
         (&current_domain, &historical_domain, "domain"),
         (&current_layer, &historical_layer, "layer"),
         (&current_summary, &historical_summary, "summary"),
+        (&current_hash, &historical_hash, "hash"),
     ] {
         if guarda.is_some() != destino.is_some() {
             return Err(format!(
@@ -321,6 +390,7 @@ fn build_entry(table: &Table, index: usize, schema: u64) -> Result<RenameEntry, 
         && historical_domain.is_none()
         && historical_layer.is_none()
         && historical_summary.is_none()
+        && historical_hash.is_none()
     {
         return Err(format!("{scope}não declara nenhuma restauração"));
     }
@@ -334,6 +404,8 @@ fn build_entry(table: &Table, index: usize, schema: u64) -> Result<RenameEntry, 
         historical_layer,
         current_summary,
         historical_summary,
+        current_hash,
+        historical_hash,
     })
 }
 // @pinker-nav:end trama.snapshots.rename-map
