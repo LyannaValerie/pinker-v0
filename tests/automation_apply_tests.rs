@@ -1121,14 +1121,16 @@ fn o_estagio_de_apply_nao_usa_rede_processos_nem_git() {
     }
 }
 
+/// A CLI não assume responsabilidade do núcleo de automação.
+///
+/// A aposentadoria do lifecycle de projeções (TA/#697) removeu o primeiro
+/// consumidor de escrita do núcleo. A proibição permanece: nenhum adaptador de
+/// CLI pode reimplementar desired state, plano, digest, autorização, proteção
+/// contra plano obsoleto ou escrita — quem precisar disso usa o núcleo.
 #[test]
-fn o_primeiro_consumidor_nao_transfere_apply_para_a_cli() {
+fn a_cli_nao_assume_responsabilidade_do_nucleo_de_automacao() {
     let cli = fonte_de_modulo::pink_cli();
-    let lifecycle = include_str!("../src/nav_projection_lifecycle.rs");
 
-    // Stage E é o primeiro consumidor real do núcleo. A CLI pode descobrir a
-    // raiz e classificar falhas, mas desired state, Plan, digest, autorização,
-    // stale protection e escrita permanecem no adaptador de lifecycle.
     for proibido in [
         "apply_plan(",
         "authorize(",
@@ -1141,9 +1143,6 @@ fn o_primeiro_consumidor_nao_transfere_apply_para_a_cli() {
             "a CLI assumiu responsabilidade do automation core: {proibido}"
         );
     }
-    assert!(cli.contains("nav_projection_lifecycle::apply_prepare("));
-    assert!(cli.contains("nav_projection_lifecycle::apply_accept("));
-    assert!(lifecycle.contains("let report = apply("));
 }
 
 #[test]
@@ -1176,8 +1175,7 @@ fn observacao_nao_escreve() {
 /// Dois planos com alvos e payloads byte-idênticos, produzidos por adaptadores
 /// distintos, precisam de autorizações distintas. É o que permite a um
 /// adaptador vincular ao digest uma entrada que não aparece nos bytes do
-/// resultado — por exemplo o mapa explícito de renomeação da reconciliação de
-/// projeções, cujo efeito pode ser idêntico e cuja declaração não é.
+/// resultado, cujo efeito pode ser idêntico e cuja declaração não é.
 #[test]
 fn produtor_participa_do_digest_do_plano() {
     let um = PlanBuilder::new("adaptador-um", allowlist())

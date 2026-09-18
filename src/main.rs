@@ -26,9 +26,6 @@ use pinker_v0::module_graph::ModuleGraph;
 use pinker_v0::module_resolve;
 use pinker_v0::nav;
 use pinker_v0::nav_coverage;
-use pinker_v0::nav_projection_lifecycle::{self, ProjectionError};
-use pinker_v0::nav_projection_report;
-use pinker_v0::nav_projection_store::ProjectionStore;
 use pinker_v0::parser::{ContextoDeImport, Parser};
 use pinker_v0::printer;
 use pinker_v0::project_state;
@@ -81,7 +78,6 @@ const EXIT_NORESULT: i32 = 4;
 const EXIT_SOURCE: i32 = 5;
 const EXIT_HARNESS: i32 = 6;
 const EXIT_POLICY: i32 = 7;
-const EXIT_STALE: i32 = 8;
 
 /// Limites de resultados por subcomando (§7).
 const LIMIT_MIN: usize = 1;
@@ -216,27 +212,8 @@ enum NavSub {
 
 enum ProjectionSub {
     Listar,
-    Mostrar {
-        id: String,
-        observado: bool,
-    },
-    Verificar {
-        id: Option<String>,
-    },
-    Preparar {
-        id: String,
-        justificativa: Option<String>,
-        predecessor: Option<String>,
-        autorizar: Option<String>,
-    },
-    Aceitar {
-        id: String,
-        autorizar: Option<String>,
-    },
-    Reconciliar {
-        autorizar: Option<String>,
-        renomeacoes: Option<String>,
-    },
+    Mostrar { id: String },
+    Verificar { id: Option<String> },
 }
 
 struct NavConfigCli {
@@ -380,7 +357,7 @@ fn nav_usage(binary: &str) -> String {
            mapa [FILTRO]       agrupa regiões por arquivo\n\
            sincronizar         regenera o catálogo src/navigation.jsonl\n\
            verificar           valida os marcadores e o catálogo (não corrige)\n\
-           projecao            lifecycle dos snapshots históricos de navegação\n\
+           projecao            arquivo histórico materializado (somente leitura)\n\
          \n\
          Opções:\n\
            --repo      raiz do repositório (padrão: .)\n\
@@ -396,7 +373,7 @@ fn nav_usage(binary: &str) -> String {
          \n\
          Códigos de saída: 0 sucesso · 2 uso inválido · 3 catálogo ausente/inválido\n\
                            · 4 sem resultado · 5 fonte/âncora ou drift\n\
-                           · 6 harness · 7 política · 8 plano obsoleto\n",
+                           · 6 harness · 7 política\n",
     )
 }
 
@@ -406,27 +383,25 @@ fn projection_usage(binary: &str) -> String {
          \n\
          Subcomandos:\n\
            listar\n\
-           mostrar ID [--observado]\n\
+           mostrar ID\n\
            verificar [ID]\n\
-           preparar ID --justificativa TEXTO --predecessor ID [--autorizar DIGEST]\n\
-           aceitar ID [--autorizar DIGEST]\n\
-           reconciliar [--renomeacoes ARQUIVO] [--autorizar DIGEST]\n\
          \n\
-         Sem --autorizar, preparar, aceitar e reconciliar exibem plano e digest sem escrever.\n\
-         --renomeacoes declara explicitamente a relação corrente -> histórica de\n\
-         key/domain/layer; sem ela uma renomeação permanece ambiguidade semântica.\n\
-         Códigos adicionais: 6 harness · 7 política · 8 plano obsoleto\n"
+         O arquivo histórico é somente leitura: os bytes aceitos de cada estado\n\
+         congelado estão materializados em .pinker/archive/ e a verificação é\n\
+         integridade desses bytes, não reconstrução a partir do catálogo corrente.\n\
+         Códigos adicionais: 5 arquivo alterado · 6 índice inválido\n"
     )
 }
 
 fn projection_subcommand_usage(binary: &str, command: &str) -> String {
     match command {
         "listar" => format!("Uso: {binary} nav projecao listar [--repo DIRETÓRIO] [--json]\n"),
-        "mostrar" => format!("Uso: {binary} nav projecao mostrar ID [--observado] [--repo DIRETÓRIO] [--json]\n"),
-        "verificar" => format!("Uso: {binary} nav projecao verificar [ID] [--repo DIRETÓRIO] [--json]\n"),
-        "preparar" => format!("Uso: {binary} nav projecao preparar ID --justificativa TEXTO --predecessor ID [--autorizar DIGEST] [--repo DIRETÓRIO] [--json]\n"),
-        "aceitar" => format!("Uso: {binary} nav projecao aceitar ID [--autorizar DIGEST] [--repo DIRETÓRIO] [--json]\n"),
-        "reconciliar" => format!("Uso: {binary} nav projecao reconciliar [--renomeacoes ARQUIVO] [--autorizar DIGEST] [--repo DIRETÓRIO] [--json]\n"),
+        "mostrar" => {
+            format!("Uso: {binary} nav projecao mostrar ID [--repo DIRETÓRIO] [--json]\n")
+        }
+        "verificar" => {
+            format!("Uso: {binary} nav projecao verificar [ID] [--repo DIRETÓRIO] [--json]\n")
+        }
         _ => projection_usage(binary),
     }
 }

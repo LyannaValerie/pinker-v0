@@ -225,7 +225,6 @@ fn autoridades<'a>(
         base_code: base,
         policy,
         docs: None,
-        projection_store: None,
         doc_config: None,
         manifests: None,
     }
@@ -580,81 +579,9 @@ fn c10_catalogo_derivado_editado_a_mao_nao_fabrica_pass() {
     );
 }
 
-/// C11 — recalibrar a medida de uma projeção FROZEN é recusado.
-#[test]
-fn c11_projecao_frozen_recalibrada_e_recusada() {
-    let repo = fixture("c11");
-    let catalog = CodeCatalog::load(&repo.path().join("src/navigation.jsonl")).unwrap();
-    let measures = pinker_v0::nav_projection_snapshot::measure(catalog.regions.iter());
-    let snapshot = pinker_v0::nav_projection_snapshot::ProjectionSnapshot {
-        schema: pinker_v0::nav_projection_snapshot::SNAPSHOT_SCHEMA_V1,
-        id: "fixture-frozen".to_string(),
-        state: pinker_v0::nav_projection_snapshot::SnapshotState::Frozen,
-        predecessor: None,
-        justification: Some("fixture congelada".to_string()),
-        measures,
-        expected_overrides: 0,
-        expected_exclusions: 0,
-        expected_materializations: 0,
-        base_snapshot: None,
-        recipes: Vec::new(),
-        rules: Vec::new(),
-    };
-    let rendered = pinker_v0::nav_projection_snapshot::render(&snapshot);
-    write(
-        repo.path(),
-        ".pinker/projections/fixture-frozen.toml",
-        &rendered,
-    );
-    for args in [
-        vec!["init", "-q"],
-        vec!["add", "."],
-        vec![
-            "-c",
-            "user.name=projection-test",
-            "-c",
-            "user.email=projection-test@example.invalid",
-            "commit",
-            "-qm",
-            "trusted baseline",
-        ],
-        vec!["update-ref", "refs/remotes/origin/main", "HEAD"],
-    ] {
-        assert!(Command::new("git")
-            .args(args)
-            .current_dir(repo.path())
-            .status()
-            .unwrap()
-            .success());
-    }
-    let output = run(repo.path(), &["nav", "projecao", "verificar"], "");
-    assert_eq!(
-        output.status.code(),
-        Some(0),
-        "projeção íntegra recusada: {}",
-        stderr(&output)
-    );
-
-    // Recalibrar o digest para esconder drift: a medida deixa de bater com a
-    // reconstrução, e o resultado NÃO é MATCH.
-    let recalibrado = rendered.replace(
-        &format!("regions = {}", snapshot.measures.regions),
-        &format!("regions = {}", snapshot.measures.regions + 1),
-    );
-    assert_ne!(recalibrado, rendered, "a fixture não mudou a medida");
-    write(
-        repo.path(),
-        ".pinker/projections/fixture-frozen.toml",
-        &recalibrado,
-    );
-    let output = run(repo.path(), &["nav", "projecao", "verificar"], "");
-    assert_ne!(
-        output.status.code(),
-        Some(0),
-        "recalibração de medida FROZEN aceita: {}",
-        stdout(&output)
-    );
-}
+// C11 saiu daqui com TA/#697: recalibrar uma medida histórica deixou de ser um
+// fato da cobertura corrente. A recusa permanece provada, agora contra o
+// arquivo materializado, em tests/nav_projection_archive_tests.rs.
 
 /// C12 — candidato de produção integralmente coberto passa, e o inventário
 /// publica completude COMPLETE sem lacuna nem exceção.

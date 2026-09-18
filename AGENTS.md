@@ -29,13 +29,16 @@ Rust/Cargo.
 
 - `src/navigation.jsonl` é derivado: sincronize com `pink nav sincronizar` e
   valide com `pink nav verificar`.
-- Reconstruções históricas usam o contrato corrente de projeções. Regiões
-  removidas podem ser declaradas como `materialize-region` no snapshot que
-  possui o fato; os oito campos estáveis são suficientes.
-- A ordem é `exclude -> override -> materialize`. Colisão de região corrente
-  falha fechada.
-- Medidas e projeções históricas `FROZEN` são imutáveis. Nunca recalibre
-  `regions`, `length`, `fnv1a64` ou a projeção estável para esconder drift.
+- A história da cartografia não é reconstruída a partir do catálogo corrente:
+  ela é o arquivo materializado em `.pinker/archive/`, verificado por
+  `pink nav projecao verificar`. Uma mudança legítima do presente não exige
+  manutenção histórica nenhuma.
+- Medidas e metadados históricos `FROZEN` são imutáveis, e são a autoridade em
+  tempo de execução: o índice do arquivo tem de repetir exatamente o
+  `[measures]` do TOML congelado, e o acervo tem de cobrir um-para-um os
+  metadados preservados. Nunca recalibre `regions`, `length` ou `fnv1a64`, nunca
+  edite um payload do arquivo para esconder drift, e nunca retire um estado
+  aceito do índice.
 - Documentação só muda quando a Task exige ajuste de superfície; não faça
   rebuild documental amplo.
 

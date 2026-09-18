@@ -80,8 +80,9 @@ permanecem em `janela-infraestrutura-deterministica.md`.
   reprodução segura, demand paging, orçamentos e paridade;
 - `native-execution-host-containment.md` — autoridade de processos, stdio,
   sandboxes, cleanup, proveniência e proteção de core da esteira;
-- `projection-snapshots-contract.md` — schema, estados, medidas, reconstrução e
-  classificação dos snapshots históricos de projeção do catálogo de navegação;
+- `projection-snapshots-contract.md` — projeção estável, medidas preservadas,
+  índice de proveniência e integridade do arquivo histórico das projeções do
+  catálogo de navegação;
 - `automation-core-contract.md` — fronteira, plano efêmero, digest, limites,
   classificação e relatórios do núcleo comum de automação;
 - `consolidated-project-state-contract.md` — modelo versionado, fontes,
@@ -98,7 +99,7 @@ permanecem em `janela-infraestrutura-deterministica.md`.
 | mapa de código por feature | `../code_map.md` |
 | navegação semântica do código | `pink nav buscar "<conceito>"` |
 | janela encerrada de infraestrutura determinística | `janela-infraestrutura-deterministica.md` |
-| snapshots históricos de projeção | `projection-snapshots-contract.md` |
+| arquivo histórico das projeções | `projection-snapshots-contract.md` |
 | núcleo comum de automação | `automation-core-contract.md` |
 | estado consolidado somente leitura | `consolidated-project-state-contract.md` |
 | índice derivado de símbolos | `symbol-index.md` |

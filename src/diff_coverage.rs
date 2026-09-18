@@ -15,13 +15,11 @@ use crate::doc::{DocConfig, DocProjection};
 use crate::doc_index::{DocCatalog, DocDocument, DocSection};
 use crate::nav::{CodeCatalog, CodeRegion};
 use crate::nav_coverage::{CoveragePolicy, DispositionKind};
-use crate::nav_projection_recipe;
-use crate::nav_projection_store::ProjectionStore;
 use crate::symbol_index;
 use std::collections::BTreeSet;
 use std::fmt;
 
-pub const DIFF_COVERAGE_SCHEMA: u64 = 2;
+pub const DIFF_COVERAGE_SCHEMA: u64 = 3;
 pub const MAX_DIFF_BYTES: usize = 16 * 1024 * 1024;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -226,7 +224,6 @@ pub struct CoverageAuthorities<'a> {
     pub base_code: Option<&'a CodeCatalog>,
     pub policy: Option<&'a CoveragePolicy>,
     pub docs: Option<&'a DocCatalog>,
-    pub projection_store: Option<&'a ProjectionStore>,
     pub doc_config: Option<&'a DocConfig>,
     pub manifests: Option<&'a Manifests>,
 }
@@ -912,7 +909,7 @@ fn analyze_file(
     let identities = touched_identities(&touched);
     let documents = derive_documents(file, &touched, &identities, authorities, &mut warnings)?;
     let tests = derive_tests(&touched, &identities, authorities, &mut warnings)?;
-    let projections = derive_projections(file, &touched, authorities, &mut warnings);
+    let projections = derive_projections(file, authorities, &mut warnings);
 
     Ok(FileCoverage {
         path: file.path.clone(),
@@ -1266,9 +1263,15 @@ fn derive_tests(
     }
 }
 
+/// POT/LPT: INVARIANT current diff impact does not depend on historical state
+///
+/// A projeção histórica deixou de ser reconstruída a partir do catálogo
+/// corrente; ela é arquivo materializado, e nenhuma mudança corrente a
+/// atinge. Relacionar um diff corrente a um estado congelado passou a ser uma
+/// relação sem consequência, e a ausência é declarada em vez de simulada com
+/// campo vazio.
 fn derive_projections(
     file: &ParsedFile,
-    touched: &[&CodeRegion],
     authorities: &CoverageAuthorities<'_>,
     warnings: &mut BTreeSet<CoverageWarning>,
 ) -> Relation<ProjectionItem> {
@@ -1279,20 +1282,6 @@ fn derive_projections(
         add_documentary_projections(file, config, manifests, &mut items, warnings);
     } else {
         unavailable.push("autoridade de projeções documentais indisponível");
-    }
-
-    if let Some(store) = authorities.projection_store {
-        if !store.errors().is_empty() {
-            unavailable.push("store .pinker/projections contém artefatos inválidos");
-            warning(
-                warnings,
-                "W-DIFF-PROJECTION-HARNESS",
-                "store .pinker/projections contém artefatos inválidos",
-            );
-        }
-        add_navigation_projections(file, touched, authorities.code, store, &mut items, warnings);
-    } else {
-        unavailable.push("store .pinker/projections indisponível");
     }
 
     if !items.is_empty() {
@@ -1378,82 +1367,6 @@ fn manifest_number(path: &str) -> Option<u64> {
         .ok()
 }
 
-fn add_navigation_projections(
-    file: &ParsedFile,
-    touched: &[&CodeRegion],
-    code: &CodeCatalog,
-    store: &ProjectionStore,
-    items: &mut BTreeSet<ProjectionItem>,
-    warnings: &mut BTreeSet<CoverageWarning>,
-) {
-    let library = match store.library() {
-        Ok(library) => Some(library),
-        Err(error) => {
-            warning(
-                warnings,
-                "W-DIFF-PROJECTION-HARNESS",
-                &format!("biblioteca de projeções inválida: {}", error),
-            );
-            None
-        }
-    };
-    let touched_keys = touched
-        .iter()
-        .map(|region| region.key.as_str())
-        .collect::<BTreeSet<_>>();
-    for stored in store.snapshots() {
-        let direct = stored.path == file.path || file.path == "src/navigation.jsonl";
-        let mut composed = false;
-        let mut composed_recipe = false;
-        if let Some(library) = &library {
-            match nav_projection_recipe::resolve(library, &stored.snapshot.id, &code.regions) {
-                Ok(composition) => {
-                    composed = composition
-                        .regions
-                        .iter()
-                        .any(|region| touched_keys.contains(region.key.as_str()));
-                    if let Some(recipe_id) = file
-                        .path
-                        .strip_prefix(".pinker/projections/recipes/")
-                        .and_then(|path| path.strip_suffix(".toml"))
-                    {
-                        composed_recipe = composition
-                            .ledger
-                            .iter()
-                            .any(|entry| entry.scope == format!("recipe:{}", recipe_id));
-                    }
-                }
-                Err(error) => warning(
-                    warnings,
-                    "W-DIFF-PROJECTION-HARNESS",
-                    &format!(
-                        "snapshot '{}' não pôde ser resolvido: {}",
-                        stored.snapshot.id, error
-                    ),
-                ),
-            }
-        }
-        if direct || composed || composed_recipe {
-            items.insert(ProjectionItem {
-                id: stored.snapshot.id.clone(),
-                kind: "navigation-snapshot".to_string(),
-                path: stored.path.clone(),
-                authority: Authority {
-                    source: "projection-store".to_string(),
-                    path: stored.path.clone(),
-                    record: Some(stored.snapshot.id.clone()),
-                    field: if direct {
-                        "input-path".to_string()
-                    } else if composed_recipe {
-                        "reconstruction.recipes".to_string()
-                    } else {
-                        "reconstruction-membership".to_string()
-                    },
-                },
-            });
-        }
-    }
-}
 // @pinker-nav:end trama.diff-cobertura.derivacao
 
 // @pinker-nav:start trama.diff-cobertura.renderizacao

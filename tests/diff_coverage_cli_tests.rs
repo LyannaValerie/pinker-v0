@@ -1,9 +1,5 @@
 //! Contrato processual de pink nav cobertura-diff (#438).
 
-use pinker_v0::nav::CodeCatalog;
-use pinker_v0::nav_projection_snapshot::{
-    measure, render, ProjectionSnapshot, SnapshotState, SNAPSHOT_SCHEMA_V1,
-};
 use std::collections::BTreeMap;
 use std::fs;
 use std::io::Write;
@@ -188,27 +184,6 @@ fn fixture(label: &str) -> Repo {
         "<!-- @pinker-generated:start engine.state.generated -->\n\
          <!-- @pinker-generated:end engine.state.generated -->\n",
     );
-    fs::create_dir_all(repo.path().join(".pinker/projections/recipes")).unwrap();
-    let catalog = CodeCatalog::load(&repo.path().join("src/navigation.jsonl")).unwrap();
-    let snapshot = ProjectionSnapshot {
-        schema: SNAPSHOT_SCHEMA_V1,
-        id: "fixture-current".to_string(),
-        state: SnapshotState::Frozen,
-        predecessor: None,
-        justification: Some("fixture corrente".to_string()),
-        measures: measure(catalog.regions.iter()),
-        expected_overrides: 0,
-        expected_exclusions: 0,
-        expected_materializations: 0,
-        base_snapshot: None,
-        recipes: Vec::new(),
-        rules: Vec::new(),
-    };
-    write(
-        repo.path(),
-        ".pinker/projections/fixture-current.toml",
-        &render(&snapshot),
-    );
     repo
 }
 
@@ -331,7 +306,7 @@ fn snapshot(root: &Path) -> BTreeMap<String, (Vec<u8>, SystemTime)> {
 // @pinker-nav:layer evidencia
 // @pinker-nav:test-for pinker_v0::diff_coverage::analyze
 // @pinker-nav:test-for pinker_v0::diff_coverage::CoverageReport
-// @pinker-nav:summary Prova a CLI de cobertura com regiões, docs, snapshots, projeções documentais e testes explícitos; cobre UNKNOWN, deleção pura, malformed input, catálogos, determinismo entre roots, read-only e ausência estrutural de Git, rede, subprocessos ou heurística no derivador.
+// @pinker-nav:summary Prova a CLI de cobertura com regiões, docs, projeções documentais e testes explícitos; cobre UNKNOWN, deleção pura, malformed input, catálogos, determinismo entre roots, read-only e ausência estrutural de Git, rede, subprocessos ou heurística no derivador — e, desde TA/#697, a ausência de qualquer vínculo com estado histórico.
 
 #[test]
 fn relaciona_todas_as_superficies_por_autoridades_explicitas() {
@@ -341,7 +316,7 @@ fn relaciona_todas_as_superficies_por_autoridades_explicitas() {
     assert_success(&output);
     assert!(output.stderr.is_empty());
     let json = stdout(&output);
-    assert!(json.starts_with("{\"schema\":2,\"source\":\"stdin-unified-diff\""));
+    assert!(json.starts_with("{\"schema\":3,\"source\":\"stdin-unified-diff\""));
     for expected in [
         // Fatos de cobertura corrente publicados separadamente (T1/#675): a
         // relação com região continua existindo e NÃO absorve completude.
@@ -354,12 +329,10 @@ fn relaciona_todas_as_superficies_por_autoridades_explicitas() {
         "\"path\":\"src/alvo.rs\"",
         "\"id\":\"codigo.alvo\"",
         "\"id\":\"development.diff-coverage.contract\"",
-        "\"id\":\"fixture-current\",\"kind\":\"navigation-snapshot\"",
         "\"region\":\"evidencia.alvo\"",
         "\"id\":\"state\",\"kind\":\"documentation\"",
         "\"source\":\"code-catalog\"",
         "\"source\":\"symbol-index\"",
-        "\"source\":\"projection-store\"",
         "\"source\":\"doc-projection-config\"",
     ] {
         assert!(json.contains(expected), "ausente {expected}: {json}");
@@ -374,7 +347,6 @@ fn relaciona_todas_as_superficies_por_autoridades_explicitas() {
         "projeções: KNOWN",
         "testes: KNOWN",
         "codigo.alvo",
-        "fixture-current",
         "evidencia.alvo",
     ] {
         assert!(human.contains(expected), "ausente {expected}: {human}");

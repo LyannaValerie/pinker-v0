@@ -12,14 +12,12 @@ use crate::automation::RepoRoot;
 use crate::doc::{self, DocConfig};
 use crate::doc_index::{DocCatalog, DocIndex};
 use crate::nav::{self, CodeCatalog};
-use crate::nav_projection_report;
-use crate::nav_projection_snapshot::SnapshotState;
-use crate::nav_projection_store::ProjectionStore;
+use crate::nav_projection_archive;
 use std::fmt;
 use std::path::Path;
 
 /// Schema público inicial da superfície `pink estado`.
-pub const PROJECT_STATE_SCHEMA: u64 = 1;
+pub const PROJECT_STATE_SCHEMA: u64 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StateStatus {
@@ -50,7 +48,7 @@ pub enum SourceKind {
     Derived,
     LocalCheck,
     Catalog,
-    ProjectionStore,
+    HistoricalArchive,
 }
 
 impl SourceKind {
@@ -60,7 +58,7 @@ impl SourceKind {
             SourceKind::Derived => "derived",
             SourceKind::LocalCheck => "local_check",
             SourceKind::Catalog => "catalog",
-            SourceKind::ProjectionStore => "projection_store",
+            SourceKind::HistoricalArchive => "historical_archive",
         }
     }
 }
@@ -143,26 +141,19 @@ pub struct DocumentationState {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProjectionItem {
     pub id: String,
-    pub state: String,
-    pub path: String,
+    pub payload: String,
     pub outcome: String,
-    pub failure_code: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ProjectionCause {
-    pub cause: String,
-    pub blocked: Vec<String>,
-}
-
+/// Saúde do arquivo histórico materializado.
+///
+/// POT/LPT: INVARIANT this reports archive integrity, never freshness against
+/// the current catalog. A historical archive has nothing to synchronize with.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProjectionsState {
-    pub frozen: usize,
-    pub candidate: usize,
-    pub recipes: usize,
+    pub archived: usize,
     pub verification: String,
     pub items: Vec<ProjectionItem>,
-    pub causes: Vec<ProjectionCause>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -250,7 +241,7 @@ impl ProjectState {
 // @pinker-nav:start project-state.coleta
 // @pinker-nav:domain estado
 // @pinker-nav:layer adaptadores
-// @pinker-nav:summary Coleta somente leitura que reutiliza RepoRoot, verificadores doc/nav e ProjectionStore; falhas de um domínio são preservadas sem apagar domínios independentes.
+// @pinker-nav:summary Coleta somente leitura que reutiliza RepoRoot, verificadores doc/nav e o arquivo histórico materializado; falhas de um domínio são preservadas sem apagar domínios independentes.
 
 #[derive(Debug)]
 pub enum CollectError {
@@ -437,7 +428,7 @@ fn collect_repository(
                     source: documentation.source.clone(),
                 },
                 AuthorityAvailability {
-                    id: "projection_store".to_string(),
+                    id: "historical_archive".to_string(),
                     status: availability_status(projections),
                     source: projections.source.clone(),
                 },
@@ -751,176 +742,68 @@ fn collect_documentation(root: &RepoRoot, config: Option<&DocConfig>) -> Collect
 
 fn collect_projections(root: &RepoRoot) -> CollectedDomain {
     let source = Source::new(
-        SourceKind::ProjectionStore,
-        Some(".pinker/projections/"),
-        "projection-store",
+        SourceKind::HistoricalArchive,
+        Some(nav_projection_archive::INDEX_PATH),
+        "historical-archive",
     );
-    let store = match ProjectionStore::load(root.path()) {
-        Ok(store) => store,
-        Err(_) => {
+    let index = match nav_projection_archive::load(root.path()) {
+        Ok(index) => index,
+        Err(failure) => {
             let mut item = CollectedDomain::plain(DomainState {
                 id: DomainId::Projections,
                 status: StateStatus::Blocked,
                 source: source.clone(),
                 details: DomainDetails::Projections(ProjectionsState {
-                    frozen: 0,
-                    candidate: 0,
-                    recipes: 0,
-                    verification: "HARNESS_FAILURE".to_string(),
+                    archived: 0,
+                    verification: "UNAVAILABLE".to_string(),
                     items: Vec::new(),
-                    causes: Vec::new(),
                 }),
             });
             add_blocker_and_diagnostic(
                 &mut item,
-                "projections.store_unavailable",
+                "projections.archive_unavailable",
                 DomainId::Projections,
-                "A autoridade de projeções não pôde ser lida.",
-                "projection_store_unavailable",
+                &format!("A autoridade do arquivo histórico não pôde ser estabelecida: {failure}"),
+                "historical_archive_unavailable",
                 source,
             );
             return item;
         }
     };
-    let frozen = store
-        .snapshots()
-        .filter(|stored| stored.snapshot.state == SnapshotState::Frozen)
-        .count();
-    let candidate_ids = store
-        .snapshots()
-        .filter(|stored| stored.snapshot.state == SnapshotState::Candidate)
-        .map(|stored| stored.snapshot.id.clone())
-        .collect::<Vec<_>>();
-    let recipes = store.recipes().count();
-    let catalog = CodeCatalog::load(&root.path().join("src/navigation.jsonl"));
-    let mut items = Vec::new();
-    let mut causes = Vec::new();
-    let (verification, mut status, batch) = match catalog {
-        Ok(catalog) => {
-            let batch = nav_projection_report::verify_all(&store, &catalog.regions);
-            let status = match batch.outcome() {
-                "MATCH" => StateStatus::Ok,
-                "DRIFT" => StateStatus::Warning,
-                _ => StateStatus::Blocked,
-            };
-            (batch.outcome().to_string(), status, Some(batch))
-        }
-        Err(_) => ("UNAVAILABLE".to_string(), StateStatus::Partial, None),
+    let verification = nav_projection_archive::verify(root.path(), &index);
+    let outcome = verification.outcome().to_string();
+    let status = match outcome.as_str() {
+        "INTACT" => StateStatus::Ok,
+        _ => StateStatus::Blocked,
     };
-    if !candidate_ids.is_empty() && status == StateStatus::Ok {
-        status = StateStatus::Warning;
-    }
-    if let Some(batch) = &batch {
-        for observed in &batch.results {
-            items.push(ProjectionItem {
-                id: observed.report.snapshot_id.clone(),
-                state: observed.report.state.as_str().to_string(),
-                path: observed.path.clone(),
-                outcome: observed.report.outcome.as_str().to_string(),
-                failure_code: match &observed.report.outcome {
-                    crate::nav_projection_snapshot::Outcome::HarnessFailure(failure) => {
-                        Some(failure.code().to_string())
-                    }
-                    _ => None,
-                },
-            });
-        }
-        for group in &batch.causes {
-            let mut blocked = group
-                .blocked
-                .iter()
-                .map(|item| item.snapshot.clone())
-                .collect::<Vec<_>>();
-            blocked.sort();
-            for blocked_id in &blocked {
-                if let Some(stored) = store.snapshot(blocked_id) {
-                    items.push(ProjectionItem {
-                        id: blocked_id.clone(),
-                        state: stored.snapshot.state.as_str().to_string(),
-                        path: stored.path.clone(),
-                        outcome: "BLOCKED_BY_CAUSE".to_string(),
-                        failure_code: Some("E-SNAP-BASE-DIVERGENTE".to_string()),
-                    });
-                }
-            }
-            causes.push(ProjectionCause {
-                cause: group.cause.clone(),
-                blocked,
-            });
-        }
-    } else {
-        for stored in store.snapshots() {
-            items.push(ProjectionItem {
-                id: stored.snapshot.id.clone(),
-                state: stored.snapshot.state.as_str().to_string(),
-                path: stored.path.clone(),
-                outcome: "UNKNOWN".to_string(),
-                failure_code: None,
-            });
-        }
-    }
-    items.sort_by(|a, b| a.id.cmp(&b.id));
-    causes.sort_by(|a, b| a.cause.cmp(&b.cause));
+    let items = verification
+        .entries
+        .iter()
+        .map(|entry| ProjectionItem {
+            id: entry.id.clone(),
+            payload: entry.payload_path.clone(),
+            outcome: entry.outcome.as_str().to_string(),
+        })
+        .collect::<Vec<_>>();
     let mut item = CollectedDomain::plain(DomainState {
         id: DomainId::Projections,
         status,
         source: source.clone(),
         details: DomainDetails::Projections(ProjectionsState {
-            frozen,
-            candidate: candidate_ids.len(),
-            recipes,
-            verification: verification.clone(),
+            archived: index.entries.len(),
+            verification: outcome.clone(),
             items,
-            causes,
         }),
     });
-    if batch.is_none() {
-        item.diagnostics.push(Diagnostic {
-            id: "projections.catalog_unavailable".to_string(),
-            domain: DomainId::Projections,
-            status: StateStatus::Unavailable,
-            summary: "O catálogo de código necessário à verificação composta está indisponível."
-                .to_string(),
-            reason: "projection_catalog_unavailable".to_string(),
-            source: Source::new(
-                SourceKind::Catalog,
-                Some("src/navigation.jsonl"),
-                "trama.code-catalog",
-            ),
-        });
-    }
-    if verification == "DRIFT" {
-        add_warning_and_diagnostic(
-            &mut item,
-            "projections.drift",
-            DomainId::Projections,
-            "Ao menos uma projeção histórica diverge das medidas congeladas.",
-            "projection_drift",
-            source.clone(),
-        );
-    } else if verification == "HARNESS_FAILURE" {
+    if outcome != "INTACT" {
         add_blocker_and_diagnostic(
             &mut item,
-            "projections.harness_failure",
+            "projections.archive_compromised",
             DomainId::Projections,
-            "A verificação composta encontrou falha de harness.",
-            "projection_harness_failure",
-            source.clone(),
+            "Ao menos um estado histórico materializado não corresponde às medidas preservadas.",
+            "historical_archive_compromised",
+            source,
         );
-    }
-    for id in candidate_ids {
-        item.pending.push(PendingOperation {
-            id: format!("projections.accept_candidate.{id}"),
-            domain: DomainId::Projections,
-            kind: "accept_projection_candidate".to_string(),
-            summary: format!("Candidate '{}' aguarda decisão explícita de aceitação.", id),
-            source: Source::new(
-                SourceKind::RepoFile,
-                Some(&format!(".pinker/projections/{id}.toml")),
-                "projection-snapshot.lifecycle",
-            ),
-            reason: "projection_candidate_pending".to_string(),
-        });
     }
     item
 }
@@ -942,9 +825,9 @@ fn collect_local_checks(
             source: Source::new(SourceKind::LocalCheck, None, "trama.documentation.verify"),
         },
         LocalCheck {
-            id: "projections.verify_composed".to_string(),
+            id: "projections.archive_integrity".to_string(),
             status: check_status(projections.status),
-            source: Source::new(SourceKind::LocalCheck, None, "projection-report.verify-all"),
+            source: Source::new(SourceKind::LocalCheck, None, "historical-archive.verify"),
         },
     ];
     let status = derive_check_status(&checks);

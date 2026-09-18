@@ -91,7 +91,7 @@ fn doctor_repo_invalido_falha_cedo() {
 }
 
 #[test]
-fn nav_impacto_diff_vazio_e_known_sem_overrides() {
+fn nav_impacto_diff_vazio_e_known_no_schema_migrado() {
     let repo = root().to_string_lossy().into_owned();
     let output = run(&[
         "nav",
@@ -108,14 +108,19 @@ fn nav_impacto_diff_vazio_e_known_sem_overrides() {
         String::from_utf8_lossy(&output.stderr)
     );
     let json = stdout(&output);
+    assert!(json.contains("\"schema\":2"), "{json}");
     assert!(json.contains("\"changed_files\":[]"), "{json}");
-    assert!(json.contains(
-        "\"projection_overrides_required\":{\"status\":\"KNOWN\",\"reason\":null,\"items\":[]}"
-    ));
+    assert!(
+        json.contains("\"changed_regions\":{\"status\":\"KNOWN\",\"reason\":null,\"items\":[]}")
+    );
+    assert!(
+        !json.contains("projection_overrides_required"),
+        "campo de capacidade aposentada ressuscitado: {json}"
+    );
 }
 
 #[test]
-fn nav_impacto_diff_real_expoe_unknown_sem_falsa_precisao() {
+fn nav_impacto_diff_real_expoe_relacoes_correntes_sem_campo_aposentado() {
     let repo = root().to_string_lossy().into_owned();
     let predecessor = Command::new("git")
         .args(["rev-parse", "--verify", "HEAD^"])
@@ -156,7 +161,6 @@ fn nav_impacto_diff_real_expoe_unknown_sem_falsa_precisao() {
         "changed_files",
         "changed_regions",
         "navigation_entries_affected",
-        "projection_overrides_required",
         "projections_affected",
         "catalog_status",
     ] {
@@ -169,9 +173,15 @@ fn nav_impacto_diff_real_expoe_unknown_sem_falsa_precisao() {
         !json.contains("\"changed_files\":[]"),
         "PINK_BEHAVIOR_FAILURE: {json}"
     );
+    // A migração de schema é parte do contrato: o campo de override de projeção
+    // foi retirado com a capacidade, e não renomeado nem preenchido com nulo.
     assert!(
-        json.contains("\"projection_overrides_required\":{\"status\":\"UNKNOWN\""),
+        json.contains("\"schema\":2"),
         "PINK_BEHAVIOR_FAILURE: {json}"
+    );
+    assert!(
+        !json.contains("projection_overrides_required") && !json.contains("overrides"),
+        "PINK_BEHAVIOR_FAILURE: campo de capacidade aposentada presente: {json}"
     );
 }
 

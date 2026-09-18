@@ -308,11 +308,6 @@ fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String>
     let mut repo = ".".to_string();
     let mut json = false;
     let mut limite: Option<usize> = None;
-    let mut observado = false;
-    let mut justificativa: Option<String> = None;
-    let mut predecessor: Option<String> = None;
-    let mut autorizar: Option<String> = None;
-    let mut renomeacoes: Option<String> = None;
     let mut diff: Option<String> = None;
     let mut base: Option<String> = None;
     let mut desde: Option<usize> = None;
@@ -368,47 +363,6 @@ fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String>
                     ));
                 }
                 base = Some(args[i].clone());
-            }
-            "--observado" => observado = true,
-            "--justificativa" => {
-                i += 1;
-                if i >= args.len() {
-                    return Err(format!(
-                        "Flag '--justificativa' requer um valor.\n\n{}",
-                        projection_usage(binary)
-                    ));
-                }
-                justificativa = Some(args[i].clone());
-            }
-            "--predecessor" => {
-                i += 1;
-                if i >= args.len() {
-                    return Err(format!(
-                        "Flag '--predecessor' requer um valor.\n\n{}",
-                        projection_usage(binary)
-                    ));
-                }
-                predecessor = Some(args[i].clone());
-            }
-            "--renomeacoes" => {
-                i += 1;
-                if i >= args.len() {
-                    return Err(format!(
-                        "Flag '--renomeacoes' requer um valor.\n\n{}",
-                        nav_usage(binary)
-                    ));
-                }
-                renomeacoes = Some(args[i].clone());
-            }
-            "--autorizar" => {
-                i += 1;
-                if i >= args.len() {
-                    return Err(format!(
-                        "Flag '--autorizar' requer um valor.\n\n{}",
-                        projection_usage(binary)
-                    ));
-                }
-                autorizar = Some(args[i].clone());
             }
             "--limite" => {
                 i += 1;
@@ -522,11 +476,6 @@ fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String>
             nav_usage(binary)
         ));
     }
-    let has_projection_options = observado
-        || justificativa.is_some()
-        || predecessor.is_some()
-        || autorizar.is_some()
-        || renomeacoes.is_some();
     let sub = match subcommand.as_str() {
         "mostrar" => NavSub::Mostrar {
             key: require_one("mostrar")?,
@@ -637,70 +586,20 @@ fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String>
             };
             let projection = match command.as_str() {
                 "listar" => {
-                    if !arguments.is_empty() || has_projection_options {
+                    if !arguments.is_empty() {
                         return Err(projection_subcommand_usage(binary, command));
                     }
                     ProjectionSub::Listar
                 }
-                "mostrar" => {
-                    if justificativa.is_some()
-                        || predecessor.is_some()
-                        || autorizar.is_some()
-                        || renomeacoes.is_some()
-                    {
-                        return Err(projection_subcommand_usage(binary, command));
-                    }
-                    ProjectionSub::Mostrar {
-                        id: require_projection_id()?,
-                        observado,
-                    }
-                }
+                "mostrar" => ProjectionSub::Mostrar {
+                    id: require_projection_id()?,
+                },
                 "verificar" => {
-                    if has_projection_options {
-                        return Err(projection_subcommand_usage(binary, command));
-                    }
                     if arguments.len() > 1 {
                         return Err(projection_subcommand_usage(binary, command));
                     }
                     ProjectionSub::Verificar {
                         id: arguments.first().cloned(),
-                    }
-                }
-                "preparar" => {
-                    if observado || renomeacoes.is_some() {
-                        return Err(projection_subcommand_usage(binary, command));
-                    }
-                    ProjectionSub::Preparar {
-                        id: require_projection_id()?,
-                        justificativa,
-                        predecessor,
-                        autorizar,
-                    }
-                }
-                "aceitar" => {
-                    if observado
-                        || justificativa.is_some()
-                        || predecessor.is_some()
-                        || renomeacoes.is_some()
-                    {
-                        return Err(projection_subcommand_usage(binary, command));
-                    }
-                    ProjectionSub::Aceitar {
-                        id: require_projection_id()?,
-                        autorizar,
-                    }
-                }
-                "reconciliar" => {
-                    if observado
-                        || justificativa.is_some()
-                        || predecessor.is_some()
-                        || !arguments.is_empty()
-                    {
-                        return Err(projection_subcommand_usage(binary, command));
-                    }
-                    ProjectionSub::Reconciliar {
-                        autorizar,
-                        renomeacoes,
                     }
                 }
                 _ => {
@@ -725,14 +624,6 @@ fn parse_nav_args(binary: &str, args: &[String]) -> Result<NavConfigCli, String>
     if !matches!(sub, NavSub::Impacto { .. }) && diff.is_some() {
         return Err(format!(
             "A opção '--diff' pertence somente a nav impacto.\n\n{}",
-            nav_usage(binary)
-        ));
-    }
-
-    if !matches!(sub, NavSub::Projecao(_)) && has_projection_options {
-        return Err(format!(
-            "Opção exclusiva de nav projecao usada em '{}'.\n\n{}",
-            subcommand,
             nav_usage(binary)
         ));
     }

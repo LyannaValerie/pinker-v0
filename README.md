@@ -97,11 +97,9 @@ inválido escrevem em stderr e terminam com código `2`.
 | `pink --cfg-ir arquivo.pink` | Emissão de CFG IR |
 | `pink --machine arquivo.pink` | Emissão da machine abstrata |
 | `pink build --nativo arquivo.pink` | Geração de executável nativo no recorte suportado |
-| `pink nav projecao listar` | Inventário dos snapshots históricos de navegação |
-| `pink nav projecao mostrar ID [--observado]` | Definição canônica e observação separadas |
-| `pink nav projecao verificar [ID]` | Verificação composta, com drift e harness distintos |
-| `pink nav projecao preparar ID ...` | Planeja/prepara CANDIDATE por digest explícito |
-| `pink nav projecao aceitar ID ...` | Planeja/aceita a transição única para FROZEN |
+| `pink nav projecao listar` | Inventário do arquivo histórico materializado |
+| `pink nav projecao mostrar ID` | Uma entrada do arquivo, com medidas preservadas e integridade |
+| `pink nav projecao verificar [ID]` | Integridade do arquivo histórico, sem ler o catálogo corrente |
 | `pink nav localizar SÍMBOLO [--json]` | Resolve símbolos e vínculos explícitos pelo índice derivado |
 | `git diff --unified=0 \| pink nav cobertura-diff [--json]` | Relaciona arquivos e linhas a regiões, docs, projeções e testes explícitos |
 | `pink estado [--repo DIRETÓRIO] [--agente-spec ARQUIVO] [--json]` | Estado consolidado, determinístico e somente leitura do projeto |
@@ -111,8 +109,8 @@ operacional genérica) e `2` (invocação inválida). `doc` e `nav` preservam os
 códigos estruturados `3` para catálogo ausente ou inválido, `4` para ausência
 de resultado e `5` para fonte ou âncora divergente; `agente` preserva seus
 códigos operacionais depois do parsing. `nav projecao` acrescenta `6` para
-falha de harness, `7` para violação de política e `8` para plano obsoleto,
-preservando `5` para drift. A versão humana contém apenas
+índice de arquivo inválido, preservando `5` para arquivo alterado e `3` para
+payload ausente. A versão humana contém apenas
 `pink` e a versão do pacote: commit de build e versões de schema ficam
 reservados a uma possível saída estruturada futura, ainda sem contrato nesta
 etapa.
