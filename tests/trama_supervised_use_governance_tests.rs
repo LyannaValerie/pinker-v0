@@ -433,31 +433,58 @@ fn o15_findings_diferidos_continuam_nao_implementados() {
     );
 }
 
-/// Conjunto completo de chaves de uma consulta, quando o total cabe no limite:
-/// ausência aqui é ausência no conjunto, não apenas na primeira página.
-fn chaves_do_conjunto_completo(consulta: &str) -> Vec<String> {
-    let out = pink(&["nav", "buscar", consulta, "--json", "--limite", "20"]);
-    assert_eq!(code(&out), 0, "a consulta precisa ser sucesso operacional");
-    let text = stdout(&out);
-    let total: usize = text
-        .split_once("\"total_results\":")
-        .and_then(|(_, rest)| rest.split(',').next())
-        .and_then(|value| value.trim().parse().ok())
-        .expect("total_results legível");
-    assert!(
-        total <= 20,
-        "o controle exige o conjunto completo, não a primeira página: {total} resultados"
-    );
-    text.split("\"key\":\"")
-        .skip(1)
-        .filter_map(|rest| rest.split('"').next().map(str::to_string))
-        .collect()
+/// Conjunto completo de uma consulta, paginado por `--desde` até esgotar
+/// `total_results`: devolve as chaves e os termos que o produto declara ter
+/// casado. Ausência aqui é ausência do conjunto inteiro, não da primeira
+/// página.
+fn conjunto_completo(consulta: &str) -> (Vec<String>, Vec<String>) {
+    let mut chaves: Vec<String> = Vec::new();
+    let mut termos: Vec<String> = Vec::new();
+    loop {
+        let desde = chaves.len().to_string();
+        let out = pink(&[
+            "nav", "buscar", consulta, "--json", "--limite", "20", "--desde", &desde,
+        ]);
+        assert_eq!(code(&out), 0, "a consulta precisa ser sucesso operacional");
+        let text = stdout(&out);
+        let total: usize = text
+            .split_once("\"total_results\":")
+            .and_then(|(_, rest)| rest.split(',').next())
+            .and_then(|value| value.trim().parse().ok())
+            .expect("total_results legível");
+        let pagina: Vec<String> = text
+            .split("\"key\":\"")
+            .skip(1)
+            .filter_map(|rest| rest.split('"').next().map(str::to_string))
+            .collect();
+        assert!(
+            !pagina.is_empty(),
+            "a paginação parou antes de esgotar {total} resultados"
+        );
+        chaves.extend(pagina);
+        for bloco in text.split("\"matched_terms\":[").skip(1) {
+            let lista = bloco.split(']').next().unwrap_or_default();
+            termos.extend(
+                lista
+                    .split(',')
+                    .filter_map(|item| item.trim().strip_prefix('"'))
+                    .filter_map(|item| item.strip_suffix('"'))
+                    .map(str::to_string),
+            );
+        }
+        if chaves.len() >= total {
+            assert_eq!(chaves.len(), total, "a paginação devolveu além do total");
+            termos.sort();
+            termos.dedup();
+            return (chaves, termos);
+        }
+    }
 }
 
 /// O13b — #703 continua ausente do produto: a consulta conceitual equivalente
-/// em português não recupera o referente que a consulta inglesa encontra em
-/// primeiro lugar. A tradução é procedimento do agente, não comportamento do
-/// produto.
+/// em português não recupera, em todo o seu conjunto, o referente que a
+/// consulta inglesa encontra em primeiro lugar. A tradução é procedimento do
+/// agente, não comportamento do produto.
 #[test]
 fn o13b_consulta_portuguesa_nao_recupera_o_referente_ingles() {
     let ingles = pink(&[
@@ -472,27 +499,42 @@ fn o13b_consulta_portuguesa_nao_recupera_o_referente_ingles() {
         "a consulta inglesa precisa continuar alcançando a autoridade de cobertura"
     );
 
-    let portugues = chaves_do_conjunto_completo("política de cobertura escopo exceção disposição");
+    let (chaves, termos) = conjunto_completo("política de cobertura escopo exceção disposição");
     assert!(
-        !portugues.contains(&"trama.coverage.policy".to_string()),
+        !chaves.contains(&"trama.coverage.policy".to_string()),
         "o produto passou a recuperar o referente inglês por uma consulta portuguesa: isso é #703"
     );
+    for termo in &termos {
+        assert!(
+            !["coverage", "policy", "scope", "exception", "disposition"].contains(&termo.as_str()),
+            "a consulta portuguesa casou o termo inglês '{termo}': isso é tradução, ou seja #703"
+        );
+    }
 }
 
-/// O15b — #703 continua ausente também na morfologia: `semantic` e `semantics`
-/// são termos distintos e seus conjuntos completos não se tocam. Nenhum
-/// stemming ou expansão por sinônimo foi introduzido por baixo da superfície
-/// pública.
+/// O15b — #703 continua ausente também na morfologia. Os conjuntos completos
+/// de `semantic` e `semantics` se tocam, porque uma mesma região pode conter
+/// literalmente as duas grafias; interseção de conjunto, portanto, não prova
+/// nada aqui. O que prova é o termo casado: em todo o conjunto completo, cada
+/// consulta só casa a própria grafia. Não há stemming nem expansão por
+/// sinônimo por baixo da superfície pública.
 #[test]
 fn o15b_variante_morfologica_nao_e_equivalente() {
-    let singular = chaves_do_conjunto_completo("semantics");
-    let plural = pink(&["nav", "buscar", "semantic", "--json", "--limite", "20"]);
-    assert_eq!(code(&plural), 0);
-    let plural = stdout(&plural);
-    for chave in &singular {
+    for (consulta, alheia) in [("semantic", "semantics"), ("semantics", "semantic")] {
+        let (chaves, termos) = conjunto_completo(consulta);
         assert!(
-            !plural.contains(&format!("\"key\":\"{chave}\"")),
-            "'{chave}' passou a responder às duas grafias: isso é stemming, ou seja #703"
+            chaves.len() >= 10,
+            "o controle precisa de um conjunto substantivo: {}",
+            chaves.len()
+        );
+        assert_eq!(
+            termos,
+            vec![consulta.to_string()],
+            "'{consulta}' passou a casar termos que não digitou"
+        );
+        assert!(
+            !termos.contains(&alheia.to_string()),
+            "'{consulta}' passou a casar '{alheia}': isso é stemming, ou seja #703"
         );
     }
 }
