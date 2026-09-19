@@ -42,6 +42,172 @@ Rust/Cargo.
 - Documentação só muda quando a Task exige ajuste de superfície; não faça
   rebuild documental amplo.
 
+## Uso supervisionado da Trama durante a Task
+
+A Trama não é rito de abertura. Uma consulta de bootstrap não cobre a Task
+inteira, e uma consulta tardia não certifica retroativamente uma busca ampla
+anterior. Enquanto a campanha #671 estiver aberta, estes pontos de controle são
+obrigatórios e a evidência de cada um fica em `<TASK_ROOT>/memory` ou
+`<TASK_ROOT>/artifacts`.
+
+```text
+POT/LPT: AUTHORITY #690 #671 #705
+
+CHECKPOINT P0 PREP
+    Task identity observed
+    Forja verify OK
+    exact Task-local pink built
+    source/catalog state known
+
+CHECKPOINT P1 BEFORE_BROAD_SEARCH
+    most relevant Trama route before any broad repository search
+
+CHECKPOINT P2 AFTER_SCOPE_DISCOVERY
+    confront the regions/subsystems/files actually about to change
+
+CHECKPOINT P3 STRUCTURAL_BLOCKER_RESUME
+    only when a structural blocker actually occurs
+    otherwise NOT_APPLICABLE
+
+CHECKPOINT P4 FINAL_CANDIDATE_REVIEW
+    confront the actual final fileset with current cartography
+
+CHECKPOINT P5 FINALIZATION
+    reconcile routes, selected candidates, fallbacks, limitations and gaps
+    applies to a Task without PR as well
+
+INVARIANT
+    P0_ONLY != WHOLE_TASK_COMPLIANCE
+
+INVARIANT
+    LATE_QUERY != RETROACTIVE_PROOF_OF_EARLIER_COMPLIANCE
+
+INVARIANT
+    QUERY_EXECUTED != ANSWER_PROVEN
+
+INVARIANT
+    rc=0 != relevance proven
+
+INVARIANT
+    result_count > 0 != answer sufficient
+
+INVARIANT
+    NAV_LOCALIZAR_EMPTY != SYMBOL_ABSENT
+
+INVARIANT
+    OBSERVATION != COMPREHENSION
+
+MUST at a material checkpoint
+    inspect the selected candidate
+    AND record the supporting evidence
+    OR record TRAMA_INSUFFICIENT and a bounded fallback
+
+MUST NOT record PASS solely because
+    the command exited 0
+    the result list was nonempty
+    the score was positive
+
+MATERIAL_SCOPE_TRANSITION WHEN any
+    initial understanding -> subsystem identified
+    investigation -> implementation target chosen
+    new unexpected subsystem enters the diff
+    structural blocker changes the hypothesis
+    candidate fix broadens the fileset
+    final diff differs materially from the initial scope
+
+WHEN MATERIAL_SCOPE_TRANSITION
+    -> requery Trama for the newly discovered scope
+    OR explicitly revalidate the prior evidence against that scope
+    MUST name the new subsystem/region and the candidate selected for it
+    MUST NOT accept a replayed query whose evidence predates the transition
+
+MUST NOT
+    repeat an identical query ceremonially when scope, catalog/source state
+    and selected evidence remain demonstrably valid
+    claim that a query about subsystem A covers a newly discovered subsystem B
+
+FALLBACK when Trama is insufficient
+    MUST record purpose
+    MUST record the exact Trama attempt
+    MUST record the Trama result
+    MUST record the limitation
+    MUST record the fallback tool
+    MUST record the bounded fallback scope
+    MUST record the evidence recovered
+
+MUST NOT
+    hide a broad search behind a vague "Trama checked"
+    treat an empty localizar as symbol nonexistence
+    treat a weak result as proof
+
+LANGUAGE during #671
+    a conceptual Trama query SHOULD use canonical English
+    a factual literal target MUST stay literal
+
+WHEN the source concept arrives in another language
+    MAY translate the concept for the query
+    MUST record AGENT_QUERY_TRANSLATION
+
+INVARIANT
+    AGENT_QUERY_TRANSLATION != PRODUCT_MULTILINGUAL_RETRIEVAL
+
+MUST NOT derive from this rule
+    Portuguese aliases
+    automatic translation
+    stemming
+    synonym expansion
+    a relevance threshold
+    a change to nav buscar scoring
+    a change to exit codes
+
+EVIDENCE CLASS
+    OBSERVED
+        command execution
+        exact binary provenance
+        query arguments
+        result metadata
+        ordering
+        fileset
+        Task state
+    AGENT_ATTESTED
+        the candidate was semantically correct
+        the query was sufficient
+        the fallback was necessary
+
+MUST NOT
+    encode agent interpretation as machine-proven truth
+
+MUST NOT classify as a structural blocker by default
+    an expected mutant RED
+    a negative test failure expected by the control
+    rc=4 from a deliberate no-answer probe
+
+AT P4
+    WHEN a material file or subsystem lacks useful cartography
+    -> record TRAMA_COVERAGE_GAP = TRUE
+    MUST NOT invent an arbitrary marker merely to get green
+
+AT P5
+    reconcile queries, selected candidates, inspected candidates,
+    rejected candidates, fallbacks, limitations, coverage gaps
+    and every operation performed outside the supervised route
+
+HOST_SIDE OBSERVATION
+    pinker-run records Task identity, command, ordering and exit status
+    forja-evidence retains the checkpoint ledger as content-addressed evidence
+    neither one observes checkpoint type or selected/fallback state
+
+MUST NOT create
+    a persistent agent coordinator
+    a cross-provider journal architecture
+    a second Task lifecycle authority
+    a quota manager
+    a Rosa substitute
+    a second agent harness
+
+STRONGER_AUTOMATION -> #594
+```
+
 ## Execução nativa Pinker
 
 - `tests/common/native_process_sandbox.rs` ancora o sandbox em
