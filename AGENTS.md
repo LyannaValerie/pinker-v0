@@ -116,8 +116,10 @@ MATERIAL_SCOPE_TRANSITION WHEN any
     final diff differs materially from the initial scope
 
 WHEN MATERIAL_SCOPE_TRANSITION
-    -> requery Trama
-    OR explicitly revalidate the prior evidence
+    -> requery Trama for the newly discovered scope
+    OR explicitly revalidate the prior evidence against that scope
+    MUST name the new subsystem/region and the candidate selected for it
+    MUST NOT accept a replayed query whose evidence predates the transition
 
 MUST NOT
     repeat an identical query ceremonially when scope, catalog/source state

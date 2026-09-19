@@ -120,8 +120,10 @@ fn o3_transicao_de_escopo_exige_requery_ou_revalidacao() {
             "structural blocker changes the hypothesis",
             "candidate fix broadens the fileset",
             "final diff differs materially from the initial scope",
-            "-> requery Trama",
-            "OR explicitly revalidate the prior evidence",
+            "-> requery Trama for the newly discovered scope",
+            "OR explicitly revalidate the prior evidence against that scope",
+            "MUST name the new subsystem/region and the candidate selected for it",
+            "MUST NOT accept a replayed query whose evidence predates the transition",
             "claim that a query about subsystem A covers a newly discovered subsystem B",
         ],
         "O3",
@@ -429,6 +431,70 @@ fn o15_findings_diferidos_continuam_nao_implementados() {
         &["MUST NOT derive from this rule", "a relevance threshold"],
         "O15",
     );
+}
+
+/// Conjunto completo de chaves de uma consulta, quando o total cabe no limite:
+/// ausência aqui é ausência no conjunto, não apenas na primeira página.
+fn chaves_do_conjunto_completo(consulta: &str) -> Vec<String> {
+    let out = pink(&["nav", "buscar", consulta, "--json", "--limite", "20"]);
+    assert_eq!(code(&out), 0, "a consulta precisa ser sucesso operacional");
+    let text = stdout(&out);
+    let total: usize = text
+        .split_once("\"total_results\":")
+        .and_then(|(_, rest)| rest.split(',').next())
+        .and_then(|value| value.trim().parse().ok())
+        .expect("total_results legível");
+    assert!(
+        total <= 20,
+        "o controle exige o conjunto completo, não a primeira página: {total} resultados"
+    );
+    text.split("\"key\":\"")
+        .skip(1)
+        .filter_map(|rest| rest.split('"').next().map(str::to_string))
+        .collect()
+}
+
+/// O13b — #703 continua ausente do produto: a consulta conceitual equivalente
+/// em português não recupera o referente que a consulta inglesa encontra em
+/// primeiro lugar. A tradução é procedimento do agente, não comportamento do
+/// produto.
+#[test]
+fn o13b_consulta_portuguesa_nao_recupera_o_referente_ingles() {
+    let ingles = pink(&[
+        "nav",
+        "buscar",
+        "coverage policy scope exception disposition",
+        "--json",
+    ]);
+    assert_eq!(code(&ingles), 0);
+    assert!(
+        stdout(&ingles).contains("\"key\":\"trama.coverage.policy\""),
+        "a consulta inglesa precisa continuar alcançando a autoridade de cobertura"
+    );
+
+    let portugues = chaves_do_conjunto_completo("política de cobertura escopo exceção disposição");
+    assert!(
+        !portugues.contains(&"trama.coverage.policy".to_string()),
+        "o produto passou a recuperar o referente inglês por uma consulta portuguesa: isso é #703"
+    );
+}
+
+/// O15b — #703 continua ausente também na morfologia: `semantic` e `semantics`
+/// são termos distintos e seus conjuntos completos não se tocam. Nenhum
+/// stemming ou expansão por sinônimo foi introduzido por baixo da superfície
+/// pública.
+#[test]
+fn o15b_variante_morfologica_nao_e_equivalente() {
+    let singular = chaves_do_conjunto_completo("semantics");
+    let plural = pink(&["nav", "buscar", "semantic", "--json", "--limite", "20"]);
+    assert_eq!(code(&plural), 0);
+    let plural = stdout(&plural);
+    for chave in &singular {
+        assert!(
+            !plural.contains(&format!("\"key\":\"{chave}\"")),
+            "'{chave}' passou a responder às duas grafias: isso é stemming, ou seja #703"
+        );
+    }
 }
 
 /// O16 — o arquivo histórico materializado continua 13/13 INTACT.
