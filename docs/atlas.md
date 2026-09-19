@@ -10,7 +10,7 @@ audience:
   - agent
 ---
 
-# Atlas documental da Pinker v0
+# Pinker v0 documentation atlas
 
 - **Classe:** Ponte
 - **Papel:** navegação
@@ -22,12 +22,12 @@ Este é o arquivo mestre de navegação documental da Pinker v0.
 
 <!-- @pinker-doc:start
 id: atlas.territories
-tags: [atlas, territorios, portais, navegacao]
+tags: [atlas, territories, portals, navigation]
 aliases:
-  - territorios
-  - quais sao os territorios
-  - mapa de territorios
-summary: Lista dos territórios documentais e seus portais locais.
+  - territories
+  - what the territories are
+  - territory map
+summary: List of the documentary territories and their local portals.
 -->
 A Trama Pinker organiza a documentação em **territórios**. O Atlas aponta para o
 portal de cada território; o portal conhece os documentos internos. Portais de

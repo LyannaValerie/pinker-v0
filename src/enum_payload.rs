@@ -22,10 +22,10 @@
 //! `lista<Token>` compartilham a mesma classe operacional e **não** são
 //! intercambiáveis.
 
-// @pinker-nav:start leque.carga.classificacao
+// @pinker-nav:start leque.payload.classification
 // @pinker-nav:domain leques
-// @pinker-nav:layer semantica
-// @pinker-nav:summary Autoridade única das cargas de variante de leque: `resolve_payload_type` resolve apelidos em profundidade (inclusive o elemento de `lista<E>` e cadeias de apelidos) sem criar identidade nominal nova, `classify_enum_payload` decide a classe operacional exaustivamente por variante de `Type` (discriminante imediato, `verso`, handle opaco de uma palavra ou recusa estável), e `EnumPayloadShape` transporta representação operacional, tipo resolvido, chave canônica de identidade e identidade do elemento da lista até parser, semântica, lowering, validadores, interpretador e backend nativo, que derivam o helper de runtime exclusivamente da classe — nunca de um `match` parcial local sobre o tipo-fonte.
+// @pinker-nav:layer semantic
+// @pinker-nav:summary Single authority over leque variant payloads: `resolve_payload_type` resolves aliases in depth (including the element of `lista<E>` and alias chains) without creating a new nominal identity, `classify_enum_payload` decides the operational class exhaustively per `Type` variant (immediate discriminant, `verso`, one-word opaque handle or a stable refusal), and `EnumPayloadShape` carries operational representation, resolved type, canonical identity key and the list element's identity down to parser, semantics, lowering, validators, interpreter and native backend, which derive the runtime helper exclusively from the class — never from a local partial `match` over the source type.
 use crate::ast::Type;
 use crate::union_canon;
 use std::collections::{HashMap, HashSet};
@@ -404,4 +404,4 @@ pub fn classify_enum_payload(
     };
     Ok(EnumPayloadShape { class, resolved })
 }
-// @pinker-nav:end leque.carga.classificacao
+// @pinker-nav:end leque.payload.classification

@@ -42,10 +42,10 @@
 //! simulados: não há apply, então não há `APPLIED`, `NO_CHANGE` operacional,
 //! `STALE_PLAN`, `IO_FAILURE` nem falha posterior à escrita.
 
-// @pinker-nav:start automation.contrato.resultados
-// @pinker-nav:domain contrato
+// @pinker-nav:start automation.contract.results
+// @pinker-nav:domain contract
 // @pinker-nav:layer automation
-// @pinker-nav:summary Contrato de resultados do núcleo de automação: outcomes de domínio (MATCH, DRIFT, APPLIED, NO_CHANGE), falhas operacionais separadas (HARNESS_FAILURE, POLICY_VIOLATION, STALE_PLAN, IO_FAILURE, VERIFY_AFTER_APPLY_FAILURE) e NEEDS_HUMAN_DECISION como estado decisório que nunca substitui a causa; o estágio puro só produz Match, Drift, HarnessFailure e PolicyViolation.
+// @pinker-nav:summary Result contract of the automation core: domain outcomes (MATCH, DRIFT, APPLIED, NO_CHANGE), operational failures kept separate (HARNESS_FAILURE, POLICY_VIOLATION, STALE_PLAN, IO_FAILURE, VERIFY_AFTER_APPLY_FAILURE) and NEEDS_HUMAN_DECISION as a decision state that never replaces the cause; the pure stage only produces Match, Drift, HarnessFailure and PolicyViolation.
 pub mod compare;
 pub mod fsio;
 pub mod path;
@@ -372,12 +372,12 @@ impl fmt::Display for Decision {
         f.write_str(self.as_str())
     }
 }
-// @pinker-nav:end automation.contrato.resultados
+// @pinker-nav:end automation.contract.results
 
-// @pinker-nav:start automation.contrato.autorizacao
-// @pinker-nav:domain contrato
+// @pinker-nav:start automation.contract.authorization
+// @pinker-nav:domain contract
 // @pinker-nav:layer automation
-// @pinker-nav:summary Autorização de escrita por digest exato do plano, drift final medido ou explicitamente desconhecido, e o procedimento de recuperação constante — observar de novo, novo check, novo plano, novo digest — que substitui qualquer promessa de rollback ou retry cego.
+// @pinker-nav:summary Write authorization by exact plan digest, final drift either measured or explicitly unknown, and the constant recovery procedure — observe again, new check, new plan, new digest — which replaces any promise of rollback or blind retry.
 
 /// Autorização explícita para aplicar um plano.
 ///
@@ -428,7 +428,7 @@ impl FinalDrift {
 /// o repositório num estado que só uma nova observação descreve.
 pub const RECOVERY_PROCEDURE: &str =
     "observar novamente; executar novo check; produzir novo plano; autorizar novo digest";
-// @pinker-nav:end automation.contrato.autorizacao
+// @pinker-nav:end automation.contract.authorization
 
 /// Escapa um texto para string JSON.
 ///
@@ -437,10 +437,10 @@ pub const RECOVERY_PROCEDURE: &str =
 /// seus módulos: não há autoridade pública a reutilizar, e promover uma delas
 /// mudaria a superfície de outro domínio para acomodar este. A cópia é declarada
 /// e coberta por teste de escaping.
-// @pinker-nav:start evidencia.automacao.limites-e-decisao
-// @pinker-nav:domain automacao
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Provas do nucleo de automacao: os limites publicados sao exatamente os valores aprovados, somente MATCH e drift sao alcancaveis pelo nucleo puro, e a decisao nao substitui a causa no relatorio.
+// @pinker-nav:start evidence.automation.limits-and-decision
+// @pinker-nav:domain automation
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Proofs of the automation core: the published limits are exactly the approved values, only MATCH and drift are reachable by the pure core, and the decision does not replace the cause in the report.
 pub(crate) fn json_string(value: &str) -> String {
     let mut out = String::with_capacity(value.len() + 2);
     out.push('"');
@@ -492,4 +492,4 @@ mod tests {
         );
     }
 }
-// @pinker-nav:end evidencia.automacao.limites-e-decisao
+// @pinker-nav:end evidence.automation.limits-and-decision

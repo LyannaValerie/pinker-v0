@@ -6,10 +6,10 @@ use std::path::{Path, PathBuf};
 use std::process::Output;
 use std::time::Duration;
 
-// @pinker-nav:start evidencia.ambiente.issue-492-paridade-argumento-nomeado
-// @pinker-nav:domain ambiente
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Evidência da #492: a família de argumentos nomeados responde a mesma pergunta no interpretador e no ELF nativo. A matriz roda o mesmo programa com o mesmo argv, o mesmo ambiente explícito e o mesmo cwd nos dois backends e compara o observável inteiro — stdout, classe de erro e núcleo da mensagem —, nunca só o exit code. Cobre as sete formas de entrada (ausente, `--chave valor`, `--chave=valor`, `--chave` sem valor, `--chave=` vazio, `--chave --outra` e repetição nas três misturas) contra `pedir_argumento`, `buscar_contexto`, `tem_chave` e `tem_flag`, mais a precedência CLI/ambiente/padrão, os três aliases históricos e as chaves vazias. As invariantes de relação entre consultas afirmam o que é verdade — chave sem valor é `tem_flag` verdadeiro, `tem_chave` falso e erro em `pedir_argumento` ao mesmo tempo — sem forçar consultas diferentes a produzir a mesma resposta.
+// @pinker-nav:start evidence.environment.issue-492-named-argument-parity
+// @pinker-nav:domain environment
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Evidence for #492: the named-argument family answers the same question in the interpreter and in the native ELF. The matrix runs the same program with the same argv, the same explicit environment and the same cwd on both backends and compares the whole observable — stdout, error class and message core —, never just the exit code. It covers the seven input forms (absent, `--chave valor`, `--chave=valor`, `--chave` without a value, empty `--chave=`, `--chave --outra` and repetition in the three mixtures) against `pedir_argumento`, `buscar_contexto`, `tem_chave` and `tem_flag`, plus the CLI/environment/default precedence, the three historical aliases and the empty keys. The relational invariants between queries assert what is true — a key without a value is `tem_flag` true, `tem_chave` false and an error in `pedir_argumento` at the same time — without forcing different queries to produce the same answer.
 
 // ---------------------------------------------------------------------------
 // Programas: um por superfície, porque um erro de runtime aborta o processo e
@@ -707,4 +707,4 @@ fn o_envelope_de_paridade_distingue_sucesso_de_falha() {
     // entre dois backends.
     assert!(nucleo_do_erro("ruído qualquer").starts_with("SEM_NUCLEO_RECONHECIVEL"));
 }
-// @pinker-nav:end evidencia.ambiente.issue-492-paridade-argumento-nomeado
+// @pinker-nav:end evidence.environment.issue-492-named-argument-parity

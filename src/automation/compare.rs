@@ -5,10 +5,10 @@
 //! filesystem. A consequência é que o check aqui é trivialmente sem escrita —
 //! não há caminho de escrita a evitar, porque não há filesystem.
 
-// @pinker-nav:start automation.comparacao.classificacao
-// @pinker-nav:domain comparacao
+// @pinker-nav:start automation.comparison.classification
+// @pinker-nav:domain comparison
 // @pinker-nav:layer automation
-// @pinker-nav:summary Observação do estado corrente como dado de entrada, classificação por comparação de bytes em create/replace/remove/no-change e check somente leitura que exige observação para cada target, rejeita observação órfã ou duplicada e produz apenas MATCH ou DRIFT — falha de harness nunca é reclassificada como drift.
+// @pinker-nav:summary Observation of the current state as input data, classification by byte comparison into create/replace/remove/no-change, and a read-only check that requires an observation for every target, rejects an orphan or duplicated observation and produces only MATCH or DRIFT — a harness failure is never reclassified as drift.
 use super::path::RelativePath;
 use super::plan::Plan;
 use super::{Decision, Failure, HarnessCause, Outcome, PolicyCause};
@@ -205,12 +205,12 @@ pub fn check(plan: &Plan, observed: &ObservedState) -> Result<CheckReport, Failu
         decision: None,
     })
 }
-// @pinker-nav:end automation.comparacao.classificacao
+// @pinker-nav:end automation.comparison.classification
 
-// @pinker-nav:start evidencia.automacao.classificacao
-// @pinker-nav:domain automacao
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Prova de que a classificacao de mudanca cobre as quatro formas observaveis do alvo, sem quinta forma implicita nem forma alcancavel apenas por acidente.
+// @pinker-nav:start evidence.automation.classification
+// @pinker-nav:domain automation
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Proof that change classification covers the four observable forms of the target, with no implicit fifth form and no form reachable only by accident.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -224,4 +224,4 @@ mod tests {
         assert_eq!(classify(None, None), ChangeKind::NoChange);
     }
 }
-// @pinker-nav:end evidencia.automacao.classificacao
+// @pinker-nav:end evidence.automation.classification

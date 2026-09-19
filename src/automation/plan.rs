@@ -1,9 +1,9 @@
 //! Plano imutável, sua serialização canônica e o digest que o autoriza.
 
-// @pinker-nav:start automation.plano.modelo
-// @pinker-nav:domain plano
+// @pinker-nav:start automation.plan.model
+// @pinker-nav:domain plan
 // @pinker-nav:layer automation
-// @pinker-nav:summary Modelo imutável do plano efêmero: payload opaco com limite explícito por target, target repo-relativo com estado desejado opcional (ausência significa remoção) e construtor que valida schema, produtor, allowlist, duplicidade e o limite somado do plano antes de existir qualquer instância.
+// @pinker-nav:summary Immutable model of the ephemeral plan: opaque payload with an explicit per-target limit, repo-relative target with optional desired state (absence means removal) and a constructor that validates schema, producer, allowlist, duplication and the plan's summed limit before any instance exists.
 use super::path::{Allowlist, RelativePath};
 use super::{
     json_string, Failure, HarnessCause, PolicyCause, AUTOMATION_SCHEMA, MAX_PLAN_BYTES,
@@ -207,12 +207,12 @@ impl Plan {
         self.targets.iter().find(|t| &t.path == path)
     }
 }
-// @pinker-nav:end automation.plano.modelo
+// @pinker-nav:end automation.plan.model
 
-// @pinker-nav:start automation.plano.serializacao
-// @pinker-nav:domain plano
+// @pinker-nav:start automation.plan.serialization
+// @pinker-nav:domain plan
 // @pinker-nav:layer automation
-// @pinker-nav:summary Serialização canônica do plano em JSON de uma linha, com payload hexadecimal minúsculo e remoção representada por null, e digest SHA-256 sobre exatamente esses bytes — de modo que o payload fica coberto pelo digest e nenhum root absoluto entra na forma canônica; não existe parser, porque o plano é efêmero e nunca é lido de volta.
+// @pinker-nav:summary Canonical serialization of the plan as single-line JSON, with lowercase hexadecimal payload and removal represented as null, and a SHA-256 digest over exactly those bytes — so that the payload is covered by the digest and no absolute root enters the canonical form; there is no parser, because the plan is ephemeral and is never read back.
 
 impl Plan {
     /// Forma canônica do plano: JSON de uma linha, ordem de chaves fixa,
@@ -256,12 +256,12 @@ impl Plan {
         pinker_sha256_contract::sha256_hex(self.to_canonical_json().as_bytes())
     }
 }
-// @pinker-nav:end automation.plano.serializacao
+// @pinker-nav:end automation.plan.serialization
 
-// @pinker-nav:start evidencia.automacao.plano-canonico
-// @pinker-nav:domain automacao
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Provas da forma canonica do plano: a ordem de declaracao dos alvos nao muda a forma canonica, o payload entra no digest e a remocao aparece como null na forma canonica em vez de sumir.
+// @pinker-nav:start evidence.automation.canonical-plan
+// @pinker-nav:domain automation
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Proofs of the plan's canonical form: the declaration order of the targets does not change the canonical form, the payload enters the digest and a removal appears as null in the canonical form instead of vanishing.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -315,4 +315,4 @@ mod tests {
         assert!(plano.to_canonical_json().contains("\"desired\":null"));
     }
 }
-// @pinker-nav:end evidencia.automacao.plano-canonico
+// @pinker-nav:end evidence.automation.canonical-plan

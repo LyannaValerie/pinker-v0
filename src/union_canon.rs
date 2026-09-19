@@ -24,10 +24,10 @@
 //! escalar, e assinaturas ou ponteiros diferentes compartilham
 //! `TypeIR::Function`/`TypeIR::Pointer`.
 
-// @pinker-nav:start union.unioes.canonicalizacao
-// @pinker-nav:domain unioes
+// @pinker-nav:start union.unions.canonicalization
+// @pinker-nav:domain unions
 // @pinker-nav:layer union
-// @pinker-nav:summary Contrato normativo único de canonicalização: `canonical_type_key` deriva a identidade de um tipo já resolvido; `canonical_type_graph_key` expande aliases em um DAG internado, canonicaliza uniões e serializa todos os bytes sem digest probabilístico nem expansão exponencial; `nominal_identity_of` expõe identidade nominal; `CanonicalUnionMemberKey`/`member_key`, `union_key` e `canonicalize_resolved_members` compartilham a mesma linhagem, achatando, deduplicando e ordenando membros. Semântica, projeção e lowering consomem estas funções; nenhuma camada reconstrói chave ou ordem por conta própria.
+// @pinker-nav:summary Single normative canonicalization contract: `canonical_type_key` derives the identity of an already resolved type; `canonical_type_graph_key` expands aliases into an interned DAG, canonicalizes unions and serializes all the bytes with no probabilistic digest and no exponential expansion; `nominal_identity_of` exposes the nominal identity; `CanonicalUnionMemberKey`/`member_key`, `union_key` and `canonicalize_resolved_members` share the same lineage, flattening, deduplicating and ordering members. Semantics, projection and lowering consume these functions; no layer rebuilds a key or an order on its own.
 use crate::ast::Type;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::rc::Rc;
@@ -506,4 +506,4 @@ pub fn canonical_member_index(members: &[Type], key: &CanonicalUnionMemberKey) -
         .iter()
         .position(|member| member_key_text(member) == key.canonical_type_key)
 }
-// @pinker-nav:end union.unioes.canonicalizacao
+// @pinker-nav:end union.unions.canonicalization

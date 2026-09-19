@@ -16,7 +16,7 @@
 //! SHA-256 é evidência adicional de integridade do arquivo e não recalibra
 //! nem substitui nenhuma delas.
 
-// @pinker-nav:start trama.arquivo.modelo
+// @pinker-nav:start trama.archive.model
 // @pinker-nav:domain archive
 // @pinker-nav:layer trama
 // @pinker-nav:summary Model of the materialized historical archive: the archive and preserved-metadata authorities with their canonical suffixes, the index schema, one entry per accepted snapshot with its preserved measures and its archive SHA-256, and the closed failure taxonomy of an unreadable, malformed, ambiguous or incomplete index plus an unconfined path, an accepted state the index omits, an entry naming no accepted state and a foreign file in the metadata authority — no current catalog field, no recipe and no reconstruction rule participates in this model.
@@ -207,9 +207,9 @@ impl fmt::Display for ArchiveFailure {
 }
 
 impl std::error::Error for ArchiveFailure {}
-// @pinker-nav:end trama.arquivo.modelo
+// @pinker-nav:end trama.archive.model
 
-// @pinker-nav:start trama.arquivo.leitura
+// @pinker-nav:start trama.archive.reading
 // @pinker-nav:domain archive
 // @pinker-nav:layer trama
 // @pinker-nav:summary Strict reader of the archive index: a root table of provenance fields plus one `[[entries]]` table per archived state, rejecting an unknown key, a duplicate key, a duplicate section, an unterminated string, an unsupported escape, trailing data after a value, a negative or overflowing integer, a measure outside its canonical form, a repeated id or payload path, an index that declares nothing, and a payload or metadata path that is not the lexically valid canonical path of its own entry — and a load that additionally proves one-to-one coverage against the enumerated preserved metadata, so an omitted accepted state, an entry naming no accepted state and a foreign file in that authority all fail before any consumer reads `entries`.
@@ -677,9 +677,9 @@ pub fn load(root: &Path) -> Result<ArchiveIndex, ArchiveFailure> {
     require_complete_coverage(&index, &preserved_states(root)?)?;
     Ok(index)
 }
-// @pinker-nav:end trama.arquivo.leitura
+// @pinker-nav:end trama.archive.reading
 
-// @pinker-nav:start trama.arquivo.verificacao
+// @pinker-nav:start trama.archive.verification
 // @pinker-nav:domain archive
 // @pinker-nav:layer trama
 // @pinker-nav:summary Read-only integrity verification of the materialized archive anchored to the preserved FROZEN metadata: each entry reads its historical metadata first, requires it to still hash to what the index recorded and requires the index regions, length and FNV-1a64 to be exactly the literals of its `[measures]`, then measures the payload against those preserved measures plus the declared SHA-256 — so a coherent payload-and-index recalibration is ALTERED, never drift, and no current navigation catalog, key, summary, hash, path, rename map or recipe is read to decide it.
@@ -971,11 +971,11 @@ pub fn verify(root: &Path, index: &ArchiveIndex) -> ArchiveVerification {
             .collect(),
     }
 }
-// @pinker-nav:end trama.arquivo.verificacao
+// @pinker-nav:end trama.archive.verification
 
-// @pinker-nav:start trama.arquivo.relatorio
+// @pinker-nav:start trama.archive.report
 // @pinker-nav:domain archive
-// @pinker-nav:layer relatorios
+// @pinker-nav:layer reports
 // @pinker-nav:summary Deterministic human and JSON renderers of the archive over the same model: fixed key order, explicit escaping, repo-relative paths only, and no ANSI, PID, user, locale or clock — listing, inspection of one entry and full verification all derive from the model the reader produced.
 
 /// Escapa um texto para string JSON.
@@ -1165,4 +1165,4 @@ pub fn render_failure_json(command: &str, failure: &ArchiveFailure) -> String {
         json_string(&failure.to_string())
     )
 }
-// @pinker-nav:end trama.arquivo.relatorio
+// @pinker-nav:end trama.archive.report

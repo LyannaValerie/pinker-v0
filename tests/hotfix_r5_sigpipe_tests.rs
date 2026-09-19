@@ -267,10 +267,10 @@ fn exigir_espera_causal(rotulo: &str, tamanho: u64, saida: &Saida) {
     );
 }
 
-// @pinker-nav:start evidencia.hotfix.r5-sigpipe-ordem
-// @pinker-nav:domain processos
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Matriz R5 de SIGPIPE: stdout anterior (nenhum/um falar/várias escritas) × comportamento do filho (encerra, espera sem ler, lê tudo, lê parcial, fecha stdin cedo) × tamanho de stdin (0, 1, 4096, 65536, 262144, acima da capacidade do pipe), exigindo em cada célula ausência de término por sinal, ausência de exit 141, ausência de deadlock sob teto de tempo, EPIPE convertido em diagnóstico e paridade entre interpretador e nativo; nas 27 células em que o filho encerra sem drenar e a escrita cabe no buffer do pipe, ok e epipe-diagnosticado são o mesmo veredicto de contrato e a paridade compara a classe estável mais o stdout anterior à linha codigo=, porque exigir a classe exata aferiria o escalonador; cobre ainda a disposição de SIGPIPE herdada pelo filho após exec, medida antes da inicialização da std.
+// @pinker-nav:start evidence.hotfix.r5-sigpipe-order
+// @pinker-nav:domain processes
+// @pinker-nav:layer evidence
+// @pinker-nav:summary R5 SIGPIPE matrix: prior stdout (none/one falar/several writes) × child behavior (terminates, waits without reading, reads everything, reads partially, closes stdin early) × stdin size (0, 1, 4096, 65536, 262144, above the pipe capacity), requiring in each cell the absence of termination by signal, the absence of exit 141, the absence of deadlock under a time ceiling, EPIPE converted into a diagnostic and parity between interpreter and native; in the 27 cells where the child terminates without draining and the write fits in the pipe buffer, ok and epipe-diagnosed are the same contract verdict and parity compares the stable class plus the stdout preceding the codigo= line, because requiring the exact class would measure the scheduler; it also covers the SIGPIPE disposition inherited by the child after exec, measured before std's initialization.
 #[test]
 fn r5_matriz_sigpipe_independe_da_ordem_e_mantem_paridade() {
     let Some((_driver, Some(runtime_lib))) =
@@ -385,12 +385,12 @@ fn r5_filho_herda_disposicao_padrao_de_sigpipe() {
         }
     }
 }
-// @pinker-nav:end evidencia.hotfix.r5-sigpipe-ordem
+// @pinker-nav:end evidence.hotfix.r5-sigpipe-order
 
-// @pinker-nav:start evidencia.hotfix.r5-sigpipe-familias
-// @pinker-nav:domain processos
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Evidência de que a configuração explícita da disposição do filho vale para todas as famílias de subprocesso — executar_processo, capturar_stdout, capturar_stderr, executar_com_entrada e as duas pontas de pipeline_minimo — com paridade entre interpretador e nativo; da portabilidade da própria sonda, provando que o construtor de .init_array do auxiliar precede a inicialização da linguagem e que ele distingue SIG_DFL de SIG_IGN quando a disposição é forçada no pré-exec; e o guardião estrutural que exige o pre_exec dentro do construtor comum dos dois back-ends, já que a std também restaura SIGPIPE hoje e a remoção da configuração da Pinker não seria observável pelo filho.
+// @pinker-nav:start evidence.hotfix.r5-sigpipe-families
+// @pinker-nav:domain processes
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Evidence that the explicit configuration of the child's disposition holds for every subprocess family — executar_processo, capturar_stdout, capturar_stderr, executar_com_entrada and the two ends of pipeline_minimo — with parity between interpreter and native; of the portability of the probe itself, proving that the helper's .init_array constructor precedes the language's initialization and that it distinguishes SIG_DFL from SIG_IGN when the disposition is forced in pre-exec; and the structural guardian that requires the pre_exec inside the common constructor of both back-ends, since std also restores SIGPIPE today and removing Pinker's configuration would not be observable by the child.
 /// Saída exigida do exemplo das famílias, linha a linha.
 ///
 /// `0` é o código de saída da sonda para `SIG_DFL`; `SIG_DFL` é o rótulo textual
@@ -542,7 +542,10 @@ fn regiao_cartografada(arquivo: &str, chave: &str) -> String {
 /// construir `Command` fora do construtor comum.
 #[test]
 fn r5_configuracao_do_filho_e_explicita_e_centralizada() {
-    let runtime = regiao_cartografada("runtime/pinker_rt/src/lib.rs", "runtime.processos.execucao");
+    let runtime = regiao_cartografada(
+        "runtime/pinker_rt/src/lib.rs",
+        "runtime.processes.execution",
+    );
     assert_eq!(
         runtime.matches("Command::new").count(),
         1,
@@ -553,10 +556,8 @@ fn r5_configuracao_do_filho_e_explicita_e_centralizada() {
         "comando_saneado precisa restaurar SIGPIPE no filho antes do exec"
     );
 
-    let interpretador = regiao_cartografada(
-        "src/interpreter.rs",
-        "interpreter.hospedeiro.servicos-auxiliares",
-    );
+    let interpretador =
+        regiao_cartografada("src/interpreter.rs", "interpreter.host.auxiliary-services");
     assert_eq!(
         interpretador.matches("Command::new").count(),
         1,
@@ -576,4 +577,4 @@ fn r5_configuracao_do_filho_e_explicita_e_centralizada() {
         );
     }
 }
-// @pinker-nav:end evidencia.hotfix.r5-sigpipe-familias
+// @pinker-nav:end evidence.hotfix.r5-sigpipe-families

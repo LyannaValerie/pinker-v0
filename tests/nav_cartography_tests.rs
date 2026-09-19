@@ -6,7 +6,7 @@
 //!
 //! Cobre: múltiplas regiões no mesmo arquivo, preservação de âncoras
 //! existentes, domínio/camada válidos e determinismo do catálogo. Onda 6D
-//! acrescenta as raízes de código controladas (`trama.codigo.raizes`),
+//! acrescenta as raízes de código controladas (`trama.code.roots`),
 //! mantendo a separação entre catálogo, raízes e consulta. Onda 6E cartografa
 //! o runtime nativo (`runtime/pinker_rt/src/lib.rs`, camada `runtime`),
 //! concluindo a Onda 6. Onda 7 cartografa as superfícies operacionais:
@@ -93,42 +93,42 @@ fn retain_membership_base(catalog: &mut CodeCatalog) {
         !matches!(
             region.key.as_str(),
             // #522: autoridade de seleção de rota nativa, posterior a todas as ondas.
-            "evidencia.backend-s.selecao-de-rota-nativa"
-                | "automation.comparacao.classificacao"
-                | "automation.contrato.autorizacao"
-                | "automation.contrato.resultados"
-                | "automation.filesystem.aplicacao"
-                | "automation.filesystem.confinamento"
-                | "automation.filesystem.observacao"
-                | "automation.paths.politica-lexical"
-                | "automation.plano.modelo"
-                | "automation.plano.serializacao"
-                | "automation.raiz.descoberta"
-                | "automation.relatorio.aplicacao"
-                | "automation.relatorio.renderizacao"
-                | "evidencia.project-state.contrato"
-                | "evidencia.leques.carga-lista-abi-runtime"
-                | "evidencia.leques.carga-lista-estrutura-ir"
-                | "evidencia.leques.carga-lista-matriz-negativa"
-                | "evidencia.leques.carga-lista-matriz-positiva"
-                | "evidencia.semantica.objetos-trato-fase244"
+            "evidence.backend-s.native-route-selection"
+                | "automation.comparison.classification"
+                | "automation.contract.authorization"
+                | "automation.contract.results"
+                | "automation.filesystem.apply"
+                | "automation.filesystem.confinement"
+                | "automation.filesystem.observation"
+                | "automation.paths.lexical-policy"
+                | "automation.plan.model"
+                | "automation.plan.serialization"
+                | "automation.root.discovery"
+                | "automation.report.apply"
+                | "automation.report.rendering"
+                | "evidence.project-state.contract"
+                | "evidence.leques.payload-list-runtime-abi"
+                | "evidence.leques.payload-list-ir-structure"
+                | "evidence.leques.payload-list-negative-matrix"
+                | "evidence.leques.payload-list-positive-matrix"
+                | "evidence.semantic.trato-objects-phase244"
                 // #608: as duas âncoras da decomposição física INT-1 são
                 // posteriores a todas as ondas históricas. `acaso` não entra
                 // aqui: a key é preservada, só seus marcadores mudam de lugar.
-                | "interpreter.intrinsecos.despacho-hospedado"
-                | "interpreter.memoria.estado-enderecavel"
-                | "leque.carga.classificacao"
-                | "project-state.coleta"
-                | "project-state.modelo"
-                | "project-state.renderizacao"
-                | "evidencia.tooling.f1.contracts"
+                | "interpreter.intrinsics.hosted-dispatch"
+                | "interpreter.memory.addressable-state"
+                | "leque.payload.classification"
+                | "project-state.gathering"
+                | "project-state.model"
+                | "project-state.rendering"
+                | "evidence.tooling.f1.contracts"
                 | "tooling.f1.bundle-identity"
                 | "tooling.f1.doctor"
                 | "tooling.f1.freeze-import"
                 | "tooling.f1.impact"
                 | "tooling.f1.unified-preflight"
-                | "trama.codigo.verificacao-reutilizavel"
-                | "trama.documentos.verificacao-reutilizavel"
+                | "trama.code.reusable-verification"
+                | "trama.documents.reusable-verification"
                 | "trama.snapshots.biblioteca"
                 | "trama.snapshots.erros"
                 | "trama.snapshots.medidas"
@@ -171,22 +171,22 @@ fn historical_membership_pre_onda_8f(catalog: &mut CodeCatalog) {
     catalog.regions.retain(|region| {
         !matches!(
             region.key.as_str(),
-            "backend-s.lowering.objetos-trato-nativos"
-                | "evidencia.backend-nativo.objetos-trato-fase244"
-                | "evidencia.cfg.objetos-trato-fase244"
-                | "evidencia.cfg.validacao-objetos-trato-fase244"
-                | "evidencia.interpreter.objetos-trato-fase244"
-                | "evidencia.ir.lowering-objetos-trato-fase244"
-                | "evidencia.ir.validacao-objetos-trato-fase244"
-                | "evidencia.machine.objetos-trato-fase244"
-                | "evidencia.machine.validacao-objetos-trato-fase244"
-                | "evidencia.select.objetos-trato-fase244"
+            "backend-s.lowering.native-trato-objects"
+                | "evidence.native-backend.trato-objects-phase244"
+                | "evidence.cfg.trato-objects-phase244"
+                | "evidence.cfg.validation-trato-objects-phase244"
+                | "evidence.interpreter.trato-objects-phase244"
+                | "evidence.ir.lowering-trato-objects-phase244"
+                | "evidence.ir.validation-trato-objects-phase244"
+                | "evidence.machine.trato-objects-phase244"
+                | "evidence.machine.validation-trato-objects-phase244"
+                | "evidence.select.trato-objects-phase244"
         )
     });
     // Fronteira do mapa de navegação da Trama.
     catalog
         .regions
-        .retain(|region| region.key != "evidencia.trama.query.nav-map");
+        .retain(|region| region.key != "evidence.trama.query.nav-map");
 }
 
 fn remove_symbol_index_membership(catalog: &mut CodeCatalog) {
@@ -196,17 +196,17 @@ fn remove_symbol_index_membership(catalog: &mut CodeCatalog) {
     catalog.regions.retain(|region| {
         !matches!(
             region.key.as_str(),
-            "evidencia.diff-cobertura.cli"
-                | "evidencia.symbol-index.cli"
-                | "trama.diff-cobertura.derivacao"
-                | "trama.diff-cobertura.modelo"
-                | "trama.diff-cobertura.parser"
-                | "trama.diff-cobertura.renderizacao"
-                | "trama.codigo.metadados-simbolos"
-                | "trama.codigo.modelo-indice-simbolos"
-                | "trama.simbolos.derivacao"
-                | "trama.simbolos.modelo"
-                | "trama.simbolos.renderizacao"
+            "evidence.diff-coverage.cli"
+                | "evidence.symbol-index.cli"
+                | "trama.diff-coverage.derivation"
+                | "trama.diff-coverage.model"
+                | "trama.diff-coverage.parser"
+                | "trama.diff-coverage.rendering"
+                | "trama.code.symbol-metadata"
+                | "trama.code.symbol-index-model"
+                | "trama.symbols.derivation"
+                | "trama.symbols.model"
+                | "trama.symbols.rendering"
         )
     });
 }
@@ -221,21 +221,21 @@ fn sha256_hex(bytes: &[u8]) -> String {
 }
 
 const TWO_REGIONS: &str = "\
-// @pinker-nav:start token.lexico.vocabulario
-// @pinker-nav:domain lexico
+// @pinker-nav:start token.lexical.vocabulary
+// @pinker-nav:domain lexical
 // @pinker-nav:layer token
-// @pinker-nav:summary Vocabulario.
+// @pinker-nav:summary Pinker's canonical token vocabulary: Portuguese keywords, operators, delimiters and literals that the lexer produces and the parser consumes.
 pub enum TokenKind { A, B }
-// @pinker-nav:end token.lexico.vocabulario
+// @pinker-nav:end token.lexical.vocabulary
 
 pub struct Token;
 
-// @pinker-nav:start token.representacao.spans
-// @pinker-nav:domain representacao
+// @pinker-nav:start token.representation.spans
+// @pinker-nav:domain representation
 // @pinker-nav:layer token
-// @pinker-nav:summary Spans.
+// @pinker-nav:summary Source positions and spans (line/column) attached to each token and propagated to the diagnostics; it includes the merging of spans used when combining nodes.
 pub struct Span { pub a: usize }
-// @pinker-nav:end token.representacao.spans
+// @pinker-nav:end token.representation.spans
 ";
 
 #[test]
@@ -245,8 +245,8 @@ fn multiplas_regioes_no_mesmo_arquivo() {
     let index = CodeIndex::scan(&dir).unwrap();
     assert_eq!(index.regions.len(), 2);
     let keys: Vec<&str> = index.regions.iter().map(|r| r.key.as_str()).collect();
-    assert!(keys.contains(&"token.lexico.vocabulario"));
-    assert!(keys.contains(&"token.representacao.spans"));
+    assert!(keys.contains(&"token.lexical.vocabulary"));
+    assert!(keys.contains(&"token.representation.spans"));
     // Mesmo arquivo, chaves distintas, sem sobreposição reportada.
     assert!(index.regions.iter().all(|r| r.file == "token.rs"));
     assert!(index.verify().is_empty(), "{:?}", index.verify());
@@ -258,8 +258,8 @@ fn dominio_e_camada_preservados() {
     let dir = temp_src("meta");
     write(&dir, "token.rs", TWO_REGIONS);
     let index = CodeIndex::scan(&dir).unwrap();
-    let voc = index.region("token.lexico.vocabulario").unwrap();
-    assert_eq!(voc.domain.as_deref(), Some("lexico"));
+    let voc = index.region("token.lexical.vocabulary").unwrap();
+    assert_eq!(voc.domain.as_deref(), Some("lexical"));
     assert_eq!(voc.layer.as_deref(), Some("token"));
     assert!(voc.hash.starts_with("fnv1a64:"));
     fs::remove_dir_all(dir).unwrap();
@@ -272,11 +272,11 @@ fn ancora_existente_preservada() {
     write(
         &dir,
         "cfg_ir.rs",
-        "// @pinker-nav:start cfg.logica.curto-circuito\n// @pinker-nav:domain logica\n// @pinker-nav:layer cfg\n// @pinker-nav:summary Curto-circuito.\nfn curto() { let _x = 1; }\n// @pinker-nav:end cfg.logica.curto-circuito\n",
+        "// @pinker-nav:start cfg.logic.short-circuit\n// @pinker-nav:domain logica\n// @pinker-nav:layer cfg\n// @pinker-nav:summary Curto-circuito.\nfn curto() { let _x = 1; }\n// @pinker-nav:end cfg.logic.short-circuit\n",
     );
     let index = CodeIndex::scan(&dir).unwrap();
     assert_eq!(index.regions.len(), 1);
-    assert_eq!(index.regions[0].key, "cfg.logica.curto-circuito");
+    assert_eq!(index.regions[0].key, "cfg.logic.short-circuit");
     assert!(index.verify().is_empty());
     fs::remove_dir_all(dir).unwrap();
 }
@@ -460,13 +460,13 @@ fn scanner_do_repo_real_ignora_textos_de_fixture_nas_suites() {
     assert_eq!(nav_catalog_regions.len(), 6);
     assert!(nav_catalog_regions
         .iter()
-        .all(|region| region.key.starts_with("evidencia.trama.nav-catalog.")));
+        .all(|region| region.key.starts_with("evidence.trama.nav-catalog.")));
     assert!(!index
         .regions
         .iter()
         .any(|region| region.file == "tests/nav_cartography_tests.rs"));
     for fixture_key in [
-        "cfg.logica.curto-circuito",
+        "cfg.logic.short-circuit",
         "runtime.exemplo.ficticio",
         "falso.teste.chave",
         "falso.pink.chave",
@@ -490,10 +490,10 @@ fn catalogo_real_cartografa_o_guardiao_pinker_da_onda_9() {
     // correções da revisão humana da PR #411: duas em src/inline_asm.rs e uma
     // em src/lexer.rs); +2 regiões de HR4 em src/ir.rs; +5 regiões do
     // endurecimento pós-PR #411 (itens R5, V4, V3 e clone raso); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends); mais cinco regiões de D1 (a autoridade de classificação e quatro cápsulas de evidência).
-    // (`ir.tipos.identidade-resolvida` e `ir.lowering.identidade-resolvida`).
-    // HR3 acrescentou `uniao.payload.classificacao` em `src/union_payload.rs`.
+    // (`ir.types.resolved-identity` e `ir.lowering.resolved-identity`).
+    // HR3 acrescentou `union.payload.classification` em `src/union_payload.rs`.
     // O hotfix da atribuição de símbolo em `sussurro` acrescenta quatro regiões:
-    // `build.elf.leitor` (`src/elf.rs`), `sussurro.artefato.invariante`
+    // `build.elf.reader` (`src/elf.rs`), `sussurro.artifact.invariant`
     // (`src/inline_asm.rs`) e as duas de evidência do hotfix.
     // O contrato somente leitura de snapshots históricos (#384) acrescenta oito
     // regiões `trama.snapshots.*` em `src/nav_projection_snapshot.rs`, e o
@@ -511,11 +511,11 @@ fn catalogo_real_cartografa_o_guardiao_pinker_da_onda_9() {
     // #476 acrescenta a autoridade canônica de identidade genérica e sua
     // região de evidência. A #608 acrescenta as duas âncoras cartográficas da
     // decomposição física INT-1 do interpretador
-    // (`interpreter.memoria.estado-enderecavel` e
-    // `interpreter.intrinsecos.despacho-hospedado`), 609 -> 611.
+    // (`interpreter.memory.addressable-state` e
+    // `interpreter.intrinsics.hosted-dispatch`), 609 -> 611.
     // A #663 acrescenta a autoridade de representação canônica de mapa
-    // (`mapa.representacao.canonica`) e a sua região de evidência
-    // (`evidencia.tipos.mapa-representacao-equivalente`), 611 -> 613.
+    // (`map.representation.canonical`) e a sua região de evidência
+    // (`evidence.types.equivalent-map-representation`), 611 -> 613.
     // A T1 (#675) acrescenta 103 regiões: toda linha relevante de produção que
     // ainda estava fora de qualquer região passou a pertencer a uma
     // responsabilidade publicada, 644 -> 747; a extração lexical de símbolos da #680 e a sua região de evidência levam a 749; a restauração explícita de identidade histórica da #685 leva a 750. A TM (#698) é a
@@ -539,7 +539,7 @@ fn catalogo_real_cartografa_o_guardiao_pinker_da_onda_9() {
         .collect();
     assert_eq!(guardiao.len(), 1);
     let g = guardiao[0];
-    assert_eq!(g.key, "apps.guardiao.auditoria");
+    assert_eq!(g.key, "apps.guardiao.audit");
     assert_eq!(g.domain.as_deref(), Some("guardiao"));
     assert_eq!(g.layer.as_deref(), Some("apps"));
     assert!(g.content_end > g.content_start);
@@ -557,7 +557,11 @@ fn catalogo_real_cartografa_o_guardiao_pinker_da_onda_9() {
             .filter(|r| r.layer.as_deref() == Some(layer))
             .count()
     };
-    assert_eq!(by_layer("evidencia"), 355);
+    // TL (#681): a migração de idioma colapsou as camadas `evidencia` e
+    // `evidence` numa só forma canônica inglesa, então as 11 regiões que já
+    // nasceram em `evidence` (manifesto, projeção, tooling, symbol-index,
+    // cobertura corrente) passam a somar aqui: 355 -> 366.
+    assert_eq!(by_layer("evidence"), 366);
     assert_eq!(by_layer("runtime"), 23);
     assert_eq!(by_layer("apps"), 1);
 }
@@ -583,93 +587,93 @@ fn catalogo_versionado_tem_chaves_essenciais_e_unicas() {
     // Chaves essenciais do frontend (Onda 4), da semântica (Onda 5A) e âncoras
     // históricas preservadas.
     for essential in [
-        "lexer.fluxo.tokenizacao",
-        "lexer.espacos-comentarios.consumo",
-        "parser.fluxo.nucleo",
-        "parser.tipos.gramatica",
-        "parser.comandos.bloco",
-        "parser.expressoes.precedencia",
-        "cfg.logica.curto-circuito",
-        "cfg.logica.slot-logico",
+        "lexer.flow.tokenization",
+        "lexer.whitespace-comments.consumption",
+        "parser.flow.core",
+        "parser.types.grammar",
+        "parser.commands.block",
+        "parser.expressions.precedence",
+        "cfg.logic.short-circuit",
+        "cfg.logic.logical-slot",
         // Checagem semântica (Onda 5A).
-        "semantic.importacoes.familias",
-        "semantic.tipos.sistema",
-        "semantic.escopos.variaveis",
-        "semantic.programa.duas-passagens",
-        "semantic.expressoes.verificacao",
-        "semantic.chamadas.despacho",
+        "semantic.imports.families",
+        "semantic.types.system",
+        "semantic.scopes.variables",
+        "semantic.program.two-passes",
+        "semantic.expressions.verification",
+        "semantic.calls.dispatch",
         // Monomorfização/especialização no parser (Onda 5B).
-        "parser.genericos.identidade-especializacao",
-        "parser.genericos.substituicao-ast",
-        "parser.genericos.funcoes-instanciacao",
-        "parser.genericos.leques-instanciacao",
-        "parser.callbacks.substituicao-estatica",
-        "parser.callbacks.instanciacao-estatica",
+        "parser.generics.specialization-identity",
+        "parser.generics.ast-substitution",
+        "parser.generics.functions-instantiation",
+        "parser.generics.leques-instantiation",
+        "parser.callbacks.static-substitution",
+        "parser.callbacks.static-instantiation",
         // Lowering AST → IR (Onda 5C); modelo/validador da Onda 3 preservados.
-        "ir.modelo.representacao",
-        "ir.validacao.invariantes",
-        "ir.lowering.programa-orquestracao",
-        "ir.lowering.contexto-declaracoes",
-        "ir.lowering.assinaturas-intrinsecos",
-        "ir.lowering.comandos-controle",
-        "ir.lowering.expressoes-valores",
-        "ir.lowering.bindings-escopos",
-        "ir.tipos.conversao-ast",
-        "ir.renderizacao.textual",
+        "ir.model.representation",
+        "ir.validation.invariants",
+        "ir.lowering.program-orchestration",
+        "ir.lowering.context-declarations",
+        "ir.lowering.intrinsic-signatures",
+        "ir.lowering.control-commands",
+        "ir.lowering.expression-values",
+        "ir.lowering.bindings-scopes",
+        "ir.types.ast-conversion",
+        "ir.rendering.textual",
         // Lowering IR → CFG (Onda 5D); modelo/validador/lógica preservados.
-        "cfg.modelo.representacao",
-        "cfg.validacao.invariantes",
-        "cfg.lowering.programa-orquestracao",
-        "cfg.lowering.funcoes-blocos",
-        "cfg.lowering.instrucoes-controle",
-        "cfg.lowering.valores-temporarios",
-        "cfg.lowering.memoria-indireta",
-        "cfg.lowering.construcao-blocos",
-        "cfg.renderizacao.programa",
-        "cfg.renderizacao.componentes",
+        "cfg.model.representation",
+        "cfg.validation.invariants",
+        "cfg.lowering.program-orchestration",
+        "cfg.lowering.functions-blocks",
+        "cfg.lowering.control-instructions",
+        "cfg.lowering.temporary-values",
+        "cfg.lowering.indirect-memory",
+        "cfg.lowering.block-construction",
+        "cfg.rendering.program",
+        "cfg.rendering.components",
         // Seleção e máquina (Onda 5E); modelos/validadores preservados.
-        "select.modelo.representacao",
-        "select.validacao.invariantes",
-        "select.lowering.programa-blocos",
-        "select.lowering.instrucoes",
-        "select.renderizacao.componentes",
-        "machine.modelo.representacao",
-        "machine.validacao.invariantes",
-        "machine.lowering.instrucoes-pilha",
-        "machine.lowering.terminadores",
-        "machine.lowering.operandos-slots",
-        "machine.renderizacao.apresentacao",
+        "select.model.representation",
+        "select.validation.invariants",
+        "select.lowering.program-blocks",
+        "select.lowering.instructions",
+        "select.rendering.components",
+        "machine.model.representation",
+        "machine.validation.invariants",
+        "machine.lowering.stack-instructions",
+        "machine.lowering.terminators",
+        "machine.lowering.operands-slots",
+        "machine.rendering.presentation",
         // Execução hospedada / interpretador (Onda 6A).
-        "interpreter.modelo.valores-estado",
-        "interpreter.execucao.funcoes-fluxo",
-        "interpreter.execucao.instrucoes-pilha",
-        "interpreter.intrinsecos.listas",
-        "interpreter.hospedeiro.servicos-auxiliares",
-        "interpreter.diagnostico.stack-trace",
+        "interpreter.model.state-values",
+        "interpreter.execution.functions-flow",
+        "interpreter.execution.stack-instructions",
+        "interpreter.intrinsics.lists",
+        "interpreter.host.auxiliary-services",
+        "interpreter.diagnostic.stack-trace",
         // Backend textual (Onda 6B); validador preservado.
-        "backend-text.validacao.invariantes",
-        "backend-text.modelo.representacao",
-        "backend-text.lowering.cfg-programa",
-        "backend-text.lowering.selecao-programa",
-        "backend-text.lowering.instrucoes-selecionadas",
-        "backend-text.pipeline.emissao",
-        "backend-text.renderizacao.programa",
-        "backend-text.renderizacao.instrucoes",
+        "backend-text.validation.invariants",
+        "backend-text.model.representation",
+        "backend-text.lowering.cfg-program",
+        "backend-text.lowering.program-selection",
+        "backend-text.lowering.selected-instructions",
+        "backend-text.pipeline.emission",
+        "backend-text.rendering.program",
+        "backend-text.rendering.instructions",
         // Backend `.s` e ABI nativa (Onda 6C): superfície textual, modelo
         // externo, lowering externo, ABI, renderização e runtime.
-        "backend-s.pipeline.textual-selecionado",
-        "backend-s.pipeline.toolchain-externa",
-        "backend-s.pipeline.nativo-runtime",
-        "backend-s.validacao.subset-textual",
-        "backend-s.modelo.callconv-externa",
-        "backend-s.abi.registradores-argumentos",
-        "backend-s.lowering.chamadas-sysv",
-        "backend-s.abi.prologo-parametros",
-        "backend-s.renderizacao.callconv-programa",
-        "backend-s.runtime.simbolos-intrinsecas",
-        "backend-s.renderizacao.abi-textual-programa",
+        "backend-s.pipeline.textual-selected",
+        "backend-s.pipeline.external-toolchain",
+        "backend-s.pipeline.native-runtime",
+        "backend-s.validation.textual-subset",
+        "backend-s.model.external-callconv",
+        "backend-s.abi.argument-registers",
+        "backend-s.lowering.sysv-calls",
+        "backend-s.abi.prologue-parameters",
+        "backend-s.rendering.program-callconv",
+        "backend-s.runtime.intrinsic-symbols",
+        "backend-s.rendering.textual-abi-program",
         // Raízes de código controladas (Onda 6D).
-        "trama.codigo.raizes",
+        "trama.code.roots",
     ] {
         assert!(
             catalog.region(essential).is_some(),
@@ -702,7 +706,7 @@ fn camada_ir_separa_modelo_lowering_e_renderizacao() {
         ir_by_domain("lowering")
     );
     // Modelo, validação, tipos e renderização existem como domínios distintos.
-    for domain in ["modelo", "validacao", "tipos", "renderizacao"] {
+    for domain in ["model", "validation", "types", "rendering"] {
         assert!(
             !ir_by_domain(domain).is_empty(),
             "domínio ir.{domain} ausente na camada ir"
@@ -712,7 +716,7 @@ fn camada_ir_separa_modelo_lowering_e_renderizacao() {
     assert!(
         ir_by_domain("lowering")
             .iter()
-            .all(|k| !ir_by_domain("modelo").contains(k)),
+            .all(|k| !ir_by_domain("model").contains(k)),
         "lowering e modelo não podem compartilhar chaves"
     );
 }
@@ -742,15 +746,15 @@ fn camada_cfg_separa_lowering_logica_e_renderizacao() {
         cfg_by_domain("lowering")
     );
     // Modelo, lógica, validação e renderização existem como domínios distintos.
-    for domain in ["modelo", "logica", "validacao", "renderizacao"] {
+    for domain in ["model", "logic", "validation", "rendering"] {
         assert!(
             !cfg_by_domain(domain).is_empty(),
             "domínio cfg.{domain} ausente na camada cfg"
         );
     }
     // As duas âncoras históricas de curto-circuito seguem no domínio `logica`.
-    let logica = cfg_by_domain("logica");
-    for historica in ["cfg.logica.curto-circuito", "cfg.logica.slot-logico"] {
+    let logica = cfg_by_domain("logic");
+    for historica in ["cfg.logic.short-circuit", "cfg.logic.logical-slot"] {
         assert!(
             logica.contains(&historica),
             "âncora histórica {historica} deveria permanecer no domínio logica"
@@ -788,7 +792,7 @@ fn camadas_select_e_machine_separam_lowering_e_renderizacao() {
             "camada {layer} deveria ter várias regiões de lowering: {:?}",
             by(layer, "lowering")
         );
-        for domain in ["modelo", "validacao", "renderizacao"] {
+        for domain in ["model", "validation", "rendering"] {
             assert!(
                 !by(layer, domain).is_empty(),
                 "domínio {layer}.{domain} ausente"
@@ -798,7 +802,7 @@ fn camadas_select_e_machine_separam_lowering_e_renderizacao() {
         assert!(
             by(layer, "lowering")
                 .iter()
-                .all(|k| !by(layer, "modelo").contains(k)),
+                .all(|k| !by(layer, "model").contains(k)),
             "lowering e modelo de {layer} não podem compartilhar chaves"
         );
     }
@@ -824,13 +828,7 @@ fn camada_interpreter_separa_dominios_de_execucao() {
             .collect()
     };
 
-    let dominios = [
-        "modelo",
-        "execucao",
-        "intrinsecos",
-        "hospedeiro",
-        "diagnostico",
-    ];
+    let dominios = ["model", "execution", "intrinsics", "host", "diagnostic"];
     for domain in dominios {
         assert!(
             !by_domain(domain).is_empty(),
@@ -852,7 +850,7 @@ fn camada_interpreter_separa_dominios_de_execucao() {
 
 /// A camada `backend-text` (Onda 6B) separa modelo, lowering, pipeline,
 /// renderização e validação em domínios distintos, com regiões próprias de
-/// lowering e de renderização, preservando `backend-text.validacao.invariantes`.
+/// lowering e de renderização, preservando `backend-text.validation.invariants`.
 /// Verifica presença e disjunção — sem fixar o total de regiões.
 #[test]
 fn camada_backend_text_separa_lowering_pipeline_e_renderizacao() {
@@ -877,12 +875,12 @@ fn camada_backend_text_separa_lowering_pipeline_e_renderizacao() {
         by_domain("lowering")
     );
     assert!(
-        by_domain("renderizacao").len() >= 2,
+        by_domain("rendering").len() >= 2,
         "backend-text.renderizacao deveria ter várias regiões: {:?}",
-        by_domain("renderizacao")
+        by_domain("rendering")
     );
     // Modelo, pipeline e validação existem como domínios distintos.
-    for domain in ["modelo", "pipeline", "validacao"] {
+    for domain in ["model", "pipeline", "validation"] {
         assert!(
             !by_domain(domain).is_empty(),
             "domínio backend-text.{domain} ausente"
@@ -892,7 +890,7 @@ fn camada_backend_text_separa_lowering_pipeline_e_renderizacao() {
     assert!(
         by_domain("lowering")
             .iter()
-            .all(|k| !by_domain("validacao").contains(k)),
+            .all(|k| !by_domain("validation").contains(k)),
         "lowering e validacao de backend-text não podem compartilhar chaves"
     );
 }
@@ -914,7 +912,7 @@ fn dominios_verticais_genericos_e_callbacks_distintos() {
             .collect()
     };
 
-    let genericos = by_domain("genericos");
+    let genericos = by_domain("generics");
     let callbacks = by_domain("callbacks");
     assert!(
         genericos.len() >= 2,
@@ -957,13 +955,13 @@ fn camada_backend_s_separa_pipelines_lowering_abi_e_renderizacao() {
     // Os oito domínios da onda existem, cada um com ao menos uma região própria.
     let dominios = [
         "pipeline",
-        "modelo",
-        "validacao",
+        "model",
+        "validation",
         "lowering",
         "abi",
-        "renderizacao",
+        "rendering",
         "runtime",
-        "dados",
+        "data",
     ];
     for domain in dominios {
         assert!(
@@ -987,9 +985,9 @@ fn camada_backend_s_separa_pipelines_lowering_abi_e_renderizacao() {
     // As três entradas públicas são caminhos distintos, com chave própria.
     let pipeline = by_domain("pipeline");
     for entrada in [
-        "backend-s.pipeline.textual-selecionado",
-        "backend-s.pipeline.toolchain-externa",
-        "backend-s.pipeline.nativo-runtime",
+        "backend-s.pipeline.textual-selected",
+        "backend-s.pipeline.external-toolchain",
+        "backend-s.pipeline.native-runtime",
     ] {
         assert!(
             pipeline.contains(&entrada),
@@ -1006,33 +1004,29 @@ fn camada_backend_s_separa_pipelines_lowering_abi_e_renderizacao() {
 
     // A representação `.s` textual (baseada em `BackendTextProgram`) é separada do
     // renderer montável (baseado em `ExternalCallConvProgram`).
-    let render = by_domain("renderizacao");
+    let render = by_domain("rendering");
     assert!(
-        render.contains(&"backend-s.renderizacao.callconv-programa"),
+        render.contains(&"backend-s.rendering.program-callconv"),
         "renderer montável ausente"
     );
     assert!(
         render
             .iter()
-            .any(|k| k.starts_with("backend-s.renderizacao.abi-textual-")),
+            .any(|k| k.starts_with("backend-s.rendering.textual-abi-")),
         "renderer `.s` textual ausente"
     );
 }
 
 /// A camada `trama` (navegação) separa catálogo, raízes controladas e
 /// consulta em chaves próprias e disjuntas (Onda 6D introduz
-/// `trama.codigo.raizes` sem sobrepor `trama.codigo.catalogo` ou
-/// `trama.codigo.consulta`). Não fixa o total global do catálogo.
+/// `trama.code.roots` sem sobrepor `trama.code.catalog` ou
+/// `trama.code.query`). Não fixa o total global do catálogo.
 #[test]
 fn camada_trama_separa_catalogo_raizes_e_consulta() {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/navigation.jsonl");
     let catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
 
-    for essential in [
-        "trama.codigo.catalogo",
-        "trama.codigo.raizes",
-        "trama.codigo.consulta",
-    ] {
+    for essential in ["trama.code.catalog", "trama.code.roots", "trama.code.query"] {
         assert!(
             catalog.region(essential).is_some(),
             "chave essencial de navegação ausente: {essential}"
@@ -1054,37 +1048,37 @@ fn camada_runtime_cartografa_o_runtime_nativo() {
     let catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
 
     let expected_runtime_keys = [
-        "runtime.inicializacao.bootstrap",
-        "runtime.memoria.alocador",
-        "runtime.texto.operacoes",
-        "runtime.conversoes.numero-texto",
-        "runtime.texto.formatacao",
-        "runtime.io.saida",
-        "runtime.listas.dinamicas",
-        "runtime.mapas.dinamicos",
-        "runtime.leques.variantes",
-        "runtime.arquivos.io",
-        "runtime.caminhos.sistema",
-        "runtime.tempo.relogio",
-        "runtime.aleatorio.gerador",
-        "runtime.ambiente.argumentos",
-        "runtime.processos.execucao",
-        "runtime.unioes.descritor",
-        "runtime.falha-operacional.superficies",
-        "runtime.filesystem.enumeracao-adulta",
+        "runtime.initialization.bootstrap",
+        "runtime.memory.allocator",
+        "runtime.text.operations",
+        "runtime.conversions.number-text",
+        "runtime.text.formatting",
+        "runtime.io.output",
+        "runtime.lists.dynamic",
+        "runtime.maps.dynamic",
+        "runtime.leques.variants",
+        "runtime.files.io",
+        "runtime.paths.system",
+        "runtime.time.clock",
+        "runtime.random.generator",
+        "runtime.environment.arguments",
+        "runtime.processes.execution",
+        "runtime.unions.descriptor",
+        "runtime.operational-failure.surfaces",
+        "runtime.filesystem.adult-enumeration",
         // Parte E1: a família JSON passou a ter dono nativo. Antes desta Task
         // nenhuma das duas regiões existia — JSON era interpreter-only.
-        "runtime.json.valor-adulto",
-        "runtime.json.plano-legado",
+        "runtime.json.adult-value",
+        "runtime.json.legacy-plan",
         // Parte E2: SHA-256 sobre verso e sobre arquivo, com dono nativo desde
         // a primeira versão — nunca existiu recorte interpreter-only aqui.
-        "runtime.sha256.superficies",
+        "runtime.sha256.surfaces",
         // T1 (#675): os usos compartilhados pelo bloco de arquivos e acaso do
         // runtime estavam fora de qualquer região e ganharam a sua.
-        "runtime.arquivos.preludio",
+        "runtime.files.prelude",
     ];
 
-    let hosted_runtime_keys = ["processos.ambiente.overlay"];
+    let hosted_runtime_keys = ["processes.environment.overlay"];
 
     for key in expected_runtime_keys {
         let region = catalog
@@ -1126,15 +1120,15 @@ fn camada_runtime_cartografa_o_runtime_nativo() {
 
     // Confirma a presença dos domínios principais do runtime nativo.
     for domain in [
-        "inicializacao",
-        "memoria",
-        "listas",
-        "mapas",
+        "initialization",
+        "memory",
+        "lists",
+        "maps",
         "leques",
         "io",
-        "arquivos",
-        "caminhos",
-        "processos",
+        "files",
+        "paths",
+        "processes",
     ] {
         assert!(
             runtime_regions
@@ -1167,35 +1161,35 @@ fn camada_operacional_cartografa_cli_editor_boot() {
     // a da #638 tirou análise e build nativo e a da #640 tirou os comandos
     // `nav`, todos para `src/pink_cli/`, sem mudar chave, domínio nem resumo.
     let expected_cli_keys = [
-        ("cli.config.modelos", "src/main.rs"),
-        ("cli.ajuda.usage", "src/main.rs"),
-        ("cli.parsing.subcomandos", "src/pink_cli/cli_parsing.rs"),
-        ("cli.parsing.roteamento", "src/pink_cli/cli_parsing.rs"),
-        ("cli.execucao.entrada", "src/main.rs"),
-        ("cli.nav.consulta", "src/pink_cli/nav_cli.rs"),
+        ("cli.config.models", "src/main.rs"),
+        ("cli.help.usage", "src/main.rs"),
+        ("cli.parsing.subcommands", "src/pink_cli/cli_parsing.rs"),
+        ("cli.parsing.routing", "src/pink_cli/cli_parsing.rs"),
+        ("cli.execution.input", "src/main.rs"),
+        ("cli.nav.query", "src/pink_cli/nav_cli.rs"),
         (
-            "cli.nav.sincronizacao-verificacao",
+            "cli.nav.synchronization-verification",
             "src/pink_cli/nav_cli.rs",
         ),
-        ("cli.doc.consulta", "src/pink_cli/doc_cli.rs"),
-        ("cli.doc.sincronizacao", "src/pink_cli/doc_cli.rs"),
-        ("cli.doc.mudancas", "src/pink_cli/doc_cli.rs"),
-        ("cli.doc.verificacao", "src/pink_cli/doc_cli.rs"),
-        ("cli.execucao.editor-repl", "src/main.rs"),
-        ("cli.analise.pipeline", "src/pink_cli/analysis_build.rs"),
-        ("cli.build.nativo", "src/pink_cli/analysis_build.rs"),
-        ("cli.modulos.importacao", "src/pink_cli/modules.rs"),
-        ("cli.nav.projecao", "src/pink_cli/nav_cli.rs"),
+        ("cli.doc.query", "src/pink_cli/doc_cli.rs"),
+        ("cli.doc.synchronization", "src/pink_cli/doc_cli.rs"),
+        ("cli.doc.changes", "src/pink_cli/doc_cli.rs"),
+        ("cli.doc.verification", "src/pink_cli/doc_cli.rs"),
+        ("cli.execution.editor-repl", "src/main.rs"),
+        ("cli.analysis.pipeline", "src/pink_cli/analysis_build.rs"),
+        ("cli.build.native", "src/pink_cli/analysis_build.rs"),
+        ("cli.modules.import", "src/pink_cli/modules.rs"),
+        ("cli.nav.projection", "src/pink_cli/nav_cli.rs"),
         // T1 (#675): a ligação do irmão de análise e build, que fica no pai.
-        ("cli.analise.ligacao", "src/main.rs"),
+        ("cli.analysis.wiring", "src/main.rs"),
     ];
     let expected_editor_keys = [
-        "editor.estado.modelo",
-        "editor.sessao.comandos",
-        "editor.render.saida",
-        "editor.analise.checagem",
+        "editor.state.model",
+        "editor.session.commands",
+        "editor.render.output",
+        "editor.analysis.check",
     ];
-    let expected_boot_keys = ["boot.geracao.fronteira-freestanding"];
+    let expected_boot_keys = ["boot.generation.freestanding-boundary"];
 
     for (key, file) in expected_cli_keys {
         let region = catalog
@@ -1297,7 +1291,15 @@ fn camada_operacional_cartografa_cli_editor_boot() {
 
     // Domínios representativos por camada (amostra, não exaustivo).
     for domain in [
-        "config", "ajuda", "parsing", "execucao", "nav", "doc", "analise", "build", "modulos",
+        "config",
+        "help",
+        "parsing",
+        "execution",
+        "nav",
+        "doc",
+        "analysis",
+        "build",
+        "modules",
     ] {
         assert!(
             cli_regions
@@ -1306,7 +1308,7 @@ fn camada_operacional_cartografa_cli_editor_boot() {
             "domínio cli esperado ausente: {domain}"
         );
     }
-    for domain in ["estado", "sessao", "render", "analise"] {
+    for domain in ["state", "session", "render", "analysis"] {
         assert!(
             editor_regions
                 .iter()
@@ -1317,7 +1319,7 @@ fn camada_operacional_cartografa_cli_editor_boot() {
     assert!(
         boot_regions
             .iter()
-            .any(|r| r.domain.as_deref() == Some("geracao")),
+            .any(|r| r.domain.as_deref() == Some("generation")),
         "domínio boot esperado ausente: geracao"
     );
 
@@ -1325,18 +1327,18 @@ fn camada_operacional_cartografa_cli_editor_boot() {
     // presentes e continuam fora de cli/editor/boot — nenhuma camada
     // preexistente foi reclassificada por esta cápsula.
     let previous_sample = [
-        "lexer.fluxo.tokenizacao",
-        "parser.fluxo.nucleo",
-        "semantic.programa.duas-passagens",
-        "ir.modelo.representacao",
-        "cfg.modelo.representacao",
-        "select.modelo.representacao",
-        "machine.modelo.representacao",
-        "interpreter.modelo.valores-estado",
-        "backend-text.modelo.representacao",
-        "backend-s.pipeline.textual-selecionado",
-        "trama.codigo.raizes",
-        "runtime.inicializacao.bootstrap",
+        "lexer.flow.tokenization",
+        "parser.flow.core",
+        "semantic.program.two-passes",
+        "ir.model.representation",
+        "cfg.model.representation",
+        "select.model.representation",
+        "machine.model.representation",
+        "interpreter.model.state-values",
+        "backend-text.model.representation",
+        "backend-s.pipeline.textual-selected",
+        "trama.code.roots",
+        "runtime.initialization.bootstrap",
     ];
     for key in previous_sample {
         let region = catalog
@@ -1363,28 +1365,28 @@ fn camada_evidencia_frontend_cartografa_lexer_parser_common() {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/navigation.jsonl");
     let catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
 
-    let expected_common_keys = ["evidencia.frontend.pipeline-basico"];
+    let expected_common_keys = ["evidence.frontend.basic-pipeline"];
     let expected_lexer_keys = [
-        "evidencia.lexico.tokens-e-spans",
-        "evidencia.lexico.diagnostico",
-        "evidencia.lexico.palavras-controle",
-        "evidencia.lexico.operadores",
-        "evidencia.lexico.tipos-fixos",
-        "evidencia.lexico.palavras-de-construcao",
-        "evidencia.lexico.arrays-acessos-e-modificadores",
+        "evidence.lexical.tokens-and-spans",
+        "evidence.lexical.diagnostic",
+        "evidence.lexical.control-words",
+        "evidence.lexical.operators",
+        "evidence.lexical.fixed-types",
+        "evidence.lexical.construction-words",
+        "evidence.lexical.arrays-accesses-and-modifiers",
     ];
     let expected_parser_keys = [
-        "evidencia.parser.ast-basica-e-spans",
-        "evidencia.parser.diagnostico-e-limites-literais",
-        "evidencia.parser.controle-de-fluxo",
-        "evidencia.parser.desugaring-para-cada",
-        "evidencia.parser.diretivas-topo-e-asm-inline",
-        "evidencia.parser.tipos-qualificados-e-verso",
-        "evidencia.parser.expressoes-e-precedencia",
-        "evidencia.parser.postfix-cast-deref-e-operadores-tipo",
-        "evidencia.parser.tipos-numericos",
-        "evidencia.parser.aliases-arrays-e-structs",
-        "evidencia.parser.ponteiros-e-colecoes",
+        "evidence.parser.basic-ast-and-spans",
+        "evidence.parser.diagnostic-and-literal-limits",
+        "evidence.parser.control-flow",
+        "evidence.parser.para-cada-desugaring",
+        "evidence.parser.top-directives-and-inline-asm",
+        "evidence.parser.qualified-types-and-verso",
+        "evidence.parser.expressions-and-precedence",
+        "evidence.parser.postfix-cast-deref-and-type-operators",
+        "evidence.parser.numeric-types",
+        "evidence.parser.aliases-arrays-and-structs",
+        "evidence.parser.pointers-and-collections",
     ];
 
     assert_eq!(expected_common_keys.len(), 1);
@@ -1398,7 +1400,7 @@ fn camada_evidencia_frontend_cartografa_lexer_parser_common() {
     let mut planned_keys = HashSet::new();
     for (keys, file, domain) in [
         (&expected_common_keys[..], "tests/common/mod.rs", "frontend"),
-        (&expected_lexer_keys[..], "tests/lexer_tests.rs", "lexico"),
+        (&expected_lexer_keys[..], "tests/lexer_tests.rs", "lexical"),
         (&expected_parser_keys[..], "tests/parser_tests.rs", "parser"),
     ] {
         for &key in keys {
@@ -1415,7 +1417,7 @@ fn camada_evidencia_frontend_cartografa_lexer_parser_common() {
             );
             assert_eq!(
                 region.layer.as_deref(),
-                Some("evidencia"),
+                Some("evidence"),
                 "chave '{key}' deveria usar a camada evidencia"
             );
             assert_eq!(
@@ -1547,11 +1549,11 @@ fn camada_evidencia_frontend_cartografa_lexer_parser_common() {
     assert_eq!(lexer_test_count + parser_test_count, 73);
 
     let previous_sample = catalog
-        .region("lexer.fluxo.tokenizacao")
+        .region("lexer.flow.tokenization")
         .expect("amostra de chave anterior deveria permanecer no catálogo");
     assert_ne!(
         previous_sample.layer.as_deref(),
-        Some("evidencia"),
+        Some("evidence"),
         "a amostra anterior não deveria ser reclassificada para evidencia"
     );
 
@@ -1566,42 +1568,42 @@ fn onda_8c_cartografa_evidencias_semanticas() {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/navigation.jsonl");
     let catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
     let expected_semantic_keys = [
-        "evidencia.semantica.entrada-principal",
-        "evidencia.semantica.retornos",
-        "evidencia.semantica.mutabilidade",
-        "evidencia.semantica.chamadas",
-        "evidencia.semantica.intrinsecas-entrada-ambiente",
-        "evidencia.semantica.intrinsecas-caminhos-e-sistema",
-        "evidencia.semantica.intrinsecas-argumentos-e-contexto",
-        "evidencia.semantica.intrinsecas-arquivos-io",
-        "evidencia.semantica.intrinsecas-texto-e-estruturados",
-        "evidencia.semantica.intrinsecas-processos",
-        "evidencia.semantica.funcoes-sem-retorno",
-        "evidencia.semantica.controle-fluxo-e-diagnostico",
-        "evidencia.semantica.operadores-logicos-e-bitwise",
-        "evidencia.semantica.acesso-campos-e-indexacao",
-        "evidencia.semantica.casts",
-        "evidencia.semantica.peso-e-alinhamento",
-        "evidencia.semantica.tipos-numericos-largura-fixa",
-        "evidencia.semantica.aliases-arrays-e-ninhos",
-        "evidencia.semantica.ponteiros-e-aritmetica",
-        "evidencia.semantica.ninhos-diagnostico",
-        "evidencia.semantica.aritmetica-modulo-e-literais",
-        "evidencia.semantica.escrita-por-indice",
-        "evidencia.semantica.listas",
-        "evidencia.semantica.mapas",
-        "evidencia.semantica.acaso",
-        "evidencia.semantica.imports-por-familia",
-        "evidencia.semantica.leques-simples",
-        "evidencia.semantica.leques-com-carga",
-        "evidencia.semantica.encaixe-e-bindings",
-        "evidencia.semantica.leques-recursivos-e-multiplas-cargas",
-        "evidencia.semantica.genericos",
-        "evidencia.semantica.tratamento-de-erro",
-        "evidencia.semantica.funcoes-locais-e-carinho",
-        "evidencia.semantica.closures-captura-imutavel",
-        "evidencia.semantica.tratos-e-impls",
-        "evidencia.semantica.objetos-trato-fase244",
+        "evidence.semantic.main-entry",
+        "evidence.semantic.returns",
+        "evidence.semantic.mutability",
+        "evidence.semantic.calls",
+        "evidence.semantic.intrinsics-input-environment",
+        "evidence.semantic.intrinsics-paths-and-system",
+        "evidence.semantic.intrinsics-arguments-and-context",
+        "evidence.semantic.intrinsics-files-io",
+        "evidence.semantic.intrinsics-text-and-structured",
+        "evidence.semantic.intrinsics-processes",
+        "evidence.semantic.functions-without-return",
+        "evidence.semantic.control-flow-and-diagnostic",
+        "evidence.semantic.logical-and-bitwise-operators",
+        "evidence.semantic.field-access-and-indexing",
+        "evidence.semantic.casts",
+        "evidence.semantic.peso-and-alinhamento",
+        "evidence.semantic.fixed-width-numeric-types",
+        "evidence.semantic.aliases-arrays-and-ninhos",
+        "evidence.semantic.pointers-and-arithmetic",
+        "evidence.semantic.ninhos-diagnostic",
+        "evidence.semantic.modulo-arithmetic-and-literals",
+        "evidence.semantic.indexed-write",
+        "evidence.semantic.lists",
+        "evidence.semantic.maps",
+        "evidence.semantic.acaso",
+        "evidence.semantic.imports-by-family",
+        "evidence.semantic.simple-leques",
+        "evidence.semantic.leques-with-payload",
+        "evidence.semantic.encaixe-and-bindings",
+        "evidence.semantic.recursive-leques-and-multiple-payloads",
+        "evidence.semantic.generics",
+        "evidence.semantic.error-handling",
+        "evidence.semantic.functions-locals-and-carinho",
+        "evidence.semantic.closures-immutable-capture",
+        "evidence.semantic.tratos-and-impls",
+        "evidence.semantic.trato-objects-phase244",
     ];
     assert_eq!(expected_semantic_keys.len(), 36);
     let mut planned_keys = HashSet::new();
@@ -1614,8 +1616,8 @@ fn onda_8c_cartografa_evidencias_semanticas() {
             .region(key)
             .unwrap_or_else(|| panic!("chave ausente: {key}"));
         assert_eq!(region.file, "tests/semantic_tests.rs");
-        assert_eq!(region.layer.as_deref(), Some("evidencia"));
-        assert_eq!(region.domain.as_deref(), Some("semantica"));
+        assert_eq!(region.layer.as_deref(), Some("evidence"));
+        assert_eq!(region.domain.as_deref(), Some("semantic"));
         assert!(
             region.start_marker < region.content_start
                 && region.content_start <= region.content_end
@@ -1694,80 +1696,80 @@ fn onda_8d_cartografa_evidencias_do_pipeline() {
 
     // Chaves em ordem física: primeiro tests/ir_tests.rs, depois tests/ir_validate_tests.rs.
     let expected_ir_keys = [
-        "evidencia.ir.lowering-programa",
-        "evidencia.ir.renderizacao-estruturas-basicas",
-        "evidencia.ir.renderizacao-cli",
-        "evidencia.ir.lowering-controle-de-laco",
-        "evidencia.ir.lowering-operacoes-textuais",
-        "evidencia.ir.lowering-tipos-numericos",
-        "evidencia.ir.lowering-tipos-compostos",
-        "evidencia.ir.lowering-objetos-trato-fase244",
-        "evidencia.ir.validacao-aceitacao-basica",
-        "evidencia.ir.validacao-retorno-e-condicao",
-        "evidencia.ir.validacao-chamadas-e-nulo",
-        "evidencia.ir.validacao-estrutura-e-diagnostico",
-        "evidencia.ir.validacao-objetos-trato-fase244",
+        "evidence.ir.lowering-program",
+        "evidence.ir.rendering-basic-structures",
+        "evidence.ir.rendering-cli",
+        "evidence.ir.lowering-loop-control",
+        "evidence.ir.lowering-textual-operations",
+        "evidence.ir.lowering-numeric-types",
+        "evidence.ir.lowering-composite-types",
+        "evidence.ir.lowering-trato-objects-phase244",
+        "evidence.ir.validation-basic-acceptance",
+        "evidence.ir.validation-return-and-condition",
+        "evidence.ir.validation-calls-and-null",
+        "evidence.ir.validation-structure-and-diagnostic",
+        "evidence.ir.validation-trato-objects-phase244",
     ];
     // Ordem física: primeiro tests/cfg_ir_tests.rs, depois tests/cfg_ir_validate_tests.rs.
     let expected_cfg_keys = [
-        "evidencia.cfg.lowering-e-renderizacao-basica",
-        "evidencia.cfg.renderizacao-cli",
-        "evidencia.cfg.lowering-lacos",
-        "evidencia.cfg.lowering-operadores-e-join",
-        "evidencia.cfg.lowering-ponteiros-e-agregados",
-        "evidencia.cfg.lowering-limite-asm",
-        "evidencia.cfg.lowering-verso",
-        "evidencia.cfg.lowering-curto-circuito",
-        "evidencia.cfg.objetos-trato-fase244",
-        "evidencia.cfg.validacao-aceitacao-basica",
-        "evidencia.cfg.validacao-blocos-e-alvos",
-        "evidencia.cfg.validacao-condicao-e-retorno",
-        "evidencia.cfg.validacao-chamada-e-referencias",
-        "evidencia.cfg.validacao-alcancabilidade-e-renderizacao",
-        "evidencia.cfg.validacao-diagnostico",
-        "evidencia.cfg.validacao-objetos-trato-fase244",
+        "evidence.cfg.lowering-and-basic-rendering",
+        "evidence.cfg.rendering-cli",
+        "evidence.cfg.lowering-loops",
+        "evidence.cfg.lowering-operators-and-join",
+        "evidence.cfg.lowering-pointers-and-aggregates",
+        "evidence.cfg.lowering-asm-limit",
+        "evidence.cfg.lowering-verso",
+        "evidence.cfg.lowering-short-circuit",
+        "evidence.cfg.trato-objects-phase244",
+        "evidence.cfg.validation-basic-acceptance",
+        "evidence.cfg.validation-blocks-and-targets",
+        "evidence.cfg.validation-condition-and-return",
+        "evidence.cfg.validation-call-and-references",
+        "evidence.cfg.validation-reachability-and-rendering",
+        "evidence.cfg.validation-diagnostic",
+        "evidence.cfg.validation-trato-objects-phase244",
     ];
     let expected_select_keys = [
-        "evidencia.select.blocos-e-terminadores",
-        "evidencia.select.chamadas-e-operadores",
-        "evidencia.select.renderizacao-cli",
-        "evidencia.select.rejeicao-call-sem-destino",
-        "evidencia.select.fluxos-de-laco",
-        "evidencia.select.operadores-bitwise-e-modulo",
-        "evidencia.select.objetos-trato-fase244",
+        "evidence.select.blocks-and-terminators",
+        "evidence.select.calls-and-operators",
+        "evidence.select.rendering-cli",
+        "evidence.select.rejection-call-without-destination",
+        "evidence.select.loop-flows",
+        "evidence.select.operators-bitwise-and-modulo",
+        "evidence.select.trato-objects-phase244",
     ];
     // Ordem física: primeiro tests/abstract_machine_tests.rs, depois
     // tests/abstract_machine_stack_tests.rs.
     let expected_machine_keys = [
-        "evidencia.machine.lowering-blocos-e-terminadores",
-        "evidencia.machine.lowering-chamadas",
-        "evidencia.machine.lowering-operadores-e-temporarios",
-        "evidencia.machine.renderizacao-cli",
-        "evidencia.machine.comparacao-representacoes",
-        "evidencia.machine.validacao-programa-e-slots",
-        "evidencia.machine.lowering-bitwise-e-modulo",
-        "evidencia.machine.renderizacao-slots-e-temporarios",
-        "evidencia.machine.renderizacao-chamadas",
-        "evidencia.machine.renderizacao-terminadores-e-fluxos",
-        "evidencia.machine.renderizacao-papeis-de-blocos",
-        "evidencia.machine.objetos-trato-fase244",
-        "evidencia.machine.renderizacao-programa-valido",
-        "evidencia.machine.validacao-underflow-operadores",
-        "evidencia.machine.validacao-chamadas-aridade-e-underflow",
-        "evidencia.machine.validacao-formato-diagnostico",
-        "evidencia.machine.validacao-branch",
-        "evidencia.machine.renderizacao-branch-valido",
-        "evidencia.machine.validacao-retorno",
-        "evidencia.machine.renderizacao-retorno-valido",
-        "evidencia.machine.validacao-pilha-retvoid-e-merges",
-        "evidencia.machine.validacao-slots-existencia",
-        "evidencia.machine.validacao-slots-tipados",
-        "evidencia.machine.validacao-tipos-operacoes-e-retorno",
-        "evidencia.machine.validacao-tipos-chamadas",
-        "evidencia.machine.renderizacao-casos-validos",
-        "evidencia.machine.validacao-programa-invalido",
-        "evidencia.machine.renderizacao-cli-golden",
-        "evidencia.machine.validacao-objetos-trato-fase244",
+        "evidence.machine.lowering-blocks-and-terminators",
+        "evidence.machine.lowering-calls",
+        "evidence.machine.lowering-operators-and-temporaries",
+        "evidence.machine.rendering-cli",
+        "evidence.machine.representation-comparison",
+        "evidence.machine.validation-program-and-slots",
+        "evidence.machine.lowering-bitwise-and-modulo",
+        "evidence.machine.rendering-slots-and-temporaries",
+        "evidence.machine.rendering-calls",
+        "evidence.machine.rendering-terminators-and-flows",
+        "evidence.machine.rendering-block-roles",
+        "evidence.machine.trato-objects-phase244",
+        "evidence.machine.rendering-valid-program",
+        "evidence.machine.validation-operator-underflow",
+        "evidence.machine.validation-calls-arity-and-underflow",
+        "evidence.machine.validation-diagnostic-format",
+        "evidence.machine.validation-branch",
+        "evidence.machine.rendering-valid-branch",
+        "evidence.machine.validation-return",
+        "evidence.machine.rendering-valid-return",
+        "evidence.machine.validation-stack-retvoid-and-merges",
+        "evidence.machine.validation-slot-existence",
+        "evidence.machine.validation-typed-slots",
+        "evidence.machine.validation-types-operations-and-return",
+        "evidence.machine.validation-call-types",
+        "evidence.machine.rendering-valid-cases",
+        "evidence.machine.validation-invalid-program",
+        "evidence.machine.rendering-cli-golden",
+        "evidence.machine.validation-trato-objects-phase244",
     ];
 
     assert_eq!(expected_ir_keys.len(), 13);
@@ -1786,17 +1788,17 @@ fn onda_8d_cartografa_evidencias_do_pipeline() {
     // Cada arquivo recebe sua fatia física após a Fase 244.
     let ir_validate_start = expected_ir_keys
         .iter()
-        .position(|key| *key == "evidencia.ir.validacao-aceitacao-basica")
+        .position(|key| *key == "evidence.ir.validation-basic-acceptance")
         .expect("fronteira de validação IR ausente");
 
     let cfg_validate_start = expected_cfg_keys
         .iter()
-        .position(|key| *key == "evidencia.cfg.validacao-aceitacao-basica")
+        .position(|key| *key == "evidence.cfg.validation-basic-acceptance")
         .expect("fronteira de validação CFG ausente");
 
     let machine_stack_start = expected_machine_keys
         .iter()
-        .position(|key| *key == "evidencia.machine.renderizacao-programa-valido")
+        .position(|key| *key == "evidence.machine.rendering-valid-program")
         .expect("fronteira da pilha machine ausente");
 
     let per_file: [(&[&str], &str, &str, usize); 7] = [
@@ -1863,7 +1865,7 @@ fn onda_8d_cartografa_evidencias_do_pipeline() {
             );
             assert_eq!(
                 region.layer.as_deref(),
-                Some("evidencia"),
+                Some("evidence"),
                 "chave '{key}' deveria usar a camada evidencia"
             );
             assert_eq!(
@@ -1958,23 +1960,23 @@ fn onda_8d_cartografa_evidencias_do_pipeline() {
     let evidence_total = catalog
         .regions
         .iter()
-        .filter(|region| region.layer.as_deref() == Some("evidencia"))
+        .filter(|region| region.layer.as_deref() == Some("evidence"))
         .count();
     assert!(
         evidence_total >= 111,
         "catálogo deveria conter ao menos 111 regiões de evidência (53 anteriores + 58 da Onda 8D), obteve {evidence_total}"
     );
     for previous in [
-        "evidencia.lexico.tokens-e-spans",
-        "evidencia.parser.ast-basica-e-spans",
-        "evidencia.semantica.entrada-principal",
+        "evidence.lexical.tokens-and-spans",
+        "evidence.parser.basic-ast-and-spans",
+        "evidence.semantic.main-entry",
     ] {
         let region = catalog
             .region(previous)
             .unwrap_or_else(|| panic!("região de evidência anterior ausente: {previous}"));
         assert_eq!(
             region.layer.as_deref(),
-            Some("evidencia"),
+            Some("evidence"),
             "região anterior '{previous}' deveria permanecer como evidencia"
         );
     }
@@ -1997,124 +1999,118 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
     // de #[test] por região estão congeladas no plano e a ordem física da suíte
     // é preservada. Chaves em ordem alfabética para diff estável.
     let expected_interpreter_keys: [(&str, usize); 48] = [
-        ("evidencia.interpreter.aleatoriedade-semente", 8),
-        ("evidencia.interpreter.arquivos-csv-json-cli-exemplos", 7),
-        ("evidencia.interpreter.arquivos-csv-serializacao", 6),
+        ("evidence.interpreter.seeded-randomness", 8),
+        ("evidence.interpreter.files-csv-json-cli-examples", 7),
+        ("evidence.interpreter.files-csv-serialization", 6),
         (
-            "evidencia.interpreter.arquivos-e-ambiente-fallback-cli-exemplos",
+            "evidence.interpreter.files-and-environment-fallback-cli-examples",
             12,
         ),
         (
-            "evidencia.interpreter.arquivos-handle-fechado-e-fluxo-completo",
+            "evidence.interpreter.files-closed-handle-and-complete-flow",
             11,
         ),
         (
-            "evidencia.interpreter.arquivos-introspeccao-caminho-e-diretorios",
+            "evidence.interpreter.files-path-introspection-and-directories",
             23,
         ),
-        ("evidencia.interpreter.arquivos-json-serializacao", 7),
+        ("evidence.interpreter.files-json-serialization", 7),
         (
-            "evidencia.interpreter.checagem-cli-modulos-e-recortes-linguagem",
+            "evidence.interpreter.cli-check-modules-and-language-slices",
             20,
         ),
-        ("evidencia.interpreter.closures-captura-imutavel", 11),
-        ("evidencia.interpreter.colecoes-iteracao-lista-e-mapa", 18),
-        ("evidencia.interpreter.colecoes-lista-bombom", 17),
-        ("evidencia.interpreter.colecoes-mapa-verso-bombom", 7),
+        ("evidence.interpreter.closures-immutable-capture", 11),
         (
-            "evidencia.interpreter.diagnostico-render-fonte-e-operador-bitnot",
+            "evidence.interpreter.collections-list-and-map-iteration",
+            18,
+        ),
+        ("evidence.interpreter.collections-list-bombom", 17),
+        ("evidence.interpreter.collections-map-verso-bombom", 7),
+        (
+            "evidence.interpreter.diagnostic-source-render-and-bitnot-operator",
             9,
         ),
         (
-            "evidencia.interpreter.diagnostico-runtime-avaliacao-e-chamadas",
+            "evidence.interpreter.runtime-diagnostic-evaluation-and-calls",
             7,
         ),
         (
-            "evidencia.interpreter.diagnostico-runtime-execucao-invalida",
+            "evidence.interpreter.runtime-diagnostic-invalid-execution",
             3,
         ),
-        ("evidencia.interpreter.diagnostico-simbolo-inexistente", 2),
+        ("evidence.interpreter.diagnostic-nonexistent-symbol", 2),
+        ("evidence.interpreter.diagnostic-stack-trace-truncation", 4),
         (
-            "evidencia.interpreter.diagnostico-stack-trace-truncamento",
-            4,
-        ),
-        (
-            "evidencia.interpreter.entrada-argumentos-e-ambiente-cli-exemplos",
+            "evidence.interpreter.input-arguments-and-environment-cli-examples",
             15,
         ),
+        ("evidence.interpreter.input-named-arguments-and-flags", 22),
         (
-            "evidencia.interpreter.entrada-argumentos-nomeados-e-flags",
-            22,
+            "evidence.interpreter.input-environment-context-and-output",
+            9,
         ),
-        ("evidencia.interpreter.entrada-contexto-ambiente-e-saida", 9),
+        ("evidence.interpreter.execution-calls-and-short-circuit", 7),
+        ("evidence.interpreter.execution-basic-cli-examples", 2),
         (
-            "evidencia.interpreter.execucao-chamadas-e-curto-circuito",
-            7,
-        ),
-        ("evidencia.interpreter.execucao-cli-exemplos-basicos", 2),
-        (
-            "evidencia.interpreter.execucao-funcoes-usuario-tratos-e-genericos",
+            "evidence.interpreter.execution-user-functions-tratos-and-generics",
             26,
         ),
         (
-            "evidencia.interpreter.execucao-nucleo-estado-aritmetica-fluxo",
+            "evidence.interpreter.execution-core-state-arithmetic-flow",
             10,
         ),
         (
-            "evidencia.interpreter.execucao-operadores-aritmeticos-relacionais-e-sinais",
+            "evidence.interpreter.execution-arithmetic-relational-operators-and-signs",
             12,
         ),
         (
-            "evidencia.interpreter.execucao-operadores-e-fluxo-cli-exemplos",
+            "evidence.interpreter.execution-operators-and-flow-cli-examples",
             12,
         ),
         (
-            "evidencia.interpreter.execucao-recursao-e-fluxo-interpretador-e-cli",
+            "evidence.interpreter.execution-recursion-and-flow-interpreter-and-cli",
             10,
         ),
-        ("evidencia.interpreter.execucao-repl-e-render-erro-fonte", 7),
-        ("evidencia.interpreter.fluxo-controle-lacos-basicos", 2),
         (
-            "evidencia.interpreter.leques-trazer-recursos-e-programas-brinquedo",
+            "evidence.interpreter.execution-repl-and-source-error-render",
+            7,
+        ),
+        ("evidence.interpreter.control-flow-basic-loops", 2),
+        (
+            "evidence.interpreter.leques-trazer-resources-and-toy-programs",
             20,
         ),
-        ("evidencia.interpreter.objetos-trato-fase244", 13),
+        ("evidence.interpreter.trato-objects-phase244", 13),
         (
-            "evidencia.interpreter.ponteiros-boot-freestanding-e-subset-nativo",
+            "evidence.interpreter.pointers-freestanding-boot-and-native-subset",
             21,
         ),
         (
-            "evidencia.interpreter.ponteiros-escrita-indice-e-array-fixo",
+            "evidence.interpreter.pointers-indexed-write-and-fixed-array",
             4,
         ),
         (
-            "evidencia.interpreter.ponteiros-array-fixo-e-cast-memoria-cli",
+            "evidence.interpreter.pointers-fixed-array-and-memory-cast-cli",
             4,
         ),
-        ("evidencia.interpreter.ponteiros-seta-operacional", 14),
-        ("evidencia.interpreter.processos-argv-explicito", 7),
-        ("evidencia.interpreter.processos-captura-stderr", 19),
-        ("evidencia.interpreter.processos-captura-stdout", 18),
-        ("evidencia.interpreter.processos-entrada-stdin", 16),
-        ("evidencia.interpreter.processos-externo-executar", 9),
-        ("evidencia.interpreter.processos-pipeline", 10),
-        ("evidencia.interpreter.tempo-unix-e-formatacao", 7),
+        ("evidence.interpreter.pointers-operational-seta", 14),
+        ("evidence.interpreter.processes-explicit-argv", 7),
+        ("evidence.interpreter.processes-stderr-capture", 19),
+        ("evidence.interpreter.processes-stdout-capture", 18),
+        ("evidence.interpreter.processes-stdin-input", 16),
+        ("evidence.interpreter.processes-external-execute", 9),
+        ("evidence.interpreter.processes-pipeline", 10),
+        ("evidence.interpreter.unix-time-and-formatting", 7),
         (
-            "evidencia.interpreter.texto-dividir-substituir-juntar-e-buscar",
+            "evidence.interpreter.text-split-replace-join-and-search",
             27,
         ),
-        ("evidencia.interpreter.texto-formatar-cli-exemplos", 4),
-        ("evidencia.interpreter.texto-formatar-verso", 5),
+        ("evidence.interpreter.text-format-cli-examples", 4),
+        ("evidence.interpreter.text-format-verso", 5),
+        ("evidence.interpreter.text-io-by-handle-and-file-reread", 20),
+        ("evidence.interpreter.text-verso-and-textual-io-by-path", 17),
         (
-            "evidencia.interpreter.texto-io-por-handle-e-arquivos-releitura",
-            20,
-        ),
-        (
-            "evidencia.interpreter.texto-verso-e-io-textual-por-caminho",
-            17,
-        ),
-        (
-            "evidencia.interpreter.texto-verso-intrinsecas-consulta-transformacao",
+            "evidence.interpreter.text-verso-intrinsics-query-transformation",
             25,
         ),
     ];
@@ -2146,7 +2142,7 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
         );
         assert_eq!(
             region.layer.as_deref(),
-            Some("evidencia"),
+            Some("evidence"),
             "chave '{key}' deveria usar a camada evidencia"
         );
         assert_eq!(
@@ -2282,28 +2278,28 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
                 && region.file != "tests/doc_catalog_tests.rs"
                 && region.file != "tests/trama_query_tests.rs"
         })
-        .filter(|region| region.layer.as_deref() == Some("evidencia"))
-        .filter(|region| !region.key.starts_with("evidencia.backend-text."))
-        .filter(|region| !region.key.starts_with("evidencia.backend-s."))
-        .filter(|region| !region.key.starts_with("evidencia.backend-s-externo."))
-        .filter(|region| !region.key.starts_with("evidencia.backend-nativo."))
-        .filter(|region| !region.key.starts_with("evidencia.runtime."))
+        .filter(|region| region.layer.as_deref() == Some("evidence"))
+        .filter(|region| !region.key.starts_with("evidence.backend-text."))
+        .filter(|region| !region.key.starts_with("evidence.backend-s."))
+        .filter(|region| !region.key.starts_with("evidence.external-backend-s."))
+        .filter(|region| !region.key.starts_with("evidence.native-backend."))
+        .filter(|region| !region.key.starts_with("evidence.runtime."))
         .count();
     assert_eq!(
         historical_evidence_total, 264,
         "o estado histórico da Onda 8E deve conter 159 regiões de evidência (111 anteriores + 47 da Onda 8E + 1 da Fase 243 em tests/semantic_tests.rs), mais as evidências adultas D9, D10 e a política de recurso D13; mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais a evidência da identidade genérica injetiva da #476; mais a região de evidência da paridade de argumento nomeado da #492; mais a região de evidência da autoridade nativa de símbolos da #497; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região de evidência do `impl` sobre trato importado da #517; mais as duas regiões de evidência da #532 (identidade intrínseca separada da grafia e namespace de módulos); mais a região de evidência da validação semântica de corpo sintético de trato em unidade não-raiz da #566; mais a região de evidência da relação de `impl` duplicada da #572; mais a região de evidência da composição de closure sintética em corpo default de trato importado da #567; mais a região de evidência do `impl` transitivo alcançado pela unidade importada da #577; mais a região de evidência da equivalência de representação de mapa da #663; mais a região de evidência da extração lexical de símbolos da #680"
     );
     for previous in [
-        "evidencia.ir.lowering-programa",
-        "evidencia.select.blocos-e-terminadores",
-        "evidencia.machine.renderizacao-cli-golden",
+        "evidence.ir.lowering-program",
+        "evidence.select.blocks-and-terminators",
+        "evidence.machine.rendering-cli-golden",
     ] {
         let region = catalog
             .region(previous)
             .unwrap_or_else(|| panic!("região de evidência anterior ausente: {previous}"));
         assert_eq!(
             region.layer.as_deref(),
-            Some("evidencia"),
+            Some("evidence"),
             "região anterior '{previous}' deveria permanecer como evidencia"
         );
     }
@@ -2316,12 +2312,12 @@ fn onda_8e_cartografa_evidencias_da_execucao_interpretada() {
                 && region.file != "tests/doc_catalog_tests.rs"
                 && region.file != "tests/trama_query_tests.rs"
         })
-        .filter(|region| !region.key.starts_with("evidencia.backend-text."))
-        .filter(|region| !region.key.starts_with("evidencia.backend-s."))
-        .filter(|region| !region.key.starts_with("evidencia.backend-s-externo."))
-        .filter(|region| !region.key.starts_with("evidencia.backend-nativo."))
-        .filter(|region| !region.key.starts_with("evidencia.runtime."))
-        .filter(|region| region.key != "backend-s.lowering.objetos-trato-nativos")
+        .filter(|region| !region.key.starts_with("evidence.backend-text."))
+        .filter(|region| !region.key.starts_with("evidence.backend-s."))
+        .filter(|region| !region.key.starts_with("evidence.external-backend-s."))
+        .filter(|region| !region.key.starts_with("evidence.native-backend."))
+        .filter(|region| !region.key.starts_with("evidence.runtime."))
+        .filter(|region| region.key != "backend-s.lowering.native-trato-objects")
         .count();
     assert_eq!(
         historical_catalog_total, 587,
@@ -2338,49 +2334,49 @@ fn onda_8f_cartografa_evidencias_do_backend_textual() {
 
     let expected_regions: [(&str, &str, &[&str], usize); 8] = [
         (
-            "evidencia.backend-text.pipeline-helper",
+            "evidence.backend-text.pipeline-helper",
             "tests/common/mod.rs",
             &["render_backend_text"],
             0,
         ),
         (
-            "evidencia.backend-text.apresentacao-cli-helper",
+            "evidence.backend-text.cli-presentation-helper",
             "tests/common/mod.rs",
             &["render_cli_pseudo_asm_output"],
             0,
         ),
         (
-            "evidencia.backend-text.renderizacao-programa-minimo",
+            "evidence.backend-text.rendering-minimal-program",
             "tests/backend_text_tests.rs",
             &["emite_funcao_simples"],
             1,
         ),
         (
-            "evidencia.backend-text.renderizacao-controle-fluxo",
+            "evidence.backend-text.rendering-control-flow",
             "tests/backend_text_tests.rs",
             &["emite_if_else", "emite_if_sem_else"],
             2,
         ),
         (
-            "evidencia.backend-text.renderizacao-chamada-binaria",
+            "evidence.backend-text.rendering-binary-call",
             "tests/backend_text_tests.rs",
             &["emite_chamada_direta_com_temporario_e_binaria"],
             1,
         ),
         (
-            "evidencia.backend-text.renderizacao-chamada-void-retorno-nulo",
+            "evidence.backend-text.rendering-void-call-null-return",
             "tests/backend_text_tests.rs",
             &["emite_return_vazio_e_funcao_nulo"],
             1,
         ),
         (
-            "evidencia.backend-text.renderizacao-globais",
+            "evidence.backend-text.rendering-globals",
             "tests/backend_text_tests.rs",
             &["emite_constante_global_e_principal"],
             1,
         ),
         (
-            "evidencia.backend-text.apresentacao-cli-pseudo-asm",
+            "evidence.backend-text.cli-presentation-pseudo-asm",
             "tests/backend_text_tests.rs",
             &["cli_pseudo_asm_header_estavel"],
             1,
@@ -2429,10 +2425,10 @@ fn onda_8f_cartografa_evidencias_do_backend_textual() {
                 && region.file != "tests/doc_catalog_tests.rs"
                 && region.file != "tests/trama_query_tests.rs"
         })
-        .filter(|region| !region.key.starts_with("evidencia.backend-s."))
-        .filter(|region| !region.key.starts_with("evidencia.backend-s-externo."))
-        .filter(|region| !region.key.starts_with("evidencia.backend-nativo."))
-        .filter(|region| !region.key.starts_with("evidencia.runtime."))
+        .filter(|region| !region.key.starts_with("evidence.backend-s."))
+        .filter(|region| !region.key.starts_with("evidence.external-backend-s."))
+        .filter(|region| !region.key.starts_with("evidence.native-backend."))
+        .filter(|region| !region.key.starts_with("evidence.runtime."))
         .count();
     assert_eq!(
         historical_catalog_total, 587,
@@ -2445,7 +2441,7 @@ fn onda_8f_cartografa_evidencias_do_backend_textual() {
     let mut backend_text_keys: Vec<_> = catalog
         .regions
         .iter()
-        .filter(|region| region.key.starts_with("evidencia.backend-text."))
+        .filter(|region| region.key.starts_with("evidence.backend-text."))
         .map(|region| region.key.as_str())
         .collect();
     backend_text_keys.sort_unstable();
@@ -2467,7 +2463,7 @@ fn onda_8f_cartografa_evidencias_do_backend_textual() {
             .unwrap_or_else(|| panic!("região aprovada ausente: {key}"));
         assert_eq!(region.file, file, "arquivo divergente para {key}");
         assert_eq!(region.domain.as_deref(), Some("backend-text"));
-        assert_eq!(region.layer.as_deref(), Some("evidencia"));
+        assert_eq!(region.layer.as_deref(), Some("evidence"));
         assert!(!region.summary.trim().is_empty(), "summary vazio em {key}");
         assert!(
             region.start_marker < region.content_start
@@ -2564,10 +2560,10 @@ fn onda_8f_cartografa_evidencias_do_backend_textual() {
                 && region.file != "tests/trama_query_tests.rs"
         })
         .filter(|region| !expected_key_set.contains(region.key.as_str()))
-        .filter(|region| !region.key.starts_with("evidencia.backend-s."))
-        .filter(|region| !region.key.starts_with("evidencia.backend-s-externo."))
-        .filter(|region| !region.key.starts_with("evidencia.backend-nativo."))
-        .filter(|region| !region.key.starts_with("evidencia.runtime."))
+        .filter(|region| !region.key.starts_with("evidence.backend-s."))
+        .filter(|region| !region.key.starts_with("evidence.external-backend-s."))
+        .filter(|region| !region.key.starts_with("evidence.native-backend."))
+        .filter(|region| !region.key.starts_with("evidence.runtime."))
         .collect();
     assert_eq!(
         previous_regions.len(),
@@ -2587,59 +2583,59 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
 
     let expected_regions: [(&str, &str, &[&str], usize, &str); 7] = [
         (
-            "evidencia.backend-s.pipeline-helper",
+            "evidence.backend-s.pipeline-helper",
             "tests/common/mod.rs",
             &["render_backend_s"],
             0,
-            "Executa o helper compartilhado render_backend_s inteiramente em memória: parse e checagem semântica, lowering e validação por IR, CFG e seleção, seguidos da emissão do backend .s textual via emit_from_selected. Não usa o helper do subset externo, assembler, linker nem execução nativa.",
+            "Runs the shared helper render_backend_s entirely in memory: parse and semantic check, lowering and validation through IR, CFG and selection, followed by the emission of the textual .s backend via emit_from_selected. It does not use the external subset helper, an assembler, a linker or native execution.",
         ),
         (
-            "evidencia.backend-s.apresentacao-cli-helper",
+            "evidence.backend-s.cli-presentation-helper",
             "tests/common/mod.rs",
             &["render_cli_asm_s_output"],
             0,
-            "Monta a apresentação sintética de render_cli_asm_s_output em memória: concatena o cabeçalho `=== ASM .S (TEXTUAL) ===`, a saída de render_backend_s e o rodapé histórico de sucesso semântico. Não cria nem executa um processo CLI.",
+            "Assembles the synthetic presentation of render_cli_asm_s_output in memory: it concatenates the `=== ASM .S (TEXTUAL) ===` header, the output of render_backend_s and the historical semantic-success footer. It neither creates nor executes a CLI process.",
         ),
         (
-            "evidencia.backend-s.apresentacao-cli-asm-s",
+            "evidence.backend-s.cli-presentation-asm-s",
             "tests/backend_s_tests.rs",
             &["asm_s_header_estavel"],
             1,
-            "Golden exato da apresentação sintética em memória de render_cli_asm_s_output: cabeçalho ASM .S textual, representação textual hospedada mínima com metadados de ABI e rodapé histórico; não executa processo CLI nem produz assembly montável.",
+            "Exact golden of the synthetic in-memory presentation of render_cli_asm_s_output: textual ASM .S header, minimal hosted textual representation with ABI metadata and historical footer; it neither runs a CLI process nor produces assemblable assembly.",
         ),
         (
-            "evidencia.backend-s.renderizacao-fluxo-e-abi-textual",
+            "evidence.backend-s.rendering-flow-and-textual-abi",
             "tests/backend_s_tests.rs",
             &[
                 "asm_s_emite_if_else_simples",
                 "asm_s_abi_minima_para_parametros_e_chamada",
             ],
             2,
-            "Verifica por contains a representação .s textual de if/else e a ABI textual mínima de parâmetros e chamada, incluindo rótulos, branches, metadados abi.* e temporário de retorno; não comprova instruções x86, montagem, link ou execução.",
+            "Checks by contains the textual .s representation of if/else and the minimal textual ABI of parameters and calls, including labels, branches, abi.* metadata and the return temporary; it does not prove x86 instructions, assembling, linking or execution.",
         ),
         (
-            "evidencia.backend-s.validacao-subset-textual",
+            "evidence.backend-s.validation-textual-subset",
             "tests/backend_s_tests.rs",
             &["asm_s_falha_clara_para_tipo_ainda_nao_suportado"],
             1,
-            "Exercita o diagnóstico do subset .s textual ao recusar slot seta<bombom>, verificando apenas a mensagem clara de tipo ainda não suportado nesse caminho textual.",
+            "Exercises the textual .s subset diagnostic by refusing a seta<bombom> slot, checking only the clear message that the type is not yet supported on that textual path.",
         ),
         (
-            "evidencia.backend-s.freestanding-intencao-textual",
+            "evidence.backend-s.freestanding-textual-intent",
             "tests/backend_s_tests.rs",
             &["asm_s_freestanding_exibe_boot_entry_e_linker_script_minimo"],
             1,
-            "Verifica por contains que o modo livre expõe intenção freestanding na representação textual, com boot.entry, linker script mínimo, kernel stub, _start e laço de espera; não monta, linka, inicializa hardware nem executa esse material.",
+            "Checks by contains that free mode exposes freestanding intent in the textual representation, with boot.entry, a minimal linker script, a kernel stub, _start and a wait loop; it does not assemble, link, initialize hardware or execute that material.",
         ),
         (
-            "evidencia.backend-s.build-cli-artefato-textual",
+            "evidence.backend-s.build-cli-textual-artifact",
             "tests/interpreter_tests.rs",
             &[
                 "cli_build_gera_artefato_s_no_diretorio_padrao",
                 "cli_build_com_imports_gera_artefato_no_out_dir",
             ],
             2,
-            "Exercita dois builds híbridos via processo `pink build`: exige sucesso, saída esperada, criação do artefato .s no diretório padrão ou em --out-dir e conteúdo textual mínimo, inclusive com import; não monta, linka nem executa o artefato.",
+            "Exercises two hybrid builds via the `pink build` process: it requires success, the expected output, creation of the .s artifact in the default directory or in --out-dir and minimal textual content, including with an import; it does not assemble, link or execute the artifact.",
         ),
     ];
     let expected_test_counts = [0, 0, 1, 2, 1, 1, 2];
@@ -2668,9 +2664,9 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
                 && region.file != "tests/doc_catalog_tests.rs"
                 && region.file != "tests/trama_query_tests.rs"
         })
-        .filter(|region| !region.key.starts_with("evidencia.backend-s-externo."))
-        .filter(|region| !region.key.starts_with("evidencia.backend-nativo."))
-        .filter(|region| !region.key.starts_with("evidencia.runtime."))
+        .filter(|region| !region.key.starts_with("evidence.external-backend-s."))
+        .filter(|region| !region.key.starts_with("evidence.native-backend."))
+        .filter(|region| !region.key.starts_with("evidence.runtime."))
         .count();
     assert_eq!(
         historical_catalog_total, 595,
@@ -2683,11 +2679,11 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
             .filter(|region| region.file != "tests/nav_catalog_tests.rs"
                 && region.file != "tests/doc_catalog_tests.rs"
                 && region.file != "tests/trama_query_tests.rs")
-            .filter(|region| region.layer.as_deref() == Some("evidencia"))
-            .filter(|region| !region.key.starts_with("evidencia.backend-s-externo."))
-            .filter(|region| !region.key.starts_with("evidencia.backend-nativo."))
-            .filter(|region| !region.key.starts_with("evidencia.runtime."))
-            .filter(|region| !region.key.starts_with("evidencia.runtime."))
+            .filter(|region| region.layer.as_deref() == Some("evidence"))
+            .filter(|region| !region.key.starts_with("evidence.external-backend-s."))
+            .filter(|region| !region.key.starts_with("evidence.native-backend."))
+            .filter(|region| !region.key.starts_with("evidence.runtime."))
+            .filter(|region| !region.key.starts_with("evidence.runtime."))
             .count(),
         272,
         "o estado histórico da Onda 8G deve totalizar 172 regiões de evidência; mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais a evidência da #476; mais a região de evidência da paridade de argumento nomeado da #492; mais a região de evidência da autoridade nativa de símbolos da #497; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região de evidência do `impl` sobre trato importado da #517; mais as duas regiões de evidência da #532 (identidade intrínseca separada da grafia e namespace de módulos); mais a região de evidência da validação semântica de corpo sintético de trato em unidade não-raiz da #566; mais a região de evidência da relação de `impl` duplicada da #572; mais a região de evidência da composição de closure sintética em corpo default de trato importado da #567; mais a região de evidência do `impl` transitivo alcançado pela unidade importada da #577; mais a região de evidência da equivalência de representação de mapa da #663; mais a região de evidência da extração lexical de símbolos da #680"
@@ -2697,11 +2693,11 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
         .iter()
         .filter(|region| {
             region.domain.as_deref() == Some("backend-s")
-                && region.layer.as_deref() == Some("evidencia")
+                && region.layer.as_deref() == Some("evidence")
         })
-        .filter(|region| !region.key.starts_with("evidencia.backend-s-externo."))
-        .filter(|region| !region.key.starts_with("evidencia.backend-nativo."))
-        .filter(|region| !region.key.starts_with("evidencia.runtime."))
+        .filter(|region| !region.key.starts_with("evidence.external-backend-s."))
+        .filter(|region| !region.key.starts_with("evidence.native-backend."))
+        .filter(|region| !region.key.starts_with("evidence.runtime."))
         .map(|region| region.key.as_str())
         .collect();
     assert_eq!(
@@ -2724,7 +2720,7 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
         assert_eq!(region.file, file, "arquivo divergente para {key}");
         assert_eq!(region.kind, "region", "kind divergente para {key}");
         assert_eq!(region.domain.as_deref(), Some("backend-s"));
-        assert_eq!(region.layer.as_deref(), Some("evidencia"));
+        assert_eq!(region.layer.as_deref(), Some("evidence"));
         assert_eq!(
             region.summary, expected_summary,
             "summary divergente para {key}"
@@ -2802,37 +2798,37 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
         (
             "asm_s_header_estavel",
             "tests/backend_s_tests.rs",
-            "evidencia.backend-s.apresentacao-cli-asm-s",
+            "evidence.backend-s.cli-presentation-asm-s",
         ),
         (
             "asm_s_emite_if_else_simples",
             "tests/backend_s_tests.rs",
-            "evidencia.backend-s.renderizacao-fluxo-e-abi-textual",
+            "evidence.backend-s.rendering-flow-and-textual-abi",
         ),
         (
             "asm_s_abi_minima_para_parametros_e_chamada",
             "tests/backend_s_tests.rs",
-            "evidencia.backend-s.renderizacao-fluxo-e-abi-textual",
+            "evidence.backend-s.rendering-flow-and-textual-abi",
         ),
         (
             "asm_s_falha_clara_para_tipo_ainda_nao_suportado",
             "tests/backend_s_tests.rs",
-            "evidencia.backend-s.validacao-subset-textual",
+            "evidence.backend-s.validation-textual-subset",
         ),
         (
             "asm_s_freestanding_exibe_boot_entry_e_linker_script_minimo",
             "tests/backend_s_tests.rs",
-            "evidencia.backend-s.freestanding-intencao-textual",
+            "evidence.backend-s.freestanding-textual-intent",
         ),
         (
             "cli_build_gera_artefato_s_no_diretorio_padrao",
             "tests/interpreter_tests.rs",
-            "evidencia.backend-s.build-cli-artefato-textual",
+            "evidence.backend-s.build-cli-textual-artifact",
         ),
         (
             "cli_build_com_imports_gera_artefato_no_out_dir",
             "tests/interpreter_tests.rs",
-            "evidencia.backend-s.build-cli-artefato-textual",
+            "evidence.backend-s.build-cli-textual-artifact",
         ),
     ];
     for (test_name, file, expected_owner) in expected_owned_tests {
@@ -2969,9 +2965,9 @@ fn onda_8g_cartografa_evidencias_do_backend_s_textual() {
                 && region.file != "tests/trama_query_tests.rs"
         })
         .filter(|region| !expected_keys.contains(region.key.as_str()))
-        .filter(|region| !region.key.starts_with("evidencia.backend-s-externo."))
-        .filter(|region| !region.key.starts_with("evidencia.backend-nativo."))
-        .filter(|region| !region.key.starts_with("evidencia.runtime."))
+        .filter(|region| !region.key.starts_with("evidence.external-backend-s."))
+        .filter(|region| !region.key.starts_with("evidence.native-backend."))
+        .filter(|region| !region.key.starts_with("evidence.runtime."))
         .collect();
     assert_eq!(
         previous_regions.len(),
@@ -2996,12 +2992,12 @@ fn capsula_nav_catalog_cartografa_suporte_e_seis_testes() {
     let source = fs::read_to_string(repository.join(target_path)).expect("fonte da cápsula");
     let lines: Vec<_> = source.lines().collect();
     let expected_keys = [
-        "evidencia.trama.nav-catalog.fixture-config",
-        "evidencia.trama.nav-catalog.process-support",
-        "evidencia.trama.nav-catalog.sync-verify-roots",
-        "evidencia.trama.nav-catalog.show-extraction",
-        "evidencia.trama.nav-catalog.unbalanced-marker",
-        "evidencia.trama.nav-catalog.required-roots",
+        "evidence.trama.nav-catalog.fixture-config",
+        "evidence.trama.nav-catalog.process-support",
+        "evidence.trama.nav-catalog.sync-verify-roots",
+        "evidence.trama.nav-catalog.show-extraction",
+        "evidence.trama.nav-catalog.unbalanced-marker",
+        "evidence.trama.nav-catalog.required-roots",
     ];
     let support_keys = &expected_keys[..2];
     let evidence_keys = &expected_keys[2..];
@@ -3067,7 +3063,10 @@ fn capsula_nav_catalog_cartografa_suporte_e_seis_testes() {
         // T1 (#675): a fixture passou a escrever a autoridade de cobertura
         // `.pinker/cartography/coverage-policy-v1.jsonl`, pré-requisito de
         // `nav verificar`; a fonte-base foi regenerada de novo pela mesma razão.
-        "b2c1d6d599057483ce4a15b1bd5d1f3de785e928db3493ef8e77e05d81dee1b5",
+        // TL (#681): a fixture reutiliza uma chave real do catálogo, migrada
+        // para `cfg.logic.short-circuit` nas duas asserções que ficam fora de
+        // linha de marcador; a fonte-base foi regenerada pela mesma razão.
+        "302ea8c77d02c0b6c2bc7603664a16c226100dabfd67ee8a509099f5ff2373f2",
         "retirar marcadores deve reconstruir exatamente a fonte-base"
     );
 
@@ -3229,7 +3228,7 @@ fn capsula_nav_catalog_cartografa_suporte_e_seis_testes() {
     assert_eq!(
         capsule_scope
             .iter()
-            .filter(|region| region.layer.as_deref() == Some("evidencia"))
+            .filter(|region| region.layer.as_deref() == Some("evidence"))
             .count(),
         315
     );
@@ -3256,7 +3255,7 @@ fn capsula_nav_catalog_cartografa_suporte_e_seis_testes() {
     );
     for region in &target_regions {
         assert_eq!(region.domain.as_deref(), Some("trama"));
-        assert_eq!(region.layer.as_deref(), Some("evidencia"));
+        assert_eq!(region.layer.as_deref(), Some("evidence"));
         assert_eq!(region.file, target_path);
         assert_eq!(region.kind, "region");
     }
@@ -3342,12 +3341,12 @@ fn capsula_doc_catalog_cartografa_suporte_e_quatro_testes() {
     let source = fs::read_to_string(repository.join(target_path)).expect("fonte da cápsula");
     let lines: Vec<_> = source.lines().collect();
     let expected_keys = [
-        "evidencia.trama.doc-catalog.fixture-config",
-        "evidencia.trama.doc-catalog.process-support",
-        "evidencia.trama.doc-catalog.sync-verify",
-        "evidencia.trama.doc-catalog.stale-catalog",
-        "evidencia.trama.doc-catalog.show-extraction",
-        "evidencia.trama.doc-catalog.unbalanced-anchor",
+        "evidence.trama.doc-catalog.fixture-config",
+        "evidence.trama.doc-catalog.process-support",
+        "evidence.trama.doc-catalog.sync-verify",
+        "evidence.trama.doc-catalog.stale-catalog",
+        "evidence.trama.doc-catalog.show-extraction",
+        "evidence.trama.doc-catalog.unbalanced-anchor",
     ];
     let support_keys = &expected_keys[..2];
     let evidence_keys = &expected_keys[2..];
@@ -3582,7 +3581,7 @@ fn capsula_doc_catalog_cartografa_suporte_e_quatro_testes() {
     assert_eq!(
         capsule_scope
             .iter()
-            .filter(|region| region.layer.as_deref() == Some("evidencia"))
+            .filter(|region| region.layer.as_deref() == Some("evidence"))
             .count(),
         321
     );
@@ -3614,7 +3613,7 @@ fn capsula_doc_catalog_cartografa_suporte_e_quatro_testes() {
     );
     for region in &target_regions {
         assert_eq!(region.domain.as_deref(), Some("trama"));
-        assert_eq!(region.layer.as_deref(), Some("evidencia"));
+        assert_eq!(region.layer.as_deref(), Some("evidence"));
         assert_eq!(region.file, target_path);
         assert_eq!(region.kind, "region");
         assert_eq!(region.status, "active");
@@ -3647,7 +3646,7 @@ fn capsula_doc_catalog_cartografa_suporte_e_quatro_testes() {
     assert_eq!(
         merged_base
             .iter()
-            .filter(|region| region.layer.as_deref() == Some("evidencia"))
+            .filter(|region| region.layer.as_deref() == Some("evidence"))
             .count(),
         315
     );
@@ -3764,7 +3763,7 @@ fn onda_8_convergencia_fecha_cadeia_8a_8j() {
     assert_eq!(
         historical
             .iter()
-            .filter(|region| region.layer.as_deref() == Some("evidencia"))
+            .filter(|region| region.layer.as_deref() == Some("evidence"))
             .count(),
         309,
         "a convergência da Onda 8 exige exatamente 203 regiões de evidência; mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais a evidência da #476; mais a região de evidência da paridade de argumento nomeado da #492; mais a região de evidência da autoridade nativa de símbolos da #497; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região de evidência do `impl` sobre trato importado da #517; mais a região de evidência da composição de closure sintética em corpo default de trato importado da #567; mais a região de evidência do `impl` transitivo alcançado pela unidade importada da #577; mais a região de evidência da equivalência de representação de mapa da #663; mais a região de evidência da extração lexical de símbolos da #680"
@@ -3884,54 +3883,54 @@ fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
     // As nove regiões do arquivo central, em ordem física, com a contagem de testes aprovada.
     let expected_test_regions: [(&str, usize, &str); 9] = [
         (
-            "evidencia.backend-s-externo.renderizacao-recortes-versionados",
+            "evidence.external-backend-s.rendering-versioned-slices",
             16,
-            "Fornece fonte inline ou exemplos versionados (fase111–125) ao helper render_backend_s_external_subset, que executa parse, semântica, IR, CFG e seleção em memória e emite assembly via emit_external_toolchain_subset; valida por contains o cabeçalho do subset, `.globl main` para o entrypoint e `.local <nome>` para toda definição não-entrypoint, rótulos locais injetivos `.Lp<len>_<fn><len>_<bloco>`, `jmp`/`cmpq`/`jne`/`setb`, seção `.rodata`, movimentos de argumento e instruções de deref. Nenhum processo externo é criado: não monta, não linka e não executa; a evidência é sobre o texto emitido, não sobre a corretude do código de máquina.",
+            "Supplies inline source or versioned examples (phase111–125) to the render_backend_s_external_subset helper, which runs parse, semantics, IR, CFG and selection in memory and emits assembly via emit_external_toolchain_subset; it validates by contains the subset header, `.globl main` for the entrypoint and `.local <name>` for every non-entrypoint definition, the injective local labels `.Lp<len>_<fn><len>_<block>`, `jmp`/`cmpq`/`jne`/`setb`, the `.rodata` section, argument moves and deref instructions. No external process is created: it does not assemble, does not link and does not execute; the evidence is about the emitted text, not about the correctness of the machine code.",
         ),
         (
-            "evidencia.backend-s-externo.fronteira-ninho-heterogeneo",
+            "evidence.external-backend-s.boundary-heterogeneous-ninho",
             8,
-            "Alterna aceitações e recusas dos exemplos de `ninho` heterogêneo nas camadas 1–4 (fase129–132): nos casos aceitos verifica por contains os deslocamentos e acessos emitidos no assembly; nos recusados verifica a mensagem de erro do subset externo montável. Todo o trabalho ocorre em memória via render_backend_s_external_subset; nenhuma ferramenta externa é chamada e nada é montado, ligado ou executado.",
+            "Alternates acceptances and refusals of the heterogeneous `ninho` examples in layers 1–4 (phase129–132): in the accepted cases it checks by contains the offsets and accesses emitted in the assembly; in the refused ones it checks the error message of the external assemblable subset. All the work happens in memory via render_backend_s_external_subset; no external tool is called and nothing is assembled, linked or executed.",
         ),
         (
-            "evidencia.backend-s-externo.fronteira-conversao-virar",
+            "evidence.external-backend-s.boundary-virar-conversion",
             3,
-            "Fornece exemplos versionados de `virar` camadas 1 e 2 (duas aceitações) e um exemplo inválido (uma recusa); verifica textualmente as instruções de conversão emitidas e, no caso inválido, a mensagem de recusa. Execução em memória apenas; nenhuma ferramenta externa é chamada — sem assembler, linker ou binário.",
+            "Supplies versioned examples of `virar` layers 1 and 2 (two acceptances) and one invalid example (one refusal); it checks textually the conversion instructions emitted and, in the invalid case, the refusal message. Execution is in memory only; no external tool is called — no assembler, linker or binary.",
         ),
         (
-            "evidencia.backend-s-externo.renderizacao-verso-rodata",
+            "evidence.external-backend-s.rendering-verso-rodata",
             2,
-            "Fornece exemplos de `verso` camada 1 (inclusive um exemplo historicamente marcado como inválido, hoje aceito) e verifica por contains o layout length-prefixed `[.quad tamanho][.ascii bytes]` na seção `.rodata`. Validação apenas textual: não monta, não liga e não executa, e nada é provado sobre a leitura desse layout em tempo de execução.",
+            "Supplies `verso` layer 1 examples (including one example historically marked as invalid, accepted today) and checks by contains the length-prefixed layout `[.quad size][.ascii bytes]` in the `.rodata` section. Textual validation only: it does not assemble, does not link and does not execute, and nothing is proven about reading that layout at runtime.",
         ),
         (
-            "evidencia.backend-s-externo.renderizacao-quebrar-continuar",
+            "evidence.external-backend-s.rendering-quebrar-continuar",
             3,
-            "Fornece exemplos versionados de `quebrar`/`continuar` (fase126–128) em ordem física decrescente de camada — 3, 2, 1 — e verifica textualmente os rótulos e saltos emitidos. Execução somente em memória via render_backend_s_external_subset; nenhum processo externo, sem montagem, linkedição ou execução.",
+            "Supplies versioned examples of `quebrar`/`continuar` (phase126–128) in decreasing physical layer order — 3, 2, 1 — and checks textually the labels and jumps emitted. Execution in memory only via render_backend_s_external_subset; no external process, no assembling, linking or execution.",
         ),
         (
-            "evidencia.backend-s-externo.execucao-real-recortes-versionados",
+            "evidence.external-backend-s.real-execution-versioned-slices",
             22,
-            "Cada teste renderiza o `.s` com render_backend_s_external_subset, grava o arquivo em diretório temporário único, detecta em tempo de execução um driver C (`cc`, `gcc` ou `clang`) e o invoca como responsável pela montagem e pela linkedição, executando em seguida o binário produzido e validando apenas `status.code()`. Nenhum stdout é validado e o stderr é usado somente como mensagem de falha. O caminho é hospedado com runtime_init=false e sem libpinker_rt.a. Todos são pulados silenciosamente fora de Linux x86_64 ou quando não há driver C — a suíte pode passar sem exercer esta evidência.",
+            "Each test renders the `.s` with render_backend_s_external_subset, writes the file into a unique temporary directory, detects a C driver (`cc`, `gcc` or `clang`) at runtime and invokes it as the party responsible for assembling and linking, then executes the produced binary and validates only `status.code()`. No stdout is validated and stderr is used only as a failure message. The path is hosted with runtime_init=false and without libpinker_rt.a. All are silently skipped outside Linux x86_64 or when there is no C driver — the suite can pass without exercising this evidence.",
         ),
         (
-            "evidencia.backend-s-externo.execucao-real-abi-frame-interprocedural",
+            "evidence.external-backend-s.real-execution-interprocedural-abi-frame",
             9,
-            "Mesmos limites da região anterior — renderização do `.s`, gravação em diretório temporário, driver C (`cc`, `gcc` ou `clang`) detectado em runtime responsável por montagem e linkedição, execução do binário, validação apenas de `status.code()`, nenhum stdout validado, stderr somente como mensagem de falha, runtime_init=false, sem libpinker_rt.a e skip silencioso fora de Linux x86_64 ou sem driver C — aplicados a locais, aritmética, chamadas, parâmetros, frame, memória de frame, composição interprocedural e programas lineares maiores. A suíte pode passar sem exercer esta evidência.",
+            "The same limits as the previous region — rendering the `.s`, writing to a temporary directory, a C driver (`cc`, `gcc` or `clang`) detected at runtime responsible for assembling and linking, executing the binary, validating only `status.code()`, no stdout validated, stderr only as a failure message, runtime_init=false, without libpinker_rt.a and a silent skip outside Linux x86_64 or without a C driver — applied to locals, arithmetic, calls, parameters, frame, frame memory, interprocedural composition and larger linear programs. The suite can pass without exercising this evidence.",
         ),
         (
-            "evidencia.backend-s-externo.fronteira-subset-textual",
+            "evidence.external-backend-s.boundary-textual-subset",
             11,
-            "Reúne os testes de fronteira que chamam render_backend_s_external_subset e inspecionam o resultado em memória: recusas com mensagem específica (fonte fora do subset, parâmetro não `bombom`, condição de laço fora do recorte, `quebrar` fora de laço, composto fora das camadas 1–2, store frágil, parâmetro `u16`), aceitações de fronteira (quatro parâmetros com ABI completa, `talvez`/`senão`) e uma matriz auditável do subset montável. Prova mensagens e trechos de texto; não monta, não linka e não executa.",
+            "Gathers the boundary tests that call render_backend_s_external_subset and inspect the result in memory: refusals with a specific message (source outside the subset, non-`bombom` parameter, loop condition outside the slice, `quebrar` outside a loop, composite outside layers 1–2, fragile store, `u16` parameter), boundary acceptances (four parameters with the full ABI, `talvez`/`senão`) and an auditable matrix of the assemblable subset. It proves messages and text fragments; it does not assemble, does not link and does not execute.",
         ),
         (
-            "evidencia.backend-s-externo.validacao-estrutural-sintetica",
+            "evidence.external-backend-s.synthetic-structural-validation",
             5,
-            "Constrói à mão um `SelectedProgram` (globais, funções, blocos, terminadores) sem passar pelo front-end e chama emit_external_toolchain_subset diretamente, exigindo recusa para global duplicada, salto para rótulo inexistente, rótulo duplicado e ramificação com alvo verdadeiro ou falso inexistente, validando a mensagem de diagnóstico. Não há front-end, arquivo, assembler, linker nem execução.",
+            "Builds a `SelectedProgram` by hand (globals, functions, blocks, terminators) without going through the front-end and calls emit_external_toolchain_subset directly, requiring a refusal for a duplicate global, a jump to a nonexistent label, a duplicate label and a branch with a nonexistent true or false target, validating the diagnostic message. There is no front-end, file, assembler, linker or execution.",
         ),
     ];
     let helper_region: (&str, &str) = (
-        "evidencia.backend-s-externo.pipeline-helper",
-        "Executa o helper compartilhado render_backend_s_external_subset inteiramente em memória: parse e checagem semântica, lowering e validação por IR, CFG e seleção, seguidos da emissão montável hospedada via emit_external_toolchain_subset, que usa runtime_init=false. Não invoca assembler, linker ou binário; as ferramentas externas são chamadas somente por testes de fluxo real que consomem sua saída.",
+        "evidence.external-backend-s.pipeline-helper",
+        "Runs the shared helper render_backend_s_external_subset entirely in memory: parse and semantic check, lowering and validation through IR, CFG and selection, followed by the hosted assemblable emission via emit_external_toolchain_subset, which uses runtime_init=false. It invokes no assembler, linker or binary; the external tools are called only by real-flow tests that consume its output.",
     );
 
     let expected_ownership = [16usize, 8, 3, 2, 3, 22, 9, 11, 5];
@@ -3970,8 +3969,8 @@ fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
                 && region.file != "tests/doc_catalog_tests.rs"
                 && region.file != "tests/trama_query_tests.rs"
         })
-        .filter(|region| !region.key.starts_with("evidencia.backend-nativo."))
-        .filter(|region| !region.key.starts_with("evidencia.runtime."))
+        .filter(|region| !region.key.starts_with("evidence.native-backend."))
+        .filter(|region| !region.key.starts_with("evidence.runtime."))
         .count();
     assert_eq!(
         historical_catalog_total, 605,
@@ -3984,10 +3983,10 @@ fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
             .filter(|region| region.file != "tests/nav_catalog_tests.rs"
                 && region.file != "tests/doc_catalog_tests.rs"
                 && region.file != "tests/trama_query_tests.rs")
-            .filter(|region| region.layer.as_deref() == Some("evidencia"))
-            .filter(|region| !region.key.starts_with("evidencia.backend-nativo."))
-            .filter(|region| !region.key.starts_with("evidencia.runtime."))
-            .filter(|region| !region.key.starts_with("evidencia.runtime."))
+            .filter(|region| region.layer.as_deref() == Some("evidence"))
+            .filter(|region| !region.key.starts_with("evidence.native-backend."))
+            .filter(|region| !region.key.starts_with("evidence.runtime."))
+            .filter(|region| !region.key.starts_with("evidence.runtime."))
             .count(),
         282,
         "o estado histórico da Onda 8H deve totalizar 182 regiões de evidência; mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais a evidência da #476; mais a região de evidência da paridade de argumento nomeado da #492; mais a região de evidência da autoridade nativa de símbolos da #497; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região de evidência do `impl` sobre trato importado da #517; mais as duas regiões de evidência da #532 (identidade intrínseca separada da grafia e namespace de módulos); mais a região de evidência da validação semântica de corpo sintético de trato em unidade não-raiz da #566; mais a região de evidência da relação de `impl` duplicada da #572; mais a região de evidência da composição de closure sintética em corpo default de trato importado da #567; mais a região de evidência do `impl` transitivo alcançado pela unidade importada da #577; mais a região de evidência da equivalência de representação de mapa da #663; mais a região de evidência da extração lexical de símbolos da #680"
@@ -3995,7 +3994,7 @@ fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
     let externo_keys: HashSet<_> = catalog
         .regions
         .iter()
-        .filter(|region| region.key.starts_with("evidencia.backend-s-externo."))
+        .filter(|region| region.key.starts_with("evidence.external-backend-s."))
         .map(|region| region.key.as_str())
         .collect();
     assert_eq!(
@@ -4048,7 +4047,7 @@ fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
         assert_eq!(region.file, file, "arquivo divergente para {key}");
         assert_eq!(region.kind, "region", "kind divergente para {key}");
         assert_eq!(region.domain.as_deref(), Some("backend-s"));
-        assert_eq!(region.layer.as_deref(), Some("evidencia"));
+        assert_eq!(region.layer.as_deref(), Some("evidence"));
         assert_eq!(
             region.summary, expected_summary,
             "summary divergente para {key}"
@@ -4183,14 +4182,14 @@ fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
     // As regiões vizinhas da Onda 8G permanecem semanticamente preservadas.
     let preserved_neighbours: [(&str, &str, &str); 2] = [
         (
-            "evidencia.backend-s.pipeline-helper",
+            "evidence.backend-s.pipeline-helper",
             "render_backend_s",
-            "Executa o helper compartilhado render_backend_s inteiramente em memória: parse e checagem semântica, lowering e validação por IR, CFG e seleção, seguidos da emissão do backend .s textual via emit_from_selected. Não usa o helper do subset externo, assembler, linker nem execução nativa.",
+            "Runs the shared helper render_backend_s entirely in memory: parse and semantic check, lowering and validation through IR, CFG and selection, followed by the emission of the textual .s backend via emit_from_selected. It does not use the external subset helper, an assembler, a linker or native execution.",
         ),
         (
-            "evidencia.backend-s.apresentacao-cli-helper",
+            "evidence.backend-s.cli-presentation-helper",
             "render_cli_asm_s_output",
-            "Monta a apresentação sintética de render_cli_asm_s_output em memória: concatena o cabeçalho `=== ASM .S (TEXTUAL) ===`, a saída de render_backend_s e o rodapé histórico de sucesso semântico. Não cria nem executa um processo CLI.",
+            "Assembles the synthetic presentation of render_cli_asm_s_output in memory: it concatenates the `=== ASM .S (TEXTUAL) ===` header, the output of render_backend_s and the historical semantic-success footer. It neither creates nor executes a CLI process.",
         ),
     ];
     for (key, symbol, summary) in preserved_neighbours {
@@ -4199,7 +4198,7 @@ fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
             .unwrap_or_else(|| panic!("região vizinha ausente: {key}"));
         assert_eq!(region.file, helper_file, "arquivo divergente para {key}");
         assert_eq!(region.domain.as_deref(), Some("backend-s"));
-        assert_eq!(region.layer.as_deref(), Some("evidencia"));
+        assert_eq!(region.layer.as_deref(), Some("evidence"));
         assert_eq!(region.summary, summary, "summary alterado em {key}");
         assert_eq!(region.status, "active");
         let symbol_line = helper_lines
@@ -4279,9 +4278,9 @@ fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
             .map(|region| region.key.as_str())
             .collect();
         assert!(
-            owners == ["evidencia.backend-s-externo.execucao-real-recortes-versionados"]
+            owners == ["evidence.external-backend-s.real-execution-versioned-slices"]
                 || owners
-                    == ["evidencia.backend-s-externo.execucao-real-abi-frame-interprocedural"],
+                    == ["evidence.external-backend-s.real-execution-interprocedural-abi-frame"],
             "teste condicional fora das duas regiões de execução real: {owners:?}"
         );
     }
@@ -4339,7 +4338,7 @@ fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
             .collect();
         assert_eq!(
             owners,
-            ["evidencia.backend-s-externo.validacao-estrutural-sintetica"],
+            ["evidence.external-backend-s.synthetic-structural-validation"],
             "caso sintético fora da região estrutural"
         );
     }
@@ -4426,7 +4425,7 @@ fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
             .regions
             .iter()
             .filter(|region| region.file == nativo)
-            .all(|region| region.key.starts_with("evidencia.backend-nativo.")),
+            .all(|region| region.key.starts_with("evidence.native-backend.")),
         "nenhuma chave 8H pode cartografar {nativo}"
     );
 
@@ -4454,8 +4453,8 @@ fn onda_8h_cartografa_evidencias_da_toolchain_externa() {
                 && region.file != "tests/trama_query_tests.rs"
         })
         .filter(|region| !expected_keys.contains(region.key.as_str()))
-        .filter(|region| !region.key.starts_with("evidencia.backend-nativo."))
-        .filter(|region| !region.key.starts_with("evidencia.runtime."))
+        .filter(|region| !region.key.starts_with("evidence.native-backend."))
+        .filter(|region| !region.key.starts_with("evidence.runtime."))
         .collect();
     assert_eq!(
         previous_regions.len(),
@@ -4479,7 +4478,7 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
     let path = repository.join("src/navigation.jsonl");
     let mut catalog = CodeCatalog::load(&path).expect("catálogo de código versionado");
     let etapa6b_range = catalog
-        .region("evidencia.backend-nativo.objetos-trato-fase244")
+        .region("evidence.native-backend.trato-objects-phase244")
         .map(|region| region.start_marker..=region.end_marker)
         .expect("região executável da Etapa 6B");
     historical_membership_pre_onda_8f(&mut catalog);
@@ -4489,49 +4488,41 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
     // As catorze regiões da Onda 8I, em ordem física: (chave, é_suporte, testes).
     // Regiões de suporte possuem zero testes por design.
     let expected_regions: [(&str, bool, usize); 14] = [
-        ("evidencia.backend-nativo.suporte-lowering-memoria", true, 0),
-        ("evidencia.backend-nativo.emissao-init-runtime", false, 2),
+        ("evidence.native-backend.memory-lowering-support", true, 0),
+        ("evidence.native-backend.emission-runtime-init", false, 2),
         (
-            "evidencia.backend-nativo.emissao-abi-e-fluxo-textual",
+            "evidence.native-backend.emission-abi-and-textual-flow",
             false,
             12,
         ),
         (
-            "evidencia.backend-nativo.emissao-simbolos-runtime-textual",
+            "evidence.native-backend.emission-textual-runtime-symbols",
             false,
             7,
         ),
-        ("evidencia.backend-nativo.suporte-driver-c", true, 0),
+        ("evidence.native-backend.c-driver-support", true, 0),
+        ("evidence.native-backend.execution-exit-abi-smoke", false, 2),
         (
-            "evidencia.backend-nativo.execucao-exit-fumaca-abi",
-            false,
-            2,
-        ),
-        (
-            "evidencia.backend-nativo.paridade-stdout-colecoes",
+            "evidence.native-backend.stdout-parity-collections",
             false,
             3,
         ),
+        ("evidence.native-backend.b11-parity-matrix-support", true, 0),
+        ("evidence.native-backend.b11-milestone-parity", false, 1),
+        ("evidence.native-backend.stdout-parity-support", true, 0),
         (
-            "evidencia.backend-nativo.suporte-matriz-paridade-b11",
-            true,
-            0,
-        ),
-        ("evidencia.backend-nativo.paridade-marco-b11", false, 1),
-        ("evidencia.backend-nativo.suporte-paridade-stdout", true, 0),
-        (
-            "evidencia.backend-nativo.paridade-stdout-programas-maiores",
+            "evidence.native-backend.stdout-parity-larger-programs",
             false,
             7,
         ),
-        ("evidencia.backend-nativo.paridade-argv", false, 1),
+        ("evidence.native-backend.argv-parity", false, 1),
         (
-            "evidencia.backend-nativo.execucao-exit-controle-fluxo",
+            "evidence.native-backend.execution-exit-control-flow",
             false,
             1,
         ),
         (
-            "evidencia.backend-nativo.paridade-stdout-fases-avancadas",
+            "evidence.native-backend.stdout-parity-advanced-phases",
             false,
             27,
         ),
@@ -4592,7 +4583,7 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
             .filter(|region| region.file != "tests/nav_catalog_tests.rs"
                 && region.file != "tests/doc_catalog_tests.rs"
                 && region.file != "tests/trama_query_tests.rs")
-            .filter(|region| !region.key.starts_with("evidencia.runtime."))
+            .filter(|region| !region.key.starts_with("evidence.runtime."))
             .count(),
         619,
         "o estado histórico da Onda 8I deve totalizar 380 regiões (379 + 1 região nova de Fase 243 em src/ast.rs; +6 regiões das correções da revisão humana da PR #411; +2 regiões de HR4 em src/ir.rs; +1 região de HR3 em src/union_payload.rs; +3 regiões do endurecimento pós-PR #411); mais as regiões da continuação pós-PR #411 (simetria das formas de chamada); mais duas regiões da portabilidade do contrato de SIGPIPE (a evidência interna do runtime e a das famílias de subprocesso); mais quatro regiões do hotfix da atribuição de símbolo em `sussurro` (o leitor de ELF, o invariante de artefato e as duas de evidência); mais as regiões da paridade de contabilidade de uniões (a matriz dos dois domínios de storage do interpretador e a evidência externa de paridade entre os backends); mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais as duas regiões da #476; mais a região de evidência da paridade de argumento nomeado da #492; mais as sete regiões da autoridade nativa de símbolos da #497; mais as sete regiões da composição modular da #514: identidade de fonte no diagnóstico, unidade e grafo de módulo, ambiente de import explícito, resolução nominal canônica, projeção de execução, visibilidade de tratos por unidade e validação modular local; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região do índice de fontes de módulo da #514; mais a região de evidência do `impl` sobre trato importado da #517; mais as duas regiões de evidência da #532 (identidade intrínseca separada da grafia e namespace de módulos); mais a região de evidência da validação semântica de corpo sintético de trato em unidade não-raiz da #566; mais a região de evidência da relação de `impl` duplicada da #572; mais a região de evidência da composição de closure sintética em corpo default de trato importado da #567; mais a região de evidência do `impl` transitivo alcançado pela unidade importada da #577; mais as duas regiões da #663: a autoridade de representação canônica de mapa e a sua região de evidência; mais as 103 regiões da T1 (#675), que publicou responsabilidade para todo o código de produção que ainda estava fora de qualquer região; mais as duas regiões da #680: a extração lexical de símbolos e a sua região de evidência; mais a região da #685: a restauração explícita de identidade histórica na reconciliação de projeções"
@@ -4604,8 +4595,8 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
             .filter(|region| region.file != "tests/nav_catalog_tests.rs"
                 && region.file != "tests/doc_catalog_tests.rs"
                 && region.file != "tests/trama_query_tests.rs")
-            .filter(|region| region.layer.as_deref() == Some("evidencia"))
-            .filter(|region| !region.key.starts_with("evidencia.runtime."))
+            .filter(|region| region.layer.as_deref() == Some("evidence"))
+            .filter(|region| !region.key.starts_with("evidence.runtime."))
             .count(),
         296,
         "o estado histórico da Onda 8I deve totalizar 196 regiões de evidência; mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais a evidência da #476; mais a região de evidência da paridade de argumento nomeado da #492; mais a região de evidência da autoridade nativa de símbolos da #497; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região de evidência do `impl` sobre trato importado da #517; mais as duas regiões de evidência da #532 (identidade intrínseca separada da grafia e namespace de módulos); mais a região de evidência da validação semântica de corpo sintético de trato em unidade não-raiz da #566; mais a região de evidência da relação de `impl` duplicada da #572; mais a região de evidência da composição de closure sintética em corpo default de trato importado da #567; mais a região de evidência do `impl` transitivo alcançado pela unidade importada da #577; mais a região de evidência da equivalência de representação de mapa da #663; mais a região de evidência da extração lexical de símbolos da #680"
@@ -4613,7 +4604,7 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
     let nativo_keys: HashSet<_> = catalog
         .regions
         .iter()
-        .filter(|region| region.key.starts_with("evidencia.backend-nativo."))
+        .filter(|region| region.key.starts_with("evidence.native-backend."))
         .map(|region| region.key.as_str())
         .collect();
     assert_eq!(
@@ -4643,7 +4634,7 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
         assert_eq!(region.file, central, "arquivo divergente para {key}");
         assert_eq!(region.kind, "region", "kind divergente para {key}");
         assert_eq!(region.domain.as_deref(), Some("backend-s"));
-        assert_eq!(region.layer.as_deref(), Some("evidencia"));
+        assert_eq!(region.layer.as_deref(), Some("evidence"));
         assert_eq!(region.status, "active", "status divergente para {key}");
         assert!(
             region.start_marker < region.content_start
@@ -4664,7 +4655,7 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
         );
         if is_support {
             assert!(
-                region.summary.contains("sem ownership direto de testes"),
+                region.summary.contains("no direct ownership of tests"),
                 "a região de suporte {key} deve declarar que não possui testes próprios"
             );
         }
@@ -4803,15 +4794,15 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
     // de definição é vigiada, sem qualquer leitura semântica do corpo.
     let support_symbols: [(&str, &[&str]); 4] = [
         (
-            "evidencia.backend-nativo.suporte-lowering-memoria",
+            "evidence.native-backend.memory-lowering-support",
             &["fn lower_to_selected("],
         ),
         (
-            "evidencia.backend-nativo.suporte-driver-c",
+            "evidence.native-backend.c-driver-support",
             &["fn require_native_evidence("],
         ),
         (
-            "evidencia.backend-nativo.suporte-matriz-paridade-b11",
+            "evidence.native-backend.b11-parity-matrix-support",
             &[
                 "struct ParidadeNativaCaso {",
                 "const ARGVS_FASE221:",
@@ -4825,7 +4816,7 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
             ],
         ),
         (
-            "evidencia.backend-nativo.suporte-paridade-stdout",
+            "evidence.native-backend.stdout-parity-support",
             &["fn paridade_stdout("],
         ),
     ];
@@ -4915,9 +4906,9 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
     // mistura as duas naturezas. A classificação é da região, não uma afirmação
     // de que a evidência processual foi de fato exercida.
     let regioes_textuais = [
-        "evidencia.backend-nativo.emissao-init-runtime",
-        "evidencia.backend-nativo.emissao-abi-e-fluxo-textual",
-        "evidencia.backend-nativo.emissao-simbolos-runtime-textual",
+        "evidence.native-backend.emission-runtime-init",
+        "evidence.native-backend.emission-abi-and-textual-flow",
+        "evidence.native-backend.emission-textual-runtime-symbols",
     ];
     let mut evidencia_textual = 0usize;
     let mut evidencia_processual = 0usize;
@@ -4987,7 +4978,7 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
     // Os sete testes de símbolos do runtime percorrem o caminho HOSPEDADO.
     let simbolos: Vec<_> = spans
         .iter()
-        .filter(|span| span.2 == "evidencia.backend-nativo.emissao-simbolos-runtime-textual")
+        .filter(|span| span.2 == "evidence.native-backend.emission-textual-runtime-symbols")
         .collect();
     assert_eq!(
         simbolos.len(),
@@ -5132,7 +5123,7 @@ fn onda_8i_cartografa_evidencias_e_paridade_do_backend_nativo() {
                 && region.file != "tests/trama_query_tests.rs"
         })
         .filter(|region| !expected_keys.contains(region.key.as_str()))
-        .filter(|region| !region.key.starts_with("evidencia.runtime."))
+        .filter(|region| !region.key.starts_with("evidence.runtime."))
         .collect();
     assert_eq!(
         previous_regions.len(),
@@ -5180,31 +5171,31 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
     let central = "runtime/pinker_rt/src/lib.rs";
 
     // As regiões da Onda 8J, em ordem física: (chave, domínio, testes). HR3
-    // acrescentou `evidencia.runtime.unioes-snapshot` no fim do módulo de
+    // acrescentou `evidence.runtime.unions-snapshot` no fim do módulo de
     // testes internos do runtime. O endurecimento pós-PR #411 acrescentou
-    // `evidencia.runtime.validacao-acesso-publico` (item V4) e
-    // `evidencia.runtime.cota-identidades-publicas` (item V3), ambos logo
-    // depois de `evidencia.runtime.memoria-alocador`. A continuação de
-    // portabilidade do item R5 acrescentou `evidencia.runtime.sigpipe-disposicao`
-    // logo depois de `evidencia.runtime.inicializacao-abi`. A paridade de contabilidade de
-    // uniões acrescentou dois testes a `evidencia.runtime.cota-identidades-publicas`
+    // `evidence.runtime.validation-public-access` (item V4) e
+    // `evidence.runtime.public-identity-quota` (item V3), ambos logo
+    // depois de `evidence.runtime.memory-allocator`. A continuação de
+    // portabilidade do item R5 acrescentou `evidence.runtime.sigpipe-disposition`
+    // logo depois de `evidence.runtime.abi-initialization`. A paridade de contabilidade de
+    // uniões acrescentou dois testes a `evidence.runtime.public-identity-quota`
     // (4 -> 6): o domínio interno de união não consome identidade pública e a
     // extração nativa escreve em destino do chamador. A D7 acrescenta dois
     // testes do pack de formatação à região do alocador.
     let expected_regions: [(&str, &str, usize); 12] = [
-        ("evidencia.runtime.memoria-alocador", "memoria", 30),
-        ("evidencia.runtime.validacao-acesso-publico", "memoria", 9),
-        ("evidencia.runtime.cota-identidades-publicas", "memoria", 6),
-        ("evidencia.runtime.inicializacao-abi", "inicializacao", 3),
-        ("evidencia.runtime.sigpipe-disposicao", "processos", 6),
-        ("evidencia.runtime.texto-verso", "texto", 3),
-        ("evidencia.runtime.listas-dinamicas", "listas", 5),
-        ("evidencia.runtime.mapas-dinamicos", "mapas", 4),
-        ("evidencia.runtime.leques-carga", "leques", 3),
+        ("evidence.runtime.memory-allocator", "memory", 30),
+        ("evidence.runtime.validation-public-access", "memory", 9),
+        ("evidence.runtime.public-identity-quota", "memory", 6),
+        ("evidence.runtime.abi-initialization", "initialization", 3),
+        ("evidence.runtime.sigpipe-disposition", "processes", 6),
+        ("evidence.runtime.text-verso", "text", 3),
+        ("evidence.runtime.dynamic-lists", "lists", 5),
+        ("evidence.runtime.dynamic-maps", "maps", 4),
+        ("evidence.runtime.leques-payload", "leques", 3),
         // Parte E1: evidência interna da família JSON pela ABI nativa.
-        ("evidencia.runtime.json-familia", "dados", 3),
-        ("evidencia.runtime.mapas-iterador-snapshot", "mapas", 1),
-        ("evidencia.runtime.unioes-snapshot", "unioes", 14),
+        ("evidence.runtime.json-family", "data", 3),
+        ("evidence.runtime.maps-iterator-snapshot", "maps", 1),
+        ("evidence.runtime.unions-snapshot", "unions", 14),
     ];
 
     let expected_keys: HashSet<&str> = expected_regions.iter().map(|entry| entry.0).collect();
@@ -5253,7 +5244,7 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
             .filter(|region| region.file != "tests/nav_catalog_tests.rs"
                 && region.file != "tests/doc_catalog_tests.rs"
                 && region.file != "tests/trama_query_tests.rs")
-            .filter(|region| region.layer.as_deref() == Some("evidencia"))
+            .filter(|region| region.layer.as_deref() == Some("evidence"))
             .count(),
         309,
         "a Onda 8J deve totalizar 203 regiões de evidência; mais a evidência da Parte B1 de identidade de `Resultado` produzida pelo runtime; mais a região de evidência da paridade de argumento nomeado da #492; mais a região de evidência da autoridade nativa de símbolos da #497; mais a região de evidência dos oito invariantes da composição modular da #514; mais a região de evidência das correções da revisão adversarial da #514; mais a região de evidência do `impl` sobre trato importado da #517; mais as duas regiões de evidência da #532 (identidade intrínseca separada da grafia e namespace de módulos); mais a região de evidência da validação semântica de corpo sintético de trato em unidade não-raiz da #566; mais a região de evidência da relação de `impl` duplicada da #572; mais a região de evidência da composição de closure sintética em corpo default de trato importado da #567; mais a região de evidência do `impl` transitivo alcançado pela unidade importada da #577; mais a região de evidência da equivalência de representação de mapa da #663; mais a região de evidência da extração lexical de símbolos da #680"
@@ -5273,12 +5264,12 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
     let evidencia_runtime_keys: HashSet<_> = catalog
         .regions
         .iter()
-        .filter(|region| region.key.starts_with("evidencia.runtime."))
+        .filter(|region| region.key.starts_with("evidence.runtime."))
         .map(|region| region.key.as_str())
         .collect();
     assert_eq!(
         evidencia_runtime_keys
-            .difference(&HashSet::from(["evidencia.runtime.identidade-reservada"]))
+            .difference(&HashSet::from(["evidence.runtime.reserved-identity"]))
             .copied()
             .collect::<HashSet<_>>(),
         expected_keys,
@@ -5316,11 +5307,7 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
         assert_eq!(region.file, central, "arquivo divergente para {key}");
         assert_eq!(region.kind, "region", "kind divergente para {key}");
         assert_eq!(region.domain.as_deref(), Some(domain), "domínio de {key}");
-        assert_eq!(
-            region.layer.as_deref(),
-            Some("evidencia"),
-            "camada de {key}"
-        );
+        assert_eq!(region.layer.as_deref(), Some("evidence"), "camada de {key}");
         assert_eq!(region.status, "active", "status divergente para {key}");
         assert!(
             region.start_marker < region.content_start
@@ -5410,17 +5397,17 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
     );
     assert_eq!(
         central_source
-            .matches("@pinker-nav:start evidencia.runtime.")
+            .matches("@pinker-nav:start evidence.runtime.")
             .count(),
         12,
-        "{central} deve conter doze marcadores de início evidencia.runtime."
+        "{central} deve conter doze marcadores de início evidence.runtime."
     );
     assert_eq!(
         central_source
-            .matches("@pinker-nav:end evidencia.runtime.")
+            .matches("@pinker-nav:end evidence.runtime.")
             .count(),
         12,
-        "{central} deve conter doze marcadores de fim evidencia.runtime."
+        "{central} deve conter doze marcadores de fim evidence.runtime."
     );
     let marker_lines_bloco = central_lines
         .iter()
@@ -5555,33 +5542,33 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
 
     // 5. PRODUÇÃO PRESERVADA (Onda 6E).
     let expected_production_keys: HashSet<&str> = HashSet::from([
-        "runtime.inicializacao.bootstrap",
-        "runtime.memoria.alocador",
-        "runtime.texto.operacoes",
-        "runtime.conversoes.numero-texto",
-        "runtime.texto.formatacao",
-        "runtime.io.saida",
-        "runtime.listas.dinamicas",
-        "runtime.mapas.dinamicos",
-        "runtime.leques.variantes",
-        "runtime.arquivos.io",
-        "runtime.caminhos.sistema",
-        "runtime.tempo.relogio",
-        "runtime.aleatorio.gerador",
-        "runtime.ambiente.argumentos",
-        "runtime.processos.execucao",
-        "runtime.unioes.descritor",
-        "runtime.falha-operacional.superficies",
-        "runtime.filesystem.enumeracao-adulta",
-        "runtime.identidade.reservada",
+        "runtime.initialization.bootstrap",
+        "runtime.memory.allocator",
+        "runtime.text.operations",
+        "runtime.conversions.number-text",
+        "runtime.text.formatting",
+        "runtime.io.output",
+        "runtime.lists.dynamic",
+        "runtime.maps.dynamic",
+        "runtime.leques.variants",
+        "runtime.files.io",
+        "runtime.paths.system",
+        "runtime.time.clock",
+        "runtime.random.generator",
+        "runtime.environment.arguments",
+        "runtime.processes.execution",
+        "runtime.unions.descriptor",
+        "runtime.operational-failure.surfaces",
+        "runtime.filesystem.adult-enumeration",
+        "runtime.identity.reserved",
         // Parte E1: o dono nativo da família JSON — adulto e recorte plano
         // histórico. Nenhum dos dois existia no runtime antes desta Task.
-        "runtime.json.valor-adulto",
-        "runtime.json.plano-legado",
+        "runtime.json.adult-value",
+        "runtime.json.legacy-plan",
         // Parte E2: SHA-256 sobre verso e sobre arquivo no runtime nativo.
-        "runtime.sha256.superficies",
+        "runtime.sha256.surfaces",
         // T1 (#675): o prelúdio do bloco de arquivos e acaso do runtime.
-        "runtime.arquivos.preludio",
+        "runtime.files.prelude",
     ]);
     let production_regions: Vec<_> = catalog
         .regions
@@ -5603,7 +5590,7 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
         .collect();
     for region in &production_regions {
         assert!(
-            region.file == central || region.key == "runtime.identidade.reservada",
+            region.file == central || region.key == "runtime.identity.reserved",
             "região de produção fora do runtime esperado"
         );
         if region.file == central {
@@ -5731,33 +5718,33 @@ fn onda_8j_cartografa_evidencias_internas_do_runtime() {
     // 7. CONTAGENS FACTUAIS: nove regiões de produção têm alguma evidência
     // interna relacionada (por menção/call site de um símbolo de ABI que a
     // região define) e sete não têm. Relação estrutural, não semântica. HR3
-    // moveu `runtime.unioes.descritor` para o lado com evidência interna; D7
-    // fez o mesmo com `runtime.texto.formatacao`.
+    // moveu `runtime.unions.descriptor` para o lado com evidência interna; D7
+    // fez o mesmo com `runtime.text.formatting`.
     let sem_evidencia_interna = [
-        "runtime.conversoes.numero-texto",
-        "runtime.arquivos.io",
+        "runtime.conversions.number-text",
+        "runtime.files.io",
         // T1 (#675): prelúdio de usos do bloco de arquivos e acaso. Não declara
         // símbolo próprio, portanto não há teste interno que o cite.
-        "runtime.arquivos.preludio",
-        "runtime.caminhos.sistema",
-        "runtime.tempo.relogio",
-        "runtime.aleatorio.gerador",
-        "runtime.ambiente.argumentos",
+        "runtime.files.prelude",
+        "runtime.paths.system",
+        "runtime.time.clock",
+        "runtime.random.generator",
+        "runtime.environment.arguments",
         // Parte B: a evidência desta região é externa (paridade interpretador ×
         // nativo em tests/part_b_falha_operacional_tests.rs), não um teste
         // interno do runtime.
-        "runtime.falha-operacional.superficies",
+        "runtime.operational-failure.surfaces",
         // Parte C: mesma situação — a evidência desta região é externa
         // (paridade interpretador × nativo em
         // tests/part_c_filesystem_adulto_tests.rs), incluindo o espelhamento
         // dos discriminantes de `TipoEntrada`, que uma divergência entre as
         // duas pontas quebraria imediatamente.
-        "runtime.filesystem.enumeracao-adulta",
+        "runtime.filesystem.adult-enumeration",
         // Parte E2: como nas Partes B e C, a evidência desta região é externa —
         // paridade interpretador × nativo, vetores oficiais e sensitivity em
         // tests/part_e2_sha256_tests.rs. Um teste interno do runtime aqui
         // duplicaria a cobertura sem acrescentar poder de detecção.
-        "runtime.sha256.superficies",
+        "runtime.sha256.surfaces",
     ];
     let mut com_evidencia = 0usize;
     let mut sem_evidencia: Vec<&str> = Vec::new();
@@ -5841,15 +5828,15 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
     let source = fs::read_to_string(repository.join(target_path)).expect("fonte da cápsula");
     let lines: Vec<_> = source.lines().collect();
     let expected_keys = [
-        "evidencia.trama.query.fixture-config",
-        "evidencia.trama.query.process-support",
-        "evidencia.trama.query.nav-map",
-        "evidencia.trama.query.catalog-only",
-        "evidencia.trama.query.source-drift",
-        "evidencia.trama.query.json-stability",
-        "evidencia.trama.query.result-limit",
-        "evidencia.trama.query.catalog-errors",
-        "evidencia.trama.query.query-exit-codes",
+        "evidence.trama.query.fixture-config",
+        "evidence.trama.query.process-support",
+        "evidence.trama.query.nav-map",
+        "evidence.trama.query.catalog-only",
+        "evidence.trama.query.source-drift",
+        "evidence.trama.query.json-stability",
+        "evidence.trama.query.result-limit",
+        "evidence.trama.query.catalog-errors",
+        "evidence.trama.query.query-exit-codes",
     ];
     let support_keys = &expected_keys[..2];
     let evidence_keys = &expected_keys[2..];
@@ -6234,7 +6221,7 @@ fn capsula_trama_query_cartografa_suporte_e_dez_testes() {
     );
     for region in &target_regions {
         assert_eq!(region.domain.as_deref(), Some("trama"));
-        assert_eq!(region.layer.as_deref(), Some("evidencia"));
+        assert_eq!(region.layer.as_deref(), Some("evidence"));
         assert_eq!(region.file, target_path);
         assert_eq!(region.kind, "region");
         assert_eq!(region.status, "active");

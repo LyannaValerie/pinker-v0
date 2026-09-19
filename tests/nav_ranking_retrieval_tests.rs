@@ -202,8 +202,8 @@ fn toda_chave_estavel_continua_recuperavel_em_primeiro_lugar() {
 
 #[test]
 fn a_mesma_consulta_produz_a_mesma_ordem() {
-    let primeira = nav_real(&["buscar", "alocador de memoria", "--json"]);
-    let segunda = nav_real(&["buscar", "alocador de memoria", "--json"]);
+    let primeira = nav_real(&["buscar", "memory allocator", "--json"]);
+    let segunda = nav_real(&["buscar", "memory allocator", "--json"]);
     assert_eq!(primeira.stdout, segunda.stdout);
     assert!(!ordered_keys(&primeira.stdout).is_empty());
 }
@@ -211,13 +211,13 @@ fn a_mesma_consulta_produz_a_mesma_ordem() {
 #[test]
 fn consultas_conceituais_acertam_a_regiao_implementadora() {
     let casos = [
-        ("normalizacao de consultas", "trama.consultas.normalizacao"),
-        ("leitor de elf", "build.elf.leitor"),
-        ("gramatica de tipos", "parser.tipos.gramatica"),
-        ("canonicalizacao de unioes", "union.unioes.canonicalizacao"),
+        ("normalization of queries", "trama.queries.normalization"),
+        ("reader of elf", "build.elf.reader"),
+        ("type grammar", "parser.types.grammar"),
+        ("union canonicalization", "union.unions.canonicalization"),
         (
-            "rotulo injetivo de simbolo nativo",
-            "nativo.simbolo.rotulo-injetivo",
+            "injective native symbol label",
+            "native.symbol.injective-label",
         ),
     ];
     let mut falhas: Vec<String> = Vec::new();
@@ -287,7 +287,7 @@ fn buscar_sem_truncamento_ainda_declara_a_contagem() {
 fn mostrar_resumo_verifica_sem_devolver_corpo() {
     let out = nav_real(&[
         "mostrar",
-        "trama.consultas.normalizacao",
+        "trama.queries.normalization",
         "--resumo",
         "--json",
     ]);
@@ -314,7 +314,7 @@ fn mostrar_resumo_verifica_sem_devolver_corpo() {
         "resumo deve trazer o hash verificado: {texto}"
     );
 
-    let completo = nav_real(&["mostrar", "trama.consultas.normalizacao", "--json"]);
+    let completo = nav_real(&["mostrar", "trama.queries.normalization", "--json"]);
     let total_completo: usize = json_field(&completo.stdout, "total_lines").parse().unwrap();
     let total_resumo: usize = json_field(&out.stdout, "total_lines").parse().unwrap();
     assert_eq!(total_completo, total_resumo);
@@ -323,7 +323,7 @@ fn mostrar_resumo_verifica_sem_devolver_corpo() {
 
 #[test]
 fn mostrar_com_orcamento_declara_truncamento_e_reconstroi_o_corpo() {
-    let completo = nav_real(&["mostrar", "trama.consultas.normalizacao", "--json"]);
+    let completo = nav_real(&["mostrar", "trama.queries.normalization", "--json"]);
     assert_eq!(json_field(&completo.stdout, "truncated"), "false");
     assert_eq!(json_field(&completo.stdout, "body_included"), "true");
     let total: usize = json_field(&completo.stdout, "total_lines").parse().unwrap();
@@ -331,7 +331,7 @@ fn mostrar_com_orcamento_declara_truncamento_e_reconstroi_o_corpo() {
 
     let parcial = nav_real(&[
         "mostrar",
-        "trama.consultas.normalizacao",
+        "trama.queries.normalization",
         "--json",
         "--linhas",
         "2",
@@ -343,7 +343,7 @@ fn mostrar_com_orcamento_declara_truncamento_e_reconstroi_o_corpo() {
 
     let resto = nav_real(&[
         "mostrar",
-        "trama.consultas.normalizacao",
+        "trama.queries.normalization",
         "--json",
         "--desde",
         "3",
@@ -357,7 +357,7 @@ fn mostrar_com_orcamento_declara_truncamento_e_reconstroi_o_corpo() {
         "as páginas devem reconstruir o corpo inteiro"
     );
 
-    let texto = nav_real(&["mostrar", "trama.consultas.normalizacao", "--linhas", "2"]);
+    let texto = nav_real(&["mostrar", "trama.queries.normalization", "--linhas", "2"]);
     let saida = String::from_utf8_lossy(&texto.stdout);
     assert!(
         saida.contains("truncado:"),
@@ -420,7 +420,7 @@ fn a_flag_estrito_nao_existe_mais_na_superficie_publica() {
     for args in [
         vec!["buscar", "alguma consulta", "--estrito"],
         vec!["buscar", "alguma consulta", "--estrito", "--json"],
-        vec!["mostrar", "trama.consultas.normalizacao", "--estrito"],
+        vec!["mostrar", "trama.queries.normalization", "--estrito"],
     ] {
         let out = nav_real(&args);
         let erro = String::from_utf8_lossy(&out.stderr).to_string();
@@ -467,35 +467,36 @@ fn a_flag_estrito_nao_existe_mais_na_superficie_publica() {
 
 /// Asserções de RANQUEAMENTO preservadas dos testes da política retirada: eram
 /// contratos de T0-A que só estavam escritos no modo estrito, e continuam
-/// valendo no modo padrão. Consultas com fraseado livre do português precisam
-/// achar a região implementadora em 1º lugar, e consultar um identificador
-/// estável continua sendo recuperação exata.
+/// valendo no modo padrão. Consultas com fraseado livre precisam achar a região
+/// implementadora em 1º lugar, e consultar um identificador estável continua
+/// sendo recuperação exata.
+///
+/// TL (#681): o conjunto de desenvolvimento passou a ser escrito no idioma
+/// canônico do catálogo. A invariante é a mesma — fraseado livre acha a região
+/// implementadora em 1º —, e a tradução das consultas é fiel ao conceito que
+/// cada uma expressava. Consulta em português deixar de casar metadados em
+/// inglês é a fronteira declarada da #671: inglês canônico NÃO implica busca
+/// multilíngue, stemming nem equivalência automática, o que permanece sob #674.
 #[test]
 fn consultas_com_fraseado_livre_acertam_a_regiao_implementadora() {
     let casos = [
         (
-            "impressao da ast como arvore indentada",
-            "printer.ast.renderizacao",
+            "printing the ast as an indented tree",
+            "printer.ast.rendering",
         ),
         (
-            "identidade da fonte no diagnostico",
-            "diagnostico.fonte.identidade",
+            "source identity in the diagnostic",
+            "diagnostic.source.identity",
         ),
-        ("aleatorio", "runtime.aleatorio.gerador"),
+        ("random", "runtime.random.generator"),
+        ("struct field alignment and offsets", "layout.types.memory"),
+        ("manifest changes ledger", "trama.changes.ledger"),
         (
-            "alinhamento e offsets de campos de struct",
-            "layout.tipos.memoria",
-        ),
-        ("ledger de mudancas dos manifestos", "trama.mudancas.ledger"),
-        (
-            "fronteira freestanding do boot",
-            "boot.geracao.fronteira-freestanding",
+            "freestanding boundary of the boot",
+            "boot.generation.freestanding-boundary",
         ),
         // Acesso exato por chave resolve antes de qualquer heurística.
-        (
-            "trama.consultas.normalizacao",
-            "trama.consultas.normalizacao",
-        ),
+        ("trama.queries.normalization", "trama.queries.normalization"),
     ];
     let mut falhas: Vec<String> = Vec::new();
     for (consulta, esperado) in casos {

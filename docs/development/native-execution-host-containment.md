@@ -16,7 +16,7 @@ related:
   - development.deterministic-infrastructure-window
 ---
 
-# Contenção do host para execução nativa
+# Host containment for native execution
 
 - **Classe:** Engine
 - **Papel:** contrato operacional
@@ -24,12 +24,12 @@ related:
 
 <!-- @pinker-doc:start
 id: development.native-execution-host-containment.contract
-tags: [testes, processos, sandbox, cleanup, proveniencia, linux]
+tags: [tests, processes, sandbox, cleanup, provenance, linux]
 aliases:
-  - contencao de execucao nativa
-  - autoridade de processos nativos
-  - cleanup de sandboxes
-summary: Contrato da segunda unidade de integração do HF-9 para conter processos, saída, recursos, sandboxes e recuperação nas suítes nativas.
+  - native execution containment
+  - native process authority
+  - sandbox cleanup
+summary: Contract of HF-9's second integration unit for containing processes, output, resources, sandboxes and recovery in the native suites.
 -->
 
 Este documento é canônico para a infraestrutura de testes que monta objetos,

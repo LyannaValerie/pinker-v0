@@ -6,10 +6,10 @@ use std::path::{Path, PathBuf};
 use std::process::Output;
 use std::time::Duration;
 
-// @pinker-nav:start evidencia.arquivos.d13-politica-de-handle
-// @pinker-nav:domain arquivos
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Evidência D13 da política de recurso da família arquivo: identidade de handle, release explícito, uso após release, double release, stale alias que não ressuscita depois de uma nova abertura e veredicto distinto para handle nunca aberto. Cada caso compara interpretador e ELF nativo sob envelope, exigindo mesmo stdout ordenado até a falha e mesmo exit; o controle positivo garante que a matriz não passa por falhar em tudo.
+// @pinker-nav:start evidence.files.d13-handle-policy
+// @pinker-nav:domain files
+// @pinker-nav:layer evidence
+// @pinker-nav:summary D13 evidence for the arquivo family's resource policy: handle identity, explicit release, use after release, double release, a stale alias that is not resurrected after a new open and a distinct verdict for a handle never opened. Each case compares interpreter and native ELF under an envelope, requiring the same ordered stdout up to the failure and the same exit; the positive control guarantees that the matrix does not pass by failing at everything.
 
 /// Controle positivo: sem o release, o handle permanece utilizável e o
 /// programa termina normalmente. Sem este caso, toda a matriz abaixo poderia
@@ -353,4 +353,4 @@ fn politica_de_handle_de_arquivo_tem_paridade_entre_interpretador_e_nativo() {
         nunca_aberto.stderr_nativo
     );
 }
-// @pinker-nav:end evidencia.arquivos.d13-politica-de-handle
+// @pinker-nav:end evidence.files.d13-handle-policy

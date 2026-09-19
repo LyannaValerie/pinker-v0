@@ -1,7 +1,7 @@
 //! Relações, métodos e contratos de tratos da checagem semântica, movidos de
 //! `src/semantic.rs` pela unidade SEM-4 do inventário da #601 (Task #636).
 //!
-//! Só o arquivo mudou: a região cartografada `semantic.tratos.contratos`, as
+//! Só o arquivo mudou: a região cartografada `semantic.tratos.contracts`, as
 //! sete funções que a compõem e a ordem em que elas decidem continuam
 //! exatamente como estavam. `super` mudou de significado ao descer um nível, e
 //! o `use` abaixo devolve ao irmão o vocabulário do pai — `SemanticChecker`, os
@@ -11,7 +11,7 @@
 //! A ordem das quatro decisões da fase não mudou de lugar: o pai continua
 //! chamando `validate_impl_relations`, `register_impl_methods`,
 //! `validate_impl_contracts` e `validate_trait_contracts` nessa ordem, na
-//! região `semantic.programa.duas-passagens`. A vizinhança que a fase enxerga
+//! região `semantic.program.two-passes`. A vizinhança que a fase enxerga
 //! é a mesma.
 //!
 //! O corte atravessa C2 e não a muda. `src/method_dispatch.rs` (#590/#591)
@@ -37,10 +37,10 @@
 //! `validate_trait_method_function`) só têm chamadores dentro do próprio corte
 //! e continuam privadas.
 
-// @pinker-nav:start semantic.tratos.contratos
+// @pinker-nav:start semantic.tratos.contracts
 // @pinker-nav:domain tratos
 // @pinker-nav:layer semantic
-// @pinker-nav:summary Autoridade semântica de relações, métodos e contratos de tratos. `validate_impl_relations` vem primeiro e é a única autoridade de cardinalidade da relação nominal: cada `ImplDecl` de `program.impls` vira a identidade `(trato canônico, alvo canônico)` — o mesmo `union_canon` que a identidade de método usa — e a segunda declaração da mesma identidade é recusada, sem olhar quantos métodos explícitos cada bloco materializou; bloco vazio continua sendo declaração da relação. Depois, `register_impl_methods` resolve integralmente o tipo-alvo declarado transportado em `ImplFunctionFacts`, deriva sua chave por `union_canon`, registra `MethodIdentity(trato, tipo resolvido, método)` e compara separadamente o receiver resolvido; `method_index` é somente a visão derivada para chamadas não qualificadas, e a recusa de método repetido continua endereçando repetição dentro do mesmo bloco. Qual das funções já materializadas representa a identidade — override explícito vence default, ordem total do símbolo desempata — é dito por `method_dispatch`, a mesma autoridade que o lowering consulta; aqui fica só a mensagem, que é da fase. Por último, `validate_impl_contracts` agrupa os métodos já materializados pela identidade resolvida e cobra cobertura do contrato do trato: ausência de método requerido é erro de cobertura, nunca duplicata.
+// @pinker-nav:summary Semantic authority over trato relations, methods and contracts. `validate_impl_relations` comes first and is the sole authority over the nominal relation's cardinality: each `ImplDecl` of `program.impls` becomes the identity `(canonical trato, canonical target)` — the same `union_canon` the method identity uses — and the second declaration of the same identity is refused, without looking at how many explicit methods each block materialized; an empty block is still a declaration of the relation. Then, `register_impl_methods` fully resolves the declared target type carried in `ImplFunctionFacts`, derives its key through `union_canon`, registers `MethodIdentity(trato, resolved type, method)` and compares the resolved receiver separately; `method_index` is only the derived view for unqualified calls, and the refusal of a repeated method still addresses repetition within the same block. Which of the already materialized functions represents the identity — an explicit override beats a default, the symbol's total order breaks ties — is stated by `method_dispatch`, the same authority the lowering consults; what remains here is the message, which belongs to this phase. Finally, `validate_impl_contracts` groups the already materialized methods by the resolved identity and enforces coverage of the trato's contract: a missing required method is a coverage error, never a duplicate.
 use super::*;
 
 impl SemanticChecker {
@@ -708,4 +708,4 @@ impl SemanticChecker {
         Ok(())
     }
 }
-// @pinker-nav:end semantic.tratos.contratos
+// @pinker-nav:end semantic.tratos.contracts

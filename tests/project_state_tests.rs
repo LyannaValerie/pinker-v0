@@ -9,10 +9,10 @@ use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::UNIX_EPOCH;
 
-// @pinker-nav:start evidencia.project-state.contrato
-// @pinker-nav:domain estado
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita schema, ordem, disponibilidade parcial, drift e harness das autoridades reais, CLI, independência de root e invariância somente leitura do estado consolidado.
+// @pinker-nav:start evidence.project-state.contract
+// @pinker-nav:domain state
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises schema, order, partial availability, drift and harness of the real authorities, the CLI, independence from the root and read-only invariance of the consolidated state.
 
 static NEXT: AtomicU64 = AtomicU64::new(0);
 
@@ -272,8 +272,8 @@ fn documentacao_invalida_ou_com_drift_preserva_outros_dominios() {
     let drift = Fixture::copy("docs-drift");
     replace_once(
         &drift.path().join("docs/development/README.md"),
-        "# Desenvolvimento",
-        "# Desenvolvimento alterado",
+        "# Development",
+        "# Development changed",
     );
     let observed = state(drift.path());
     assert_eq!(
@@ -541,4 +541,4 @@ fn sensibilidade_protege_reuso_read_only_e_renderer_unico() {
     assert!(!renderer.contains("SystemTime"));
 }
 
-// @pinker-nav:end evidencia.project-state.contrato
+// @pinker-nav:end evidence.project-state.contract

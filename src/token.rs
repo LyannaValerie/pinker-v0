@@ -1,7 +1,7 @@
-// @pinker-nav:start token.lexico.vocabulario
-// @pinker-nav:domain lexico
+// @pinker-nav:start token.lexical.vocabulary
+// @pinker-nav:domain lexical
 // @pinker-nav:layer token
-// @pinker-nav:summary Vocabulário canônico de tokens da Pinker: palavras-chave em português, operadores, delimitadores e literais que o léxico produz e o parser consome.
+// @pinker-nav:summary Pinker's canonical token vocabulary: Portuguese keywords, operators, delimiters and literals that the lexer produces and the parser consumes.
 use crate::source_map::SourceId;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -101,12 +101,12 @@ pub enum TokenKind {
     Arrow,
     Eof,
 }
-// @pinker-nav:end token.lexico.vocabulario
+// @pinker-nav:end token.lexical.vocabulary
 
-// @pinker-nav:start token.representacao.spans
-// @pinker-nav:domain representacao
+// @pinker-nav:start token.representation.spans
+// @pinker-nav:domain representation
 // @pinker-nav:layer token
-// @pinker-nav:summary Posições e spans de origem (linha/coluna) anexados a cada token e propagados aos diagnósticos; inclui a fusão de spans usada ao combinar nós.
+// @pinker-nav:summary Source positions and spans (line/column) attached to each token and propagated to the diagnostics; it includes the merging of spans used when combining nodes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Position {
     pub line: usize,
@@ -229,11 +229,11 @@ impl std::fmt::Display for Span {
         write!(f, "{}..{}", self.start, self.end)
     }
 }
-// @pinker-nav:end token.representacao.spans
-// @pinker-nav:start token.representacao.token-e-nomes
-// @pinker-nav:domain representacao
+// @pinker-nav:end token.representation.spans
+// @pinker-nav:start token.representation.token-and-names
+// @pinker-nav:domain representation
 // @pinker-nav:layer token
-// @pinker-nav:summary O token como o parser o recebe — categoria lexica, lexema original e span — e o vocabulario estavel de nomes de cada categoria, usado em diagnostico e em teste, junto com a pergunta de literal. O lexema e preservado porque o diagnostico mostra o que o humano escreveu, nao a categoria.
+// @pinker-nav:summary The token as the parser receives it — lexical category, original lexeme and span — and the stable vocabulary of names for each category, used in diagnostics and in tests, together with the literal question. The lexeme is preserved because the diagnostic shows what the human wrote, not the category.
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Token {
@@ -355,4 +355,4 @@ impl TokenKind {
         }
     }
 }
-// @pinker-nav:end token.representacao.token-e-nomes
+// @pinker-nav:end token.representation.token-and-names

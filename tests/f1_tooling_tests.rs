@@ -8,10 +8,10 @@ use std::path::PathBuf;
 use std::process::{Command, Output};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-// @pinker-nav:start evidencia.tooling.f1.contracts
+// @pinker-nav:start evidence.tooling.f1.contracts
 // @pinker-nav:domain tooling
 // @pinker-nav:layer evidence
-// @pinker-nav:summary Contratos positivos, negativos e de sensibilidade para doctor, nav impacto, preflight composto e lifecycle do baseline publicado.
+// @pinker-nav:summary Positive, negative and sensitivity contracts for doctor, nav impacto, the composed preflight and the lifecycle of the published baseline.
 // POT/LPT: AUTHORITY #698
 // POT/LPT: INVARIANT o preflight não conhece bloco `pinker-change`: a ausência
 // dele nunca é achado, bloqueante ou não.
@@ -284,4 +284,4 @@ fn cli_rejeita_flags_incompletas_e_mistura_de_modos() {
     }
 }
 
-// @pinker-nav:end evidencia.tooling.f1.contracts
+// @pinker-nav:end evidence.tooling.f1.contracts

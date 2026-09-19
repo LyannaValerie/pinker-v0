@@ -1,7 +1,7 @@
-// @pinker-nav:start ast.programa.estrutura
-// @pinker-nav:domain programa
+// @pinker-nav:start ast.program.structure
+// @pinker-nav:domain program
 // @pinker-nav:layer ast
-// @pinker-nav:summary Estrutura de topo do programa na AST: pacote, imports e itens (funções, structs, enums, tratos/impl, aliases e constantes), cada declaração com seu span e serialização JSON. `FunctionDecl` transporta dois fatos que o nome não pode responder: `impl_facts`, que diz de qual alvo de `impl` o método é, e — desde a #592 — `trait_default_body`, fonte única de que a função foi materializada a partir de um corpo default de trato, com o papel operacional (`SelectedAsImpl`, `CheckOnly`, `Dependency`) e a grafia do trato declarante. O corpo materializado pertence à unidade que DECLAROU o trato, e é o fato, não o prefixo do nome sintético, que diz isso à resolução modular; a distinção de papel existe porque só o primeiro entra em `method_index`/vtable, só o segundo é endereçado por conteúdo, e o terceiro nem é método.
+// @pinker-nav:summary Top-level structure of the program in the AST: package, imports and items (functions, structs, enums, tratos/impl, aliases and constants), each declaration with its span and JSON serialization. `FunctionDecl` carries two facts the name cannot answer: `impl_facts`, which says which `impl` target the method belongs to, and — since #592 — `trait_default_body`, the single source of the fact that the function was materialized from a trato default body, with the operational role (`SelectedAsImpl`, `CheckOnly`, `Dependency`) and the spelling of the declaring trato. The materialized body belongs to the unit that DECLARED the trato, and it is the fact, not the prefix of the synthetic name, that says so to modular resolution; the role distinction exists because only the first enters `method_index`/vtable, only the second is content-addressed, and the third is not even a method.
 use crate::token::{Span, TokenKind};
 use std::collections::HashSet;
 
@@ -428,12 +428,12 @@ impl ConstDecl {
         writer.end_object();
     }
 }
-// @pinker-nav:end ast.programa.estrutura
+// @pinker-nav:end ast.program.structure
 
-// @pinker-nav:start ast.tipos.representacao
-// @pinker-nav:domain tipos
+// @pinker-nav:start ast.types.representation
+// @pinker-nav:domain types
 // @pinker-nav:layer ast
-// @pinker-nav:summary Representação dos tipos da Pinker na AST (inteiros, bombom, verso, leques, listas/mapas, ponteiros, arrays, structs, aliases, função e genéricos aplicados), com igualdade estrutural própria e serialização.
+// @pinker-nav:summary Representation of Pinker types in the AST (integers, bombom, verso, leques, lists/maps, pointers, arrays, structs, aliases, function and applied generics), with its own structural equality and serialization.
 #[derive(Debug, Clone)]
 pub enum Type {
     Bombom(Span),
@@ -795,12 +795,12 @@ impl Type {
         writer.end_object();
     }
 }
-// @pinker-nav:end ast.tipos.representacao
+// @pinker-nav:end ast.types.representation
 
-// @pinker-nav:start ast.comandos.representacao
-// @pinker-nav:domain comandos
+// @pinker-nav:start ast.commands.representation
+// @pinker-nav:domain commands
 // @pinker-nav:layer ast
-// @pinker-nav:summary Representação dos comandos na AST: blocos, `mimo` (let), atribuição, retorno, `talvez/senão`, laços (`sempre`/`repetir`), `quebrar`/`continuar`, `falar` e asm inline, com seus ramos e serialização.
+// @pinker-nav:summary Representation of statements in the AST: blocks, `mimo` (let), assignment, return, `talvez/senão`, loops (`sempre`/`repetir`), `quebrar`/`continuar`, `falar` and inline asm, with their branches and serialization.
 #[derive(Debug, Clone)]
 pub struct Block {
     pub stmts: Vec<Stmt>,
@@ -1303,12 +1303,12 @@ impl ElseBlock {
         }
     }
 }
-// @pinker-nav:end ast.comandos.representacao
+// @pinker-nav:end ast.commands.representation
 
-// @pinker-nav:start ast.expressoes.representacao
-// @pinker-nav:domain expressoes
+// @pinker-nav:start ast.expressions.representation
+// @pinker-nav:domain expressions
 // @pinker-nav:layer ast
-// @pinker-nav:summary Representação das expressões na AST (`ExprKind`) — binárias, unárias, literais, chamadas, acessos, índices, construção de struct/enum, closures, `tentar`/`propagar` — e os operadores binários/unários com sua nomenclatura.
+// @pinker-nav:summary Representation of expressions in the AST (`ExprKind`) — binary, unary, literals, calls, accesses, indexes, struct/enum construction, closures, `tentar`/`propagar` — and the binary/unary operators with their naming.
 #[derive(Debug, Clone)]
 pub struct Expr {
     pub kind: ExprKind,
@@ -1575,12 +1575,12 @@ impl UnaryOp {
         }
     }
 }
-// @pinker-nav:end ast.expressoes.representacao
+// @pinker-nav:end ast.expressions.representation
 
-// @pinker-nav:start ast.serializacao.json
-// @pinker-nav:domain serializacao
+// @pinker-nav:start ast.serialization.json
+// @pinker-nav:domain serialization
 // @pinker-nav:layer ast
-// @pinker-nav:summary Escritor JSON indentado e determinístico usado por todos os nós da AST (`write_json`): controla objetos/arrays, campos e escapes, produzindo a saída estável de `--json-ast`.
+// @pinker-nav:summary Indented, deterministic JSON writer used by every AST node (`write_json`): it controls objects/arrays, fields and escapes, producing the stable output of `--json-ast`.
 enum JsonContainer {
     Object { first: bool },
     Array { first: bool },
@@ -1785,12 +1785,12 @@ impl<'a> JsonWriter<'a> {
     }
 }
 
-// @pinker-nav:end ast.serializacao.json
+// @pinker-nav:end ast.serialization.json
 
-// @pinker-nav:start ast.closures.identificadores-livres
+// @pinker-nav:start ast.closures.free-identifiers
 // @pinker-nav:domain closures
 // @pinker-nav:layer ast
-// @pinker-nav:summary Fase 243: varredura sintática pura (sem informação de tipo) que lista, em ordem determinística de primeira referência, os identificadores usados em posição de valor no corpo de uma função que não são parâmetros nem locais `nova` declarados antes do uso no mesmo escopo léxico (block-scoped). A consulta simples usada pelo parser mantém nomes de callee direto fora; a consulta transitiva usada por semantic/IR inclui esses nomes como candidatos para distinguir callables locais capturados de funções top-level. Cabe ao chamador filtrar candidatos que não resolvem para binding local.
+// @pinker-nav:summary Phase 243: a purely syntactic scan (no type information) that lists, in deterministic order of first reference, the identifiers used in value position in a function body that are neither parameters nor `nova` locals declared before the use in the same lexical (block-scoped) scope. The simple query used by the parser keeps direct callee names out; the transitive query used by semantic/IR includes those names as candidates so that captured local callables can be told apart from top-level functions. Filtering candidates that do not resolve to a local binding is up to the caller.
 pub fn free_identifiers_in_function(function: &FunctionDecl) -> Vec<String> {
     let mut bound: Vec<HashSet<String>> =
         vec![function.params.iter().map(|p| p.name.clone()).collect()];
@@ -2072,4 +2072,4 @@ fn scan_expr_free_idents(
         | ExprKind::StringLit(_) => {}
     }
 }
-// @pinker-nav:end ast.closures.identificadores-livres
+// @pinker-nav:end ast.closures.free-identifiers

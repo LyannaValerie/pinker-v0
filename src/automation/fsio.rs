@@ -23,10 +23,10 @@
 //! A implementação operacional host-side é dona de confinamento por descritor.
 //! Este módulo conserva somente a política Pinker independente e seus limites.
 
-// @pinker-nav:start automation.filesystem.confinamento
+// @pinker-nav:start automation.filesystem.confinement
 // @pinker-nav:domain filesystem
 // @pinker-nav:layer automation
-// @pinker-nav:summary Confinamento de um path repo-relativo no filesystem: cada ancestral existente e o próprio alvo são inspecionados com symlink_metadata, rejeitando link simbólico em qualquer posição, ancestral que não seja diretório, alvo que não seja arquivo regular e qualquer resultado fora da raiz canônica — política conservadora que se revalida antes de substituir e não promete imunidade a TOCTOU.
+// @pinker-nav:summary Confinement of a repo-relative path in the filesystem: every existing ancestor and the target itself are inspected with symlink_metadata, rejecting a symbolic link in any position, an ancestor that is not a directory, a target that is not a regular file and any result outside the canonical root — a conservative policy that revalidates itself before replacing and does not promise immunity to TOCTOU.
 use super::compare::{check, ChangeKind, CheckReport, Observation, ObservedState};
 use super::plan::Plan;
 use super::root::RepoRoot;
@@ -110,12 +110,12 @@ pub fn confine(root: &RepoRoot, relative: &RelativePath) -> Result<PathBuf, Fail
         }),
     }
 }
-// @pinker-nav:end automation.filesystem.confinamento
+// @pinker-nav:end automation.filesystem.confinement
 
-// @pinker-nav:start automation.filesystem.observacao
+// @pinker-nav:start automation.filesystem.observation
 // @pinker-nav:domain filesystem
 // @pinker-nav:layer automation
-// @pinker-nav:summary Observação estritamente sem escrita do estado corrente de cada target do plano, atravessando o confinamento, tratando ausência como observação válida e aplicando o limite de bytes por target na leitura; é o único caminho pelo qual o disco entra no núcleo.
+// @pinker-nav:summary Strictly write-free observation of the current state of each plan target, crossing confinement, treating absence as a valid observation and applying the per-target byte limit on read; it is the only path by which the disk enters the core.
 
 /// Observa um único target. Estritamente somente leitura.
 pub fn observe_target(root: &RepoRoot, relative: &RelativePath) -> Result<Observation, Failure> {
@@ -157,12 +157,12 @@ pub fn observe(root: &RepoRoot, plan: &Plan) -> Result<ObservedState, Failure> {
     }
     Ok(state)
 }
-// @pinker-nav:end automation.filesystem.observacao
+// @pinker-nav:end automation.filesystem.observation
 
-// @pinker-nav:start automation.filesystem.aplicacao
+// @pinker-nav:start automation.filesystem.apply
 // @pinker-nav:domain filesystem
 // @pinker-nav:layer automation
-// @pinker-nav:summary Aplicação local explícita: exige autorização por digest exato do plano, revalida as precondições observadas antes de escrever, detecta plano obsoleto, e por arquivo cria temporário irmão exclusivo com create_new, escreve, sincroniza quando suportado, revalida o confinamento, substitui por rename e verifica tamanho e digest relendo — preservando progresso parcial explícito, item falho, itens não tentados e rollback_performed sempre falso.
+// @pinker-nav:summary Explicit local apply: it requires authorization by exact plan digest, revalidates the observed preconditions before writing, detects a stale plan, and per file creates an exclusive sibling temporary with create_new, writes, syncs when supported, revalidates confinement, replaces by rename and verifies size and digest by reading back — preserving explicit partial progress, the failed item, items not attempted and rollback_performed always false.
 
 /// Relatório de uma aplicação. Progresso parcial é explícito por construção.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -548,12 +548,12 @@ pub fn verify_written(
         }
     }
 }
-// @pinker-nav:end automation.filesystem.aplicacao
+// @pinker-nav:end automation.filesystem.apply
 
-// @pinker-nav:start evidencia.automacao.causa-de-raiz
-// @pinker-nav:domain automacao
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Prova de que a causa de harness originada na raiz do repositorio e formatavel, para que a falha chegue ao relatorio com texto estavel em vez de identificador opaco.
+// @pinker-nav:start evidence.automation.root-cause
+// @pinker-nav:domain automation
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Proof that a harness cause originating at the repository root is formattable, so that the failure reaches the report with stable text instead of an opaque identifier.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -569,4 +569,4 @@ mod tests {
         assert!(falha.to_string().contains("/x"));
     }
 }
-// @pinker-nav:end evidencia.automacao.causa-de-raiz
+// @pinker-nav:end evidence.automation.root-cause

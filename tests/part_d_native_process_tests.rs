@@ -10,10 +10,10 @@ use std::process::Output;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
-// @pinker-nav:start evidencia.processos.parte-d-native-step-4
-// @pinker-nav:domain processos
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Executa a mesma superfície estruturada no interpretador e em ELF ligado ao runtime nativo real, comparando argv sem shell, stdin+EOF, stdout/stderr separados e grandes, ambiente/cwd/PATH, status normal e não-zero, falhas de spawn, término anormal, UTF-8 estrito, Ate(0) sem spawn nem efeito externo, timeout simples/descendente/output contínuo, captura SemLimite, single-spawn e accessors sem reexecução sob watchdog externo; fecha ainda composição genérica com tentar/propagar? e um workflow read-only real com git, múltiplos argv e consumo de status/stdout/stderr.
+// @pinker-nav:start evidence.processes.part-d-native-step-4
+// @pinker-nav:domain processes
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Runs the same structured surface in the interpreter and in an ELF linked against the real native runtime, comparing argv without a shell, stdin+EOF, separate and large stdout/stderr, environment/cwd/PATH, normal and non-zero status, spawn failures, abnormal termination, strict UTF-8, Ate(0) with no spawn and no external effect, simple/descendant/continuous-output timeout, SemLimite capture, single-spawn and accessors without re-execution under an external watchdog; it also closes generic composition with tentar/propagar? and a real read-only workflow with git, multiple argv and consumption of status/stdout/stderr.
 
 fn literal(texto: &str) -> String {
     let mut saida = String::from("\"");
@@ -1063,10 +1063,10 @@ carinho principal() -> bombom {{
 
     let parser = common::fonte_de_modulo::parser();
     let inicio = parser
-        .find("// @pinker-nav:start parser.resultado.tentar-propagar")
+        .find("// @pinker-nav:start parser.result.tentar-propagar")
         .expect("início do desugaring");
     let fim = parser
-        .find("// @pinker-nav:end parser.resultado.tentar-propagar")
+        .find("// @pinker-nav:end parser.result.tentar-propagar")
         .expect("fim do desugaring");
     let desugaring = &parser[inicio..fim];
     assert!(desugaring.contains("parse_tentar_desugared"));
@@ -1201,4 +1201,4 @@ carinho principal() -> bombom {{
     );
 }
 
-// @pinker-nav:end evidencia.processos.parte-d-native-step-4
+// @pinker-nav:end evidence.processes.part-d-native-step-4

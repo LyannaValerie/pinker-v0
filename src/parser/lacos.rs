@@ -1,7 +1,7 @@
-// @pinker-nav:start parser.lacos.for-each
-// @pinker-nav:domain lacos
+// @pinker-nav:start parser.loops.for-each
+// @pinker-nav:domain loops
 // @pinker-nav:layer parser
-// @pinker-nav:summary Desugaring de `para cada X em COL { ... }`: reconhece a forma for-each e a reescreve em laço explícito com cursor/índice e chamadas de iteração conforme o tipo da coleção (listas e mapas, por chave/valor), produzindo `ast::Stmt`.
+// @pinker-nav:summary Desugaring of `para cada X em COL { ... }`: it recognizes the for-each form and rewrites it as an explicit loop with a cursor/index and iteration calls according to the collection's type (lists and maps, by key/value), producing `ast::Stmt`.
 use super::*;
 
 impl Parser {
@@ -1287,4 +1287,4 @@ impl Parser {
         ])
     }
 }
-// @pinker-nav:end parser.lacos.for-each
+// @pinker-nav:end parser.loops.for-each

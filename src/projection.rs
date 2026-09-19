@@ -23,10 +23,10 @@
 //! Para outros nomes (ex.: `readme`, `manual`), só se gera dentro de uma região
 //! explícita; se a região não existir, a flag é recusada — nunca inventada.
 
-// @pinker-nav:start trama.projecoes.modelo
-// @pinker-nav:domain projecoes
+// @pinker-nav:start trama.projections.model
+// @pinker-nav:domain projections
 // @pinker-nav:layer trama
-// @pinker-nav:summary Preludio e modelo da projecao documental: os marcadores `@pinker-generated` que delimitam a regiao gerada, a taxonomia de erro de projecao com suas mensagens estaveis, e o plano de escrita — arquivo alvo, conteudo novo e a decisao de escrever ou nao — que torna a projecao idempotente e auditavel antes de tocar o disco.
+// @pinker-nav:summary Prelude and model of the documentary projection: the `@pinker-generated` markers that delimit the generated region, the projection error taxonomy with its stable messages, and the write plan — target file, new content and the decision whether or not to write — which makes the projection idempotent and auditable before touching the disk.
 use crate::change::{Change, Manifests};
 use crate::doc::{DocConfig, DocProjection};
 use std::fmt;
@@ -151,11 +151,11 @@ impl Plan {
     }
 }
 
-// @pinker-nav:end trama.projecoes.modelo
-// @pinker-nav:start trama.projecoes.geracao
-// @pinker-nav:domain projecoes
+// @pinker-nav:end trama.projections.model
+// @pinker-nav:start trama.projections.generation
+// @pinker-nav:domain projections
 // @pinker-nav:layer trama
-// @pinker-nav:summary Projeta os manifestos versionados em regiões geradas explícitas (`@pinker-generated`) para `history`, `state` e `roadmap`: valida que toda flag `updates.*` verdadeira tem consumidor, gera conteúdo determinístico e preserva o texto humano fora da região.
+// @pinker-nav:summary Projects the versioned manifests into explicit generated regions (`@pinker-generated`) for `history`, `state` and `roadmap`: it validates that every true `updates.*` flag has a consumer, generates deterministic content and preserves the human text outside the region.
 /// Planeja todas as projeções configuradas e valida as flags dos manifestos.
 pub fn plan(
     repo_root: &Path,
@@ -383,11 +383,11 @@ fn generate_roadmap(manifests: &Manifests) -> String {
     out.pop();
     out
 }
-// @pinker-nav:end trama.projecoes.geracao
-// @pinker-nav:start evidencia.projecoes.geracao-idempotente
-// @pinker-nav:domain projecoes
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Provas da projecao documental: a emenda na regiao gerada preserva o texto humano ao redor, uma segunda emenda sobre o mesmo estado e idempotente, regiao gerada ausente e erro em vez de invencao, e a tabela de historico e deterministica.
+// @pinker-nav:end trama.projections.generation
+// @pinker-nav:start evidence.projections.idempotent-generation
+// @pinker-nav:domain projections
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Proofs of documentary projection: the amendment in the generated region preserves the surrounding human text, a second amendment over the same state is idempotent, a missing generated region is an error instead of an invention, and the history table is deterministic.
 
 #[cfg(test)]
 mod tests {
@@ -465,4 +465,4 @@ mod tests {
         assert!(idx340 < idx341);
     }
 }
-// @pinker-nav:end evidencia.projecoes.geracao-idempotente
+// @pinker-nav:end evidence.projections.idempotent-generation

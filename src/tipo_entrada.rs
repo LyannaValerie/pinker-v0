@@ -29,10 +29,10 @@
 //! - não cresce por analogia. `Outro` existe justamente para que FIFO, socket e
 //!   device não pressionem a taxonomia a cada tipo novo do host.
 
-// @pinker-nav:start filesystem.tipo-entrada.taxonomia
+// @pinker-nav:start filesystem.entry-type.taxonomy
 // @pinker-nav:domain filesystem
-// @pinker-nav:layer semantica
-// @pinker-nav:summary Autoridade única da taxonomia de entradas da Parte C: `TipoEntrada` nomeia as quatro classes observáveis sem seguir symlink, `VARIANTES` fixa a ordem de declaração — que é o discriminante lido pela IR — e `classificar` deriva a classe de um `FileType` obtido por `symlink_metadata`, testando `is_symlink` antes de arquivo e diretório para que o alvo nunca decida a classe. O nome público do leque e os nomes das variantes existem só aqui; o runtime nativo espelha os discriminantes e a paridade é fixada por evidência.
+// @pinker-nav:layer semantic
+// @pinker-nav:summary Single authority of Part C's entry taxonomy: `TipoEntrada` names the four observable classes without following symlinks, `VARIANTES` fixes the declaration order — which is the discriminant read by the IR — and `classificar` derives the class from a `FileType` obtained via `symlink_metadata`, testing `is_symlink` before file and directory so that the target never decides the class. The leque's public name and the variant names exist only here; the native runtime mirrors the discriminants and parity is fixed by evidence.
 
 /// Nome público do leque predeclarado da taxonomia.
 pub const LEQUE_TIPO_ENTRADA: &str = "TipoEntrada";
@@ -99,4 +99,4 @@ impl TipoEntrada {
     }
 }
 
-// @pinker-nav:end filesystem.tipo-entrada.taxonomia
+// @pinker-nav:end filesystem.entry-type.taxonomy

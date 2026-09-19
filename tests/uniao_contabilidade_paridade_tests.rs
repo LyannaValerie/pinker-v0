@@ -15,10 +15,10 @@ mod common;
 use common::ControlledCommand as Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-// @pinker-nav:start evidencia.unioes.contabilidade-paridade
-// @pinker-nav:domain unioes
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Evidência externa da paridade de contabilidade de uniões: os exemplos de domínios independentes e de reinjeção produzem o mesmo stdout e o mesmo exit no interpretador e no binário nativo, o backend materializa o binding de extração em slot do frame sem chamar o alocador público, e a construção de união não emite chamada ao alocador público em nenhum ponto do caminho de injeção.
+// @pinker-nav:start evidence.unions.parity-accounting
+// @pinker-nav:domain unions
+// @pinker-nav:layer evidence
+// @pinker-nav:summary External evidence of union accounting parity: the independent-domain and reinjection examples produce the same stdout and the same exit in the interpreter and in the native binary, the backend materializes the extraction binding in a frame slot without calling the public allocator, and union construction emits no call to the public allocator at any point of the injection path.
 
 /// Executa o exemplo pelo CLI para observar exatamente o stdout do
 /// interpretador, que é o mesmo canal comparado com o binário nativo.
@@ -290,4 +290,4 @@ fn construcao_agregada_nao_chama_o_alocador_publico_no_nativo() {
         );
     }
 }
-// @pinker-nav:end evidencia.unioes.contabilidade-paridade
+// @pinker-nav:end evidence.unions.parity-accounting

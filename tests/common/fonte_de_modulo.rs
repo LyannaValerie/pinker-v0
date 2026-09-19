@@ -246,17 +246,17 @@ pub fn ir_caminhos() -> Vec<String> {
 /// Arquivos que compõem o módulo `semantic`, na ordem declarada no pai.
 ///
 /// A decomposição física da #619 (unidade SEM-1 do inventário da #601) tirou de
-/// `src/semantic.rs` a região `semantic.chamadas.despacho` inteira — o despacho
+/// `src/semantic.rs` a região `semantic.calls.dispatch` inteira — o despacho
 /// de chamadas, incluindo o único ponto em que a semântica consulta a
 /// autoridade de seleção de método `method_dispatch` (C2, #590/#591). A da #628
-/// (unidade SEM-2) tirou a região `semantic.comandos.verificacao` — a
+/// (unidade SEM-2) tirou a região `semantic.commands.verification` — a
 /// verificação dos comandos de um bloco, que não atravessa autoridade nenhuma.
 /// A da #634 (unidade SEM-3) tirou as três regiões contíguas
-/// `semantic.unioes.encaixe`, `semantic.fluxo.retornos` e
-/// `semantic.expressoes.verificacao` — o `encaixe` de união, o fluxo e os
+/// `semantic.unions.encaixe`, `semantic.flow.returns` e
+/// `semantic.expressions.verification` — o `encaixe` de união, o fluxo e os
 /// retornos e a verificação de expressões, que também não atravessam autoridade
 /// nenhuma e levam consigo a única chamada da fase ao despacho de chamadas. A
-/// da #636 (unidade SEM-4) tirou a região `semantic.tratos.contratos` — as
+/// da #636 (unidade SEM-4) tirou a região `semantic.tratos.contracts` — as
 /// relações, os métodos e os contratos de tratos —, e com ela desceu a outra
 /// consulta da fase a `method_dispatch` (`select_representative`, C2,
 /// #590/#591).

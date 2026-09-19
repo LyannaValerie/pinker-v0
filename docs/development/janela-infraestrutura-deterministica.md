@@ -15,7 +15,7 @@ related:
   - roadmap
 ---
 
-# Janela auxiliar de infraestrutura determinística
+# Deterministic infrastructure auxiliary window
 
 - **Classe:** Engine
 - **Papel:** governança operacional
@@ -27,14 +27,14 @@ capacidades autorizadas e não constitui mais exceção ativa ao portão pós-Tr
 
 <!-- @pinker-doc:start
 id: development.deterministic-infrastructure-window.current
-tags: [desenvolvimento, governanca, infraestrutura, determinismo, eixo-a, encerramento]
+tags: [development, governance, infrastructure, determinism, axis-a, closure]
 aliases:
-  - janela auxiliar
-  - janela de infraestrutura deterministica
-  - excecao pre eixo a
-summary: Inventário final, limites históricos e encerramento da janela auxiliar da Issue #417, com D2 restaurado como próxima prioridade funcional.
+  - auxiliary window
+  - deterministic infrastructure window
+  - pre axis a exception
+summary: Final inventory, historical limits and closure of Issue #417's auxiliary window, with D2 restored as the next functional priority.
 -->
-## Estado canônico
+## Canonical state
 
 ```yaml
 Issue_417:

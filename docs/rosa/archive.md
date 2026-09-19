@@ -16,7 +16,7 @@ related:
   - rosa.voice-tests
 ---
 
-# Arquivo de Rosa — vestígios, proveniência e continuidade
+# Rosa archive — traces, provenance and continuity
 
 - **Classe:** Rosa
 - **Papel:** histórico identitário

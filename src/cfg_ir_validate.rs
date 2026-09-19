@@ -11,10 +11,10 @@
 //!
 //! Ponto de entrada: [`validate_program`].
 
-// @pinker-nav:start cfg.unioes.validacao-operacoes
-// @pinker-nav:domain unioes
+// @pinker-nav:start cfg.unions.validation-operations
+// @pinker-nav:domain unions
 // @pinker-nav:layer cfg
-// @pinker-nav:summary Fronteira de validação das operações internas tipadas de união no CFG: cada `UnionTag` confirma a existência do `UnionTypeId` e cada `UnionExtract` é confrontado com a tabela internada — tag pertencente ao registry, chave canônica coincidente com a tag, tipo e layout do payload iguais. Nenhuma tag é recalculada; o registry é a única fonte, e nenhuma chamada comum substitui estas operações.
+// @pinker-nav:summary Validation boundary of the typed internal union operations in the CFG: each `UnionTag` confirms the existence of the `UnionTypeId` and each `UnionExtract` is checked against the interned table — tag belonging to the registry, canonical key matching the tag, payload type and layout equal. No tag is recomputed; the registry is the single source, and no ordinary call replaces these operations.
 use crate::cfg_ir::{InstructionCfgIR, OperandIR, ProgramCfgIR, TempIR, TerminatorIR};
 use crate::error::PinkerError;
 use crate::internal_operations::{InternalOperands, InternalResult, MapOperandRole};
@@ -66,12 +66,12 @@ fn validate_union_operations(program: &ProgramCfgIR) -> Result<(), PinkerError> 
     }
     Ok(())
 }
-// @pinker-nav:end cfg.unioes.validacao-operacoes
+// @pinker-nav:end cfg.unions.validation-operations
 
-// @pinker-nav:start cfg.validacao.invariantes
-// @pinker-nav:domain validacao
+// @pinker-nav:start cfg.validation.invariants
+// @pinker-nav:domain validation
 // @pinker-nav:layer cfg
-// @pinker-nav:summary Valida os invariantes do CFG IR: blocos rotulados com terminadores bem formados, alvos de salto existentes, ausência de fall-through implícito e consistência de tipos entre blocos.
+// @pinker-nav:summary Validates the CFG IR invariants: labelled blocks with well-formed terminators, existing jump targets, absence of implicit fall-through and type consistency between blocks.
 pub fn validate_program(program: &ProgramCfgIR) -> Result<(), PinkerError> {
     crate::ir::validate_union_registry(&program.union_types)
         .map_err(|message| cfg_error(&message, default_span()))?;
@@ -1508,4 +1508,4 @@ fn default_span() -> Span {
     Span::single(Position::new(1, 1))
 }
 
-// @pinker-nav:end cfg.validacao.invariantes
+// @pinker-nav:end cfg.validation.invariants

@@ -53,33 +53,33 @@ use rust_source::codigo_executavel;
 /// As regiões que a decomposição física já moveu, e o irmão onde passam a
 /// morar. Duas da BS-3 (#610), três da BS-2 (#612), sete da BS-1 (#615).
 const REGIOES_MOVIDAS: &[(&str, &str)] = &[
-    ("evidencia.backend-s.proveniencia-de-ponteiro", "tests.rs"),
-    ("evidencia.backend-s.selecao-de-rota-nativa", "tests.rs"),
+    ("evidence.backend-s.pointer-provenance", "tests.rs"),
+    ("evidence.backend-s.native-route-selection", "tests.rs"),
+    ("backend-s.rendering.textual-abi-program", "render_abi.rs"),
     (
-        "backend-s.renderizacao.abi-textual-programa",
+        "backend-s.rendering.textual-abi-instructions",
         "render_abi.rs",
     ),
     (
-        "backend-s.renderizacao.abi-textual-instrucoes",
+        "backend-s.rendering.textual-abi-components",
         "render_abi.rs",
     ),
+    ("backend-s.lowering.rodata-globals", "external_callconv.rs"),
     (
-        "backend-s.renderizacao.abi-textual-componentes",
-        "render_abi.rs",
-    ),
-    ("backend-s.lowering.globais-rodata", "external_callconv.rs"),
-    ("backend-s.lowering.funcoes-frames", "external_callconv.rs"),
-    (
-        "backend-s.lowering.blocos-terminadores",
+        "backend-s.lowering.functions-frames",
         "external_callconv.rs",
     ),
     (
-        "backend-s.lowering.operacoes-memoria",
+        "backend-s.lowering.blocks-terminators",
         "external_callconv.rs",
     ),
-    ("backend-s.lowering.chamadas-sysv", "external_callconv.rs"),
     (
-        "backend-s.lowering.objetos-trato-nativos",
+        "backend-s.lowering.memory-operations",
+        "external_callconv.rs",
+    ),
+    ("backend-s.lowering.sysv-calls", "external_callconv.rs"),
+    (
+        "backend-s.lowering.native-trato-objects",
         "external_callconv.rs",
     ),
     ("backend-s.lowering.falar-runtime", "external_callconv.rs"),
@@ -154,11 +154,11 @@ const MODULOS_MOVIDOS: &[&str] = &[
 /// a que vem antes e a que vem depois —, e são elas que ficariam vermelhas se
 /// o corte tivesse escorregado uma região para qualquer lado.
 const REGIOES_RETIDAS: &[&str] = &[
-    "backend-s.abi.registradores-argumentos",
-    "backend-s.renderizacao.callconv-programa",
-    "backend-s.dados.strings-rodata",
-    "backend-s.runtime.intrinsecas-por-aridade",
-    "backend-s.runtime.simbolos-intrinsecas",
+    "backend-s.abi.argument-registers",
+    "backend-s.rendering.program-callconv",
+    "backend-s.data.strings-rodata",
+    "backend-s.runtime.intrinsics-by-arity",
+    "backend-s.runtime.intrinsic-symbols",
 ];
 
 fn diretorio_dos_irmaos() -> PathBuf {

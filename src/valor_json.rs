@@ -24,10 +24,10 @@
 //! JSON_VALUE_IDENTITY != JSON_SOURCE_TEXT != PINKER_RUNTIME_REPRESENTATION
 //! ```
 
-// @pinker-nav:start json.identidade.nomes-publicos
-// @pinker-nav:domain dados
-// @pinker-nav:layer semantica
-// @pinker-nav:summary Nomes públicos da família JSON declarados uma única vez: o tipo do valor é handle opaco nominal reservado pelo runtime, o leque de classificação fixa a ordem de declaração que é o discriminante lido pela IR, e as duas identidades entram em `runtime_identity` — a reserva não vem do recipiente acidental em que cada uma é materializada.
+// @pinker-nav:start json.identity.public-names
+// @pinker-nav:domain data
+// @pinker-nav:layer semantic
+// @pinker-nav:summary Public names of the JSON family declared exactly once: the value's type is a nominal opaque handle reserved by the runtime, the classification leque fixes the declaration order that is the discriminant read by the IR, and both identities enter `runtime_identity` — the reservation does not come from the accidental container in which each one is materialized.
 pub use pinker_json_contract::{
     interpretar, serializar, NoJson, PoliticaValorJson, TabelaJson, TipoJson, LIMITE_PROFUNDIDADE,
 };
@@ -48,12 +48,12 @@ pub const LEQUE_TIPO_JSON: &str = "TipoJson";
 /// [`crate::tipo_entrada::VARIANTES`]. A tabela vive no contrato puro para que
 /// o runtime nativo espelhe os mesmos discriminantes sem redeclará-los.
 pub const VARIANTES: [&str; 6] = pinker_json_contract::VARIANTES;
-// @pinker-nav:end json.identidade.nomes-publicos
+// @pinker-nav:end json.identity.public-names
 
-// @pinker-nav:start json.superficie.nomes
-// @pinker-nav:domain dados
-// @pinker-nav:layer semantica
-// @pinker-nav:summary Nomes públicos da superfície JSON adulta declarados em um único lugar: a intrínseca falível de leitura vive em `falha_operacional`, e `intrinsecas` reúne emissão, classificação e acessores de verso, número, lógica, lista e objeto. `e_acessor` reconhece o conjunto por uma declaração só, para que nenhuma camada repita a lista de nomes.
+// @pinker-nav:start json.surface.names
+// @pinker-nav:domain data
+// @pinker-nav:layer semantic
+// @pinker-nav:summary Public names of the adult JSON surface declared in a single place: the fallible reading intrinsic lives in `falha_operacional`, and `intrinsecas` gathers emission, classification and the verso, number, logical, list and object accessors. `e_acessor` recognizes the set through a single declaration, so that no layer repeats the list of names.
 /// Nomes públicos das intrínsecas não falíveis da superfície JSON.
 ///
 /// A leitura falível não está aqui: ela pertence a
@@ -174,12 +174,12 @@ pub fn simbolo_runtime(nome: &str) -> Option<&'static str> {
     };
     Some(simbolo)
 }
-// @pinker-nav:end json.superficie.nomes
+// @pinker-nav:end json.surface.names
 
-// @pinker-nav:start evidencia.json.nomes-e-assinaturas
-// @pinker-nav:domain dados
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Evidência de que o conjunto de acessores é reconhecido por uma única declaração, de que a intrínseca falível pertence a outra autoridade e de que toda intrínseca declarada possui assinatura operacional — nenhuma camada pode registrar um nome sem tipo.
+// @pinker-nav:start evidence.json.names-and-signatures
+// @pinker-nav:domain data
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Evidence that the set of accessors is recognized by a single declaration, that the fallible intrinsic belongs to another authority and that every declared intrinsic has an operational signature — no layer can register a name without a type.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -247,4 +247,4 @@ mod tests {
         );
     }
 }
-// @pinker-nav:end evidencia.json.nomes-e-assinaturas
+// @pinker-nav:end evidence.json.names-and-signatures

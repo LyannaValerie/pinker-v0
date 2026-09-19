@@ -1,7 +1,7 @@
-// @pinker-nav:start evidencia.processos.fixture-stdin-valido
-// @pinker-nav:domain processos
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Fixture de processo controlado que le stdin ate o fim e devolve por codigo de saida se o conteudo recebido corresponde ao esperado no modo pedido, tornando a entrega de entrada observavel sem depender de stdout.
+// @pinker-nav:start evidence.processes.fixture-valid-stdin
+// @pinker-nav:domain processes
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Controlled-process fixture that reads stdin to the end and reports by exit code whether the content received matches the one expected in the requested mode, making input delivery observable without depending on stdout.
 use std::io::Read;
 use std::process::ExitCode;
 
@@ -37,4 +37,4 @@ fn main() -> ExitCode {
         _ => ExitCode::from(3),
     }
 }
-// @pinker-nav:end evidencia.processos.fixture-stdin-valido
+// @pinker-nav:end evidence.processes.fixture-valid-stdin

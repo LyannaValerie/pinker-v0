@@ -6,10 +6,10 @@
 //! `<membro>(...)`. Ambas resolvem, no parser, para a **identidade executiva já
 //! existente** — nenhuma camada a jusante aprende o que é uma família.
 
-// @pinker-nav:start familia.superficie.registro
-// @pinker-nav:domain importacoes
-// @pinker-nav:layer semantica
-// @pinker-nav:summary Autoridade única da superfície pública de intrínsecas: `FAMILIAS` fixa os quinze módulos built-in importáveis, `EXPORTACOES` liga cada par `(módulo, membro)` à identidade executiva que já existe, e `resolver` é o único lugar onde essa ligação é consultada — pelo parser, que canonicaliza a chamada antes de qualquer camada a jusante, e pela semântica, que diagnostica o import. Depois da #505 este registro não é mais um subconjunto da superfície pública: ele **é** a superfície pública, e toda intrínseca pública pertence a exatamente um módulo. O registro declara apenas ligação: assinatura, aridade, modelo de falha, política de follow e símbolo de runtime continuam sendo ditos por `semantic`, `falha_operacional` e `backend_s`, e nenhum deles é repetido aqui. A identidade é endereçada por `OperacaoFalivel` na superfície falível e pela grafia canônica no resto, e quem traduz grafia canônica em identidade é `intrinsics::identity`.
+// @pinker-nav:start family.surface.registry
+// @pinker-nav:domain imports
+// @pinker-nav:layer semantic
+// @pinker-nav:summary Single authority of the public intrinsics surface: `FAMILIAS` fixes the fifteen importable built-in modules, `EXPORTACOES` links each `(module, member)` pair to the executive identity that already exists, and `resolver` is the only place where that link is consulted — by the parser, which canonicalizes the call before any downstream layer, and by semantics, which diagnoses the import. Since #505 this registry is no longer a subset of the public surface: it **is** the public surface, and every public intrinsic belongs to exactly one module. The registry declares only the link: signature, arity, failure model, follow policy and runtime symbol are still stated by `semantic`, `falha_operacional` and `backend_s`, and none of them is repeated here. Identity is addressed by `OperacaoFalivel` on the fallible surface and by the canonical spelling everywhere else, and what translates a canonical spelling into an identity is `intrinsics::identity`.
 use crate::falha_operacional::{self, OperacaoFalivel};
 
 /// Módulos built-in que `trazer` aceita.
@@ -875,4 +875,4 @@ pub fn familias_disponiveis() -> String {
         .collect::<Vec<_>>()
         .join(", ")
 }
-// @pinker-nav:end familia.superficie.registro
+// @pinker-nav:end family.surface.registry

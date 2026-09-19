@@ -39,12 +39,12 @@
 //!
 //! Zero dependências externas.
 
-// @pinker-nav:start trama.cobertura.politica
+// @pinker-nav:start trama.coverage.policy
 // @pinker-nav:domain cartography-coverage
 // @pinker-nav:layer trama
 // @pinker-nav:symbol pinker_v0::nav_coverage::CoveragePolicy|CoveragePolicy|rust-type|declaration
 // @pinker-nav:symbol pinker_v0::nav_coverage::CoveragePolicy|CoveragePolicy|rust-type|implementation
-// @pinker-nav:summary Autoridade unica e versionada de escopo, excecao e disposicao da cobertura de cartografia: le o JSONL revisavel, exige que os escopos declarem exatamente as raizes oficiais com a categoria e o nivel de obrigacao fixados pelo contrato do codigo, de modo que nenhuma politica rebaixe uma raiz de producao, recusa excecao ampla por construcao ao aceitar somente caminho de arquivo exato com razao e condicao de revisao, e nunca aceita o catalogo derivado como autoridade.
+// @pinker-nav:summary Single versioned authority over the scope, exception and disposition of cartography coverage: it reads the reviewable JSONL, requires the scopes to declare exactly the official roots with the category and obligation level fixed by the code's contract, so that no policy can demote a production root, refuses a broad exception by construction by accepting only an exact file path with a reason and a review condition, and never accepts the derived catalog as an authority.
 use crate::jsonl::{self, JsonObject};
 use crate::nav::{
     self, official_scan_roots, official_source_files, relevant_source_lines, CodeIndex,
@@ -535,14 +535,14 @@ fn parse_disposition(object: &JsonObject, line: usize) -> Result<DispositionRule
         review: required_str(object, "review", line)?,
     })
 }
-// @pinker-nav:end trama.cobertura.politica
+// @pinker-nav:end trama.coverage.policy
 
-// @pinker-nav:start trama.cobertura.inventario
+// @pinker-nav:start trama.coverage.inventory
 // @pinker-nav:domain cartography-coverage
 // @pinker-nav:layer trama
 // @pinker-nav:symbol pinker_v0::nav_coverage::inventory|inventory|rust-function|declaration
 // @pinker-nav:symbol pinker_v0::nav_coverage::inventory|inventory|rust-function|implementation
-// @pinker-nav:summary Inventario corrente por arquivo derivado do universo fisico das raizes oficiais e nunca dos marcadores: publica regioes encontradas, intervalos cobertos, intervalos relevantes descobertos, completude e disposicao, preservando arquivo zero-ancora visivel e recusando tratar intersecao parcial como completude.
+// @pinker-nav:summary Current per-file inventory derived from the physical universe of the official roots and never from the markers: it publishes the regions found, the covered intervals, the relevant intervals discovered, completeness and disposition, preserving a visible zero-anchor file and refusing to treat a partial intersection as completeness.
 
 /// Intervalo de linhas 1-indexado e inclusivo.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -807,14 +807,14 @@ fn relevant_within(relevant: &[bool], interval: LineInterval) -> usize {
         .filter(|line| relevant.get(line - 1).copied().unwrap_or(false))
         .count()
 }
-// @pinker-nav:end trama.cobertura.inventario
+// @pinker-nav:end trama.coverage.inventory
 
-// @pinker-nav:start trama.cobertura.verificacao
+// @pinker-nav:start trama.coverage.verification
 // @pinker-nav:domain cartography-coverage
 // @pinker-nav:layer trama
 // @pinker-nav:symbol pinker_v0::nav_coverage::verify|verify|rust-function|declaration
 // @pinker-nav:symbol pinker_v0::nav_coverage::verify|verify|rust-function|implementation
-// @pinker-nav:summary Propriedade executavel da cobertura corrente sobre o inventario e a autoridade: arquivo de producao sem regiao e sem excecao falha, qualquer linha relevante fora de regiao falha sem rota de declaracao que a aceite, excecao obsoleta ou desnecessaria falha em vez de virar folga silenciosa, e chave com disposicao declarada nao pode ressuscitar no catalogo corrente.
+// @pinker-nav:summary Executable property of current coverage over the inventory and the authority: a production file without a region and without an exception fails, any relevant line outside a region fails with no declaration route that would accept it, an obsolete or unnecessary exception fails instead of becoming silent slack, and a key with a declared disposition cannot be resurrected in the current catalog.
 
 /// Violação da propriedade de cobertura corrente.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -963,12 +963,12 @@ pub fn verify(
     violations.sort();
     violations
 }
-// @pinker-nav:end trama.cobertura.verificacao
+// @pinker-nav:end trama.coverage.verification
 
-// @pinker-nav:start trama.cobertura.renderizacao
+// @pinker-nav:start trama.coverage.rendering
 // @pinker-nav:domain cartography-coverage
 // @pinker-nav:layer trama
-// @pinker-nav:summary Renderizadores humano e JSON deterministicos do inventario de cobertura, com ordem fixa, intervalos explicitos e caminhos repo-relativos, para que cobertura, descoberta e completude sejam auditaveis sem reexecutar a varredura.
+// @pinker-nav:summary Deterministic human and JSON renderers of the coverage inventory, with fixed order, explicit intervals and repo-relative paths, so that coverage, discovery and completeness are auditable without re-running the scan.
 
 /// Resumo agregado por raiz oficial.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1101,11 +1101,11 @@ pub(crate) fn render_intervals(intervals: &[LineInterval]) -> String {
     out.push(']');
     out
 }
-// @pinker-nav:end trama.cobertura.renderizacao
-// @pinker-nav:start evidencia.cobertura.autoridade-e-inventario
+// @pinker-nav:end trama.coverage.rendering
+// @pinker-nav:start evidence.coverage.authority-and-inventory
 // @pinker-nav:domain cartography-coverage
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Provas da autoridade e do inventario de cobertura: os escopos precisam declarar exatamente as raizes oficiais, excecao ampla e recusada na carga, excecao estreita exige razao e condicao de revisao, disposicao exige destino coerente com o tipo, registro de kind desconhecido nao e ignorado em silencio, intervalo descoberto e corrida maximal de linhas relevantes e intervalos cobertos sobrepostos sao unidos.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Proofs of the coverage authority and inventory: the scopes must declare exactly the official roots, a broad exception is refused at load time, a narrow exception requires a reason and a review condition, a disposition requires a destination coherent with its type, a record with an unknown kind is not silently ignored, a discovered interval is the maximal run of relevant lines and overlapping covered intervals are merged.
 
 #[cfg(test)]
 mod tests {
@@ -1224,4 +1224,4 @@ mod tests {
         assert_eq!(merged, vec![LineInterval { start: 1, end: 20 }]);
     }
 }
-// @pinker-nav:end evidencia.cobertura.autoridade-e-inventario
+// @pinker-nav:end evidence.coverage.authority-and-inventory

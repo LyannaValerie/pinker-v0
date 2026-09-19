@@ -8,10 +8,10 @@
 //! A separação é deliberada: um path lexicalmente válido ainda pode ser
 //! inseguro no disco, e prometer o contrário aqui seria enganoso.
 
-// @pinker-nav:start automation.paths.politica-lexical
+// @pinker-nav:start automation.paths.lexical-policy
 // @pinker-nav:domain paths
 // @pinker-nav:layer automation
-// @pinker-nav:summary Política lexical de paths repo-relativos (rejeita vazio, absoluto, travessia, componente degenerado, barra invertida, caractere de controle e excesso de comprimento) e allowlist lógica em memória, ordenada e sem duplicatas — sem qualquer acesso ao filesystem, cujo confinamento real pertence ao estágio de apply.
+// @pinker-nav:summary Lexical policy for repo-relative paths (rejects empty, absolute, traversal, degenerate component, backslash, control character and excess length) and a logical in-memory allowlist, ordered and without duplicates — with no filesystem access at all, whose real confinement belongs to the apply stage.
 use super::{PolicyCause, MAX_PATH_LEN};
 
 /// Um path repo-relativo já validado lexicalmente.
@@ -115,12 +115,12 @@ impl Allowlist {
         self.entries.is_empty()
     }
 }
-// @pinker-nav:end automation.paths.politica-lexical
+// @pinker-nav:end automation.paths.lexical-policy
 
-// @pinker-nav:start evidencia.automacao.caminhos
-// @pinker-nav:domain automacao
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Provas da politica lexica de caminho: aceita caminho repo-relativo bem formado, rejeita as formas invalidas (absoluto, travessia, componente estranho) e a allowlist e canonica e independe da ordem de declaracao.
+// @pinker-nav:start evidence.automation.paths
+// @pinker-nav:domain automation
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Proofs of the lexical path policy: it accepts a well-formed repo-relative path, rejects the invalid forms (absolute, traversal, foreign component) and the allowlist is canonical and independent of declaration order.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -166,4 +166,4 @@ mod tests {
         assert!(!a.permits(&RelativePath::new("c.md").unwrap()));
     }
 }
-// @pinker-nav:end evidencia.automacao.caminhos
+// @pinker-nav:end evidence.automation.paths

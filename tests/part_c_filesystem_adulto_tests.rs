@@ -9,10 +9,10 @@ use std::path::{Path, PathBuf};
 use std::process::Output;
 use std::time::Duration;
 
-// @pinker-nav:start evidencia.filesystem.parte-c-adulto
+// @pinker-nav:start evidence.filesystem.part-c-adult
 // @pinker-nav:domain filesystem
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Evidência da Parte C: enumeração determinística de entradas imediatas, classificação de tipo sem seguir symlink e metadata mínima atravessam `Resultado<T,E>` com paridade byte a byte entre interpretador e ELF nativo. A matriz cobre diretório vazio como sucesso, ordenação independente da ordem de criação, ocultos, as quatro classes de entrada incluindo `Outro` por socket real, nomes sem path, erro operacional distinto de coleção vazia, argumento symlink recusado, symlink interno para arquivo/diretório/alvo ausente, nome não representável em UTF-8 e composição com `propagar?`. Controles positivos impedem que a matriz passe por falhar em tudo, e a compatibilidade das superfícies históricas que **seguem** symlink é verificada lado a lado com as novas que não seguem. Depois do merge da Parte B1 (#475), um caso de integração prova que reinterpretar `Resultado` não inverte o significado de uma superfície da Parte C, com controles que separam as duas políticas: a reserva incondicional de `TipoEntrada` e a reserva condicional de `Resultado`.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Evidence for Part C: deterministic enumeration of immediate entries, type classification without following symlinks and minimal metadata all cross `Resultado<T,E>` with byte-for-byte parity between interpreter and native ELF. The matrix covers an empty directory as success, ordering independent of creation order, hidden entries, the four entry classes including `Outro` via a real socket, names without a path, an operational error distinct from an empty collection, a refused symlink argument, an internal symlink to a file/directory/missing target, a name not representable in UTF-8 and composition with `propagar?`. Positive controls prevent the matrix from passing by failing at everything, and the compatibility of the historical surfaces that **do** follow symlinks is verified side by side with the new ones that do not. After the Part B1 merge (#475), an integration case proves that reinterpreting `Resultado` does not invert the meaning of a Part C surface, with controls that separate the two policies: the unconditional reservation of `TipoEntrada` and the conditional reservation of `Resultado`.
 
 /// Enumeração pura: quantidade e nomes, um por linha.
 const FONTE_LISTAR: &str = r#"
@@ -1065,4 +1065,4 @@ fn fontes_rust(raiz: &Path, destino: &mut Vec<PathBuf>) {
     }
 }
 
-// @pinker-nav:end evidencia.filesystem.parte-c-adulto
+// @pinker-nav:end evidence.filesystem.part-c-adult

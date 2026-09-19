@@ -4,10 +4,10 @@ use common::{parse, parse_and_check};
 use pinker_v0::ast::{AssignTarget, ExprKind, Item, Stmt, Type};
 use pinker_v0::generic_identity::{specialization_name, GenericKind, GenericOrigin};
 
-// @pinker-nav:start evidencia.parser.ast-basica-e-spans
+// @pinker-nav:start evidence.parser.basic-ast-and-spans
 // @pinker-nav:domain parser
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Inspeciona a AST produzida pelo parser para a construção básica (função, if/else, atribuição, chamada) e a preservação de spans nos casos presentes.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Inspects the AST produced by the parser for the basic construction (function, if/else, assignment, call) and the preservation of spans in the cases present.
 #[test]
 fn parser_de_funcao_simples() {
     let program = parse("pacote main; carinho principal() -> bombom { mimo 0; }").unwrap();
@@ -343,12 +343,12 @@ fn fase244_parser_rejeita_tipo_objeto_sem_nome_de_trato() {
     );
 }
 
-// @pinker-nav:end evidencia.parser.ast-basica-e-spans
+// @pinker-nav:end evidence.parser.basic-ast-and-spans
 
-// @pinker-nav:start evidencia.parser.diagnostico-e-limites-literais
+// @pinker-nav:start evidence.parser.diagnostic-and-literal-limits
 // @pinker-nav:domain parser
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita o diagnóstico sintático (mensagem exata, assert_eq, via parse_and_check) e o limite de literal inteiro: u64::MAX é aceito e MAX+1 retorna erro (assert contains) sem panic.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises the syntactic diagnostic (exact message, assert_eq, via parse_and_check) and the integer literal limit: u64::MAX is accepted and MAX+1 returns an error (assert contains) without panicking.
 #[test]
 fn erro_sintatico_expected_vs_found_e_span() {
     let err = parse_and_check("pacote main; carinho principal() -> bombom { nova x = ; mimo 0; }")
@@ -367,12 +367,12 @@ fn parser_rejeita_literal_inteiro_acima_de_u64_sem_panico() {
         .to_string();
     assert!(err.contains("literal inteiro fora da faixa de bombom/u64"));
 }
-// @pinker-nav:end evidencia.parser.diagnostico-e-limites-literais
+// @pinker-nav:end evidence.parser.diagnostic-and-literal-limits
 
-// @pinker-nav:start evidencia.parser.controle-de-fluxo
+// @pinker-nav:start evidence.parser.control-flow
 // @pinker-nav:domain parser
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Inspeciona a AST de controle de fluxo: Stmt::While (sempre que) com spans e a presença de Stmt::Break/Continue dentro do laço nos casos presentes.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Inspects the control-flow AST: Stmt::While (`sempre que`) with spans and the presence of Stmt::Break/Continue inside the loop in the cases present.
 #[test]
 fn parser_de_sempre_que() {
     let code = "
@@ -447,12 +447,12 @@ fn parser_aceita_continuar_dentro_de_sempre_que() {
         _ => panic!("stmt esperado: continue"),
     }
 }
-// @pinker-nav:end evidencia.parser.controle-de-fluxo
+// @pinker-nav:end evidence.parser.control-flow
 
-// @pinker-nav:start evidencia.parser.desugaring-para-cada
+// @pinker-nav:start evidence.parser.para-cada-desugaring
 // @pinker-nav:domain parser
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Verifica o desugaring observado de 'para cada' para Stmt::While no próprio parser, nos casos de lista<bombom> e mapa<verso,bombom> presentes.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Checks the observed desugaring of `para cada` into Stmt::While in the parser itself, in the lista<bombom> and mapa<verso,bombom> cases present.
 #[test]
 fn parser_aceita_para_cada_em_lista_bombom() {
     let source = r#"
@@ -504,12 +504,12 @@ fn parser_aceita_para_cada_em_mapa_verso_bombom_sem_chave_por_indice_publica() {
         "para cada em mapa deve baixar para while no parser"
     );
 }
-// @pinker-nav:end evidencia.parser.desugaring-para-cada
+// @pinker-nav:end evidence.parser.para-cada-desugaring
 
-// @pinker-nav:start evidencia.parser.diretivas-topo-e-asm-inline
+// @pinker-nav:start evidence.parser.top-directives-and-inline-asm
 // @pinker-nav:domain parser
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita o inline assembly (sussurro com múltiplas strings -> Stmt::InlineAsm), o marcador freestanding (livre) e os imports (trazer): aceita no topo e rejeita fora do topo (assert contains, via parse_and_check), além de rejeitar sussurro sem string literal.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises inline assembly (sussurro with multiple strings -> Stmt::InlineAsm), the freestanding marker (livre) and the imports (trazer): it accepts them at the top level and rejects them outside it (assert contains, via parse_and_check), besides rejecting sussurro without a string literal.
 #[test]
 fn parser_aceita_sussurro_com_multiplas_strings() {
     let source = r#"
@@ -593,12 +593,12 @@ fn parser_rejeita_sussurro_sem_string_literal() {
     let err = parse_and_check(source).unwrap_err().to_string();
     assert!(err.contains("string literal em sussurro"));
 }
-// @pinker-nav:end evidencia.parser.diretivas-topo-e-asm-inline
+// @pinker-nav:end evidence.parser.top-directives-and-inline-asm
 
-// @pinker-nav:start evidencia.parser.tipos-qualificados-e-verso
+// @pinker-nav:start evidence.parser.qualified-types-and-verso
 // @pinker-nav:domain parser
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Inspeciona a AST de tipos qualificados (Type::Alias 'util.Pessoa') e do tipo verso com literal de string (ExprKind::StringLit) em assinaturas e locais nos casos presentes.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Inspects the AST of qualified types (Type::Alias 'util.Pessoa') and of the verso type with a string literal (ExprKind::StringLit) in signatures and locals in the cases present.
 #[test]
 fn parser_aceita_tipo_qualificado_em_assinatura_e_local() {
     let source = r#"
@@ -748,12 +748,12 @@ fn fase241_predeclarado_nao_materializa_sem_uso() {
     let program = parse(source).unwrap();
     assert!(nomes_de_leques_monomorfizados(&program).is_empty());
 }
-// @pinker-nav:end evidencia.parser.tipos-qualificados-e-verso
+// @pinker-nav:end evidence.parser.qualified-types-and-verso
 
-// @pinker-nav:start evidencia.parser.expressoes-e-precedencia
+// @pinker-nav:start evidence.parser.expressions-and-precedence
 // @pinker-nav:domain parser
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Inspeciona a AST de expressões: bitwise e lógicas produzem ExprKind::Binary, e a expressão com módulo confirma a precedência multiplicativa (Mod/Mul/Div) na árvore, nos casos presentes.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Inspects the AST of expressions: bitwise and logical ones produce ExprKind::Binary, and the expression with modulo confirms the multiplicative precedence (Mod/Mul/Div) in the tree, in the cases present.
 #[test]
 fn parser_aceita_expressao_com_bitwise_basico() {
     let code = "
@@ -833,12 +833,12 @@ fn parser_aceita_expressao_com_modulo_e_precedencia_multiplicativa() {
         _ => panic!("expressão esperada: binária"),
     }
 }
-// @pinker-nav:end evidencia.parser.expressoes-e-precedencia
+// @pinker-nav:end evidence.parser.expressions-and-precedence
 
-// @pinker-nav:start evidencia.parser.postfix-cast-deref-e-operadores-tipo
+// @pinker-nav:start evidence.parser.postfix-cast-deref-and-type-operators
 // @pinker-nav:domain parser
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Inspeciona a AST de expressões avançadas: cadeia postfix (Index/FieldAccess/Call), cast explícito (virar -> ExprKind::Cast), dereferência de leitura (*p -> Unary), atribuição indireta (*p = v -> AssignTarget::Deref) e os operadores de tipo peso/alinhamento (SizeOfType/AlignOfType), nos casos presentes.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Inspects the AST of advanced expressions: postfix chain (Index/FieldAccess/Call), explicit cast (virar -> ExprKind::Cast), read dereference (*p -> Unary), indirect assignment (*p = v -> AssignTarget::Deref) and the type operators peso/alinhamento (SizeOfType/AlignOfType), in the cases present.
 #[test]
 fn parser_aceita_cadeia_postfix_com_campo_e_indexacao() {
     let code = r#"
@@ -980,12 +980,12 @@ fn parser_aceita_peso_e_alinhamento_de_tipo() {
         _ => panic!("expressão esperada: binária"),
     }
 }
-// @pinker-nav:end evidencia.parser.postfix-cast-deref-e-operadores-tipo
+// @pinker-nav:end evidence.parser.postfix-cast-deref-and-type-operators
 
-// @pinker-nav:start evidencia.parser.tipos-numericos
+// @pinker-nav:start evidence.parser.numeric-types
 // @pinker-nav:domain parser
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Verifica que o parser aceita os tipos numéricos de largura fixa unsigned (u8..u64) e signed com negação (i8..i64) em assinaturas e locais, confirmando a contagem de itens nos casos presentes.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Checks that the parser accepts the unsigned (u8..u64) and signed with negation (i8..i64) fixed-width numeric types in signatures and locals, confirming the item count in the cases present.
 #[test]
 fn parser_aceita_tipos_unsigned_em_assinaturas_e_locais() {
     let source = r#"
@@ -1025,12 +1025,12 @@ fn parser_aceita_tipos_signed_em_assinaturas_e_locais_com_negacao() {
     let program = parse(source).expect("parser deve aceitar signed fixos");
     assert_eq!(program.items.len(), 5);
 }
-// @pinker-nav:end evidencia.parser.tipos-numericos
+// @pinker-nav:end evidence.parser.numeric-types
 
-// @pinker-nav:start evidencia.parser.aliases-arrays-e-structs
+// @pinker-nav:start evidence.parser.aliases-arrays-and-structs
 // @pinker-nav:domain parser
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Inspeciona a AST de aliases de tipo (Item::TypeAlias com array fixo e alias simples) e de declaração de struct (Item::Struct/ninho) nos casos presentes.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Inspects the AST of type aliases (Item::TypeAlias with a fixed array and a simple alias) and of struct declaration (Item::Struct/ninho) in the cases present.
 #[test]
 fn parser_aceita_tipo_array_fixo_em_alias_e_assinatura() {
     let source = r#"
@@ -1090,12 +1090,12 @@ fn parser_aceita_declaracao_de_ninho_e_uso_tipado() {
         _ => panic!("item esperado: struct"),
     }
 }
-// @pinker-nav:end evidencia.parser.aliases-arrays-e-structs
+// @pinker-nav:end evidence.parser.aliases-arrays-and-structs
 
-// @pinker-nav:start evidencia.parser.ponteiros-e-colecoes
+// @pinker-nav:start evidence.parser.pointers-and-collections
 // @pinker-nav:domain parser
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Inspeciona a AST de tipos ponteiro (Type::Pointer, incluindo fragil/is_volatile) e de coleções (Type::ListBombom, Type::MapVersoBombom) em aliases e assinaturas nos casos presentes.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Inspects the AST of pointer types (Type::Pointer, including fragil/is_volatile) and of collections (Type::ListBombom, Type::MapVersoBombom) in aliases and signatures in the cases present.
 #[test]
 fn parser_aceita_tipo_seta_em_alias_e_assinaturas() {
     let source = r#"
@@ -1170,4 +1170,4 @@ fn parser_aceita_tipo_mapa_verso_bombom_em_assinatura_e_local() {
         _ => panic!("item esperado: função"),
     }
 }
-// @pinker-nav:end evidencia.parser.ponteiros-e-colecoes
+// @pinker-nav:end evidence.parser.pointers-and-collections

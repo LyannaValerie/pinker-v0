@@ -6,10 +6,10 @@ use std::path::{Path, PathBuf};
 use std::process::Output;
 use std::time::Duration;
 
-// @pinker-nav:start evidencia.json.parte-e1-geral
-// @pinker-nav:domain dados
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Evidência da Parte E1 com paridade interpretador × ELF nativo em cada caso: a matriz numérica diagonal prova que a mesma gramática projeta `i64` no modelo adulto e `u64` no recorte plano histórico, inclusive `i64::MAX + 1` e `u64::MAX`, que o adulto recusa e o legado preserva no parse e na emissão; o nesting recursivo é atravessado pelo mesmo mecanismo em duas árvores de formatos diferentes; `null` é nó JSON de primeira classe sem escalar Pinker; Unicode, escapes e pares surrogate têm contrato próprio; chave duplicada, lixo à direita e acessor com tag errada recusam; JSON externo malformado atravessa `Resultado` por `tentar` e `propagar?`; a serialização de objeto é determinística por ordem de chave e não pela ordem de inserção; e um workflow real read-only lê um schema versionado do próprio repositório. O controle positivo garante que a matriz não passa por falhar em tudo.
+// @pinker-nav:start evidence.json.part-e1-general
+// @pinker-nav:domain data
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Evidence for Part E1 with interpreter × native ELF parity in every case: the diagonal numeric matrix proves that the same grammar projects `i64` in the adult model and `u64` in the historical flat slice, including `i64::MAX + 1` and `u64::MAX`, which the adult one refuses and the legacy one preserves in parsing and emission; recursive nesting is crossed by the same mechanism in two trees of different formats; `null` is a first-class JSON node with no Pinker scalar; Unicode, escapes and surrogate pairs have their own contract; a duplicate key, trailing garbage and an accessor with the wrong tag are refused; malformed external JSON crosses `Resultado` via `tentar` and `propagar?`; object serialization is deterministic by key order and not by insertion order; and a real read-only workflow reads a versioned schema from the repository itself. The positive control guarantees that the matrix does not pass by failing at everything.
 
 /// Modelo adulto: aceita, e o valor sai exato pela serialização.
 const FONTE_ADULTO: &str = r#"pacote main; trazer ambiente.argumento_ou; trazer arquivo.ler_caminho_verso; trazer json.emitir; trazer json.ler_resultado; trazer json.objeto_obter;
@@ -784,4 +784,4 @@ fn toda_intrinseca_json_possui_dono_nativo() {
             .expect("ler_json_resultado é superfície falível registrada");
     assert_eq!(superficie.simbolo_runtime, "pinker_json_ler_resultado");
 }
-// @pinker-nav:end evidencia.json.parte-e1-geral
+// @pinker-nav:end evidence.json.part-e1-general

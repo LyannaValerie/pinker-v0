@@ -5,10 +5,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-// @pinker-nav:start evidencia.modulos.validacao-de-corpo-sintetico-de-trato
-// @pinker-nav:domain modulos
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Prova comportamental da #566: a cobertura de validação semântica do corpo de um `impl` não depende da unidade física que o hospeda, e a checagem do corpo default vencido por override é endereçada pela identidade canônica do trato. A matriz cobre override e default, raiz e módulo, no par de equivalência que só troca a localização; tratos homônimos em unidades distintas validados de forma independente nas duas ordens; recusa de `impl` duplicado pela autoridade de contratos de trato, e não por choque de nome sintético; regressões da #517; e paridade interpretador/nativo. O oráculo de identidade é o símbolo `__trait_default_check_<n>_<módulo>.<trato>_...` observado na IR, não a ausência de mensagem.
+// @pinker-nav:start evidence.modules.validation-of-synthetic-trato-body
+// @pinker-nav:domain modules
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Behavioral proof of #566: the semantic validation coverage of an `impl` body does not depend on the physical unit hosting it, and the check of a default body overridden by an override is addressed by the trato's canonical identity. The matrix covers override and default, root and module, in the equivalence pair that only changes the location; same-named tratos in distinct units validated independently in both orders; refusal of a duplicate `impl` by the trato contract authority, and not by a clash of synthetic names; regressions for #517; and interpreter/native parity. The identity oracle is the symbol `__trait_default_check_<n>_<module>.<trato>_...` observed in the IR, not the absence of a message.
 
 /// Um caso é um conjunto de fontes; a primeira é a raiz.
 struct Caso {
@@ -630,4 +630,4 @@ fn modulos_homonimos(
     ]
 }
 
-// @pinker-nav:end evidencia.modulos.validacao-de-corpo-sintetico-de-trato
+// @pinker-nav:end evidence.modules.validation-of-synthetic-trato-body

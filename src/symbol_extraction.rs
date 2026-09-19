@@ -6,8 +6,8 @@
 //! **resolvido**. A autoridade de identidade continua sendo o contrato
 //! explícito de `symbol_index`.
 
-// @pinker-nav:start trama.simbolos.extracao
-// @pinker-nav:domain simbolos
+// @pinker-nav:start trama.symbols.extraction
+// @pinker-nav:domain symbols
 // @pinker-nav:layer trama
 // @pinker-nav:symbol pinker_v0::symbol_extraction::extend|extend|rust-function|declaration
 // @pinker-nav:symbol pinker_v0::symbol_extraction::extend|extend|rust-function|implementation
@@ -961,4 +961,4 @@ fn word_at(masked_line: &str, query: &str) -> Option<usize> {
 fn contains_word(masked_line: &str, query: &str) -> bool {
     word_at(masked_line, query).is_some()
 }
-// @pinker-nav:end trama.simbolos.extracao
+// @pinker-nav:end trama.symbols.extraction

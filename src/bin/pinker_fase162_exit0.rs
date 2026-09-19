@@ -1,8 +1,8 @@
-// @pinker-nav:start evidencia.processos.fixture-saida-zero
-// @pinker-nav:domain processos
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Fixture de processo controlado que termina imediatamente com codigo de saida 0, ancorando o caso de sucesso observavel da matriz de execucao nativa.
+// @pinker-nav:start evidence.processes.fixture-exit-zero
+// @pinker-nav:domain processes
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Controlled-process fixture that terminates immediately with exit code 0, anchoring the observable success case of the native execution matrix.
 fn main() {
     std::process::exit(0);
 }
-// @pinker-nav:end evidencia.processos.fixture-saida-zero
+// @pinker-nav:end evidence.processes.fixture-exit-zero

@@ -2,10 +2,10 @@ mod common;
 
 use common::parse_and_check;
 
-// @pinker-nav:start evidencia.semantica.entrada-principal
-// @pinker-nav:domain semantica
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita o contrato de `principal` e do modo `livre`: aceita `principal` válida e rejeita, nos casos presentes, `principal` sem bombom, com parâmetros e o modo livre sem entrada explícita.
+// @pinker-nav:start evidence.semantic.main-entry
+// @pinker-nav:domain semantic
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises the contract of `principal` and of `livre` mode: it accepts a valid `principal` and rejects, in the cases present, a `principal` without bombom, one with parameters and free mode without an explicit entry.
 #[test]
 fn principal_valida() {
     let code = "pacote main; carinho principal() -> bombom { mimo 0; }";
@@ -36,12 +36,12 @@ fn principal_invalida_com_parametros() {
         "Erro Semântico: a função 'principal' não deve ter parâmetros em 1:14..1:64"
     );
 }
-// @pinker-nav:end evidencia.semantica.entrada-principal
+// @pinker-nav:end evidence.semantic.main-entry
 
-// @pinker-nav:start evidencia.semantica.retornos
-// @pinker-nav:domain semantica
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Verifica nos casos presentes a exaustividade de retorno em if/else, a ausência de else, o retorno em bloco simples e o retorno incorreto de `principal`.
+// @pinker-nav:start evidence.semantic.returns
+// @pinker-nav:domain semantic
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Checks, in the cases present, return exhaustiveness in if/else, the absence of an else, the return in a simple block and the incorrect return of `principal`.
 #[test]
 fn retorno_exaustivo_com_if_else() {
     let code = "
@@ -104,12 +104,12 @@ fn principal_com_retorno_errado() {
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("retorno incompatível"));
 }
-// @pinker-nav:end evidencia.semantica.retornos
+// @pinker-nav:end evidence.semantic.returns
 
-// @pinker-nav:start evidencia.semantica.mutabilidade
-// @pinker-nav:domain semantica
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita aceitação e rejeição de mutação/atribuição nos dois casos presentes.
+// @pinker-nav:start evidence.semantic.mutability
+// @pinker-nav:domain semantic
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises acceptance and rejection of mutation/assignment in the two cases present.
 #[test]
 fn mutacao_valida() {
     let code = "
@@ -134,12 +134,12 @@ fn mutacao_invalida() {
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("não é mutável"));
 }
-// @pinker-nav:end evidencia.semantica.mutabilidade
+// @pinker-nav:end evidence.semantic.mutability
 
-// @pinker-nav:start evidencia.semantica.chamadas
-// @pinker-nav:domain semantica
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Verifica chamada válida e rejeita, nos casos presentes, aridade incorreta, tipo incorreto e função inexistente.
+// @pinker-nav:start evidence.semantic.calls
+// @pinker-nav:domain semantic
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Checks a valid call and rejects, in the cases present, incorrect arity, incorrect type and a nonexistent function.
 #[test]
 fn chamada_valida() {
     let code = "
@@ -177,12 +177,12 @@ fn chamada_de_funcao_inexistente() {
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("função 'desconhecida' não declarada"));
 }
-// @pinker-nav:end evidencia.semantica.chamadas
+// @pinker-nav:end evidence.semantic.calls
 
-// @pinker-nav:start evidencia.semantica.intrinsecas-entrada-ambiente
-// @pinker-nav:domain semantica
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Catálogo contíguo de intrínsecas de entrada, argumentos e ambiente (ouvir, argumento, tem_chave, pedir_argumento, ambiente, buscar_contexto): aceita a assinatura sem declaração e rejeita, nos casos presentes, aridade e tipos inválidos. Verifica aceitação/rejeição semântica de assinatura, não comportamento operacional.
+// @pinker-nav:start evidence.semantic.intrinsics-input-environment
+// @pinker-nav:domain semantic
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Contiguous catalog of input, argument and environment intrinsics (ouvir, argumento, tem_chave, pedir_argumento, ambiente, buscar_contexto): it accepts the signature without a declaration and rejects, in the cases present, invalid arity and types. It checks semantic acceptance/rejection of the signature, not operational behavior.
 #[test]
 fn ouvir_intrinseca_valida_sem_declaracao() {
     let code = "
@@ -367,12 +367,12 @@ fn buscar_contexto_intrinseca_rejeita_terceiro_argumento_nao_verso() {
     let err = parse_and_check(source).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 3 da chamada 'buscar_contexto'"));
 }
-// @pinker-nav:end evidencia.semantica.intrinsecas-entrada-ambiente
+// @pinker-nav:end evidence.semantic.intrinsics-input-environment
 
-// @pinker-nav:start evidencia.semantica.intrinsecas-caminhos-e-sistema
-// @pinker-nav:domain semantica
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Catálogo contíguo de intrínsecas de caminho e sistema de arquivos (caminho_existe, e_arquivo, e_diretorio, juntar_caminho, tamanho_arquivo, e_vazio, criar/remover diretório e arquivo, diretorio_atual): aceita assinatura sem declaração e rejeita casos de tipo/aridade presentes. Declaração de intrínseca não implica execução real de arquivos.
+// @pinker-nav:start evidence.semantic.intrinsics-paths-and-system
+// @pinker-nav:domain semantic
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Contiguous catalog of path and filesystem intrinsics (caminho_existe, e_arquivo, e_diretorio, juntar_caminho, tamanho_arquivo, e_vazio, create/remove directory and file, diretorio_atual): it accepts the signature without a declaration and rejects the type/arity cases present. Declaring an intrinsic does not imply real file execution.
 #[test]
 fn caminho_existe_intrinseca_valida_sem_declaracao() {
     let source = r#"
@@ -571,12 +571,12 @@ fn diretorio_atual_intrinseca_rejeita_aridade_diferente_de_zero() {
     let err = parse_and_check(source).unwrap_err().to_string();
     assert!(err.contains("chamada de 'diretorio_atual' com aridade inválida"));
 }
-// @pinker-nav:end evidencia.semantica.intrinsecas-caminhos-e-sistema
+// @pinker-nav:end evidence.semantic.intrinsics-paths-and-system
 
-// @pinker-nav:start evidencia.semantica.intrinsecas-argumentos-e-contexto
-// @pinker-nav:domain semantica
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Catálogo contíguo de intrínsecas de argumentos e contexto de invocação (quantos_argumentos, tem_argumento, tem_chave, pedir_argumento, tem_flag, buscar_contexto e legado nomeado): aceita assinatura sem declaração e rejeita aridade/tipo nos casos presentes.
+// @pinker-nav:start evidence.semantic.intrinsics-arguments-and-context
+// @pinker-nav:domain semantic
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Contiguous catalog of intrinsics for arguments and invocation context (quantos_argumentos, tem_argumento, tem_chave, pedir_argumento, tem_flag, buscar_contexto and the named legacy): it accepts the signature without a declaration and rejects arity/type in the cases present.
 #[test]
 fn quantos_argumentos_intrinseca_valida_sem_declaracao() {
     let code = "
@@ -677,12 +677,12 @@ fn legado_tem_argumento_nomeado_intrinseca_permanece_valido() {
         }"#;
     assert!(parse_and_check(code).is_ok());
 }
-// @pinker-nav:end evidencia.semantica.intrinsecas-argumentos-e-contexto
+// @pinker-nav:end evidence.semantic.intrinsics-arguments-and-context
 
-// @pinker-nav:start evidencia.semantica.intrinsecas-arquivos-io
-// @pinker-nav:domain semantica
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Catálogo contíguo de intrínsecas de E/S de arquivos e de saída de processo (sair, abrir/ler/fechar, ler_verso, escrever, criar_arquivo, abrir_anexo, anexar_verso, escrever_verso, truncar_arquivo): aceita assinatura sem declaração e rejeita aridade/tipo nos casos presentes. Aceitação de assinatura não é comportamento de runtime.
+// @pinker-nav:start evidence.semantic.intrinsics-files-io
+// @pinker-nav:domain semantic
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Contiguous catalog of file I/O and process-output intrinsics (sair, abrir/ler/fechar, ler_verso, escrever, criar_arquivo, abrir_anexo, anexar_verso, escrever_verso, truncar_arquivo): it accepts the signature without a declaration and rejects arity/type in the cases present. Signature acceptance is not runtime behavior.
 #[test]
 fn sair_intrinseca_valida_sem_declaracao() {
     let code = "
@@ -986,12 +986,12 @@ fn truncar_arquivo_intrinseca_rejeita_argumento_nao_bombom() {
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 1 da chamada 'truncar_arquivo'"));
 }
-// @pinker-nav:end evidencia.semantica.intrinsecas-arquivos-io
+// @pinker-nav:end evidence.semantic.intrinsics-files-io
 
-// @pinker-nav:start evidencia.semantica.intrinsecas-texto-e-estruturados
-// @pinker-nav:domain semantica
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Catálogo contíguo de intrínsecas de texto/verso e de dados estruturados (juntar, índice, contém, começa/termina, igual, vazio, aparar, minúsculo/maiúsculo, buscar, formatar, CSV, JSON, tempo_unix): aceita assinatura sem declaração e rejeita tipos/aridade nos casos presentes; formatar aceita aridade variável. Verifica a assinatura, não a formatação real.
+// @pinker-nav:start evidence.semantic.intrinsics-text-and-structured
+// @pinker-nav:domain semantic
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Contiguous catalog of text/verso and structured-data intrinsics (juntar, índice, contém, começa/termina, igual, vazio, aparar, minúsculo/maiúsculo, buscar, formatar, CSV, JSON, tempo_unix): it accepts the signature without a declaration and rejects types/arity in the cases present; formatar accepts variable arity. It checks the signature, not the real formatting.
 #[test]
 fn juntar_e_tamanho_verso_intrinsecas_validas_sem_declaracao() {
     let code = r#"
@@ -1406,12 +1406,12 @@ fn formatar_tempo_unix_intrinseca_rejeita_argumento_nao_bombom() {
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 1 da chamada 'formatar_tempo_unix'"));
 }
-// @pinker-nav:end evidencia.semantica.intrinsecas-texto-e-estruturados
+// @pinker-nav:end evidence.semantic.intrinsics-text-and-structured
 
-// @pinker-nav:start evidencia.semantica.intrinsecas-processos
-// @pinker-nav:domain semantica
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Catálogo contíguo de intrínsecas de processos (executar_processo, executar_com_entrada, pipeline_minimo, capturar_stdout/stderr) mais nao_vazio_verso: aceita assinatura sem declaração, aceita argv explícito mínimo e rejeita aridade/tipo nos casos presentes. Não executa processos reais.
+// @pinker-nav:start evidence.semantic.intrinsics-processes
+// @pinker-nav:domain semantic
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Contiguous catalog of process intrinsics (executar_processo, executar_com_entrada, pipeline_minimo, capturar_stdout/stderr) plus nao_vazio_verso: it accepts the signature without a declaration, accepts a minimal explicit argv and rejects arity/type in the cases present. It does not run real processes.
 #[test]
 fn executar_processo_intrinseca_valida_sem_declaracao() {
     let code = r#"
@@ -1714,12 +1714,12 @@ fn nao_vazio_verso_intrinseca_rejeita_argumento_nao_verso() {
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("tipo inválido no argumento 1 da chamada 'nao_vazio_verso'"));
 }
-// @pinker-nav:end evidencia.semantica.intrinsecas-processos
+// @pinker-nav:end evidence.semantic.intrinsics-processes
 
-// @pinker-nav:start evidencia.semantica.funcoes-sem-retorno
-// @pinker-nav:domain semantica
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita funções sem retorno e o tipo unitário: rejeita uso de função sem retorno em expressão, aceita/rejeita `verso` e `mimo` conforme o contexto e aceita chamada sem retorno como statement, nos casos presentes.
+// @pinker-nav:start evidence.semantic.functions-without-return
+// @pinker-nav:domain semantic
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises functions without a return and the unit type: it rejects the use of a function without a return in an expression, accepts/rejects `verso` and `mimo` depending on the context and accepts a call without a return as a statement, in the cases present.
 #[test]
 fn uso_de_funcao_sem_retorno_em_expressao() {
     let code = "
@@ -1804,12 +1804,12 @@ fn chamada_sem_retorno_valida_como_statement() {
         }";
     assert!(parse_and_check(code).is_ok());
 }
-// @pinker-nav:end evidencia.semantica.funcoes-sem-retorno
+// @pinker-nav:end evidence.semantic.functions-without-return
 
-// @pinker-nav:start evidencia.semantica.controle-fluxo-e-diagnostico
-// @pinker-nav:domain semantica
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita o formato previsível do diagnóstico semântico, controle de fluxo (`sempre_que`, `quebrar`, `continuar` fora de laço) e `sussurro`, aceitando e rejeitando os casos presentes.
+// @pinker-nav:start evidence.semantic.control-flow-and-diagnostic
+// @pinker-nav:domain semantic
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises the predictable format of the semantic diagnostic, control flow (`sempre_que`, `quebrar`, `continuar` outside a loop) and `sussurro`, accepting and rejecting the cases present.
 #[test]
 fn erro_semantico_tem_formato_previsivel() {
     let err = parse_and_check("pacote main; carinho principal() -> bombom { x = 1; mimo 0; }")
@@ -1887,12 +1887,12 @@ fn sussurro_invalido_com_string_vazia() {
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("não pode conter string vazia"));
 }
-// @pinker-nav:end evidencia.semantica.controle-fluxo-e-diagnostico
+// @pinker-nav:end evidence.semantic.control-flow-and-diagnostic
 
-// @pinker-nav:start evidencia.semantica.operadores-logicos-e-bitwise
-// @pinker-nav:domain semantica
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita operadores bitwise e lógicos: aceita uso sobre o tipo correto e rejeita a mistura com o tipo incorreto nos casos presentes.
+// @pinker-nav:start evidence.semantic.logical-and-bitwise-operators
+// @pinker-nav:domain semantic
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises bitwise and logical operators: it accepts use over the correct type and rejects mixing with the incorrect type in the cases present.
 #[test]
 fn bitwise_valido_em_bombom() {
     let code = "
@@ -1944,12 +1944,12 @@ fn logico_invalido_em_bombom() {
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("operação lógica requer operandos 'logica'"));
 }
-// @pinker-nav:end evidencia.semantica.operadores-logicos-e-bitwise
+// @pinker-nav:end evidence.semantic.logical-and-bitwise-operators
 
-// @pinker-nav:start evidencia.semantica.acesso-campos-e-indexacao
-// @pinker-nav:domain semantica
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita acesso a campo de ninho e indexação de array fixo: aceita casos válidos (incluindo base via deref de seta) e rejeita campo inexistente, base não-struct, índice não-inteiro, índice signed fora do subset e base não-array, nos casos presentes.
+// @pinker-nav:start evidence.semantic.field-access-and-indexing
+// @pinker-nav:domain semantic
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises ninho field access and fixed-array indexing: it accepts valid cases (including a base via seta deref) and rejects a nonexistent field, a non-struct base, a non-integer index, a signed index outside the subset and a non-array base, in the cases present.
 #[test]
 fn acesso_a_campo_de_ninho_valido() {
     let code = r#"
@@ -2036,12 +2036,12 @@ fn indexacao_em_base_nao_array_falha() {
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("indexação exige base de array fixo nesta fase"));
 }
-// @pinker-nav:end evidencia.semantica.acesso-campos-e-indexacao
+// @pinker-nav:end evidence.semantic.field-access-and-indexing
 
-// @pinker-nav:start evidencia.semantica.casts
-// @pinker-nav:domain semantica
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita casts entre inteiros e entre bombom e seta bombom, rejeitando cast de lógica para inteiro e de ponteiro não-bombom nesta fase, nos casos presentes.
+// @pinker-nav:start evidence.semantic.casts
+// @pinker-nav:domain semantic
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises casts between integers and between bombom and seta bombom, rejecting a cast from logica to an integer and from a non-bombom pointer at this phase, in the cases present.
 #[test]
 fn cast_inteiro_para_inteiro_valido() {
     let code = r#"
@@ -2099,12 +2099,12 @@ fn cast_ponteiro_nao_bombom_para_inteiro_falha_nesta_fase() {
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("cast explícito inválido nesta fase"));
 }
-// @pinker-nav:end evidencia.semantica.casts
+// @pinker-nav:end evidence.semantic.casts
 
-// @pinker-nav:start evidencia.semantica.peso-e-alinhamento
-// @pinker-nav:domain semantica
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita peso e alinhamento de tipos escalares, array fixo, alias e ninho, rejeitando peso de tipo inexistente nos casos presentes.
+// @pinker-nav:start evidence.semantic.peso-and-alinhamento
+// @pinker-nav:domain semantic
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises peso and alinhamento of scalar types, a fixed array, an alias and a ninho, rejecting peso of a nonexistent type in the cases present.
 #[test]
 fn peso_e_alinhamento_de_tipos_escalares_sao_validos() {
     let code = r#"
@@ -2151,12 +2151,12 @@ fn peso_de_tipo_inexistente_falha() {
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("tipo 'TipoQueNaoExiste' não existe"));
 }
-// @pinker-nav:end evidencia.semantica.peso-e-alinhamento
+// @pinker-nav:end evidence.semantic.peso-and-alinhamento
 
-// @pinker-nav:start evidencia.semantica.tipos-numericos-largura-fixa
-// @pinker-nav:domain semantica
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita inteiros de largura fixa: cast via alias, aceitação de unsigned/signed com tipos explícitos e rejeição de mistura implícita, nos casos presentes.
+// @pinker-nav:start evidence.semantic.fixed-width-numeric-types
+// @pinker-nav:domain semantic
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises fixed-width integers: a cast via alias, acceptance of unsigned/signed with explicit types and rejection of implicit mixing, in the cases present.
 #[test]
 fn cast_com_alias_inteiro_funciona_via_tipo_subjacente() {
     let code = r#"
@@ -2250,12 +2250,12 @@ fn signed_unsigned_rejeitam_mistura_implicita() {
         err
     );
 }
-// @pinker-nav:end evidencia.semantica.tipos-numericos-largura-fixa
+// @pinker-nav:end evidence.semantic.fixed-width-numeric-types
 
-// @pinker-nav:start evidencia.semantica.aliases-arrays-e-ninhos
-// @pinker-nav:domain semantica
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita aliases de tipo, arrays fixos e ninhos em assinatura/alias: aceita casos válidos e rejeita alias inexistente e array de tamanho zero, nos casos presentes.
+// @pinker-nav:start evidence.semantic.aliases-arrays-and-ninhos
+// @pinker-nav:domain semantic
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises type aliases, fixed arrays and ninhos in a signature/alias: it accepts valid cases and rejects a nonexistent alias and a zero-sized array, in the cases present.
 #[test]
 fn alias_de_tipo_valido_em_parametro_retorno_e_local() {
     let code = r#"
@@ -2319,12 +2319,12 @@ fn ninho_valido_em_assinatura_e_alias() {
     "#;
     assert!(parse_and_check(code).is_ok());
 }
-// @pinker-nav:end evidencia.semantica.aliases-arrays-e-ninhos
+// @pinker-nav:end evidence.semantic.aliases-arrays-and-ninhos
 
-// @pinker-nav:start evidencia.semantica.ponteiros-e-aritmetica
-// @pinker-nav:domain semantica
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita, via parse_and_check, ponteiros `seta`, `frágil seta`, dereferência, escrita indireta e aritmética de ponteiro: aceita os casos válidos desta fase e rejeita base inexistente, seta de seta, tipos não-bombom e combinações inválidas nos casos presentes; parte das rejeições de sintaxe de tipo (ex.: `frágil` fora de `seta`) é emitida já no parser, não pelo checker semântico.
+// @pinker-nav:start evidence.semantic.pointers-and-arithmetic
+// @pinker-nav:domain semantic
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises, via parse_and_check, `seta` pointers, `frágil seta`, dereference, indirect writing and pointer arithmetic: it accepts the valid cases of this phase and rejects a nonexistent base, a seta of seta, non-bombom types and invalid combinations in the cases present; part of the type-syntax refusals (e.g. `frágil` outside `seta`) is already emitted by the parser, not by the semantic checker.
 #[test]
 fn seta_valida_em_alias_array_struct_e_assinatura() {
     let code = r#"
@@ -2514,12 +2514,12 @@ fn aritmetica_ponteiro_ptr_ptr_falha_nesta_fase() {
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("exige 'seta<T> + bombom'"), "{}", err);
 }
-// @pinker-nav:end evidencia.semantica.ponteiros-e-aritmetica
+// @pinker-nav:end evidence.semantic.pointers-and-arithmetic
 
-// @pinker-nav:start evidencia.semantica.ninhos-diagnostico
-// @pinker-nav:domain semantica
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Rejeita, nos casos presentes, ninho com campo duplicado, tipo de campo inexistente e recursão direta.
+// @pinker-nav:start evidence.semantic.ninhos-diagnostic
+// @pinker-nav:domain semantic
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Rejects, in the cases present, a ninho with a duplicate field, a nonexistent field type and direct recursion.
 #[test]
 fn ninho_falha_com_campo_duplicado() {
     let code = r#"
@@ -2559,12 +2559,12 @@ fn ninho_falha_com_recursao_direta() {
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("recursão direta"), "{}", err);
 }
-// @pinker-nav:end evidencia.semantica.ninhos-diagnostico
+// @pinker-nav:end evidence.semantic.ninhos-diagnostic
 
-// @pinker-nav:start evidencia.semantica.aritmetica-modulo-e-literais
-// @pinker-nav:domain semantica
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita módulo (aceito em bombom, rejeitado em lógica) e limites de literais inteiros de largura fixa (u8/u16/i8 no limite e fora de range; bombom sem limite), nos casos presentes.
+// @pinker-nav:start evidence.semantic.modulo-arithmetic-and-literals
+// @pinker-nav:domain semantic
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises modulo (accepted on bombom, rejected on logica) and the limits of fixed-width integer literals (u8/u16/i8 at the limit and out of range; bombom without a limit), in the cases present.
 #[test]
 fn modulo_valido_em_bombom() {
     let code = "
@@ -2670,14 +2670,14 @@ fn literal_bombom_sem_limite_aceito() {
     "#;
     assert!(parse_and_check(code).is_ok());
 }
-// @pinker-nav:end evidencia.semantica.aritmetica-modulo-e-literais
+// @pinker-nav:end evidence.semantic.modulo-arithmetic-and-literals
 
 // ── Fase 148: escrita por índice em array fixo [bombom; N] ───────────────────
 
-// @pinker-nav:start evidencia.semantica.escrita-por-indice
-// @pinker-nav:domain semantica
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita escrita por índice em array fixo de bombom: aceita o caso válido e rejeita índice não-bombom, base não-array e valor não-bombom, nos casos presentes.
+// @pinker-nav:start evidence.semantic.indexed-write
+// @pinker-nav:domain semantic
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises indexed writing into a fixed array of bombom: it accepts the valid case and rejects a non-bombom index, a non-array base and a non-bombom value, in the cases present.
 #[test]
 fn escrita_por_indice_em_array_fixo_bombom_valida() {
     let code = r#"
@@ -2732,14 +2732,14 @@ fn escrita_por_indice_com_valor_nao_bombom_falha() {
         err
     );
 }
-// @pinker-nav:end evidencia.semantica.escrita-por-indice
+// @pinker-nav:end evidence.semantic.indexed-write
 
 // ── Fase 149: lista mínima homogênea de bombom ──────────────────────────────
 
-// @pinker-nav:start evidencia.semantica.listas
-// @pinker-nav:domain semantica
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita listas homogêneas de bombom (criar, anexar, obter, definir, tirar_ultimo): aceita casos válidos e rejeita tipo fora do recorte e valores/argumentos inválidos, nos casos presentes.
+// @pinker-nav:start evidence.semantic.lists
+// @pinker-nav:domain semantic
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises homogeneous lists of bombom (criar, anexar, obter, definir, tirar_ultimo): it accepts valid cases and rejects a type outside the slice and invalid values/arguments, in the cases present.
 #[test]
 fn lista_bombom_criar_anexar_obter_valida() {
     let code = r#"
@@ -2843,12 +2843,12 @@ fn lista_bombom_tirar_ultimo_rejeita_argumento_fora_do_recorte() {
         err
     );
 }
-// @pinker-nav:end evidencia.semantica.listas
+// @pinker-nav:end evidence.semantic.lists
 
-// @pinker-nav:start evidencia.semantica.mapas
-// @pinker-nav:domain semantica
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita mapas verso->bombom (criar, definir, obter, tem): aceita o caso válido e rejeita tipo fora do recorte, valor inválido e superfície não pública, nos casos presentes.
+// @pinker-nav:start evidence.semantic.maps
+// @pinker-nav:domain semantic
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises verso->bombom maps (criar, definir, obter, tem): it accepts the valid case and rejects a type outside the slice, an invalid value and a non-public surface, in the cases present.
 #[test]
 fn mapa_verso_bombom_criar_definir_obter_tem_valida() {
     let code = r#"
@@ -2915,12 +2915,12 @@ fn mapa_verso_bombom_chave_indice_nao_e_superficie_publica_na_fase155() {
         err
     );
 }
-// @pinker-nav:end evidencia.semantica.mapas
+// @pinker-nav:end evidence.semantic.maps
 
-// @pinker-nav:start evidencia.semantica.acaso
-// @pinker-nav:domain semantica
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita intrínsecas de aleatoriedade com semente explícita: aceita o caso básico e rejeita semente não-bombom, aridade inválida e a API ampla fora do recorte, nos casos presentes.
+// @pinker-nav:start evidence.semantic.acaso
+// @pinker-nav:domain semantic
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises randomness intrinsics with an explicit seed: it accepts the basic case and rejects a non-bombom seed, invalid arity and the broad API outside the slice, in the cases present.
 #[test]
 fn aleatorio_basico_com_semente_explicita_valida_sem_declaracao() {
     let code = r#"
@@ -2983,14 +2983,14 @@ fn api_ampla_de_aleatoriedade_permanece_fora_do_recorte() {
         err
     );
 }
-// @pinker-nav:end evidencia.semantica.acaso
+// @pinker-nav:end evidence.semantic.acaso
 
 // ── Fases 186–189 — importação por família: `tempo`, `ambiente`, `acaso` e `texto` ──
 
-// @pinker-nav:start evidencia.semantica.imports-por-familia
-// @pinker-nav:domain semantica
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita importação por família via `trazer` (tempo, ambiente, acaso, texto, arquivo, caminho, processo) e o acesso legado global sem trazer, rejeitando família desconhecida e membro que a família não exporta, nos casos presentes. Importação aceita não implica uso real do símbolo. A superfície por família em si — grafias qualificada e seletiva, canonicalização e paridade — tem evidência própria em `tests/part_g_familia_superficie_tests.rs`.
+// @pinker-nav:start evidence.semantic.imports-by-family
+// @pinker-nav:domain semantic
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises import by family via `trazer` (tempo, ambiente, acaso, texto, arquivo, caminho, processo) and the legacy global access without trazer, rejecting an unknown family and a member the family does not export, in the cases present. An accepted import does not imply real use of the symbol. The per-family surface itself — qualified and selective spellings, canonicalization and parity — has its own evidence in `tests/part_g_familia_superficie_tests.rs`.
 #[test]
 fn trazer_tempo_familia_aceita() {
     let code = r#"
@@ -3279,12 +3279,12 @@ fn trazer_seletivo_de_membro_aprovado_e_aceito() {
     "#;
     assert!(parse_and_check(code).is_ok());
 }
-// @pinker-nav:end evidencia.semantica.imports-por-familia
+// @pinker-nav:end evidence.semantic.imports-by-family
 
-// @pinker-nav:start evidencia.semantica.leques-simples
-// @pinker-nav:domain semantica
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita leques nominais simples: declaração e uso, parâmetro/retorno, `escolha` por variante e `virar bombom`; rejeita tipos nominais diferentes, comparação entre leques distintos, variante inexistente, conversão implícita, ordem, variante duplicada, leque vazio e colisão com ninho, nos casos presentes.
+// @pinker-nav:start evidence.semantic.simple-leques
+// @pinker-nav:domain semantic
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises simple nominal leques: declaration and use, parameter/return, `escolha` by variant and `virar bombom`; it rejects different nominal types, comparison between distinct leques, a nonexistent variant, implicit conversion, order, a duplicate variant, an empty leque and collision with a ninho, in the cases present.
 #[test]
 fn leque_declaracao_e_uso_nominal_aceitos() {
     let code = r#"
@@ -3460,12 +3460,12 @@ fn leque_nome_colide_com_ninho_rejeitado() {
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("já utilizado"), "{}", err);
 }
-// @pinker-nav:end evidencia.semantica.leques-simples
+// @pinker-nav:end evidence.semantic.simple-leques
 
-// @pinker-nav:start evidencia.semantica.leques-com-carga
-// @pinker-nav:domain semantica
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita leques com carga: construção e encaixe, parâmetro/retorno; rejeita tipo/aridade errados, variante com carga sem construção, variante sem carga com chamada, igualdade, virar e tipo de carga não suportado, nos casos presentes.
+// @pinker-nav:start evidence.semantic.leques-with-payload
+// @pinker-nav:domain semantic
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises leques with a payload: construction and encaixe, parameter/return; it rejects wrong type/arity, a variant with a payload without construction, a variant without a payload with a call, equality, virar and an unsupported payload type, in the cases present.
 #[test]
 fn leque_carga_construcao_e_encaixe_aceitos() {
     let code = r#"
@@ -3614,12 +3614,12 @@ fn leque_carga_tipo_nao_suportado_rejeitado() {
         err
     );
 }
-// @pinker-nav:end evidencia.semantica.leques-com-carga
+// @pinker-nav:end evidence.semantic.leques-with-payload
 
-// @pinker-nav:start evidencia.semantica.encaixe-e-bindings
-// @pinker-nav:domain semantica
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita, via parse_and_check, `encaixe`: exaustividade com/sem `senão`, bindings em variantes com/sem carga, leque não declarado, mistura de leques, escrutínio de tipo errado e variante repetida, nos casos presentes; algumas rejeições (ex.: mistura de leques) surgem já no parse/desugaring de `encaixe`, outras no checker.
+// @pinker-nav:start evidence.semantic.encaixe-and-bindings
+// @pinker-nav:domain semantic
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises, via parse_and_check, `encaixe`: exhaustiveness with/without `senão`, bindings in variants with/without a payload, an undeclared leque, mixing of leques, a wrongly typed scrutinee and a repeated variant, in the cases present; some refusals (e.g. mixing of leques) already arise in the parse/desugaring of `encaixe`, others in the checker.
 #[test]
 fn encaixe_nao_exaustivo_sem_senao_rejeitado() {
     let code = r#"
@@ -3761,12 +3761,12 @@ fn encaixe_variante_repetida_rejeitada() {
     let err = parse_and_check(code).unwrap_err().to_string();
     assert!(err.contains("repetida"), "{}", err);
 }
-// @pinker-nav:end evidencia.semantica.encaixe-e-bindings
+// @pinker-nav:end evidence.semantic.encaixe-and-bindings
 
-// @pinker-nav:start evidencia.semantica.leques-recursivos-e-multiplas-cargas
-// @pinker-nav:domain semantica
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita leques recursivos, mutuamente recursivos e com múltiplas cargas, além de bindings de encaixe correlatos; rejeita carga de leque errado, aridade errada e tipo de carga desconhecido, nos casos presentes.
+// @pinker-nav:start evidence.semantic.recursive-leques-and-multiple-payloads
+// @pinker-nav:domain semantic
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises recursive, mutually recursive and multi-payload leques, besides the related encaixe bindings; it rejects a payload of the wrong leque, wrong arity and an unknown payload type, in the cases present.
 #[test]
 fn leque_recursivo_aceito() {
     let code = r#"
@@ -3888,12 +3888,12 @@ fn leque_carga_de_tipo_desconhecido_rejeitada() {
         err
     );
 }
-// @pinker-nav:end evidencia.semantica.leques-recursivos-e-multiplas-cargas
+// @pinker-nav:end evidence.semantic.recursive-leques-and-multiple-payloads
 
-// @pinker-nav:start evidencia.semantica.genericos
-// @pinker-nav:domain semantica
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita coleções e funções genéricas (lista e mapa genéricos, impl homônimos, função genérica de usuário, para_cada, monomorfização legada): aceita casos válidos e rejeita tipo incompatível, elemento de outro leque, não-leque, ausência de anotação e criação fora de `nova`, nos casos presentes. Vários casos usam exemplos por include_str!, observados como casos exemplares.
+// @pinker-nav:start evidence.semantic.generics
+// @pinker-nav:domain semantic
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises generic collections and functions (generic lista and mapa, same-named impls, a user generic function, para_cada, legacy monomorphization): it accepts valid cases and rejects an incompatible type, an element of another leque, a non-leque, a missing annotation and creation outside `nova`, in the cases present. Several cases use examples via include_str!, observed as exemplary cases.
 #[test]
 fn lista_generica_de_leque_aceita() {
     let code = r#"
@@ -4128,12 +4128,12 @@ fn lista_generica_nao_aceita_intrinseca_monomorphizada_de_bombom() {
     "#;
     assert!(parse_and_check(code).is_err());
 }
-// @pinker-nav:end evidencia.semantica.genericos
+// @pinker-nav:end evidence.semantic.generics
 
-// @pinker-nav:start evidencia.semantica.tratamento-de-erro
-// @pinker-nav:domain semantica
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita, via parse_and_check, tratamento estruturado de erro (`encaixe` em leque sem carga, `tentar`, `propagar` e propagar curto): aceita casos válidos e rejeita sucesso/falha ausentes, falha ambígua e variantes indistintas, nos casos presentes; as rejeições de forma de `tentar`/`propagar` são emitidas no desugaring do parser, não pelo checker. Casos usam include_str! como exemplos observados.
+// @pinker-nav:start evidence.semantic.error-handling
+// @pinker-nav:domain semantic
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises, via parse_and_check, structured error handling (`encaixe` on a payload-free leque, `tentar`, `propagar` and short propagate): it accepts valid cases and rejects a missing success/failure, an ambiguous failure and indistinct variants, in the cases present; the refusals about the form of `tentar`/`propagar` are emitted in the parser's desugaring, not by the checker. The cases use include_str! as observed examples.
 #[test]
 fn encaixe_em_leque_sem_carga_aceito() {
     let code = r#"
@@ -4230,12 +4230,12 @@ fn propagar_exige_variantes_distintas() {
         err
     );
 }
-// @pinker-nav:end evidencia.semantica.tratamento-de-erro
+// @pinker-nav:end evidence.semantic.error-handling
 
-// @pinker-nav:start evidencia.semantica.funcoes-locais-e-carinho
-// @pinker-nav:domain semantica
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita, via parse_and_check, funções locais e carinho anônimo não capturante, função como valor, parâmetro estático e leque genérico de resultado: aceita casos válidos e rejeita aridade de tipo inválida, assinatura incompatível, tipo incompatível e captura de escopo externo, nos casos presentes; parte das rejeições (ex.: tipo de função local incompatível) é emitida já no parser. Casos usam include_str! como exemplos observados.
+// @pinker-nav:start evidence.semantic.functions-locals-and-carinho
+// @pinker-nav:domain semantic
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises, via parse_and_check, local functions and non-capturing anonymous carinho, a function as a value, a static parameter and a generic result leque: it accepts valid cases and rejects invalid type arity, an incompatible signature, an incompatible type and capture of an outer scope, in the cases present; part of the refusals (e.g. an incompatible local function type) is already emitted by the parser. The cases use include_str! as observed examples.
 #[test]
 fn carinho_anonimo_nao_capturante_aceito() {
     let code = include_str!("../examples/fase225_carinho_anonimo_valido.pink");
@@ -4660,12 +4660,12 @@ fn fase242_regressao_fase239_ainda_aceita_e_rejeita_igual() {
         "erro inesperado: {err}"
     );
 }
-// @pinker-nav:end evidencia.semantica.funcoes-locais-e-carinho
+// @pinker-nav:end evidence.semantic.functions-locals-and-carinho
 
-// @pinker-nav:start evidencia.semantica.closures-captura-imutavel
-// @pinker-nav:domain semantica
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Fase 243: exercita, via parse_and_check, closures com captura imutável por valor (`carinho(...) {...}` referenciado como valor, nunca chamado imediatamente): aceita captura simples e múltipla, sombreamento por parâmetro e por local, closure aninhada capturando do avô léxico e closure passada como argumento; rejeita atribuição a captura e captura de tipo maior que uma palavra (ninho por valor), nos casos presentes. O idioma de chamada imediata (`carinho(...) {...}(x)`, Fase 225) permanece não capturante mesmo referenciando escopo externo — regressão coberta em `carinho_anonimo_nao_captura_escopo_externo`.
+// @pinker-nav:start evidence.semantic.closures-immutable-capture
+// @pinker-nav:domain semantic
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Phase 243: exercises, via parse_and_check, closures with immutable capture by value (`carinho(...) {...}` referenced as a value, never called immediately): it accepts simple and multiple capture, shadowing by a parameter and by a local, a nested closure capturing from the lexical grandparent and a closure passed as an argument; it rejects assignment to a capture and capture of a type larger than one word (ninho by value), in the cases present. The immediate-call idiom (`carinho(...) {...}(x)`, Phase 225) remains non-capturing even when referencing an outer scope — a regression covered in `carinho_anonimo_nao_captura_escopo_externo`.
 #[test]
 fn fase243_closure_captura_imutavel_aceita() {
     let code = include_str!("../examples/fase243_closure_captura_imutavel_valido.pink");
@@ -4917,12 +4917,12 @@ fn fase244_followup_callable_rejeita_retorno_de_trato_nominal_incompativel() {
     );
 }
 
-// @pinker-nav:end evidencia.semantica.closures-captura-imutavel
+// @pinker-nav:end evidence.semantic.closures-immutable-capture
 
-// @pinker-nav:start evidencia.semantica.tratos-e-impls
-// @pinker-nav:domain semantica
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita tratos e impls (função compatível e chamada de método, receiver explícito, resolução nominal, ninho nominal, cobertura completa, múltiplos contratos): aceita casos válidos e rejeita receiver de tipo errado, método faltante e método extra, nos casos presentes. Casos usam include_str! como exemplos observados.
+// @pinker-nav:start evidence.semantic.tratos-and-impls
+// @pinker-nav:domain semantic
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises tratos and impls (compatible function and method call, explicit receiver, nominal resolution, nominal ninho, full coverage, multiple contracts): it accepts valid cases and rejects a wrongly typed receiver, a missing method and an extra method, in the cases present. The cases use include_str! as observed examples.
 #[test]
 fn trato_com_funcao_compativel_e_chamada_metodo_aceito() {
     let code = include_str!("../examples/fase226_trato_metodo_valido.pink");
@@ -5048,12 +5048,12 @@ fn impl_trato_exige_trato_declarado_antes() {
         "erro inesperado: {err}"
     );
 }
-// @pinker-nav:end evidencia.semantica.tratos-e-impls
+// @pinker-nav:end evidence.semantic.tratos-and-impls
 
-// @pinker-nav:start evidencia.semantica.objetos-trato-fase244
-// @pinker-nav:domain semantica
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita a semântica nominal dos objetos de trato da Fase 244: receiver contextual `si`, materialização por `virar`, object safety, impls e coerções; preserva callables compatíveis em reatribuições condicionais e rejeita braços não-callable, retornos incompatíveis, tratos distintos e igualdade pública.
+// @pinker-nav:start evidence.semantic.trato-objects-phase244
+// @pinker-nav:domain semantic
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises the nominal semantics of Phase 244 trato objects: the contextual receiver `si`, materialization via `virar`, object safety, impls and coercions; it preserves compatible callables in conditional reassignments and rejects non-callable arms, incompatible returns, distinct tratos and public equality.
 
 #[test]
 fn fase244_semantica_aceita_objetos_do_mesmo_trato_para_tipos_distintos() {
@@ -5797,4 +5797,4 @@ fn fase244_reatribuicao_condicional_de_callable_valida_bracos_e_preserva_regress
     );
 }
 
-// @pinker-nav:end evidencia.semantica.objetos-trato-fase244
+// @pinker-nav:end evidence.semantic.trato-objects-phase244

@@ -3,9 +3,9 @@
 //! #601 (Task #621).
 //!
 //! Só o arquivo mudou: o `impl FunctionLowerer` inteiro — as cinco regiões
-//! cartografadas `ir.lowering.funcoes-blocos`, `ir.lowering.comandos-controle`,
-//! `ir.lowering.expressoes-valores`, `ir.lowering.bindings-escopos` e
-//! `ir.lowering.constantes` —, os quarenta e seis corpos que as compõem e a
+//! cartografadas `ir.lowering.functions-blocks`, `ir.lowering.control-commands`,
+//! `ir.lowering.expression-values`, `ir.lowering.bindings-scopes` e
+//! `ir.lowering.constants` —, os quarenta e seis corpos que as compõem e a
 //! ordem em que decidem continuam exatamente como estavam. `super` mudou de
 //! significado ao descer um nível, e o `use` abaixo devolve ao irmão o
 //! vocabulário do pai — `FunctionLowerer`, `LoweringContext`, os tipos da AST,
@@ -29,10 +29,10 @@
 //! `lower_function` e `lower_const` são os três símbolos que o pai chama e, por
 //! isso, os únicos que passaram de privados a `pub(super)`.
 
-// @pinker-nav:start ir.lowering.funcoes-blocos
+// @pinker-nav:start ir.lowering.functions-blocks
 // @pinker-nav:domain lowering
 // @pinker-nav:layer ir
-// @pinker-nav:summary Configuração do `FunctionLowerer` e lowering de funções/blocos estruturados: aloca parâmetros e preserva metadados nominais/estruturais de callables, ponteiros crus e pointees de ponteiros de dados em aliases, retornos, ternários, chamadas por expressão e capturas de closure. Inclui resolvedores de método de `impl` direto e qualificado por trato; o direto só constrói candidatos da visão derivada e delega o veredito a `method_dispatch`, a mesma autoridade que a semântica consulta, e o qualificado nomeia o trato e continua sendo consulta de identidade, correspondida desde a #647 por `method_identity`, autoridade única das três componentes da identidade, com a IR trazendo só o índice e a tradução para `Option`; preserva a estrutura aninhada, sem ainda dividir o fluxo em CFG.
+// @pinker-nav:summary Configuration of the `FunctionLowerer` and lowering of functions/structured blocks: it allocates parameters and preserves nominal/structural metadata of callables, raw pointers and data-pointer pointees in aliases, returns, ternaries, calls by expression and closure captures. It includes resolvers for direct `impl` methods and for methods qualified by trato; the direct one only builds candidates from the derived view and delegates the verdict to `method_dispatch`, the same authority semantics consults, and the qualified one names the trato and is still an identity lookup, matched since #647 by `method_identity`, the single authority over the three components of the identity, with the IR carrying only the index and the translation into `Option`; it preserves the nested structure, without yet splitting the flow into a CFG.
 use super::*;
 
 impl<'a> FunctionLowerer<'a> {
@@ -1377,12 +1377,12 @@ impl<'a> FunctionLowerer<'a> {
             span: block.span,
         })
     }
-    // @pinker-nav:end ir.lowering.funcoes-blocos
+    // @pinker-nav:end ir.lowering.functions-blocks
 
-    // @pinker-nav:start ir.lowering.comandos-controle
+    // @pinker-nav:start ir.lowering.control-commands
     // @pinker-nav:domain lowering
     // @pinker-nav:layer ir
-    // @pinker-nav:summary Abaixa comandos AST de um bloco para `InstructionIR`: despacho de `Stmt`, declaração local (`nova`/`muda`, incluindo o desvio de `lista_criar`/`mapa_criar` para o criar monomórfico anotado), atribuição a slot/deref/campo/índice, retorno (`mimo`), `falar`, asm inline, e o controle estruturado `talvez`/`senão` e `sempre que` com `quebrar`/`continuar` carregando destinos simbólicos de laço. Preserva spans; `if`/`while` continuam com blocos filhos — a divisão em blocos básicos ocorre depois em `cfg_ir`.
+    // @pinker-nav:summary Lowers AST statements of a block into `InstructionIR`: `Stmt` dispatch, local declaration (`nova`/`muda`, including the diversion of `lista_criar`/`mapa_criar` into the annotated monomorphic creator), assignment to slot/deref/field/index, return (`mimo`), `falar`, inline asm, and the structured control `talvez`/`senão` and `sempre que` with `quebrar`/`continuar` carrying symbolic loop targets. It preserves spans; `if`/`while` still have child blocks — the split into basic blocks happens later in `cfg_ir`.
     fn lower_stmt(&mut self, stmt: &Stmt) -> Result<InstructionIR, PinkerError> {
         match stmt {
             Stmt::Let(let_stmt) => self.lower_let(let_stmt),
@@ -2194,12 +2194,12 @@ impl<'a> FunctionLowerer<'a> {
             span: break_stmt.span,
         })
     }
-    // @pinker-nav:end ir.lowering.comandos-controle
+    // @pinker-nav:end ir.lowering.control-commands
 
-    // @pinker-nav:start ir.lowering.expressoes-valores
+    // @pinker-nav:start ir.lowering.expression-values
     // @pinker-nav:domain lowering
     // @pinker-nav:layer ir
-    // @pinker-nav:summary Grande despachante que abaixa expressões AST para `TypedValueIR` (valor, representação e identidade resolvida): literais, bindings/globais, operadores, dereferência, chamadas, métodos, intrínsecas genéricas, construção/leitura de leque, campos, índices, cast, `peso` e `alinhamento`. Operações de lista/mapa que devolvem elemento preservam a identidade exata do container, inclusive leques representados como `bombom`; não executa nem seleciona instruções de máquina.
+    // @pinker-nav:summary Large dispatcher that lowers AST expressions into `TypedValueIR` (value, representation and resolved identity): literals, bindings/globals, operators, dereference, calls, methods, generic intrinsics, leque construction/reading, fields, indexes, cast, `peso` and `alinhamento`. List/map operations that return an element preserve the container's exact identity, including leques represented as `bombom`; it neither executes nor selects machine instructions.
     fn lower_value(&mut self, expr: &Expr) -> Result<TypedValueIR, PinkerError> {
         match &expr.kind {
             ExprKind::IntLit(value) => Ok(TypedValueIR {
@@ -3487,12 +3487,12 @@ impl<'a> FunctionLowerer<'a> {
         }
     }
 
-    // @pinker-nav:end ir.lowering.expressoes-valores
+    // @pinker-nav:end ir.lowering.expression-values
 
-    // @pinker-nav:start ir.lowering.bindings-escopos
+    // @pinker-nav:start ir.lowering.bindings-scopes
     // @pinker-nav:domain lowering
     // @pinker-nav:layer ir
-    // @pinker-nav:summary Normalização de nomes-fonte em slots e gestão de escopos léxicos: `allocate_binding` gera `%nome#N` (contador por nome-fonte), registra o binding no escopo atual e coleta `LocalIR`; a resolução sobe a pilha de escopos; e os rótulos de bloco/laço são gerados aqui. Slots são nomes normalizados desta camada — não são SSA nem registradores físicos de máquina.
+    // @pinker-nav:summary Normalization of source names into slots and management of lexical scopes: `allocate_binding` generates `%name#N` (a counter per source name), registers the binding in the current scope and collects `LocalIR`; resolution walks up the scope stack; and the block/loop labels are generated here. Slots are normalized names of this layer — they are neither SSA nor physical machine registers.
     fn allocate_binding(
         &mut self,
         source_name: &str,
@@ -3576,12 +3576,12 @@ impl<'a> FunctionLowerer<'a> {
         self.scopes.pop();
     }
 }
-// @pinker-nav:end ir.lowering.bindings-escopos
+// @pinker-nav:end ir.lowering.bindings-scopes
 
-// @pinker-nav:start ir.lowering.constantes
+// @pinker-nav:start ir.lowering.constants
 // @pinker-nav:domain lowering
 // @pinker-nav:layer ir
-// @pinker-nav:summary Abaixa uma constante global: cria um `FunctionLowerer` mínimo para o inicializador, abaixa o valor e o tipo declarado e monta `ConstIR`. Consome o contexto já preparado; não valida o inicializador (a semântica já o fez).
+// @pinker-nav:summary Lowers a global constant: it creates a minimal `FunctionLowerer` for the initializer, lowers the value and the declared type and assembles `ConstIR`. It consumes the already prepared context; it does not validate the initializer (semantics already did).
 pub(super) fn lower_const(
     const_decl: &ConstDecl,
     context: &LoweringContext,
@@ -3595,4 +3595,4 @@ pub(super) fn lower_const(
         span: const_decl.span,
     })
 }
-// @pinker-nav:end ir.lowering.constantes
+// @pinker-nav:end ir.lowering.constants

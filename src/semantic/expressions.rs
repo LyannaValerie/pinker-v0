@@ -3,8 +3,8 @@
 //! inventário da #601 (Task #634).
 //!
 //! Só o arquivo mudou: as três regiões cartografadas
-//! `semantic.unioes.encaixe`, `semantic.fluxo.retornos` e
-//! `semantic.expressoes.verificacao`, as onze funções que as compõem e a ordem
+//! `semantic.unions.encaixe`, `semantic.flow.returns` e
+//! `semantic.expressions.verification`, as onze funções que as compõem e a ordem
 //! em que elas decidem continuam exatamente como estavam. `super` mudou de
 //! significado ao descer um nível, e o `use` abaixo devolve ao irmão o
 //! vocabulário do pai — `SemanticChecker`, os tipos da AST e os helpers
@@ -34,10 +34,10 @@
 //! `check_pointer_arithmetic`) só têm chamadores dentro do próprio corte e
 //! continuam privados.
 
-// @pinker-nav:start semantic.unioes.encaixe
-// @pinker-nav:domain unioes
+// @pinker-nav:start semantic.unions.encaixe
+// @pinker-nav:domain unions
 // @pinker-nav:layer semantic
-// @pinker-nav:summary Verificação de `encaixe` de união: resolve o tipo do scrutinee e o tipo de cada braço integralmente (apelidos inclusos), deriva a chave canônica compartilhada de `union_canon`, exige que cada braço pertença à união, rejeita duplicata após a resolução (dois apelidos do mesmo tipo canônico são o mesmo membro), exige cobertura exata dos membros canônicos e abre um escopo por braço com o binding declarado no tipo resolvido do membro. Nenhuma tag é calculada ou armazenada aqui — a tag pertence ao registry internado pelo lowering.
+// @pinker-nav:summary Verification of union `encaixe`: it resolves the scrutinee's type and each arm's type in full (aliases included), derives the shared canonical key from `union_canon`, requires each arm to belong to the union, rejects a duplicate after resolution (two aliases of the same canonical type are the same member), requires exact coverage of the canonical members and opens one scope per arm with the binding declared at the member's resolved type. No tag is computed or stored here — the tag belongs to the registry interned by the lowering.
 use super::*;
 
 impl SemanticChecker {
@@ -120,12 +120,12 @@ impl SemanticChecker {
 
         Ok(())
     }
-    // @pinker-nav:end semantic.unioes.encaixe
+    // @pinker-nav:end semantic.unions.encaixe
 
-    // @pinker-nav:start semantic.fluxo.retornos
-    // @pinker-nav:domain fluxo
+    // @pinker-nav:start semantic.flow.returns
+    // @pinker-nav:domain flow
     // @pinker-nav:layer semantic
-    // @pinker-nav:summary Fluxo e retornos: verificação de ramo `talvez`/`senão` aninhado com escopo próprio, checagem de `mimo` de retorno contra o tipo declarado (presença/ausência de valor, tipo e faixa) e análise superficial de alcançabilidade — um bloco retorna se contém `mimo` direto ou uma seleção exaustiva (`talvez`/`senão` ou `encaixe`) em que todos os braços retornam.
+    // @pinker-nav:summary Flow and returns: verification of a nested `talvez`/`senão` branch with its own scope, checking of the return `mimo` against the declared type (presence/absence of a value, type and range) and a shallow reachability analysis — a block returns if it contains a direct `mimo` or an exhaustive selection (`talvez`/`senão` or `encaixe`) in which every arm returns.
     pub(super) fn check_if_as_nested_branch(
         &mut self,
         if_stmt: &IfStmt,
@@ -241,12 +241,12 @@ impl SemanticChecker {
                 .iter()
                 .all(|arm| self.block_returns(&arm.body))
     }
-    // @pinker-nav:end semantic.fluxo.retornos
+    // @pinker-nav:end semantic.flow.returns
 
-    // @pinker-nav:start semantic.expressoes.verificacao
-    // @pinker-nav:domain expressoes
+    // @pinker-nav:start semantic.expressions.verification
+    // @pinker-nav:domain expressions
     // @pinker-nav:layer semantic
-    // @pinker-nav:summary Verificação de expressões que produz o tipo de cada nó: exigência de valor não-`Nulo` (`check_value_expr`), tipo de resultado de função, e o despacho central (`check_expr`) sobre literais, identificadores, cursores internos de mapa, acesso a campo/variante de leque, indexação, `virar` (cast), `peso`/`alinhamento`, operações binárias (incluindo aritmética de ponteiro) e unárias (negação, `nao`, bitwise, dereferência).
+    // @pinker-nav:summary Expression verification that produces each node's type: the requirement of a non-`Nulo` value (`check_value_expr`), a function's result type, and the central dispatch (`check_expr`) over literals, identifiers, internal map cursors, field/leque-variant access, indexing, `virar` (cast), `peso`/`alinhamento`, binary operations (including pointer arithmetic) and unary ones (negation, `nao`, bitwise, dereference).
     pub(super) fn check_value_expr(
         &mut self,
         expr: &Expr,
@@ -965,4 +965,4 @@ impl SemanticChecker {
         None
     }
 }
-// @pinker-nav:end semantic.expressoes.verificacao
+// @pinker-nav:end semantic.expressions.verification

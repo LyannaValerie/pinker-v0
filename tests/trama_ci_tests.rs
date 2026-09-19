@@ -10,30 +10,30 @@
 
 use std::path::PathBuf;
 
-// @pinker-nav:start evidencia.trama.ci.workflow-path
+// @pinker-nav:start evidence.trama.ci.workflow-path
 // @pinker-nav:domain trama
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Helper workflow_dir resolve exclusivamente .github/workflows a partir de CARGO_MANIFEST_DIR para as evidências de CI permanente abaixo.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary The workflow_dir helper resolves exclusively .github/workflows from CARGO_MANIFEST_DIR for the permanent CI evidence below.
 fn workflow_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".github/workflows")
 }
-// @pinker-nav:end evidencia.trama.ci.workflow-path
+// @pinker-nav:end evidence.trama.ci.workflow-path
 
-// @pinker-nav:start evidencia.trama.ci.temporary-runner
+// @pinker-nav:start evidence.trama.ci.temporary-runner
 // @pinker-nav:domain trama
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Evidência negativa de que o workflow temporário trama-temporary-runner.yml foi removido da árvore versionada.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Negative evidence that the temporary workflow trama-temporary-runner.yml was removed from the versioned tree.
 #[test]
 fn runner_temporario_foi_removido() {
     let path = workflow_dir().join("trama-temporary-runner.yml");
     assert!(!path.exists(), "o runner temporário não deve existir");
 }
-// @pinker-nav:end evidencia.trama.ci.temporary-runner
+// @pinker-nav:end evidence.trama.ci.temporary-runner
 
-// @pinker-nav:start evidencia.trama.ci.readonly-workflow
+// @pinker-nav:start evidence.trama.ci.readonly-workflow
 // @pinker-nav:domain trama
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Inspeção textual do workflow permanente de CI: contents read, gatilho pull_request, make ci e ausência de push, commit, Base64 ou upload de artefato.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Textual inspection of the permanent CI workflow: contents read, pull_request trigger, make ci, and the absence of push, commit, Base64 or artifact upload.
 #[test]
 fn workflow_permanente_e_somente_leitura() {
     let path = workflow_dir().join("ci.yml");
@@ -62,12 +62,12 @@ fn workflow_permanente_e_somente_leitura() {
         );
     }
 }
-// @pinker-nav:end evidencia.trama.ci.readonly-workflow
+// @pinker-nav:end evidence.trama.ci.readonly-workflow
 
-// @pinker-nav:start evidencia.trama.ci.change-authoring-retired
+// @pinker-nav:start evidence.trama.ci.change-authoring-retired
 // @pinker-nav:domain trama
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Contrato do corte de #698: o workflow dedicado de autoria foi retirado e nenhum workflow remanescente exige bloco pinker-change, valida corpo de PR ou chama importar-pr.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Contract of the #698 cutover: the dedicated authoring workflow was retired and no remaining workflow requires a pinker-change block, validates a PR body or calls importar-pr.
 /// O workflow dedicado de autoria não existe mais.
 #[test]
 fn workflow_de_autoria_foi_retirado() {
@@ -112,12 +112,12 @@ fn nenhum_workflow_exige_bloco_pinker_change() {
     }
     assert!(checked >= 1, "deve haver ao menos um workflow permanente");
 }
-// @pinker-nav:end evidencia.trama.ci.change-authoring-retired
+// @pinker-nav:end evidence.trama.ci.change-authoring-retired
 
-// @pinker-nav:start evidencia.trama.ci.temporary-artifacts
+// @pinker-nav:start evidence.trama.ci.temporary-artifacts
 // @pinker-nav:domain trama
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Evidência de ausência dos artefatos da tentativa temporária e do workflow de autoria retirado, mais varredura recursiva por qualquer pacote .b64 restante.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Evidence of the absence of the temporary attempt's artifacts and of the retired authoring workflow, plus a recursive scan for any remaining .b64 package.
 /// Nenhum arquivo da tentativa temporária pode voltar à árvore.
 #[test]
 fn artefatos_temporarios_nao_existem() {
@@ -138,12 +138,12 @@ fn artefatos_temporarios_nao_existem() {
     // Nenhum pacote Base64 da tentativa em nenhum lugar da árvore versionada.
     assert!(!has_b64(&root), "nenhum arquivo .b64 deve permanecer");
 }
-// @pinker-nav:end evidencia.trama.ci.temporary-artifacts
+// @pinker-nav:end evidence.trama.ci.temporary-artifacts
 
-// @pinker-nav:start evidencia.trama.ci.b64-scan
+// @pinker-nav:start evidence.trama.ci.b64-scan
 // @pinker-nav:domain trama
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Helper recursivo has_b64 ignora .git e target e detecta arquivos com extensão b64 em toda a árvore restante.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary The recursive helper has_b64 ignores .git and target and detects files with a b64 extension in the whole remaining tree.
 fn has_b64(dir: &std::path::Path) -> bool {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return false;
@@ -165,12 +165,12 @@ fn has_b64(dir: &std::path::Path) -> bool {
     }
     false
 }
-// @pinker-nav:end evidencia.trama.ci.b64-scan
+// @pinker-nav:end evidence.trama.ci.b64-scan
 
-// @pinker-nav:start evidencia.trama.ci.all-workflows-readonly
+// @pinker-nav:start evidence.trama.ci.all-workflows-readonly
 // @pinker-nav:domain trama
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Auditoria textual de todos os workflows YAML permanentes contra permissões de escrita, Git mutante, reconstrução de patches e branches experimentais.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Textual audit of every permanent YAML workflow against write permissions, mutating Git, patch reconstruction and experimental branches.
 /// Auditoria de TODOS os workflows permanentes: nenhum pode escrever na branch,
 /// fazer push/commit, reconstruir patches Base64 ou fazer checkout fixo de uma
 /// branch experimental descartada (§9 da limpeza).
@@ -210,4 +210,4 @@ fn nenhum_workflow_permanente_escreve_na_branch() {
     }
     assert!(checked >= 1, "deve haver ao menos um workflow permanente");
 }
-// @pinker-nav:end evidencia.trama.ci.all-workflows-readonly
+// @pinker-nav:end evidence.trama.ci.all-workflows-readonly

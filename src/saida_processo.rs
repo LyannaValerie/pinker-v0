@@ -45,10 +45,10 @@
 //! A política de lifetime existe e está declarada em [`PoliticaSnapshot`], com
 //! seu custo — não é a ausência de uma.
 
-// @pinker-nav:start processos.saida.snapshot
-// @pinker-nav:domain processos
-// @pinker-nav:layer semantica
-// @pinker-nav:summary Autoridade única da observação estruturada da Parte D: `SaidaProcesso` guarda código de saída, stdout e stderr de UMA execução, `TabelaSaidas` materializa o snapshot atrás de um handle monotônico que nunca é reutilizado, e os acessores públicos `processo_codigo`/`processo_saida`/`processo_erro` apenas LEEM o snapshot — nenhum reexecuta o processo. O handle é valor por palavra sem recurso de SO por trás: quando ele existe, o filho já foi reapado e os pipes já foram fechados. A política de lifetime (retenção até o fim do programa, IDs monotônicos, sem reuso, sem ABA) é a mesma já vigente para listas/mapas/callables e está declarada em `PoliticaSnapshot`.
+// @pinker-nav:start processes.output.snapshot
+// @pinker-nav:domain processes
+// @pinker-nav:layer semantic
+// @pinker-nav:summary Single authority of Part D's structured observation: `SaidaProcesso` holds the exit code, stdout and stderr of ONE execution, `TabelaSaidas` materializes the snapshot behind a monotonic handle that is never reused, and the public accessors `processo_codigo`/`processo_saida`/`processo_erro` only READ the snapshot — none of them re-executes the process. The handle is a per-word value with no OS resource behind it: when it exists, the child has already been reaped and the pipes have already been closed. The lifetime policy (retention until the end of the program, monotonic IDs, no reuse, no ABA) is the same already in force for lists/maps/callables and is declared in `PoliticaSnapshot`.
 
 /// Nome público do tipo da observação estruturada.
 ///
@@ -214,12 +214,12 @@ impl TabelaSaidas {
         self.entradas.len()
     }
 }
-// @pinker-nav:end processos.saida.snapshot
+// @pinker-nav:end processes.output.snapshot
 
-// @pinker-nav:start evidencia.processos.handles-de-saida
-// @pinker-nav:domain processos
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Provas da saida de processo hospedada: os acessores sao reconhecidos por uma unica declaracao, stdout e stderr sao canais distintos, handles sao monotonicos e nunca reutilizados, o esgotamento nao envolve nem aborta, copias do handle observam o mesmo snapshot e handle nao produzido nao resolve.
+// @pinker-nav:start evidence.processes.output-handles
+// @pinker-nav:domain processes
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Proofs of hosted process output: the accessors are recognized by a single declaration, stdout and stderr are distinct channels, handles are monotonic and never reused, exhaustion neither involves nor aborts, copies of the handle observe the same snapshot and a handle that was not produced does not resolve.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -293,4 +293,4 @@ mod tests {
         assert!(tabela.obter(0).is_none());
     }
 }
-// @pinker-nav:end evidencia.processos.handles-de-saida
+// @pinker-nav:end evidence.processes.output-handles

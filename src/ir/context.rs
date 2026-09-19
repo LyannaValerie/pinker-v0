@@ -3,9 +3,9 @@
 //! (Task #624).
 //!
 //! Só o arquivo mudou: as cinco regiões cartografadas
-//! `ir.lowering.programa-orquestracao`, `ir.lowering.contexto-declaracoes`,
-//! `ir.lowering.assinaturas-intrinsecos`, `ir.lowering.metodos-identidade` e
-//! `ir.lowering.identidade-resolvida` — a entrada pública do lowering, as duas
+//! `ir.lowering.program-orchestration`, `ir.lowering.context-declarations`,
+//! `ir.lowering.intrinsic-signatures`, `ir.lowering.method-identity` e
+//! `ir.lowering.resolved-identity` — a entrada pública do lowering, as duas
 //! metades de `from_program_composto`, o registro da visão derivada de métodos
 //! e a internação de identidade resolvida — chegam aqui na mesma ordem, com os
 //! mesmos corpos e os mesmos diagnósticos. `super` mudou de significado ao
@@ -36,10 +36,10 @@
 //! `src/ir/lowering.rs` chamam e, por isso, os únicos que passaram de privados
 //! a `pub(super)`.
 
-// @pinker-nav:start ir.lowering.programa-orquestracao
+// @pinker-nav:start ir.lowering.program-orchestration
 // @pinker-nav:domain lowering
 // @pinker-nav:layer ir
-// @pinker-nav:summary Ponto de entrada do lowering AST → IR: constrói o `LoweringContext` global, percorre os itens do programa, despacha constantes (`lower_const`) e funções (`FunctionLowerer`) e monta o `ProgramIR` (nome do módulo, modo freestanding). Aliases/structs/leques/tratos são ignorados aqui (já viraram fatos do contexto); não reexecuta análise semântica.
+// @pinker-nav:summary Entry point of the AST → IR lowering: it builds the global `LoweringContext`, walks the program's items, dispatches constants (`lower_const`) and functions (`FunctionLowerer`) and assembles the `ProgramIR` (module name, freestanding mode). Aliases/structs/leques/tratos are ignored here (they already became context facts); it does not re-run semantic analysis.
 use super::lowering::lower_const;
 use super::*;
 
@@ -135,12 +135,12 @@ pub fn lower_program_composto(
         functions,
     })
 }
-// @pinker-nav:end ir.lowering.programa-orquestracao
+// @pinker-nav:end ir.lowering.program-orchestration
 
-// @pinker-nav:start ir.lowering.contexto-declaracoes
+// @pinker-nav:start ir.lowering.context-declarations
 // @pinker-nav:domain lowering
 // @pinker-nav:layer ir
-// @pinker-nav:summary Primeira metade de `from_program`: coleta os fatos globais que todos os corpos consomem — nome do módulo, aliases de tipo (com leques registrados como alias para `bombom`), structs e seus campos/offsets de layout, variantes de leque com índices e cargas, e as assinaturas das funções e tipos das constantes declaradas no programa. Prepara o contexto; não reexecuta a checagem semântica.
+// @pinker-nav:summary First half of `from_program`: it collects the global facts every body consumes — module name, type aliases (with leques registered as aliases for `bombom`), structs and their fields/layout offsets, leque variants with indexes and payloads, and the signatures of the functions and the types of the constants declared in the program. It prepares the context; it does not re-run the semantic check.
 impl LoweringContext {
     fn from_program_composto(
         program: &Program,
@@ -394,12 +394,12 @@ impl LoweringContext {
                 Item::TypeAlias(_) | Item::Struct(_) | Item::Enum(_) | Item::Trait(_) => {}
             }
         }
-        // @pinker-nav:end ir.lowering.contexto-declaracoes
+        // @pinker-nav:end ir.lowering.context-declarations
 
-        // @pinker-nav:start ir.lowering.assinaturas-intrinsecos
+        // @pinker-nav:start ir.lowering.intrinsic-signatures
         // @pinker-nav:domain lowering
         // @pinker-nav:layer ir
-        // @pinker-nav:summary Segunda metade de `from_program`: assinaturas das intrínsecas que o lowering precisa tipar. As grafias históricas vêm do registry declarativo de `intrinsics::registry`, e as famílias falível, JSON, SHA-256 e acessores de processo vêm de suas próprias autoridades; o que continua declarado aqui são as identidades que o próprio compilador materializa. Encerra montando o `LoweringContext`. Não valida os corpos das intrínsecas; apenas declara contratos de retorno.
+        // @pinker-nav:summary Second half of `from_program`: signatures of the intrinsics the lowering needs to type. The historical spellings come from the declarative registry of `intrinsics::registry`, and the fallible, JSON, SHA-256 and process-accessor families come from their own authorities; what is still declared here are the identities the compiler itself materializes. It finishes by assembling the `LoweringContext`. It does not validate the bodies of the intrinsics; it only declares return contracts.
         // #442/C1 — as assinaturas históricas vêm do registry declarativo.
         //
         // Mesma disciplina já aplicada a `falha_operacional`, `valor_json`,
@@ -559,12 +559,12 @@ impl LoweringContext {
         context.register_impl_methods(program)?;
         Ok(context)
     }
-    // @pinker-nav:end ir.lowering.assinaturas-intrinsecos
+    // @pinker-nav:end ir.lowering.intrinsic-signatures
 
-    // @pinker-nav:start ir.lowering.metodos-identidade
+    // @pinker-nav:start ir.lowering.method-identity
     // @pinker-nav:domain tratos
     // @pinker-nav:layer lowering
-    // @pinker-nav:summary Visão derivada de métodos aceita pela semântica: percorre funções provisórias, resolve integralmente o tipo-alvo declarado transportado em `ImplFunctionFacts` para `ResolvedTypeId` e indexa `MethodIdentity(trato, identidade resolvida, método)` até o símbolo transportado; chamadas e vtables consultam somente essa visão, sem decodificar spelling para decidir identidade; qual função materializada representa a identidade é dito por `method_dispatch`, e aqui fica só a mensagem do lowering.
+    // @pinker-nav:summary Derived method view accepted by semantics: it walks the provisional functions, fully resolves the declared target type carried in `ImplFunctionFacts` into a `ResolvedTypeId` and indexes `MethodIdentity(trato, resolved identity, method)` down to the carried symbol; calls and vtables consult only that view, without decoding a spelling to decide identity; which materialized function represents the identity is stated by `method_dispatch`, and what remains here is only the lowering's message.
     fn register_impl_methods(&mut self, program: &Program) -> Result<(), PinkerError> {
         // #577: a origem da relação vem do bloco `impl`, não do método. O span
         // do bloco é do arquivo que o escreveu; o do método pode ser corpo
@@ -636,12 +636,12 @@ impl LoweringContext {
         }
         Ok(())
     }
-    // @pinker-nav:end ir.lowering.metodos-identidade
+    // @pinker-nav:end ir.lowering.method-identity
 
-    // @pinker-nav:start ir.lowering.identidade-resolvida
+    // @pinker-nav:start ir.lowering.resolved-identity
     // @pinker-nav:domain lowering
     // @pinker-nav:layer ir
-    // @pinker-nav:summary Internação da identidade semântica no lowering: `resolved_identity` resolve apelidos em profundidade e interna a identidade completa do tipo AST; `intern_resolved_ast` interna primeiro componentes de containers, ponteiros, arrays, assinaturas e uniões; `repr_identity` cobre somente categorias cuja identidade é derivável da representação e recusa nominais com `E-IR-TYPE-IDENTITY-LOST`; `internal_identity` reserva identidades sintéticas. Nenhuma função deriva identidade nominal de `TypeIR::name()`, span ou ordem de mapa.
+    // @pinker-nav:summary Interning of the semantic identity in the lowering: `resolved_identity` resolves aliases in depth and interns the full identity of the AST type; `intern_resolved_ast` first interns the components of containers, pointers, arrays, signatures and unions; `repr_identity` covers only categories whose identity is derivable from the representation and refuses nominal ones with `E-IR-TYPE-IDENTITY-LOST`; `internal_identity` reserves synthetic identities. No function derives a nominal identity from `TypeIR::name()`, a span or map order.
     /// Interna a identidade semântica completa de um tipo escrito na fonte.
     ///
     /// Apelidos são resolvidos integralmente antes da chave: `apelido X = Alfa`
@@ -976,4 +976,4 @@ impl LoweringContext {
         Ok(())
     }
 }
-// @pinker-nav:end ir.lowering.identidade-resolvida
+// @pinker-nav:end ir.lowering.resolved-identity

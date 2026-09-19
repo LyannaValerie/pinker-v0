@@ -13,15 +13,15 @@ related:
   - engine
 ---
 
-# Assembly inline
+# Inline assembly
 
 <!-- @pinker-doc:start
 id: language.inline-assembly.contract
-tags: [linguagem, sussurro, assembly, x86-64, backend-nativo]
+tags: [language, sussurro, assembly, x86-64, native-backend]
 aliases:
   - sussurro
-  - assembly inline
-summary: Define a superfície, o dialeto, os clobbers e o erro interpretado do assembly inline x86-64.
+  - inline assembly
+summary: Defines the surface, the dialect, the clobbers and the interpreted error of x86-64 inline assembly.
 -->
 
 `sussurro("instrucao", "outra instrucao");` é um statement nativo x86-64.

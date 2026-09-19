@@ -15,7 +15,7 @@ related:
   - language
 ---
 
-# Desenvolvimento — território de apps, exemplos e navegação de código
+# Development — territory of apps, examples and code navigation
 
 - **Classe:** Engine
 - **Papel:** navegação
@@ -26,14 +26,14 @@ sobre a base: aplicações internas em Pinker, exemplos/testes e o mapa de códi
 
 <!-- @pinker-doc:start
 id: development.trama
-tags: [desenvolvimento, trama, catalogos, navegacao]
+tags: [development, trama, catalogs, navigation]
 aliases:
   - trama pinker
-  - como usar a trama
-  - navegacao por catalogos
-summary: Como agentes e humanos usam a Trama Pinker (catálogos, doc/nav e manifestos) neste território.
+  - how to use the trama
+  - catalog navigation
+summary: How agents and humans use the Trama Pinker (catalogs, doc/nav and manifests) in this territory.
 -->
-## Trama Pinker no desenvolvimento
+## Trama Pinker in development
 
 A Trama Pinker é a superfície dual deste território: portais Markdown para
 humanos e catálogos JSONL para agentes. Fluxo de consulta:

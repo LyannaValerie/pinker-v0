@@ -8,17 +8,17 @@
 //! `#[cfg(test)]`: a ponte não amplia superfície nenhuma para fora do módulo
 //! `interpreter`.
 
-// @pinker-nav:start evidencia.interpretador.ponte-de-modulo
-// @pinker-nav:domain interpretador
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Ponte que devolve o modulo pai aos modulos de teste movidos um nivel abaixo pela unidade INT-1: `super` mudou de significado na descida e a reexportacao preserva `use super::*` nos seis modulos. E privada e `#[cfg(test)]`, portanto nao amplia superficie nenhuma para fora do modulo interpreter.
+// @pinker-nav:start evidence.interpreter.module-bridge
+// @pinker-nav:domain interpreter
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Bridge that gives back the parent module to the test modules moved one level down by unit INT-1: `super` changed meaning in the descent and the re-export preserves `use super::*` in the six modules. It is private and `#[cfg(test)]`, and therefore widens no surface outside the interpreter module.
 pub use super::*;
-// @pinker-nav:end evidencia.interpretador.ponte-de-modulo
+// @pinker-nav:end evidence.interpreter.module-bridge
 
-// @pinker-nav:start evidencia.tratos.objeto-em-runtime
+// @pinker-nav:start evidence.tratos.runtime-object
 // @pinker-nav:domain tratos
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Provas do objeto de trato em runtime (Fase 244): o snapshot composto do receiver independe do endereco de origem, e a vtable e internada de modo que handles criados a partir da mesma tabela permanecem distintos entre si.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Proofs of the trato object at runtime (Phase 244): the receiver's composed snapshot is independent of the origin address, and the vtable is interned so that handles created from the same table remain distinct from one another.
 #[cfg(test)]
 mod fase244_trait_runtime_tests {
     use super::*;
@@ -117,12 +117,12 @@ mod fase244_trait_runtime_tests {
         );
     }
 }
-// @pinker-nav:end evidencia.tratos.objeto-em-runtime
+// @pinker-nav:end evidence.tratos.runtime-object
 
-// @pinker-nav:start evidencia.callables.tempo-de-vida
+// @pinker-nav:start evidence.callables.lifetime
 // @pinker-nav:domain callables
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Provas de tempo de vida de callable no interpretador (D3): o descritor possui o ambiente trailing e instancias distintas nao o compartilham, e uma falha de endereco nao publica handle nem ambiente parcialmente construido.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Proofs of callable lifetime in the interpreter (D3): the descriptor owns the trailing environment and distinct instances do not share it, and an address failure publishes neither a handle nor a partially built environment.
 #[cfg(test)]
 mod d3_callable_lifetime_tests {
     use super::*;
@@ -178,12 +178,12 @@ mod d3_callable_lifetime_tests {
         assert_eq!(state.next_allocation_addr, usize::MAX - 7);
     }
 }
-// @pinker-nav:end evidencia.callables.tempo-de-vida
+// @pinker-nav:end evidence.callables.lifetime
 
-// @pinker-nav:start evidencia.memoria.superficie-publica
-// @pinker-nav:domain memoria
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Provas da superficie publica de memoria do interpretador (Fase 246): liberar um endereco reutilizado escolhe a geracao viva mais recente, os bytes publicados preservam largura, aliasing e extensao, e a contabilidade de paginas libera somente os bytes efetivamente vivos.
+// @pinker-nav:start evidence.memory.public-surface
+// @pinker-nav:domain memory
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Proofs of the interpreter's public memory surface (Phase 246): freeing a reused address picks the most recent live generation, the published bytes preserve width, aliasing and extent, and page accounting frees only the bytes actually live.
 #[cfg(test)]
 mod fase246_public_memory_tests {
     use super::*;
@@ -299,12 +299,12 @@ mod fase246_public_memory_tests {
         assert_eq!(state.budget.lifetime_virtual_bytes, 8192);
     }
 }
-// @pinker-nav:end evidencia.memoria.superficie-publica
+// @pinker-nav:end evidence.memory.public-surface
 
-// @pinker-nav:start evidencia.unioes.orcamento
-// @pinker-nav:domain unioes
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Provas do orcamento de uniao em runtime (HR3): o orcamento de bytes de carga e o de metadata sao finitos, e toda aritmetica do orcamento usa operacoes checked em vez de envolver silenciosamente.
+// @pinker-nav:start evidence.unions.budget
+// @pinker-nav:domain unions
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Proofs of the runtime union budget (HR3): the payload byte budget and the metadata budget are finite, and all budget arithmetic uses checked operations instead of wrapping silently.
 #[cfg(test)]
 mod hr3_union_budget_tests {
     use super::*;
@@ -352,11 +352,11 @@ mod hr3_union_budget_tests {
     }
 }
 
-// @pinker-nav:end evidencia.unioes.orcamento
-// @pinker-nav:start interpreter.unioes.contabilidade-dominios
-// @pinker-nav:domain unioes
+// @pinker-nav:end evidence.unions.budget
+// @pinker-nav:start interpreter.unions.domain-accounting
+// @pinker-nav:domain unions
 // @pinker-nav:layer interpreter
-// @pinker-nav:summary Matriz de contabilidade dos dois domínios de storage do interpretador — identidades públicas consumidas exclusivamente por `alocar` e domínio interno de união com descritores, bytes de payload e bindings de extração —, provando com limites reduzidos por configuração interna que construir e extrair uniões não reduz a capacidade pública, que o esgotamento de cada domínio produz diagnóstico próprio, que `liberar` recusa endereços internos e que liberar memória pública não altera o orçamento interno.
+// @pinker-nav:summary Accounting matrix of the interpreter's two storage domains — public identities consumed exclusively by `alocar` and the internal union domain with descriptors, payload bytes and extraction bindings —, proving with limits reduced by internal configuration that building and extracting unions does not reduce public capacity, that the exhaustion of each domain produces its own diagnostic, that `liberar` refuses internal addresses and that freeing public memory does not change the internal budget.
 #[cfg(test)]
 mod contabilidade_dominios_uniao_tests {
     use super::*;
@@ -1034,12 +1034,12 @@ carinho principal() -> bombom {
         );
     }
 }
-// @pinker-nav:end interpreter.unioes.contabilidade-dominios
+// @pinker-nav:end interpreter.unions.domain-accounting
 
-// @pinker-nav:start evidencia.processos.saida-runtime-hospedado
-// @pinker-nav:domain processos
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Prova no runtime hospedado, com snapshot sintético válido, o round-trip de Resultado<SaidaProcesso, verso> pelos helpers nominais de anexo e carga e a leitura tipada de código, stdout e stderr sem reexecutar processo.
+// @pinker-nav:start evidence.processes.hosted-runtime-output
+// @pinker-nav:domain processes
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Proves in the hosted runtime, with a valid synthetic snapshot, the round trip of Resultado<SaidaProcesso, verso> through the nominal append and payload helpers and the typed reading of code, stdout and stderr without re-executing a process.
 #[cfg(test)]
 mod part_d_saida_processo_runtime_tests {
     use super::*;
@@ -1180,4 +1180,4 @@ mod part_d_saida_processo_runtime_tests {
         );
     }
 }
-// @pinker-nav:end evidencia.processos.saida-runtime-hospedado
+// @pinker-nav:end evidence.processes.hosted-runtime-output

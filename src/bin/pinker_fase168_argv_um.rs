@@ -1,7 +1,7 @@
-// @pinker-nav:start evidencia.processos.fixture-argv-unico
-// @pinker-nav:domain processos
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Fixture de processo controlado que classifica por codigo de saida o unico argumento recebido, tornando a entrega de argv observavel sem depender de stdout, stderr ou stdin.
+// @pinker-nav:start evidence.processes.fixture-single-argv
+// @pinker-nav:domain processes
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Controlled-process fixture that classifies by exit code the single argument it receives, making argv delivery observable without depending on stdout, stderr or stdin.
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
@@ -14,4 +14,4 @@ fn main() -> ExitCode {
         _ => ExitCode::from(3),
     }
 }
-// @pinker-nav:end evidencia.processos.fixture-argv-unico
+// @pinker-nav:end evidence.processes.fixture-single-argv

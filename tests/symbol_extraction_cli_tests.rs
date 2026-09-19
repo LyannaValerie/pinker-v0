@@ -7,9 +7,9 @@
 //! observa o worktree sujo, corresponde trecho e intervalo, e pagina por
 //! orçamento determinístico.
 
-// @pinker-nav:start evidencia.simbolos.extracao
-// @pinker-nav:domain simbolos
-// @pinker-nav:layer evidencia
+// @pinker-nav:start evidence.symbols.extraction
+// @pinker-nav:domain symbols
+// @pinker-nav:layer evidence
 // @pinker-nav:test-for pinker_v0::symbol_extraction::extend
 // @pinker-nav:summary Causal controls for bounded lexical extraction: an unregistered declaration is found, every supported kind keeps its own category and structural context, associated items and homonyms stay separated, fake declarations hidden in comments, normal strings and raw strings never become structural, macro output and cfg attributes stay declared limitations, a dirty or untracked worktree changes the current answer, no cache is materialised, the budget truncates deterministically with a usable continuation, explicit identity keeps precedence, unstable source refuses to pass silently, textual fallback stays outside the structural counts, a hand-edited derived catalog manufactures no source authority, binary provenance stays observable, a lexical separator between the path and the `!` does not undo the macro while a doc comment does, one valid invocation keeps one classification across six separator forms including non-ASCII `Pattern_White_Space`, and every `SimplePathSegment` is classified by one grammar rule: weak keywords and edition 2021 identifiers stay identifiers, Unicode identifiers stay in the class under a declared conservative approximation that still ends at its closing delimiter, `self`, `super` and `crate` stay grammar segments, reserved raw forms stay refused, and an invalid earlier segment is not accepted for having preceded `::`.
 
@@ -52,9 +52,9 @@ parent: atlas
 /// valendo e que o candidato extraído não duplica a identidade.
 const REGISTERED: &str = r#"// @pinker-nav:start codigo.registrado
 // @pinker-nav:domain fixture
-// @pinker-nav:layer modelo
+// @pinker-nav:layer model
 // @pinker-nav:symbol pkg::registered_fn|registered_fn|rust-function|declaration
-// @pinker-nav:summary Declaração registrada explicitamente pela fixture.
+// @pinker-nav:summary Causal controls for bounded lexical extraction: an unregistered declaration is found, every supported kind keeps its own category and structural context, associated items and homonyms stay separated, fake declarations hidden in comments, normal strings and raw strings never become structural, macro output and cfg attributes stay declared limitations, a dirty or untracked worktree changes the current answer, no cache is materialised, the budget truncates deterministically with a usable continuation, explicit identity keeps precedence, unstable source refuses to pass silently, textual fallback stays outside the structural counts, a hand-edited derived catalog manufactures no source authority, binary provenance stays observable, a lexical separator between the path and the `!` does not undo the macro while a doc comment does, one valid invocation keeps one classification across six separator forms including non-ASCII `Pattern_White_Space`, and every `SimplePathSegment` is classified by one grammar rule: weak keywords and edition 2021 identifiers stay identifiers, Unicode identifiers stay in the class under a declared conservative approximation that still ends at its closing delimiter, `self`, `super` and `crate` stay grammar segments, reserved raw forms stay refused, and an invalid earlier segment is not accepted for having preceded `::`.
 fn registered_fn() {}
 // @pinker-nav:end codigo.registrado
 "#;
@@ -1639,4 +1639,4 @@ fn classificacao_de_segmento_de_simple_path_segue_a_gramatica() {
         "a aproximação da classe Unicode não foi declarada: {json}"
     );
 }
-// @pinker-nav:end evidencia.simbolos.extracao
+// @pinker-nav:end evidence.symbols.extraction

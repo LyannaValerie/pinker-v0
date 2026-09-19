@@ -5,10 +5,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-// @pinker-nav:start evidencia.tratos.relacao-de-impl-duplicada
+// @pinker-nav:start evidence.tratos.duplicate-impl-relation
 // @pinker-nav:domain tratos
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Prova comportamental da #572: a relação nominal de `impl` existe pela declaração, não pelos métodos que o bloco materializa. A matriz fixa a cardinalidade `(trato canônico, alvo canônico) <= 1` em bloco vazio somado a bloco explícito nas duas ordens, dois blocos vazios, dois blocos com métodos explícitos distintos, grafias de alvo canonicamente equivalentes, trato importado da #517 e colocação raiz/não-raiz; e fixa o que NÃO é duplicata: um único bloco vazio com defaults suficientes, ausência de método requerido — que continua sendo erro de cobertura —, tratos homônimos de origens canônicas distintas e alvos canonicamente distintos. O oráculo é o diagnóstico da relação, que cita a identidade canônica do trato, aponta o segundo bloco, preserva o span do primeiro e nunca nomeia `__impl_*` nem `__trait_default_check_*`: nome sintético é transporte, não autoridade de coerência.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Behavioral proof of #572: the nominal `impl` relation exists by the declaration, not by the methods the block materializes. The matrix fixes the cardinality `(canonical trato, canonical target) <= 1` for an empty block plus an explicit block in both orders, two empty blocks, two blocks with distinct explicit methods, canonically equivalent target spellings, a trato imported per #517 and root/non-root placement; and it fixes what is NOT a duplicate: a single empty block with sufficient defaults, a missing required method — which remains a coverage error —, same-named tratos from distinct canonical origins and canonically distinct targets. The oracle is the relation's diagnostic, which cites the trato's canonical identity, points at the second block, preserves the first one's span and never names `__impl_*` or `__trait_default_check_*`: a synthetic name is transport, not an authority on coherence.
 
 /// Um caso é um conjunto de fontes; a primeira é a raiz.
 struct Caso {
@@ -475,4 +475,4 @@ fn p1_paridade_interpretador_e_nativo_do_bloco_vazio_valido() {
     assert_eq!(interpretado.stdout, nativo.stdout);
 }
 
-// @pinker-nav:end evidencia.tratos.relacao-de-impl-duplicada
+// @pinker-nav:end evidence.tratos.duplicate-impl-relation

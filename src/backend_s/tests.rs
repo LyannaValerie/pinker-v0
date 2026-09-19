@@ -8,10 +8,10 @@
 //! `mod tests` é privado e `#[cfg(test)]`: a ponte não amplia superfície
 //! nenhuma para fora do módulo `backend_s`.
 
-// @pinker-nav:start evidencia.backend-s.proveniencia-de-ponteiro
-// @pinker-nav:domain memoria
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Unidade da classificação de proveniência do back-end nativo (continuação do hotfix pós-PR #411): `selected_call_provenance` como autoridade única sobre chamada direta, indireta, por endereço cru e de trato — `Public` quando e somente quando o retorno é ponteiro —, e a regra do cast `virar seta<T>`, que preserva `Public`, `Internal`, `Fabricated` e `Unclassified` tipado como ponteiro, e só produz `Fabricated` a partir de valor não-ponteiro. Cobre os ramos que a superfície da linguagem ainda não alcança, porque `seta<seta<T>>`, carga de ponteiro pela memória e carga de união com ponteiro estão fora do subconjunto atual.
+// @pinker-nav:start evidence.backend-s.pointer-provenance
+// @pinker-nav:domain memory
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Unit of the native back-end's provenance classification (continuation of the hotfix after PR #411): `selected_call_provenance` as the single authority over direct, indirect, raw-address and trait calls — `Public` when and only when the return is a pointer —, and the rule of the `virar seta<T>` cast, which preserves `Public`, `Internal`, `Fabricated` and `Unclassified` typed as a pointer, and only produces `Fabricated` from a non-pointer value. It covers the branches the language surface does not yet reach, because `seta<seta<T>>`, loading a pointer from memory and loading a union holding a pointer are outside the current subset.
 pub use super::*;
 
 #[cfg(test)]
@@ -347,12 +347,12 @@ mod tests_proveniencia_de_ponteiro {
         assert!(selected_call_shape(&cast(0, OperandIR::Int(1), PONTEIRO)).is_none());
     }
 }
-// @pinker-nav:end evidencia.backend-s.proveniencia-de-ponteiro
+// @pinker-nav:end evidence.backend-s.pointer-provenance
 
-// @pinker-nav:start evidencia.backend-s.selecao-de-rota-nativa
+// @pinker-nav:start evidence.backend-s.native-route-selection
 // @pinker-nav:domain lowering
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Unidade da autoridade de seleção de rota do subset externo montável (Issue #522): `resolver_rota_de_chamada` decide entre intrínseca de runtime por aridade, intrínseca por nome, função Pinker declarada e callee desconhecido, e é a mesma decisão consumida por `Call` e `CallVoid`. Cobre as cinco rotas reparadas, a precedência entre autoridades, a recusa de aridade fora do recorte, a não captura de função Pinker ordinária, a rejeição de callee desconhecido e a ausência estrutural das três exclusões `ouvir*` em todas as autoridades de despacho nativo, com probes de sensibilidade reversíveis que ficam vermelhos se o conjunto reconhecido for ampliado.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Unit of the route-selection authority of the external assemblable subset (Issue #522): `resolver_rota_de_chamada` decides between a runtime intrinsic by arity, an intrinsic by name, a declared Pinker function and an unknown callee, and it is the same decision consumed by `Call` and `CallVoid`. It covers the five repaired routes, the precedence between authorities, the refusal of an arity outside the slice, the non-capture of an ordinary Pinker function, the rejection of an unknown callee and the structural absence of the three `ouvir*` exclusions in every native dispatch authority, with reversible sensitivity probes that turn red if the recognized set is widened.
 #[cfg(test)]
 mod tests_selecao_de_rota_nativa {
     use super::*;
@@ -614,4 +614,4 @@ mod tests_selecao_de_rota_nativa {
         }
     }
 }
-// @pinker-nav:end evidencia.backend-s.selecao-de-rota-nativa
+// @pinker-nav:end evidence.backend-s.native-route-selection

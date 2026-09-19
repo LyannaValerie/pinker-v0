@@ -8,10 +8,10 @@
 //!
 //! Ponto de entrada: [`validate_program`].
 
-// @pinker-nav:start ir.validacao.invariantes
-// @pinker-nav:domain validacao
+// @pinker-nav:start ir.validation.invariants
+// @pinker-nav:domain validation
 // @pinker-nav:layer ir
-// @pinker-nav:summary Valida os invariantes da IR estruturada antes do lowering para CFG: constantes globais bem tipadas, bloco de entrada e slots únicos por função, e comandos/expressões com tipos compatíveis via inferência recursiva.
+// @pinker-nav:summary Validates the invariants of the structured IR before lowering to the CFG: well-typed global constants, an entry block and unique slots per function, and statements/expressions with compatible types via recursive inference.
 use crate::error::PinkerError;
 use crate::internal_operations::{InternalOperands, InternalResult, MapOperandRole};
 use crate::ir::{
@@ -2141,4 +2141,4 @@ fn enrich_ir_error(
     }
 }
 
-// @pinker-nav:end ir.validacao.invariantes
+// @pinker-nav:end ir.validation.invariants

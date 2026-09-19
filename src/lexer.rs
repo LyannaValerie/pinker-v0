@@ -1,7 +1,7 @@
-// @pinker-nav:start lexer.identificadores.namespace-reservado
-// @pinker-nav:domain identificadores
+// @pinker-nav:start lexer.identifiers.reserved-namespace
+// @pinker-nav:domain identifiers
 // @pinker-nav:layer lexer
-// @pinker-nav:summary Fronteira única de identificadores originados da fonte: os namespaces de escopo `AnyIdentifier` da autoridade `native_symbol` — as dezenove formas que o compilador de fato materializa (`__pinker_internal_`, `__anon_carinho_`, `__impl_`, `__gen_`, `__gen_leque_`, `__fnref_env_`, os slots de iteração, os alvos de `tentar`/propagação, `__env`, `__ternario`, ...) — são recusados com `E-SEMANTIC-RESERVED-NAMESPACE` em toda posição de identificador: declaração de função, variável, parâmetro, constante, apelido, ninho, leque, trato, método e campo, e também qualquer referência. A reserva é da forma possuída, não do superprefixo `__` comum a elas, então `__usuario` continua identificador Pinker legal. Por estar no ponto em que o texto da fonte se torna `TokenKind::Ident`, nenhum consumidor a jusante pode observar um identificador reservado; identificadores sintéticos construídos diretamente pelo compilador não são lexados e portanto não passam por esta fronteira. A lista não é duplicada aqui: a tabela canônica é `native_symbol::PINKER_OWNED_NAMESPACES`.
+// @pinker-nav:summary Single boundary of identifiers originating from the source: the `AnyIdentifier` scope namespaces of the `native_symbol` authority — the nineteen forms the compiler actually materializes (`__pinker_internal_`, `__anon_carinho_`, `__impl_`, `__gen_`, `__gen_leque_`, `__fnref_env_`, the iteration slots, the `tentar`/propagation targets, `__env`, `__ternario`, ...) — are refused with `E-SEMANTIC-RESERVED-NAMESPACE` in every identifier position: declaration of a function, variable, parameter, constant, alias, ninho, leque, trato, method and field, and also any reference. The reservation is of the owned form, not of the `__` superprefix common to them, so `__usuario` remains a legal Pinker identifier. Because it sits at the point where the source text becomes `TokenKind::Ident`, no downstream consumer can observe a reserved identifier; synthetic identifiers built directly by the compiler are not lexed and therefore do not cross this boundary. The list is not duplicated here: the canonical table is `native_symbol::PINKER_OWNED_NAMESPACES`.
 use crate::error::PinkerError;
 use crate::source_map::SourceId;
 use crate::token::{Position, Span, Token, TokenKind};
@@ -29,12 +29,12 @@ fn consume_source_identifier(lexeme: &str, span: Span) -> Result<(), PinkerError
     }
     Ok(())
 }
-// @pinker-nav:end lexer.identificadores.namespace-reservado
+// @pinker-nav:end lexer.identifiers.reserved-namespace
 
-// @pinker-nav:start lexer.cursor.leitura-de-caracteres
+// @pinker-nav:start lexer.cursor.character-reading
 // @pinker-nav:domain cursor
 // @pinker-nav:layer lexer
-// @pinker-nav:summary Cursor de leitura do lexico: avanca um caractere mantendo linha e coluna corretas, espia o proximo sem consumir e consome condicionalmente quando o caractere esperado casa. E o unico ponto que move a posicao, e por isso a unica fonte de span correto.
+// @pinker-nav:summary Reading cursor of the lexer: it advances one character keeping line and column correct, peeks at the next one without consuming it and consumes conditionally when the expected character matches. It is the only point that moves the position, and therefore the only source of a correct span.
 pub struct Lexer<'a> {
     chars: std::iter::Peekable<std::str::CharIndices<'a>>,
     line: usize,
@@ -108,12 +108,12 @@ impl<'a> Lexer<'a> {
             false
         }
     }
-    // @pinker-nav:end lexer.cursor.leitura-de-caracteres
+    // @pinker-nav:end lexer.cursor.character-reading
 
-    // @pinker-nav:start lexer.espacos-comentarios.consumo
-    // @pinker-nav:domain comentarios
+    // @pinker-nav:start lexer.whitespace-comments.consumption
+    // @pinker-nav:domain comments
     // @pinker-nav:layer lexer
-    // @pinker-nav:summary Consome espaços em branco e comentários entre tokens: comentários de linha `//` e comentários de bloco `/* */` com aninhamento; comentário de bloco não terminado encerra no fim da fonte sem produzir token.
+    // @pinker-nav:summary Consumes whitespace and comments between tokens: `//` line comments and `/* */` block comments with nesting; an unterminated block comment ends at the end of the source without producing a token.
     fn skip_whitespace_and_comments(&mut self) {
         loop {
             match self.peek_char() {
@@ -166,12 +166,12 @@ impl<'a> Lexer<'a> {
     fn current_pos(&self) -> Position {
         Position::new(self.line, self.col)
     }
-    // @pinker-nav:end lexer.espacos-comentarios.consumo
+    // @pinker-nav:end lexer.whitespace-comments.consumption
 
-    // @pinker-nav:start lexer.fluxo.tokenizacao
-    // @pinker-nav:domain lexico
+    // @pinker-nav:start lexer.flow.tokenization
+    // @pinker-nav:domain lexical
     // @pinker-nav:layer lexer
-    // @pinker-nav:summary Laço principal de tokenização: consome a fonte após espaços/comentários e despacha pelo primeiro caractere para produzir operadores e delimitadores (incluindo os de múltiplos caracteres como `->`, `==`, `<<`), literais inteiros, strings simples e multi-linha `"""` com escapes, identificadores diferenciados de palavras-chave pelo vocabulário canônico, `$"..."` interpolado e `?`; emite EOF ao fim e reporta caractere inesperado e literais não terminados.
+    // @pinker-nav:summary Main tokenization loop: it consumes the source after whitespace/comments and dispatches on the first character to produce operators and delimiters (including multi-character ones such as `->`, `==`, `<<`), integer literals, simple and multi-line `"""` strings with escapes, identifiers distinguished from keywords by the canonical vocabulary, interpolated `$"..."` and `?`; it emits EOF at the end and reports an unexpected character and unterminated literals.
     fn tokenize_sem_fonte(&mut self) -> Result<Vec<Token>, PinkerError> {
         let mut tokens = Vec::new();
 
@@ -562,4 +562,4 @@ impl<'a> Lexer<'a> {
         Ok(tokens)
     }
 }
-// @pinker-nav:end lexer.fluxo.tokenizacao
+// @pinker-nav:end lexer.flow.tokenization

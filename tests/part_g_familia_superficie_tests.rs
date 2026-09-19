@@ -11,10 +11,10 @@ use std::path::{Path, PathBuf};
 use std::process::Output;
 use std::time::Duration;
 
-// @pinker-nav:start evidencia.importacoes.parte-g-superficie-familia
-// @pinker-nav:domain importacoes
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Evidência da Parte G: a superfície por família resolve para a identidade executiva que já existe, e nada além do parser aprende o que é uma família. A matriz cobre as 29 superfícies aprovadas nas três grafias — global histórica, qualificada e seletiva — provando por AST que as três canonicalizam para o mesmo chamado, e por execução que interpretador e ELF nativo produzem os mesmos observáveis, incluindo o par FOLLOW/NO_FOLLOW medido no mesmo symlink. Os casos negativos fixam os diagnósticos que distinguem família não importada, membro inexistente, colisão de import e módulo Pinker ausente, e a precedência léxica é exercitada com local, leque, ninho e apelido homônimos, inclusive declarados depois do uso.
+// @pinker-nav:start evidence.imports.part-g-family-surface
+// @pinker-nav:domain imports
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Evidence for Part G: the per-family surface resolves to the executive identity that already exists, and nothing beyond the parser learns what a family is. The matrix covers the 29 approved surfaces in the three spellings — historical global, qualified and selective — proving by AST that all three canonicalize to the same call, and by execution that interpreter and native ELF produce the same observables, including the FOLLOW/NO_FOLLOW pair measured on the same symlink. The negative cases fix the diagnostics that distinguish a family not imported, a nonexistent member, an import collision and a missing Pinker module, and lexical precedence is exercised with a local, a leque, a ninho and an alias of the same name, including ones declared after the use.
 
 // ---------------------------------------------------------------------------
 // A superfície aprovada, em forma de chamada. A ligação membro -> identidade
@@ -690,12 +690,12 @@ fn a_grafia_de_membro_existe_em_exatamente_uma_camada() {
     }
 }
 
-// @pinker-nav:end evidencia.importacoes.parte-g-superficie-familia
+// @pinker-nav:end evidence.imports.part-g-family-surface
 
-// @pinker-nav:start evidencia.importacoes.parte-g-diagnosticos-e-precedencia
-// @pinker-nav:domain importacoes
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Recusas e precedência da superfície por família: cada modo de erro tem mensagem própria — família não importada, membro inexistente em uso qualificado, membro inexistente em import seletivo, família sem membros exportados, colisão com item de topo, colisão entre imports e módulo Pinker ausente —, e nenhum deles procura `<familia>.pink`. A precedência aprovada (toda identidade já existente vence a família) é exercitada com variável local, leque, ninho, apelido e função de topo homônimos, inclusive declarados depois do uso, e o legado global continua resolvendo sem import e sem ser escondido por ele. A metade ESCOPADA da precedência tem oráculo positivo — o chamado canonicalizado na AST, não a ausência de uma palavra numa mensagem: local, parâmetro e campo de `ninho` em um ponto não desabilitam a família em outro; ligação do mesmo escopo, de bloco interno, de braço de `caso`, de braço de `tentar`, de braço de encaixe de união, de `para cada` e de parâmetro de `carinho` anônimo continuam sombreando onde estão visíveis, e param de valer onde o escopo fecha; identidade de topo posterior vence e ligação local posterior não vence, que é a regra histórica de hoisting da Pinker preservada dos dois lados.
+// @pinker-nav:start evidence.imports.part-g-diagnostics-and-precedence
+// @pinker-nav:domain imports
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Refusals and precedence of the per-family surface: each error mode has its own message — family not imported, nonexistent member in qualified use, nonexistent member in a selective import, family with no exported members, collision with a top-level item, collision between imports and missing Pinker module —, and none of them looks for `<familia>.pink`. The approved precedence (any already existing identity beats the family) is exercised with a local variable, a leque, a ninho, an alias and a top-level function of the same name, including ones declared after the use, and the global legacy still resolves without an import and without being hidden by one. The SCOPED half of the precedence has a positive oracle — the canonicalized call in the AST, not the absence of a word in a message: a local, a parameter and a `ninho` field at one point do not disable the family at another; a binding from the same scope, from an inner block, from a `caso` arm, from a `tentar` arm, from a union-matching arm, from `para cada` and from an anonymous `carinho` parameter still shadow where they are visible, and stop holding where the scope closes; a later top-level identity wins and a later local binding does not, which is Pinker's historical hoisting rule preserved on both sides.
 
 fn erro_de(fonte: &str) -> String {
     parse_and_check(fonte)
@@ -1612,12 +1612,12 @@ fn ligacao_de_braco_de_uniao_sombreia_dentro_do_braco() {
         "a família canonicalizou por cima da ligação do braço de união: {arvore}"
     );
 }
-// @pinker-nav:end evidencia.importacoes.parte-g-diagnosticos-e-precedencia
+// @pinker-nav:end evidence.imports.part-g-diagnostics-and-precedence
 
-// @pinker-nav:start evidencia.importacoes.parte-g-carregador-e-paridade
-// @pinker-nav:domain importacoes
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Evidência de ponta a ponta da Parte G pela CLI: `trazer familia.membro;` deixa de procurar `<familia>.pink` e passa pela autoridade de import, enquanto módulo Pinker comum — inteiro, seletivo e misturado com família no mesmo arquivo — mantém o comportamento histórico, inclusive as duas colisões. `REAL_MODULE_X > BUILTIN_FAMILY_X` é provado no caso em que o export do módulo COINCIDE com membro aprovado, por execução e por efeito colateral no disco, e o export ausente de um módulo real continua dando o erro do módulo; a identidade homônima trazida por `trazer <modulo>;` é recusada em vez de capturada, nas duas ordens de import, e continua resolvendo historicamente quando a família não é importada. A matriz de paridade emite o MESMO programa nas três grafias sobre uma fixture com symlink e diretório controlados, executa cada um no interpretador e no ELF nativo e exige observáveis idênticos entre as seis execuções — o que fixa junto o par FOLLOW (`tamanho_arquivo` = 4) × NO_FOLLOW (`tamanho_de_entrada` = 6) medido na mesma entrada.
+// @pinker-nav:start evidence.imports.part-g-loader-and-parity
+// @pinker-nav:domain imports
+// @pinker-nav:layer evidence
+// @pinker-nav:summary End-to-end evidence for Part G through the CLI: `trazer familia.membro;` stops looking for `<familia>.pink` and goes through the import authority, while an ordinary Pinker module — whole, selective and mixed with a family in the same file — keeps its historical behavior, including the two collisions. `REAL_MODULE_X > BUILTIN_FAMILY_X` is proven in the case where the module's export COINCIDES with an approved member, by execution and by a side effect on disk, and a missing export of a real module still yields the module's error; the identity of the same name brought in by `trazer <modulo>;` is refused rather than captured, in both import orders, and still resolves historically when the family is not imported. The parity matrix emits the SAME program in the three spellings over a fixture with a controlled symlink and directory, runs each one in the interpreter and in the native ELF and requires identical observables across the six executions — which also fixes the FOLLOW pair (`tamanho_arquivo` = 4) × NO_FOLLOW (`tamanho_de_entrada` = 6) measured on the same entry.
 
 fn escrever(dir: &NativeArtifactDir, nome: &str, fonte: &str) -> PathBuf {
     let caminho = dir.path().join(nome);
@@ -2844,4 +2844,4 @@ carinho principal() -> bombom {{
     );
 }
 
-// @pinker-nav:end evidencia.importacoes.parte-g-carregador-e-paridade
+// @pinker-nav:end evidence.imports.part-g-loader-and-parity

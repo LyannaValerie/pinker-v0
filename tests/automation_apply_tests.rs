@@ -1162,7 +1162,7 @@ fn observacao_nao_escreve() {
     let (_, fsio) = FONTES_FS[1];
     let inicio = fsio.find("pub fn observe_target").expect("observe_target");
     let fim = fsio
-        .find("// @pinker-nav:end automation.filesystem.observacao")
+        .find("// @pinker-nav:end automation.filesystem.observation")
         .expect("fim");
     let corpo = &fsio[inicio..fim];
     for proibido in ["create_new", "rename", "remove_file", "write_all"] {

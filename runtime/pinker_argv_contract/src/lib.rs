@@ -19,7 +19,7 @@
 //! `semantic`; **como** cada backend falha continua sendo de cada backend.
 
 // @pinker-nav:start argv.contrato.estado-da-chave
-// @pinker-nav:domain ambiente
+// @pinker-nav:domain environment
 // @pinker-nav:layer contrato
 // @pinker-nav:summary Autoridade única da leitura de argumentos nomeados (#492): `EstadoChave` distingue os três estados que a gramática de `argv` produz — chave ausente, chave presente sem valor e chave presente com valor, incluindo valor vazio —, `estado_da_chave` é o único classificador (primeira ocorrência vence; a forma separada consome o próximo token qualquer que ele seja; a forma `chave=` entrega o sufixo), `resolver_pedido` e `resolver_contexto` dizem o que cada superfície faz com cada estado, e `contem_token_exato` responde a pergunta diferente do `tem_flag`. Compartilhado pelo compilador e pelo runtime nativo para que os dois backends derivem o mesmo contrato por construção; não contém I/O, nome público da linguagem nem ABI.
 

@@ -7,10 +7,10 @@ use std::path::{Path, PathBuf};
 use std::process::Output;
 use std::time::Duration;
 
-// @pinker-nav:start evidencia.integridade.parte-e2-sha256
-// @pinker-nav:domain integridade
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Evidência da Parte E2: SHA-256 geral sobre `verso` e sobre arquivo atravessa interpretador e ELF nativo com digest idêntico byte a byte. A matriz fixa os vetores oficiais de FIPS 180-4 (vazio, `abc`, multibloco), prova que o domínio é BYTE e não codepoint por UTF-8 multibyte e por duas sequências Unicode distintas, prova que newline não é normalizado, e cobre no arquivo os casos que a leitura textual histórica não alcança — UTF-8 inválido, NUL, CRLF preservado e arquivo grande de múltiplos blocos —, além de vazio, ausente, diretório, permissão e symlink seguido. As falhas recuperáveis atravessam `Resultado<verso,verso>` como valor, e a forma canônica do digest (64 caracteres hexadecimais minúsculos, sem prefixo) é asserida em vez de presumida.
+// @pinker-nav:start evidence.integrity.part-e2-sha256
+// @pinker-nav:domain integrity
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Evidence for Part E2: general SHA-256 over `verso` and over a file crosses interpreter and native ELF with a byte-for-byte identical digest. The matrix fixes the official FIPS 180-4 vectors (empty, `abc`, multiblock), proves that the domain is BYTE and not codepoint through multibyte UTF-8 and two distinct Unicode sequences, proves that a newline is not normalized, and covers on the file side the cases historical textual reading does not reach — invalid UTF-8, NUL, preserved CRLF and a large multi-block file —, besides empty, missing, directory, permission and followed symlink. Recoverable failures cross `Resultado<verso,verso>` as a value, and the digest's canonical form (64 lowercase hexadecimal characters, without a prefix) is asserted rather than presumed.
 
 /// Digest de `verso`: superfície pura, sem `Resultado`.
 ///
@@ -786,4 +786,4 @@ extern "C" {
     fn libc_geteuid() -> u32;
 }
 
-// @pinker-nav:end evidencia.integridade.parte-e2-sha256
+// @pinker-nav:end evidence.integrity.part-e2-sha256

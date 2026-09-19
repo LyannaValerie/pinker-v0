@@ -30,10 +30,10 @@
 //!   limite" de "limitado"; não há aqui unidade alternativa, deadline absoluto
 //!   nem política de retry.
 
-// @pinker-nav:start processos.limite-tempo.taxonomia
-// @pinker-nav:domain processos
-// @pinker-nav:layer semantica
-// @pinker-nav:summary Autoridade única do limite de tempo da Parte D: `LimiteTempo` separa `SemLimite` de `Ate(bombom)` em milissegundos, `VARIANTES` fixa a ordem de declaração — que é o discriminante lido pela IR — e `CARGA_ATE` nomeia a carga da variante limitada. A escolha do leque em vez de `0 = sem limite` existe para manter a expiração imediata representável: `0` é membro legítimo do domínio, então usá-lo como sentinela apagaria um estado real. O nome público e os nomes das variantes existem só aqui; o runtime nativo espelha os discriminantes e a paridade é fixada por evidência.
+// @pinker-nav:start processes.time-limit.taxonomy
+// @pinker-nav:domain processes
+// @pinker-nav:layer semantic
+// @pinker-nav:summary Single authority of Part D's time limit: `LimiteTempo` separates `SemLimite` from `Ate(bombom)` in milliseconds, `VARIANTES` fixes the declaration order — which is the discriminant read by the IR — and `CARGA_ATE` names the payload of the bounded variant. The choice of a leque instead of `0 = no limit` exists to keep immediate expiry representable: `0` is a legitimate member of the domain, so using it as a sentinel would erase a real state. The public name and the variant names exist only here; the native runtime mirrors the discriminants and parity is fixed by evidence.
 
 /// Nome público do leque predeclarado do limite de tempo.
 pub const LEQUE_LIMITE_TEMPO: &str = "LimiteTempo";
@@ -161,12 +161,12 @@ impl LimiteTempo {
         matches!(self, LimiteTempo::Ate(0))
     }
 }
-// @pinker-nav:end processos.limite-tempo.taxonomia
+// @pinker-nav:end processes.time-limit.taxonomy
 
-// @pinker-nav:start evidencia.limite-tempo.discriminantes
-// @pinker-nav:domain limite-tempo
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Provas do limite de tempo: a ordem de declaracao fixa os discriminantes, zero significa expiracao imediata e nao ausencia de limite, o discriminante sobrevive a ida e volta, e a ausencia de limite com descendente que mantem o pipe aberto pode esperar indefinidamente.
+// @pinker-nav:start evidence.time-limit.discriminants
+// @pinker-nav:domain time-limit
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Proofs of the time limit: declaration order fixes the discriminants, zero means immediate expiry and not the absence of a limit, the discriminant survives a round trip, and the absence of a limit with a descendant that keeps the pipe open can wait indefinitely.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -224,4 +224,4 @@ mod tests {
         );
     }
 }
-// @pinker-nav:end evidencia.limite-tempo.discriminantes
+// @pinker-nav:end evidence.time-limit.discriminants

@@ -24,10 +24,10 @@ use pinker_v0::printer;
 use pinker_v0::semantic;
 use std::path::PathBuf;
 
-// @pinker-nav:start evidencia.frontend.pipeline-basico
+// @pinker-nav:start evidence.frontend.basic-pipeline
 // @pinker-nav:domain frontend
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Define os três helpers básicos compartilhados do frontend usados pelas suítes: tokenize (source -> Lexer -> tokens), parse (tokens -> Parser -> AST) e parse_and_check (parse seguido de checagem semântica via semantic::check_program).
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Defines the three shared basic frontend helpers used by the suites: tokenize (source -> Lexer -> tokens), parse (tokens -> Parser -> AST) and parse_and_check (parse followed by a semantic check via semantic::check_program).
 pub fn tokenize(code: &str) -> Result<Vec<pinker_v0::token::Token>, PinkerError> {
     let mut lexer = Lexer::new(code);
     lexer.tokenize()
@@ -43,7 +43,7 @@ pub fn parse_and_check(code: &str) -> Result<(), PinkerError> {
     let program = parse(code)?;
     semantic::check_program(&program)
 }
-// @pinker-nav:end evidencia.frontend.pipeline-basico
+// @pinker-nav:end evidence.frontend.basic-pipeline
 
 pub fn render_ast(code: &str) -> Result<String, PinkerError> {
     Ok(printer::render_program(&parse(code)?))
@@ -87,10 +87,10 @@ pub fn render_cli_cfg_ir_output(code: &str) -> Result<String, PinkerError> {
     Ok(out)
 }
 
-// @pinker-nav:start evidencia.backend-text.pipeline-helper
+// @pinker-nav:start evidence.backend-text.pipeline-helper
 // @pinker-nav:domain backend-text
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Executa o helper compartilhado render_backend_text: parse e checagem semântica, lowering e validação por IR, CFG e seleção, lowering e validação do backend textual e renderização final do pseudo-assembly. É pipeline em memória, não processo CLI nem backend nativo.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Runs the shared helper render_backend_text: parse and semantic check, lowering and validation through IR, CFG and selection, lowering and validation of the textual backend and final rendering of the pseudo-assembly. It is an in-memory pipeline, not a CLI process nor the native backend.
 pub fn render_backend_text(code: &str) -> Result<String, PinkerError> {
     let program = parse(code)?;
     semantic::check_program(&program)?;
@@ -104,12 +104,12 @@ pub fn render_backend_text(code: &str) -> Result<String, PinkerError> {
     backend_text_validate::validate_program(&backend)?;
     Ok(backend_text::render_program(&backend))
 }
-// @pinker-nav:end evidencia.backend-text.pipeline-helper
+// @pinker-nav:end evidence.backend-text.pipeline-helper
 
-// @pinker-nav:start evidencia.backend-text.apresentacao-cli-helper
+// @pinker-nav:start evidence.backend-text.cli-presentation-helper
 // @pinker-nav:domain backend-text
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Monta a apresentação sintética do helper render_cli_pseudo_asm_output em memória: acrescenta o cabeçalho `=== PSEUDO ASM ===`, o texto de render_backend_text e o rodapé histórico `Análise semântica concluída sem erros.`. Não cria nem executa um processo CLI.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Assembles the synthetic presentation of the render_cli_pseudo_asm_output helper in memory: it adds the `=== PSEUDO ASM ===` header, the text of render_backend_text and the historical footer `Análise semântica concluída sem erros.`. It neither creates nor executes a CLI process.
 pub fn render_cli_pseudo_asm_output(code: &str) -> Result<String, PinkerError> {
     let mut out = String::new();
     out.push_str("=== PSEUDO ASM ===\n");
@@ -117,7 +117,7 @@ pub fn render_cli_pseudo_asm_output(code: &str) -> Result<String, PinkerError> {
     out.push_str("Análise semântica concluída sem erros.\n");
     Ok(out)
 }
-// @pinker-nav:end evidencia.backend-text.apresentacao-cli-helper
+// @pinker-nav:end evidence.backend-text.cli-presentation-helper
 
 pub fn render_selected(code: &str) -> Result<String, PinkerError> {
     let program = parse(code)?;
@@ -161,10 +161,10 @@ pub fn render_cli_machine_output(code: &str) -> Result<String, PinkerError> {
     Ok(out)
 }
 
-// @pinker-nav:start evidencia.backend-s.pipeline-helper
+// @pinker-nav:start evidence.backend-s.pipeline-helper
 // @pinker-nav:domain backend-s
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Executa o helper compartilhado render_backend_s inteiramente em memória: parse e checagem semântica, lowering e validação por IR, CFG e seleção, seguidos da emissão do backend .s textual via emit_from_selected. Não usa o helper do subset externo, assembler, linker nem execução nativa.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Runs the shared helper render_backend_s entirely in memory: parse and semantic check, lowering and validation through IR, CFG and selection, followed by the emission of the textual .s backend via emit_from_selected. It does not use the external subset helper, an assembler, a linker or native execution.
 pub fn render_backend_s(code: &str) -> Result<String, PinkerError> {
     let program = parse(code)?;
     semantic::check_program(&program)?;
@@ -176,12 +176,12 @@ pub fn render_backend_s(code: &str) -> Result<String, PinkerError> {
     instr_select_validate::validate_program(&selected)?;
     backend_s::emit_from_selected(&selected)
 }
-// @pinker-nav:end evidencia.backend-s.pipeline-helper
+// @pinker-nav:end evidence.backend-s.pipeline-helper
 
-// @pinker-nav:start evidencia.backend-s-externo.pipeline-helper
+// @pinker-nav:start evidence.external-backend-s.pipeline-helper
 // @pinker-nav:domain backend-s
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Executa o helper compartilhado render_backend_s_external_subset inteiramente em memória: parse e checagem semântica, lowering e validação por IR, CFG e seleção, seguidos da emissão montável hospedada via emit_external_toolchain_subset, que usa runtime_init=false. Não invoca assembler, linker ou binário; as ferramentas externas são chamadas somente por testes de fluxo real que consomem sua saída.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Runs the shared helper render_backend_s_external_subset entirely in memory: parse and semantic check, lowering and validation through IR, CFG and selection, followed by the hosted assemblable emission via emit_external_toolchain_subset, which uses runtime_init=false. It invokes no assembler, linker or binary; the external tools are called only by real-flow tests that consume its output.
 pub fn render_backend_s_external_subset(code: &str) -> Result<String, PinkerError> {
     let program = parse(code)?;
     semantic::check_program(&program)?;
@@ -194,12 +194,12 @@ pub fn render_backend_s_external_subset(code: &str) -> Result<String, PinkerErro
     backend_s::emit_external_toolchain_subset(&selected)
 }
 
-// @pinker-nav:end evidencia.backend-s-externo.pipeline-helper
+// @pinker-nav:end evidence.external-backend-s.pipeline-helper
 
-// @pinker-nav:start evidencia.backend-s.apresentacao-cli-helper
+// @pinker-nav:start evidence.backend-s.cli-presentation-helper
 // @pinker-nav:domain backend-s
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Monta a apresentação sintética de render_cli_asm_s_output em memória: concatena o cabeçalho `=== ASM .S (TEXTUAL) ===`, a saída de render_backend_s e o rodapé histórico de sucesso semântico. Não cria nem executa um processo CLI.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Assembles the synthetic presentation of render_cli_asm_s_output in memory: it concatenates the `=== ASM .S (TEXTUAL) ===` header, the output of render_backend_s and the historical semantic-success footer. It neither creates nor executes a CLI process.
 pub fn render_cli_asm_s_output(code: &str) -> Result<String, PinkerError> {
     let mut out = String::new();
     out.push_str(
@@ -213,12 +213,12 @@ pub fn render_cli_asm_s_output(code: &str) -> Result<String, PinkerError> {
     );
     Ok(out)
 }
-// @pinker-nav:end evidencia.backend-s.apresentacao-cli-helper
+// @pinker-nav:end evidence.backend-s.cli-presentation-helper
 
-// @pinker-nav:start evidencia.nativo.capacidade
+// @pinker-nav:start evidence.native.capacity
 // @pinker-nav:domain testing
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Centraliza a capacidade de evidência nativa: plataforma, driver C e staticlib opcional são classificados com razões enumeradas; todo skip emite ledger JSON canônico e PINKER_EXIGE_NATIVO=1 converte ausência em falha.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Centralizes native evidence capability: platform, C driver and optional staticlib are classified with enumerated reasons; every skip emits a canonical JSON ledger and PINKER_EXIGE_NATIVO=1 turns absence into a failure.
 pub fn render_backend_s_external_subset_nativo(code: &str) -> Result<String, PinkerError> {
     let program = parse(code)?;
     semantic::check_program(&program)?;
@@ -329,4 +329,4 @@ pub fn require_native_evidence(
         }
     }
 }
-// @pinker-nav:end evidencia.nativo.capacidade
+// @pinker-nav:end evidence.native.capacity

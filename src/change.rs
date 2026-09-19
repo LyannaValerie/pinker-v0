@@ -9,10 +9,10 @@
 //! manifesto e nenhum manifesto é sintetizado a partir de corpo de PR.
 //! POT/LPT: MUST NOT reintroduzir autoria contínua ou backfill retroativo.
 
-// @pinker-nav:start trama.mudancas.vocabulario
-// @pinker-nav:domain mudancas
+// @pinker-nav:start trama.changes.vocabulary
+// @pinker-nav:domain changes
 // @pinker-nav:layer trama
-// @pinker-nav:summary Preludio e vocabulario do manifesto historico de mudanca: os enums fechados de kind e de status, a fonte (PR ou issue) e o registro de mudanca, mais a taxonomia de erro com suas mensagens estaveis. Nao ha vocabulario de autoria: o bloco de corpo de PR deixou de existir em #698.
+// @pinker-nav:summary Prelude and vocabulary of the historical change manifest: the closed kind and status enums, the source (PR or issue) and the change record, plus the error taxonomy with its stable messages. There is no authoring vocabulary: the PR body block ceased to exist in #698.
 use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -163,11 +163,11 @@ impl fmt::Display for ChangeError {
     }
 }
 
-// @pinker-nav:end trama.mudancas.vocabulario
-// @pinker-nav:start trama.mudancas.manifesto
-// @pinker-nav:domain mudancas
+// @pinker-nav:end trama.changes.vocabulary
+// @pinker-nav:start trama.changes.manifest
+// @pinker-nav:domain changes
 // @pinker-nav:layer trama
-// @pinker-nav:summary Manifesto estruturado de mudança já aceito: interpreta o arquivo versionado e aplica de fato o schema (enums de kind/status, rejeição de campos desconhecidos, source.type/número, formato de ids) e deriva a linha do histórico mecânico. Só lê; não serializa manifesto novo.
+// @pinker-nav:summary Structured change manifest already accepted: it interprets the versioned file and actually enforces the schema (kind/status enums, refusal of unknown fields, source.type/number, id format) and derives the line of the mechanical history. It only reads; it does not serialize a new manifest.
 impl Change {
     /// Interpreta um manifesto já versionado usando o subconjunto YAML estrito
     /// emitido pelo projeto e as representações legadas compatíveis.
@@ -395,11 +395,11 @@ impl Change {
         out
     }
 }
-// @pinker-nav:end trama.mudancas.manifesto
-// @pinker-nav:start trama.mudancas.carga-e-problemas
-// @pinker-nav:domain mudancas
+// @pinker-nav:end trama.changes.manifest
+// @pinker-nav:start trama.changes.load-and-problems
+// @pinker-nav:domain changes
 // @pinker-nav:layer trama
-// @pinker-nav:summary Resultado da carga de `.pinker/changes/`: o que foi lido com sucesso e os problemas encontrados, preservados lado a lado. Os dois viajam juntos para que um arquivo invalido apareca no relatorio em vez de desaparecer em silencio.
+// @pinker-nav:summary Result of loading `.pinker/changes/`: what was read successfully and the problems found, preserved side by side. Both travel together so that an invalid file appears in the report instead of disappearing silently.
 
 /// Manifestos carregados de `.pinker/changes/`.
 #[derive(Debug, Clone, Default)]
@@ -408,11 +408,11 @@ pub struct Manifests {
     pub problems: Vec<ChangeError>,
 }
 
-// @pinker-nav:end trama.mudancas.carga-e-problemas
-// @pinker-nav:start trama.mudancas.ledger
-// @pinker-nav:domain mudancas
+// @pinker-nav:end trama.changes.load-and-problems
+// @pinker-nav:start trama.changes.ledger
+// @pinker-nav:domain changes
 // @pinker-nav:layer trama
-// @pinker-nav:summary Carrega e valida todos os manifestos `pr-N.yaml` de `.pinker/changes/` e renderiza o ledger mecânico (`index.jsonl`) ordenado por PR, fonte da visão humana e das projeções.
+// @pinker-nav:summary Loads and validates every `pr-N.yaml` manifest in `.pinker/changes/` and renders the mechanical ledger (`index.jsonl`) ordered by PR, the source of the human view and of the projections.
 impl Manifests {
     /// Carrega e valida todos os `.pinker/changes/pr-*.yaml`.
     pub fn load(changes_dir: &Path) -> Manifests {
@@ -476,11 +476,11 @@ impl Manifests {
         out
     }
 }
-// @pinker-nav:end trama.mudancas.ledger
-// @pinker-nav:start trama.mudancas.sintaxe
-// @pinker-nav:domain mudancas
+// @pinker-nav:end trama.changes.ledger
+// @pinker-nav:start trama.changes.syntax
+// @pinker-nav:domain changes
 // @pinker-nav:layer trama
-// @pinker-nav:summary Sintaxe do manifesto antes de qualquer interpretacao semantica: valida a forma do YAML versionado linha a linha — indentacao, chave conhecida, escalar bem formado e ausencia de campo repetido — reportando a linha exata da divergencia.
+// @pinker-nav:summary Manifest syntax before any semantic interpretation: validates the shape of the versioned YAML line by line — indentation, known key, well-formed scalar and absence of a repeated field — reporting the exact line of the divergence.
 
 fn validate_manifest_syntax(block: &str) -> Result<(), ChangeError> {
     use std::collections::BTreeSet;
@@ -629,11 +629,11 @@ fn validate_manifest_syntax(block: &str) -> Result<(), ChangeError> {
     }
     Ok(())
 }
-// @pinker-nav:end trama.mudancas.sintaxe
-// @pinker-nav:start trama.mudancas.lexico-de-valores
-// @pinker-nav:domain mudancas
+// @pinker-nav:end trama.changes.syntax
+// @pinker-nav:start trama.changes.value-lexicon
+// @pinker-nav:domain changes
 // @pinker-nav:layer trama
-// @pinker-nav:summary Politica lexica dos valores do manifesto: escalar aceito, formato fechado de id, reconhecimento de arquivo `pr-N.yaml` e extracao do numero de PR do nome do arquivo. E aqui que um id plausivel porem fora do formato deixa de passar.
+// @pinker-nav:summary Lexical policy of the manifest's values: accepted scalar, closed id format, recognition of a `pr-N.yaml` file and extraction of the PR number from the file name. This is where a plausible but off-format id stops passing.
 
 fn malformed_yaml<T>(line: usize, detail: &str) -> Result<T, ChangeError> {
     Err(ChangeError::MalformedYaml {
@@ -717,11 +717,11 @@ fn valid_id(id: &str) -> bool {
     }
     true
 }
-// @pinker-nav:end trama.mudancas.lexico-de-valores
-// @pinker-nav:start trama.mudancas.normalizacao-textual
-// @pinker-nav:domain mudancas
+// @pinker-nav:end trama.changes.value-lexicon
+// @pinker-nav:start trama.changes.textual-normalization
+// @pinker-nav:domain changes
 // @pinker-nav:layer trama
-// @pinker-nav:summary Normalizacao textual usada tanto na carga quanto no render: remocao de comentario inline respeitando aspas, reconhecimento de valor de preenchimento, remocao de aspas e escape JSON do ledger mecanico.
+// @pinker-nav:summary Textual normalization used both at load and at render time: removal of inline comments respecting quotes, recognition of a filler value, quote removal and JSON escaping of the mechanical ledger.
 
 fn is_pr_yaml(path: &Path) -> bool {
     path.file_name()
@@ -845,11 +845,11 @@ fn json_string(value: &str) -> String {
     out.push('"');
     out
 }
-// @pinker-nav:end trama.mudancas.normalizacao-textual
-// @pinker-nav:start evidencia.mudancas.manifesto-e-ledger
-// @pinker-nav:domain mudancas
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Provas do leitor historico de manifestos: leitura do manifesto versionado, remocao de comentario de template, valor de preenchimento reportado por campo e dentro de item de area, leitura de escalar citado no subconjunto canonico, e recusa de enum invalido, campo desconhecido, fonte malformada, id fora do formato e campo obrigatorio ausente.
+// @pinker-nav:end trama.changes.textual-normalization
+// @pinker-nav:start evidence.changes.manifest-and-ledger
+// @pinker-nav:domain changes
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Proofs of the historical manifest reader: reading the versioned manifest, removing a template comment, a fill value reported per field and inside an area item, reading a quoted scalar in the canonical subset, and refusing an invalid enum, an unknown field, a malformed source, an id outside the format and a missing required field.
 
 #[cfg(test)]
 mod tests {
@@ -1053,4 +1053,4 @@ mod tests {
         assert!(line.contains("\"status\":\"completed\""));
     }
 }
-// @pinker-nav:end evidencia.mudancas.manifesto-e-ledger
+// @pinker-nav:end evidence.changes.manifest-and-ledger

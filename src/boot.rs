@@ -1,7 +1,7 @@
-// @pinker-nav:start boot.geracao.fronteira-freestanding
-// @pinker-nav:domain geracao
+// @pinker-nav:start boot.generation.freestanding-boundary
+// @pinker-nav:domain generation
 // @pinker-nav:layer boot
-// @pinker-nav:summary FREESTANDING_BOOT_ENTRY_FUNCTION ("principal") e FREESTANDING_BOOT_ENTRY_SYMBOL ("_start") são constantes textuais derivadas da autoridade única `native_symbol` (não literais próprios); freestanding_linker_script retorna a string literal de um script de linker GNU ld com `. = 1M;` e as seções .text/.rodata/.data/.bss; freestanding_kernel_stub monta via format! uma string de duas instruções (`call principal` seguido de um rótulo `.Lpinker_hang` com `jmp` para si mesmo, um laço infinito). As duas funções e as duas constantes só produzem strings/constantes de fronteira — nenhuma delas executa, aloca, linka, monta ou inicializa hardware/stack/Multiboot/UEFI; `1M` e `principal` aqui são apenas texto embutido no output, não valores calculados ou verificados contra o restante do pipeline.
+// @pinker-nav:summary FREESTANDING_BOOT_ENTRY_FUNCTION ("principal") and FREESTANDING_BOOT_ENTRY_SYMBOL ("_start") are textual constants derived from the single authority `native_symbol` (not literals of their own); freestanding_linker_script returns the literal string of a GNU ld linker script with `. = 1M;` and the .text/.rodata/.data/.bss sections; freestanding_kernel_stub assembles via format! a two-instruction string (`call principal` followed by a `.Lpinker_hang` label with a `jmp` to itself, an infinite loop). The two functions and the two constants only produce boundary strings/constants — none of them executes, allocates, links, assembles or initializes hardware/stack/Multiboot/UEFI; `1M` and `principal` here are merely text embedded in the output, not values computed or checked against the rest of the pipeline.
 pub const FREESTANDING_BOOT_ENTRY_FUNCTION: &str = crate::native_symbol::ENTRYPOINT_SOURCE_IDENTITY;
 pub const FREESTANDING_BOOT_ENTRY_SYMBOL: &str =
     crate::native_symbol::FREESTANDING_ENTRYPOINT_SYMBOL;
@@ -17,4 +17,4 @@ pub fn freestanding_kernel_stub() -> String {
         entry = FREESTANDING_BOOT_ENTRY_FUNCTION,
     )
 }
-// @pinker-nav:end boot.geracao.fronteira-freestanding
+// @pinker-nav:end boot.generation.freestanding-boundary

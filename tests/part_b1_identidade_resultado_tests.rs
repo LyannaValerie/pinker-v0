@@ -7,10 +7,10 @@ use std::path::{Path, PathBuf};
 use std::process::Output;
 use std::time::Duration;
 
-// @pinker-nav:start evidencia.erros.parte-b1-identidade-resultado
-// @pinker-nav:domain erros
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Evidência da Parte B1: a identidade de `Resultado<T,E>` cujos discriminantes o runtime produz não pode ser reinterpretada por declaração do usuário. A matriz de rejeição cobre reordenação, renomeação, carga incompatível, aridade genérica diferente, forma estruturalmente idêntica, leque não genérico, alias, ninho, eterno e carinho, cada uma nos dois pontos de entrada (interpretador e build nativo) e nas duas ordens de texto, exigindo a mesma mensagem da autoridade e o span real da declaração. Casos próprios cobrem a identidade reivindicada em outro módulo, onde `trazer` é resolvido depois do parse, e o nome monomórfico forjado por um leque genérico de outro nome. Do outro lado, controles positivos provam que o valor builtin continua significando `Ok`/`Erro` com paridade interpretador × nativo, que a política `USER_WINS` da Fase 241 continua valendo para quem não produz valor de runtime e que uma colisão que preserva a taxonomia builtin é aceita — a regra protege o valor, não o nome.
+// @pinker-nav:start evidence.errors.part-b1-result-identity
+// @pinker-nav:domain errors
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Evidence for Part B1: the identity of `Resultado<T,E>`, whose discriminants the runtime produces, cannot be reinterpreted by a user declaration. The rejection matrix covers reordering, renaming, incompatible payload, different generic arity, structurally identical form, non-generic leque, alias, ninho, eterno and carinho, each at both entry points (interpreter and native build) and in both text orders, requiring the same message from the authority and the real span of the declaration. Dedicated cases cover an identity claimed in another module, where `trazer` is resolved after the parse, and the monomorphic name forged by a generic leque of another name. On the other side, positive controls prove that the builtin value still means `Ok`/`Erro` with interpreter × native parity, that the Phase 241 `USER_WINS` policy still holds for whoever does not produce a runtime value and that a collision preserving the builtin taxonomy is accepted — the rule protects the value, not the name.
 
 /// Fonte que produz valores de `Resultado` pelo runtime nas duas variantes e os
 /// consome por `tentar`, `propagar?` e `encaixe`.
@@ -864,8 +864,8 @@ fn politica_de_identidade_existe_so_na_autoridade() {
 fn correcao_de_identidade_nao_criou_fluxo_por_operacao() {
     let fonte = common::fonte_de_modulo::parser();
 
-    const INICIO: &str = "// @pinker-nav:start parser.resultado.tentar-propagar";
-    const FIM: &str = "// @pinker-nav:end parser.resultado.tentar-propagar";
+    const INICIO: &str = "// @pinker-nav:start parser.result.tentar-propagar";
+    const FIM: &str = "// @pinker-nav:end parser.result.tentar-propagar";
     let i = fonte.find(INICIO).expect("região do desugaring presente");
     let f = fonte
         .find(FIM)
@@ -909,4 +909,4 @@ fn arquivos_rust(raiz: &Path) -> Vec<PathBuf> {
     encontrados
 }
 
-// @pinker-nav:end evidencia.erros.parte-b1-identidade-resultado
+// @pinker-nav:end evidence.errors.part-b1-result-identity

@@ -1,14 +1,14 @@
-//! Comandos `pink doc` (`cli.doc.consulta`, `cli.doc.sincronizacao`,
-//! `cli.doc.mudancas`, `cli.doc.verificacao`), unidade MAIN-2 da
+//! Comandos `pink doc` (`cli.doc.query`, `cli.doc.synchronization`,
+//! `cli.doc.changes`, `cli.doc.verification`), unidade MAIN-2 da
 //! decomposição física #605.
 //!
 //! Movimento físico: as decisões, o estado e a ordem são os do entrypoint.
 //! `main.rs` continua dono da orquestração; aqui mora só a implementação.
 
-// @pinker-nav:start cli.doc.consulta
+// @pinker-nav:start cli.doc.query
 // @pinker-nav:domain doc
 // @pinker-nav:layer cli
-// @pinker-nav:summary load_doc_config carrega doc::DocConfig::load (sai com 1 em erro); run_doc despacha DocSub (Marco/Mostrar/Listar/Buscar/Rota/Sincronizar/Verificar) para as funções correspondentes; scan_docs varre docs/ via doc_index::DocIndex::scan; load_doc_catalog lê o catálogo gerado; write_atomic é o único mecanismo desta base que grava atomicamente — escreve um arquivo `.jsonl.tmp` e usa fs::rename por cima do caminho final, usado pelas rotinas de sincronização (não pelas consultas abaixo); run_doc_mostrar/run_doc_listar/run_doc_buscar/run_doc_rota e print_doc_results_json apenas leem o catálogo e imprimem resultados em texto ou JSON, sem escrever em disco.
+// @pinker-nav:summary load_doc_config loads doc::DocConfig::load (exits with 1 on error); run_doc dispatches DocSub (Marco/Mostrar/Listar/Buscar/Rota/Sincronizar/Verificar) to the corresponding functions; scan_docs scans docs/ through doc_index::DocIndex::scan; load_doc_catalog reads the generated catalog; write_atomic is the only mechanism in this base that writes atomically — it writes a `.jsonl.tmp` file and uses fs::rename over the final path, used by the synchronization routines (not by the queries below); run_doc_mostrar/run_doc_listar/run_doc_buscar/run_doc_rota and print_doc_results_json only read the catalog and print results as text or JSON, without writing to disk.
 use super::*;
 
 pub(super) fn load_doc_config(repo_root: &Path) -> doc::DocConfig {
@@ -380,12 +380,12 @@ fn print_doc_results_json(consulta: &str, hits: &[&doc_index::SearchHit], next: 
     out.push('}');
     println!("{out}");
 }
-// @pinker-nav:end cli.doc.consulta
+// @pinker-nav:end cli.doc.query
 
-// @pinker-nav:start cli.doc.sincronizacao
+// @pinker-nav:start cli.doc.synchronization
 // @pinker-nav:domain doc
 // @pinker-nav:layer cli
-// @pinker-nav:summary run_doc_sincronizar reescaneia docs/ e manifestos de mudança, roda verify() em ambos e só prossegue se não houver divergência; calcula o plano de projeções (projection::plan), grava o catálogo via write_atomic, grava o histórico mecânico via write_ledger e aplica as escritas do plano (fs::write por projeção) — é a rotina que efetivamente altera arquivos em disco nesta região documental.
+// @pinker-nav:summary run_doc_sincronizar rescans docs/ and change manifests, runs verify() on both and only proceeds if there is no divergence; it computes the projection plan (projection::plan), writes the catalog via write_atomic, writes the mechanical history via write_ledger and applies the plan's writes (fs::write per projection) — it is the routine that actually changes files on disk in this documentary region.
 fn run_doc_sincronizar(repo_root: &Path, config: &doc::DocConfig) -> i32 {
     let index = scan_docs(repo_root);
     // Validação completa antes de qualquer escrita (§8): uma árvore inválida
@@ -461,12 +461,12 @@ fn run_doc_sincronizar(repo_root: &Path, config: &doc::DocConfig) -> i32 {
     }
     EXIT_OK
 }
-// @pinker-nav:end cli.doc.sincronizacao
+// @pinker-nav:end cli.doc.synchronization
 
-// @pinker-nav:start cli.doc.mudancas
+// @pinker-nav:start cli.doc.changes
 // @pinker-nav:domain doc
 // @pinker-nav:layer cli
-// @pinker-nav:summary CHANGE_LEDGER_RELATIVE_PATH é o caminho canônico do histórico mecânico; write_ledger renderiza os manifestos já aceitos e grava via write_atomic, ou remove o arquivo quando não há manifestos. Não existe caminho de autoria: nenhum manifesto novo é criado a partir de corpo de PR.
+// @pinker-nav:summary CHANGE_LEDGER_RELATIVE_PATH is the canonical path of the mechanical history; write_ledger renders the already accepted manifests and writes through write_atomic, or removes the file when there is no manifest. There is no authoring path: no new manifest is created from a PR body.
 fn write_ledger(repo_root: &Path, manifests: &change::Manifests) -> Result<(), i32> {
     let rendered = manifests.render_ledger();
     let path = repo_root.join(doc::CHANGE_LEDGER_RELATIVE_PATH);
@@ -478,12 +478,12 @@ fn write_ledger(repo_root: &Path, manifests: &change::Manifests) -> Result<(), i
     write_atomic(&path, &rendered)
 }
 
-// @pinker-nav:end cli.doc.mudancas
+// @pinker-nav:end cli.doc.changes
 
-// @pinker-nav:start cli.doc.verificacao
+// @pinker-nav:start cli.doc.verification
 // @pinker-nav:domain doc
 // @pinker-nav:layer cli
-// @pinker-nav:summary run_doc_verificar renderiza o modelo somente leitura de doc::verify_repository, preservando diagnósticos estruturais, drift de catálogo, ledger e projeções e os mesmos códigos da CLI sem duplicar a autoridade observacional.
+// @pinker-nav:summary run_doc_verificar renders the read-only model of doc::verify_repository, preserving structural diagnostics, catalog drift, ledger and projections and the same CLI codes without duplicating the observational authority.
 fn run_doc_verificar(repo_root: &Path, config: &doc::DocConfig) -> i32 {
     let verification = match doc::verify_repository(repo_root, config) {
         Ok(verification) => verification,
@@ -528,4 +528,4 @@ fn run_doc_verificar(repo_root: &Path, config: &doc::DocConfig) -> i32 {
     }
     EXIT_SOURCE
 }
-// @pinker-nav:end cli.doc.verificacao
+// @pinker-nav:end cli.doc.verification

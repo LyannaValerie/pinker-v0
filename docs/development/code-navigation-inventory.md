@@ -12,7 +12,7 @@ related:
   - development
 ---
 
-# Inventário de navegação de código (cartografia semântica)
+# Code navigation inventory (semantic cartography)
 
 - **Classe:** Engine
 - **Papel:** inventário humano da cartografia `@pinker-nav`
@@ -72,7 +72,7 @@ normais, triplas (`"""`), interpoladas (`$"`) e comentários de bloco aninhados
 despacho é por dialeto, sem regressão — e a chave de região continua global
 (nenhuma raiz vira namespace; chave repetida entre `.rs` e `.pink` é reportada
 como `DuplicateKey`). O aplicativo `apps/guardiao_pinker/principal.pink` recebe
-exatamente uma região marker-only, `apps.guardiao.auditoria` (domínio
+exatamente uma região marker-only, `apps.guardiao.audit` (domínio
 `guardiao`, camada `apps`), sem qualquer mudança semântica no código do
 guardião.
 
@@ -132,7 +132,7 @@ aberta; o contrato completo está em `tramas-v1.md`.
 
 O scanner de `pink nav` indexa hoje um **conjunto explícito de raízes
 controladas** do repositório (`official_scan_roots()` em `src/nav.rs`, região
-`trama.codigo.raizes`): `src/`, `runtime/pinker_rt/src/` e `tests/`, todas obrigatórias
+`trama.code.roots`): `src/`, `runtime/pinker_rt/src/` e `tests/`, todas obrigatórias
 no fluxo oficial (`pink nav sincronizar`/`verificar`). Cada raiz é validada
 antes de qualquer leitura — ausência, caminho que não é diretório ou link
 simbólico falham com `E-NAV-SCAN` antes de qualquer escrita do catálogo, sem
@@ -198,29 +198,29 @@ Somente linhas `@pinker-nav` foram adicionadas às duas suítes.
 
 | Arquivo | Camada | Propósito | Complexidade | Âncoras adicionadas | Revisão |
 |---|---|---|---|---|---|
-| `src/token.rs` | token | Vocabulário de tokens (palavras-chave PT, operadores, literais) e representação de posição/span de origem. | simples | `token.lexico.vocabulario`, `token.representacao.spans` | integral |
-| `src/error.rs` | error | Taxonomia unificada de erros do pipeline e renderização para o CLI com linha de origem e cursor `^`. | simples | `error.diagnostico.taxonomia`, `error.diagnostico.contexto-fonte` | integral |
-| `src/layout.rs` | layout | Layout estático (tamanho/alinhamento) de tipos e offsets de campos de struct, com arredondamento e proteção contra recursão. | moderada | `layout.tipos.memoria` | integral |
-| `src/repl.rs` | repl | Laço leitura-avaliação-impressão e avaliação de um trecho como `principal` temporária por todo o pipeline. | simples | `repl.ciclo.leitura-avaliacao`, `repl.avaliacao.pipeline` | integral |
-| `src/palette.rs` | palette | Identidade cromática canônica da Pinker (RGB/ANSI, cores, tema) e helpers de estilização com respeito a `NO_COLOR`. | simples | `palette.visual.identidade`, `palette.visual.estilizacao` | integral |
-| `src/printer.rs` | printer | Renderização textual indentada da AST (`--ast`); a variante JSON delega ao serializador da AST. | moderada | `printer.ast.renderizacao` | integral |
+| `src/token.rs` | token | Vocabulário de tokens (palavras-chave PT, operadores, literais) e representação de posição/span de origem. | simples | `token.lexical.vocabulary`, `token.representation.spans` | integral |
+| `src/error.rs` | error | Taxonomia unificada de erros do pipeline e renderização para o CLI com linha de origem e cursor `^`. | simples | `error.diagnostic.taxonomy`, `error.diagnostic.source-context` | integral |
+| `src/layout.rs` | layout | Layout estático (tamanho/alinhamento) de tipos e offsets de campos de struct, com arredondamento e proteção contra recursão. | moderada | `layout.types.memory` | integral |
+| `src/repl.rs` | repl | Laço leitura-avaliação-impressão e avaliação de um trecho como `principal` temporária por todo o pipeline. | simples | `repl.cycle.read-evaluation`, `repl.evaluation.pipeline` | integral |
+| `src/palette.rs` | palette | Identidade cromática canônica da Pinker (RGB/ANSI, cores, tema) e helpers de estilização com respeito a `NO_COLOR`. | simples | `palette.visual.identity`, `palette.visual.styling` | integral |
+| `src/printer.rs` | printer | Renderização textual indentada da AST (`--ast`); a variante JSON delega ao serializador da AST. | moderada | `printer.ast.rendering` | integral |
 
 ## Onda 2 — validadores e ferramentas da Trama (concluída)
 
 | Arquivo | Camada | Propósito | Complexidade | Âncoras adicionadas | Revisão |
 |---|---|---|---|---|---|
-| `src/ir_validate.rs` | ir | Valida invariantes da IR estruturada (constantes, slots, tipos) antes do lowering para CFG. | alta | `ir.validacao.invariantes` | integral (entry) |
-| `src/cfg_ir_validate.rs` | cfg | Valida o CFG IR (blocos, terminadores, alcançabilidade, tipos entre blocos). | alta | `cfg.validacao.invariantes` | integral (entry) |
-| `src/instr_select_validate.rs` | select | Valida a camada de seleção de instruções (operandos, temporários, boa formação). | moderada | `select.validacao.invariantes` | integral (entry) |
-| `src/abstract_machine_validate.rs` | machine | Valida a máquina de pilha (disciplina de pilha, labels, aridade de calls). | alta | `machine.validacao.invariantes` | integral (entry) |
-| `src/backend_text_validate.rs` | backend-text | Valida o pseudo-assembly do backend textual (instruções, rótulos, referências). | moderada | `backend-text.validacao.invariantes` | integral (entry) |
-| `src/text_norm.rs` | trama | Normalização determinística de consultas (minúsculas, sem diacríticos, termos). | simples | `trama.consultas.normalizacao` | integral |
-| `src/jsonl.rs` | trama | Leitor mínimo de JSON de uma linha para reconstruir os catálogos. | simples | `trama.catalogo.leitor-jsonl` | integral |
-| `src/doc.rs` | trama | Marco documental, política forward-only e projeções de `.pinker/doc.toml`; gate anti-retroatividade. | moderada | `trama.documentos.marco` | integral |
-| `src/doc_index.rs` | trama | Catálogo documental (geração schema 2 e verificação) e superfície de consulta (loader JSONL, busca, validação de âncora). | alta | `trama.documentos.catalogo`, `trama.documentos.consulta` | integral |
-| `src/nav.rs` | trama | Catálogo de código (geração/verificação) e superfície de consulta (loader JSONL, busca, validação de região/hash). | alta | `trama.codigo.catalogo`, `trama.codigo.consulta` | integral |
-| `src/change.rs` | trama | Manifesto de mudança (parsing + validação real de schema) e ledger mecânico derivado. | alta | `trama.mudancas.manifesto`, `trama.mudancas.ledger` | integral |
-| `src/projection.rs` | trama | Projeções documentais determinísticas em regiões geradas (`history`/`state`/`roadmap`). | moderada | `trama.projecoes.geracao` | integral |
+| `src/ir_validate.rs` | ir | Valida invariantes da IR estruturada (constantes, slots, tipos) antes do lowering para CFG. | alta | `ir.validation.invariants` | integral (entry) |
+| `src/cfg_ir_validate.rs` | cfg | Valida o CFG IR (blocos, terminadores, alcançabilidade, tipos entre blocos). | alta | `cfg.validation.invariants` | integral (entry) |
+| `src/instr_select_validate.rs` | select | Valida a camada de seleção de instruções (operandos, temporários, boa formação). | moderada | `select.validation.invariants` | integral (entry) |
+| `src/abstract_machine_validate.rs` | machine | Valida a máquina de pilha (disciplina de pilha, labels, aridade de calls). | alta | `machine.validation.invariants` | integral (entry) |
+| `src/backend_text_validate.rs` | backend-text | Valida o pseudo-assembly do backend textual (instruções, rótulos, referências). | moderada | `backend-text.validation.invariants` | integral (entry) |
+| `src/text_norm.rs` | trama | Normalização determinística de consultas (minúsculas, sem diacríticos, termos). | simples | `trama.queries.normalization` | integral |
+| `src/jsonl.rs` | trama | Leitor mínimo de JSON de uma linha para reconstruir os catálogos. | simples | `trama.catalog.jsonl-reader` | integral |
+| `src/doc.rs` | trama | Marco documental, política forward-only e projeções de `.pinker/doc.toml`; gate anti-retroatividade. | moderada | `trama.documents.baseline` | integral |
+| `src/doc_index.rs` | trama | Catálogo documental (geração schema 2 e verificação) e superfície de consulta (loader JSONL, busca, validação de âncora). | alta | `trama.documents.catalog`, `trama.documents.query` | integral |
+| `src/nav.rs` | trama | Catálogo de código (geração/verificação) e superfície de consulta (loader JSONL, busca, validação de região/hash). | alta | `trama.code.catalog`, `trama.code.query` | integral |
+| `src/change.rs` | trama | Manifesto de mudança (parsing + validação real de schema) e ledger mecânico derivado. | alta | `trama.changes.manifest`, `trama.changes.ledger` | integral |
+| `src/projection.rs` | trama | Projeções documentais determinísticas em regiões geradas (`history`/`state`/`roadmap`). | moderada | `trama.projections.generation` | integral |
 
 **Nota sobre os validadores:** cada validador é uma unidade de validação
 independente (§6.10 do prompt). A âncora cobre o ponto de entrada `validate_program`
@@ -236,11 +236,11 @@ preservadas.
 
 | Arquivo | Camada | Propósito da(s) região(ões) | Complexidade | Âncoras adicionadas | Revisão |
 |---|---|---|---|---|---|
-| `src/ast.rs` | ast | Modelo da AST separado por responsabilidade: programa/itens, tipos, comandos, expressões e o escritor JSON. | alta | `ast.programa.estrutura`, `ast.tipos.representacao`, `ast.comandos.representacao`, `ast.expressoes.representacao`, `ast.serializacao.json` | integral |
-| `src/ir.rs` | ir | Modelo de dados da IR estruturada (programa, funções, blocos, instruções, valores, tipos, operadores). | alta (modelo) | `ir.modelo.representacao` | modelo integral; lowering → Onda 5 |
-| `src/cfg_ir.rs` | cfg | Modelo de dados do CFG IR (blocos básicos, instruções, terminadores, operandos). | alta (modelo) | `cfg.modelo.representacao` (+ `cfg.logica.*` preservadas) | modelo integral; lowering → Onda 5 |
-| `src/instr_select.rs` | select | Modelo de dados da seleção de instruções (instruções selecionadas, terminadores). | alta (modelo) | `select.modelo.representacao` | modelo integral; lowering → Onda 5 |
-| `src/abstract_machine.rs` | machine | Modelo de dados da máquina de pilha (instruções de pilha, terminadores, slots). | alta (modelo) | `machine.modelo.representacao` | modelo integral; lowering → Onda 5 |
+| `src/ast.rs` | ast | Modelo da AST separado por responsabilidade: programa/itens, tipos, comandos, expressões e o escritor JSON. | alta | `ast.program.structure`, `ast.types.representation`, `ast.commands.representation`, `ast.expressions.representation`, `ast.serialization.json` | integral |
+| `src/ir.rs` | ir | Modelo de dados da IR estruturada (programa, funções, blocos, instruções, valores, tipos, operadores). | alta (modelo) | `ir.model.representation` | modelo integral; lowering → Onda 5 |
+| `src/cfg_ir.rs` | cfg | Modelo de dados do CFG IR (blocos básicos, instruções, terminadores, operandos). | alta (modelo) | `cfg.model.representation` (+ `cfg.logica.*` preservadas) | modelo integral; lowering → Onda 5 |
+| `src/instr_select.rs` | select | Modelo de dados da seleção de instruções (instruções selecionadas, terminadores). | alta (modelo) | `select.model.representation` | modelo integral; lowering → Onda 5 |
+| `src/abstract_machine.rs` | machine | Modelo de dados da máquina de pilha (instruções de pilha, terminadores, slots). | alta (modelo) | `machine.model.representation` | modelo integral; lowering → Onda 5 |
 
 ## Onda 4 — frontend léxico e parsing local (concluída)
 
@@ -253,39 +253,39 @@ sintático; ver adiados).
 
 | Âncora | Responsabilidade |
 |---|---|
-| `lexer.espacos-comentarios.consumo` | Espaços, comentários de linha `//` e de bloco `/* */` aninhados; bloco não terminado encerra no EOF sem token. |
-| `lexer.fluxo.tokenizacao` | Laço principal: operadores/delimitadores (incl. multi-caractere), inteiros, strings simples e `"""`, escapes, identificadores × palavras-chave, `$"..."` interpolado, `?`, EOF e erros léxicos. |
+| `lexer.whitespace-comments.consumption` | Espaços, comentários de linha `//` e de bloco `/* */` aninhados; bloco não terminado encerra no EOF sem token. |
+| `lexer.flow.tokenization` | Laço principal: operadores/delimitadores (incl. multi-caractere), inteiros, strings simples e `"""`, escapes, identificadores × palavras-chave, `$"..."` interpolado, `?`, EOF e erros léxicos. |
 
 **Decisão de granularidade (lexer):** identificadores, números, strings,
 interpolação e operadores são **braços do `match` dentro do único método
 `tokenize`**, não funções separadas. Fragmentá-los exigiria refatoração
-(proibida nesta onda), então são cobertos por `lexer.fluxo.tokenizacao` — uma
+(proibida nesta onda), então são cobertos por `lexer.flow.tokenization` — uma
 região conceitual única e precisa (§5.5).
 
 ### Parser (`src/parser.rs`) — revisão integral, cartografia parcial
 
 | Âncora | Responsabilidade |
 |---|---|
-| `parser.fluxo.nucleo` | Cursor de tokens (peek/advance/check/consume) e erro `Expected`. |
-| `parser.programa.estrutura` | Entrada `parse`: `pacote`, imports, freestanding e despacho de itens de topo. |
-| `parser.tipos.gramatica` | Gramática de tipos → `ast::Type` (só sintaxe). |
-| `parser.declaracoes.tipos` | `apelido`, `ninho` (struct), `impl`, `trato`, `leque` (enum). |
-| `parser.encaixe.expressao` | Desugaring de `encaixe` (pattern matching) em `talvez`/`senao`. |
-| `parser.resultado.tentar-propagar` | Desugaring de `tentar` e `propagar`/`propagar?`. |
-| `parser.closures.expressao` | Funções anônimas e vínculos de valor-função. |
-| `parser.funcoes.declaracao` | `carinho ...` incl. parâmetros de tipo genéricos. |
-| `parser.constantes.declaracao` | `eterno nome: tipo = expr;`. |
-| `parser.comandos.bloco` | Blocos e todos os comandos (`nova`/`muda`/`mimo`/fluxo/`falar`/asm). |
-| `parser.lacos.for-each` | Desugaring de `para cada X em COL`. |
-| `parser.expressoes.precedencia` | Escada de precedência + unários. |
-| `parser.expressoes.primarias` | Expressões primárias (literais, listas/mapas, struct/leque). |
-| `parser.expressoes.postfix` | Cadeia postfix: chamada, campo, índice, genérica explícita, cast. |
-| `parser.texto.interpolacao` | Desugaring de `$"..."` → `formatar_verso`. |
+| `parser.flow.core` | Cursor de tokens (peek/advance/check/consume) e erro `Expected`. |
+| `parser.program.structure` | Entrada `parse`: `pacote`, imports, freestanding e despacho de itens de topo. |
+| `parser.types.grammar` | Gramática de tipos → `ast::Type` (só sintaxe). |
+| `parser.declarations.types` | `apelido`, `ninho` (struct), `impl`, `trato`, `leque` (enum). |
+| `parser.encaixe.expression` | Desugaring de `encaixe` (pattern matching) em `talvez`/`senao`. |
+| `parser.result.tentar-propagar` | Desugaring de `tentar` e `propagar`/`propagar?`. |
+| `parser.closures.expression` | Funções anônimas e vínculos de valor-função. |
+| `parser.functions.declaration` | `carinho ...` incl. parâmetros de tipo genéricos. |
+| `parser.constants.declaration` | `eterno nome: tipo = expr;`. |
+| `parser.commands.block` | Blocos e todos os comandos (`nova`/`muda`/`mimo`/fluxo/`falar`/asm). |
+| `parser.loops.for-each` | Desugaring de `para cada X em COL`. |
+| `parser.expressions.precedence` | Escada de precedência + unários. |
+| `parser.expressions.primaries` | Expressões primárias (literais, listas/mapas, struct/leque). |
+| `parser.expressions.postfix` | Cadeia postfix: chamada, campo, índice, genérica explícita, cast. |
+| `parser.text.interpolation` | Desugaring de `$"..."` → `formatar_verso`. |
 
 **Adiado (parser):** a maquinaria de **monomorfização de genéricos** residente no
 parser (`generic_type_key`, `substitute_*`, `instantiate_generic_functions`,
 `instantiate_generic_enums`, `instantiate_function_param_functions` — ~
-`src/parser.rs` entre `parser.funcoes.declaracao` e `parser.constantes.declaracao`)
+`src/parser.rs` entre `parser.functions.declaration` e `parser.constants.declaration`)
 **não é responsabilidade léxica/sintática**: é monomorfização, explicitamente
 fora do escopo da Onda 4 (§2). Foi cartografada na **Onda 5B** (ver seção
 própria). Helpers isolados (`register_collection_type`, name-mangling de `impl`)
@@ -301,22 +301,22 @@ chamadas.
 
 | Âncora | Responsabilidade |
 |---|---|
-| `semantic.importacoes.familias` | Famílias de intrínsecas importáveis e validação de `trazer` (família inteira sim; seletiva/desconhecida não). |
-| `semantic.tipos.sistema` | Compatibilidade estrutural, resolução de tipos nomeados/aliases (com recursão), validação de struct, regras de inteiro/cast e faixa de literais. |
-| `semantic.escopos.variaveis` | Pilha de escopos léxicos: `declare_var` (sem sombreamento no mesmo escopo) e `resolve_var` (com fallback para constantes). |
-| `semantic.programa.duas-passagens` | Entrada `check_program`: coleta global (funcs/consts/aliases/structs/leques/tratos, conflitos e cargas de variante) e disparo da verificação. |
-| `semantic.tratos.contratos` | Contratos de trato/`impl`: cobertura exata, compatibilidade de assinatura (aridade, parâmetros, retorno). |
-| `semantic.funcoes.verificacao` | `principal` (política fixa), corpo de constante e de função com alcançabilidade de retorno. |
-| `semantic.comandos.verificacao` | Verificação de comandos do bloco (`mimo`/atribuições/fluxo/`falar`/`sussurro`/expressão-comando). |
-| `semantic.fluxo.retornos` | Ramo `talvez`/`senão` aninhado, checagem de `mimo` de retorno e análise superficial de alcançabilidade. |
-| `semantic.expressoes.verificacao` | Despacho de tipos de expressão (`check_expr`): literais, acessos, cast, `peso`/`alinhamento`, binárias (incl. aritmética de ponteiro) e unárias. |
-| `semantic.chamadas.despacho` | Resolução de método de `impl`, chamada nomeada e o grande despachante `check_call_expr` (variantes, `encaixe`, intrínsecas de lista/mapa/texto/CSV/JSON/tempo/processo). |
+| `semantic.imports.families` | Famílias de intrínsecas importáveis e validação de `trazer` (família inteira sim; seletiva/desconhecida não). |
+| `semantic.types.system` | Compatibilidade estrutural, resolução de tipos nomeados/aliases (com recursão), validação de struct, regras de inteiro/cast e faixa de literais. |
+| `semantic.scopes.variables` | Pilha de escopos léxicos: `declare_var` (sem sombreamento no mesmo escopo) e `resolve_var` (com fallback para constantes). |
+| `semantic.program.two-passes` | Entrada `check_program`: coleta global (funcs/consts/aliases/structs/leques/tratos, conflitos e cargas de variante) e disparo da verificação. |
+| `semantic.tratos.contracts` | Contratos de trato/`impl`: cobertura exata, compatibilidade de assinatura (aridade, parâmetros, retorno). |
+| `semantic.functions.verification` | `principal` (política fixa), corpo de constante e de função com alcançabilidade de retorno. |
+| `semantic.commands.verification` | Verificação de comandos do bloco (`mimo`/atribuições/fluxo/`falar`/`sussurro`/expressão-comando). |
+| `semantic.flow.returns` | Ramo `talvez`/`senão` aninhado, checagem de `mimo` de retorno e análise superficial de alcançabilidade. |
+| `semantic.expressions.verification` | Despacho de tipos de expressão (`check_expr`): literais, acessos, cast, `peso`/`alinhamento`, binárias (incl. aritmética de ponteiro) e unárias. |
+| `semantic.calls.dispatch` | Resolução de método de `impl`, chamada nomeada e o grande despachante `check_call_expr` (variantes, `encaixe`, intrínsecas de lista/mapa/texto/CSV/JSON/tempo/processo). |
 
 **Decisão de granularidade (semantic):** `check_call_expr` é um único
 despachante de ~4100 linhas com braços sequenciais fortemente interligados
 (construção de variante, desugaring de `encaixe`, intrínsecas). Fragmentá-lo
 exigiria refatoração (proibida nesta onda), então fica coberto por uma região
-conceitual ampla, `semantic.chamadas.despacho`, junto aos resolvedores de método
+conceitual ampla, `semantic.calls.dispatch`, junto aos resolvedores de método
 que ele consome (§6.8). Helpers de plumbing do `SemanticChecker` (construtor,
 `type_key`, `parse_impl_function_name`, `push_scope`/`pop_scope`,
 `resolve_struct_field_type`) ficam sem âncora por serem infraestrutura (§7).
@@ -330,20 +330,20 @@ camada seguem uma onda cada (5C–5E). Ver adiados abaixo.
 `src/parser.rs` já havia sido **integralmente revisado** na Onda 4 (cartografia
 léxico/sintática); esta rodada **releu o arquivo integralmente** e aprofundou
 **somente** a maquinaria de monomorfização/especialização — o bloco de
-transformação que estava fisicamente entre `parser.funcoes.declaracao` e
-`parser.constantes.declaracao` e ainda não tinha âncoras. Essa maquinaria
+transformação que estava fisicamente entre `parser.functions.declaration` e
+`parser.constants.declaration` e ainda não tinha âncoras. Essa maquinaria
 converte templates e solicitações registradas durante o parsing em declarações
 AST concretas anexadas ao `Program`.
 
 | Âncora | Responsabilidade |
 |---|---|
-| `parser.genericos.identidade-especializacao` | Chave textual determinística de tipo (`generic_type_key`) e nomes monomórficos de função/leque (`__gen_*`). Só gera identidade; não valida tipos. |
-| `parser.genericos.leques-template` | Materializa um `EnumDecl` concreto a partir de um template de leque + argumentos de tipo (aridade, substituição de cargas, nome monomórfico). |
-| `parser.genericos.substituicao-ast` | Substituição recursiva parâmetro-de-tipo → tipo concreto por `Type`/`Expr`/`AssignTarget`/`Block`/`ElseBlock`/`IfStmt`/`Stmt`, preservando spans. Uma operação única distribuída pelos `substitute_*`. |
-| `parser.callbacks.substituicao-estatica` | Reescrita de chamadas cujo callee é um parâmetro-função por chamadas diretas à função concreta ligada, percorrendo toda a AST do corpo. |
-| `parser.callbacks.instanciacao-estatica` | Especialização de callback estático: localiza a função concreta, valida posição/assinatura, exige callback para todo parâmetro-função, gera `__fnparam_*`, remove os parâmetros-função e deduplica. |
-| `parser.genericos.funcoes-instanciacao` | Materializa `FunctionDecl` concretos das funções genéricas solicitadas (aridade, nome monomórfico, deduplicação, substituição de parâmetros/retorno/corpo). |
-| `parser.genericos.leques-instanciacao` | Percorre as solicitações de leque genérico, deduplica e delega a criação da declaração especializada. |
+| `parser.generics.specialization-identity` | Chave textual determinística de tipo (`generic_type_key`) e nomes monomórficos de função/leque (`__gen_*`). Só gera identidade; não valida tipos. |
+| `parser.generics.leques-template` | Materializa um `EnumDecl` concreto a partir de um template de leque + argumentos de tipo (aridade, substituição de cargas, nome monomórfico). |
+| `parser.generics.ast-substitution` | Substituição recursiva parâmetro-de-tipo → tipo concreto por `Type`/`Expr`/`AssignTarget`/`Block`/`ElseBlock`/`IfStmt`/`Stmt`, preservando spans. Uma operação única distribuída pelos `substitute_*`. |
+| `parser.callbacks.static-substitution` | Reescrita de chamadas cujo callee é um parâmetro-função por chamadas diretas à função concreta ligada, percorrendo toda a AST do corpo. |
+| `parser.callbacks.static-instantiation` | Especialização de callback estático: localiza a função concreta, valida posição/assinatura, exige callback para todo parâmetro-função, gera `__fnparam_*`, remove os parâmetros-função e deduplica. |
+| `parser.generics.functions-instantiation` | Materializa `FunctionDecl` concretos das funções genéricas solicitadas (aridade, nome monomórfico, deduplicação, substituição de parâmetros/retorno/corpo). |
+| `parser.generics.leques-instantiation` | Percorre as solicitações de leque genérico, deduplica e delega a criação da declaração especializada. |
 
 **Distinção genéricos × callbacks (§3):** os domínios são deliberadamente
 separados. `genericos` cobre substituição de **parâmetros de tipo** (produz tipos
@@ -353,17 +353,17 @@ segunda como “substituição de genéricos” seria incorreto.
 
 **Pontos de integração já cobertos por âncoras da Onda 4 (não re-ancorados, §5):**
 
-- `parser.programa.estrutura` — registra templates (função genérica, função com
+- `parser.program.structure` — registra templates (função genérica, função com
   parâmetro-função, leque genérico) durante o laço de itens de topo e, ao final,
   **invoca** `instantiate_generic_enums`/`instantiate_generic_functions`/
   `instantiate_function_param_functions` e anexa as declarações resultantes (e as
   funções pendentes) ao `Program`. É aqui que a materialização entra no programa.
-- `parser.tipos.gramatica` — lê aplicações genéricas de tipo e registra
+- `parser.types.grammar` — lê aplicações genéricas de tipo e registra
   solicitações de leque genérico.
-- `parser.expressoes.postfix` — lê chamadas genéricas explícitas e chamadas com
+- `parser.expressions.postfix` — lê chamadas genéricas explícitas e chamadas com
   callback estático, registrando as solicitações correspondentes.
-- `parser.funcoes.declaracao` — declara os parâmetros de tipo genéricos.
-- `parser.closures.expressao` — registra funções sintéticas pendentes.
+- `parser.functions.declaration` — declara os parâmetros de tipo genéricos.
+- `parser.closures.expression` — registra funções sintéticas pendentes.
 
 Essas regiões foram **preservadas intactas**; a 5B não moveu fronteiras nem criou
 âncoras aninhadas/sobrepostas.
@@ -384,26 +384,26 @@ própria.
 
 `src/ir.rs` **integralmente revisado** (linha a linha) e cartografado na
 transformação da AST semanticamente válida para a IR estruturada. O modelo de
-dados já estava coberto por `ir.modelo.representacao` (preservado, não movido); a
+dados já estava coberto por `ir.model.representation` (preservado, não movido); a
 5C acrescenta a maquinaria de lowering, conversão de tipos e renderização.
 
 | Âncora | Responsabilidade |
 |---|---|
-| `ir.lowering.programa-orquestracao` | Entrada `lower_program`: cria o contexto, despacha constantes/funções e monta `ProgramIR`. |
-| `ir.lowering.contexto-declaracoes` | 1ª metade de `from_program`: coleta aliases, structs/campos/offsets, variantes de leque, assinaturas e tipos de constantes do programa. |
-| `ir.lowering.assinaturas-intrinsecos` | 2ª metade de `from_program`: catálogo centralizado de assinaturas das intrínsecas embutidas/internas + montagem do contexto. |
-| `ir.lowering.funcoes-blocos` | `FunctionLowerer`: parâmetros, bloco de entrada, locais, `FunctionIR`/`BlockIR`; inclui os resolvedores de método de `impl`. |
-| `ir.lowering.comandos-controle` | Lowering de `Stmt` → `InstructionIR` (declaração, stores, retorno, `falar`, asm, `talvez`/`sempre que` estruturados com destinos de laço). |
-| `ir.lowering.expressoes-valores` | Grande despachante `lower_value` → `TypedValueIR` (literais, chamadas/métodos, intrínsecas de lista/mapa, leques, campos/offsets, cast, `peso`/`alinhamento`). |
-| `ir.lowering.bindings-escopos` | Normalização de nomes em slots `%nome#N`, pilha de escopos, coleta de `LocalIR` e geração de rótulos. |
-| `ir.lowering.constantes` | `lower_const`: abaixa o inicializador e o tipo de uma constante global em `ConstIR`. |
-| `ir.renderizacao.textual` | `render_function`/`render_block`/`render_instruction`/`render_value` — forma textual auditável da IR. |
-| `ir.tipos.conversao-ast` | `TypeIR::from_ast_*`: conversão mecânica `Type` → `TypeIR` (aliases, redução de leques, arrays/ponteiros/structs, recusa de função/genérico). |
+| `ir.lowering.program-orchestration` | Entrada `lower_program`: cria o contexto, despacha constantes/funções e monta `ProgramIR`. |
+| `ir.lowering.context-declarations` | 1ª metade de `from_program`: coleta aliases, structs/campos/offsets, variantes de leque, assinaturas e tipos de constantes do programa. |
+| `ir.lowering.intrinsic-signatures` | 2ª metade de `from_program`: catálogo centralizado de assinaturas das intrínsecas embutidas/internas + montagem do contexto. |
+| `ir.lowering.functions-blocks` | `FunctionLowerer`: parâmetros, bloco de entrada, locais, `FunctionIR`/`BlockIR`; inclui os resolvedores de método de `impl`. |
+| `ir.lowering.control-commands` | Lowering de `Stmt` → `InstructionIR` (declaração, stores, retorno, `falar`, asm, `talvez`/`sempre que` estruturados com destinos de laço). |
+| `ir.lowering.expression-values` | Grande despachante `lower_value` → `TypedValueIR` (literais, chamadas/métodos, intrínsecas de lista/mapa, leques, campos/offsets, cast, `peso`/`alinhamento`). |
+| `ir.lowering.bindings-scopes` | Normalização de nomes em slots `%nome#N`, pilha de escopos, coleta de `LocalIR` e geração de rótulos. |
+| `ir.lowering.constants` | `lower_const`: abaixa o inicializador e o tipo de uma constante global em `ConstIR`. |
+| `ir.rendering.textual` | `render_function`/`render_block`/`render_instruction`/`render_value` — forma textual auditável da IR. |
+| `ir.types.ast-conversion` | `TypeIR::from_ast_*`: conversão mecânica `Type` → `TypeIR` (aliases, redução de leques, arrays/ponteiros/structs, recusa de função/genérico). |
 
-**Separação de responsabilidades (§3):** o **modelo** (`ir.modelo.representacao`)
+**Separação de responsabilidades (§3):** o **modelo** (`ir.model.representation`)
 define as estruturas; o **lowering** (`ir.lowering.*`) transforma AST → IR; a
-**validação** (`ir.validacao.invariantes`, em `src/ir_validate.rs`, intocada)
-confere invariantes; a **renderização** (`ir.renderizacao.textual`) produz texto;
+**validação** (`ir.validation.invariants`, em `src/ir_validate.rs`, intocada)
+confere invariantes; a **renderização** (`ir.rendering.textual`) produz texto;
 o **CFG** (`src/cfg_ir.rs`, Onda 5D) é que divide o fluxo em blocos básicos. Nesta
 camada `if`/`while` ainda são estruturas aninhadas, `break`/`continue` carregam
 destinos simbólicos e não há SSA, terminadores nem blocos básicos.
@@ -423,7 +423,7 @@ não foi refatorado para gerar regiões menores.
 **Helpers deliberadamente não ancorados (§11):** a entrada pública
 `render_program` (fica junto a `lower_program`, fisicamente separada do restante
 da renderização; é um wrapper fino que delega às funções ancoradas em
-`ir.renderizacao.textual`); `resolve_type`, `resolve_struct_name_from_type` e
+`ir.rendering.textual`); `resolve_type`, `resolve_struct_name_from_type` e
 `pointer_to_bombom_array_size` (helpers de resolução consumidos pelo lowering);
 os predicados/nomeação de `TypeIR`, e os `impl` de `ScalarTypeIR`/`UnaryOpIR`/
 `BinaryOpIR` (métodos de modelo). Nenhum tem responsabilidade consultável própria.
@@ -437,37 +437,37 @@ fase, não bugs; nenhuma mensagem de erro foi alterada.
 
 `src/cfg_ir.rs` **integralmente revisado** (linha a linha) e cartografado na
 transformação da IR estruturada em blocos básicos com terminadores explícitos. O
-modelo de dados já estava coberto por `cfg.modelo.representacao` (preservado, não
+modelo de dados já estava coberto por `cfg.model.representation` (preservado, não
 movido) e as duas responsabilidades especializadas de lógica por
-`cfg.logica.curto-circuito` e `cfg.logica.slot-logico` (históricas, preservadas
+`cfg.logic.short-circuit` e `cfg.logic.logical-slot` (históricas, preservadas
 sem duplicação); a 5D acrescenta a maquinaria de lowering, construção de blocos e
 renderização em torno delas.
 
 | Âncora | Responsabilidade |
 |---|---|
-| `cfg.lowering.programa-orquestracao` | Entrada `lower_program`: constantes, funções e `ProgramCfgIR`. |
-| `cfg.lowering.funcoes-blocos` | `lower_function`: bloco `entry`, um terminador por bloco, `dead_N`, retorno implícito só para `nulo`, `FunctionCfgIR`. |
-| `cfg.lowering.instrucoes-controle` | `lower_instruction`: stores, retorno e achatamento de `if`/`while` em `Branch`/`Jump`/join com pilhas de `break`/`continue`. |
-| `cfg.lowering.valores-temporarios` | `lower_value_operand`/`lower_expr_stmt`: linearização de valores em operandos e `TempIR`. |
-| `cfg.lowering.memoria-indireta` | Acesso/escrita de campos e índices por endereço → `DerefLoad`/`DerefStore`. |
-| `cfg.lowering.construcao-blocos` | `fresh_block`/`next_label`/`next_temp` e `BlockBuilder::new`/`is_terminated` (bloco aberto × terminado). |
-| `cfg.lowering.constantes` | `lower_constant_value`: valor de constante global → operando CFG. |
-| `cfg.renderizacao.programa` | `render_program`: forma textual da CFG ao nível de programa/função/bloco. |
-| `cfg.renderizacao.componentes` | `render_instruction`/`render_terminator`/`render_operand`/`render_temp` + operadores + `line`. |
+| `cfg.lowering.program-orchestration` | Entrada `lower_program`: constantes, funções e `ProgramCfgIR`. |
+| `cfg.lowering.functions-blocks` | `lower_function`: bloco `entry`, um terminador por bloco, `dead_N`, retorno implícito só para `nulo`, `FunctionCfgIR`. |
+| `cfg.lowering.control-instructions` | `lower_instruction`: stores, retorno e achatamento de `if`/`while` em `Branch`/`Jump`/join com pilhas de `break`/`continue`. |
+| `cfg.lowering.temporary-values` | `lower_value_operand`/`lower_expr_stmt`: linearização de valores em operandos e `TempIR`. |
+| `cfg.lowering.indirect-memory` | Acesso/escrita de campos e índices por endereço → `DerefLoad`/`DerefStore`. |
+| `cfg.lowering.block-construction` | `fresh_block`/`next_label`/`next_temp` e `BlockBuilder::new`/`is_terminated` (bloco aberto × terminado). |
+| `cfg.lowering.constants` | `lower_constant_value`: valor de constante global → operando CFG. |
+| `cfg.rendering.program` | `render_program`: forma textual da CFG ao nível de programa/função/bloco. |
+| `cfg.rendering.components` | `render_instruction`/`render_terminator`/`render_operand`/`render_temp` + operadores + `line`. |
 
-**Regiões `cfg.logica.*` (§5/§8/§9, preservadas):** `cfg.logica.curto-circuito`
+**Regiões `cfg.logica.*` (§5/§8/§9, preservadas):** `cfg.logic.short-circuit`
 já cobre a avaliação do operando esquerdo, os blocos `logic_rhs`/`logic_short`/
 `logic_join`, a direção distinta de `e`/`ou`, a materialização do resultado num
-slot e os jumps ao join; `cfg.logica.slot-logico` cobre a criação de `%logic#N`
+slot e os jumps ao join; `cfg.logic.logical-slot` cobre a criação de `%logic#N`
 como `LocalIR` mutável para o merge do curto-circuito (não é `phi`, não é SSA). As
-novas regiões de lowering **param antes** de `cfg.logica.curto-circuito` e
-**retomam depois** de `cfg.logica.slot-logico`; nenhuma fronteira histórica foi
+novas regiões de lowering **param antes** de `cfg.logic.short-circuit` e
+**retomam depois** de `cfg.logic.logical-slot`; nenhuma fronteira histórica foi
 movida, nem se criou região aninhada/sobreposta.
 
-**Separação de responsabilidades (§3):** o **modelo** (`cfg.modelo.representacao`)
+**Separação de responsabilidades (§3):** o **modelo** (`cfg.model.representation`)
 define as estruturas; o **lowering** (`cfg.lowering.*`) achata o controle
 estruturado em blocos básicos; a **lógica** (`cfg.logica.*`) trata o curto-circuito
-e seu slot; a **validação** (`cfg.validacao.invariantes`, em
+e seu slot; a **validação** (`cfg.validation.invariants`, em
 `src/cfg_ir_validate.rs`, intocada) confere invariantes; a **renderização**
 (`cfg.renderizacao.*`) produz texto; a **seleção** (`src/instr_select.rs`, Onda 5E)
 é a próxima camada. Os temporários `TempIR` (`%tN`) são resultados intermediários
@@ -484,7 +484,7 @@ sem âncora foi descartada por ser função pública substancial.
 **Helpers deliberadamente não ancorados (§6.7/§12):** os structs de estado
 `FunctionLowerer`/`BlockBuilder` (preâmbulo de plumbing) e os helpers de argumento
 `lower_falar_operand`/`lower_falar_args`/`lower_call_operand` (entre
-`memoria-indireta` e `cfg.logica.curto-circuito`; a distinção de chamada com/sem
+`memoria-indireta` e `cfg.logic.short-circuit`; a distinção de chamada com/sem
 retorno já é descrita por `valores-temporarios`). Nenhum tem responsabilidade
 consultável própria.
 
@@ -499,8 +499,8 @@ bloco de continuação sintético — registrado como observação, sem alteraç
 
 `src/instr_select.rs` e `src/abstract_machine.rs` **integralmente revisados**
 (linha a linha), fechando a cadeia de lowerings. Os modelos já estavam cobertos por
-`select.modelo.representacao`/`machine.modelo.representacao` (preservados) e os
-validadores por `select.validacao.invariantes`/`machine.validacao.invariantes` (em
+`select.model.representation`/`machine.model.representation` (preservados) e os
+validadores por `select.validation.invariants`/`machine.validation.invariants` (em
 arquivos próprios, intocados); a 5E acrescenta o lowering e a renderização de cada
 camada.
 
@@ -508,22 +508,22 @@ camada.
 
 | Âncora | Responsabilidade |
 |---|---|
-| `select.lowering.programa-blocos` | `lower_program`: `ProgramCfgIR` → `SelectedProgram` (globais, funções, `slot_types`, blocos, terminadores). |
-| `select.lowering.instrucoes` | `select_instruction`: `InstructionCfgIR` → `SelectedInstr` (enum-a-enum), com `lower_falar_args`. |
-| `select.renderizacao.programa` | `render_program` da seleção. |
-| `select.renderizacao.componentes` | `render_instr`/`render_term`/`render_operand`/`render_temp`. |
+| `select.lowering.program-blocks` | `lower_program`: `ProgramCfgIR` → `SelectedProgram` (globais, funções, `slot_types`, blocos, terminadores). |
+| `select.lowering.instructions` | `select_instruction`: `InstructionCfgIR` → `SelectedInstr` (enum-a-enum), com `lower_falar_args`. |
+| `select.rendering.program` | `render_program` da seleção. |
+| `select.rendering.components` | `render_instr`/`render_term`/`render_operand`/`render_temp`. |
 
 **Máquina (`machine`, 7 regiões):**
 
 | Âncora | Responsabilidade |
 |---|---|
-| `machine.lowering.programa-blocos` | `lower_program`: `SelectedProgram` → `MachineProgram`. |
-| `machine.lowering.instrucoes-pilha` | `lower_instr`: `SelectedInstr` → operações de pilha (carregar → operar → `StoreSlot %tN`), incl. `falar`. |
-| `machine.lowering.terminadores` | `lower_term`: carga de condição/retorno antes de `BrTrue`/`Ret`. |
-| `machine.lowering.operandos-slots` | `emit_load`/`temp_name`: `OperandIR` → carga na pilha e nome canônico `%tN`. |
-| `machine.renderizacao.programa` | `render_program` da máquina. |
-| `machine.renderizacao.apresentacao` | `clean_slot_display`/`is_render_temp`/`block_role_annotation` (apresentação humana). |
-| `machine.renderizacao.componentes` | `render_instr`/`render_term`/comentários de fluxo/`render_operand`. |
+| `machine.lowering.program-blocks` | `lower_program`: `SelectedProgram` → `MachineProgram`. |
+| `machine.lowering.stack-instructions` | `lower_instr`: `SelectedInstr` → operações de pilha (carregar → operar → `StoreSlot %tN`), incl. `falar`. |
+| `machine.lowering.terminators` | `lower_term`: carga de condição/retorno antes de `BrTrue`/`Ret`. |
+| `machine.lowering.operands-slots` | `emit_load`/`temp_name`: `OperandIR` → carga na pilha e nome canônico `%tN`. |
+| `machine.rendering.program` | `render_program` da máquina. |
+| `machine.rendering.presentation` | `clean_slot_display`/`is_render_temp`/`block_role_annotation` (apresentação humana). |
+| `machine.rendering.components` | `render_instr`/`render_term`/comentários de fluxo/`render_operand`. |
 
 **A seleção é abstrata e independente de ISA (§4/§6.4):** `select_instruction` é
 essencialmente uma transformação enum-a-enum que preserva `OperandIR`, `TempIR`,
@@ -575,21 +575,21 @@ scanner. O estado hospedado daqui não é runtime nativo linkável.
 
 | Âncora | Responsabilidade |
 |---|---|
-| `interpreter.modelo.valores-estado` | Valores de execução, handles lógicos, estados de IO/listas/mapas/leques/aleatoriedade/arquivos e frames; diferencia handles, slots e endereços simulados de ponteiros nativos. |
-| `interpreter.execucao.programa-globais` | `run_program`/`run_program_with_args`, argumentos CLI, chamada de `principal`, `RunOutcome`, globais e memória inicial em `HashMap`. |
-| `interpreter.execucao.funcoes-fluxo` | `call_function`: profundidade, frames, aridade, labels, slots, pilha, percurso de blocos, terminadores e propagação de `sair`/erros com trace. |
-| `interpreter.execucao.instrucoes-pilha` | `exec_instr`: padrão desempilhar/operar/empilhar ou armazenar, slots/globais/memória simulada, chamadas, casts, aritmética e impressões de `falar`. |
-| `interpreter.intrinsecos.acaso` | Geradores pseudoaleatórios hospedados iniciais, com handles próprios do interpretador. |
-| `interpreter.intrinsecos.listas` | Bloco contíguo de listas `bombom`/`verso`, handles tipados, índice e mutação. |
-| `interpreter.intrinsecos.mapas-verso-bombom` | Primeiro bloco contíguo de mapa `verso -> bombom` e cursores internos. |
-| `interpreter.intrinsecos.leques` | Leques hospedados por handle opaco, tag e payload inteiro/textual. |
-| `interpreter.intrinsecos.io-arquivo-texto` | Stdin, arquivos por handle, leitura/escrita/truncamento/fechamento, texto, CSV e JSON mínimo, com efeitos reais no host. |
-| `interpreter.intrinsecos.tempo-processos-ambiente` | Relógio, processos, argumentos CLI, ambiente, caminhos, `sair`, `afirmar`, `dormir` e filesystem direto. |
-| `interpreter.intrinsecos.conversoes-numero-texto` | Conversões `verso_para_bombom` e `bombom_para_verso`, com validação de aridade/tipos. |
-| `interpreter.intrinsecos.mapas-tipados` | Famílias tipadas de mapa (`verso↔verso`, `bombom↔bombom`, `bombom↔verso`) com `criar`/`definir`/`obter`/`tem`/`tamanho`/`remover` e cursores internos, mais a remoção residual de `mapa<verso,bombom>`. |
-| `interpreter.hospedeiro.servicos-auxiliares` | Helpers de stdin, aleatoriedade, ambiente, formatação, CSV/JSON, tempo UTC e processos (`Command`, pipes, códigos de saída). |
-| `interpreter.execucao.valores-tipos` | Busca de função, `pop*`, coerções para `TypeIR`, ponteiros simulados, aritmética, comparação e signedness defensivos. |
-| `interpreter.diagnostico.stack-trace` | Erros enriquecidos, classificação, prevenção de trace duplicado, renderização/truncamento de frames e nomes de instruções. |
+| `interpreter.model.state-values` | Valores de execução, handles lógicos, estados de IO/listas/mapas/leques/aleatoriedade/arquivos e frames; diferencia handles, slots e endereços simulados de ponteiros nativos. |
+| `interpreter.execution.program-globals` | `run_program`/`run_program_with_args`, argumentos CLI, chamada de `principal`, `RunOutcome`, globais e memória inicial em `HashMap`. |
+| `interpreter.execution.functions-flow` | `call_function`: profundidade, frames, aridade, labels, slots, pilha, percurso de blocos, terminadores e propagação de `sair`/erros com trace. |
+| `interpreter.execution.stack-instructions` | `exec_instr`: padrão desempilhar/operar/empilhar ou armazenar, slots/globais/memória simulada, chamadas, casts, aritmética e impressões de `falar`. |
+| `interpreter.intrinsics.acaso` | Geradores pseudoaleatórios hospedados iniciais, com handles próprios do interpretador. |
+| `interpreter.intrinsics.lists` | Bloco contíguo de listas `bombom`/`verso`, handles tipados, índice e mutação. |
+| `interpreter.intrinsics.maps-verso-bombom` | Primeiro bloco contíguo de mapa `verso -> bombom` e cursores internos. |
+| `interpreter.intrinsics.leques` | Leques hospedados por handle opaco, tag e payload inteiro/textual. |
+| `interpreter.intrinsics.io-text-file` | Stdin, arquivos por handle, leitura/escrita/truncamento/fechamento, texto, CSV e JSON mínimo, com efeitos reais no host. |
+| `interpreter.intrinsics.time-processes-environment` | Relógio, processos, argumentos CLI, ambiente, caminhos, `sair`, `afirmar`, `dormir` e filesystem direto. |
+| `interpreter.intrinsics.number-text-conversions` | Conversões `verso_para_bombom` e `bombom_para_verso`, com validação de aridade/tipos. |
+| `interpreter.intrinsics.typed-maps` | Famílias tipadas de mapa (`verso↔verso`, `bombom↔bombom`, `bombom↔verso`) com `criar`/`definir`/`obter`/`tem`/`tamanho`/`remover` e cursores internos, mais a remoção residual de `mapa<verso,bombom>`. |
+| `interpreter.host.auxiliary-services` | Helpers de stdin, aleatoriedade, ambiente, formatação, CSV/JSON, tempo UTC e processos (`Command`, pipes, códigos de saída). |
+| `interpreter.execution.value-types` | Busca de função, `pop*`, coerções para `TypeIR`, ponteiros simulados, aritmética, comparação e signedness defensivos. |
+| `interpreter.diagnostic.stack-trace` | Erros enriquecidos, classificação, prevenção de trace duplicado, renderização/truncamento de frames e nomes de instruções. |
 
 **Granularidade de `try_call_intrinsic`:** o dispatcher foi dividido por
 responsabilidade semântica, não por intrínseca, respeitando a ordem física do
@@ -598,8 +598,8 @@ estáveis — `conversoes-numero-texto` (as duas conversões `verso`↔`bombom`)
 `mapas-tipados` (as demais famílias tipadas de mapa e seus cursores) — em vez de
 um único intervalo genérico. Dois braços isolados permanecem **sem âncora
 própria** por serem membros de famílias já ancoradas, fisicamente separados
-delas: `aleatorio_entre` (pertence a `interpreter.intrinsecos.acaso`) e
-`lista_bombom_inserir` (pertence a `interpreter.intrinsecos.listas`); ancorá-los
+delas: `aleatorio_entre` (pertence a `interpreter.intrinsics.acaso`) e
+`lista_bombom_inserir` (pertence a `interpreter.intrinsics.lists`); ancorá-los
 seria a anti-prática de uma região por intrínseca, e mover código está fora do
 escopo. O ramo `_ => NotIntrinsic` de encerramento do dispatcher é plumbing
 trivial. Não há `interpreter.intrinsecos.tudo` nem âncora por intrínseca.
@@ -611,13 +611,13 @@ instruções explícitas (`Print*`), não como intrínseca.
 
 **Helpers de pilha e conversão:** `pop_args`, `pop`, `pop_numeric`, `pop_bool`,
 `pop_str`, coerções, casts, aritmética e comparação ficam juntos em
-`interpreter.execucao.valores-tipos`, pois são verificações dinâmicas defensivas,
+`interpreter.execution.value-types`, pois são verificações dinâmicas defensivas,
 não o sistema estático de tipos.
 
 **Processos:** os braços de processo aparecem no intervalo
 `tempo-processos-ambiente`; os helpers `executar_*`, `pipeline_minimo`,
 `capturar_*`, validação de comando e código de saída ficam em
-`interpreter.hospedeiro.servicos-auxiliares`, porque não são contíguos ao
+`interpreter.host.auxiliary-services`, porque não são contíguos ao
 dispatcher.
 
 **Auditorias registradas (não corrigidas):**
@@ -674,25 +674,25 @@ política de overflow não explicitada pelo interpretador; paridade com
 ## Onda 6B — backend textual (concluída)
 
 `src/backend_text.rs` **integralmente revisado** (linha a linha) e cartografado.
-O validador já estava coberto por `backend-text.validacao.invariantes` (em
+O validador já estava coberto por `backend-text.validation.invariants` (em
 `src/backend_text_validate.rs`, intocado, preservado); a 6B acrescenta modelo,
 os dois caminhos de lowering, o pipeline público e a renderização.
 
 | Âncora | Responsabilidade |
 |---|---|
-| `backend-text.modelo.representacao` | Structs/enums do backend textual (programa, global, função, bloco, instrução, arg de `falar`, terminador). |
-| `backend-text.lowering.cfg-programa` | `lower_program`: lowering direto `ProgramCfgIR` → `BackendTextProgram`. |
-| `backend-text.lowering.selecao-programa` | `lower_selected_program`: `SelectedProgram` → `BackendTextProgram` (caminho usado). |
-| `backend-text.lowering.instrucoes-selecionadas` | `map_selected_instr` (+ `map_selected_term` dobrado): `SelectedInstr`/`SelectedTerminator` → representação textual. |
-| `backend-text.pipeline.emissao` | `emit_program`: select → validate → lower_selected → validate → render. |
-| `backend-text.renderizacao.programa` | `render_program`: módulo/modo/globais/funções/blocos em pseudo-assembly. |
-| `backend-text.renderizacao.instrucoes` | `render_instruction`: `mov`/`unop`/`binop`/`call`/`falar`. |
-| `backend-text.renderizacao.componentes` | `render_terminator`/`render_operand`/`render_temp`/`op_name`/`binop_name`/`line`. |
+| `backend-text.model.representation` | Structs/enums do backend textual (programa, global, função, bloco, instrução, arg de `falar`, terminador). |
+| `backend-text.lowering.cfg-program` | `lower_program`: lowering direto `ProgramCfgIR` → `BackendTextProgram`. |
+| `backend-text.lowering.program-selection` | `lower_selected_program`: `SelectedProgram` → `BackendTextProgram` (caminho usado). |
+| `backend-text.lowering.selected-instructions` | `map_selected_instr` (+ `map_selected_term` dobrado): `SelectedInstr`/`SelectedTerminator` → representação textual. |
+| `backend-text.pipeline.emission` | `emit_program`: select → validate → lower_selected → validate → render. |
+| `backend-text.rendering.program` | `render_program`: módulo/modo/globais/funções/blocos em pseudo-assembly. |
+| `backend-text.rendering.instructions` | `render_instruction`: `mov`/`unop`/`binop`/`call`/`falar`. |
+| `backend-text.rendering.components` | `render_terminator`/`render_operand`/`render_temp`/`op_name`/`binop_name`/`line`. |
 
 **Separação de responsabilidades:** o **modelo** (`modelo.representacao`) define as
 estruturas; o **lowering** (`lowering.*`) constrói a representação a partir de CFG
 ou de seleção; o **pipeline** (`pipeline.emissao`) encadeia seleção, validação e
-renderização; a **validação** (`backend-text.validacao.invariantes`, intocada)
+renderização; a **validação** (`backend-text.validation.invariants`, intocada)
 verifica invariantes; a **renderização** (`renderizacao.*`) serializa. O backend
 textual produz pseudo-assembly **validável**, não código nativo — o backend `.s`
 (Onda 6C) é a emissão nativa/ABI.
@@ -779,30 +779,30 @@ assembly GAS montável; os dois caminhos externos sim.
 
 | Âncora | Responsabilidade |
 |---|---|
-| `backend-s.pipeline.textual-selecionado` | `emit_from_selected`: entrada do `.s` textual; valida subset textual, delega a `backend_text::lower_selected_program` e serializa com `render_program`. |
-| `backend-s.pipeline.toolchain-externa` | `emit_external_toolchain_subset`: entrada do montável hospedado; constrói `ExternalCallConvProgram` e renderiza com `runtime_init=false`. |
-| `backend-s.pipeline.nativo-runtime` | `emit_external_toolchain_subset_nativo`: entrada do build nativo; mesma representação externa, `runtime_init=true` (chama `pinker_rt_iniciar`). |
-| `backend-s.validacao.subset-textual` | `validate_supported_subset`: subset aceito **só** pelo caminho textual (`is_supported_type`), independente das validações do caminho montável. |
-| `backend-s.modelo.callconv-externa` | `ExternalCallConvProgram` e componentes; corpos de bloco em `Vec<String>`, papéis de registrador fixos; **não** é `BackendTextProgram`. |
-| `backend-s.abi.registradores-argumentos` | `REG_RET`/`ARG_REGS`/`REG_TMP`: papéis fixos SysV; args 7+ pela pilha com padding de 16. |
-| `backend-s.lowering.globais-rodata` | Início de `extract_external_callconv_program`: dedup de globais, `bombom`/`logica` literais em `.rodata`, exigência de `principal`. |
-| `backend-s.lowering.funcoes-frames` | Validação por função + `slot_offsets` (8 bytes/slot, param→local→temp), `raw_stack`, `stack_size` arredondado a 16. |
-| `backend-s.lowering.blocos-terminadores` | Abertura do laço de blocos + seleção de terminador (`Jmp`/`Br`/`Ret`, rodata de `verso` de retorno). |
-| `backend-s.lowering.operacoes-memoria` | Corpo: `Mov`, aritmética linear, comparações, `DerefLoad`/`DerefStore` mínimos, `Cast` `u32↔u64`. |
-| `backend-s.lowering.chamadas-sysv` | `Call` (ternário via `cmov`, resolução de intrínsecas, ABI SysV com args de pilha) e `CallVoid`. |
+| `backend-s.pipeline.textual-selected` | `emit_from_selected`: entrada do `.s` textual; valida subset textual, delega a `backend_text::lower_selected_program` e serializa com `render_program`. |
+| `backend-s.pipeline.external-toolchain` | `emit_external_toolchain_subset`: entrada do montável hospedado; constrói `ExternalCallConvProgram` e renderiza com `runtime_init=false`. |
+| `backend-s.pipeline.native-runtime` | `emit_external_toolchain_subset_nativo`: entrada do build nativo; mesma representação externa, `runtime_init=true` (chama `pinker_rt_iniciar`). |
+| `backend-s.validation.textual-subset` | `validate_supported_subset`: subset aceito **só** pelo caminho textual (`is_supported_type`), independente das validações do caminho montável. |
+| `backend-s.model.external-callconv` | `ExternalCallConvProgram` e componentes; corpos de bloco em `Vec<String>`, papéis de registrador fixos; **não** é `BackendTextProgram`. |
+| `backend-s.abi.argument-registers` | `REG_RET`/`ARG_REGS`/`REG_TMP`: papéis fixos SysV; args 7+ pela pilha com padding de 16. |
+| `backend-s.lowering.rodata-globals` | Início de `extract_external_callconv_program`: dedup de globais, `bombom`/`logica` literais em `.rodata`, exigência de `principal`. |
+| `backend-s.lowering.functions-frames` | Validação por função + `slot_offsets` (8 bytes/slot, param→local→temp), `raw_stack`, `stack_size` arredondado a 16. |
+| `backend-s.lowering.blocks-terminators` | Abertura do laço de blocos + seleção de terminador (`Jmp`/`Br`/`Ret`, rodata de `verso` de retorno). |
+| `backend-s.lowering.memory-operations` | Corpo: `Mov`, aritmética linear, comparações, `DerefLoad`/`DerefStore` mínimos, `Cast` `u32↔u64`. |
+| `backend-s.lowering.sysv-calls` | `Call` (ternário via `cmov`, resolução de intrínsecas, ABI SysV com args de pilha) e `CallVoid`. |
 | `backend-s.lowering.falar-runtime` | `Falar` (chamadas a `pinker_falar_*`) + catch-all do subset. |
-| `backend-s.renderizacao.callconv-programa` | Cabeçalho + `.rodata` (globais e strings length-prefixed) do renderer montável. |
-| `backend-s.abi.prologo-parametros` | Prólogo montável: `principal`→`main`, `pushq %rbp`, `pinker_rt_iniciar` condicional, reserva de frame, stores de parâmetros. |
-| `backend-s.abi.blocos-terminadores` | Emissão montável de blocos e terminadores (`jmp`/`cmpq $0`+`jne`/`leave`+`ret`). |
-| `backend-s.lowering.operacoes-lineares` | `lower_linear_binop` + os seis `lower_cmp_*` (`set*`/`movzbq`, comparações unsigned). |
-| `backend-s.lowering.operandos-slots` | `collect_temp_ids`, `load_operand` (imediatos/slots/global RIP/`leaq` de string) e `temp_key`. |
-| `backend-s.validacao.labels-tipos` | `validate_external_block_labels` + predicados de tipo do caminho montável. |
-| `backend-s.runtime.intrinsecas-por-aridade` | Resolução de intrínsecas de aridade variável (`pinker_formatar_verso_N`, processos). |
-| `backend-s.runtime.simbolos-intrinsecas` | Catálogo estático `runtime_intrinsic_symbol` (texto/listas/mapas/arquivo/tempo/acaso/ambiente/leques). |
-| `backend-s.dados.strings-rodata` | Dedup de literais `verso`, labels `.Lpinker_verso_N`, `escape_gas_string`. |
-| `backend-s.renderizacao.abi-textual-programa` | `render_program`: `.s` textual baseado em `BackendTextProgram` (metadados `abi.*` como comentários, freestanding). |
-| `backend-s.renderizacao.abi-textual-instrucoes` | `render_instruction`/`render_terminator` textuais. |
-| `backend-s.renderizacao.abi-textual-componentes` | `render_operand`/`render_unary`/`render_binop`/metadados `@arg`/`@ret`. |
+| `backend-s.rendering.program-callconv` | Cabeçalho + `.rodata` (globais e strings length-prefixed) do renderer montável. |
+| `backend-s.abi.prologue-parameters` | Prólogo montável: `principal`→`main`, `pushq %rbp`, `pinker_rt_iniciar` condicional, reserva de frame, stores de parâmetros. |
+| `backend-s.abi.blocks-terminators` | Emissão montável de blocos e terminadores (`jmp`/`cmpq $0`+`jne`/`leave`+`ret`). |
+| `backend-s.lowering.linear-operations` | `lower_linear_binop` + os seis `lower_cmp_*` (`set*`/`movzbq`, comparações unsigned). |
+| `backend-s.lowering.operands-slots` | `collect_temp_ids`, `load_operand` (imediatos/slots/global RIP/`leaq` de string) e `temp_key`. |
+| `backend-s.validation.type-labels` | `validate_external_block_labels` + predicados de tipo do caminho montável. |
+| `backend-s.runtime.intrinsics-by-arity` | Resolução de intrínsecas de aridade variável (`pinker_formatar_verso_N`, processos). |
+| `backend-s.runtime.intrinsic-symbols` | Catálogo estático `runtime_intrinsic_symbol` (texto/listas/mapas/arquivo/tempo/acaso/ambiente/leques). |
+| `backend-s.data.strings-rodata` | Dedup de literais `verso`, labels `.Lpinker_verso_N`, `escape_gas_string`. |
+| `backend-s.rendering.textual-abi-program` | `render_program`: `.s` textual baseado em `BackendTextProgram` (metadados `abi.*` como comentários, freestanding). |
+| `backend-s.rendering.textual-abi-instructions` | `render_instruction`/`render_terminator` textuais. |
+| `backend-s.rendering.textual-abi-components` | `render_operand`/`render_unary`/`render_binop`/metadados `@arg`/`@ret`. |
 
 **Decisões de granularidade (§8):**
 
@@ -917,8 +917,8 @@ assembly GAS montável; os dois caminhos externos sim.
 as raízes de código controladas do repositório — hoje `src/` e
 `runtime/pinker_rt/src/`, ambas **ativas** e ambas **obrigatórias** no fluxo
 oficial (`pink nav sincronizar`/`verificar`). A onda cartografa essa política
-em uma região nova, `trama.codigo.raizes`, sem invadir `trama.codigo.catalogo`
-(orquestração: `scan`/`scan_repo`) nem `trama.codigo.consulta` (leitura do
+em uma região nova, `trama.code.roots`, sem invadir `trama.code.catalog`
+(orquestração: `scan`/`scan_repo`) nem `trama.code.query` (leitura do
 JSONL versionado, que continua sem revarrer nada).
 
 - **Raízes ativas:** `src/` e `runtime/pinker_rt/src/`, extensão `.rs` em
@@ -949,7 +949,7 @@ JSONL versionado, que continua sem revarrer nada).
   catálogo real tem `file` começando por `runtime/`. Cartografar o conteúdo do
   runtime é trabalho da **Onda 6E**, não desta.
 - **Catálogo:** 147 → **148** regiões (uma única região nova,
-  `trama.codigo.raizes`); nenhuma chave anterior foi removida; camada `trama`
+  `trama.code.roots`); nenhuma chave anterior foi removida; camada `trama`
   10 → **11** regiões.
 
 | Raiz | Estado | Extensão | Cartografia |
@@ -977,21 +977,21 @@ diff` do arquivo contém somente linhas adicionadas de comentário.
 
 | Chave | Domínio | Faixa (após formatação) | Responsabilidade e limites observáveis |
 |---|---|---|---|
-| `runtime.inicializacao.bootstrap` | inicializacao | 24–63 | Constantes de layout do alocador (`ALINHAMENTO`, `CABECALHO`) e estado global (`ARGC`/`ARGV` em atômicos) capturado por `pinker_rt_iniciar`; expõe `pinker_rt_argc`/`pinker_rt_argv`/`pinker_rt_versao`. As constantes de alocação ficam fisicamente no preâmbulo, junto ao estado global de inicialização — nota de fronteira honesta preservada no summary. |
-| `runtime.memoria.alocador` | memoria | 70–110 | `pinker_alocar`/`pinker_liberar`: alocador manual com cabeçalho de tamanho; `pinker_liberar` confia, sem validar, que o ponteiro veio de `pinker_alocar` e ainda não foi liberado. |
-| `runtime.texto.operacoes` | texto | 126–362 | Família de operações sobre o verso length-prefixed; helpers `unsafe` (`verso_bytes`, `verso_str`) leem via `from_raw_parts`/`from_utf8_unchecked` sem validar ponteiro ou UTF-8; cada transformação aloca um novo bloco cujo ownership passa ao chamador. |
-| `runtime.conversoes.numero-texto` | conversoes | 369–393 | `pinker_verso_para_bombom` (aborta o processo via `eprintln!`+`process::exit` em texto não numérico) e `pinker_bombom_para_verso`. |
-| `runtime.texto.formatacao` | texto | 400–476 | Núcleo de `formatar_verso` e as variantes `pinker_formatar_verso_0..8` geradas pela macro `formatar_wrappers!`; aridade fixa (0 a 8 argumentos), sem variante para aridade maior. |
-| `runtime.io.saida` | io | 489–524 | Impressão de `falar` direto em stdout, sem buffer próprio; erro de escrita em `pinker_falar_pedaco_verso` é silenciosamente ignorado (`let _ =`). |
-| `runtime.listas.dinamicas` | listas | 541–672 | Lista dinâmica com header fixo e elementos de 8 bytes; contém `erro_fatal`, o helper compartilhado por todos os domínios seguintes que **aborta o processo** — nota de fronteira explícita no summary. |
-| `runtime.mapas.dinamicos` | mapas | 690–900 | Mapa com headers paralelos de chaves/valores, busca linear, comparação por conteúdo (verso) ou valor (bombom), cursor de iteração por snapshot. |
-| `runtime.leques.variantes` | leques | 918–996 | Leque com carga: header `[tag][n][cap][cargas]`, cadeia composável `criar_0`+`anexar`; verificação de tag antes de ler a carga. |
-| `runtime.arquivos.io` | arquivos | 1015–1223 | Tabela de arquivos abertos em **estado global** protegido por `Mutex`/`OnceLock`; toda escrita persiste imediatamente em disco; handle fechado ou inválido aborta via `erro_fatal`. |
-| `runtime.caminhos.sistema` | caminhos | 1230–1314 | Consultas e operações de sistema de arquivos sobre caminhos, delegando a `std::fs`/`std::path`. |
-| `runtime.tempo.relogio` | tempo | 1321–1360 | Tempo Unix e formatação ISO-8601 UTC usando o mesmo algoritmo civil (Howard Hinnant) do interpretador; sem suporte a fuso horário além de UTC. |
-| `runtime.aleatorio.gerador` | aleatorio | 1367–1430 | Geradores em tabela global protegida por `Mutex`, avançados por um LCG idêntico ao do interpretador; **não é criptográfico**. |
-| `runtime.ambiente.argumentos` | ambiente | 1448–1587 | Leitura de `argc`/`argv` global e de variáveis de ambiente; busca por chave nomeada (`chave valor` ou `chave=valor`). |
-| `runtime.processos.execucao` | processos | 1594–1801 | Execução de subprocessos via `std::process::Command`, aridade fixa (0/1 argumento extra); stdout/stderr decodificados como UTF-8 estrito. |
+| `runtime.initialization.bootstrap` | inicializacao | 24–63 | Constantes de layout do alocador (`ALINHAMENTO`, `CABECALHO`) e estado global (`ARGC`/`ARGV` em atômicos) capturado por `pinker_rt_iniciar`; expõe `pinker_rt_argc`/`pinker_rt_argv`/`pinker_rt_versao`. As constantes de alocação ficam fisicamente no preâmbulo, junto ao estado global de inicialização — nota de fronteira honesta preservada no summary. |
+| `runtime.memory.allocator` | memoria | 70–110 | `pinker_alocar`/`pinker_liberar`: alocador manual com cabeçalho de tamanho; `pinker_liberar` confia, sem validar, que o ponteiro veio de `pinker_alocar` e ainda não foi liberado. |
+| `runtime.text.operations` | texto | 126–362 | Família de operações sobre o verso length-prefixed; helpers `unsafe` (`verso_bytes`, `verso_str`) leem via `from_raw_parts`/`from_utf8_unchecked` sem validar ponteiro ou UTF-8; cada transformação aloca um novo bloco cujo ownership passa ao chamador. |
+| `runtime.conversions.number-text` | conversoes | 369–393 | `pinker_verso_para_bombom` (aborta o processo via `eprintln!`+`process::exit` em texto não numérico) e `pinker_bombom_para_verso`. |
+| `runtime.text.formatting` | texto | 400–476 | Núcleo de `formatar_verso` e as variantes `pinker_formatar_verso_0..8` geradas pela macro `formatar_wrappers!`; aridade fixa (0 a 8 argumentos), sem variante para aridade maior. |
+| `runtime.io.output` | io | 489–524 | Impressão de `falar` direto em stdout, sem buffer próprio; erro de escrita em `pinker_falar_pedaco_verso` é silenciosamente ignorado (`let _ =`). |
+| `runtime.lists.dynamic` | listas | 541–672 | Lista dinâmica com header fixo e elementos de 8 bytes; contém `erro_fatal`, o helper compartilhado por todos os domínios seguintes que **aborta o processo** — nota de fronteira explícita no summary. |
+| `runtime.maps.dynamic` | mapas | 690–900 | Mapa com headers paralelos de chaves/valores, busca linear, comparação por conteúdo (verso) ou valor (bombom), cursor de iteração por snapshot. |
+| `runtime.leques.variants` | leques | 918–996 | Leque com carga: header `[tag][n][cap][cargas]`, cadeia composável `criar_0`+`anexar`; verificação de tag antes de ler a carga. |
+| `runtime.files.io` | arquivos | 1015–1223 | Tabela de arquivos abertos em **estado global** protegido por `Mutex`/`OnceLock`; toda escrita persiste imediatamente em disco; handle fechado ou inválido aborta via `erro_fatal`. |
+| `runtime.paths.system` | caminhos | 1230–1314 | Consultas e operações de sistema de arquivos sobre caminhos, delegando a `std::fs`/`std::path`. |
+| `runtime.time.clock` | tempo | 1321–1360 | Tempo Unix e formatação ISO-8601 UTC usando o mesmo algoritmo civil (Howard Hinnant) do interpretador; sem suporte a fuso horário além de UTC. |
+| `runtime.random.generator` | aleatorio | 1367–1430 | Geradores em tabela global protegida por `Mutex`, avançados por um LCG idêntico ao do interpretador; **não é criptográfico**. |
+| `runtime.environment.arguments` | ambiente | 1448–1587 | Leitura de `argc`/`argv` global e de variáveis de ambiente; busca por chave nomeada (`chave valor` ou `chave=valor`). |
+| `runtime.processes.execution` | processos | 1594–1801 | Execução de subprocessos via `std::process::Command`, aridade fixa (0/1 argumento extra); stdout/stderr decodificados como UTF-8 estrito. |
 
 Fronteiras de ABI observadas: todas as 15 regiões cobrem **exportação ABI**
 (`#[no_mangle]` + `extern "C"`) junto dos helpers internos que a sustentam no
@@ -999,7 +999,7 @@ mesmo arquivo — a onda não separou "representação de dados" (headers/struct
 como `ArquivoAberto`, `EstadoIo`, `EstadoAcaso`) de "operações" (funções
 exportadas) em regiões distintas, porque no runtime nativo ambas vivem
 fisicamente entrelaçadas por domínio (ex.: `struct ArquivoAberto`/`EstadoIo`
-abre `runtime.arquivos.io`, que também contém toda a API pública de arquivo).
+abre `runtime.files.io`, que também contém toda a API pública de arquivo).
 Isso é uma decisão de fronteira, não uma afirmação de separação arquitetural
 que o código não sustenta.
 
@@ -1037,21 +1037,21 @@ contém somente linhas adicionadas de comentário.
 
 | Chave | Domínio | Faixa (após formatação) | Responsabilidade e limites observáveis |
 |---|---|---|---|
-| `cli.config.modelos` | config | 35–161 | Constantes de códigos de saída e limites de paginação; `clamp_limit`/`json_escape`/`json_string_array`; `struct`s de configuração por subcomando e os `enum`s de subcomando (`DocSub`, `NavSub`, `CliCommand`). |
-| `cli.ajuda.usage` | ajuda | 168–300 | `usage`/`nav_usage`/`doc_usage`/`build_usage`/`editor_usage`/`repl_usage`: montam texto de ajuda com `format!`; sem side effects. |
-| `cli.parsing.subcomandos` | parsing | 307–689 | Parsers de argumentos por subcomando (`parse_build_args`, `parse_editor_args`, `parse_repl_args`, `parse_doc_args`, `parse_nav_args`): reconhecem flags e o argumento posicional, retornando `Result<Config..., String>`. |
-| `cli.parsing.roteamento` | parsing | 696–806 | `parse_args`: separa o argv em `flag_args`/`runtime_tail`, despacha para build/editor/repl/doc/nav ou monta `CliCommand::Analyze(Config)`. |
-| `cli.execucao.entrada` | execucao | 813–869 | `try_or_exit!`, `main()`, `scan_code` e `run_nav`: ponto de entrada do processo e roteamento de `CliCommand`/`NavSub`. |
-| `cli.nav.consulta` | nav | 876–1067 | `load_code_catalog`, `run_nav_mostrar`, `run_nav_buscar`, `run_nav_listar`: leem o catálogo gerado; `run_nav_mostrar` valida marcador/hash da fonte antes de imprimir. Nenhuma das três escreve em disco. |
-| `cli.nav.sincronizacao-verificacao` | nav | 1074–1127 | `run_nav_sincronizar` **escreve** `src/navigation.jsonl` via `write_atomic` quando não há divergência; `run_nav_verificar` é **somente leitura** — compara o renderizado com o disco e reporta divergências sem gravar. |
-| `cli.doc.consulta` | doc | 1134–1521 | `load_doc_config`, `run_doc`, `scan_docs`, `load_doc_catalog`, `write_atomic` (único mecanismo de escrita atômica desta base — grava `.tmp` e usa `fs::rename`) e as consultas somente-leitura `run_doc_mostrar`/`run_doc_listar`/`run_doc_buscar`/`run_doc_rota`/`print_doc_results_json`. |
-| `cli.doc.sincronizacao` | doc | 1528–1602 | `run_doc_sincronizar`: **escreve** o catálogo, o ledger e as projeções documentais quando `verify()` não reporta divergência. |
-| `cli.doc.mudancas` | doc | 1609–1699 | `LEDGER_REL`, `write_ledger`, `run_doc_importar`: grava manifestos de mudança; `--check` reporta sem gravar; conteúdo idêntico ao existente é tratado como idempotente, conteúdo diferente falha (`change::immutable_error`). |
-| `cli.doc.verificacao` | doc | 1706–1772 | `run_doc_verificar`: **somente leitura** — recomputa catálogo/ledger/projeções em memória e compara com o disco, acumulando divergências sem escrever. |
-| `cli.execucao.editor-repl` | execucao | 1779–1798 | `run_editor` (abre `EditorTui::from_path` + `run()`) e `run_repl` (delega a `repl::run_repl()`, não é stub local); ambos `process::exit(1)` em erro. |
-| `cli.analise.pipeline` | analise | 1805–2016 | `run_analyze`: conduz parse → imports → semântica → IR/CFG/seleção/máquina/backends conforme as flags do `Config`; `--asm-s` emite texto (não monta/linka); `--run` executa via interpretador. |
-| `cli.build.nativo` | build | 2023–2165 | `run_build` (grava `.s` em disco), `locate_pinker_rt_lib` (**localiza**, não constrói, a staticlib pré-buildada), `detect_cc_driver` (**detecta** um driver C disponível) e `link_nativo` (invoca o driver externo para montar/linkar). |
-| `cli.modulos.importacao` | modulos | 2172–2431 | `parse_program_from_source` e o resolvedor de imports (`load_module_program`, `load_program_with_imports`, helpers de item importável) — detecção de ciclo, colisão de nome e requalificação de tipos por módulo. |
+| `cli.config.models` | config | 35–161 | Constantes de códigos de saída e limites de paginação; `clamp_limit`/`json_escape`/`json_string_array`; `struct`s de configuração por subcomando e os `enum`s de subcomando (`DocSub`, `NavSub`, `CliCommand`). |
+| `cli.help.usage` | ajuda | 168–300 | `usage`/`nav_usage`/`doc_usage`/`build_usage`/`editor_usage`/`repl_usage`: montam texto de ajuda com `format!`; sem side effects. |
+| `cli.parsing.subcommands` | parsing | 307–689 | Parsers de argumentos por subcomando (`parse_build_args`, `parse_editor_args`, `parse_repl_args`, `parse_doc_args`, `parse_nav_args`): reconhecem flags e o argumento posicional, retornando `Result<Config..., String>`. |
+| `cli.parsing.routing` | parsing | 696–806 | `parse_args`: separa o argv em `flag_args`/`runtime_tail`, despacha para build/editor/repl/doc/nav ou monta `CliCommand::Analyze(Config)`. |
+| `cli.execution.input` | execucao | 813–869 | `try_or_exit!`, `main()`, `scan_code` e `run_nav`: ponto de entrada do processo e roteamento de `CliCommand`/`NavSub`. |
+| `cli.nav.query` | nav | 876–1067 | `load_code_catalog`, `run_nav_mostrar`, `run_nav_buscar`, `run_nav_listar`: leem o catálogo gerado; `run_nav_mostrar` valida marcador/hash da fonte antes de imprimir. Nenhuma das três escreve em disco. |
+| `cli.nav.synchronization-verification` | nav | 1074–1127 | `run_nav_sincronizar` **escreve** `src/navigation.jsonl` via `write_atomic` quando não há divergência; `run_nav_verificar` é **somente leitura** — compara o renderizado com o disco e reporta divergências sem gravar. |
+| `cli.doc.query` | doc | 1134–1521 | `load_doc_config`, `run_doc`, `scan_docs`, `load_doc_catalog`, `write_atomic` (único mecanismo de escrita atômica desta base — grava `.tmp` e usa `fs::rename`) e as consultas somente-leitura `run_doc_mostrar`/`run_doc_listar`/`run_doc_buscar`/`run_doc_rota`/`print_doc_results_json`. |
+| `cli.doc.synchronization` | doc | 1528–1602 | `run_doc_sincronizar`: **escreve** o catálogo, o ledger e as projeções documentais quando `verify()` não reporta divergência. |
+| `cli.doc.changes` | doc | 1609–1699 | `LEDGER_REL`, `write_ledger`, `run_doc_importar`: grava manifestos de mudança; `--check` reporta sem gravar; conteúdo idêntico ao existente é tratado como idempotente, conteúdo diferente falha (`change::immutable_error`). |
+| `cli.doc.verification` | doc | 1706–1772 | `run_doc_verificar`: **somente leitura** — recomputa catálogo/ledger/projeções em memória e compara com o disco, acumulando divergências sem escrever. |
+| `cli.execution.editor-repl` | execucao | 1779–1798 | `run_editor` (abre `EditorTui::from_path` + `run()`) e `run_repl` (delega a `repl::run_repl()`, não é stub local); ambos `process::exit(1)` em erro. |
+| `cli.analysis.pipeline` | analise | 1805–2016 | `run_analyze`: conduz parse → imports → semântica → IR/CFG/seleção/máquina/backends conforme as flags do `Config`; `--asm-s` emite texto (não monta/linka); `--run` executa via interpretador. |
+| `cli.build.native` | build | 2023–2165 | `run_build` (grava `.s` em disco), `locate_pinker_rt_lib` (**localiza**, não constrói, a staticlib pré-buildada), `detect_cc_driver` (**detecta** um driver C disponível) e `link_nativo` (invoca o driver externo para montar/linkar). |
+| `cli.modules.import` | modulos | 2172–2431 | `parse_program_from_source` e o resolvedor de imports (`load_module_program`, `load_program_with_imports`, helpers de item importável) — detecção de ciclo, colisão de nome e requalificação de tipos por módulo. |
 
 ### `src/editor_tui.rs` — camada `editor` (4 regiões)
 
@@ -1060,16 +1060,16 @@ nesta onda — mesma decisão de fronteira da Onda 6E, revisão adiada.
 
 | Chave | Domínio | Faixa (após formatação) | Responsabilidade e limites observáveis |
 |---|---|---|---|
-| `editor.estado.modelo` | estado | 15–36 | Constantes de exibição (`OUTPUT_LINES`/`EDITOR_LINES`), `struct EditorTui` e `from_path` (lê o arquivo com `source.lines()`, separa em linhas e não armazena terminadores originais nem a presença de newline final). |
-| `editor.sessao.comandos` | sessao | 43–179 | `run` (laço leitura-execução), `execute_command` (interpreta `:quit`/`:help`/`:tokens`/`:ast`/`:save`/`:append`/`:set`), `run_tokens_command`/`run_ast_command` (ações Pinker reais — **preview**, não editam AST persistente), `save_file` (grava com `fs::write`, sem escrita atômica, a fonte recomposta; `:save` não preserva byte a byte CRLF nem newline final), `set_line`. |
-| `editor.render.saida` | render | 186–225 | `current_source` (junta `lines` com LF, normalizando CRLF e sem restaurar newline final original), `render` (desenha o painel com ANSI), `push_output` (empilha mensagem). |
-| `editor.analise.checagem` | analise | 233–240 | `parse_and_check_program`: tokeniza + parseia + roda `semantic::check_program` sobre uma string; usada SOMENTE por `:ast` (via `run_ast_command`) para produzir o `Program` em memória do preview — `:tokens` (`run_tokens_command`) chama `Lexer::tokenize` diretamente e não usa esta função. |
+| `editor.state.model` | estado | 15–36 | Constantes de exibição (`OUTPUT_LINES`/`EDITOR_LINES`), `struct EditorTui` e `from_path` (lê o arquivo com `source.lines()`, separa em linhas e não armazena terminadores originais nem a presença de newline final). |
+| `editor.session.commands` | sessao | 43–179 | `run` (laço leitura-execução), `execute_command` (interpreta `:quit`/`:help`/`:tokens`/`:ast`/`:save`/`:append`/`:set`), `run_tokens_command`/`run_ast_command` (ações Pinker reais — **preview**, não editam AST persistente), `save_file` (grava com `fs::write`, sem escrita atômica, a fonte recomposta; `:save` não preserva byte a byte CRLF nem newline final), `set_line`. |
+| `editor.render.output` | render | 186–225 | `current_source` (junta `lines` com LF, normalizando CRLF e sem restaurar newline final original), `render` (desenha o painel com ANSI), `push_output` (empilha mensagem). |
+| `editor.analysis.check` | analise | 233–240 | `parse_and_check_program`: tokeniza + parseia + roda `semantic::check_program` sobre uma string; usada SOMENTE por `:ast` (via `run_ast_command`) para produzir o `Program` em memória do preview — `:tokens` (`run_tokens_command`) chama `Lexer::tokenize` diretamente e não usa esta função. |
 
 ### `src/boot.rs` — camada `boot` (1 região, arquivo inteiro)
 
 | Chave | Domínio | Faixa (após formatação) | Responsabilidade e limites observáveis |
 |---|---|---|---|
-| `boot.geracao.fronteira-freestanding` | geracao | 5–18 | `FREESTANDING_BOOT_ENTRY_FUNCTION`/`FREESTANDING_BOOT_ENTRY_SYMBOL` (constantes textuais), `freestanding_linker_script` (string literal de script `ld`) e `freestanding_kernel_stub` (string com `call principal` + laço `jmp` para si mesmo). Só produzem strings/constantes de fronteira — nenhuma função executa, aloca, linka, monta ou inicializa hardware/stack/Multiboot/UEFI. |
+| `boot.generation.freestanding-boundary` | geracao | 5–18 | `FREESTANDING_BOOT_ENTRY_FUNCTION`/`FREESTANDING_BOOT_ENTRY_SYMBOL` (constantes textuais), `freestanding_linker_script` (string literal de script `ld`) e `freestanding_kernel_stub` (string com `call principal` + laço `jmp` para si mesmo). Só produzem strings/constantes de fronteira — nenhuma função executa, aloca, linka, monta ou inicializa hardware/stack/Multiboot/UEFI. |
 
 - **Testes de cartografia:** `tests/nav_cartography_tests.rs` ganhou
   `camada_operacional_cartografa_cli_editor_boot`, validando as 20 chaves
@@ -1090,25 +1090,25 @@ uma alegação de completude da gramática ou dos contratos do frontend.
 
 ### Chaves cartografadas
 
-- `evidencia.frontend.pipeline-basico` — os 3 helpers compartilhados do
+- `evidence.frontend.basic-pipeline` — os 3 helpers compartilhados do
   frontend (`tokenize`, `parse`, `parse_and_check`).
 - Léxico (25 testes em `tests/lexer_tests.rs`):
-  `evidencia.lexico.tokens-e-spans`, `evidencia.lexico.diagnostico`,
-  `evidencia.lexico.palavras-controle`, `evidencia.lexico.operadores`,
-  `evidencia.lexico.tipos-fixos`, `evidencia.lexico.palavras-de-construcao` e
-  `evidencia.lexico.arrays-acessos-e-modificadores`.
+  `evidence.lexical.tokens-and-spans`, `evidence.lexical.diagnostic`,
+  `evidence.lexical.control-words`, `evidence.lexical.operators`,
+  `evidence.lexical.fixed-types`, `evidence.lexical.construction-words` e
+  `evidence.lexical.arrays-accesses-and-modifiers`.
 - Parser (36 testes em `tests/parser_tests.rs`):
-  `evidencia.parser.ast-basica-e-spans`,
-  `evidencia.parser.diagnostico-e-limites-literais`,
-  `evidencia.parser.controle-de-fluxo`,
-  `evidencia.parser.desugaring-para-cada`,
-  `evidencia.parser.diretivas-topo-e-asm-inline`,
-  `evidencia.parser.tipos-qualificados-e-verso`,
-  `evidencia.parser.expressoes-e-precedencia`,
-  `evidencia.parser.postfix-cast-deref-e-operadores-tipo`,
-  `evidencia.parser.tipos-numericos`,
-  `evidencia.parser.aliases-arrays-e-structs` e
-  `evidencia.parser.ponteiros-e-colecoes`.
+  `evidence.parser.basic-ast-and-spans`,
+  `evidence.parser.diagnostic-and-literal-limits`,
+  `evidence.parser.control-flow`,
+  `evidence.parser.para-cada-desugaring`,
+  `evidence.parser.top-directives-and-inline-asm`,
+  `evidence.parser.qualified-types-and-verso`,
+  `evidence.parser.expressions-and-precedence`,
+  `evidence.parser.postfix-cast-deref-and-type-operators`,
+  `evidence.parser.numeric-types`,
+  `evidence.parser.aliases-arrays-and-structs` e
+  `evidence.parser.pointers-and-collections`.
 
 O teste estrutural valida as 19 chaves específicas da Onda 8B por arquivo,
 domínio e camada `evidencia`: 25 atributos `#[test]` do lexer e 36 do parser,
@@ -1133,33 +1133,33 @@ Registrados para não desaparecerem da análise; não recebem âncoras.
 
 `tests/semantic_tests.rs` foi integralmente cartografado: 340 testes em 34
 regiões de evidência (`domain: semantica`, `layer: evidencia`). As chaves são:
-`evidencia.semantica.entrada-principal`, `evidencia.semantica.retornos`,
-`evidencia.semantica.mutabilidade`, `evidencia.semantica.chamadas`,
-`evidencia.semantica.intrinsecas-entrada-ambiente`,
-`evidencia.semantica.intrinsecas-caminhos-e-sistema`,
-`evidencia.semantica.intrinsecas-argumentos-e-contexto`,
-`evidencia.semantica.intrinsecas-arquivos-io`,
-`evidencia.semantica.intrinsecas-texto-e-estruturados`,
-`evidencia.semantica.intrinsecas-processos`,
-`evidencia.semantica.funcoes-sem-retorno`,
-`evidencia.semantica.controle-fluxo-e-diagnostico`,
-`evidencia.semantica.operadores-logicos-e-bitwise`,
-`evidencia.semantica.acesso-campos-e-indexacao`, `evidencia.semantica.casts`,
-`evidencia.semantica.peso-e-alinhamento`,
-`evidencia.semantica.tipos-numericos-largura-fixa`,
-`evidencia.semantica.aliases-arrays-e-ninhos`,
-`evidencia.semantica.ponteiros-e-aritmetica`,
-`evidencia.semantica.ninhos-diagnostico`,
-`evidencia.semantica.aritmetica-modulo-e-literais`,
-`evidencia.semantica.escrita-por-indice`, `evidencia.semantica.listas`,
-`evidencia.semantica.mapas`, `evidencia.semantica.acaso`,
-`evidencia.semantica.imports-por-familia`,
-`evidencia.semantica.leques-simples`, `evidencia.semantica.leques-com-carga`,
-`evidencia.semantica.encaixe-e-bindings`,
-`evidencia.semantica.leques-recursivos-e-multiplas-cargas`,
-`evidencia.semantica.genericos`, `evidencia.semantica.tratamento-de-erro`,
-`evidencia.semantica.funcoes-locais-e-carinho` e
-`evidencia.semantica.tratos-e-impls`.
+`evidence.semantic.main-entry`, `evidence.semantic.returns`,
+`evidence.semantic.mutability`, `evidence.semantic.calls`,
+`evidence.semantic.intrinsics-input-environment`,
+`evidence.semantic.intrinsics-paths-and-system`,
+`evidence.semantic.intrinsics-arguments-and-context`,
+`evidence.semantic.intrinsics-files-io`,
+`evidence.semantic.intrinsics-text-and-structured`,
+`evidence.semantic.intrinsics-processes`,
+`evidence.semantic.functions-without-return`,
+`evidence.semantic.control-flow-and-diagnostic`,
+`evidence.semantic.logical-and-bitwise-operators`,
+`evidence.semantic.field-access-and-indexing`, `evidence.semantic.casts`,
+`evidence.semantic.peso-and-alinhamento`,
+`evidence.semantic.fixed-width-numeric-types`,
+`evidence.semantic.aliases-arrays-and-ninhos`,
+`evidence.semantic.pointers-and-arithmetic`,
+`evidence.semantic.ninhos-diagnostic`,
+`evidence.semantic.modulo-arithmetic-and-literals`,
+`evidence.semantic.indexed-write`, `evidence.semantic.lists`,
+`evidence.semantic.maps`, `evidence.semantic.acaso`,
+`evidence.semantic.imports-by-family`,
+`evidence.semantic.simple-leques`, `evidence.semantic.leques-with-payload`,
+`evidence.semantic.encaixe-and-bindings`,
+`evidence.semantic.recursive-leques-and-multiple-payloads`,
+`evidence.semantic.generics`, `evidence.semantic.error-handling`,
+`evidence.semantic.functions-locals-and-carinho` e
+`evidence.semantic.tratos-and-impls`.
 
 Os agrupamentos seguem contratos de entrada, retornos, mutabilidade e chamadas;
 famílias de intrínsecas; tipos compostos, ponteiros e coleções; leques,
@@ -1182,52 +1182,52 @@ cruzada), com **134 testes** em **58 regiões** de evidência.
 **Trilha A — IR e CFG (M_A = 70 testes, N_A = 25 regiões):**
 
 - `tests/ir_tests.rs` — 25 testes, 7 regiões (`domain: ir`): lowering AST→IR e
-  renderização textual/CLI. Chaves: `evidencia.ir.lowering-programa`,
-  `evidencia.ir.renderizacao-estruturas-basicas`, `evidencia.ir.renderizacao-cli`,
-  `evidencia.ir.lowering-controle-de-laco`, `evidencia.ir.lowering-operacoes-textuais`,
-  `evidencia.ir.lowering-tipos-numericos`, `evidencia.ir.lowering-tipos-compostos`.
+  renderização textual/CLI. Chaves: `evidence.ir.lowering-program`,
+  `evidence.ir.rendering-basic-structures`, `evidence.ir.rendering-cli`,
+  `evidence.ir.lowering-loop-control`, `evidence.ir.lowering-textual-operations`,
+  `evidence.ir.lowering-numeric-types`, `evidence.ir.lowering-composite-types`.
 - `tests/ir_validate_tests.rs` — 7 testes, 4 regiões (`domain: ir`): invariantes de
   IR construída manualmente; aceitação/rejeição observadas. Chaves:
-  `evidencia.ir.validacao-aceitacao-basica`, `evidencia.ir.validacao-retorno-e-condicao`,
-  `evidencia.ir.validacao-chamadas-e-nulo`, `evidencia.ir.validacao-estrutura-e-diagnostico`.
+  `evidence.ir.validation-basic-acceptance`, `evidence.ir.validation-return-and-condition`,
+  `evidence.ir.validation-calls-and-null`, `evidence.ir.validation-structure-and-diagnostic`.
 - `tests/cfg_ir_tests.rs` — 23 testes, 8 regiões (`domain: cfg`): lowering IR→CFG,
   blocos, terminadores, curto-circuito, renderização. Chaves:
-  `evidencia.cfg.lowering-e-renderizacao-basica`, `evidencia.cfg.renderizacao-cli`,
-  `evidencia.cfg.lowering-lacos`, `evidencia.cfg.lowering-operadores-e-join`,
-  `evidencia.cfg.lowering-ponteiros-e-agregados`, `evidencia.cfg.lowering-limite-asm`,
-  `evidencia.cfg.lowering-verso`, `evidencia.cfg.lowering-curto-circuito`.
+  `evidence.cfg.lowering-and-basic-rendering`, `evidence.cfg.rendering-cli`,
+  `evidence.cfg.lowering-loops`, `evidence.cfg.lowering-operators-and-join`,
+  `evidence.cfg.lowering-pointers-and-aggregates`, `evidence.cfg.lowering-asm-limit`,
+  `evidence.cfg.lowering-verso`, `evidence.cfg.lowering-short-circuit`.
 - `tests/cfg_ir_validate_tests.rs` — 15 testes, 6 regiões (`domain: cfg`): invariantes
   de CFG construído manualmente; erros observados. Chaves:
-  `evidencia.cfg.validacao-aceitacao-basica`, `evidencia.cfg.validacao-blocos-e-alvos`,
-  `evidencia.cfg.validacao-condicao-e-retorno`, `evidencia.cfg.validacao-chamada-e-referencias`,
-  `evidencia.cfg.validacao-alcancabilidade-e-renderizacao`, `evidencia.cfg.validacao-diagnostico`.
+  `evidence.cfg.validation-basic-acceptance`, `evidence.cfg.validation-blocks-and-targets`,
+  `evidence.cfg.validation-condition-and-return`, `evidence.cfg.validation-call-and-references`,
+  `evidence.cfg.validation-reachability-and-rendering`, `evidence.cfg.validation-diagnostic`.
 
 **Trilha B — seleção e máquina abstrata (M_B = 64 testes, N_B = 33 regiões):**
 
 - `tests/instr_select_tests.rs` — 12 testes, 6 regiões (`domain: select`): seleção
   abstrata sobre CFG → `SelectedInstr`; renderização. Chaves:
-  `evidencia.select.blocos-e-terminadores`, `evidencia.select.chamadas-e-operadores`,
-  `evidencia.select.renderizacao-cli`, `evidencia.select.rejeicao-call-sem-destino`,
-  `evidencia.select.fluxos-de-laco`, `evidencia.select.operadores-bitwise-e-modulo`.
+  `evidence.select.blocks-and-terminators`, `evidence.select.calls-and-operators`,
+  `evidence.select.rendering-cli`, `evidence.select.rejection-call-without-destination`,
+  `evidence.select.loop-flows`, `evidence.select.operators-bitwise-and-modulo`.
 - `tests/abstract_machine_tests.rs` — 23 testes, 11 regiões (`domain: machine`):
   lowering da seleção para máquina de pilha, comparação de representações,
-  renderização. Chaves: `evidencia.machine.lowering-blocos-e-terminadores`,
-  `evidencia.machine.lowering-chamadas`, `evidencia.machine.lowering-operadores-e-temporarios`,
-  `evidencia.machine.renderizacao-cli`, `evidencia.machine.comparacao-representacoes`,
-  `evidencia.machine.validacao-programa-e-slots`, `evidencia.machine.lowering-bitwise-e-modulo`,
-  `evidencia.machine.renderizacao-slots-e-temporarios`, `evidencia.machine.renderizacao-chamadas`,
-  `evidencia.machine.renderizacao-terminadores-e-fluxos`, `evidencia.machine.renderizacao-papeis-de-blocos`.
+  renderização. Chaves: `evidence.machine.lowering-blocks-and-terminators`,
+  `evidence.machine.lowering-calls`, `evidence.machine.lowering-operators-and-temporaries`,
+  `evidence.machine.rendering-cli`, `evidence.machine.representation-comparison`,
+  `evidence.machine.validation-program-and-slots`, `evidence.machine.lowering-bitwise-and-modulo`,
+  `evidence.machine.rendering-slots-and-temporaries`, `evidence.machine.rendering-calls`,
+  `evidence.machine.rendering-terminators-and-flows`, `evidence.machine.rendering-block-roles`.
 - `tests/abstract_machine_stack_tests.rs` — 29 testes, 16 regiões (`domain: machine`):
   validação da pilha (underflow, tipos, merges, slots, aridade, retorno) e
-  renderização de casos válidos. Chaves: `evidencia.machine.renderizacao-programa-valido`,
-  `evidencia.machine.validacao-underflow-operadores`, `evidencia.machine.validacao-chamadas-aridade-e-underflow`,
-  `evidencia.machine.validacao-formato-diagnostico`, `evidencia.machine.validacao-branch`,
-  `evidencia.machine.renderizacao-branch-valido`, `evidencia.machine.validacao-retorno`,
-  `evidencia.machine.renderizacao-retorno-valido`, `evidencia.machine.validacao-pilha-retvoid-e-merges`,
-  `evidencia.machine.validacao-slots-existencia`, `evidencia.machine.validacao-slots-tipados`,
-  `evidencia.machine.validacao-tipos-operacoes-e-retorno`, `evidencia.machine.validacao-tipos-chamadas`,
-  `evidencia.machine.renderizacao-casos-validos`, `evidencia.machine.validacao-programa-invalido`,
-  `evidencia.machine.renderizacao-cli-golden`.
+  renderização de casos válidos. Chaves: `evidence.machine.rendering-valid-program`,
+  `evidence.machine.validation-operator-underflow`, `evidence.machine.validation-calls-arity-and-underflow`,
+  `evidence.machine.validation-diagnostic-format`, `evidence.machine.validation-branch`,
+  `evidence.machine.rendering-valid-branch`, `evidence.machine.validation-return`,
+  `evidence.machine.rendering-valid-return`, `evidence.machine.validation-stack-retvoid-and-merges`,
+  `evidence.machine.validation-slot-existence`, `evidence.machine.validation-typed-slots`,
+  `evidence.machine.validation-types-operations-and-return`, `evidence.machine.validation-call-types`,
+  `evidence.machine.rendering-valid-cases`, `evidence.machine.validation-invalid-program`,
+  `evidence.machine.rendering-cli-golden`.
 
 As regiões separam **lowering**, **renderização** e **validação** quando são
 responsabilidades distintas. As suítes combinam assertions exatas (`assert_eq!`),
@@ -1330,14 +1330,14 @@ golden da apresentação pseudo-asm. Em `tests/common/mod.rs`, duas regiões de
 contagem zero delimitam exclusivamente `render_backend_text` e
 `render_cli_pseudo_asm_output`.
 
-As oito chaves são `evidencia.backend-text.pipeline-helper`,
-`evidencia.backend-text.apresentacao-cli-helper`,
-`evidencia.backend-text.renderizacao-programa-minimo`,
-`evidencia.backend-text.renderizacao-controle-fluxo`,
-`evidencia.backend-text.renderizacao-chamada-binaria`,
-`evidencia.backend-text.renderizacao-chamada-void-retorno-nulo`,
-`evidencia.backend-text.renderizacao-globais` e
-`evidencia.backend-text.apresentacao-cli-pseudo-asm`.
+As oito chaves são `evidence.backend-text.pipeline-helper`,
+`evidence.backend-text.cli-presentation-helper`,
+`evidence.backend-text.rendering-minimal-program`,
+`evidence.backend-text.rendering-control-flow`,
+`evidence.backend-text.rendering-binary-call`,
+`evidence.backend-text.rendering-void-call-null-return`,
+`evidence.backend-text.rendering-globals` e
+`evidence.backend-text.cli-presentation-pseudo-asm`.
 
 O helper `render_cli_pseudo_asm_output` é uma **apresentação sintética em
 memória**, não um processo CLI: concatena o cabeçalho, a renderização textual e
@@ -1372,13 +1372,13 @@ contagens congeladas 1/2/1/1. Em `tests/interpreter_tests.rs`, uma região cobre
 os dois builds textuais de sucesso. A distribuição total por região é
 **[0, 0, 1, 2, 1, 1, 2]**.
 
-As chaves aprovadas são `evidencia.backend-s.pipeline-helper`,
-`evidencia.backend-s.apresentacao-cli-helper`,
-`evidencia.backend-s.apresentacao-cli-asm-s`,
-`evidencia.backend-s.renderizacao-fluxo-e-abi-textual`,
-`evidencia.backend-s.validacao-subset-textual`,
-`evidencia.backend-s.freestanding-intencao-textual` e
-`evidencia.backend-s.build-cli-artefato-textual`.
+As chaves aprovadas são `evidence.backend-s.pipeline-helper`,
+`evidence.backend-s.cli-presentation-helper`,
+`evidence.backend-s.cli-presentation-asm-s`,
+`evidence.backend-s.rendering-flow-and-textual-abi`,
+`evidence.backend-s.validation-textual-subset`,
+`evidence.backend-s.freestanding-textual-intent` e
+`evidence.backend-s.build-cli-textual-artifact`.
 
 `render_cli_asm_s_output` é uma apresentação **sintética em memória**, não um
 processo CLI. Já os testes `cli_build_gera_artefato_s_no_diretorio_padrao` e
@@ -1415,24 +1415,24 @@ A Onda 8H adiciona exatamente **dez regiões** no domínio `backend-s` e camada
 `tests/backend_s_external_toolchain_tests.rs`. Nove regiões cobrem os **79
 testes** dessa suíte e uma décima delimita o helper compartilhado
 `render_backend_s_external_subset` em `tests/common/mod.rs`
-(`evidencia.backend-s-externo.pipeline-helper`), que antes permanecia sem owner.
-As regiões vizinhas `evidencia.backend-s.pipeline-helper` e
-`evidencia.backend-s.apresentacao-cli-helper` continuam intactas: nenhuma foi
+(`evidence.external-backend-s.pipeline-helper`), que antes permanecia sem owner.
+As regiões vizinhas `evidence.backend-s.pipeline-helper` e
+`evidence.backend-s.cli-presentation-helper` continuam intactas: nenhuma foi
 ampliada, reduzida ou fundida.
 
 A distribuição por região, em ordem física no arquivo central, é
 **[16, 8, 3, 2, 3, 22, 9, 11, 5]** — soma 79, sem teste órfão e sem ownership
 duplicado. As chaves são
-`evidencia.backend-s-externo.renderizacao-recortes-versionados`,
-`evidencia.backend-s-externo.fronteira-ninho-heterogeneo`,
-`evidencia.backend-s-externo.fronteira-conversao-virar`,
-`evidencia.backend-s-externo.renderizacao-verso-rodata`,
-`evidencia.backend-s-externo.renderizacao-quebrar-continuar`,
-`evidencia.backend-s-externo.execucao-real-recortes-versionados`,
-`evidencia.backend-s-externo.execucao-real-abi-frame-interprocedural`,
-`evidencia.backend-s-externo.fronteira-subset-textual`,
-`evidencia.backend-s-externo.validacao-estrutural-sintetica` e
-`evidencia.backend-s-externo.pipeline-helper`.
+`evidence.external-backend-s.rendering-versioned-slices`,
+`evidence.external-backend-s.boundary-heterogeneous-ninho`,
+`evidence.external-backend-s.boundary-virar-conversion`,
+`evidence.external-backend-s.rendering-verso-rodata`,
+`evidence.external-backend-s.rendering-quebrar-continuar`,
+`evidence.external-backend-s.real-execution-versioned-slices`,
+`evidence.external-backend-s.real-execution-interprocedural-abi-frame`,
+`evidence.external-backend-s.boundary-textual-subset`,
+`evidence.external-backend-s.synthetic-structural-validation` e
+`evidence.external-backend-s.pipeline-helper`.
 
 **Limites de honestidade congelados pelo gate.** Dos 79 testes, **74 passam
 pelo helper compartilhado** `render_backend_s_external_subset` e **5 constroem
@@ -1593,13 +1593,13 @@ evidência vazia.
 
 | Chave | Domínio | Testes | Cobertura |
 |---|---|---:|---|
-| `evidencia.runtime.memoria-alocador` | memoria | 4 | Abertura de `#[cfg(test)] mod tests` e do `use super::*;`; alinhamento e usabilidade do bloco de `pinker_alocar`, não sobreposição entre alocações, alocação de zero bytes, `pinker_liberar` sobre nulo. |
-| `evidencia.runtime.inicializacao-abi` | inicializacao | 2 | Captura de `argc`/`argv` por `pinker_rt_iniciar` e versão corrente da ABI. |
-| `evidencia.runtime.texto-verso` | texto | 3 | Helper `verso_de` (pertence exclusivamente a esta região, embora seja consumido depois por outros testes) e as operações de verso: tamanho em code points, concatenação e igualdade por conteúdo. |
-| `evidencia.runtime.listas-dinamicas` | listas | 5 | Anexar/obter/tamanho, crescimento, `definir`, `inserir` com deslocamento de sufixo e `tirar_ultimo`. |
-| `evidencia.runtime.mapas-dinamicos` | mapas | 4 | Chave bombom, chave verso comparada por conteúdo, remoção preservando ordem com ausência silenciosa e crescimento. |
-| `evidencia.runtime.leques-carga` | leques | 3 | Tag e cargas posicionais, aninhamento recursivo e crescimento. |
-| `evidencia.runtime.mapas-iterador-snapshot` | mapas | 1 | Snapshot das chaves do iterador de mapas; contém o fechamento físico de `mod tests`. |
+| `evidence.runtime.memory-allocator` | memoria | 4 | Abertura de `#[cfg(test)] mod tests` e do `use super::*;`; alinhamento e usabilidade do bloco de `pinker_alocar`, não sobreposição entre alocações, alocação de zero bytes, `pinker_liberar` sobre nulo. |
+| `evidence.runtime.abi-initialization` | inicializacao | 2 | Captura de `argc`/`argv` por `pinker_rt_iniciar` e versão corrente da ABI. |
+| `evidence.runtime.text-verso` | texto | 3 | Helper `verso_de` (pertence exclusivamente a esta região, embora seja consumido depois por outros testes) e as operações de verso: tamanho em code points, concatenação e igualdade por conteúdo. |
+| `evidence.runtime.dynamic-lists` | listas | 5 | Anexar/obter/tamanho, crescimento, `definir`, `inserir` com deslocamento de sufixo e `tirar_ultimo`. |
+| `evidence.runtime.dynamic-maps` | mapas | 4 | Chave bombom, chave verso comparada por conteúdo, remoção preservando ordem com ausência silenciosa e crescimento. |
+| `evidence.runtime.leques-payload` | leques | 3 | Tag e cargas posicionais, aninhamento recursivo e crescimento. |
+| `evidence.runtime.maps-iterator-snapshot` | mapas | 1 | Snapshot das chaves do iterador de mapas; contém o fechamento físico de `mod tests`. |
 
 **Toda a evidência da Onda 8J é evidência em memória.** Nenhum dos 22 testes
 cria processo, toca o sistema de arquivos ou invoca toolchain. A onda **não**
@@ -1607,21 +1607,21 @@ declara evidência processual nem paridade.
 
 **Relação com as quinze regiões de produção.** Por menção/call site — relação
 estrutural, não semântica —, **seis regiões produtivas** possuem alguma
-evidência interna relacionada: `runtime.inicializacao.bootstrap`,
-`runtime.memoria.alocador`, `runtime.texto.operacoes`,
-`runtime.listas.dinamicas`, `runtime.mapas.dinamicos` e
-`runtime.leques.variantes`. As **nove restantes não possuem teste interno
+evidência interna relacionada: `runtime.initialization.bootstrap`,
+`runtime.memory.allocator`, `runtime.text.operations`,
+`runtime.lists.dynamic`, `runtime.maps.dynamic` e
+`runtime.leques.variants`. As **nove restantes não possuem teste interno
 relacionado**:
 
-- `runtime.conversoes.numero-texto`;
-- `runtime.texto.formatacao`;
-- `runtime.io.saida`;
-- `runtime.arquivos.io`;
-- `runtime.caminhos.sistema`;
-- `runtime.tempo.relogio`;
-- `runtime.aleatorio.gerador`;
-- `runtime.ambiente.argumentos`;
-- `runtime.processos.execucao`.
+- `runtime.conversions.number-text`;
+- `runtime.text.formatting`;
+- `runtime.io.output`;
+- `runtime.files.io`;
+- `runtime.paths.system`;
+- `runtime.time.clock`;
+- `runtime.random.generator`;
+- `runtime.environment.arguments`;
+- `runtime.processes.execution`.
 
 Isso é uma **lacuna registrada, não um bloqueio da Trama**. A Onda 8J **não
 criou nenhum teste novo**: a alteração em `runtime/pinker_rt/src/lib.rs` é
@@ -1708,7 +1708,7 @@ paridade restante, Trama, documentais, CLI, apps) continuam pendentes.
   Marcar apenas grupos de evidência conceituais (ex.: `tests.backend-s.abi-argumentos`,
   `tests.trama.manifesto-imutavel`) — nunca uma âncora por `#[test]`.
 - `apps/guardiao_pinker/principal.pink` — Guardião Pinker (auditoria de contratos
-  do repositório); marco de app real em Pinker. Candidato: `apps.guardiao.auditoria`.
+  do repositório); marco de app real em Pinker. Candidato: `apps.guardiao.audit`.
 
 ## Cobertura acumulada (após Onda 8J)
 

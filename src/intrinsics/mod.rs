@@ -12,11 +12,11 @@
 //! Nenhuma das três hospeda implementação: os corpos continuam no interpretador
 //! e no `pinker_rt`.
 
-// @pinker-nav:start intrinsecos.familia.fronteira
-// @pinker-nav:domain intrinsecos
-// @pinker-nav:layer compilador
-// @pinker-nav:summary Fronteira publica interna da familia das intrinsecas: declara as tres autoridades declarativas (registry, identity e public_surface) e registra que nenhuma delas hospeda implementacao, que continua no interpretador e no pinker_rt.
+// @pinker-nav:start intrinsics.family.boundary
+// @pinker-nav:domain intrinsics
+// @pinker-nav:layer compiler
+// @pinker-nav:summary Internal public boundary of the intrinsics family: it declares the three declarative authorities (registry, identity and public_surface) and records that none of them hosts an implementation, which remains in the interpreter and in pinker_rt.
 pub mod identity;
 pub mod public_surface;
 pub mod registry;
-// @pinker-nav:end intrinsecos.familia.fronteira
+// @pinker-nav:end intrinsics.family.boundary

@@ -7,10 +7,10 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::time::Duration;
 
-// @pinker-nav:start evidencia.genericos.identidade-injetiva-476
-// @pinker-nav:domain genericos
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Regressões da #476 sobre o pipeline real: C1-C5 em leques, fronteiras equivalentes em funções, equivalência explícita/inferida, limite deliberado de aliases não resolvidos, proveniências distintas para builtin/fonte raiz/módulo inclusive no cross-case GI-HR3 de Resultado, C6 no loader/flatten e símbolos nativos distintos com montagem, link, chamadas e execução em paridade.
+// @pinker-nav:start evidence.generics.injective-identity-476
+// @pinker-nav:domain generics
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Regressions for #476 over the real pipeline: C1-C5 on leques, equivalent boundaries on functions, explicit/inferred equivalence, the deliberate limit of unresolved aliases, distinct provenances for builtin/root source/module including in the GI-HR3 cross-case of Resultado, C6 in the loader/flatten and distinct native symbols with assembling, linking, calls and execution in parity.
 
 fn enum_alias_target(program: &pinker_v0::ast::Program, alias_name: &str) -> String {
     program
@@ -706,4 +706,4 @@ fn renderer_nao_introduz_digest_probabilistico() {
     assert!(hex.bytes().all(|byte| byte.is_ascii_hexdigit()));
 }
 
-// @pinker-nav:end evidencia.genericos.identidade-injetiva-476
+// @pinker-nav:end evidence.generics.injective-identity-476

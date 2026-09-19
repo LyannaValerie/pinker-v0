@@ -1,7 +1,7 @@
 //! Renderização textual auditável da IR estruturada, movida de `src/ir.rs` pela
 //! unidade IR-4 do inventário da #601 (Task #626).
 //!
-//! Só o arquivo mudou: a região cartografada `ir.renderizacao.textual` — os
+//! Só o arquivo mudou: a região cartografada `ir.rendering.textual` — os
 //! seis corpos `render_function`, `render_block`, `render_instruction`,
 //! `render_enum_pattern`, `render_value` e o helper `line` — chega aqui na
 //! mesma ordem, com os mesmos corpos e o mesmo texto produzido. `super` mudou
@@ -28,10 +28,10 @@
 //! `pub(super)` — exatamente os três `exports` que o `unit_costs.json` da #601
 //! nomeia para a IR-4.
 
-// @pinker-nav:start ir.renderizacao.textual
-// @pinker-nav:domain renderizacao
+// @pinker-nav:start ir.rendering.textual
+// @pinker-nav:domain rendering
 // @pinker-nav:layer ir
-// @pinker-nav:summary Renderização textual auditável da IR já construída: `render_function`/`render_block`/`render_instruction`/`render_value` (com o helper `line`) percorrem `FunctionIR`/`BlockIR`/`InstructionIR`/`ValueIR` e produzem a forma legível consumida por depuração e testes. Recebe uma `ProgramIR` pronta (a entrada pública `render_program` fica junto à orquestração e delega a estas funções); não modifica a IR, não valida invariantes, não executa e não gera assembly.
+// @pinker-nav:summary Auditable textual rendering of the already built IR: `render_function`/`render_block`/`render_instruction`/`render_value` (with the `line` helper) walk `FunctionIR`/`BlockIR`/`InstructionIR`/`ValueIR` and produce the readable form consumed by debugging and tests. It receives a finished `ProgramIR` (the public entry `render_program` sits next to the orchestration and delegates to these functions); it does not modify the IR, does not validate invariants, does not execute and does not generate assembly.
 use super::*;
 
 pub(super) fn render_function(function: &FunctionIR, indent: usize, out: &mut String) {
@@ -477,4 +477,4 @@ pub(super) fn line(out: &mut String, indent: usize, text: &str) {
     out.push_str(text);
     out.push('\n');
 }
-// @pinker-nav:end ir.renderizacao.textual
+// @pinker-nav:end ir.rendering.textual

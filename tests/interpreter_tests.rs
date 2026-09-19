@@ -107,10 +107,10 @@ fn pink_string_literal(text: &str) -> String {
     text.replace('\\', "\\\\").replace('"', "\\\"")
 }
 
-// @pinker-nav:start evidencia.interpreter.execucao-nucleo-estado-aritmetica-fluxo
+// @pinker-nav:start evidence.interpreter.execution-core-state-arithmetic-flow
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita a execução interpretada mínima — retorno constante, leitura de globais/locais, expressão aritmética, fluxo condicional, negação unária, comparação, operadores bitwise e lógicos — comparando o valor de runtime por igualdade exata.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises minimal interpreted execution — constant return, reading globals/locals, arithmetic expression, conditional flow, unary negation, comparison, bitwise and logical operators — comparing the runtime value by exact equality.
 #[test]
 fn run_retorno_constante() {
     let out = run_code("pacote main; carinho principal() -> bombom { mimo 42; }").unwrap();
@@ -195,11 +195,11 @@ fn run_logicos_basicos() {
     assert_eq!(out, Some(RuntimeValue::Int(1)));
 }
 
-// @pinker-nav:end evidencia.interpreter.execucao-nucleo-estado-aritmetica-fluxo
-// @pinker-nav:start evidencia.interpreter.texto-verso-intrinsecas-consulta-transformacao
+// @pinker-nav:end evidence.interpreter.execution-core-state-arithmetic-flow
+// @pinker-nav:start evidence.interpreter.text-verso-intrinsics-query-transformation
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Cobre intrínsecas de verso executadas no interpretador (operacional, concat, comprimento, índice, contém, começa/termina com, igual, vazio, não vazio, aparar, minúsculo/maiúsculo, buscar), verificando resultados presentes por igualdade e rejeições por erro; não prova a intrínseca inteira, apenas os casos exercidos.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Covers verso intrinsics executed in the interpreter (operational, concat, length, index, contains, starts/ends with, equal, empty, non-empty, trim, lowercase/uppercase, search), checking the results present by equality and the refusals by error; it does not prove the whole intrinsic, only the cases exercised.
 #[test]
 fn run_verso_operacional_minimo_em_local_parametro_retorno() {
     let out = run_code(
@@ -613,11 +613,11 @@ fn run_nao_vazio_verso_intrinseca_false_em_string_vazia() {
     assert_eq!(out, Some(RuntimeValue::Int(1)));
 }
 
-// @pinker-nav:end evidencia.interpreter.texto-verso-intrinsecas-consulta-transformacao
-// @pinker-nav:start evidencia.interpreter.entrada-argumentos-nomeados-e-flags
+// @pinker-nav:end evidence.interpreter.text-verso-intrinsics-query-transformation
+// @pinker-nav:start evidence.interpreter.input-named-arguments-and-flags
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita argumentos posicionais e nomeados no interpretador — argumento, quantos_argumentos, tem_argumento, argumento_ou, tem_chave, pedir_argumento e tem_flag — cobrindo positivos, fallback e rejeições por contains.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises positional and named arguments in the interpreter — argumento, quantos_argumentos, tem_argumento, argumento_ou, tem_chave, pedir_argumento and tem_flag — covering positives, fallback and refusals by contains.
 #[test]
 fn run_argumento_intrinseca_ler_posicional_minimo() {
     let out = run_code_with_args(
@@ -1031,11 +1031,11 @@ fn run_tem_flag_rejeita_chave_vazia() {
     );
 }
 
-// @pinker-nav:end evidencia.interpreter.entrada-argumentos-nomeados-e-flags
-// @pinker-nav:start evidencia.interpreter.entrada-contexto-ambiente-e-saida
+// @pinker-nav:end evidence.interpreter.input-named-arguments-and-flags
+// @pinker-nav:start evidence.interpreter.input-environment-context-and-output
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita buscar_contexto com prioridade entre argumento nomeado, ambiente e fallback, suas rejeições de chave, e a saída falar com múltiplos argumentos no interpretador.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises buscar_contexto with priority between a named argument, the environment and a fallback, its key refusals, and falar output with multiple arguments in the interpreter.
 #[test]
 fn run_buscar_contexto_prioriza_argumento_nomeado() {
     let output = Command::new(env!("CARGO_BIN_EXE_pink"))
@@ -1186,11 +1186,11 @@ fn run_falar_multiplos_argumentos_com_locals_e_chamada_funciona() {
     assert_eq!(out, Some(RuntimeValue::Int(2)));
 }
 
-// @pinker-nav:end evidencia.interpreter.entrada-contexto-ambiente-e-saida
-// @pinker-nav:start evidencia.interpreter.execucao-chamadas-e-curto-circuito
+// @pinker-nav:end evidence.interpreter.input-environment-context-and-output
+// @pinker-nav:start evidence.interpreter.execution-calls-and-short-circuit
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Verifica chamadas de função (simples, com argumentos na ordem, encadeada, void como statement) e curto-circuito de e/ou que não avalia o lado direito, por igualdade de valor de runtime.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Checks function calls (simple, with arguments in order, chained, void as a statement) and short-circuiting of e/ou that does not evaluate the right-hand side, by equality of the runtime value.
 #[test]
 fn run_short_circuit_and_nao_avalia_rhs() {
     let out = run_code(
@@ -1266,11 +1266,11 @@ fn run_chamada_void_como_statement() {
     assert_eq!(out, Some(RuntimeValue::Int(42)));
 }
 
-// @pinker-nav:end evidencia.interpreter.execucao-chamadas-e-curto-circuito
-// @pinker-nav:start evidencia.interpreter.diagnostico-simbolo-inexistente
+// @pinker-nav:end evidence.interpreter.execution-calls-and-short-circuit
+// @pinker-nav:start evidence.interpreter.diagnostic-nonexistent-symbol
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Espera rejeição de runtime para função e global inexistentes, verificando a mensagem por contains (não igualdade exata).
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Expects a runtime refusal for a nonexistent function and global, checking the message by contains (not exact equality).
 #[test]
 fn run_falha_funcao_inexistente() {
     let program = MachineProgram {
@@ -1324,11 +1324,11 @@ fn run_falha_global_inexistente() {
     assert!(err.contains("global inexistente em runtime"));
 }
 
-// @pinker-nav:end evidencia.interpreter.diagnostico-simbolo-inexistente
-// @pinker-nav:start evidencia.interpreter.ponteiros-seta-operacional
+// @pinker-nav:end evidence.interpreter.diagnostic-nonexistent-symbol
+// @pinker-nav:start evidence.interpreter.pointers-operational-seta
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Cobre a semântica operacional de ponteiros (seta) no interpretador: representação mínima em slot, dereferência de leitura, escrita indireta, efeito frágil, cast de memória e acesso a campo, com rejeição de operação não suportada; mistura casos positivos por igualdade e negativos por erro.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Covers the operational semantics of pointers (seta) in the interpreter: minimal slot representation, read dereference, indirect write, fragile effect, memory cast and field access, with refusal of an unsupported operation; it mixes positive cases by equality and negative ones by error.
 #[test]
 fn run_seta_tem_repr_minima_no_runtime_em_slot() {
     let mut slot_types = HashMap::new();
@@ -1621,11 +1621,11 @@ fn run_falha_quando_usa_ponteiro_em_operacao_nao_suportada() {
     );
 }
 
-// @pinker-nav:end evidencia.interpreter.ponteiros-seta-operacional
-// @pinker-nav:start evidencia.interpreter.execucao-cli-exemplos-basicos
+// @pinker-nav:end evidence.interpreter.pointers-operational-seta
+// @pinker-nav:start evidence.interpreter.execution-basic-cli-examples
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Executa exemplos .pink básicos versionados através do binário CLI (caso válido e global), comparando a saída renderizada; exercita a superfície de execução via processo, não apenas o interpretador em processo.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Runs basic versioned .pink examples through the CLI binary (valid case and global), comparing the rendered output; it exercises the execution surface via a process, not only the in-process interpreter.
 #[test]
 fn cli_run_funciona_em_caso_valido() {
     let source =
@@ -1664,11 +1664,11 @@ fn cli_run_global_funciona() {
 
 // ── Fase 16: testes negativos de runtime ──────────────────────────────────
 
-// @pinker-nav:end evidencia.interpreter.execucao-cli-exemplos-basicos
-// @pinker-nav:start evidencia.interpreter.diagnostico-runtime-avaliacao-e-chamadas
+// @pinker-nav:end evidence.interpreter.execution-basic-cli-examples
+// @pinker-nav:start evidence.interpreter.runtime-diagnostic-evaluation-and-calls
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Espera falhas de avaliação e chamadas no runtime — divisão/módulo por zero, stack trace em chamada e recursão finita profunda, slot não inicializado e call sem valor — verificando categoria e trechos por contains.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Expects evaluation and call failures at runtime — division/modulo by zero, a stack trace on a call and deep finite recursion, an uninitialized slot and a call without a value — checking category and fragments by contains.
 #[test]
 fn run_falha_divisao_por_zero() {
     let program = MachineProgram {
@@ -1881,11 +1881,11 @@ fn run_falha_call_retorna_void() {
     );
 }
 
-// @pinker-nav:end evidencia.interpreter.diagnostico-runtime-avaliacao-e-chamadas
-// @pinker-nav:start evidencia.interpreter.diagnostico-runtime-execucao-invalida
+// @pinker-nav:end evidence.interpreter.runtime-diagnostic-evaluation-and-calls
+// @pinker-nav:start evidence.interpreter.runtime-diagnostic-invalid-execution
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Espera rejeição de execução quando call void retorna valor, a aridade da chamada é inválida ou o valor global não é suportado, verificando a mensagem por contains.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Expects execution to be refused when a void call returns a value, the call arity is invalid or the global value is unsupported, checking the message by contains.
 #[test]
 fn run_falha_call_void_retorna_valor() {
     // CallVoid para função que empilha valor e faz Ret: deve falhar com "call_void exige função sem retorno"
@@ -2014,11 +2014,11 @@ fn run_falha_valor_global_nao_suportado() {
 
 // ── Fase 16: testes end-to-end via run_code ───────────────────────────────
 
-// @pinker-nav:end evidencia.interpreter.diagnostico-runtime-execucao-invalida
-// @pinker-nav:start evidencia.interpreter.execucao-operadores-aritmeticos-relacionais-e-sinais
+// @pinker-nav:end evidence.interpreter.runtime-diagnostic-invalid-execution
+// @pinker-nav:start evidence.interpreter.execution-arithmetic-relational-operators-and-signs
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita operadores unários/binários, divisão, módulo, igualdade, diferença, comparações, inteiros com/sem sinal e variável mutável no interpretador, comparando por igualdade exata.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises unary/binary operators, division, modulo, equality, inequality, comparisons, signed/unsigned integers and a mutable variable in the interpreter, comparing by exact equality.
 #[test]
 fn run_not_unario() {
     let out = run_code(
@@ -2163,11 +2163,11 @@ fn run_variavel_mutavel() {
 
 // ── Fase 16: CLI — exit code não-zero em erro de runtime ─────────────────
 
-// @pinker-nav:end evidencia.interpreter.execucao-operadores-aritmeticos-relacionais-e-sinais
-// @pinker-nav:start evidencia.interpreter.execucao-recursao-e-fluxo-interpretador-e-cli
+// @pinker-nav:end evidence.interpreter.execution-arithmetic-relational-operators-and-signs
+// @pinker-nav:start evidence.interpreter.execution-recursion-and-flow-interpreter-and-cli
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Cobre chamadas, recursão e fluxo/estado no interpretador e via CLI, incluindo a falha processual com diagnóstico e exit não-zero; compara valores, saída renderizada e trechos do erro.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Covers calls, recursion and flow/state in the interpreter and via the CLI, including the procedural failure with a diagnostic and a non-zero exit; it compares values, rendered output and fragments of the error.
 #[test]
 fn cli_run_erro_runtime_tem_exit_nonzero() {
     // Programa com divisão por zero via --run: deve retornar exit code != 0 e stderr não vazio
@@ -2417,11 +2417,11 @@ fn cli_run_algoritmo_complexo_fallthrough_if_else() {
     assert!(String::from_utf8_lossy(&out.stderr).is_empty());
 }
 
-// @pinker-nav:end evidencia.interpreter.execucao-recursao-e-fluxo-interpretador-e-cli
-// @pinker-nav:start evidencia.backend-s.build-cli-artefato-textual
+// @pinker-nav:end evidence.interpreter.execution-recursion-and-flow-interpreter-and-cli
+// @pinker-nav:start evidence.backend-s.build-cli-textual-artifact
 // @pinker-nav:domain backend-s
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita dois builds híbridos via processo `pink build`: exige sucesso, saída esperada, criação do artefato .s no diretório padrão ou em --out-dir e conteúdo textual mínimo, inclusive com import; não monta, linka nem executa o artefato.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises two hybrid builds via the `pink build` process: it requires success, the expected output, creation of the .s artifact in the default directory or in --out-dir and minimal textual content, including with an import; it does not assemble, link or execute the artifact.
 #[test]
 fn cli_build_gera_artefato_s_no_diretorio_padrao() {
     let temp = std::env::temp_dir().join("pinker_build_fase63_ok");
@@ -2491,7 +2491,7 @@ fn cli_build_com_imports_gera_artefato_no_out_dir() {
     assert!(artifact_content.contains(".globl principal"));
     let _ = fs::remove_dir_all(&temp);
 }
-// @pinker-nav:end evidencia.backend-s.build-cli-artefato-textual
+// @pinker-nav:end evidence.backend-s.build-cli-textual-artifact
 
 #[test]
 fn cli_build_sem_arquivo_falha_com_uso() {
@@ -2523,10 +2523,10 @@ fn cli_build_falha_semantica_retorna_erro() {
     let _ = fs::remove_dir_all(&temp);
 }
 
-// @pinker-nav:start evidencia.interpreter.execucao-repl-e-render-erro-fonte
+// @pinker-nav:start evidence.interpreter.execution-repl-and-source-error-render
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita a sessão REPL (abrir/sair, fluxo mínimo e composto, entrada inválida preservando a sessão) e a renderização de erro com contexto de fonte, verificando saída por contains.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises the REPL session (open/exit, minimal and composed flow, invalid input preserving the session) and error rendering with source context, checking output by contains.
 #[test]
 fn cli_repl_sem_argumentos_abre_e_sai_com_quit() {
     let output = run_cli_repl_session(":quit\n", &[]);
@@ -2642,11 +2642,11 @@ fn cli_run_erro_runtime_em_exemplo_novo() {
     );
 }
 
-// @pinker-nav:end evidencia.interpreter.execucao-repl-e-render-erro-fonte
-// @pinker-nav:start evidencia.interpreter.fluxo-controle-lacos-basicos
+// @pinker-nav:end evidence.interpreter.execution-repl-and-source-error-render
+// @pinker-nav:start evidence.interpreter.control-flow-basic-loops
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Verifica laços sempre_que básicos no interpretador e via exemplo CLI, comparando o resultado e a saída por igualdade.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Checks basic sempre_que loops in the interpreter and via a CLI example, comparing the result and the output by equality.
 #[test]
 fn run_sempre_que_simples() {
     let out = run_code(
@@ -2667,11 +2667,11 @@ fn cli_run_sempre_que_funciona() {
 
 // ── Fase 27b: truncamento de stack trace longo ────────────────────────────
 
-// @pinker-nav:end evidencia.interpreter.fluxo-controle-lacos-basicos
-// @pinker-nav:start evidencia.interpreter.diagnostico-stack-trace-truncamento
+// @pinker-nav:end evidence.interpreter.control-flow-basic-loops
+// @pinker-nav:start evidence.interpreter.diagnostic-stack-trace-truncation
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Cobre a renderização do stack trace — trace curto sem truncamento, trace longo truncado preservando frames iniciais e finais, e truncamento na saída CLI — verificando por contains.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Covers stack trace rendering — a short trace without truncation, a long trace truncated preserving the initial and final frames, and truncation in the CLI output — checking by contains.
 #[test]
 fn run_trace_curto_sem_truncamento() {
     // Trace com 2 frames (principal + quebra): não deve ser truncado.
@@ -2765,11 +2765,11 @@ fn cli_run_erro_profundo_trace_truncado_na_saida() {
     );
 }
 
-// @pinker-nav:end evidencia.interpreter.diagnostico-stack-trace-truncamento
-// @pinker-nav:start evidencia.interpreter.execucao-operadores-e-fluxo-cli-exemplos
+// @pinker-nav:end evidence.interpreter.diagnostic-stack-trace-truncation
+// @pinker-nav:start evidence.interpreter.execution-operators-and-flow-cli-examples
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Executa exemplos CLI versionados de operadores (bitwise, curto-circuito lógico, inteiros fixos, alias de tipo) e fluxo, comparando a saída renderizada.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Runs versioned CLI examples of operators (bitwise, logical short-circuit, fixed integers, type alias) and flow, comparing the rendered output.
 #[test]
 fn run_sempre_que_com_quebrar_interrompe_loop() {
     let out = run_code(
@@ -2884,11 +2884,11 @@ fn cli_run_falar_signed_funciona() {
     assert_eq!(String::from_utf8_lossy(&out.stdout), "-3\nverdade\n");
 }
 
-// @pinker-nav:end evidencia.interpreter.execucao-operadores-e-fluxo-cli-exemplos
-// @pinker-nav:start evidencia.interpreter.texto-io-por-handle-e-arquivos-releitura
+// @pinker-nav:end evidence.interpreter.execution-operators-and-flow-cli-examples
+// @pinker-nav:start evidence.interpreter.text-io-by-handle-and-file-reread
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita I/O textual por handle de arquivo (criar/escrever/truncar/anexar verso, ler_verso, ouvir_verso) no interpretador e via exemplos CLI, cobrindo releitura, EOF e rejeições por handle inválido; observado, não exaustivo.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises textual I/O by file handle (create/write/truncate/append verso, ler_verso, ouvir_verso) in the interpreter and via CLI examples, covering re-reading, EOF and refusals due to an invalid handle; observed, not exhaustive.
 #[test]
 fn cli_run_ouvir_bombom_funciona_com_exemplo_versionado() {
     let out = run_cli_example_with_stdin("examples/fase85_ouvir_bombom_valido.pink", "41\n");
@@ -3346,11 +3346,11 @@ fn run_ler_arquivo_verso_falha_com_caminho_invalido() {
     );
 }
 
-// @pinker-nav:end evidencia.interpreter.texto-io-por-handle-e-arquivos-releitura
-// @pinker-nav:start evidencia.interpreter.texto-verso-e-io-textual-por-caminho
+// @pinker-nav:end evidence.interpreter.text-io-by-handle-and-file-reread
+// @pinker-nav:start evidence.interpreter.text-verso-and-textual-io-by-path
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Cobre leitura/escrita textual por caminho, intrínsecas de verso associadas e saída via falar com argumentos mistos, no interpretador e em exemplos CLI, verificando resultados e rejeições.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Covers textual reading/writing by path, the associated verso intrinsics and output via falar with mixed arguments, in the interpreter and in CLI examples, checking results and refusals.
 #[test]
 fn run_ouvir_verso_ler_texto_minimo_remove_newline_final() {
     let out = run_cli_example_with_stdin(
@@ -3661,11 +3661,11 @@ fn cli_run_falar_multiplos_argumentos_mistos_funciona_com_exemplo_versionado() {
     );
 }
 
-// @pinker-nav:end evidencia.interpreter.texto-verso-e-io-textual-por-caminho
-// @pinker-nav:start evidencia.interpreter.entrada-argumentos-e-ambiente-cli-exemplos
+// @pinker-nav:end evidence.interpreter.text-verso-and-textual-io-by-path
+// @pinker-nav:start evidence.interpreter.input-arguments-and-environment-cli-examples
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Executa exemplos CLI versionados da superfície de entrada — argumentos posicionais/nomeados, quantos, fallback, flags booleanas e buscar_contexto com prioridade sobre o ambiente — comparando saída, erro e código de saída.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Runs versioned CLI examples of the input surface — positional/named arguments, quantos, fallback, boolean flags and buscar_contexto with priority over the environment — comparing output, error and exit code.
 #[test]
 fn cli_run_argumento_posicional_minimo_funciona_com_exemplo_versionado() {
     let out = run_cli_example_with_args(
@@ -3888,11 +3888,11 @@ fn run_legado_tem_argumento_nomeado_permanece_operacional() {
     assert_eq!(out.return_value, Some(RuntimeValue::Int(1)));
 }
 
-// @pinker-nav:end evidencia.interpreter.entrada-argumentos-e-ambiente-cli-exemplos
-// @pinker-nav:start evidencia.interpreter.arquivos-introspeccao-caminho-e-diretorios
+// @pinker-nav:end evidence.interpreter.input-arguments-and-environment-cli-examples
+// @pinker-nav:start evidence.interpreter.files-path-introspection-and-directories
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita intrínsecas de caminho e diretório no interpretador (existe, é arquivo/diretório, juntar caminho, tamanho, é vazio, criar/remover diretório), cobrindo positivos e rejeições; juntar_caminho não promete canonicalização.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises path and directory intrinsics in the interpreter (existe, é arquivo/diretório, juntar caminho, tamanho, é vazio, criar/remover diretório), covering positives and refusals; juntar_caminho promises no canonicalization.
 #[test]
 fn run_caminho_existe_intrinseca_true_para_arquivo_existente() {
     let out = run_code(
@@ -4581,11 +4581,11 @@ fn run_criar_diretorio_e_remover_arquivo_integram_com_argumento_ou_e_juntar_cami
     let _ = std::fs::remove_dir(&base_dir);
 }
 
-// @pinker-nav:end evidencia.interpreter.arquivos-introspeccao-caminho-e-diretorios
-// @pinker-nav:start evidencia.interpreter.arquivos-e-ambiente-fallback-cli-exemplos
+// @pinker-nav:end evidence.interpreter.files-path-introspection-and-directories
+// @pinker-nav:start evidence.interpreter.files-and-environment-fallback-cli-examples
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Executa exemplos CLI de introspecção de caminho, diretório atual, refinamento de caminho e combinação argumento_ou/ambiente_ou, verificando a saída.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Runs CLI examples of path introspection, current directory, path refinement and the argumento_ou/ambiente_ou combination, checking the output.
 #[test]
 fn run_ambiente_ou_intrinseca_usa_fallback_sem_env() {
     let output = run_cli_example_with_env_and_cwd(
@@ -4807,11 +4807,11 @@ carinho principal() -> bombom {
     );
 }
 
-// @pinker-nav:end evidencia.interpreter.arquivos-e-ambiente-fallback-cli-exemplos
-// @pinker-nav:start evidencia.interpreter.checagem-cli-modulos-e-recortes-linguagem
+// @pinker-nav:end evidence.interpreter.files-and-environment-fallback-cli-examples
+// @pinker-nav:start evidence.interpreter.cli-check-modules-and-language-slices
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Checa e executa via CLI de exemplos versionados recortes da linguagem — quebrar fora de laço, símbolo ausente, módulos exportados/apelidados/qualificados e suas rejeições, verso constante global — verificando validade e mensagens por contains.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Checks and runs, via the CLI on versioned examples, slices of the language — quebrar outside a loop, a missing symbol, exported/aliased/qualified modules and their refusals, a global verso constant — checking validity and messages by contains.
 #[test]
 fn cli_check_quebrar_fora_de_loop_falha_com_exemplo_versionado() {
     let output = run_cli_check_example("examples/check_quebrar_fora_loop.pink");
@@ -5043,11 +5043,11 @@ fn cli_cfg_ir_verso_constante_global_com_exemplo_versionado() {
     assert!(stdout.contains("const @MSG: verso"), "stdout: {}", stdout);
 }
 
-// @pinker-nav:end evidencia.interpreter.checagem-cli-modulos-e-recortes-linguagem
-// @pinker-nav:start evidencia.interpreter.ponteiros-boot-freestanding-e-subset-nativo
+// @pinker-nav:end evidence.interpreter.cli-check-modules-and-language-slices
+// @pinker-nav:start evidence.interpreter.pointers-freestanding-boot-and-native-subset
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Checa/executa via CLI exemplos de ponteiros frágeis e voláteis, inline asm, freestanding/boot entry, kernel mínimo e cast de memória, verificando aceitação dentro do subset e rejeição fora dele por contains.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Checks/runs via the CLI examples of fragile and volatile pointers, inline asm, freestanding/boot entry, a minimal kernel and a memory cast, checking acceptance inside the subset and refusal outside it by contains.
 #[test]
 fn cli_check_volatile_valido_com_exemplo_versionado() {
     let output = run_cli_check_example("examples/check_volatile_valido.pink");
@@ -5266,11 +5266,11 @@ fn cli_run_indexacao_operacional_em_array_funciona_com_exemplo_versionado() {
     assert!(output.stdout.is_empty());
 }
 
-// @pinker-nav:end evidencia.interpreter.ponteiros-boot-freestanding-e-subset-nativo
-// @pinker-nav:start evidencia.interpreter.ponteiros-array-fixo-e-cast-memoria-cli
+// @pinker-nav:end evidence.interpreter.pointers-freestanding-boot-and-native-subset
+// @pinker-nav:start evidence.interpreter.pointers-fixed-array-and-memory-cast-cli
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Executa via CLI o recorte de baixo nível de array fixo por valor e cast de memória, cobrindo casos operacionais mínimos e as respectivas rejeições fora do subset.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Runs via the CLI the low-level slice of a fixed array by value and a memory cast, covering minimal operational cases and the respective refusals outside the subset.
 #[test]
 fn cli_run_fase147_array_fixo_operacional_minimo_por_valor_funciona_com_exemplo_versionado() {
     let output = run_cli_example("examples/fase147_array_fixo_operacional_minimo_valido.pink");
@@ -5319,11 +5319,11 @@ fn cli_check_cast_memoria_fora_subset_falha_com_exemplo_versionado() {
 
 // ── Fase 28c: spans/source context em erros de runtime e parser ───────────
 
-// @pinker-nav:end evidencia.interpreter.ponteiros-array-fixo-e-cast-memoria-cli
-// @pinker-nav:start evidencia.interpreter.diagnostico-render-fonte-e-operador-bitnot
+// @pinker-nav:end evidence.interpreter.pointers-fixed-array-and-memory-cast-cli
+// @pinker-nav:start evidence.interpreter.diagnostic-source-render-and-bitnot-operator
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Cobre renderização de erro com contexto de fonte (parse, semântico, runtime sem span real) e o operador bitnot (til/nope, equivalência, inversão de bits conhecidos, dupla inversão, rejeição por tipo), misturando contains e igualdade.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Covers error rendering with source context (parse, semantic, runtime without a real span) and the bitnot operator (tilde/nope, equivalence, inversion of known bits, double inversion, refusal by type), mixing contains and equality.
 #[test]
 fn runtime_erro_sem_span_real_mostra_localizacao_indisponivel() {
     // Erro de runtime deve exibir "localização: indisponível" em vez de "span: 1:1..1:1"
@@ -5492,11 +5492,11 @@ fn run_bitnot_tipo_invalido_rejeita_logica() {
 
 // ── HF-3: estabilização do Bloco 8 — testes de borda de handles/I/O ──────
 
-// @pinker-nav:end evidencia.interpreter.diagnostico-render-fonte-e-operador-bitnot
-// @pinker-nav:start evidencia.interpreter.arquivos-handle-fechado-e-fluxo-completo
+// @pinker-nav:end evidence.interpreter.diagnostic-source-render-and-bitnot-operator
+// @pinker-nav:start evidence.interpreter.files-closed-handle-and-complete-flow
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita falhas após fechar o handle (ler, ler_verso, tamanho, é_vazio em diretório/ausente) e o fluxo completo criar→escrever→ler→fechar no interpretador.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises failures after closing the handle (ler, ler_verso, tamanho, é_vazio on a directory/missing path) and the complete create→write→read→close flow in the interpreter.
 #[test]
 fn run_hf3_ler_arquivo_falha_apos_fechar_handle() {
     let mut file_path = std::env::temp_dir();
@@ -5782,11 +5782,11 @@ fn run_hf3_criar_arquivo_escrever_verso_ler_verso_fechar_fluxo_completo() {
 
 // ─── Fase 137 — split camada 1 conservadora ───────────────────────────────────
 
-// @pinker-nav:end evidencia.interpreter.arquivos-handle-fechado-e-fluxo-completo
-// @pinker-nav:start evidencia.interpreter.texto-dividir-substituir-juntar-e-buscar
+// @pinker-nav:end evidence.interpreter.files-closed-handle-and-complete-flow
+// @pinker-nav:start evidence.interpreter.text-split-replace-join-and-search
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Cobre dividir_verso, substituir_verso e juntar_verso — contagem, pedaços vazios, encadeamento, combinações e rejeições — além de busca textual via exemplo CLI.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Covers dividir_verso, substituir_verso and juntar_verso — counting, empty pieces, chaining, combinations and refusals — besides textual search via a CLI example.
 #[test]
 fn run_fase137_dividir_verso_contar_dois_pedacos() {
     let source = r#"pacote main; trazer texto.dividir_contar;
@@ -6189,11 +6189,11 @@ fn cli_run_fase140_busca_textual_minima_funciona_com_exemplo_versionado() {
 
 // ── Fase 157: formatação simples de saída com placeholders mínimos ───────────
 
-// @pinker-nav:end evidencia.interpreter.texto-dividir-substituir-juntar-e-buscar
-// @pinker-nav:start evidencia.interpreter.texto-formatar-verso
+// @pinker-nav:end evidence.interpreter.text-split-replace-join-and-search
+// @pinker-nav:start evidence.interpreter.text-format-verso
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita formatar_verso (com bombom, verso e bombom, fluxo composto) e suas rejeições (placeholders a menos, modelo inválido).
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises formatar_verso (with bombom, with verso and bombom, composed flow) and its refusals (too few placeholders, invalid template).
 #[test]
 fn run_fase157_formatar_verso_com_bombom() {
     let source = r#"pacote main; trazer texto.formatar; trazer texto.igual;
@@ -6280,11 +6280,11 @@ fn run_fase157_formatar_verso_falha_com_modelo_invalido() {
 
 // ── Fase 158: CSV mínimo (camada 1 conservadora) ────────────────────────────
 
-// @pinker-nav:end evidencia.interpreter.texto-formatar-verso
-// @pinker-nav:start evidencia.interpreter.arquivos-csv-serializacao
+// @pinker-nav:end evidence.interpreter.text-format-verso
+// @pinker-nav:start evidence.interpreter.files-csv-serialization
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Cobre ler/emitir linha CSV mínima e fluxo composto, com rejeições de quoting, multiline e separador longo; recorte mínimo, não CSV completo.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Covers reading/emitting a minimal CSV line and a composed flow, with refusals of quoting, multiline and a long separator; a minimal slice, not complete CSV.
 #[test]
 fn run_fase158_ler_linha_csv_bombom_minima_funciona() {
     let source = r#"pacote main; trazer csv.ler_linha_bombom; trazer lista.bombom_obter; trazer lista.bombom_tamanho;
@@ -6407,11 +6407,11 @@ fn run_fase158_emitir_linha_csv_bombom_rejeita_separador_longo() {
     );
 }
 
-// @pinker-nav:end evidencia.interpreter.arquivos-csv-serializacao
-// @pinker-nav:start evidencia.interpreter.arquivos-json-serializacao
+// @pinker-nav:end evidence.interpreter.files-csv-serialization
+// @pinker-nav:start evidence.interpreter.files-json-serialization
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Cobre ler/emitir JSON plano mínimo e fluxo composto, com rejeições de array, escape rico e nesting; recorte plano, não JSON completo.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Covers reading/emitting minimal flat JSON and a composed flow, with refusals of arrays, rich escapes and nesting; a flat slice, not complete JSON.
 #[test]
 fn run_fase159_ler_json_plano_bombom_minimo_funciona() {
     let path = std::env::temp_dir().join("pinker_fase159_json_minimo.json");
@@ -6552,11 +6552,11 @@ fn cli_check_fase159_json_basico_valido() {
     assert_cli_completed(&output);
 }
 
-// @pinker-nav:end evidencia.interpreter.arquivos-json-serializacao
-// @pinker-nav:start evidencia.interpreter.tempo-unix-e-formatacao
+// @pinker-nav:end evidence.interpreter.files-json-serialization
+// @pinker-nav:start evidence.interpreter.unix-time-and-formatting
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita tempo unix e formatação de tempo (época, timestamp mínimo positivo, fluxo composto) no interpretador e via CLI; não fixa valor absoluto de relógio.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises unix time and time formatting (epoch, minimal positive timestamp, composed flow) in the interpreter and via the CLI; it fixes no absolute clock value.
 #[test]
 fn run_fase160_formatar_tempo_unix_epoca_funciona() {
     let source = r#"pacote main; trazer tempo.formatar_unix; trazer texto.igual;
@@ -6678,11 +6678,11 @@ fn cli_run_fase160_tempo_basico_fluxo_composto_valido() {
     assert_eq!(output.status.code(), Some(160));
 }
 
-// @pinker-nav:end evidencia.interpreter.tempo-unix-e-formatacao
-// @pinker-nav:start evidencia.interpreter.processos-externo-executar
+// @pinker-nav:end evidence.interpreter.unix-time-and-formatting
+// @pinker-nav:start evidence.interpreter.processes-external-execute
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Cobre executar processo externo mínimo (código zero e não-zero, rejeição de comando vazio) no interpretador e via exemplos CLI.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Covers running a minimal external process (zero and non-zero code, refusal of an empty command) in the interpreter and via CLI examples.
 #[test]
 fn run_fase161_executar_processo_minimo_retorna_codigo_zero() {
     let source = r#"pacote main; trazer processo.executar;
@@ -6811,11 +6811,11 @@ fn cli_run_fase161_processo_externo_fluxo_composto_valido() {
     );
 }
 
-// @pinker-nav:end evidencia.interpreter.processos-externo-executar
-// @pinker-nav:start evidencia.interpreter.processos-argv-explicito
+// @pinker-nav:end evidence.interpreter.processes-external-execute
+// @pinker-nav:start evidence.interpreter.processes-explicit-argv
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita executar processo com argv explícito mínimo e rejeição de argv fora do recorte, no interpretador e via CLI.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises running a process with a minimal explicit argv and refusal of an argv outside the slice, in the interpreter and via the CLI.
 #[test]
 fn run_fase168_executar_processo_aceita_argv_explicito_minimo() {
     let source = r#"pacote main; trazer processo.executar;
@@ -6907,11 +6907,11 @@ fn cli_run_fase168_argv_explicito_fluxo_composto_valido() {
     );
 }
 
-// @pinker-nav:end evidencia.interpreter.processos-argv-explicito
-// @pinker-nav:start evidencia.interpreter.processos-captura-stdout
+// @pinker-nav:end evidence.interpreter.processes-explicit-argv
+// @pinker-nav:start evidence.interpreter.processes-stdout-capture
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Cobre captura de stdout de processo (retorna verso, argv explícito, rejeição de stdout não-UTF8) no interpretador e via CLI.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Covers process stdout capture (returns verso, explicit argv, refusal of non-UTF8 stdout) in the interpreter and via the CLI.
 #[test]
 fn run_fase163_capturar_stdout_minimo_retorna_verso() {
     let source =
@@ -7200,11 +7200,11 @@ fn cli_run_fase169_captura_stdout_argv_explicito_fluxo_composto_valido() {
     );
 }
 
-// @pinker-nav:end evidencia.interpreter.processos-captura-stdout
-// @pinker-nav:start evidencia.interpreter.processos-captura-stderr
+// @pinker-nav:end evidence.interpreter.processes-stdout-capture
+// @pinker-nav:start evidence.interpreter.processes-stderr-capture
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Cobre captura de stderr (mínimo, argv explícito, preservação UTF-8 estrita) no interpretador e via CLI.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Covers stderr capture (minimal, explicit argv, strict UTF-8 preservation) in the interpreter and via the CLI.
 #[test]
 fn run_fase164_capturar_stderr_minimo_retorna_verso() {
     let source =
@@ -7506,11 +7506,11 @@ fn cli_run_fase164_captura_stderr_fluxo_composto_valido() {
     assert_eq!(String::from_utf8_lossy(&output.stdout), "stderr=18 bytes\n");
 }
 
-// @pinker-nav:end evidencia.interpreter.processos-captura-stderr
-// @pinker-nav:start evidencia.interpreter.processos-entrada-stdin
+// @pinker-nav:end evidence.interpreter.processes-stderr-capture
+// @pinker-nav:start evidence.interpreter.processes-stdin-input
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Cobre executar com entrada stdin (código zero, fluxo composto, argv explícito, rejeição de spawn inválido, sem shell implícito) no interpretador e via CLI.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Covers running with stdin input (zero code, composed flow, explicit argv, refusal of an invalid spawn, no implicit shell) in the interpreter and via the CLI.
 #[test]
 fn run_fase165_executar_com_entrada_minimo_retorna_codigo_zero() {
     let source = r#"pacote main; trazer processo.executar_com_entrada;
@@ -7741,11 +7741,11 @@ fn cli_run_fase177_stdin_textual_argv_explicito_fluxo_composto_valido() {
     );
 }
 
-// @pinker-nav:end evidencia.interpreter.processos-entrada-stdin
-// @pinker-nav:start evidencia.interpreter.processos-pipeline
+// @pinker-nav:end evidence.interpreter.processes-stdin-input
+// @pinker-nav:start evidence.interpreter.processes-pipeline
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Cobre pipeline mínimo (código do consumidor, sem shell implícito) no interpretador e via CLI.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Covers a minimal pipeline (consumer's code, no implicit shell) in the interpreter and via the CLI.
 #[test]
 fn run_fase166_pipeline_minimo_retorna_codigo_do_consumidor() {
     let source = r#"pacote main; trazer processo.pipeline_minimo;
@@ -7920,11 +7920,11 @@ fn cli_run_fase166_pipe_minimo_fluxo_composto_valido() {
     );
 }
 
-// @pinker-nav:end evidencia.interpreter.processos-pipeline
-// @pinker-nav:start evidencia.interpreter.arquivos-csv-json-cli-exemplos
+// @pinker-nav:end evidence.interpreter.processes-pipeline
+// @pinker-nav:start evidence.interpreter.files-csv-json-cli-examples
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Executa exemplos CLI versionados básicos de JSON e CSV, verificando validade e saída.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Runs basic versioned CLI examples of JSON and CSV, checking validity and output.
 #[test]
 fn cli_run_fase159_json_basico_valido() {
     let output = run_cli_example("examples/fase159_json_basico_valido.pink");
@@ -7984,11 +7984,11 @@ fn cli_run_fase158_csv_minimo_fluxo_composto_valido() {
     );
 }
 
-// @pinker-nav:end evidencia.interpreter.arquivos-csv-json-cli-exemplos
-// @pinker-nav:start evidencia.interpreter.texto-formatar-cli-exemplos
+// @pinker-nav:end evidence.interpreter.files-csv-json-cli-examples
+// @pinker-nav:start evidence.interpreter.text-format-cli-examples
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Executa exemplos CLI de formatação simples, verificando saída e fluxo composto.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Runs CLI examples of simple formatting, checking the output and the composed flow.
 #[test]
 fn cli_check_fase157_formatacao_simples_saida_valido() {
     let output = run_cli_check_example("examples/fase157_formatacao_simples_saida_valido.pink");
@@ -8021,11 +8021,11 @@ fn cli_run_fase157_formatacao_simples_fluxo_composto_valido() {
 
 // ── Fase 148: escrita por índice em array fixo [bombom; N] ───────────────────
 
-// @pinker-nav:end evidencia.interpreter.texto-formatar-cli-exemplos
-// @pinker-nav:start evidencia.interpreter.ponteiros-escrita-indice-e-array-fixo
+// @pinker-nav:end evidence.interpreter.text-format-cli-examples
+// @pinker-nav:start evidence.interpreter.pointers-indexed-write-and-fixed-array
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita escrita por índice em array por valor (com releitura comprovando o efeito) e array fixo, no interpretador e via CLI.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises indexed writing into an array by value (with a re-read proving the effect) and into a fixed array, in the interpreter and via the CLI.
 #[test]
 fn run_escrita_por_indice_em_array_por_valor_minima_funciona() {
     let out = run_code(
@@ -8090,11 +8090,11 @@ fn cli_run_fase148_array_fixo_escrita_indice_elemento_nao_bombom_invalido_falha(
 
 // ── Fase 149: lista mínima homogênea de bombom ──────────────────────────────
 
-// @pinker-nav:end evidencia.interpreter.ponteiros-escrita-indice-e-array-fixo
-// @pinker-nav:start evidencia.interpreter.colecoes-lista-bombom
+// @pinker-nav:end evidence.interpreter.pointers-indexed-write-and-fixed-array
+// @pinker-nav:start evidence.interpreter.collections-list-bombom
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Cobre lista de bombom (criar/anexar/obter/definir/tirar último) no interpretador e via exemplos CLI, com rejeições fora da faixa e lista vazia; recorte homogêneo bombom.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Covers lista of bombom (criar/anexar/obter/definir/tirar último) in the interpreter and via CLI examples, with out-of-range and empty-list refusals; a homogeneous bombom slice.
 #[test]
 fn run_lista_bombom_minima_criar_anexar_obter_funciona() {
     let out = run_code(
@@ -8342,11 +8342,11 @@ fn cli_run_fase151_lista_bombom_tirar_ultimo_fluxo_composto_funciona_com_exemplo
 
 // ── Fase 152: mapa mínimo homogêneo verso -> bombom ────────────────────────
 
-// @pinker-nav:end evidencia.interpreter.colecoes-lista-bombom
-// @pinker-nav:start evidencia.interpreter.colecoes-mapa-verso-bombom
+// @pinker-nav:end evidence.interpreter.collections-list-bombom
+// @pinker-nav:start evidence.interpreter.collections-map-verso-bombom
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Cobre mapa verso→bombom (criar/definir/obter/tem) no interpretador e via CLI, com rejeição de chave ausente.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Covers mapa verso→bombom (criar/definir/obter/tem) in the interpreter and via the CLI, with refusal of a missing key.
 #[test]
 fn run_mapa_verso_bombom_minimo_criar_definir_obter_tem_funciona() {
     let out = run_code(
@@ -8437,11 +8437,11 @@ fn cli_run_fase152_mapa_verso_bombom_fluxo_composto_valido() {
 
 // ── Fase 153: iteração confortável mínima sobre lista<bombom> ──────────────
 
-// @pinker-nav:end evidencia.interpreter.colecoes-mapa-verso-bombom
-// @pinker-nav:start evidencia.interpreter.colecoes-iteracao-lista-e-mapa
+// @pinker-nav:end evidence.interpreter.collections-map-verso-bombom
+// @pinker-nav:start evidence.interpreter.collections-list-and-map-iteration
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Cobre iteração sobre lista e mapa de bombom no interpretador e via CLI, com rejeição de iteração em tipo fora do recorte.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Covers iteration over a lista and a mapa of bombom in the interpreter and via the CLI, with refusal of iteration over a type outside the slice.
 #[test]
 fn run_fase153_iteracao_lista_bombom_minima_funciona() {
     let out = run_code(
@@ -8724,11 +8724,11 @@ fn cli_run_fase154_iteracao_mapa_verso_bombom_fluxo_composto_valido() {
 
 // ── Fase 156: aleatoriedade básica com semente explícita ───────────────────
 
-// @pinker-nav:end evidencia.interpreter.colecoes-iteracao-lista-e-mapa
-// @pinker-nav:start evidencia.interpreter.aleatoriedade-semente
+// @pinker-nav:end evidence.interpreter.collections-list-and-map-iteration
+// @pinker-nav:start evidence.interpreter.seeded-randomness
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita aleatoriedade com semente (mesma semente produz mesma sequência, sementes diferentes, handle inválido) no interpretador e via CLI; determinismo por semente, não qualidade estatística.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises seeded randomness (the same seed produces the same sequence, different seeds, invalid handle) in the interpreter and via the CLI; determinism by seed, not statistical quality.
 #[test]
 fn run_fase156_mesma_semente_produz_mesma_sequencia() {
     let out = run_code(
@@ -8850,11 +8850,11 @@ fn cli_run_fase156_aleatoriedade_basica_fluxo_composto_valido() {
 
 // ── Fases 186–188 — importação por família: `tempo`, `ambiente` e `acaso` ──
 
-// @pinker-nav:end evidencia.interpreter.aleatoriedade-semente
-// @pinker-nav:start evidencia.interpreter.leques-trazer-recursos-e-programas-brinquedo
+// @pinker-nav:end evidence.interpreter.seeded-randomness
+// @pinker-nav:start evidence.interpreter.leques-trazer-resources-and-toy-programs
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Executa exemplos CLI de leques, intrínsecas 'trazer' (tempo, texto, arquivo, caminho, processo) e programas brinquedo (lexer/compilador), verificando validade e saída.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Runs CLI examples of leques, 'trazer' intrinsics (tempo, texto, arquivo, caminho, processo) and toy programs (lexer/compiler), checking validity and output.
 #[test]
 fn cli_check_fase186_trazer_tempo_minimo_valido() {
     let output = run_cli_check_example("examples/fase186_trazer_tempo_minimo_valido.pink");
@@ -9029,11 +9029,11 @@ fn cli_run_fase207_trazer_arquivo_caminho_processo_valido() {
     assert!(stdout.contains('0'), "stdout={}", stdout);
 }
 
-// @pinker-nav:end evidencia.interpreter.leques-trazer-recursos-e-programas-brinquedo
-// @pinker-nav:start evidencia.interpreter.execucao-funcoes-usuario-tratos-e-genericos
+// @pinker-nav:end evidence.interpreter.leques-trazer-resources-and-toy-programs
+// @pinker-nav:start evidence.interpreter.execution-user-functions-tratos-and-generics
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Executa no interpretador funções de usuário, funções anônimas, tratos/impl (resolução nominal, ninho, cobertura, homônimos, múltiplos contratos), propagação e genéricos, comparando o valor por igualdade.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Runs in the interpreter user functions, anonymous functions, tratos/impl (nominal resolution, ninho, coverage, same-name cases, multiple contracts), propagation and generics, comparing the value by equality.
 #[test]
 fn fase223_tentar_error_handling_executa_no_interpretador() {
     let code = include_str!("../examples/fase223_error_handling_tentar_valido.pink");
@@ -9252,12 +9252,12 @@ fn fase242_funcao_anonima_nao_capturante_como_valor_executa() {
     let result = run_code(code).unwrap();
     assert_eq!(result, Some(RuntimeValue::Int(20)));
 }
-// @pinker-nav:end evidencia.interpreter.execucao-funcoes-usuario-tratos-e-genericos
+// @pinker-nav:end evidence.interpreter.execution-user-functions-tratos-and-generics
 
-// @pinker-nav:start evidencia.interpreter.closures-captura-imutavel
+// @pinker-nav:start evidence.interpreter.closures-immutable-capture
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Fase 243: executa closures com captura imutável por valor no interpretador — exemplo canônico com duas instâncias distintas (ambientes independentes, execução após o retorno do escopo criador), captura múltipla de tipos distintos e os dois exemplos de fronteira de ABI (pilha par/ímpar) com env cruzando para a pilha —, nos casos presentes.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Phase 243: runs closures with immutable capture by value in the interpreter — the canonical example with two distinct instances (independent environments, execution after the creating scope returns), multiple capture of distinct types and the two ABI boundary examples (even/odd stack) with env crossing to the stack —, in the cases present.
 #[test]
 fn fase243_closure_captura_imutavel_executa_no_interpretador() {
     let code = include_str!("../examples/fase243_closure_captura_imutavel_valido.pink");
@@ -9446,12 +9446,12 @@ fn fase243_closure_pilha_impar_aplica_padding_no_interpretador() {
     let result = run_code(code).unwrap();
     assert_eq!(result, Some(RuntimeValue::Int(0)));
 }
-// @pinker-nav:end evidencia.interpreter.closures-captura-imutavel
+// @pinker-nav:end evidence.interpreter.closures-immutable-capture
 
-// @pinker-nav:start evidencia.interpreter.objetos-trato-fase244
+// @pinker-nav:start evidence.interpreter.trato-objects-phase244
 // @pinker-nav:domain interpreter
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Executa objetos de trato no interpretador hospedado: snapshot, aliases, despacho dinâmico, callables e closures, diagnósticos de handles e reatribuições condicionais verdadeiras, falsas, aninhadas e repetidas com bindings inferidos e cópias.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Runs trato objects in the hosted interpreter: snapshot, aliases, dynamic dispatch, callables and closures, handle diagnostics and conditional reassignments that are true, false, nested and repeated with inferred bindings and copies.
 
 #[test]
 fn fase244_interpreter_materializa_despacha_e_preserva_snapshot() {
@@ -9954,4 +9954,4 @@ carinho principal() -> bombom {
     assert_eq!(result, Some(RuntimeValue::Int(26)));
 }
 
-// @pinker-nav:end evidencia.interpreter.objetos-trato-fase244
+// @pinker-nav:end evidence.interpreter.trato-objects-phase244

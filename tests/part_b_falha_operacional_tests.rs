@@ -6,10 +6,10 @@ use std::path::{Path, PathBuf};
 use std::process::Output;
 use std::time::Duration;
 
-// @pinker-nav:start evidencia.erros.parte-b-falha-operacional
-// @pinker-nav:domain erros
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Evidência da Parte B: falha operacional recuperável atravessa `Resultado<T,E>` como valor em três domínios independentes (filesystem, processo/spawn e parsing em tempo de execução), compondo com `tentar`, `propagar?` e `encaixe` sem caminho especial. Cada caso compara interpretador e ELF nativo sob envelope exigindo mesmo stdout e mesmo exit; controles positivos impedem que a matriz passe por falhar em tudo; a compatibilidade histórica, a fronteira fatal e a ausência de vazamento de recurso na falha têm casos próprios.
+// @pinker-nav:start evidence.errors.part-b-operational-failure
+// @pinker-nav:domain errors
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Evidence for Part B: a recoverable operational failure crosses `Resultado<T,E>` as a value in three independent domains (filesystem, process/spawn and runtime parsing), composing with `tentar`, `propagar?` and `encaixe` with no special path. Each case compares interpreter and native ELF under an envelope requiring the same stdout and the same exit; positive controls prevent the matrix from passing by failing at everything; historical compatibility, the fatal boundary and the absence of resource leakage on failure have cases of their own.
 
 /// Ponto 1/2/3: construção histórica de `Resultado`, `tentar` e `propagar`
 /// continuam válidos com leque declarado pelo usuário — sem nenhuma
@@ -349,8 +349,8 @@ impl Paridade {
 fn desugaring_de_propagacao_nao_conhece_nenhuma_superficie_falivel() {
     let fonte = common::fonte_de_modulo::parser();
 
-    const INICIO: &str = "// @pinker-nav:start parser.resultado.tentar-propagar";
-    const FIM: &str = "// @pinker-nav:end parser.resultado.tentar-propagar";
+    const INICIO: &str = "// @pinker-nav:start parser.result.tentar-propagar";
+    const FIM: &str = "// @pinker-nav:end parser.result.tentar-propagar";
     let i = fonte.find(INICIO).expect("região do desugaring presente");
     let f = fonte
         .find(FIM)
@@ -768,4 +768,4 @@ fn compatibilidade_historica_e_fronteira_fatal_permanecem() {
     );
     invariante.exigir_aborto("double release continua fatal", "fechou\n");
 }
-// @pinker-nav:end evidencia.erros.parte-b-falha-operacional
+// @pinker-nav:end evidence.errors.part-b-operational-failure

@@ -7,10 +7,10 @@
 //! O catálogo é totalmente gerado, ordenado de forma determinística por `id` e
 //! nunca editado à mão. Zero dependências externas, coerente com o compilador.
 
-// @pinker-nav:start trama.documentos.modelo
-// @pinker-nav:domain documentos
+// @pinker-nav:start trama.documents.model
+// @pinker-nav:domain documents
 // @pinker-nav:layer trama
-// @pinker-nav:summary Preludio e modelo do catalogo documental: schema publicado, pais canonicos de raiz, frontmatter obrigatorio, o YAML minimo aceito, documento, secao ancorada e o indice que os agrega, mais os erros de varredura e de verificacao com suas mensagens estaveis (ancora desbalanceada, id duplicado, autoridade canonica ausente, portal quebrado). E o vocabulario que as duas superficies seguintes compartilham.
+// @pinker-nav:summary Prelude and model of the documentary catalog: the published schema, canonical root parents, the mandatory frontmatter, the minimal YAML accepted, the document, the anchored section and the index that aggregates them, plus the scan and verification errors with their stable messages (unbalanced anchor, duplicate id, missing canonical authority, broken portal). It is the vocabulary the two following surfaces share.
 use crate::jsonl;
 use crate::text_norm;
 use std::collections::BTreeMap;
@@ -200,11 +200,11 @@ impl fmt::Display for DocVerifyError {
     }
 }
 
-// @pinker-nav:end trama.documentos.modelo
-// @pinker-nav:start trama.documentos.catalogo
-// @pinker-nav:domain documentos
+// @pinker-nav:end trama.documents.model
+// @pinker-nav:start trama.documents.catalog
+// @pinker-nav:domain documents
 // @pinker-nav:layer trama
-// @pinker-nav:summary Gera o catálogo documental discriminado (schema 2, registros document/section) varrendo `docs/`: lê frontmatter e âncoras `@pinker-doc`, renderiza JSONL determinístico e verifica invariantes (âncoras balanceadas, ids únicos, autoridade canônica, portais).
+// @pinker-nav:summary Generates the discriminated documentary catalog (schema 2, document/section records) by scanning `docs/`: it reads the frontmatter and the `@pinker-doc` anchors, renders deterministic JSONL and checks the invariants (balanced anchors, unique ids, canonical authority, portals).
 impl DocIndex {
     /// Varre recursivamente `docs_root` e constrói o índice em memória.
     pub fn scan(docs_root: &Path) -> Result<DocIndex, ScanError> {
@@ -369,11 +369,11 @@ impl DocIndex {
         search_sections(&self.sections, query)
     }
 }
-// @pinker-nav:end trama.documentos.catalogo
-// @pinker-nav:start trama.documentos.relevancia
-// @pinker-nav:domain documentos
+// @pinker-nav:end trama.documents.catalog
+// @pinker-nav:start trama.documents.relevance
+// @pinker-nav:domain documents
 // @pinker-nav:layer trama
-// @pinker-nav:summary Relevancia de uma secao documental para uma consulta: id exato acima de alias exato, id contendo a consulta acima de titulo, e cobertura de termos em aliases, tags e resumo abaixo disso, com desempate deterministico. A pontuacao ordena resultados de `buscar` e `rota`; nao decide corretude.
+// @pinker-nav:summary Relevance of a documentary section for a query: an exact id above an exact alias, an id containing the query above a title, and term coverage in aliases, tags and summary below that, with a deterministic tiebreak. The score orders the results of `buscar` and `rota`; it does not decide correctness.
 
 /// Um resultado de busca/rota.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -505,11 +505,11 @@ fn search_sections(sections: &[DocSection], query: &str) -> Vec<SearchHit> {
     hits
 }
 
-// @pinker-nav:end trama.documentos.relevancia
-// @pinker-nav:start trama.documentos.varredura
-// @pinker-nav:domain documentos
+// @pinker-nav:end trama.documents.relevance
+// @pinker-nav:start trama.documents.scan
+// @pinker-nav:domain documents
 // @pinker-nav:layer trama
-// @pinker-nav:summary Descoberta fisica dos arquivos de `docs/`: coleta recursiva determinista dos markdown, caminho de exibicao repo-relativo e a entrada de varredura de um arquivo, que separa frontmatter de corpo antes de qualquer interpretacao.
+// @pinker-nav:summary Physical discovery of the files in `docs/`: deterministic recursive collection of the markdown files, a repo-relative display path and the scan entry of a file, which separates frontmatter from body before any interpretation.
 fn collect_markdown(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), ScanError> {
     let entries = match fs::read_dir(dir) {
         Ok(entries) => entries,
@@ -564,11 +564,11 @@ fn scan_file(rel_path: &str, text: &str, index: &mut DocIndex) {
     scan_anchors(rel_path, &owner, &lines, body_start, index);
 }
 
-// @pinker-nav:end trama.documentos.varredura
-// @pinker-nav:start trama.documentos.frontmatter
-// @pinker-nav:domain documentos
+// @pinker-nav:end trama.documents.scan
+// @pinker-nav:start trama.documents.frontmatter
+// @pinker-nav:domain documents
 // @pinker-nav:layer trama
-// @pinker-nav:summary Interpretacao do cabecalho e das ancoras de um documento: extrai o frontmatter entre as cercas `---`, monta o documento exigindo os campos obrigatorios, e varre as ancoras `@pinker-doc` pareando start e end, recusando ancora aberta, aninhada ou fechada fora de ordem em vez de descartar a secao em silencio.
+// @pinker-nav:summary Interpretation of a document's header and anchors: it extracts the frontmatter between the `---` fences, assembles the document requiring the mandatory fields, and scans the `@pinker-doc` anchors pairing start and end, refusing an open, nested or out-of-order closed anchor instead of discarding the section silently.
 /// Extrai o frontmatter YAML entre as cercas `---` iniciais.
 /// Devolve (mapa, índice da primeira linha do corpo, base 0).
 fn extract_frontmatter(lines: &[&str]) -> (Option<HashMap<String, Yaml>>, usize) {
@@ -740,11 +740,11 @@ fn scan_anchors(
             });
     }
 }
-// @pinker-nav:end trama.documentos.frontmatter
-// @pinker-nav:start trama.documentos.texto-e-serializacao
-// @pinker-nav:domain documentos
+// @pinker-nav:end trama.documents.frontmatter
+// @pinker-nav:start trama.documents.text-and-serialization
+// @pinker-nav:domain documents
 // @pinker-nav:layer trama
-// @pinker-nav:summary Utilitarios textuais e serializacao determinista do catalogo documental: leitura do marcador de fim, texto de cabecalho e primeiro heading do corpo, id derivado do nome do arquivo, escalares e listas do YAML minimo, remocao de aspas, e o render JSON de documento e de secao em ordem fixa de campos.
+// @pinker-nav:summary Textual utilities and deterministic serialization of the documentary catalog: reading the end marker, header text and the body's first heading, the id derived from the file name, scalars and lists of the minimal YAML, quote removal, and the JSON render of a document and of a section in a fixed field order.
 
 fn parse_end_marker(trimmed: &str) -> Option<String> {
     let idx = trimmed.find("@pinker-doc:end")?;
@@ -933,19 +933,19 @@ fn json_string(value: &str) -> String {
     out.push('"');
     out
 }
-// @pinker-nav:end trama.documentos.texto-e-serializacao
+// @pinker-nav:end trama.documents.text-and-serialization
 
 // ---------------------------------------------------------------------------
 // Catálogo carregado do JSONL (superfície de consulta — §5).
 // ---------------------------------------------------------------------------
 
-// @pinker-nav:start trama.documentos.consulta
-// @pinker-nav:domain documentos
+// @pinker-nav:start trama.documents.query
+// @pinker-nav:domain documents
 // @pinker-nav:layer trama
 // @pinker-nav:symbol pinker_v0::doc_index::CatalogError|CatalogError|rust-type|declaration
 // @pinker-nav:symbol pinker_v0::doc_index::CatalogError|CatalogError|rust-type|implementation
 // @pinker-nav:symbol-doc pinker_v0::doc_index::CatalogError|development.symbol-index
-// @pinker-nav:summary Reconstrói o catálogo documental a partir do JSONL versionado e serve as consultas (`mostrar`/`listar`/`buscar`/`rota`) sem revarrer `docs/`; ao extrair uma seção, reescaneia a fonte apontada e recusa a resposta se a âncora divergir.
+// @pinker-nav:summary Rebuilds the documentary catalog from the versioned JSONL and serves the queries (`mostrar`/`listar`/`buscar`/`rota`) without rescanning `docs/`; when extracting a section, it rescans the indicated source and refuses to answer if the anchor diverges.
 /// Falha ao carregar o catálogo documental versionado.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CatalogError {
@@ -1158,12 +1158,12 @@ pub fn validate_section_anchor(source: &str, section: &DocSection) -> bool {
         None => false,
     }
 }
-// @pinker-nav:end trama.documentos.consulta
+// @pinker-nav:end trama.documents.query
 
-// @pinker-nav:start evidencia.documentos.catalogo-e-consulta
-// @pinker-nav:domain documentos
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Provas do catalogo documental: varredura de documentos e secoes, JSONL deterministico e ordenado, arvore limpa sem erro de verificacao, id de secao duplicado detectado, ancora desbalanceada detectada, campo de frontmatter ausente reportado e busca que ordena o id exato em primeiro.
+// @pinker-nav:start evidence.documents.catalog-and-query
+// @pinker-nav:domain documents
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Proofs of the documentary catalog: scanning of documents and sections, deterministic ordered JSONL, a clean tree without a verification error, a duplicate section id detected, an unbalanced anchor detected, a missing frontmatter field reported and a search that ranks the exact id first.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1290,4 +1290,4 @@ mod tests {
         fs::remove_dir_all(dir).unwrap();
     }
 }
-// @pinker-nav:end evidencia.documentos.catalogo-e-consulta
+// @pinker-nav:end evidence.documents.catalog-and-query

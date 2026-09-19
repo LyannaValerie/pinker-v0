@@ -16,7 +16,7 @@ related:
   - rosa.archive
 ---
 
-# Testes de voz e identidade de Rosa
+# Rosa voice and identity tests
 
 - **Classe:** Rosa
 - **Papel:** referência

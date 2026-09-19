@@ -4,12 +4,12 @@
 //! vínculos explícitos já serializados no catálogo da Trama e resolve IDs
 //! documentais contra o catálogo documental vigente.
 
-// @pinker-nav:start trama.simbolos.modelo
-// @pinker-nav:domain simbolos
+// @pinker-nav:start trama.symbols.model
+// @pinker-nav:domain symbols
 // @pinker-nav:layer trama
 // @pinker-nav:symbol pinker_v0::symbol_index::LocateReport|LocateReport|rust-type|declaration
 // @pinker-nav:symbol-doc pinker_v0::symbol_index::LocateReport|development.symbol-index
-// @pinker-nav:summary Modelo único, público e versionado de localização: candidatos homônimos permanecem separados por identidade; relações carregam status KNOWN, UNKNOWN ou UNAVAILABLE, paths repo-relativos e a autoridade explícita que produziu cada vínculo.
+// @pinker-nav:summary Single, public, versioned lookup model: same-named candidates stay separated by identity; relations carry the status KNOWN, UNKNOWN or UNAVAILABLE, repo-relative paths and the explicit authority that produced each link.
 use crate::doc_index::{DocCatalog, DocDocument, DocSection};
 use crate::nav::{CodeCatalog, CodeRegion, SymbolKind, SymbolRole};
 use std::collections::{BTreeMap, BTreeSet};
@@ -192,15 +192,15 @@ impl LocateReport {
             || !self.textual_occurrences.is_empty()
     }
 }
-// @pinker-nav:end trama.simbolos.modelo
+// @pinker-nav:end trama.symbols.model
 
-// @pinker-nav:start trama.simbolos.derivacao
-// @pinker-nav:domain simbolos
+// @pinker-nav:start trama.symbols.derivation
+// @pinker-nav:domain symbols
 // @pinker-nav:layer trama
 // @pinker-nav:symbol pinker_v0::symbol_index::locate|locate|rust-function|declaration
 // @pinker-nav:symbol pinker_v0::symbol_index::locate|locate|rust-function|implementation
 // @pinker-nav:symbol-doc pinker_v0::symbol_index::locate|development.symbol-index
-// @pinker-nav:summary Deriva o índice integralmente em memória de CodeCatalog e DocCatalog: casa apenas nome ou identidade exatos, valida destinos e consistência, preserva homônimos e nunca lê fontes, executa grep, escreve, chama Git, rede ou subprocessos.
+// @pinker-nav:summary Derives the index entirely in memory from CodeCatalog and DocCatalog: it matches only exact names or identities, validates destinations and consistency, preserves same-named items and never reads sources, runs grep, writes, calls Git, the network or subprocesses.
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SymbolIndexError {
@@ -344,7 +344,7 @@ pub fn locate(
             let Some(entry) = builders.get_mut(identity) else {
                 return Err(missing_target(region, "test-for", identity));
             };
-            if region.layer.as_deref() != Some("evidencia") {
+            if region.layer.as_deref() != Some("evidence") {
                 return Err(SymbolIndexError::InvalidTestRegion {
                     region: region.key.clone(),
                     identity: identity.clone(),
@@ -595,12 +595,12 @@ fn relation_or_unknown<T>(items: Vec<T>, reason: &str) -> Relation<T> {
         Relation::known(items)
     }
 }
-// @pinker-nav:end trama.simbolos.derivacao
+// @pinker-nav:end trama.symbols.derivation
 
-// @pinker-nav:start trama.simbolos.renderizacao
-// @pinker-nav:domain simbolos
-// @pinker-nav:layer relatorios
-// @pinker-nav:summary Renderiza humano e JSON exclusivamente de LocateReport, preservando a mesma informação material, schema 1 próprio, ordem fixa, ausência explícita e nenhum path absoluto, ANSI ou dado incidental.
+// @pinker-nav:start trama.symbols.rendering
+// @pinker-nav:domain symbols
+// @pinker-nav:layer reports
+// @pinker-nav:summary Renders human and JSON output exclusively from LocateReport, preserving the same material information, its own schema 1, fixed order, explicit absence and no absolute path, ANSI or incidental data.
 
 pub fn render_json(report: &LocateReport) -> String {
     let candidates = report
@@ -938,11 +938,11 @@ fn json_string(value: &str) -> String {
     out.push('"');
     out
 }
-// @pinker-nav:end trama.simbolos.renderizacao
-// @pinker-nav:start evidencia.simbolos.derivacao-e-render
-// @pinker-nav:domain simbolos
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Provas do indice de simbolos: as relacoes explicitas sao derivadas sem heuristica e a ausencia e publicada como ausencia, homonimos sao preservados em ordem de identidade, destino inexistente e teste fabricado fora de evidencia sao recusados, e os renderizadores consomem o mesmo modelo e sao deterministicos.
+// @pinker-nav:end trama.symbols.rendering
+// @pinker-nav:start evidence.symbols.derivation-and-render
+// @pinker-nav:domain symbols
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Proofs of the symbol index: the explicit relations are derived without heuristics and absence is published as absence, same-named items are preserved in identity order, a nonexistent destination and a fabricated test outside evidence are refused, and the renderers consume the same model and are deterministic.
 
 #[cfg(test)]
 mod tests {
@@ -967,9 +967,9 @@ mod tests {
                 "core",
                 ",\"symbols\":[\"pkg::alvo|alvo|rust-function|declaration\"],\"symbol_docs\":[\"pkg::alvo|development.symbol-index\"]",
             ) + &line(
-                "evidencia.alvo",
+                "evidence.alvo",
                 "tests/a.rs",
-                "evidencia",
+                "evidence",
                 ",\"test_for\":[\"pkg::alvo\"]",
             )),
             "src/navigation.jsonl",
@@ -1093,4 +1093,4 @@ mod tests {
         assert!(!render_json(&report).contains("/tmp/"));
     }
 }
-// @pinker-nav:end evidencia.simbolos.derivacao-e-render
+// @pinker-nav:end evidence.symbols.derivation-and-render

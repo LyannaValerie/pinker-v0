@@ -1,9 +1,9 @@
 mod common;
 
-// @pinker-nav:start evidencia.tipos.mapa-representacao-equivalente
-// @pinker-nav:domain tipos
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Evidência F-04: duas grafias do mesmo mapa resolvido — a literal, dobrada pelo parser numa das quatro variantes históricas, e a que passa por apelido e sobrevive como `Type::Map` — respondem igual. Cobre as quatro classes com apelido na chave, no valor e nos dois, nas duas direções; a invariância metamórfica da compatibilidade sob troca de representação contra terceiros tipos, incluindo a compatibilidade `bombom`/`u64` que só o mapa genérico alcançava; os controles negativos que precisam continuar recusados, o valor de leque entre eles; a concordância entre identidade canônica de união e compatibilidade, com a separação entre identidade exata e compatibilidade; a fronteira preexistente do par numericamente compatível, que para no mesmo lugar em qualquer grafia; e a execução real das operações de mapa no caminho recém-aceito, com paridade interpretador/nativo.
+// @pinker-nav:start evidence.types.equivalent-map-representation
+// @pinker-nav:domain types
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Evidence F-04: two spellings of the same resolved map — the literal one, folded by the parser into one of the four historical variants, and the one that goes through an alias and survives as `Type::Map` — answer identically. It covers the four classes with an alias in the key, in the value and in both, in both directions; the metamorphic invariance of compatibility under a change of representation against third types, including the `bombom`/`u64` compatibility that only the generic map reached; the negative controls that must remain refused, the leque value among them; the agreement between canonical union identity and compatibility, with the separation between exact identity and compatibility; the pre-existing boundary of the numerically compatible pair, which stops at the same place in either spelling; and the real execution of map operations on the newly accepted path, with interpreter/native parity.
 
 use common::{ControlledCommand as Command, NativeArtifactDir};
 use pinker_v0::union_canon;
@@ -598,4 +598,4 @@ carinho principal() -> bombom {
     );
 }
 
-// @pinker-nav:end evidencia.tipos.mapa-representacao-equivalente
+// @pinker-nav:end evidence.types.equivalent-map-representation

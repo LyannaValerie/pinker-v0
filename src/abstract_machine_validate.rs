@@ -10,10 +10,10 @@
 //!
 //! Ponto de entrada: [`validate_program`].
 
-// @pinker-nav:start machine.validacao.invariantes
-// @pinker-nav:domain validacao
+// @pinker-nav:start machine.validation.invariants
+// @pinker-nav:domain validation
 // @pinker-nav:layer machine
-// @pinker-nav:summary Valida a máquina abstrata de pilha: balanceamento de push/pop, profundidade de pilha consistente por caminho, rótulos e saltos válidos e boa formação das operações antes da interpretação.
+// @pinker-nav:summary Validates the abstract stack machine: push/pop balance, consistent stack depth per path, valid labels and jumps and well-formedness of the operations before interpretation.
 use crate::abstract_machine::{MachineFunction, MachineInstr, MachineProgram, MachineTerminator};
 use crate::error::PinkerError;
 use crate::internal_operations::{InternalOperationFamily, InternalResult};
@@ -1522,4 +1522,4 @@ fn err_ctx_with_detail(
     err(&scoped)
 }
 
-// @pinker-nav:end machine.validacao.invariantes
+// @pinker-nav:end machine.validation.invariants

@@ -15,7 +15,7 @@ related:
   - roadmap
 ---
 
-# Histórico — território da crônica factual
+# History — territory of the factual chronicle
 
 - **Classe:** Engine
 - **Papel:** navegação

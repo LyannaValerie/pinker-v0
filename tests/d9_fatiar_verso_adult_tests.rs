@@ -16,10 +16,10 @@ use std::path::{Path, PathBuf};
 use std::process::Output;
 use std::time::Duration;
 
-// @pinker-nav:start evidencia.fatiar-verso.d9-unicode
-// @pinker-nav:domain texto
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Prova adulta D9 de fatiar_verso por Unicode scalar values no intervalo [start,end): cobre ASCII, Unicode multibyte, combining mark, emoji, vazios, bounds, overflow, sensitivity contra byte offset cru, lifetime e paridade interpretador-nativo sob envelope.
+// @pinker-nav:start evidence.fatiar-verso.d9-unicode
+// @pinker-nav:domain text
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Adult D9 proof of fatiar_verso by Unicode scalar values over the interval [start,end): it covers ASCII, multibyte Unicode, a combining mark, emoji, empties, bounds, overflow, sensitivity against a raw byte offset, lifetime and interpreter-native parity under an envelope.
 const POSITIVE_SOURCE: &str = r#"
 pacote main; trazer texto.fatiar;
 
@@ -339,4 +339,4 @@ fn paridade_interpretador_nativo_positiva_negativa_e_bounded() {
         );
     }
 }
-// @pinker-nav:end evidencia.fatiar-verso.d9-unicode
+// @pinker-nav:end evidence.fatiar-verso.d9-unicode

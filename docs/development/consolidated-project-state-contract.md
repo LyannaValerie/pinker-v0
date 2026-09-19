@@ -16,7 +16,7 @@ related:
   - development.deterministic-infrastructure-window
 ---
 
-# Contrato do estado consolidado do projeto
+# Consolidated project state contract
 
 - **Classe:** Engine
 - **Papel:** contrato observacional
@@ -28,15 +28,15 @@ documentação, pelo arquivo histórico e pelo automation core; ela não cria
 uma segunda fonte de verdade para nenhum deles.
 
 <!-- @pinker-doc:start
-id: development.consolidated-project-state-contract.modelo
-tags: [desenvolvimento, estado, schema, determinismo, dominios]
+id: development.consolidated-project-state-contract.model
+tags: [development, state, schema, determinism, domains]
 aliases:
-  - estado consolidado
+  - consolidated state
   - project state
   - project state schema
-summary: Modelo versionado, domínios, estados, overall e atribuição de origem da consulta consolidada somente leitura.
+summary: Versioned model, domains, states, overall and source attribution of the read-only consolidated query.
 -->
-## Modelo e schema
+## Model and schema
 
 O modelo Rust reutilizável é `ProjectState`, produzido por adapters somente
 leitura e consumido diretamente pelos renderers humano e JSON. A versão pública
@@ -75,17 +75,17 @@ hostname, PID e horário corrente não fazem parte do protocolo.
 Disponibilidade parcial é parte do modelo. Uma autoridade inválida bloqueia o
 domínio correspondente sem apagar os demais. Índice de arquivo histórico
 ilegível é `BLOCKED`, nunca `UNKNOWN`.
-<!-- @pinker-doc:end development.consolidated-project-state-contract.modelo -->
+<!-- @pinker-doc:end development.consolidated-project-state-contract.model -->
 
 <!-- @pinker-doc:start
-id: development.consolidated-project-state-contract.autoridades
-tags: [desenvolvimento, trama, documentacao, projecoes]
+id: development.consolidated-project-state-contract.authorities
+tags: [development, trama, documentation, projections]
 aliases:
-  - autoridades do estado consolidado
-  - dominios do pink estado
-summary: Adaptação sem duplicação das autoridades de root, Trama, documentação, projeções e checks.
+  - consolidated state authorities
+  - pink estado domains
+summary: Adaptation without duplication of the root, Trama, documentation, projections and checks authorities.
 -->
-## Autoridades adaptadas
+## Adapted authorities
 
 `repository` reutiliza `automation::RepoRoot` e publica somente o marcador
 repo-relativo e a disponibilidade das autoridades mínimas. Não existe um novo
@@ -107,17 +107,17 @@ corrente: um arquivo materializado é íntegro ou comprometido, nunca defasado.
 acima. Ele não introduz `doctor` nem probes ambientais. `diagnostics` agrega os
 diagnósticos produzidos pelos adapters; não é um subsistema independente.
 
-<!-- @pinker-doc:end development.consolidated-project-state-contract.autoridades -->
+<!-- @pinker-doc:end development.consolidated-project-state-contract.authorities -->
 
 <!-- @pinker-doc:start
-id: development.consolidated-project-state-contract.superficie
-tags: [desenvolvimento, cli, json, somente-leitura, exits]
+id: development.consolidated-project-state-contract.surface
+tags: [development, cli, json, read-only, exits]
 aliases:
   - pink estado
   - pink estado json
-summary: CLI, JSON determinístico, warnings, blockers, operações pendentes, read-only absoluto e códigos de saída do estado consolidado.
+summary: CLI, deterministic JSON, warnings, blockers, pending operations, absolute read-only operation and exit codes of the consolidated state.
 -->
-## Superfície e efeitos
+## Surface and effects
 
 As formas públicas são:
 
@@ -165,4 +165,4 @@ Uma futura TUI da Issue #388 deverá consumir `ProjectState` diretamente; não
 deverá executar a CLI nem parsear stdout. Este contrato não implementa TUI,
 `pink env`, `pink doctor`, `pink comandos`, `pink listar` nem
 `pink nav localizar`.
-<!-- @pinker-doc:end development.consolidated-project-state-contract.superficie -->
+<!-- @pinker-doc:end development.consolidated-project-state-contract.surface -->

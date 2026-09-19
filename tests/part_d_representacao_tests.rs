@@ -1,9 +1,9 @@
 //! Parte D, Step 2 — representação e identidade antes da execução hospedada.
 
-// @pinker-nav:start evidencia.processos.parte-d-representacao
-// @pinker-nav:domain processos
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Gate representacional da Parte D: prova Resultado<SaidaProcesso, verso> e accessors tipados do parser ao backend, liga OpaqueWordHandle à identidade nominal correta, fixa assinaturas falíveis declarativas e recusa shadowing de SaidaProcesso ou LimiteTempo antes/depois do uso e em módulo importado.
+// @pinker-nav:start evidence.processes.part-d-representation
+// @pinker-nav:domain processes
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Representational gate of Part D: it proves Resultado<SaidaProcesso, verso> and typed accessors from the parser to the backend, binds OpaqueWordHandle to the correct nominal identity, fixes declarative fallible signatures and refuses shadowing of SaidaProcesso or LimiteTempo before/after use and in an imported module.
 mod common;
 
 use pinker_v0::enum_payload::{self, EnumPayloadClass};
@@ -201,4 +201,4 @@ fn identidade_reservada_tambem_e_guardada_em_modulo_importado() {
         );
     }
 }
-// @pinker-nav:end evidencia.processos.parte-d-representacao
+// @pinker-nav:end evidence.processes.part-d-representation

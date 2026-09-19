@@ -87,14 +87,14 @@ fn alvo() -> i32 { 1 }
 // @pinker-nav:end codigo.alvo
 "#;
 
-const EVIDENCE: &str = r#"// @pinker-nav:start evidencia.alvo
+const EVIDENCE: &str = r#"// @pinker-nav:start evidence.alvo
 // @pinker-nav:domain fixture
-// @pinker-nav:layer evidencia
+// @pinker-nav:layer evidence
 // @pinker-nav:test-for fixture::alvo
 // @pinker-nav:summary Teste explicitamente associado ao alvo.
 #[test]
 fn cobre_alvo() { assert_eq!(2 + 2, 4); }
-// @pinker-nav:end evidencia.alvo
+// @pinker-nav:end evidence.alvo
 "#;
 
 const MANIFEST: &str = r#"schema: 1
@@ -301,12 +301,12 @@ fn snapshot(root: &Path) -> BTreeMap<String, (Vec<u8>, SystemTime)> {
     out
 }
 
-// @pinker-nav:start evidencia.diff-cobertura.cli
+// @pinker-nav:start evidence.diff-coverage.cli
 // @pinker-nav:domain diff-coverage
-// @pinker-nav:layer evidencia
+// @pinker-nav:layer evidence
 // @pinker-nav:test-for pinker_v0::diff_coverage::analyze
 // @pinker-nav:test-for pinker_v0::diff_coverage::CoverageReport
-// @pinker-nav:summary Prova a CLI de cobertura com regiões, docs, projeções documentais e testes explícitos; cobre UNKNOWN, deleção pura, malformed input, catálogos, determinismo entre roots, read-only e ausência estrutural de Git, rede, subprocessos ou heurística no derivador — e, desde TA/#697, a ausência de qualquer vínculo com estado histórico.
+// @pinker-nav:summary Proves the coverage CLI with regions, docs, document projections and explicit tests; covers UNKNOWN, pure deletion, malformed input, catalogs, determinism across roots, read-only and the structural absence of Git, network, subprocesses or heuristics in the deriver — and, since TA/#697, the absence of any link to historical state.
 
 #[test]
 fn relaciona_todas_as_superficies_por_autoridades_explicitas() {
@@ -329,7 +329,7 @@ fn relaciona_todas_as_superficies_por_autoridades_explicitas() {
         "\"path\":\"src/alvo.rs\"",
         "\"id\":\"codigo.alvo\"",
         "\"id\":\"development.diff-coverage.contract\"",
-        "\"region\":\"evidencia.alvo\"",
+        "\"region\":\"evidence.alvo\"",
         "\"id\":\"state\",\"kind\":\"documentation\"",
         "\"source\":\"code-catalog\"",
         "\"source\":\"symbol-index\"",
@@ -347,7 +347,7 @@ fn relaciona_todas_as_superficies_por_autoridades_explicitas() {
         "projeções: KNOWN",
         "testes: KNOWN",
         "codigo.alvo",
-        "evidencia.alvo",
+        "evidence.alvo",
     ] {
         assert!(human.contains(expected), "ausente {expected}: {human}");
     }
@@ -465,4 +465,4 @@ fn derivador_nao_contem_git_rede_subprocesso_escrita_ou_vocabulario_heuristico()
         );
     }
 }
-// @pinker-nav:end evidencia.diff-cobertura.cli
+// @pinker-nav:end evidence.diff-coverage.cli

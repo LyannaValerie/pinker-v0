@@ -48,10 +48,10 @@ fn base_function(ret_type: TypeIR, blocks: Vec<BasicBlockIR>) -> FunctionCfgIR {
     }
 }
 
-// @pinker-nav:start evidencia.cfg.validacao-aceitacao-basica
+// @pinker-nav:start evidence.cfg.validation-basic-acceptance
 // @pinker-nav:domain cfg
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Constrói CFG manualmente e aceita o caso simples presente pelo validador direto.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Builds a CFG manually and accepts the simple case present through the direct validator.
 #[test]
 fn cfg_valida_simples() {
     let function = base_function(
@@ -67,12 +67,12 @@ fn cfg_valida_simples() {
     );
     assert!(cfg_ir_validate::validate_program(&base_program(function)).is_ok());
 }
-// @pinker-nav:end evidencia.cfg.validacao-aceitacao-basica
+// @pinker-nav:end evidence.cfg.validation-basic-acceptance
 
-// @pinker-nav:start evidencia.cfg.validacao-blocos-e-alvos
+// @pinker-nav:start evidence.cfg.validation-blocks-and-targets
 // @pinker-nav:domain cfg
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Rejeita nos casos presentes entrada ausente, label duplicado e alvos inexistentes de jump ou branch.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Rejects, in the cases present, a missing entry, a duplicate label and nonexistent jump or branch targets.
 #[test]
 fn falha_entry_ausente() {
     let mut function = base_function(
@@ -148,12 +148,12 @@ fn falha_branch_label_inexistente() {
         Err(PinkerError::CfgIrValidation { .. })
     ));
 }
-// @pinker-nav:end evidencia.cfg.validacao-blocos-e-alvos
+// @pinker-nav:end evidence.cfg.validation-blocks-and-targets
 
-// @pinker-nav:start evidencia.cfg.validacao-condicao-e-retorno
+// @pinker-nav:start evidence.cfg.validation-condition-and-return
 // @pinker-nav:domain cfg
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Rejeita condição de branch incompatível e formas de retorno divergentes da assinatura.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Rejects an incompatible branch condition and return forms that diverge from the signature.
 #[test]
 fn falha_branch_condicao_invalida() {
     let function = base_function(
@@ -217,12 +217,12 @@ fn falha_return_vazio_em_funcao_com_retorno() {
         Err(PinkerError::CfgIrValidation { .. })
     ));
 }
-// @pinker-nav:end evidencia.cfg.validacao-condicao-e-retorno
+// @pinker-nav:end evidence.cfg.validation-condition-and-return
 
-// @pinker-nav:start evidencia.cfg.validacao-chamada-e-referencias
+// @pinker-nav:start evidence.cfg.validation-call-and-references
 // @pinker-nav:domain cfg
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Constrói CFG manualmente e rejeita destino inválido de chamada, slot, global ou temporário.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Builds a CFG manually and rejects an invalid call destination, slot, global or temporary.
 #[test]
 fn falha_call_nulo_com_destino_temporario() {
     let mut function = base_function(
@@ -319,12 +319,12 @@ fn falha_temporario_nao_definido() {
         Err(PinkerError::CfgIrValidation { .. })
     ));
 }
-// @pinker-nav:end evidencia.cfg.validacao-chamada-e-referencias
+// @pinker-nav:end evidence.cfg.validation-call-and-references
 
-// @pinker-nav:start evidencia.cfg.validacao-alcancabilidade-e-renderizacao
+// @pinker-nav:start evidence.cfg.validation-reachability-and-rendering
 // @pinker-nav:domain cfg
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Rejeita bloco inalcançável e compara que uma CFG inválida não é renderizada no fluxo montado pelo teste.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Rejects an unreachable block and compares that an invalid CFG is not rendered in the flow assembled by the test.
 #[test]
 fn politica_inalcancavel_e_erro() {
     let function = base_function(
@@ -371,12 +371,12 @@ fn cfg_invalida_nao_deve_ser_impressa() {
 
     assert_eq!(output, "");
 }
-// @pinker-nav:end evidencia.cfg.validacao-alcancabilidade-e-renderizacao
+// @pinker-nav:end evidence.cfg.validation-reachability-and-rendering
 
-// @pinker-nav:start evidencia.cfg.validacao-diagnostico
+// @pinker-nav:start evidence.cfg.validation-diagnostic
 // @pinker-nav:domain cfg
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Inspeciona parcialmente o contexto textual do diagnóstico de incompatibilidade em slot.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Partially inspects the textual context of the slot-incompatibility diagnostic.
 #[test]
 fn erro_cfg_tem_contexto_padronizado() {
     let function = base_function(
@@ -399,12 +399,12 @@ fn erro_cfg_tem_contexto_padronizado() {
     assert!(err.contains("instr='let/assign'"));
     assert!(err.contains("esperado=Bombom, recebido=Logica"));
 }
-// @pinker-nav:end evidencia.cfg.validacao-diagnostico
+// @pinker-nav:end evidence.cfg.validation-diagnostic
 
-// @pinker-nav:start evidencia.cfg.validacao-objetos-trato-fase244
+// @pinker-nav:start evidence.cfg.validation-trato-objects-phase244
 // @pinker-nav:domain cfg
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Valida manualmente materialização e despacho dinâmico na CFG e rejeita receiver comum, valor concreto divergente e destino em método nulo.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Manually validates materialization and dynamic dispatch in the CFG and rejects an ordinary receiver, a divergent concrete value and a destination on a null method.
 
 fn fase244_cfg_com_local_objeto(
     instructions: Vec<InstructionCfgIR>,
@@ -624,4 +624,4 @@ fn fase244_cfg_validation_rejeita_slot_fora_da_vtable() {
     );
 }
 
-// @pinker-nav:end evidencia.cfg.validacao-objetos-trato-fase244
+// @pinker-nav:end evidence.cfg.validation-trato-objects-phase244

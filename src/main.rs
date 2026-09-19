@@ -1,7 +1,7 @@
-// @pinker-nav:start cli.config.modelos
+// @pinker-nav:start cli.config.models
 // @pinker-nav:domain config
 // @pinker-nav:layer cli
-// @pinker-nav:summary Constantes e helpers JSON, modelos dos comandos históricos e configurações de doctor/verificar usados pelo parsing e roteamento determinísticos da CLI.
+// @pinker-nav:summary JSON constants and helpers, models of the historical commands and doctor/verificar configurations used by the CLI's deterministic parsing and routing.
 use pinker_v0::abstract_machine;
 use pinker_v0::abstract_machine_validate;
 use pinker_v0::backend_s;
@@ -243,12 +243,12 @@ enum CliCommand {
     Doctor(DoctorConfigCli),
     Verify(VerifyConfigCli),
 }
-// @pinker-nav:end cli.config.modelos
+// @pinker-nav:end cli.config.models
 
-// @pinker-nav:start cli.ajuda.usage
-// @pinker-nav:domain ajuda
+// @pinker-nav:start cli.help.usage
+// @pinker-nav:domain help
 // @pinker-nav:layer cli
-// @pinker-nav:summary program_name reduz argv[0] ao componente final e as funções de ajuda formatam, sem side effects, a superfície principal e os nove comandos incluindo doctor e verificar.
+// @pinker-nav:summary program_name reduces argv[0] to its final component and the help functions format, without side effects, the main surface and the nine commands including doctor and verificar.
 fn program_name(argv0: Option<&String>) -> String {
     argv0
         .and_then(|raw| Path::new(raw).file_name())
@@ -481,12 +481,12 @@ fn help_for_command(program: &str, command: &str) -> Option<String> {
         _ => None,
     }
 }
-// @pinker-nav:end cli.ajuda.usage
+// @pinker-nav:end cli.help.usage
 
-// @pinker-nav:start cli.execucao.entrada
-// @pinker-nav:domain execucao
+// @pinker-nav:start cli.execution.input
+// @pinker-nav:domain execution
 // @pinker-nav:layer cli
-// @pinker-nav:summary main preserva exits de domínio ao despachar análise e os nove comandos, incluindo adaptadores estruturados read-only para doctor, nav impacto e verificar.
+// @pinker-nav:summary main preserves domain exits when dispatching analysis and the nine commands, including read-only structured adapters for doctor, nav impacto and verificar.
 /// Macro para encurtar o padrão "try or exit(1)" repetido no pipeline.
 macro_rules! try_or_exit {
     ($result:expr, $sources:expr) => {
@@ -639,12 +639,12 @@ fn run_nav(config: NavConfigCli) -> i32 {
         NavSub::Projecao(command) => run_nav_projecao(repo_root, config.json, command),
     }
 }
-// @pinker-nav:end cli.execucao.entrada
+// @pinker-nav:end cli.execution.input
 
-// @pinker-nav:start cli.execucao.editor-repl
-// @pinker-nav:domain execucao
+// @pinker-nav:start cli.execution.editor-repl
+// @pinker-nav:domain execution
 // @pinker-nav:layer cli
-// @pinker-nav:summary run_editor abre EditorTui::from_path e chama editor.run(); em Err de qualquer uma das duas chamadas, imprime o erro e chama std::process::exit(1). run_repl delega a repl::run_repl() (definido em outro módulo, não é um stub local) e, em Err, imprime e também sai com process::exit(1).
+// @pinker-nav:summary run_editor opens EditorTui::from_path and calls editor.run(); on Err from either of the two calls, it prints the error and calls std::process::exit(1). run_repl delegates to repl::run_repl() (defined in another module, not a local stub) and, on Err, prints and also exits with process::exit(1).
 fn run_editor(config: EditorConfig) {
     let mut editor = match EditorTui::from_path(config.input) {
         Ok(editor) => editor,
@@ -665,19 +665,19 @@ fn run_repl(_config: ReplConfig) {
         std::process::exit(1);
     }
 }
-// @pinker-nav:end cli.execucao.editor-repl
+// @pinker-nav:end cli.execution.editor-repl
 
 // Decomposição física #638, unidade MAIN-4: a análise e o build nativo moram
 // em `src/pink_cli/analysis_build.rs`. A declaração vem aqui embaixo, e não
 // junto dos outros irmãos, porque escopo de `macro_rules!` é textual e não
 // de item: um `mod` acima da definição de `try_or_exit!` não enxergaria a
 // macro, e os 29 usos que a #601 mediu vivem todos dentro desta unidade.
-// @pinker-nav:start cli.analise.ligacao
-// @pinker-nav:domain analise
+// @pinker-nav:start cli.analysis.wiring
+// @pinker-nav:domain analysis
 // @pinker-nav:layer cli
-// @pinker-nav:summary Ligacao do submodulo de analise e build do CLI, declarado por caminho explicito em `pink_cli/`, e a importacao das duas entradas que o despacho de comando usa.
+// @pinker-nav:summary Wiring of the CLI's analysis and build submodule, declared by an explicit path in `pink_cli/`, and the import of the two entries that command dispatch uses.
 #[path = "pink_cli/analysis_build.rs"]
 mod analysis_build;
 
 use analysis_build::{run_analyze, run_build};
-// @pinker-nav:end cli.analise.ligacao
+// @pinker-nav:end cli.analysis.wiring

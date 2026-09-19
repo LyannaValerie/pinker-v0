@@ -1,7 +1,7 @@
 //! Verificação de comandos de bloco da checagem semântica, movida de
 //! `src/semantic.rs` pela unidade SEM-2 do inventário da #601 (Task #628).
 //!
-//! Só o arquivo mudou: a região cartografada `semantic.comandos.verificacao`, a
+//! Só o arquivo mudou: a região cartografada `semantic.commands.verification`, a
 //! função que a compõe e a ordem em que ela decide continuam exatamente como
 //! estavam. `super` mudou de significado ao descer um nível, e o `use` abaixo
 //! devolve ao irmão o vocabulário do pai — `SemanticChecker`, os tipos da AST e
@@ -20,10 +20,10 @@
 //! `check_block` é o único símbolo que o pai chama e, por isso, o único que
 //! passou de privado a `pub(super)`.
 
-// @pinker-nav:start semantic.comandos.verificacao
-// @pinker-nav:domain comandos
+// @pinker-nav:start semantic.commands.verification
+// @pinker-nav:domain commands
 // @pinker-nav:layer semantic
-// @pinker-nav:summary Verificação de comandos de um bloco: `mimo` (let) com inferência de `lista_criar`/`mapa_criar` pela anotação e checagem de tipo/faixa, retorno, atribuição a variável/deref/campo/índice (mutabilidade e tipos), `talvez`/`senão`, laço `sempre que` (com controle de profundidade), `quebrar`/`continuar`, `falar` (tipos imprimíveis), `sussurro` (asm) e expressão-comando.
+// @pinker-nav:summary Verification of a block's statements: `mimo` (let) with inference of `lista_criar`/`mapa_criar` from the annotation and type/range checking, return, assignment to a variable/deref/field/index (mutability and types), `talvez`/`senão`, the `sempre que` loop (with depth control), `quebrar`/`continuar`, `falar` (printable types), `sussurro` (asm) and statement expressions.
 use super::*;
 
 impl SemanticChecker {
@@ -393,4 +393,4 @@ impl SemanticChecker {
         Ok(())
     }
 }
-// @pinker-nav:end semantic.comandos.verificacao
+// @pinker-nav:end semantic.commands.verification

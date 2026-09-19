@@ -3,10 +3,10 @@
 /// `Module` recebe a mesma chave textual que o loader usa para resolução,
 /// ciclo, deduplicação e lookup. Caminho físico, cwd, worktree e ordem de
 /// import não participam desta identidade.
-// @pinker-nav:start identidades.proveniencia-fonte
-// @pinker-nav:domain identidade
-// @pinker-nav:layer compilador
-// @pinker-nav:summary Valor mínimo compartilhado de proveniência para identidades geradas que atravessam montagem de programa: distingue fonte builtin, raiz e módulo pela chave canônica do loader, sem reconstrução por display name ou caminho físico.
+// @pinker-nav:start identities.source-provenance
+// @pinker-nav:domain identity
+// @pinker-nav:layer compiler
+// @pinker-nav:summary Minimal shared provenance value for generated identities that cross program assembly: it distinguishes builtin, root and module sources by the loader's canonical key, without reconstruction from a display name or a physical path.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SourceOrigin {
     Builtin,
@@ -19,4 +19,4 @@ impl SourceOrigin {
         Self::Module(module_key.into())
     }
 }
-// @pinker-nav:end identidades.proveniencia-fonte
+// @pinker-nav:end identities.source-provenance

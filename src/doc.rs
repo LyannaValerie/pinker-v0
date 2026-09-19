@@ -13,10 +13,10 @@
 //! O módulo é deliberadamente puro: carrega e valida a configuração, e devolve
 //! decisões. Toda impressão e término de processo é responsabilidade do CLI.
 
-// @pinker-nav:start trama.documentos.configuracao
-// @pinker-nav:domain documentos
+// @pinker-nav:start trama.documents.configuration
+// @pinker-nav:domain documents
 // @pinker-nav:layer trama
-// @pinker-nav:summary Preludio e modelo da configuracao documental: caminhos versionados do ledger e do `.pinker/doc.toml`, schema suportado, o modo forward-only, a politica do GitHub, os caminhos gerados, a projecao documental e a configuracao completa, mais os erros de configuracao e a rejeicao de baseline com suas mensagens estaveis.
+// @pinker-nav:summary Prelude and model of the documentary configuration: versioned paths of the ledger and of `.pinker/doc.toml`, the supported schema, forward-only mode, the GitHub policy, the generated paths, the documentary projection and the complete configuration, plus the configuration errors and the baseline rejection with their stable messages.
 use std::collections::HashMap;
 use std::fmt;
 use std::fs;
@@ -162,11 +162,11 @@ impl fmt::Display for BaselineRejection {
     }
 }
 
-// @pinker-nav:end trama.documentos.configuracao
-// @pinker-nav:start trama.documentos.marco
-// @pinker-nav:domain documentos
+// @pinker-nav:end trama.documents.configuration
+// @pinker-nav:start trama.documents.baseline
+// @pinker-nav:domain documents
 // @pinker-nav:layer trama
-// @pinker-nav:summary Carrega e valida `.pinker/doc.toml` (marco, política forward-only e projeções) e aplica o gate anti-retroatividade na leitura do acervo: manifestos de PRs anteriores ou iguais ao baseline são rejeitados com E-DOC-BASELINE, sem backfill.
+// @pinker-nav:summary Loads and validates `.pinker/doc.toml` (baseline, forward-only policy and projections) and applies the anti-retroactivity gate when reading the collection: manifests of PRs earlier than or equal to the baseline are rejected with E-DOC-BASELINE, with no backfill.
 impl DocConfig {
     /// Carrega e valida a configuração a partir da raiz do repositório.
     pub fn load(repo_root: &Path) -> Result<DocConfig, ConfigError> {
@@ -240,12 +240,12 @@ impl DocConfig {
         }
     }
 }
-// @pinker-nav:end trama.documentos.marco
+// @pinker-nav:end trama.documents.baseline
 
-// @pinker-nav:start trama.documentos.verificacao-reutilizavel
-// @pinker-nav:domain documentos
+// @pinker-nav:start trama.documents.reusable-verification
+// @pinker-nav:domain documents
 // @pinker-nav:layer trama
-// @pinker-nav:summary Modelo somente leitura compartilhado por pink doc verificar e consumidores internos: reescaneia documentos e manifestos, compara catálogo, ledger e projeções em memória e preserva drift separado de falha estrutural.
+// @pinker-nav:summary Read-only model shared by pink doc verificar and internal consumers: it rescans documents and manifests, compares catalog, ledger and projections in memory and keeps drift separate from structural failure.
 
 /// Estado observacional produzido pela mesma autoridade de `pink doc
 /// verificar`, sem impressão e sem escrita.
@@ -338,11 +338,11 @@ pub fn verify_repository(
     })
 }
 
-// @pinker-nav:end trama.documentos.verificacao-reutilizavel
-// @pinker-nav:start trama.documentos.toml-minimo
-// @pinker-nav:domain documentos
+// @pinker-nav:end trama.documents.reusable-verification
+// @pinker-nav:start trama.documents.minimal-toml
+// @pinker-nav:domain documents
 // @pinker-nav:layer trama
-// @pinker-nav:summary Leitor minimo e determinista do subconjunto de TOML que `doc.toml` usa: cabecalho de secao, par chave-valor com escalar (texto entre aspas, inteiro ou booleano), comentario e linha em branco, com nome de campo qualificado e linha exata em cada erro. Zero dependencias externas, coerente com a filosofia do compilador.
+// @pinker-nav:summary Minimal, deterministic reader of the TOML subset `doc.toml` uses: section header, key-value pair with a scalar (quoted text, integer or boolean), comment and blank line, with a qualified field name and the exact line in every error. Zero external dependencies, coherent with the compiler's philosophy.
 
 /// Leitor mínimo e determinístico de um subconjunto de TOML.
 ///
@@ -537,11 +537,11 @@ fn parse_scalar(input: &str, line_no: usize) -> Result<RawScalar, ConfigError> {
     })
 }
 
-// @pinker-nav:end trama.documentos.toml-minimo
-// @pinker-nav:start evidencia.documentos.configuracao-e-baseline
-// @pinker-nav:domain documentos
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Provas da configuracao documental: todos os campos sao lidos, o baseline exclusivo recusa PR anterior ou igual ao marco e o inclusivo aceita o proprio marco, a mensagem de rejeicao casa com a especificacao, e modo, schema, campo obrigatorio ausente e tipo errado de escalar sao recusados com erro de linha.
+// @pinker-nav:end trama.documents.minimal-toml
+// @pinker-nav:start evidence.documents.configuration-and-baseline
+// @pinker-nav:domain documents
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Proofs of the documentary configuration: every field is read, the exclusive baseline refuses a PR earlier than or equal to itself and the inclusive one accepts the baseline PR itself, the rejection message matches the specification, and mode, schema, a missing required field and a wrong scalar type are refused with a line error.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -636,4 +636,4 @@ code_index = "src/navigation.jsonl"
         assert!(matches!(err, ConfigError::InvalidField { .. }));
     }
 }
-// @pinker-nav:end evidencia.documentos.configuracao-e-baseline
+// @pinker-nav:end evidence.documents.configuration-and-baseline

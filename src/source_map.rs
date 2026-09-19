@@ -16,10 +16,10 @@
 //! renderizador trata `UNKNOWN` como "sem alegação" e cai no texto primário,
 //! que é exatamente o comportamento histórico de programa de arquivo único.
 
-// @pinker-nav:start diagnostico.fonte.identidade
-// @pinker-nav:domain diagnostico
-// @pinker-nav:layer compilador
-// @pinker-nav:summary SourceId identifica a unidade-fonte de onde uma posição veio e viaja dentro do Span; SourceKey distingue raiz de módulo pela chave canônica do carregador; SourceMap registra texto e rótulo por id e é a única autoridade que resolve id de volta a texto na renderização de diagnóstico. UNKNOWN é ausência de alegação de fonte, não alegação de raiz.
+// @pinker-nav:start diagnostic.source.identity
+// @pinker-nav:domain diagnostic
+// @pinker-nav:layer compiler
+// @pinker-nav:summary SourceId identifies the source unit a position came from and travels inside the Span; SourceKey distinguishes root from module by the loader's canonical key; SourceMap records text and label per id and is the only authority that resolves an id back to text when rendering a diagnostic. UNKNOWN is the absence of a source claim, not a claim of root.
 use std::collections::HashMap;
 
 /// Identidade da unidade-fonte à qual uma posição pertence.
@@ -216,4 +216,4 @@ pub fn single(display: impl Into<String>, text: impl Into<String>) -> SourceMap 
     map.register_root(display, text);
     map
 }
-// @pinker-nav:end diagnostico.fonte.identidade
+// @pinker-nav:end diagnostic.source.identity

@@ -12,10 +12,10 @@
 //! ABI do runtime consomem o resultado desta função; nenhuma delas recalcula
 //! layout com regras próprias.
 
-// @pinker-nav:start uniao.payload.classificacao
-// @pinker-nav:domain unioes
+// @pinker-nav:start union.payload.classification
+// @pinker-nav:domain unions
 // @pinker-nav:layer layout
-// @pinker-nav:summary Classificação exaustiva das representações de payload de união em escalar, handle opaco e agregado, com layout real, resolução transparente de apelidos em profundidade, limites explícitos de tamanho e alinhamento e diagnósticos estáveis para tipos sem representação conhecida; substitui integralmente o antigo fallback (8, 8).
+// @pinker-nav:summary Exhaustive classification of union payload representations into scalar, opaque handle and aggregate, with the real layout, transparent resolution of aliases in depth, explicit size and alignment limits and stable diagnostics for types with no known representation; it fully replaces the old (8, 8) fallback.
 use crate::ast::{StructDecl, Type};
 use crate::layout;
 use std::collections::HashMap;
@@ -358,4 +358,4 @@ fn classify_representation(
         )),
     }
 }
-// @pinker-nav:end uniao.payload.classificacao
+// @pinker-nav:end union.payload.classification

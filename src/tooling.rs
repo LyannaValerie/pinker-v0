@@ -7,7 +7,7 @@
 // @pinker-nav:start tooling.f1.doctor
 // @pinker-nav:domain tooling
 // @pinker-nav:layer preflight
-// @pinker-nav:summary Identidade binária e Git, compatibilidade por ancestralidade e recomendação determinística compostas com o estado observacional vigente para o contrato JSON de pink doctor.
+// @pinker-nav:summary Binary and Git identity, compatibility by ancestry and a deterministic recommendation composed with the current observational state for the JSON contract of pink doctor.
 use crate::automation::RepoRoot;
 use crate::change;
 use crate::diff_coverage::{self, CoverageAuthorities, RelationStatus};
@@ -266,7 +266,7 @@ pub fn render_doctor_json(report: &DoctorReport) -> String {
 // @pinker-nav:start tooling.f1.impact
 // @pinker-nav:domain tooling
 // @pinker-nav:layer navigation
-// @pinker-nav:summary Adaptador read-only de git diff limitado, catálogo derivado atual e diff_coverage que preserva KNOWN, UNKNOWN e UNAVAILABLE no contrato JSON de pink nav impacto, sem nenhum campo de override de projeção: a capacidade foi aposentada com a reconstrução histórica e o schema foi migrado em vez de simulá-la com lista vazia.
+// @pinker-nav:summary Read-only adapter over a bounded git diff, the current derived catalog and diff_coverage that preserves KNOWN, UNKNOWN and UNAVAILABLE in the JSON contract of pink nav impacto, with no projection override field at all: the capability was retired together with historical reconstruction and the schema was migrated instead of simulating it with an empty list.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ImpactRelation {
     pub status: RelationStatus,
@@ -527,7 +527,7 @@ pub fn render_impact_json(report: &ImpactReport) -> String {
 // @pinker-nav:start tooling.f1.unified-preflight
 // @pinker-nav:domain tooling
 // @pinker-nav:layer preflight
-// @pinker-nav:summary Preflight único que compõe doctor, impacto, projeções e estado documental em blocking, warnings, deferred e ações recomendadas antes de make ci.
+// @pinker-nav:summary Single preflight that composes doctor, impacto, projections and document state into blocking, warnings, deferred and recommended actions before make ci.
 // POT/LPT: AUTHORITY #698
 // POT/LPT: INVARIANT ausência de bloco `pinker-change` não é achado do preflight.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -659,10 +659,10 @@ pub fn preflight_exit_code(report: &PreflightReport) -> i32 {
     }
 }
 // @pinker-nav:end tooling.f1.unified-preflight
-// @pinker-nav:start evidencia.ferramentas.preflight
-// @pinker-nav:domain ferramentas
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Provas do preflight unificado: a acao recomendada tem prioridade deterministica, especificacao de diff invalida e recusada antes de invocar git, e diff vazio produz requisito de override conhecido e vazio em vez de indefinido.
+// @pinker-nav:start evidence.tooling.preflight
+// @pinker-nav:domain tooling
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Proofs of the unified preflight: the recommended action has deterministic priority, an invalid diff specification is refused before invoking git, and an empty diff produces a known and empty override requirement instead of an undefined one.
 
 #[cfg(test)]
 mod tests {
@@ -726,4 +726,4 @@ mod tests {
         );
     }
 }
-// @pinker-nav:end evidencia.ferramentas.preflight
+// @pinker-nav:end evidence.tooling.preflight

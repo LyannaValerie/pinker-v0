@@ -1,7 +1,7 @@
-// @pinker-nav:start printer.ast.renderizacao
+// @pinker-nav:start printer.ast.rendering
 // @pinker-nav:domain ast
 // @pinker-nav:layer printer
-// @pinker-nav:summary Renderiza a AST como árvore textual indentada (itens, funções, blocos, comandos, expressões e tipos) para inspeção humana via `--ast`; a variante `--json-ast` delega ao serializador da própria AST.
+// @pinker-nav:summary Renders the AST as an indented textual tree (items, functions, blocks, statements, expressions and types) for human inspection via `--ast`; the `--json-ast` variant delegates to the AST's own serializer.
 use crate::ast::*;
 use crate::token::Span;
 
@@ -599,12 +599,12 @@ fn line(out: &mut String, indent: usize, text: &str) {
     out.push_str(text);
     out.push('\n');
 }
-// @pinker-nav:end printer.ast.renderizacao
+// @pinker-nav:end printer.ast.rendering
 
-// @pinker-nav:start evidencia.printer.ponteiro-de-funcao
+// @pinker-nav:start evidence.printer.function-pointer
 // @pinker-nav:domain printer
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Provas da Fase 245 no printer: o tipo ponteiro de funcao e formatado de modo que o reparse devolve o mesmo tipo sem ambiguidade, e a forma sem retorno e impressa sem seta de retorno.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Proofs of Phase 245 in the printer: the function pointer type is formatted so that reparsing returns the same type unambiguously, and the form without a return is printed without a return arrow.
 #[cfg(test)]
 mod phase245_tests {
     use super::*;
@@ -653,4 +653,4 @@ mod phase245_tests {
         assert_eq!(format_type(&ty), "seta<carinho(u8)>");
     }
 }
-// @pinker-nav:end evidencia.printer.ponteiro-de-funcao
+// @pinker-nav:end evidence.printer.function-pointer

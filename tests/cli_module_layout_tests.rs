@@ -35,35 +35,35 @@ use rust_source::codigo_executavel;
 /// (#638); as três últimas, da MAIN-1 (#640), a última unidade MAIN planejada
 /// nesta sequência.
 const REGIOES_MOVIDAS: &[(&str, &str)] = &[
-    ("cli.parsing.subcomandos", "cli_parsing.rs"),
-    ("cli.parsing.roteamento", "cli_parsing.rs"),
-    ("cli.doc.consulta", "doc_cli.rs"),
-    ("cli.doc.sincronizacao", "doc_cli.rs"),
-    ("cli.doc.mudancas", "doc_cli.rs"),
-    ("cli.doc.verificacao", "doc_cli.rs"),
-    ("cli.modulos.importacao", "modules.rs"),
-    ("cli.analise.pipeline", "analysis_build.rs"),
-    ("cli.build.nativo", "analysis_build.rs"),
-    ("cli.nav.projecao", "nav_cli.rs"),
-    ("cli.nav.consulta", "nav_cli.rs"),
-    ("cli.nav.sincronizacao-verificacao", "nav_cli.rs"),
+    ("cli.parsing.subcommands", "cli_parsing.rs"),
+    ("cli.parsing.routing", "cli_parsing.rs"),
+    ("cli.doc.query", "doc_cli.rs"),
+    ("cli.doc.synchronization", "doc_cli.rs"),
+    ("cli.doc.changes", "doc_cli.rs"),
+    ("cli.doc.verification", "doc_cli.rs"),
+    ("cli.modules.import", "modules.rs"),
+    ("cli.analysis.pipeline", "analysis_build.rs"),
+    ("cli.build.native", "analysis_build.rs"),
+    ("cli.nav.projection", "nav_cli.rs"),
+    ("cli.nav.query", "nav_cli.rs"),
+    ("cli.nav.synchronization-verification", "nav_cli.rs"),
 ];
 
 /// Regiões que continuam no entrypoint depois da última unidade do inventário.
-/// `cli.execucao.entrada` é o `main`, o roteamento de modo de comando, a
-/// varredura do catálogo e o `macro_rules! try_or_exit`; `cli.config.modelos` e
-/// `cli.ajuda.usage` são o vocabulário do binário, que a §7 da #601 rejeitou
-/// mover por custo de visibilidade desproporcional; `cli.execucao.editor-repl`
-/// não pertence a unidade nenhuma do inventário; `cli.analise.ligacao` é a
+/// `cli.execution.input` é o `main`, o roteamento de modo de comando, a
+/// varredura do catálogo e o `macro_rules! try_or_exit`; `cli.config.models` e
+/// `cli.help.usage` são o vocabulário do binário, que a §7 da #601 rejeitou
+/// mover por custo de visibilidade desproporcional; `cli.execution.editor-repl`
+/// não pertence a unidade nenhuma do inventário; `cli.analysis.wiring` é a
 /// declaração `mod analysis_build;` e a importação das suas duas entradas, que
 /// a T1 (#675) cartografou no pai porque a ligação do irmão vive aqui e não
 /// pode viajar com ele.
 const REGIOES_RETIDAS: &[&str] = &[
-    "cli.config.modelos",
-    "cli.ajuda.usage",
-    "cli.execucao.entrada",
-    "cli.execucao.editor-repl",
-    "cli.analise.ligacao",
+    "cli.config.models",
+    "cli.help.usage",
+    "cli.execution.input",
+    "cli.execution.editor-repl",
+    "cli.analysis.wiring",
 ];
 
 /// As três regiões da MAIN-1, a última unidade do inventário da #601. Elas são
@@ -71,9 +71,9 @@ const REGIOES_RETIDAS: &[&str] = &[
 /// duplicá-las ou espalhá-las por outro irmão são desvios que um `assert` só
 /// sobre a lista grande não nomearia.
 const REGIOES_DA_MAIN_1: &[&str] = &[
-    "cli.nav.projecao",
-    "cli.nav.consulta",
-    "cli.nav.sincronizacao-verificacao",
+    "cli.nav.projection",
+    "cli.nav.query",
+    "cli.nav.synchronization-verification",
 ];
 
 /// Irmão que a MAIN-1 criou.
@@ -132,7 +132,7 @@ const IRMAO_DA_MAIN_4: &str = "analysis_build.rs";
 
 /// Ocorrências de `try_or_exit!` que a #601 mediu dentro dos spans da MAIN-4.
 /// A conta dela é lexical: das 29, 28 são chamadas e 1 é a menção ao nome da
-/// macro dentro do `@pinker-nav:summary` da própria região `cli.analise.pipeline`
+/// macro dentro do `@pinker-nav:summary` da própria região `cli.analysis.pipeline`
 /// — a mesma sobrecontagem conservadora que a §3 da #601 declara para `path` e
 /// `criar`. As duas contas ficam ancoradas aqui: nenhuma das 29 ficou para trás.
 const CHAMADAS_DE_TRY_OR_EXIT_NA_MAIN_4: usize = 28;
@@ -545,7 +545,7 @@ fn a_autoridade_de_nav_e_projecao_nao_foi_duplicada() {
 }
 
 /// Os códigos de saída e o wiring de diagnóstico são o vocabulário do binário:
-/// a §7 da #601 rejeitou mover `cli.config.modelos`, e nenhum irmão pode
+/// a §7 da #601 rejeitou mover `cli.config.models`, e nenhum irmão pode
 /// redefinir um `EXIT_*` por conta própria. O irmão os usa por `use super::*`,
 /// não os declara.
 #[test]

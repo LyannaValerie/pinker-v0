@@ -4,10 +4,10 @@
 //! um leque interpretado por tag e um handle opaco produzido pelo runtime têm
 //! categorias diferentes, embora ambos precisem impedir shadowing arbitrário.
 
-// @pinker-nav:start runtime.identidade.reservada
-// @pinker-nav:domain identidade
-// @pinker-nav:layer semantica
-// @pinker-nav:summary Autoridade explícita das identidades semânticas reservadas pelo runtime, separando leques cujos discriminantes são interpretados de handles opacos nominais de uma palavra; TipoEntrada, LimiteTempo e SaidaProcesso derivam a guarda do parser desta tabela, não do recipiente acidental usado na materialização.
+// @pinker-nav:start runtime.identity.reserved
+// @pinker-nav:domain identity
+// @pinker-nav:layer semantic
+// @pinker-nav:summary Explicit authority over the semantic identities reserved by the runtime, separating leques whose discriminants are interpreted from nominal one-word opaque handles; TipoEntrada, LimiteTempo and SaidaProcesso derive the parser's guard from this table, not from the accidental container used in the materialization.
 /// Categoria semântica da identidade builtin.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RuntimeSemanticKind {
@@ -74,12 +74,12 @@ pub fn conflict_message(identity: RuntimeReservedIdentity) -> String {
     )
 }
 
-// @pinker-nav:end runtime.identidade.reservada
+// @pinker-nav:end runtime.identity.reserved
 
-// @pinker-nav:start evidencia.runtime.identidade-reservada
-// @pinker-nav:domain identidade
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Fixa as categorias semânticas das três identidades reservadas e recusa transformar SaidaProcesso em leque apenas porque outras identidades runtime-reservadas são leques simples.
+// @pinker-nav:start evidence.runtime.reserved-identity
+// @pinker-nav:domain identity
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Fixes the semantic categories of the three reserved identities and refuses to turn SaidaProcesso into a leque merely because other runtime-reserved identities are simple leques.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -96,4 +96,4 @@ mod tests {
         );
     }
 }
-// @pinker-nav:end evidencia.runtime.identidade-reservada
+// @pinker-nav:end evidence.runtime.reserved-identity
