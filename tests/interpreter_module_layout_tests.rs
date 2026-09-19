@@ -43,57 +43,54 @@ use rust_source::codigo_executavel;
 /// INT-TESTS (#642), dentro dos módulos de teste.
 const REGIOES_MOVIDAS: &[(&str, &str)] = &[
     (
-        "interpreter.intrinsecos.despacho-hospedado",
+        "interpreter.intrinsics.hosted-dispatch",
         "hosted_intrinsics.rs",
     ),
-    ("interpreter.intrinsecos.acaso", "hosted_intrinsics.rs"),
-    ("interpreter.intrinsecos.listas", "hosted_intrinsics.rs"),
+    ("interpreter.intrinsics.acaso", "hosted_intrinsics.rs"),
+    ("interpreter.intrinsics.lists", "hosted_intrinsics.rs"),
     (
-        "interpreter.intrinsecos.mapas-verso-bombom",
+        "interpreter.intrinsics.maps-verso-bombom",
         "hosted_intrinsics.rs",
     ),
-    ("interpreter.intrinsecos.leques", "hosted_intrinsics.rs"),
+    ("interpreter.intrinsics.leques", "hosted_intrinsics.rs"),
     (
-        "interpreter.intrinsecos.io-arquivo-texto",
-        "hosted_intrinsics.rs",
-    ),
-    (
-        "interpreter.intrinsecos.falha-operacional",
+        "interpreter.intrinsics.io-text-file",
         "hosted_intrinsics.rs",
     ),
     (
-        "interpreter.intrinsecos.tempo-processos-ambiente",
+        "interpreter.intrinsics.operational-failure",
         "hosted_intrinsics.rs",
     ),
     (
-        "interpreter.intrinsecos.conversoes-numero-texto",
+        "interpreter.intrinsics.time-processes-environment",
         "hosted_intrinsics.rs",
     ),
     (
-        "interpreter.intrinsecos.mapas-tipados",
+        "interpreter.intrinsics.number-text-conversions",
         "hosted_intrinsics.rs",
     ),
+    ("interpreter.intrinsics.typed-maps", "hosted_intrinsics.rs"),
     // INT-TESTS (#642): as duas regiões cartografadas que viajam dentro dos
     // módulos `#[cfg(test)]`, na unidade `#601/INT-1` original do inventário.
-    ("interpreter.unioes.contabilidade-dominios", "tests.rs"),
-    ("evidencia.processos.saida-runtime-hospedado", "tests.rs"),
+    ("interpreter.unions.domain-accounting", "tests.rs"),
+    ("evidence.processes.hosted-runtime-output", "tests.rs"),
 ];
 
-/// Regiões que continuam no pai. `interpreter.memoria.estado-enderecavel` é a
+/// Regiões que continuam no pai. `interpreter.memory.addressable-state` é a
 /// segunda âncora nova da #608: o bloco de memória endereçável que a
 /// cartografia anterior atribuía a `acaso` continua fisicamente no pai, agora
 /// com key própria. Todas as onze são de produção — depois da INT-TESTS o pai
 /// não carrega mais região de teste nenhuma.
 const REGIOES_RETIDAS: &[&str] = &[
-    "interpreter.modelo.valores-estado",
-    "interpreter.execucao.programa-globais",
-    "interpreter.execucao.funcoes-fluxo",
-    "interpreter.execucao.instrucoes-pilha",
-    "interpreter.falha-operacional.construcao",
-    "interpreter.memoria.estado-enderecavel",
-    "interpreter.hospedeiro.servicos-auxiliares",
-    "interpreter.execucao.valores-tipos",
-    "interpreter.diagnostico.stack-trace",
+    "interpreter.model.state-values",
+    "interpreter.execution.program-globals",
+    "interpreter.execution.functions-flow",
+    "interpreter.execution.stack-instructions",
+    "interpreter.operational-failure.construction",
+    "interpreter.memory.addressable-state",
+    "interpreter.host.auxiliary-services",
+    "interpreter.execution.value-types",
+    "interpreter.diagnostic.stack-trace",
 ];
 
 /// O único símbolo que o move obrigou a expor ao pai. A #607 mediu o custo:

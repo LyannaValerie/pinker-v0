@@ -1,7 +1,7 @@
-// @pinker-nav:start parser.expressoes.precedencia
-// @pinker-nav:domain expressoes
+// @pinker-nav:start parser.expressions.precedence
+// @pinker-nav:domain expressions
 // @pinker-nav:layer parser
-// @pinker-nav:summary Escada de precedência e operadores: `parse_expr`/`parse_expr_binary` com climbing por precedência e associatividade, e `parse_expr_unary`, produzindo `ast::Expr` com `BinaryOp`/`UnaryOp`.
+// @pinker-nav:summary Precedence ladder and operators: `parse_expr`/`parse_expr_binary` with precedence climbing and associativity, and `parse_expr_unary`, producing `ast::Expr` with `BinaryOp`/`UnaryOp`.
 use super::*;
 
 impl Parser {
@@ -144,12 +144,12 @@ impl Parser {
         self.parse_cast_suffix(expr)
     }
 
-    // @pinker-nav:end parser.expressoes.precedencia
+    // @pinker-nav:end parser.expressions.precedence
 
-    // @pinker-nav:start parser.expressoes.primarias
-    // @pinker-nav:domain expressoes
+    // @pinker-nav:start parser.expressions.primaries
+    // @pinker-nav:domain expressions
     // @pinker-nav:layer parser
-    // @pinker-nav:summary Expressões primárias: literais, identificadores, agrupamento, listas/mapas e construção de struct/leque, produzindo o nó base `ast::Expr` antes da cadeia postfix.
+    // @pinker-nav:summary Primary expressions: literals, identifiers, grouping, lists/maps and struct/leque construction, producing the base `ast::Expr` node before the postfix chain.
     fn parse_expr_primary(&mut self) -> Result<Expr, PinkerError> {
         let eof_span = self.peek_span();
         let token = self
@@ -234,12 +234,12 @@ impl Parser {
         self.parse_postfix_suffix(base)
     }
 
-    // @pinker-nav:end parser.expressoes.primarias
+    // @pinker-nav:end parser.expressions.primaries
 
-    // @pinker-nav:start parser.expressoes.postfix
-    // @pinker-nav:domain expressoes
+    // @pinker-nav:start parser.expressions.postfix
+    // @pinker-nav:domain expressions
     // @pinker-nav:layer parser
-    // @pinker-nav:summary Cadeia postfix de expressão: chamadas, acesso a campo, índice, chamada genérica explícita e sufixo de cast (`virar`), aplicados sobre a expressão base para produzir o `ast::Expr` final.
+    // @pinker-nav:summary Postfix chain of an expression: calls, field access, index, explicit generic call and the cast suffix (`virar`), applied over the base expression to produce the final `ast::Expr`.
     fn parse_postfix_suffix(&mut self, mut expr: Expr) -> Result<Expr, PinkerError> {
         // #505: a grafia corrente veio da canonicalização de um membro de
         // módulo, e não do texto do usuário? É a única coisa que distingue
@@ -553,12 +553,12 @@ impl Parser {
         Ok(expr)
     }
 
-    // @pinker-nav:end parser.expressoes.postfix
+    // @pinker-nav:end parser.expressions.postfix
 
-    // @pinker-nav:start parser.texto.interpolacao
-    // @pinker-nav:domain texto
+    // @pinker-nav:start parser.text.interpolation
+    // @pinker-nav:domain text
     // @pinker-nav:layer parser
-    // @pinker-nav:summary Desugaring de strings interpoladas `$"..."`: reconhece os segmentos de texto e `{expr}`, parseia cada expressão embutida e produz uma chamada a `formatar_verso` — um `ast::Expr`.
+    // @pinker-nav:summary Desugaring of interpolated strings `$"..."`: it recognizes the text segments and `{expr}`, parses each embedded expression and produces a call to `formatar_verso` — an `ast::Expr`.
     fn desugar_fstring(&mut self, raw: &str, span: Span) -> Result<Expr, PinkerError> {
         let mut template = String::new();
         let mut expr_sources: Vec<String> = Vec::new();
@@ -630,4 +630,4 @@ impl Parser {
         })
     }
 }
-// @pinker-nav:end parser.texto.interpolacao
+// @pinker-nav:end parser.text.interpolation

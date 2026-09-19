@@ -16,7 +16,7 @@ related:
   - development.projection-snapshots-contract
 ---
 
-# Cobertura de diff somente leitura
+# Read-only diff coverage
 
 - **Classe:** Engine
 - **Papel:** referência
@@ -28,13 +28,13 @@ ou cache próprio: ela deriva cada relação das autoridades locais vigentes.
 
 <!-- @pinker-doc:start
 id: development.diff-coverage.contract
-tags: [desenvolvimento, diff, cobertura, navegacao, determinismo]
+tags: [development, diff, coverage, navigation, determinism]
 aliases:
   - pink nav cobertura-diff
-  - cobertura de diff
-summary: Entrada, autoridades, relações, schema, ausências e limites de pink nav cobertura-diff.
+  - diff coverage
+summary: Input, authorities, relations, schema, absences and limits of pink nav cobertura-diff.
 -->
-## Entrada e arquivos
+## Input and files
 
 O comando recebe um unified diff UTF-8 por stdin:
 

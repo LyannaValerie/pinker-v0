@@ -15,7 +15,7 @@ related:
   - development.trama
 ---
 
-# Índice derivado de símbolos e `pink nav localizar`
+# Derived symbol index and `pink nav localizar`
 
 - **Classe:** Engine
 - **Papel:** referência
@@ -27,14 +27,14 @@ rastreada pela Issue #434. O índice é reconstruído em memória; não existe
 
 <!-- @pinker-doc:start
 id: development.symbol-index.contract
-tags: [desenvolvimento, simbolos, navegacao, trama, determinismo]
+tags: [development, symbols, navigation, trama, determinism]
 aliases:
   - pink nav localizar
-  - localizar simbolo
-  - indice de simbolos
-summary: Autoridades, modelo, schema, vínculos explícitos, ausências e limites de pink nav localizar.
+  - symbol lookup
+  - symbol index
+summary: Authorities, model, schema, explicit links, absences and limits of pink nav localizar.
 -->
-## Autoridades
+## Authorities
 
 O catálogo derivado `src/navigation.jsonl`, reconstruível dos marcadores
 `@pinker-nav`, fornece identidade, categoria, papel e regiões. O catálogo

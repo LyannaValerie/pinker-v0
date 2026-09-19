@@ -5,7 +5,7 @@
 //! de seus efeitos falíveis próprios terem sido concluídos.
 
 // @pinker-nav:start runtime.memoria.contrato-publico
-// @pinker-nav:domain memoria
+// @pinker-nav:domain memory
 // @pinker-nav:layer runtime
 // @pinker-nav:summary Autoridade pura compartilhada pelo interpretador e runtime nativo para arredondamento de página e quatro cotas independentes da memória pública — identidade e virtual vitalícios, reservado vivo recuperável e metadata histórica —, produzindo veredictos diagnósticos sem realizar efeitos nem publicar contadores parciais.
 

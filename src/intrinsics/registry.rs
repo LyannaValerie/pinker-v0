@@ -32,10 +32,10 @@
 //! [`crate::saida_processo`] —, que declaram nome, assinatura e símbolo numa
 //! autoridade só e são consultados pelas fases.
 
-// @pinker-nav:start intrinsecos.registro.binding-declarativo
-// @pinker-nav:domain intrinsecos
-// @pinker-nav:layer compilador
-// @pinker-nav:summary Tabela declarativa unica do binding das intrinsecas historicas: existencia, contrato de parametros, contrato de retorno e roteamento de runtime por grafia e por aridade, consumida por semantica, IR, validadores e backend em lugar das sete copias anteriores.
+// @pinker-nav:start intrinsics.registry.declarative-binding
+// @pinker-nav:domain intrinsics
+// @pinker-nav:layer compiler
+// @pinker-nav:summary Single declarative table of the historical intrinsics' binding: existence, parameter contract, return contract and runtime routing by spelling and by arity, consumed by semantics, IR, validators and backend in place of the seven previous copies.
 use crate::ir::TypeIR;
 
 /// Política de aridade de uma grafia histórica.
@@ -1834,4 +1834,4 @@ mod tests {
         assert!(simbolo_runtime("carinho_do_usuario").is_none());
     }
 }
-// @pinker-nav:end intrinsecos.registro.binding-declarativo
+// @pinker-nav:end intrinsics.registry.declarative-binding

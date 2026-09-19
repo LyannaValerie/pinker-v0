@@ -13,7 +13,7 @@ related:
   - roadmap
 ---
 
-# Estado operacional da Engine
+# Engine operational state
 
 - **Classe:** Engine
 - **Papel:** estado factual corrente
@@ -25,14 +25,13 @@ mecânica, o que os manifestos versionados registram após o marco #330.
 
 <!-- @pinker-doc:start
 id: engine.state.current
-tags: [engine, estado, corrente, pipeline]
+tags: [engine, state, current, pipeline]
 aliases:
-  - estado atual
-  - estado corrente
-  - qual e o estado atual
-summary: Estado factual corrente da Engine (compilador, runtime e backend implementados).
+  - current state
+  - what the current state is
+summary: Current factual state of the Engine (compiler, runtime and backend implemented).
 -->
-## Estado corrente
+## Current state
 
 A Engine implementa o pipeline completo do compilador Pinker v0: léxico,
 parsing, semântica, IR, CFG, seleção de instruções, máquina abstrata, backend
@@ -45,13 +44,13 @@ ao Histórico. Este documento não reescreve nem inventa continuidade.
 
 <!-- @pinker-doc:start
 id: engine.state.limits
-tags: [engine, limites, restricoes]
+tags: [engine, limits, constraints]
 aliases:
-  - limites atuais
-  - restricoes da engine
-summary: Limites honestos do estado corrente da Engine.
+  - current limits
+  - engine constraints
+summary: Honest limits of the Engine's current state.
 -->
-## Limites
+## Limits
 
 - O backend nativo real depende de driver C do sistema e do runtime
   `libpinker_rt.a`; a ABI textual mínima interna ainda não é ABI de plataforma.

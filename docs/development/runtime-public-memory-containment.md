@@ -15,7 +15,7 @@ related:
   - language
 ---
 
-# Contenção da memória pública
+# Public memory containment
 
 - **Classe:** Engine
 - **Papel:** contrato operacional
@@ -23,14 +23,14 @@ related:
 
 <!-- @pinker-doc:start
 id: development.runtime-public-memory-containment.contract
-tags: [runtime, memoria, demand-paging, paridade, testes]
+tags: [runtime, memory, demand-paging, parity, tests]
 aliases:
-  - contencao de memoria publica
-  - contrato de memoria publica
-summary: Contrato do hotfix extraordinário que tornou a memória pública proporcional, lazy e contabilmente equivalente no interpretador e no runtime nativo.
+  - public memory containment
+  - public memory contract
+summary: Contract of the extraordinary hotfix that made public memory proportional, lazy and accountably equivalent in the interpreter and in the native runtime.
 -->
 
-## Contexto do incidente e mecanismo confirmado
+## Incident context and confirmed mechanism
 
 O hotfix foi autorizado diretamente pela mantenedora como correção extraordinária
 de estabilidade e consumo de memória depois do merge humano da PR #420

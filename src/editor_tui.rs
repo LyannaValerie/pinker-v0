@@ -1,7 +1,7 @@
-// @pinker-nav:start editor.estado.modelo
-// @pinker-nav:domain estado
+// @pinker-nav:start editor.state.model
+// @pinker-nav:domain state
 // @pinker-nav:layer editor
-// @pinker-nav:summary OUTPUT_LINES e EDITOR_LINES fixam quantas linhas do painel de saída e do corpo do arquivo são exibidas por render(); struct EditorTui guarda file_path, o buffer de linhas do arquivo (lines), o histórico de mensagens do painel (output) e a flag dirty; from_path lê o arquivo via fs::read_to_string e usa source.lines() para separar o conteúdo, sem armazenar terminadores originais nem a presença de newline final, inicializando o painel com uma mensagem de boas-vindas e retornando Err(String) se a leitura falhar.
+// @pinker-nav:summary OUTPUT_LINES and EDITOR_LINES fix how many lines of the output panel and of the file body are displayed by render(); the EditorTui struct holds file_path, the buffer of file lines (lines), the panel message history (output) and the dirty flag; from_path reads the file via fs::read_to_string and uses source.lines() to split the content, storing neither the original terminators nor the presence of a final newline, initializing the panel with a welcome message and returning Err(String) if the read fails.
 use crate::ast::Program;
 use crate::lexer::Lexer;
 use crate::palette;
@@ -34,12 +34,12 @@ impl EditorTui {
             dirty: false,
         })
     }
-    // @pinker-nav:end editor.estado.modelo
+    // @pinker-nav:end editor.state.model
 
-    // @pinker-nav:start editor.sessao.comandos
-    // @pinker-nav:domain sessao
+    // @pinker-nav:start editor.session.commands
+    // @pinker-nav:domain session
     // @pinker-nav:layer editor
-    // @pinker-nav:summary run() é o laço REPL do editor: renderiza, lê uma linha de stdin e chama execute_command, encerrando quando este retorna Ok(false); execute_command interpreta os comandos de texto (:quit, :help, :tokens, :ast, :save, :append <texto>, :set <linha> <texto>) e mensagens desconhecidas viram uma linha no painel; run_tokens_command tokeniza a fonte atual e lista as primeiras lexemas no painel; run_ast_command parseia+checa semanticamente (parse_and_check_program) e lista as primeiras linhas da AST renderizada; save_file grava com fs::write (sem escrita atômica) a fonte recomposta por current_source, portanto :save não preserva byte a byte CRLF nem newline final original, e limpa dirty; set_line substitui uma linha existente por índice 1-based, com mensagens no painel para índice ausente/fora da faixa; erros das ações Pinker (:tokens/:ast) retornam como Err(String) via render_for_cli_with_source, distintos das mensagens de rotina empurradas ao painel.
+    // @pinker-nav:summary run() is the editor's REPL loop: it renders, reads a line from stdin and calls execute_command, terminating when the latter returns Ok(false); execute_command interprets the text commands (:quit, :help, :tokens, :ast, :save, :append <text>, :set <line> <text>) and unknown messages become a line in the panel; run_tokens_command tokenizes the current source and lists the first lexemes in the panel; run_ast_command parses + semantically checks (parse_and_check_program) and lists the first lines of the rendered AST; save_file writes with fs::write (no atomic write) the source recomposed by current_source, so :save preserves neither CRLF byte for byte nor the original final newline, and clears dirty; set_line replaces an existing line by 1-based index, with panel messages for a missing/out-of-range index; errors from the Pinker actions (:tokens/:ast) return as Err(String) via render_for_cli_with_source, distinct from the routine messages pushed to the panel.
     pub fn run(&mut self) -> Result<(), String> {
         loop {
             self.render();
@@ -177,12 +177,12 @@ impl EditorTui {
         self.push_output(format!("Linha {} atualizada.", line_number));
         Ok(true)
     }
-    // @pinker-nav:end editor.sessao.comandos
+    // @pinker-nav:end editor.session.commands
 
-    // @pinker-nav:start editor.render.saida
+    // @pinker-nav:start editor.render.output
     // @pinker-nav:domain render
     // @pinker-nav:layer editor
-    // @pinker-nav:summary current_source junta `lines` com '\n' para formar a fonte atual: ao salvar, normaliza separadores para LF e não restaura um newline final originalmente presente; render limpa a tela com sequências ANSI, imprime cabeçalho/status (via palette), até EDITOR_LINES linhas do arquivo com contagem de linhas omitidas, e as últimas OUTPUT_LINES mensagens do painel de saída; push_output apenas empilha uma String em `output`.
+    // @pinker-nav:summary current_source joins `lines` with '\n' to form the current source: on save it normalizes separators to LF and does not restore a final newline that was originally present; render clears the screen with ANSI sequences, prints header/status (via palette), up to EDITOR_LINES lines of the file with a count of omitted lines, and the last OUTPUT_LINES messages of the output panel; push_output only pushes a String onto `output`.
     fn current_source(&self) -> String {
         self.lines.join("\n")
     }
@@ -224,12 +224,12 @@ impl EditorTui {
         self.output.push(msg);
     }
 }
-// @pinker-nav:end editor.render.saida
+// @pinker-nav:end editor.render.output
 
-// @pinker-nav:start editor.analise.checagem
-// @pinker-nav:domain analise
+// @pinker-nav:start editor.analysis.check
+// @pinker-nav:domain analysis
 // @pinker-nav:layer editor
-// @pinker-nav:summary parse_and_check_program: função livre (fora do impl) que tokeniza, parseia e roda semantic::check_program sobre uma string de fonte, usada SOMENTE por :ast (via run_ast_command) como etapa de preview — ela não altera `self.lines`/AST persistente do editor, apenas produz o Program em memória para renderização no painel; :tokens (run_tokens_command) usa apenas Lexer::tokenize diretamente e não chama esta função.
+// @pinker-nav:summary parse_and_check_program: a free function (outside the impl) that tokenizes, parses and runs semantic::check_program over a source string, used ONLY by :ast (via run_ast_command) as a preview step — it does not alter the editor's persistent `self.lines`/AST, it only produces the Program in memory for rendering in the panel; :tokens (run_tokens_command) uses only Lexer::tokenize directly and does not call this function.
 fn parse_and_check_program(source: &str) -> Result<Program, crate::error::PinkerError> {
     let mut lexer = Lexer::new(source);
     let tokens = lexer.tokenize()?;
@@ -238,12 +238,12 @@ fn parse_and_check_program(source: &str) -> Result<Program, crate::error::Pinker
     semantic::check_program(&program)?;
     Ok(program)
 }
-// @pinker-nav:end editor.analise.checagem
+// @pinker-nav:end editor.analysis.check
 
-// @pinker-nav:start evidencia.editor.sessao-de-arquivo
+// @pinker-nav:start evidence.editor.file-session
 // @pinker-nav:domain editor
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Provas do editor TUI: abrir arquivo existente carrega o conteudo, arquivo inexistente falha em vez de criar sessao vazia, o comando de tokens produz saida e o comando de alteracao de linha muda a linha indicada.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Proofs of the TUI editor: opening an existing file loads its content, a nonexistent file fails instead of creating an empty session, the tokens command produces output and the line-change command changes the indicated line.
 #[cfg(test)]
 mod tests {
     use super::EditorTui;
@@ -313,4 +313,4 @@ mod tests {
         std::fs::remove_file(path).expect("cleanup");
     }
 }
-// @pinker-nav:end evidencia.editor.sessao-de-arquivo
+// @pinker-nav:end evidence.editor.file-session

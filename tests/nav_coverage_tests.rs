@@ -230,13 +230,13 @@ fn autoridades<'a>(
     }
 }
 
-// @pinker-nav:start evidencia.trama.cobertura-corrente
+// @pinker-nav:start evidence.trama.current-coverage
 // @pinker-nav:domain cartography-coverage
-// @pinker-nav:layer evidencia
+// @pinker-nav:layer evidence
 // @pinker-nav:test-for pinker_v0::nav_coverage::inventory
 // @pinker-nav:test-for pinker_v0::nav_coverage::verify
 // @pinker-nav:test-for pinker_v0::nav_coverage::CoveragePolicy
-// @pinker-nav:summary Controles C1 a C15 da cobertura corrente atingindo o consumidor real pink nav cobertura/verificar e a autoridade de relacao base-candidato: arquivo zero-ancora visivel e recusado, perda de marcador detectada, intervalo relevante fora de regiao exposto e recusado pelo gate, intersecao parcial nao promovida a completude, movimento e split/merge com disposicao preservada, excecao estreita aceita como unica rota e excecao ampla recusada na carga, base ausente como UNVERIFIABLE, catalogo derivado editado a mao incapaz de fabricar PASS, projecao FROZEN recalibrada recusada, declaracao de lacuna incapaz de devolver o gate ao verde, mesma contagem com conteudo novo ainda recusada por cobertura e nivel de obrigacao de raiz nao declaravel na autoridade.
+// @pinker-nav:summary Controls C1 to C15 of current coverage reaching the real consumer pink nav cobertura/verificar and the base-candidate relation authority: a visible zero-anchor file is refused, marker loss is detected, a relevant interval outside a region is exposed and refused by the gate, a partial intersection is not promoted to completeness, movement and split/merge preserve the disposition, a narrow exception is accepted as the only route and a broad exception is refused at load time, a missing base is UNVERIFIABLE, a hand-edited derived catalog cannot manufacture a PASS, a recalibrated FROZEN projection is refused, a gap declaration cannot return the gate to green, the same count with new content is still refused by coverage and a root obligation level is not declarable in the authority.
 
 /// C1 — um arquivo de produção sem nenhum marcador aparece no inventário e o
 /// gate o recusa pela causa correta.
@@ -987,4 +987,4 @@ fn classificacao_de_relevancia_conserva_obrigacao() {
         vec![true, true, false, false, true, true]
     );
 }
-// @pinker-nav:end evidencia.trama.cobertura-corrente
+// @pinker-nav:end evidence.trama.current-coverage

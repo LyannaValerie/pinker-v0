@@ -51,10 +51,10 @@ fn base_function(ret_type: TypeIR, instructions: Vec<InstructionIR>) -> Function
     }
 }
 
-// @pinker-nav:start evidencia.ir.validacao-aceitacao-basica
+// @pinker-nav:start evidence.ir.validation-basic-acceptance
 // @pinker-nav:domain ir
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Constrói IR manualmente e aceita o caso simples presente pelo validador direto.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Builds IR manually and accepts the simple case present through the direct validator.
 #[test]
 fn valida_ir_simples_valida() {
     let program = ProgramIR {
@@ -75,12 +75,12 @@ fn valida_ir_simples_valida() {
 
     assert!(ir_validate::validate_program(&program).is_ok());
 }
-// @pinker-nav:end evidencia.ir.validacao-aceitacao-basica
+// @pinker-nav:end evidence.ir.validation-basic-acceptance
 
-// @pinker-nav:start evidencia.ir.validacao-retorno-e-condicao
+// @pinker-nav:start evidence.ir.validation-return-and-condition
 // @pinker-nav:domain ir
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Constrói IR manualmente e rejeita nos casos presentes retorno e condição incompatíveis.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Builds IR manually and rejects, in the cases present, an incompatible return and condition.
 #[test]
 fn falha_retorno_invalido() {
     let program = ProgramIR {
@@ -145,12 +145,12 @@ fn falha_condicao_if_invalida() {
         Err(PinkerError::IrValidation { .. })
     ));
 }
-// @pinker-nav:end evidencia.ir.validacao-retorno-e-condicao
+// @pinker-nav:end evidence.ir.validation-return-and-condition
 
-// @pinker-nav:start evidencia.ir.validacao-chamadas-e-nulo
+// @pinker-nav:start evidence.ir.validation-calls-and-null
 // @pinker-nav:domain ir
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Valida diretamente IR manual e rejeita chamadas com argumento incompatível ou valor nulo usado como retorno.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Validates manual IR directly and rejects calls with an incompatible argument or a null value used as a return.
 #[test]
 fn falha_chamada_invalida() {
     let callee = FunctionIR {
@@ -249,12 +249,12 @@ fn falha_uso_incorreto_de_nulo() {
         Err(PinkerError::IrValidation { .. })
     ));
 }
-// @pinker-nav:end evidencia.ir.validacao-chamadas-e-nulo
+// @pinker-nav:end evidence.ir.validation-calls-and-null
 
-// @pinker-nav:start evidencia.ir.validacao-estrutura-e-diagnostico
+// @pinker-nav:start evidence.ir.validation-structure-and-diagnostic
 // @pinker-nav:domain ir
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Rejeita bloco malformado e inspeciona parcialmente o contexto textual do diagnóstico de tipos.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Rejects a malformed block and partially inspects the textual context of the type diagnostic.
 #[test]
 fn falha_bloco_malformado() {
     let mut function = base_function(
@@ -308,12 +308,12 @@ fn erro_ir_tem_contexto_padronizado() {
     assert!(err.contains("instr='let/assign'"));
     assert!(err.contains("esperado=Bombom, recebido=Logica"));
 }
-// @pinker-nav:end evidencia.ir.validacao-estrutura-e-diagnostico
+// @pinker-nav:end evidence.ir.validation-structure-and-diagnostic
 
-// @pinker-nav:start evidencia.ir.validacao-objetos-trato-fase244
+// @pinker-nav:start evidence.ir.validation-trato-objects-phase244
 // @pinker-nav:domain ir
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Valida manualmente a representação estrutural inicial da Fase 244 na IR: materialização explícita, snapshot concreto, vtable ordenada, chamada dinâmica com retorno ou nulo e diagnósticos para receiver e tipo concreto incompatíveis.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Manually validates the initial structural representation of Phase 244 in the IR: explicit materialization, concrete snapshot, ordered vtable, a dynamic call with a return or null and diagnostics for an incompatible receiver and concrete type.
 
 /// Identidade resolvida de `trato<Medivel>` usada pelos programas de Fase 244
 /// construídos à mão. Um slot de `trato` tem representação ambígua e precisa de
@@ -604,4 +604,4 @@ fn fase244_ir_rejeita_slot_fora_da_vtable() {
     );
 }
 
-// @pinker-nav:end evidencia.ir.validacao-objetos-trato-fase244
+// @pinker-nav:end evidence.ir.validation-trato-objects-phase244

@@ -16,7 +16,7 @@ related:
   - development
 ---
 
-# Contrato do núcleo comum de automação
+# Common automation core contract
 
 - **Classe:** Engine
 - **Papel:** contrato de infraestrutura
@@ -27,15 +27,15 @@ sob a terceira capacidade da janela auxiliar
 (`janela-infraestrutura-deterministica.md`, Issue #385).
 
 <!-- @pinker-doc:start
-id: development.automation-core-contract.fronteira
-tags: [desenvolvimento, automacao, determinismo, plano, drift]
+id: development.automation-core-contract.boundary
+tags: [development, automation, determinism, plan, drift]
 aliases:
   - automation core
-  - nucleo comum de automacao
-  - plano de automacao
-summary: Fronteira entre a autoridade host-side, o adaptador de domínio e o núcleo, e o que o núcleo puro pode e não pode fazer.
+  - common automation core
+  - automation plan
+summary: Boundary between the host-side authority, the domain adapter and the core, and what the pure core can and cannot do.
 -->
-## Fronteira
+## Boundary
 
 ```text
 autoridade host-side → orquestração, processos, Git, rede e publicação
@@ -104,18 +104,18 @@ pelo digest** — alterar um único byte de conteúdo muda o digest.
 
 São conservadores e explícitos, e cobertos por teste no limite e um byte acima,
 para que qualquer alteração futura seja deliberada.
-<!-- @pinker-doc:end development.automation-core-contract.fronteira -->
+<!-- @pinker-doc:end development.automation-core-contract.boundary -->
 
 <!-- @pinker-doc:start
-id: development.automation-core-contract.resultados
-tags: [desenvolvimento, automacao, outcomes, falhas, relatorios]
+id: development.automation-core-contract.results
+tags: [development, automation, outcomes, failures, reports]
 aliases:
-  - outcomes da automacao
-  - falhas operacionais da automacao
-  - relatorio de automacao
-summary: Classificação de mudanças, outcomes de domínio, falhas operacionais separadas e o que os relatórios podem carregar.
+  - automation outcomes
+  - automation operational failures
+  - automation report
+summary: Change classification, domain outcomes, operational failures kept separate and what the reports may carry.
 -->
-## Classificação
+## Classification
 
 A comparação é de bytes, e a classificação tem quatro formas:
 
@@ -166,18 +166,18 @@ JSON de máquina e Markdown derivado do **mesmo modelo**, para que não possam
 divergir. Nenhum dos dois carrega o payload completo — um relatório descreve o
 que mudaria, não o conteúdo — e nenhum carrega root absoluto, porque o modelo só
 conhece paths repo-relativos. Não há códigos ANSI no JSON.
-<!-- @pinker-doc:end development.automation-core-contract.resultados -->
+<!-- @pinker-doc:end development.automation-core-contract.results -->
 
 <!-- @pinker-doc:start
-id: development.automation-core-contract.aplicacao
-tags: [desenvolvimento, automacao, apply, atomicidade, confinamento]
+id: development.automation-core-contract.apply
+tags: [development, automation, apply, atomicity, confinement]
 aliases:
-  - apply do automation core
-  - confinamento de paths
-  - progresso parcial
-summary: Raiz canônica, confinamento no filesystem, autorização por digest, atomicidade por arquivo e o contrato explícito de progresso parcial sem rollback.
+  - automation core apply
+  - path confinement
+  - partial progress
+summary: Canonical root, filesystem confinement, authorization by digest, per-file atomicity and the explicit contract of partial progress without rollback.
 -->
-## Raiz canônica
+## Canonical root
 
 A raiz é descoberta subindo do diretório de partida até encontrar
 `.pinker/doc.toml` — o mesmo marcador que a Trama já usa como configuração
@@ -282,4 +282,4 @@ Aplicação parcial não é `APPLIED`: o outcome fica ausente e a causa ocupa se
 lugar próprio. A recuperação é observar novamente, executar novo check, produzir
 novo plano e autorizar novo digest — não há retry cego e não há reaplicação de
 plano obsoleto.
-<!-- @pinker-doc:end development.automation-core-contract.aplicacao -->
+<!-- @pinker-doc:end development.automation-core-contract.apply -->

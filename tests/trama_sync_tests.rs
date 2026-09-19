@@ -8,10 +8,10 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-// @pinker-nav:start evidencia.trama.sync.fixture-config
+// @pinker-nav:start evidence.trama.sync.fixture-config
 // @pinker-nav:domain development
 // @pinker-nav:layer support
-// @pinker-nav:summary Configurações e conteúdos válidos e inválidos usados pelas fixtures de sincronização.
+// @pinker-nav:summary Valid and invalid configurations and contents used by the synchronization fixtures.
 const DOC_TOML: &str = r#"schema = 1
 
 [github]
@@ -31,12 +31,12 @@ const CORE_OK: &str = "---\npinker-doc: 1\nid: rosa.core\ndomain: rosa\nkind: re
 
 // Âncora aberta sem fechamento: árvore inválida.
 const CORE_BAD: &str = "---\npinker-doc: 1\nid: rosa.core\ndomain: rosa\nkind: reference\nstatus: active\nparent: rosa\n---\n\n# Core\n\n<!-- @pinker-doc:start\nid: rosa.identity\n-->\n## Identidade\nsem fim\n";
-// @pinker-nav:end evidencia.trama.sync.fixture-config
+// @pinker-nav:end evidence.trama.sync.fixture-config
 
-// @pinker-nav:start evidencia.trama.sync.process-support
+// @pinker-nav:start evidence.trama.sync.process-support
 // @pinker-nav:domain development
 // @pinker-nav:layer support
-// @pinker-nav:summary Helpers para repositórios temporários, escrita de fixtures e execução do subcomando doc.
+// @pinker-nav:summary Helpers for temporary repositories, fixture writing and execution of the doc subcommand.
 fn temp_repo(name: &str) -> PathBuf {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -60,12 +60,12 @@ fn doc(root: &Path, args: &[&str]) -> std::process::Output {
         .output()
         .expect("executar pink")
 }
-// @pinker-nav:end evidencia.trama.sync.process-support
+// @pinker-nav:end evidence.trama.sync.process-support
 
-// @pinker-nav:start evidencia.trama.sync.invalid-source
+// @pinker-nav:start evidence.trama.sync.invalid-source
 // @pinker-nav:domain development
 // @pinker-nav:layer evidence
-// @pinker-nav:summary Evidência de que uma fonte inválida impede a sincronização e a criação do catálogo.
+// @pinker-nav:summary Evidence that an invalid source prevents synchronization and the creation of the catalog.
 #[test]
 fn sincronizar_recusa_fonte_invalida() {
     let root = temp_repo("reject_invalid");
@@ -84,12 +84,12 @@ fn sincronizar_recusa_fonte_invalida() {
 
     fs::remove_dir_all(root).unwrap();
 }
-// @pinker-nav:end evidencia.trama.sync.invalid-source
+// @pinker-nav:end evidence.trama.sync.invalid-source
 
-// @pinker-nav:start evidencia.trama.sync.preserve-last-valid
+// @pinker-nav:start evidence.trama.sync.preserve-last-valid
 // @pinker-nav:domain development
 // @pinker-nav:layer evidence
-// @pinker-nav:summary Evidência de preservação do último catálogo válido após falha de sincronização.
+// @pinker-nav:summary Evidence of preservation of the last valid catalog after a synchronization failure.
 #[test]
 fn ultimo_catalogo_valido_preservado_apos_falha() {
     let root = temp_repo("preserve");
@@ -113,12 +113,12 @@ fn ultimo_catalogo_valido_preservado_apos_falha() {
 
     fs::remove_dir_all(root).unwrap();
 }
-// @pinker-nav:end evidencia.trama.sync.preserve-last-valid
+// @pinker-nav:end evidence.trama.sync.preserve-last-valid
 
-// @pinker-nav:start evidencia.trama.sync.atomic-write
+// @pinker-nav:start evidence.trama.sync.atomic-write
 // @pinker-nav:domain development
 // @pinker-nav:layer evidence
-// @pinker-nav:summary Evidência de escrita atômica do catálogo sem arquivo temporário residual.
+// @pinker-nav:summary Evidence of atomic catalog writing with no residual temporary file.
 #[test]
 fn escrita_e_atomica_sem_temporario_residual() {
     let root = temp_repo("atomic");
@@ -133,4 +133,4 @@ fn escrita_e_atomica_sem_temporario_residual() {
 
     fs::remove_dir_all(root).unwrap();
 }
-// @pinker-nav:end evidencia.trama.sync.atomic-write
+// @pinker-nav:end evidence.trama.sync.atomic-write

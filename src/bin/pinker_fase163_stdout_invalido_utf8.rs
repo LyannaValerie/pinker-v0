@@ -1,7 +1,7 @@
-// @pinker-nav:start evidencia.processos.fixture-stdout-invalido
-// @pinker-nav:domain processos
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Fixture de processo controlado que emite em stdout uma sequencia de bytes que nao e UTF-8 valido, ancorando o caso em que a captura precisa recusar ou classificar a saida em vez de assumir texto.
+// @pinker-nav:start evidence.processes.fixture-invalid-stdout
+// @pinker-nav:domain processes
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Controlled-process fixture that emits on stdout a byte sequence that is not valid UTF-8, anchoring the case in which capture must refuse or classify the output instead of assuming text.
 use std::io::Write;
 
 fn main() {
@@ -9,4 +9,4 @@ fn main() {
     stdout.write_all(&[0x66, 0x6f, 0x80]).unwrap();
     stdout.flush().unwrap();
 }
-// @pinker-nav:end evidencia.processos.fixture-stdout-invalido
+// @pinker-nav:end evidence.processes.fixture-invalid-stdout

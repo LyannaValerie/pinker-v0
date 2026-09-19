@@ -39,10 +39,10 @@
 //! com o span e a fonte da unidade que a escreveu. É a diferença entre "este
 //! nome não existe" e "este nome existe, em outro lugar, e você não o pediu".
 
-// @pinker-nav:start modulos.ambiente.import-explicito
-// @pinker-nav:domain modulos
-// @pinker-nav:layer compilador
-// @pinker-nav:summary ModuleEnvironment é o conjunto de ligações que uma unidade autorizou — as próprias declarações de topo mais exclusivamente os imports que ela escreveu — e é a única fonte de resolução do corpo dessa unidade; ambientes_do_grafo monta um ambiente por unidade a partir do grafo, recusando import seletivo de símbolo inexistente e sem jamais herdar as dependências internas do módulo importado para o importador, que é o que separa superfície visível ao importador de ambiente de implementação do módulo.
+// @pinker-nav:start modules.environment.explicit-import
+// @pinker-nav:domain modules
+// @pinker-nav:layer compiler
+// @pinker-nav:summary ModuleEnvironment is the set of bindings a unit authorized — its own top-level declarations plus exclusively the imports it wrote — and it is the only source of resolution for that unit's body; ambientes_do_grafo builds one environment per unit from the graph, refusing a selective import of a nonexistent symbol and never inheriting the imported module's internal dependencies into the importer, which is what separates the surface visible to the importer from the module's implementation environment.
 use std::collections::{HashMap, HashSet};
 
 use crate::ast::{
@@ -420,12 +420,12 @@ fn ambiente_da_unidade(
 
     Ok(env)
 }
-// @pinker-nav:end modulos.ambiente.import-explicito
+// @pinker-nav:end modules.environment.explicit-import
 
-// @pinker-nav:start modulos.resolucao.nominal-canonica
-// @pinker-nav:domain modulos
-// @pinker-nav:layer compilador
-// @pinker-nav:summary resolver_grafo reescreve declarações e referências de cada unidade para o nome canônico da unidade de origem, usando exclusivamente o ambiente que aquela unidade autorizou: a raiz preserva a grafia e o módulo qualifica pela própria chave, de modo que dois módulos independentes possam declarar o mesmo nome interno sem colidir e nenhuma referência de módulo possa ser satisfeita por disponibilidade acidental na raiz ou em irmão. Nomes possuídos pelo compilador, intrínsecas públicas, formas qualificadas de família, locais, parâmetros, bindings de padrão e parâmetros de tipo não são reescritos. Referência livre não autorizada que exista em outra unidade é recusada com o span e a fonte de quem a escreveu, em vez de religada em silêncio. Desde a #517 o CORPO default de um trato importado é resolvido contra o ambiente da unidade que DECLAROU o trato, e não contra o do importador: o parser copia esse corpo para a unidade que fez o `impl`, e como a raiz preserva grafia, resolvê-lo ali deixaria um homônimo da raiz capturar em silêncio o auxiliar do módulo. Só o corpo troca de ambiente; os tipos, inclusive o alvo do `impl`, continuam sendo da unidade que escreveu o `impl`. Desde a #645 essa troca inclui a unidade-fonte do corpo, e não apenas o ambiente nominal: o alcance de relação pergunta por unidade-fonte, e o corpo copiado chega sem nenhuma. Desde a #567 a mesma troca vale para as closures sintéticas que esse corpo cita, e desde a #592 as três formas — default selecionado, default só para checagem e dependência sintética — são reconhecidas pelo mesmo fato adulto `trait_default_body`, nunca pelo prefixo do nome: o nome sintético é cunhado por quem materializa — no caso da closure tem de ser, porque o índice local do codec só é injetivo ali — e portanto não poderia responder pela origem.
+// @pinker-nav:start modules.resolution.canonical-nominal
+// @pinker-nav:domain modules
+// @pinker-nav:layer compiler
+// @pinker-nav:summary resolver_grafo rewrites each unit's declarations and references into the canonical name of the originating unit, using exclusively the environment that unit authorized: the root preserves the spelling and a module qualifies by its own key, so that two independent modules can declare the same internal name without colliding and no module reference can be satisfied by accidental availability in the root or in a sibling. Compiler-owned names, public intrinsics, qualified family forms, locals, parameters, pattern bindings and type parameters are not rewritten. An unauthorized free reference that exists in another unit is refused with the span and the source of whoever wrote it, instead of being silently rebound. Since #517 the default BODY of an imported trato is resolved against the environment of the unit that DECLARED the trato, and not against the importer's: the parser copies that body into the unit that did the `impl`, and since the root preserves spelling, resolving it there would let a same-named item in the root silently capture the module's helper. Only the body changes environment; the types, including the `impl` target, still belong to the unit that wrote the `impl`. Since #645 that change includes the body's source unit, and not only the nominal environment: relation reach asks by source unit, and the copied body arrives with none. Since #567 the same change applies to the synthetic closures that body cites, and since #592 the three forms — selected default, check-only default and synthetic dependency — are recognized by the same adult fact `trait_default_body`, never by the name's prefix: the synthetic name is minted by whoever materializes it — in the closure's case it must be, because the codec's local index is injective only there — and therefore could not answer for the origin.
 struct Resolvedor<'a> {
     unit_key: ModuleKey,
     env: &'a ModuleEnvironment,
@@ -1285,12 +1285,12 @@ pub fn resolver_grafo(graph: &ModuleGraph) -> Result<ModuleGraph, PinkerError> {
 
     Ok(resolvido)
 }
-// @pinker-nav:end modulos.resolucao.nominal-canonica
+// @pinker-nav:end modules.resolution.canonical-nominal
 
-// @pinker-nav:start modulos.projecao.execucao
-// @pinker-nav:domain modulos
-// @pinker-nav:layer compilador
-// @pinker-nav:summary projetar_programa achata o grafo já resolvido num Program único para lowering: a raiz inteira e, de cada módulo, o fecho alcançável a partir da superfície que o importador pediu, mais as relações de `impl` e os corpos sintéticos de `trato` — o método e a checagem do corpo default vencido por override — de toda unidade carregada. Materializar o fecho — e não só o símbolo pedido — é o que preserva as dependências internas da entidade importada sem torná-las visíveis ao importador, porque visibilidade já foi decidida pelo ambiente. Manter as relações de `impl` de toda unidade é o que impede que uma obrigação induzida pela unidade desapareça na projeção. Identidades geradas endereçadas por conteúdo entram uma vez só, então símbolo de runtime não é duplicado; a projeção acontece depois da resolução, então nada volta a depender de grafia. O fecho segue também as closures sintéticas que um corpo sintético de trato cita (#567): o que a origem escreveu dentro delas só é alcançado uma indireção abaixo do método, e sem esse degrau o corpo materializado chegaria íntegro com a dependência que ele usa faltando. Pela mesma razão a DECLARAÇÃO do trato não alcança essas closures: ela é contrato, não código, e o molde que ninguém chama levaria ao programa os identificadores livres do corpo default ainda soltos.
+// @pinker-nav:start modules.projection.execution
+// @pinker-nav:domain modules
+// @pinker-nav:layer compiler
+// @pinker-nav:summary projetar_programa flattens the already resolved graph into a single Program for lowering: the whole root and, from each module, the closure reachable from the surface the importer requested, plus the `impl` relations and the synthetic `trato` bodies — the method and the check of the default body overridden by an override — of every loaded unit. Materializing the closure — and not only the requested symbol — is what preserves the imported entity's internal dependencies without making them visible to the importer, because visibility was already decided by the environment. Keeping every unit's `impl` relations is what prevents an obligation induced by the unit from disappearing in the projection. Content-addressed generated identities enter only once, so a runtime symbol is not duplicated; the projection happens after resolution, so nothing comes to depend on spelling again. The closure also follows the synthetic closures a synthetic trato body cites (#567): what the origin wrote inside them is reached only one indirection below the method, and without that step the materialized body would arrive intact with the dependency it uses missing. For the same reason the trato's DECLARATION does not reach those closures: it is a contract, not code, and a mould nobody calls would bring into the program the free identifiers of the default body still unbound.
 /// Achata o grafo resolvido num `Program` para lowering.
 ///
 /// Duas decisões separadas, que a composição anterior confundia:
@@ -1928,12 +1928,12 @@ fn referencias_de_expr(expr: &Expr, out: &mut Vec<String>) {
         ExprKind::IntLit(_) | ExprKind::BoolLit(_) | ExprKind::StringLit(_) => {}
     }
 }
-// @pinker-nav:end modulos.projecao.execucao
+// @pinker-nav:end modules.projection.execution
 
-// @pinker-nav:start modulos.visibilidade.tratos
-// @pinker-nav:domain modulos
-// @pinker-nav:layer compilador
-// @pinker-nav:summary tratos_visiveis_por_fonte deriva, do grafo já resolvido, os fatos que o despacho de cada unidade-fonte precisa, indexados por SourceId. São DUAS perguntas distintas sobre o mesmo índice, e a #649 existe justamente para não fundi-las. ALCANCE (relacao_alcanca, POLICY_B/#579): uma relação canônica de impl participa de uma operação nesta unidade somente se a própria unidade a declarou ou se ela pertence a unidade que esta importou — poder nomear o trato não é caminho até relação alguma, e um impl irmão carregado sem aresta autorizada não é candidato. PRECEDÊNCIA (nivel_de_despacho, contrato #577/C2 preexistente e NÃO alterado pela #649): entre relações que JÁ alcançam, o nível próprio são os tratos que a unidade declara mais os que seus imports autorizam por nome, e o subordinado são as relações das unidades importadas cujo trato ela não possui; o consumidor resolve pelo nível mais forte que produzir candidato. Nomeabilidade do trato deixou de decidir alcance e continua decidindo precedência: são relações semânticas diferentes, e nivel_de_despacho é a composição ordenada delas — filtra por alcance, depois classifica. Não é reexport: nenhuma ligação de nome nasce daqui, então nomear o trato, implementá-lo ou qualificá-lo continua exigindo import próprio. O índice é vazio quando não há composição, e nesse caso nada é filtrado; desde a #645, porém, índice não vazio cuja fonte o span não reconhece não alcança relação alguma, para que perda de contexto semântico nunca amplie os candidatos.
+// @pinker-nav:start modules.visibility.tratos
+// @pinker-nav:domain modules
+// @pinker-nav:layer compiler
+// @pinker-nav:summary tratos_visiveis_por_fonte derives, from the already resolved graph, the facts each source unit's dispatch needs, indexed by SourceId. These are TWO distinct questions over the same index, and #649 exists precisely so as not to merge them. REACH (relacao_alcanca, POLICY_B/#579): a canonical impl relation takes part in an operation in this unit only if the unit itself declared it or if it belongs to a unit this one imported — being able to name the trato is no path to any relation, and a sibling impl loaded without an authorized edge is not a candidate. PRECEDENCE (nivel_de_despacho, the pre-existing #577/C2 contract, NOT changed by #649): among relations that ALREADY reach, the own level is the tratos the unit declares plus those its imports authorize by name, and the subordinate level is the relations of imported units whose trato it does not own; the consumer resolves by the strongest level that yields a candidate. Nameability of the trato stopped deciding reach and still decides precedence: they are different semantic relations, and nivel_de_despacho is their ordered composition — it filters by reach, then classifies. It is not a re-export: no name binding is born here, so naming the trato, implementing it or qualifying it still requires an import of one's own. The index is empty when there is no composition, and in that case nothing is filtered; since #645, however, a non-empty index whose source the span does not recognize reaches no relation at all, so that a loss of semantic context never widens the candidates.
 /// Fatos de despacho de cada unidade-fonte, por `SourceId`.
 ///
 /// Um `x.metodo()` não menciona o trato: o despacho é por (tipo do receiver,
@@ -2149,12 +2149,12 @@ pub fn nivel_de_despacho(
     };
     Some(tratos.precedencia(trait_name))
 }
-// @pinker-nav:end modulos.visibilidade.tratos
+// @pinker-nav:end modules.visibility.tratos
 
-// @pinker-nav:start modulos.visibilidade.fontes
-// @pinker-nav:domain modulos
-// @pinker-nav:layer compilador
-// @pinker-nav:summary fontes_de_modulo devolve os SourceId das unidades que são módulo. Depois da resolução nominal canônica toda referência legítima de um módulo a entidade de usuário está qualificada, então grafia crua vinda de um módulo é builtin ou tentativa de alcançar a raiz; o índice permite à autoridade semântica recusar a segunda sem impedir a primeira. Vazio quando não há composição.
+// @pinker-nav:start modules.visibility.sources
+// @pinker-nav:domain modules
+// @pinker-nav:layer compiler
+// @pinker-nav:summary fontes_de_modulo returns the SourceIds of the units that are modules. After canonical nominal resolution every legitimate reference from a module to a user entity is qualified, so a raw spelling coming from a module is either builtin or an attempt to reach the root; the index lets the semantic authority refuse the second without preventing the first. It is empty when there is no composition.
 /// `SourceId` das unidades que são módulo.
 pub fn fontes_de_modulo(graph: &ModuleGraph) -> HashSet<SourceId> {
     if !graph.has_modules() {
@@ -2168,11 +2168,11 @@ pub fn fontes_de_modulo(graph: &ModuleGraph) -> HashSet<SourceId> {
         .filter(|id| *id != SourceId::ROOT)
         .collect()
 }
-// @pinker-nav:end modulos.visibilidade.fontes
-// @pinker-nav:start evidencia.modulos.identidade-anonima
-// @pinker-nav:domain modulos
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Testemunha de reconhecimento anonimo na resolucao modular: a identidade enderecada por conteudo acompanha a autoridade que a declarou, e a dependencia sintetica materializada a partir de corpo default de trato acompanha a mesma autoridade em vez da unidade que a materializou.
+// @pinker-nav:end modules.visibility.sources
+// @pinker-nav:start evidence.modules.anonymous-identity
+// @pinker-nav:domain modules
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Witness of anonymous recognition in modular resolution: the content-addressed identity follows the authority that declared it, and the synthetic dependency materialized from a trato default body follows that same authority instead of the unit that materialized it.
 
 #[cfg(test)]
 mod anonymous_recognition_witness {
@@ -2301,4 +2301,4 @@ carinho principal() -> bombom {
         );
     }
 }
-// @pinker-nav:end evidencia.modulos.identidade-anonima
+// @pinker-nav:end evidence.modules.anonymous-identity

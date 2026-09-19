@@ -3,13 +3,13 @@
 //! unidade SEM-4, do inventário da #601).
 //!
 //! `src/semantic.rs` é a autoridade da fase semântica. A #619 desce a região
-//! `semantic.chamadas.despacho` inteira para `src/semantic/calls.rs`, a #628
-//! desce a região `semantic.comandos.verificacao` inteira para
+//! `semantic.calls.dispatch` inteira para `src/semantic/calls.rs`, a #628
+//! desce a região `semantic.commands.verification` inteira para
 //! `src/semantic/statements.rs`, a #634 desce as três regiões contíguas
-//! `semantic.unioes.encaixe`, `semantic.fluxo.retornos` e
-//! `semantic.expressoes.verificacao` inteiras para
+//! `semantic.unions.encaixe`, `semantic.flow.returns` e
+//! `semantic.expressions.verification` inteiras para
 //! `src/semantic/expressions.rs` e a #636 desce a região
-//! `semantic.tratos.contratos` inteira para `src/semantic/traits.rs`, sem
+//! `semantic.tratos.contracts` inteira para `src/semantic/traits.rs`, sem
 //! dividir essa autoridade: o estado (`SemanticChecker`), a ordem das duas
 //! passagens, os escopos, o sistema de tipos e as demais famílias continuam no
 //! pai, e o pai continua sendo um arquivo — não virou `mod.rs`.
@@ -71,45 +71,45 @@ use rust_source::codigo_executavel;
 
 /// As regiões que os cortes moveram, e o irmão onde cada uma passa a morar.
 const REGIOES_MOVIDAS: &[(&str, &str)] = &[
-    ("semantic.chamadas.despacho", "calls.rs"),
-    ("semantic.comandos.verificacao", "statements.rs"),
-    ("semantic.unioes.encaixe", "expressions.rs"),
-    ("semantic.fluxo.retornos", "expressions.rs"),
-    ("semantic.expressoes.verificacao", "expressions.rs"),
-    ("semantic.tratos.contratos", "traits.rs"),
+    ("semantic.calls.dispatch", "calls.rs"),
+    ("semantic.commands.verification", "statements.rs"),
+    ("semantic.unions.encaixe", "expressions.rs"),
+    ("semantic.flow.returns", "expressions.rs"),
+    ("semantic.expressions.verification", "expressions.rs"),
+    ("semantic.tratos.contracts", "traits.rs"),
 ];
 
 /// As regiões publicadas pela T1 (#675) sobre código do módulo que já estava
 /// aqui e continuava fora de qualquer região. Nenhuma delas foi movida por
 /// corte algum: elas nascem no arquivo onde estão.
 const REGIOES_NOVAS_T1: &[(&str, &str)] = &[
-    ("semantic.intrinsecas.colisao-de-declaracao", "semantic.rs"),
-    ("semantic.verificador.estado", "semantic.rs"),
-    ("semantic.verificador.construcao-e-grafia", "semantic.rs"),
-    ("semantic.ninhos.tipo-de-campo", "semantic.rs"),
-    ("semantic.falhas.identidade-do-leque", "semantic.rs"),
-    ("semantic.asm.verificacao-inline", "semantic.rs"),
-    ("semantic.enums.casamento-exaustividade", "semantic.rs"),
-    ("semantic.programa.pontos-de-entrada", "semantic.rs"),
-    ("semantic.chamadas.contrato-interno", "calls.rs"),
+    ("semantic.intrinsics.declaration-collision", "semantic.rs"),
+    ("semantic.verifier.state", "semantic.rs"),
+    ("semantic.verifier.construction-and-spelling", "semantic.rs"),
+    ("semantic.ninhos.field-type", "semantic.rs"),
+    ("semantic.failures.leque-identity", "semantic.rs"),
+    ("semantic.asm.inline-verification", "semantic.rs"),
+    ("semantic.enums.match-exhaustiveness", "semantic.rs"),
+    ("semantic.program.entry-points", "semantic.rs"),
+    ("semantic.calls.internal-contract", "calls.rs"),
 ];
 
-/// As regiões que os cortes deixaram onde estavam. `semantic.funcoes.verificacao`
+/// As regiões que os cortes deixaram onde estavam. `semantic.functions.verification`
 /// é a vizinha imediata anterior do span contíguo da SEM-3 e a anterior da
-/// SEM-2, e `semantic.modulos.validacao-local` é a posterior da SEM-1 e da
+/// SEM-2, e `semantic.modules.local-validation` é a posterior da SEM-1 e da
 /// SEM-3: são elas que ficariam vermelhas se um corte tivesse escorregado uma
 /// região para qualquer lado.
 ///
 /// A lista também é o que impede a SEM-4 (`tratos`) de vir junto por engano:
 /// ela tem de continuar no pai.
 const REGIOES_RETIDAS: &[&str] = &[
-    "semantic.modulos.validacao-local",
-    "semantic.identificadores.namespace-produtor-de-simbolo",
-    "semantic.importacoes.familias",
-    "semantic.tipos.sistema",
-    "semantic.escopos.variaveis",
-    "semantic.programa.duas-passagens",
-    "semantic.funcoes.verificacao",
+    "semantic.modules.local-validation",
+    "semantic.identifiers.symbol-producing-namespace",
+    "semantic.imports.families",
+    "semantic.types.system",
+    "semantic.scopes.variables",
+    "semantic.program.two-passes",
+    "semantic.functions.verification",
 ];
 
 /// As definições que os cortes moveram inteiras, e o irmão onde passam a morar.
@@ -165,7 +165,7 @@ const PUB_AUTORIZADO: &[(&str, &[&str])] = &[
 /// É o custo Rust inteiro de cada unidade, medido pelo inventário da #601 e
 /// reconfirmado contra a main de cada corte, sem nenhum `pub(crate)`:
 /// `check_call_expr` é o único símbolo da SEM-1 chamado de fora do corte — de
-/// `semantic.expressoes.verificacao`, hoje em `expressions.rs` —, `check_block`
+/// `semantic.expressions.verification`, hoje em `expressions.rs` —, `check_block`
 /// é o único da SEM-2 — chamado pelo pai nas famílias de funções e de leques e
 /// pelo irmão de expressões nas de uniões e de fluxo — e os sete da SEM-3 são
 /// os que o pai e os irmãos chamam: `check_union_match`,
@@ -642,7 +642,7 @@ fn o_irmao_consome_c2_e_nao_cria_uma_segunda_autoridade() {
         0,
         "src/semantic.rs voltou a consultar `select_impl_method` por conta própria"
     );
-    // `select_representative` é da região `semantic.tratos.contratos`, que a
+    // `select_representative` é da região `semantic.tratos.contracts`, que a
     // SEM-4 desceu para `traits.rs`: a consulta continua sendo uma só, agora no
     // outro irmão, e nem o pai nem `calls.rs` podem ganhar uma cópia.
     let tratos = codigo_executavel(fonte("traits.rs"));
@@ -688,9 +688,9 @@ fn o_irmao_consome_c2_e_nao_cria_uma_segunda_autoridade() {
 /// Nem a SEM-2 nem a SEM-3 atravessam autoridade nenhuma, e os irmãos que elas
 /// criam têm de continuar assim.
 ///
-/// `semantic.comandos.verificacao` (SEM-2) e as três regiões da SEM-3 —
-/// `semantic.unioes.encaixe`, `semantic.fluxo.retornos` e
-/// `semantic.expressoes.verificacao` — não consultam `method_dispatch` (C2),
+/// `semantic.commands.verification` (SEM-2) e as três regiões da SEM-3 —
+/// `semantic.unions.encaixe`, `semantic.flow.returns` e
+/// `semantic.expressions.verification` — não consultam `method_dispatch` (C2),
 /// não leem o registry declarativo de intrínsecas (C1), não reconstroem origem
 /// de default body por grafia (C5), não reabrem a conclusão arquitetural da
 /// #600 (C6) e não decidem a política de alcance ainda aberta da #579. Um zero
@@ -780,10 +780,10 @@ fn o_pai_continua_chamando_a_verificacao_de_comandos() {
     // marcadores da região que a hospeda: é o ponto em que a fase entra nos
     // comandos, e um deslocamento de fase mudaria este vizinho.
     let inicio = bruto
-        .find("// @pinker-nav:start semantic.funcoes.verificacao")
+        .find("// @pinker-nav:start semantic.functions.verification")
         .expect("a família de funções continua no pai");
     let fim = bruto
-        .find("// @pinker-nav:end semantic.funcoes.verificacao")
+        .find("// @pinker-nav:end semantic.functions.verification")
         .expect("a família de funções continua fechada no pai");
     assert!(
         inicio < fim,

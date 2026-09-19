@@ -1,7 +1,7 @@
-// @pinker-nav:start select.modelo.representacao
-// @pinker-nav:domain modelo
+// @pinker-nav:start select.model.representation
+// @pinker-nav:domain model
 // @pinker-nav:layer select
-// @pinker-nav:summary Modelo de dados da seleção de instruções: programa, globais, funções, blocos, instruções selecionadas (`SelectedInstr`) e terminadores — a representação já próxima da máquina, ainda sobre operandos do CFG.
+// @pinker-nav:summary Data model of instruction selection: program, globals, functions, blocks, selected instructions (`SelectedInstr`) and terminators — the representation already close to the machine, still over CFG operands.
 use crate::cfg_ir::{FalarArgCfgIR, InstructionCfgIR, OperandIR, ProgramCfgIR, TerminatorIR};
 use crate::error::PinkerError;
 use crate::ir::{BinaryOpIR, TypeIR, UnaryOpIR};
@@ -299,12 +299,12 @@ pub enum SelectedTerminator {
     },
     Ret(Option<OperandIR>),
 }
-// @pinker-nav:end select.modelo.representacao
+// @pinker-nav:end select.model.representation
 
-// @pinker-nav:start select.lowering.programa-blocos
+// @pinker-nav:start select.lowering.program-blocks
 // @pinker-nav:domain lowering
 // @pinker-nav:layer select
-// @pinker-nav:summary Entrada da seleção abstrata: converte `ProgramCfgIR` em `SelectedProgram`, copiando as globais, transformando cada função (parâmetros, locais, `slot_types` só de parâmetros+locais), selecionando cada instrução de bloco e traduzindo os terminadores (`Jump`/`Branch`/`Return` → `Jmp`/`Br`/`Ret`), preservando módulo e modo freestanding. Não é seleção para uma ISA física.
+// @pinker-nav:summary Entry of the abstract selection: it converts a `ProgramCfgIR` into a `SelectedProgram`, copying the globals, transforming each function (parameters, locals, `slot_types` of parameters+locals only), selecting each block instruction and translating the terminators (`Jump`/`Branch`/`Return` → `Jmp`/`Br`/`Ret`), preserving the module and freestanding mode. It is not selection for a physical ISA.
 pub fn lower_program(cfg: &ProgramCfgIR) -> Result<SelectedProgram, PinkerError> {
     let globals = cfg
         .consts
@@ -397,12 +397,12 @@ pub fn lower_program(cfg: &ProgramCfgIR) -> Result<SelectedProgram, PinkerError>
     })
 }
 
-// @pinker-nav:end select.lowering.programa-blocos
+// @pinker-nav:end select.lowering.program-blocks
 
-// @pinker-nav:start select.lowering.instrucoes
+// @pinker-nav:start select.lowering.instructions
 // @pinker-nav:domain lowering
 // @pinker-nav:layer select
-// @pinker-nav:summary Dispatcher `select_instruction` que traduz cada `InstructionCfgIR` para o vocabulário abstrato `SelectedInstr` (`Mov`, unários, `DerefLoad`/`DerefStore`, `Cast`, bitwise, shifts, aritmética, comparações, chamada com retorno × `CallVoid`, `Falar` via `lower_falar_args`), preservando `OperandIR`/`TempIR`/tipos/labels. É tradução enum-a-enum independente de arquitetura; defende invariantes já resolvidos no CFG (rejeita `Deref`, `LogicalAnd`/`LogicalOr` e call com retorno sem destino, com span sintético fixo). Não seleciona ISA, não aloca registradores nem gera assembly.
+// @pinker-nav:summary The `select_instruction` dispatcher that translates each `InstructionCfgIR` into the abstract vocabulary `SelectedInstr` (`Mov`, unaries, `DerefLoad`/`DerefStore`, `Cast`, bitwise, shifts, arithmetic, comparisons, call with a return × `CallVoid`, `Falar` via `lower_falar_args`), preserving `OperandIR`/`TempIR`/types/labels. It is an enum-to-enum, architecture-independent translation; it defends invariants already resolved in the CFG (it rejects `Deref`, `LogicalAnd`/`LogicalOr` and a call with a return but no destination, with a fixed synthetic span). It selects no ISA, allocates no registers and generates no assembly.
 fn select_instruction(inst: &InstructionCfgIR) -> Result<SelectedInstr, PinkerError> {
     match inst {
         InstructionCfgIR::Let { slot, value } | InstructionCfgIR::Assign { slot, value } => {
@@ -762,12 +762,12 @@ fn lower_falar_args(args: &[FalarArgCfgIR]) -> Vec<FalarArgSelected> {
         })
         .collect()
 }
-// @pinker-nav:end select.lowering.instrucoes
+// @pinker-nav:end select.lowering.instructions
 
-// @pinker-nav:start select.renderizacao.programa
-// @pinker-nav:domain renderizacao
+// @pinker-nav:start select.rendering.program
+// @pinker-nav:domain rendering
 // @pinker-nav:layer select
-// @pinker-nav:summary `render_program`: forma textual do `SelectedProgram` ao nível de módulo, modo, globais e cada função (parâmetros, locais, blocos), delegando a formatação de instruções/terminadores/operandos aos helpers `render_*`. Recebe a seleção pronta; não seleciona de novo, não valida, não executa nem gera assembly real.
+// @pinker-nav:summary `render_program`: textual form of the `SelectedProgram` at the level of module, mode, globals and each function (parameters, locals, blocks), delegating the formatting of instructions/terminators/operands to the `render_*` helpers. It receives the finished selection; it does not select again, does not validate, does not execute and does not generate real assembly.
 pub fn render_program(program: &SelectedProgram) -> String {
     let mut out = String::new();
     line(&mut out, 0, &format!("module {}", program.module_name));
@@ -834,12 +834,12 @@ pub fn render_program(program: &SelectedProgram) -> String {
 
     out
 }
-// @pinker-nav:end select.renderizacao.programa
+// @pinker-nav:end select.rendering.program
 
-// @pinker-nav:start select.renderizacao.componentes
-// @pinker-nav:domain renderizacao
+// @pinker-nav:start select.rendering.components
+// @pinker-nav:domain rendering
 // @pinker-nav:layer select
-// @pinker-nav:summary Formatação textual de cada elemento selecionado: `render_instr`, `render_term`, `render_operand`, `render_temp` e o utilitário `line`. Produz as linhas legíveis usadas por `render_program`; não altera a seleção, não valida nem executa.
+// @pinker-nav:summary Textual formatting of each selected element: `render_instr`, `render_term`, `render_operand`, `render_temp` and the `line` utility. It produces the readable lines used by `render_program`; it does not alter the selection, does not validate and does not execute.
 fn render_instr(inst: &SelectedInstr) -> String {
     match inst {
         SelectedInstr::Mov { dest, src } => format!("mov {}, {}", dest, render_operand(src)),
@@ -1248,4 +1248,4 @@ fn line(out: &mut String, indent: usize, text: &str) {
     out.push_str(text);
     out.push('\n');
 }
-// @pinker-nav:end select.renderizacao.componentes
+// @pinker-nav:end select.rendering.components

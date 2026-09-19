@@ -1,7 +1,7 @@
-// @pinker-nav:start backend-text.validacao.invariantes
-// @pinker-nav:domain validacao
+// @pinker-nav:start backend-text.validation.invariants
+// @pinker-nav:domain validation
 // @pinker-nav:layer backend-text
-// @pinker-nav:summary Valida o programa pseudo-assembly do backend textual: instruções e operandos bem formados, rótulos definidos e referências resolvíveis antes da renderização final.
+// @pinker-nav:summary Validates the textual backend's pseudo-assembly program: well-formed instructions and operands, defined labels and resolvable references before the final rendering.
 use crate::backend_text::{
     BackendTextFunction, BackendTextInstruction, BackendTextProgram, BackendTextTerminator,
 };
@@ -417,4 +417,4 @@ fn err(msg: &str) -> PinkerError {
     }
 }
 
-// @pinker-nav:end backend-text.validacao.invariantes
+// @pinker-nav:end backend-text.validation.invariants

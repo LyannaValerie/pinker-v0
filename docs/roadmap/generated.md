@@ -12,7 +12,7 @@ related:
   - roadmap
 ---
 
-# Entregas mecânicas do roadmap (pós-marco)
+# Mechanical roadmap deliveries (post-milestone)
 
 - **Classe:** Engine
 - **Papel:** projeção consultável de entregas

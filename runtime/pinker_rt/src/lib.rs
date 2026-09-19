@@ -14,10 +14,10 @@
 //! intrínsecas de sistema. O runtime é substituível no futuro por uma
 //! implementação em Pinker (convergência com a direção self-hosting).
 
-// @pinker-nav:start runtime.inicializacao.bootstrap
-// @pinker-nav:domain inicializacao
+// @pinker-nav:start runtime.initialization.bootstrap
+// @pinker-nav:domain initialization
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Define constantes de layout do alocador (ALINHAMENTO, CABECALHO) e o estado global (ARGC/ARGV em atômicos) capturado por pinker_rt_iniciar; expõe leitura de argc/argv e a versão da ABI (pinker_rt_versao) — as constantes de alocação ficam fisicamente no preâmbulo, junto ao estado global de inicialização.
+// @pinker-nav:summary Defines the allocator's layout constants (ALINHAMENTO, CABECALHO) and the global state (ARGC/ARGV in atomics) captured by pinker_rt_iniciar; it exposes reading of argc/argv and the ABI version (pinker_rt_versao) — the allocation constants sit physically in the preamble, next to the global initialization state.
 use pinker_memory_contract::{
     release_public_live_bytes, reserve_public_allocation, PublicAllocationVerdict,
     PublicMemoryBudget, PublicMemoryLimits, PUBLIC_MEMORY_LIMITS,
@@ -111,12 +111,12 @@ pub extern "C" fn pinker_rt_argv() -> *const *const u8 {
 pub extern "C" fn pinker_rt_versao() -> u64 {
     1
 }
-// @pinker-nav:end runtime.inicializacao.bootstrap
+// @pinker-nav:end runtime.initialization.bootstrap
 
-// @pinker-nav:start runtime.memoria.alocador
-// @pinker-nav:domain memoria
+// @pinker-nav:start runtime.memory.allocator
+// @pinker-nav:domain memory
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Alocador manual e regiões públicas: pinker_alocar mantém o alocador interno; a superfície pública decide cotas numa unidade pura compartilhada, cria um mmap anônimo proporcional e lazy por alocação, registra identidade/base/tamanho/vida e mantém mapeamentos liberados inacessíveis até o fim do processo. Acesso, liberação e derivação validam proveniência, domínio, alinhamento, limites, use-after-free, double free e escapes.
+// @pinker-nav:summary Manual allocator and public regions: pinker_alocar maintains the internal allocator; the public surface decides quotas in a shared pure unit, creates a proportional and lazy anonymous mmap per allocation, records identity/base/size/lifetime and keeps freed mappings inaccessible until the end of the process. Access, release and derivation validate provenance, domain, alignment, bounds, use-after-free, double free and escapes.
 fn layout_para(tamanho_total: usize) -> Option<Layout> {
     Layout::from_size_align(tamanho_total, ALINHAMENTO).ok()
 }
@@ -689,7 +689,7 @@ pub extern "C" fn pinker_publico_validar_ponteiro_funcao(endereco: usize) {
         erro_memoria_publica("chamada nula por ponteiro cru de função");
     }
 }
-// @pinker-nav:end runtime.memoria.alocador
+// @pinker-nav:end runtime.memory.allocator
 
 // ---------------------------------------------------------------------------
 // Verso dinâmico (Fase 215/B4)
@@ -700,10 +700,10 @@ pub extern "C" fn pinker_publico_validar_ponteiro_funcao(endereco: usize) {
 // abaixo funcionam uniformemente sobre qualquer valor de verso.
 // ---------------------------------------------------------------------------
 
-// @pinker-nav:start runtime.texto.operacoes
-// @pinker-nav:domain texto
+// @pinker-nav:start runtime.text.operations
+// @pinker-nav:domain text
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Operações de verso (tamanho, concatenação, igualdade, busca, divisão, substituição, caixa) sobre o layout length-prefixed `[u64 len][bytes]`; os helpers `unsafe` (verso_bytes, verso_str) leem via from_raw_parts/from_utf8_unchecked confiando no chamador sem validar o ponteiro nem o UTF-8, e cada transformação aloca um novo bloco de verso cujo ownership passa ao chamador; erros de índice, separador vazio ou padrão vazio abortam o processo via erro_fatal.
+// @pinker-nav:summary Verso operations (length, concatenation, equality, search, split, replacement, case) over the length-prefixed layout `[u64 len][bytes]`; the `unsafe` helpers (verso_bytes, verso_str) read via from_raw_parts/from_utf8_unchecked trusting the caller without validating the pointer or the UTF-8, and each transformation allocates a new verso block whose ownership passes to the caller; index errors, an empty separator or an empty pattern abort the process via erro_fatal.
 /// Bytes de um verso length-prefixed, sem copiar.
 ///
 /// # Safety
@@ -982,12 +982,12 @@ pub unsafe extern "C" fn pinker_verso_juntar_com(
         verso_str(b)
     ))
 }
-// @pinker-nav:end runtime.texto.operacoes
+// @pinker-nav:end runtime.text.operations
 
-// @pinker-nav:start runtime.conversoes.numero-texto
-// @pinker-nav:domain conversoes
+// @pinker-nav:start runtime.conversions.number-text
+// @pinker-nav:domain conversions
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Conversão entre verso e bombom: pinker_verso_para_bombom faz trim+parse e aborta o processo (via eprintln + process::exit) em texto não numérico; pinker_bombom_para_verso aloca um novo verso decimal cujo ownership passa ao chamador.
+// @pinker-nav:summary Conversion between verso and bombom: pinker_verso_para_bombom trims and parses and aborts the process (via eprintln + process::exit) on non-numeric text; pinker_bombom_para_verso allocates a new decimal verso whose ownership passes to the caller.
 /// Converte texto para `bombom` (`trim` + `parse`), abortando em falha —
 /// espelha o erro do interpretador.
 ///
@@ -1013,12 +1013,12 @@ pub unsafe extern "C" fn pinker_verso_para_bombom(texto: *const u8) -> u64 {
 pub extern "C" fn pinker_bombom_para_verso(valor: u64) -> *mut u8 {
     verso_alocar(&valor.to_string())
 }
-// @pinker-nav:end runtime.conversoes.numero-texto
+// @pinker-nav:end runtime.conversions.number-text
 
-// @pinker-nav:start runtime.texto.formatacao
-// @pinker-nav:domain texto
+// @pinker-nav:start runtime.text.formatting
+// @pinker-nav:domain text
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Autoridade geral `pinker_formatar_verso_pack(modelo,count,entries)`: valida count/size/ponteiros e formata um slice homogêneo de handles `verso`; wrappers 0..8 permanecem somente como adapters ABI legados que encaminham ao pack.
+// @pinker-nav:summary General authority `pinker_formatar_verso_pack(modelo,count,entries)`: it validates count/size/pointers and formats a homogeneous slice of `verso` handles; the 0..8 wrappers remain only as legacy ABI adapters that forward to the pack.
 /// Núcleo do `formatar_verso`: placeholders `{}` na ordem, com validação de
 /// contagem e de placeholders malformados — espelha o interpretador. Todos os
 /// argumentos já chegam como versos (a IR converte `bombom` antes).
@@ -1136,7 +1136,7 @@ formatar_wrappers!(
     (pinker_formatar_verso_7, a1, a2, a3, a4, a5, a6, a7),
     (pinker_formatar_verso_8, a1, a2, a3, a4, a5, a6, a7, a8),
 );
-// @pinker-nav:end runtime.texto.formatacao
+// @pinker-nav:end runtime.text.formatting
 
 // ---------------------------------------------------------------------------
 // `falar` nativo (Fase 215/B4) — espelha byte a byte as instruções de máquina
@@ -1144,10 +1144,10 @@ formatar_wrappers!(
 // PrintSpace e PrintNewline. O flush acontece na quebra de linha (LineWriter).
 // ---------------------------------------------------------------------------
 
-// @pinker-nav:start runtime.io.saida
+// @pinker-nav:start runtime.io.output
 // @pinker-nav:domain io
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Impressão uniforme de falar: bombom/logica/verso/espaço/newline passam pelo mesmo writer com write_all+flush; a disposição de SIGPIPE é estabelecida em pinker_rt_iniciar (e reafirmada por Once nas entradas de I/O) para que pipe fechado retorne erro em qualquer ordem de execução, toda falha de stdout termina pelo diagnóstico controlado de erro_fatal, e restaurar_disposicao_padrao expõe a operação mínima de sistema que os caminhos de subprocesso usam para devolver SIGPIPE a SIG_DFL no filho antes do exec.
+// @pinker-nav:summary Uniform printing for falar: bombom/logica/verso/space/newline all pass through the same writer with write_all+flush; the SIGPIPE disposition is established in pinker_rt_iniciar (and reaffirmed by Once at the I/O entries) so that a closed pipe returns an error in any execution order, every stdout failure ends through erro_fatal's controlled diagnostic, and restaurar_disposicao_padrao exposes the minimal system operation the subprocess paths use to return SIGPIPE to SIG_DFL in the child before exec.
 #[cfg(unix)]
 const SINAL_SIGPIPE: i32 = 13;
 #[cfg(unix)]
@@ -1271,7 +1271,7 @@ pub extern "C" fn pinker_falar_espaco() {
 pub extern "C" fn pinker_falar_fim() {
     escrever_stdout(b"\n");
 }
-// @pinker-nav:end runtime.io.saida
+// @pinker-nav:end runtime.io.output
 
 // ---------------------------------------------------------------------------
 // Listas nativas (Fase 216/B5)
@@ -1283,10 +1283,10 @@ pub extern "C" fn pinker_falar_fim() {
 // O header nunca muda de endereço; o crescimento realoca apenas `dados`.
 // ---------------------------------------------------------------------------
 
-// @pinker-nav:start runtime.listas.dinamicas
-// @pinker-nav:domain listas
+// @pinker-nav:start runtime.lists.dynamic
+// @pinker-nav:domain lists
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Lista dinâmica com header fixo `[len][cap][dados]` e elementos de 8 bytes (crescimento por dobra de capacidade); contém também erro_fatal, o helper que aborta o processo (eprintln + process::exit) e é compartilhado por todos os domínios seguintes do arquivo; leitura, escrita e inserção fora dos limites abortam via erro_fatal. A região abriga ainda duas famílias que dependem desses primitivos: `pinker_afirmar_1`/`pinker_afirmar_2`, que validam uma condição e abortam com o núcleo 'afirmação falhou' quando falsa, e o recorte mínimo de CSV de bombons (`pinker_emitir_linha_csv_bombom` e `pinker_ler_linha_csv_bombom`), cujo separador é validado como um único caractere fora de aspas, nova linha e retorno de carro.
+// @pinker-nav:summary Dynamic list with the fixed header `[len][cap][data]` and 8-byte elements (growth by doubling the capacity); it also contains erro_fatal, the helper that aborts the process (eprintln + process::exit) and is shared by all the following domains of the file; out-of-bounds reading, writing and insertion abort via erro_fatal. The region also houses two families that depend on those primitives: `pinker_afirmar_1`/`pinker_afirmar_2`, which validate a condition and abort with the core 'afirmação falhou' when it is false, and the minimal slice of CSV of bombons (`pinker_emitir_linha_csv_bombom` and `pinker_ler_linha_csv_bombom`), whose separator is validated as a single character other than a quote, a newline and a carriage return.
 const LISTA_CAP_INICIAL: u64 = 8;
 
 fn erro_fatal(msg: &str) -> ! {
@@ -1534,7 +1534,7 @@ pub unsafe extern "C" fn pinker_ler_linha_csv_bombom(
     }
     lista
 }
-// @pinker-nav:end runtime.listas.dinamicas
+// @pinker-nav:end runtime.lists.dynamic
 
 // ---------------------------------------------------------------------------
 // Mapas nativos (Fase 217/B6)
@@ -1547,10 +1547,10 @@ pub unsafe extern "C" fn pinker_ler_linha_csv_bombom(
 // a iteração nativa determinística.
 // ---------------------------------------------------------------------------
 
-// @pinker-nav:start runtime.mapas.dinamicos
-// @pinker-nav:domain mapas
+// @pinker-nav:start runtime.maps.dynamic
+// @pinker-nav:domain maps
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Mapa dinâmico com headers paralelos de chaves e valores (`[len][cap][chaves][valores][chave_e_verso]`), busca linear O(n), comparação de chave por conteúdo (pinker_verso_igual) quando chave_e_verso ou por valor caso contrário, remoção com deslocamento que preserva ordem de inserção, e cursor de iteração criado como snapshot das chaves (mutações no mapa após a criação do cursor não afetam a iteração já em curso); somente a leitura por pinker_mapa_obter aborta via erro_fatal em chave ausente — pinker_mapa_tem devolve 0 e pinker_mapa_remover é no-op quando a chave falta —, e o cursor esgotado (pinker_mapa_iterador_proxima) também aborta via erro_fatal.
+// @pinker-nav:summary Dynamic map with parallel key and value headers (`[len][cap][keys][values][chave_e_verso]`), O(n) linear search, key comparison by content (pinker_verso_igual) when chave_e_verso or by value otherwise, removal with shifting that preserves insertion order, and an iteration cursor created as a snapshot of the keys (mutations to the map after the cursor is created do not affect the iteration already under way); only reading through pinker_mapa_obter aborts via erro_fatal on a missing key — pinker_mapa_tem returns 0 and pinker_mapa_remover is a no-op when the key is absent —, and an exhausted cursor (pinker_mapa_iterador_proxima) also aborts via erro_fatal.
 const MAPA_CAP_INICIAL: u64 = 8;
 
 unsafe fn mapa_len(m: *mut u8) -> u64 {
@@ -1762,7 +1762,7 @@ pub unsafe extern "C" fn pinker_mapa_iterador_proxima(cursor: *mut u8) -> u64 {
     (cursor as *mut u64).add(1).write(proximo + 1);
     chave
 }
-// @pinker-nav:end runtime.mapas.dinamicos
+// @pinker-nav:end runtime.maps.dynamic
 
 // ---------------------------------------------------------------------------
 // Leques com carga nativos (Fase 218/B7)
@@ -1775,10 +1775,10 @@ pub unsafe extern "C" fn pinker_mapa_iterador_proxima(cursor: *mut u8) -> u64 {
 // Leques SEM carga continuam discriminantes imediatos e nunca chegam aqui.
 // ---------------------------------------------------------------------------
 
-// @pinker-nav:start runtime.leques.variantes
+// @pinker-nav:start runtime.leques.variants
 // @pinker-nav:domain leques
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Leque com carga: header `[tag][n][cap][cargas]` construído por pinker_leque_criar_0, que inicializa a tag com n=0 cargas; anexos sucessivos via pinker_leque_anexar adicionam cargas e devolvem o mesmo handle (cadeia composável espelhando a IR); pinker_leque_carga verifica a tag antes de ler e aborta via erro_fatal em variante inconsistente ou índice fora da faixa.
+// @pinker-nav:summary Leque with a payload: header `[tag][n][cap][payloads]` built by pinker_leque_criar_0, which initializes the tag with n=0 payloads; successive appends via pinker_leque_anexar add payloads and return the same handle (a composable chain mirroring the IR); pinker_leque_carga checks the tag before reading and aborts via erro_fatal on an inconsistent variant or an out-of-range index.
 const LEQUE_CAP_INICIAL: u64 = 4;
 
 unsafe fn leque_n(l: *mut u8) -> u64 {
@@ -1858,7 +1858,7 @@ pub unsafe extern "C" fn pinker_leque_carga(l: *mut u8, tag: u64, indice: u64) -
     }
     leque_cargas(l).add(indice as usize).read()
 }
-// @pinker-nav:end runtime.leques.variantes
+// @pinker-nav:end runtime.leques.variants
 
 // ---------------------------------------------------------------------------
 // Uniões estruturais tagged (Fase 248)
@@ -1869,10 +1869,10 @@ pub unsafe extern "C" fn pinker_leque_carga(l: *mut u8, tag: u64, indice: u64) -
 // é monotônico nesta fase.
 // ---------------------------------------------------------------------------
 
-// @pinker-nav:start runtime.unioes.descritor
-// @pinker-nav:domain unioes
+// @pinker-nav:start runtime.unions.descriptor
+// @pinker-nav:domain unions
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Descritor imutável de união estrutural com identidade internada, tag determinística, layout validado e snapshot integral do payload — escalar, handle opaco ou agregado multi-palavra copiado byte a byte para storage próprio do descritor; a contabilidade de descritores, bytes de payload e bytes de metadata é feita por uma unidade pura e atômica (`union_budget_reserve`), e criação e leitura usam uma ABI interna separada da memória pública.
+// @pinker-nav:summary Immutable descriptor of a structural union with an interned identity, a deterministic tag, a validated layout and a full snapshot of the payload — scalar, opaque handle or multi-word aggregate copied byte for byte into the descriptor's own storage; the accounting of descriptors, payload bytes and metadata bytes is done by a pure, atomic unit (`union_budget_reserve`), and creation and reading use an internal ABI separate from public memory.
 /// Marca do descritor. Um handle que não a apresente não é um descritor criado
 /// por este runtime, e nenhuma leitura adicional é feita nele.
 const UNION_MAGIC: u64 = 0x504b_5f55_4e49_4f31;
@@ -2231,7 +2231,7 @@ pub unsafe extern "C" fn pinker_uniao_copiar_payload(
         descriptor.payload_size as usize,
     );
 }
-// @pinker-nav:end runtime.unioes.descritor
+// @pinker-nav:end runtime.unions.descriptor
 
 // ---------------------------------------------------------------------------
 // Arquivo, caminho, tempo e acaso nativos (Fase 220/B9)
@@ -2241,19 +2241,19 @@ pub unsafe extern "C" fn pinker_uniao_copiar_payload(
 // de acaso replica o MESMO LCG do interpretador (paridade de sementes).
 // ---------------------------------------------------------------------------
 
-// @pinker-nav:start runtime.arquivos.preludio
-// @pinker-nav:domain arquivos
+// @pinker-nav:start runtime.files.prelude
+// @pinker-nav:domain files
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Usos do bloco de arquivos e acaso do runtime nativo: mapa de descritores abertos por handle, posicionamento de arquivo e a inicializacao unica protegida por mutex que o modelo de arquivo e o gerador de acaso compartilham.
+// @pinker-nav:summary Uses of the native runtime's files and acaso block: the map of descriptors open by handle, file positioning and the single mutex-protected initialization that the file model and the acaso generator share.
 use std::collections::HashMap;
 use std::io::Seek as _;
 use std::sync::{Mutex, OnceLock};
-// @pinker-nav:end runtime.arquivos.preludio
+// @pinker-nav:end runtime.files.prelude
 
-// @pinker-nav:start runtime.arquivos.io
-// @pinker-nav:domain arquivos
+// @pinker-nav:start runtime.files.io
+// @pinker-nav:domain files
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Tabela limitada aos descritores ativos: cada handle mantém o File aberto e o modo, operações reposicionam e usam esse mesmo descritor sem re-resolver o caminho, criar usa create_new, leituras têm limite explícito, e handles ausentes abaixo de proximo_handle são classificados como fechados sem HashSet crescente.
+// @pinker-nav:summary Table limited to the active descriptors: each handle keeps the open File and the mode, operations reposition and use that same descriptor without re-resolving the path, creation uses create_new, reads have an explicit limit, and handles missing below proximo_handle are classified as closed without a growing HashSet.
 const MAX_ARQUIVO_VERSO_BYTES: u64 = 64 * 1024 * 1024;
 
 struct ArquivoAberto {
@@ -2519,12 +2519,12 @@ pub unsafe extern "C" fn pinker_arquivo_renomear(de: *const u8, para: *const u8)
     std::fs::rename(verso_str(de), verso_str(para))
         .unwrap_or_else(|err| erro_fatal(&format!("falha ao renomear arquivo: {err}")));
 }
-// @pinker-nav:end runtime.arquivos.io
+// @pinker-nav:end runtime.files.io
 
-// @pinker-nav:start runtime.caminhos.sistema
-// @pinker-nav:domain caminhos
+// @pinker-nav:start runtime.paths.system
+// @pinker-nav:domain paths
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Consultas e operações de sistema de arquivos sobre caminhos, delegando a std::fs/std::path: pinker_caminho_existe/e_arquivo/e_diretorio devolvem booleano puro (Path::exists/is_file/is_dir) sem nunca abortar, e pinker_caminho_juntar apenas monta o PathBuf; já pinker_caminho_tamanho_arquivo e pinker_caminho_e_vazio (ambas via std::fs::metadata, exigindo que o caminho seja arquivo) e as operações mutadoras (criar/remover diretório, remover arquivo, diretório atual) abortam via erro_fatal com a mensagem do erro original anexada quando o sistema operacional falha.
+// @pinker-nav:summary Filesystem queries and operations over paths, delegating to std::fs/std::path: pinker_caminho_existe/e_arquivo/e_diretorio return a pure boolean (Path::exists/is_file/is_dir) without ever aborting, and pinker_caminho_juntar only assembles the PathBuf; whereas pinker_caminho_tamanho_arquivo and pinker_caminho_e_vazio (both via std::fs::metadata, requiring the path to be a file) and the mutating operations (create/remove directory, remove file, current directory) abort via erro_fatal with the original error's message attached when the operating system fails.
 /// # Safety
 /// `caminho` deve apontar para um bloco de verso válido.
 #[no_mangle]
@@ -2610,12 +2610,12 @@ pub extern "C" fn pinker_caminho_diretorio_atual() -> *mut u8 {
         .unwrap_or_else(|err| erro_fatal(&format!("falha ao obter diretório atual: {err}")));
     verso_alocar(&atual.to_string_lossy())
 }
-// @pinker-nav:end runtime.caminhos.sistema
+// @pinker-nav:end runtime.paths.system
 
-// @pinker-nav:start runtime.tempo.relogio
-// @pinker-nav:domain tempo
+// @pinker-nav:start runtime.time.clock
+// @pinker-nav:domain time
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Tempo Unix (segundos desde a época, abortando via erro_fatal se o relógio do sistema estiver anterior à época) e formatação para ISO-8601 UTC usando o mesmo algoritmo civil (civil_de_dias, Howard Hinnant) do interpretador; não há suporte a fuso horário além de UTC. A região abriga também a espera de `dormir`: `duracao_dormir` é a fronteira pura que fixa a unidade em milissegundos e `pinker_dormir` a consome, com prova determinística da unidade nos testes locais da região.
+// @pinker-nav:summary Unix time (seconds since the epoch, aborting via erro_fatal if the system clock is earlier than the epoch) and formatting to ISO-8601 UTC using the same civil algorithm (civil_de_dias, Howard Hinnant) as the interpreter; there is no timezone support beyond UTC. The region also houses `dormir`'s wait: `duracao_dormir` is the pure boundary that fixes the unit at milliseconds and `pinker_dormir` consumes it, with a deterministic proof of the unit in the region's local tests.
 #[no_mangle]
 pub extern "C" fn pinker_tempo_unix() -> u64 {
     std::time::SystemTime::now()
@@ -2665,12 +2665,12 @@ pub extern "C" fn pinker_formatar_tempo_unix(timestamp: u64) -> *mut u8 {
         "{ano:04}-{mes:02}-{dia:02}T{hora:02}:{minuto:02}:{segundo:02}Z"
     ))
 }
-// @pinker-nav:end runtime.tempo.relogio
+// @pinker-nav:end runtime.time.clock
 
-// @pinker-nav:start runtime.aleatorio.gerador
-// @pinker-nav:domain aleatorio
+// @pinker-nav:start runtime.random.generator
+// @pinker-nav:domain random
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Geradores de números aleatórios mantidos em tabela global protegida por Mutex (handle -> estado), avançados por um LCG (constantes idênticas às do interpretador, para paridade de sementes); não é um gerador criptográfico; handle inválido ou min maior que max abortam via erro_fatal.
+// @pinker-nav:summary Random number generators kept in a global table protected by a Mutex (handle -> state), advanced by an LCG (constants identical to the interpreter's, for seed parity); it is not a cryptographic generator; an invalid handle or min greater than max abort via erro_fatal.
 struct EstadoAcaso {
     geradores: HashMap<u64, u64>,
     proximo_handle: u64,
@@ -2735,7 +2735,7 @@ pub extern "C" fn pinker_aleatorio_entre(handle: u64, min: u64, max: u64) -> u64
         }
     })
 }
-// @pinker-nav:end runtime.aleatorio.gerador
+// @pinker-nav:end runtime.random.generator
 
 // ---------------------------------------------------------------------------
 // Ambiente e processo nativos (Fase 221/B10)
@@ -2750,10 +2750,10 @@ pub extern "C" fn pinker_aleatorio_entre(handle: u64, min: u64, max: u64) -> u64
 // mesmas validações (comando não vazio, UTF-8 estrito, exit code exigido).
 // ---------------------------------------------------------------------------
 
-// @pinker-nav:start runtime.ambiente.argumentos
-// @pinker-nav:domain ambiente
+// @pinker-nav:start runtime.environment.arguments
+// @pinker-nav:domain environment
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Leitura dos argumentos de linha de comando a partir do argc/argv global capturado em pinker_rt_iniciar (argv[0] descartado como nome do binário) e das variáveis de ambiente via std::env::var. A classificação da chave nomeada não mora aqui: `estado_da_chave`, `resolver_pedido`, `resolver_contexto`, `chave_tem_valor` e `contem_token_exato` vêm de `pinker_argv_contract`, a autoridade única que o interpretador também consome, e este arquivo só decide **como** o nativo falha. Argumento posicional ausente, chave vazia, chave de ambiente vazia e chave presente sem valor abortam via erro_fatal, com a mensagem produzida pela autoridade.
+// @pinker-nav:summary Reading of the command-line arguments from the global argc/argv captured in pinker_rt_iniciar (argv[0] discarded as the binary's name) and of the environment variables via std::env::var. The classification of a named key does not live here: `estado_da_chave`, `resolver_pedido`, `resolver_contexto`, `chave_tem_valor` and `contem_token_exato` come from `pinker_argv_contract`, the single authority the interpreter also consumes, and this file only decides **how** the native side fails. A missing positional argument, an empty key, an empty environment key and a key present without a value abort via erro_fatal, with the message produced by the authority.
 fn argumentos_do_programa() -> Vec<String> {
     let argc = pinker_rt_argc();
     let argv = pinker_rt_argv();
@@ -2897,12 +2897,12 @@ pub unsafe extern "C" fn pinker_ambiente_buscar_contexto(
         ),
     }
 }
-// @pinker-nav:end runtime.ambiente.argumentos
+// @pinker-nav:end runtime.environment.arguments
 
-// @pinker-nav:start runtime.processos.execucao
-// @pinker-nav:domain processos
+// @pinker-nav:start runtime.processes.execution
+// @pinker-nav:domain processes
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Execução de subprocessos sem shell implícito: as superfícies históricas mantêm resolução pela PATH fixa; a nova superfície estruturada recusa Ate(0) antes de configurar ou criar o filho, aplica PATH saneada e depois overlay antes da resolução no spawn para os demais limites, faz um único spawn e move stdin/stdout/stderr em poll não-bloqueante com quantum justo, deadline absoluto, kill+reap e UTF-8 estrito; todos os filhos recebem SIGPIPE default por pre_exec, enquanto os observáveis históricos permanecem inalterados. A região também abriga `pinker_sair`, que encerra o próprio processo com o código normalizado por `min(codigo, i32::MAX)`, sem criar filho.
+// @pinker-nav:summary Execution of subprocesses without an implicit shell: the historical surfaces keep resolution through the fixed PATH; the new structured surface refuses Ate(0) before configuring or creating the child, applies a sanitized PATH and then the overlay before resolution at spawn for the remaining limits, performs a single spawn and moves stdin/stdout/stderr in a non-blocking poll with a fair quantum, an absolute deadline, kill+reap and strict UTF-8; every child receives default SIGPIPE via pre_exec, while the historical observables remain unchanged. The region also houses `pinker_sair`, which terminates the process itself with the code normalized by `min(codigo, i32::MAX)`, without creating a child.
 const PATH_PROCESSOS: &str = "/usr/local/bin:/usr/bin:/bin";
 
 fn normalizar_codigo_saida(codigo: u64) -> i32 {
@@ -3999,11 +3999,11 @@ pub unsafe extern "C" fn pinker_processo_pipeline(
     });
     exit_code_ou_erro("pipeline_minimo", status.code())
 }
-// @pinker-nav:end runtime.processos.execucao
-// @pinker-nav:start runtime.falha-operacional.superficies
-// @pinker-nav:domain erros
+// @pinker-nav:end runtime.processes.execution
+// @pinker-nav:start runtime.operational-failure.surfaces
+// @pinker-nav:domain errors
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Superfícies falíveis nativas da Parte B: leitura de arquivo por caminho, spawn de processo e conversão de texto para número devolvem um leque `Resultado<T,E>` construído pelos mesmos `pinker_leque_criar_0`/`pinker_leque_anexar` que o código gerado usa, com `Ok` na tag 0 e `Erro` na tag 1 e a causa sempre em `verso`. Falha ambiental vira valor; comando vazio, código de saída não representável e falta de memória continuam fatais por `erro_fatal`.
+// @pinker-nav:summary Native fallible surfaces of Part B: reading a file by path, spawning a process and converting text into a number return a `Resultado<T,E>` leque built by the same `pinker_leque_criar_0`/`pinker_leque_anexar` the generated code uses, with `Ok` at tag 0 and `Erro` at tag 1 and the cause always in a `verso`. An environmental failure becomes a value; an empty command, a non-representable exit code and lack of memory remain fatal through `erro_fatal`.
 
 /// Tag da variante de sucesso de `Resultado<T,E>`.
 ///
@@ -4082,12 +4082,12 @@ pub unsafe extern "C" fn pinker_verso_para_bombom_resultado(texto: *const u8) ->
         Err(_) => resultado_erro(&format!("falha ao converter '{texto}' para bombom")),
     }
 }
-// @pinker-nav:end runtime.falha-operacional.superficies
+// @pinker-nav:end runtime.operational-failure.surfaces
 
-// @pinker-nav:start runtime.sha256.superficies
-// @pinker-nav:domain integridade
+// @pinker-nav:start runtime.sha256.surfaces
+// @pinker-nav:domain integrity
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Superfícies SHA-256 da Parte E2 no runtime nativo: `pinker_sha256_verso` hasheia os bytes UTF-8 exatos de um verso pelo layout length-prefixed, sem percorrer codepoints e sem normalizar, e `pinker_sha256_arquivo_resultado` abre o caminho, lê em blocos de 64 KiB e alimenta o mesmo acumulador incremental, devolvendo `Resultado<verso,verso>` com o digest canônico de 64 caracteres. Ambas delegam o núcleo a `pinker_sha256_contract`, o mesmo crate puro consumido pelo interpretador, de modo que a paridade do digest é por construção e não por duas implementações que concordam por acaso; a leitura é em bytes de propósito, porque `read_to_string` rejeitaria arquivo binário, e o handle e o buffer morrem dentro da própria chamada.
+// @pinker-nav:summary SHA-256 surfaces of Part E2 in the native runtime: `pinker_sha256_verso` hashes the exact UTF-8 bytes of a verso through the length-prefixed layout, without walking codepoints and without normalizing, and `pinker_sha256_arquivo_resultado` opens the path, reads in 64 KiB blocks and feeds the same incremental accumulator, returning `Resultado<verso,verso>` with the canonical 64-character digest. Both delegate the core to `pinker_sha256_contract`, the same pure crate consumed by the interpreter, so that digest parity holds by construction and not by two implementations agreeing by chance; reading is in bytes on purpose, because `read_to_string` would reject a binary file, and the handle and the buffer die inside the call itself.
 
 /// SHA-256 dos bytes UTF-8 exatos de um `verso`.
 ///
@@ -4144,12 +4144,12 @@ pub unsafe extern "C" fn pinker_sha256_arquivo_resultado(caminho: *const u8) -> 
     }
     resultado_ok_verso(&acumulador.finalizar_hex())
 }
-// @pinker-nav:end runtime.sha256.superficies
+// @pinker-nav:end runtime.sha256.surfaces
 
-// @pinker-nav:start runtime.filesystem.enumeracao-adulta
+// @pinker-nav:start runtime.filesystem.adult-enumeration
 // @pinker-nav:domain filesystem
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Superfícies de filesystem adulto da Parte C no runtime nativo: `pinker_diretorio_listar_resultado` recusa argumento symlink e path que não é diretório por `symlink_metadata`, coleta as entradas imediatas por `read_dir`, falha inteira diante de nome não representável como verso e ordena pelos bytes UTF-8 antes de montar `lista<verso>` pelos mesmos `pinker_lista_criar`/`pinker_lista_anexar` do código gerado; `pinker_entrada_tipo_resultado` devolve o discriminante de `TipoEntrada` classificado sem seguir link, e `pinker_entrada_tamanho_resultado` devolve o tamanho também sem seguir. Os discriminantes espelham `tipo_entrada::VARIANTES` do compilador e a paridade é fixada por evidência.
+// @pinker-nav:summary Adult filesystem surfaces of Part C in the native runtime: `pinker_diretorio_listar_resultado` refuses a symlink argument and a path that is not a directory via `symlink_metadata`, collects the immediate entries via `read_dir`, fails wholesale on a name not representable as a verso and sorts by UTF-8 bytes before assembling a `lista<verso>` through the same `pinker_lista_criar`/`pinker_lista_anexar` as the generated code; `pinker_entrada_tipo_resultado` returns the `TipoEntrada` discriminant classified without following a link, and `pinker_entrada_tamanho_resultado` returns the size, also without following. The discriminants mirror the compiler's `tipo_entrada::VARIANTES` and parity is fixed by evidence.
 
 /// Discriminantes de `TipoEntrada`, espelhando a ordem de declaração fixada por
 /// `tipo_entrada::VARIANTES` no compilador.
@@ -4279,12 +4279,12 @@ pub unsafe extern "C" fn pinker_entrada_tamanho_resultado(caminho: *const u8) ->
         Err(err) => resultado_erro(&format!("falha ao medir entrada '{caminho}': {err}")),
     }
 }
-// @pinker-nav:end runtime.filesystem.enumeracao-adulta
+// @pinker-nav:end runtime.filesystem.adult-enumeration
 
-// @pinker-nav:start runtime.json.valor-adulto
-// @pinker-nav:domain dados
+// @pinker-nav:start runtime.json.adult-value
+// @pinker-nav:domain data
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Superfície JSON adulta da Parte E1 no runtime nativo: a árvore vive numa tabela global de handles monotônicos que nunca são reutilizados, e a gramática NÃO é reimplementada aqui — interpretação, domínio numérico, escapes, política de chave duplicada e ordem de serialização vêm de `pinker_json_contract`, o mesmo crate que o interpretador usa. É isso que torna a paridade uma propriedade de construção em vez de uma promessa: não existem duas gramáticas para divergir. `pinker_json_ler_resultado` devolve `Resultado` pelos mesmos `pinker_leque_criar_0`/`pinker_leque_anexar` do código gerado, e os acessores atravessam o nesting pelo mesmo handle, sem helper por formato.
+// @pinker-nav:summary Adult JSON surface of Part E1 in the native runtime: the tree lives in a global table of monotonic handles that are never reused, and the grammar is NOT reimplemented here — interpretation, numeric domain, escapes, duplicate-key policy and serialization order come from `pinker_json_contract`, the same crate the interpreter uses. That is what makes parity a property of construction instead of a promise: there are no two grammars to diverge. `pinker_json_ler_resultado` returns `Resultado` through the same `pinker_leque_criar_0`/`pinker_leque_anexar` as the generated code, and the accessors traverse the nesting through the same handle, with no per-format helper.
 use pinker_json_contract::{NoJson, TabelaJson};
 
 #[derive(Default)]
@@ -4448,12 +4448,12 @@ pub extern "C" fn pinker_json_objeto_chaves(handle: u64) -> *mut u8 {
     }
     lista
 }
-// @pinker-nav:end runtime.json.valor-adulto
+// @pinker-nav:end runtime.json.adult-value
 
-// @pinker-nav:start runtime.json.plano-legado
-// @pinker-nav:domain dados
+// @pinker-nav:start runtime.json.legacy-plan
+// @pinker-nav:domain data
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Owner nativo do recorte plano histórico, que antes não existia em backend nem runtime: `pinker_json_plano_ler` projeta o objeto de um nível para `mapa<verso,bombom>` pela mesma autoridade gramatical de `pinker_json_contract`, com domínio `u64` preservado inclusive acima de `i64::MAX`, e `pinker_json_plano_emitir` percorre o mapa pelo cursor do próprio runtime e serializa com chaves ordenadas e valores exatos, sem cast para `i64`. As recusas do recorte continuam fatais, como sempre foram nesta superfície — quem quer falha como valor usa `ler_json_resultado`.
+// @pinker-nav:summary Native owner of the historical flat slice, which previously existed in neither the backend nor the runtime: `pinker_json_plano_ler` projects the one-level object into `mapa<verso,bombom>` through the same grammatical authority as `pinker_json_contract`, with the `u64` domain preserved even above `i64::MAX`, and `pinker_json_plano_emitir` walks the map through the runtime's own cursor and serializes with ordered keys and exact values, without a cast to `i64`. The slice's refusals remain fatal, as they always were on this surface — whoever wants failure as a value uses `ler_json_resultado`.
 
 /// Recorte plano histórico `verso -> bombom`, agora com dono nativo.
 ///
@@ -4504,12 +4504,12 @@ pub unsafe extern "C" fn pinker_json_plano_emitir(mapa: *mut u8) -> *mut u8 {
     });
     verso_alocar(&texto)
 }
-// @pinker-nav:end runtime.json.plano-legado
+// @pinker-nav:end runtime.json.legacy-plan
 
-// @pinker-nav:start evidencia.runtime.memoria-alocador
-// @pinker-nav:domain memoria
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Abertura do módulo de testes internos do runtime nativo e evidência em memória do alocador: alinhamento e usabilidade do bloco devolvido por `pinker_alocar`, não sobreposição entre alocações independentes, layout possuído e checked de closures, alocação de zero bytes e tolerância a `pinker_liberar` sobre ponteiro nulo.
+// @pinker-nav:start evidence.runtime.memory-allocator
+// @pinker-nav:domain memory
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Opening of the native runtime's internal test module and in-memory evidence of the allocator: alignment and usability of the block returned by `pinker_alocar`, non-overlap between independent allocations, owned and checked layout of closures, zero-byte allocation and tolerance of `pinker_liberar` over a null pointer.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -5392,12 +5392,12 @@ mod tests {
         descomprometer_paginas_publicas(base, tamanho).expect("descomprometer");
     }
 
-    // @pinker-nav:end evidencia.runtime.memoria-alocador
+    // @pinker-nav:end evidence.runtime.memory-allocator
 
-    // @pinker-nav:start evidencia.runtime.validacao-acesso-publico
-    // @pinker-nav:domain memoria
-    // @pinker-nav:layer evidencia
-    // @pinker-nav:summary Matriz do veredicto de acesso à memória pública (hotfix pós-PR #411, item V4) sobre a unidade pura `classificar_acesso_publico`: endereços não registrados (4096 não mapeado, nulo, pilha, dado estático, função, alocação interna do runtime, mapeamento estrangeiro válido) recusados como E-RUNTIME-MEM-UNKNOWN-ACCESS; região liberada como use-after-free; base viva, interior, primeiro e último byte válidos permitidos; um byte após a região e acesso multibyte cruzando o limite recusados; e a matriz de larguras 1/2/4/8 com os alinhamentos correspondentes, idêntica para load e store porque ambos compartilham o mesmo predicado; mais a sustentação do construtor, que mostra por que não existe veredicto de metadata de região inválida — `pinker_publico_alocar` é a única origem produtiva de `AlocacaoPublica` e toda entrada publicada tem tamanho ≥ 1, `tamanho <= reservado` e `base + tamanho` representável.
+    // @pinker-nav:start evidence.runtime.validation-public-access
+    // @pinker-nav:domain memory
+    // @pinker-nav:layer evidence
+    // @pinker-nav:summary Matrix of the public-memory access verdict (hotfix after PR #411, item V4) over the pure unit `classificar_acesso_publico`: unregistered addresses (unmapped 4096, null, stack, static data, function, internal runtime allocation, valid foreign mapping) refused as E-RUNTIME-MEM-UNKNOWN-ACCESS; a freed region as use-after-free; a live base, the interior, the first and the last valid byte allowed; one byte past the region and a multibyte access crossing the boundary refused; and the matrix of widths 1/2/4/8 with the corresponding alignments, identical for load and store because both share the same predicate; plus the constructor's underpinning, which shows why there is no verdict for invalid region metadata — `pinker_publico_alocar` is the only productive origin of `AlocacaoPublica` and every published entry has size ≥ 1, `size <= reserved` and `base + size` representable.
     /// Registro sintético com uma região viva de 64 bytes e uma liberada de 16,
     /// em endereços que não colidem com nada real do processo.
     fn registro_de_teste() -> Vec<AlocacaoPublica> {
@@ -5684,12 +5684,12 @@ mod tests {
             unsafe { pinker_publico_liberar(ptr) };
         }
     }
-    // @pinker-nav:end evidencia.runtime.validacao-acesso-publico
+    // @pinker-nav:end evidence.runtime.validation-public-access
 
-    // @pinker-nav:start evidencia.runtime.cota-identidades-publicas
-    // @pinker-nav:domain memoria
-    // @pinker-nav:layer evidencia
-    // @pinker-nav:summary Evidência da cota vitalícia de identidades públicas (hotfix pós-PR #411, item V3): a unidade contada é a entrada de registro, liberar não devolve capacidade, identidades concedidas são estritamente crescentes e nunca reutilizadas, o esgotamento é irrecuperável no mesmo processo, e o diagnóstico é estável — verificado também de ponta a ponta num filho re-executado com o limite reduzido pela configuração interna de teste, sem interruptor público.
+    // @pinker-nav:start evidence.runtime.public-identity-quota
+    // @pinker-nav:domain memory
+    // @pinker-nav:layer evidence
+    // @pinker-nav:summary Evidence of the lifetime quota of public identities (hotfix after PR #411, item V3): the counted unit is the registry entry, freeing does not return capacity, granted identities are strictly increasing and never reused, exhaustion is irrecoverable within the same process, and the diagnostic is stable — also verified end to end in a re-executed child with the limit reduced by the internal test configuration, with no public switch.
     #[test]
     fn identidade_publica_e_concedida_ate_a_cota_e_depois_esgota() {
         // A cota conta entradas de registro, não alocações vivas.
@@ -5929,12 +5929,12 @@ mod tests {
             .expect("executar filho da contabilidade de união")
     }
 
-    // @pinker-nav:end evidencia.runtime.cota-identidades-publicas
+    // @pinker-nav:end evidence.runtime.public-identity-quota
 
-    // @pinker-nav:start evidencia.runtime.inicializacao-abi
-    // @pinker-nav:domain inicializacao
-    // @pinker-nav:layer evidencia
-    // @pinker-nav:summary Evidência em memória do bootstrap e da ABI: `pinker_rt_iniciar` desabilita core dump antes do código Pinker, captura `argc`/`argv` e os devolve por `pinker_rt_argc`/`pinker_rt_argv`, e `pinker_rt_versao` reporta a versão corrente da ABI.
+    // @pinker-nav:start evidence.runtime.abi-initialization
+    // @pinker-nav:domain initialization
+    // @pinker-nav:layer evidence
+    // @pinker-nav:summary In-memory evidence of the bootstrap and the ABI: `pinker_rt_iniciar` disables core dumps before the Pinker code, captures `argc`/`argv` and returns them through `pinker_rt_argc`/`pinker_rt_argv`, and `pinker_rt_versao` reports the current ABI version.
     #[test]
     fn iniciar_captura_argc_e_argv() {
         let argv: [*const u8; 2] = [b"pink\0".as_ptr(), std::ptr::null()];
@@ -6031,12 +6031,12 @@ mod tests {
             String::from_utf8_lossy(&output.stderr)
         );
     }
-    // @pinker-nav:end evidencia.runtime.inicializacao-abi
+    // @pinker-nav:end evidence.runtime.abi-initialization
 
-    // @pinker-nav:start evidencia.runtime.sigpipe-disposicao
-    // @pinker-nav:domain processos
-    // @pinker-nav:layer evidencia
-    // @pinker-nav:summary Evidência dos efeitos de processo do runtime: o contrato de SIGPIPE, partindo de SIG_DFL num processo filho dedicado, e as fronteiras puras reparadas pela Issue #522 — `normalizar_codigo_saida`, que reproduz o clamp `min(codigo, i32::MAX)` do interpretador antes de `process::exit`, e `duracao_dormir`, que fixa a unidade de `dormir` em milissegundos com prova determinística que fica vermelha sob a mutação `from_millis` para `from_secs`.
+    // @pinker-nav:start evidence.runtime.sigpipe-disposition
+    // @pinker-nav:domain processes
+    // @pinker-nav:layer evidence
+    // @pinker-nav:summary Evidence of the runtime's process effects: the SIGPIPE contract, starting from SIG_DFL in a dedicated child process, and the pure boundaries repaired by Issue #522 — `normalizar_codigo_saida`, which reproduces the interpreter's `min(codigo, i32::MAX)` clamp before `process::exit`, and `duracao_dormir`, which fixes `dormir`'s unit at milliseconds with a deterministic proof that turns red under the mutation of `from_millis` into `from_secs`.
     /// Sentinela distinta de qualquer disposição real; sinaliza que o
     /// construtor de `.init_array` não rodou.
     #[cfg(unix)]
@@ -6237,12 +6237,12 @@ mod tests {
         assert_eq!(normalizar_codigo_saida(i32::MAX as u64), i32::MAX);
         assert_eq!(normalizar_codigo_saida(u64::MAX), i32::MAX);
     }
-    // @pinker-nav:end evidencia.runtime.sigpipe-disposicao
+    // @pinker-nav:end evidence.runtime.sigpipe-disposition
 
-    // @pinker-nav:start evidencia.runtime.texto-verso
-    // @pinker-nav:domain texto
-    // @pinker-nav:layer evidencia
-    // @pinker-nav:summary Helper `verso_de`, que monta blocos de verso em memória para toda a suíte interna, e evidência das operações de texto: `pinker_verso_tamanho` conta code points Unicode, `pinker_verso_juntar` concatena em bloco novo e `pinker_verso_igual` compara por conteúdo.
+    // @pinker-nav:start evidence.runtime.text-verso
+    // @pinker-nav:domain text
+    // @pinker-nav:layer evidence
+    // @pinker-nav:summary The `verso_de` helper, which builds verso blocks in memory for the whole internal suite, and evidence of the text operations: `pinker_verso_tamanho` counts Unicode code points, `pinker_verso_juntar` concatenates into a new block and `pinker_verso_igual` compares by content.
     fn verso_de(texto: &str) -> Vec<u8> {
         let mut bloco = Vec::with_capacity(texto.len() + 8);
         bloco.extend_from_slice(&(texto.len() as u64).to_ne_bytes());
@@ -6284,12 +6284,12 @@ mod tests {
             assert_eq!(pinker_verso_igual(a.as_ptr(), c.as_ptr()), 0);
         }
     }
-    // @pinker-nav:end evidencia.runtime.texto-verso
+    // @pinker-nav:end evidence.runtime.text-verso
 
-    // @pinker-nav:start evidencia.runtime.listas-dinamicas
-    // @pinker-nav:domain listas
-    // @pinker-nav:layer evidencia
-    // @pinker-nav:summary Evidência em memória das listas dinâmicas do runtime: anexar/obter/tamanho, crescimento além da capacidade inicial, `pinker_lista_definir` substituindo elemento, `pinker_lista_inserir` deslocando o sufixo e `pinker_lista_tirar_ultimo` removendo e devolvendo o topo.
+    // @pinker-nav:start evidence.runtime.dynamic-lists
+    // @pinker-nav:domain lists
+    // @pinker-nav:layer evidence
+    // @pinker-nav:summary In-memory evidence of the runtime's dynamic lists: append/get/size, growth beyond the initial capacity, `pinker_lista_definir` replacing an element, `pinker_lista_inserir` shifting the suffix and `pinker_lista_tirar_ultimo` removing and returning the top.
     #[test]
     fn lista_anexar_obter_e_tamanho() {
         let l = pinker_lista_criar();
@@ -6360,12 +6360,12 @@ mod tests {
             assert_eq!(pinker_lista_tamanho(l), 0);
         }
     }
-    // @pinker-nav:end evidencia.runtime.listas-dinamicas
+    // @pinker-nav:end evidence.runtime.dynamic-lists
 
-    // @pinker-nav:start evidencia.runtime.mapas-dinamicos
-    // @pinker-nav:domain mapas
-    // @pinker-nav:layer evidencia
-    // @pinker-nav:summary Evidência em memória dos mapas dinâmicos do runtime: definição/obtenção/`tem`/tamanho com chave bombom, comparação por conteúdo com chave verso, remoção preservando a ordem e ausência silenciosa, e crescimento além da capacidade inicial.
+    // @pinker-nav:start evidence.runtime.dynamic-maps
+    // @pinker-nav:domain maps
+    // @pinker-nav:layer evidence
+    // @pinker-nav:summary In-memory evidence of the runtime's dynamic maps: set/get/`tem`/size with a bombom key, comparison by content with a verso key, removal preserving order and silent absence, and growth beyond the initial capacity.
     #[test]
     fn mapa_chave_bombom_definir_obter_tem_tamanho() {
         let m = pinker_mapa_criar_chave_bombom();
@@ -6430,12 +6430,12 @@ mod tests {
             }
         }
     }
-    // @pinker-nav:end evidencia.runtime.mapas-dinamicos
+    // @pinker-nav:end evidence.runtime.dynamic-maps
 
-    // @pinker-nav:start evidencia.runtime.leques-carga
+    // @pinker-nav:start evidence.runtime.leques-payload
     // @pinker-nav:domain leques
-    // @pinker-nav:layer evidencia
-    // @pinker-nav:summary Evidência em memória dos leques (variantes com carga) do runtime: criação com tag e leitura de cargas posicionais, aninhamento de leque dentro de leque habilitando recursão, e crescimento além da capacidade inicial.
+    // @pinker-nav:layer evidence
+    // @pinker-nav:summary In-memory evidence of the runtime's leques (variants with a payload): creation with a tag and reading of positional payloads, nesting of a leque inside a leque enabling recursion, and growth beyond the initial capacity.
     #[test]
     fn leque_criar_anexar_tag_e_carga() {
         unsafe {
@@ -6474,12 +6474,12 @@ mod tests {
             }
         }
     }
-    // @pinker-nav:end evidencia.runtime.leques-carga
+    // @pinker-nav:end evidence.runtime.leques-payload
 
-    // @pinker-nav:start evidencia.runtime.json-familia
-    // @pinker-nav:domain dados
-    // @pinker-nav:layer evidencia
-    // @pinker-nav:summary Evidência interna da família JSON pela ABI nativa, sem passar por ELF: a leitura devolve `Resultado` pelo mesmo leque do código gerado e a carga de sucesso é o handle da raiz; o nesting é atravessado por handle até a folha; a serialização sai determinística por ordem de chave; dado externo malformado vira variante de erro em vez de abortar; e o recorte plano histórico preserva `u64::MAX` no parse e na emissão, sem cast para `i64`. É a prova de que os símbolos existem e funcionam no runtime, não apenas de que o backend os emite.
+    // @pinker-nav:start evidence.runtime.json-family
+    // @pinker-nav:domain data
+    // @pinker-nav:layer evidence
+    // @pinker-nav:summary Internal evidence of the JSON family through the native ABI, without going through an ELF: reading returns `Resultado` via the same leque as the generated code and the success payload is the root's handle; nesting is traversed by handle down to the leaf; serialization comes out deterministic by key order; malformed external data becomes an error variant instead of aborting; and the historical flat slice preserves `u64::MAX` in parsing and emission, without a cast to `i64`. It is the proof that the symbols exist and work in the runtime, not merely that the backend emits them.
     #[test]
     fn parte_e1_json_resultado_e_nesting_pela_abi_nativa() {
         let texto = verso_alocar(r#"{"a":[{"b":-7}],"z":true}"#);
@@ -6548,12 +6548,12 @@ mod tests {
             pinker_liberar(emitido);
         }
     }
-    // @pinker-nav:end evidencia.runtime.json-familia
+    // @pinker-nav:end evidence.runtime.json-family
 
-    // @pinker-nav:start evidencia.runtime.mapas-iterador-snapshot
-    // @pinker-nav:domain mapas
-    // @pinker-nav:layer evidencia
-    // @pinker-nav:summary Evidência em memória do iterador de mapas: `pinker_mapa_iterador_criar` fixa um snapshot das chaves, de modo que definições e remoções posteriores não afetam a sequência devolvida por `pinker_mapa_iterador_proxima`; fecha fisicamente o módulo de testes internos do runtime.
+    // @pinker-nav:start evidence.runtime.maps-iterator-snapshot
+    // @pinker-nav:domain maps
+    // @pinker-nav:layer evidence
+    // @pinker-nav:summary In-memory evidence of the map iterator: `pinker_mapa_iterador_criar` fixes a snapshot of the keys, so that later sets and removals do not affect the sequence returned by `pinker_mapa_iterador_proxima`; it physically closes the runtime's internal test module.
     #[test]
     fn mapa_iterador_usa_snapshot_das_chaves() {
         let m = pinker_mapa_criar_chave_bombom();
@@ -6568,12 +6568,12 @@ mod tests {
             assert_eq!(pinker_mapa_iterador_proxima(cursor), 2);
         }
     }
-    // @pinker-nav:end evidencia.runtime.mapas-iterador-snapshot
+    // @pinker-nav:end evidence.runtime.maps-iterator-snapshot
 
-    // @pinker-nav:start evidencia.runtime.unioes-snapshot
-    // @pinker-nav:domain unioes
-    // @pinker-nav:layer evidencia
-    // @pinker-nav:summary Evidência em memória do descritor de união estrutural: layout do bloco único com payload alinhado, snapshot independente da origem e das extrações, alinhamento de dezesseis honrado, recusa de layout fora dos limites documentados e, por processo filho, diagnóstico controlado para falha de alocação injetada só em teste e para handle desconhecido nunca dereferenciado.
+    // @pinker-nav:start evidence.runtime.unions-snapshot
+    // @pinker-nav:domain unions
+    // @pinker-nav:layer evidence
+    // @pinker-nav:summary In-memory evidence of the structural union descriptor: layout of the single block with an aligned payload, a snapshot independent of the origin and of the extractions, sixteen-byte alignment honoured, refusal of a layout outside the documented limits and, through a child process, a controlled diagnostic for an allocation failure injected only in tests and for an unknown handle that is never dereferenced.
 
     /// HR3: o layout do bloco único {cabeçalho, padding, payload} respeita o
     /// alinhamento pedido, cabe no bloco e usa aritmética checada.
@@ -6989,4 +6989,4 @@ mod tests {
         assert!(stderr.contains("handle desconhecido"), "{stderr}");
     }
 }
-// @pinker-nav:end evidencia.runtime.unioes-snapshot
+// @pinker-nav:end evidence.runtime.unions-snapshot

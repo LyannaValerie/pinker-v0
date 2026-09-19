@@ -4,12 +4,12 @@
 //! textual já produzido pelo chamador; as relações vêm apenas dos catálogos e
 //! artefatos canônicos carregados pelo adaptador CLI.
 
-// @pinker-nav:start trama.diff-cobertura.modelo
+// @pinker-nav:start trama.diff-coverage.model
 // @pinker-nav:domain diff-coverage
 // @pinker-nav:layer trama
 // @pinker-nav:symbol pinker_v0::diff_coverage::CoverageReport|CoverageReport|rust-type|declaration
 // @pinker-nav:symbol-doc pinker_v0::diff_coverage::CoverageReport|development.diff-coverage.contract
-// @pinker-nav:summary Modelo público schema 1 da cobertura de diff: arquivos e linhas vêm do unified diff; regiões, documentos, projeções e testes carregam autoridade explícita e estados KNOWN, UNKNOWN ou UNAVAILABLE, sem inferência heurística.
+// @pinker-nav:summary Public schema 1 model of diff coverage: files and lines come from the unified diff; regions, documents, projections and tests carry an explicit authority and the states KNOWN, UNKNOWN or UNAVAILABLE, with no heuristic inference.
 use crate::change::Manifests;
 use crate::doc::{DocConfig, DocProjection};
 use crate::doc_index::{DocCatalog, DocDocument, DocSection};
@@ -227,13 +227,13 @@ pub struct CoverageAuthorities<'a> {
     pub doc_config: Option<&'a DocConfig>,
     pub manifests: Option<&'a Manifests>,
 }
-// @pinker-nav:end trama.diff-cobertura.modelo
+// @pinker-nav:end trama.diff-coverage.model
 
-// @pinker-nav:start trama.diff-cobertura.parser
+// @pinker-nav:start trama.diff-coverage.parser
 // @pinker-nav:domain diff-coverage
 // @pinker-nav:layer trama
 // @pinker-nav:symbol pinker_v0::diff_coverage::parse_unified_diff|parse_unified_diff|rust-function|declaration
-// @pinker-nav:summary Parser finito de unified diff: valida paths repo-relativos, contagens de hunks e limite de entrada; registra somente linhas novas explicitamente adicionadas, deixando deleções sem âncora atual como UNKNOWN em vez de aproximá-las.
+// @pinker-nav:summary Finite parser of a unified diff: it validates repo-relative paths, hunk counts and the input limit; it records only lines explicitly added, leaving deletions without a current anchor as UNKNOWN instead of approximating them.
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CoverageError {
@@ -721,15 +721,15 @@ fn merge_lines(lines: &[usize]) -> Vec<LineRange> {
     }
     ranges
 }
-// @pinker-nav:end trama.diff-cobertura.parser
+// @pinker-nav:end trama.diff-coverage.parser
 
-// @pinker-nav:start trama.diff-cobertura.derivacao
+// @pinker-nav:start trama.diff-coverage.derivation
 // @pinker-nav:domain diff-coverage
 // @pinker-nav:layer trama
 // @pinker-nav:symbol pinker_v0::diff_coverage::analyze|analyze|rust-function|declaration
 // @pinker-nav:symbol pinker_v0::diff_coverage::analyze|analyze|rust-function|implementation
 // @pinker-nav:symbol-doc pinker_v0::diff_coverage::analyze|development.diff-coverage.contract
-// @pinker-nav:summary Relaciona linhas novas a spans publicados pela Trama, resolve docs e testes pelo índice de símbolos, snapshots históricos pela composição oficial e projeções documentais por config/updates; ausência de vínculo ou deleção sem coordenada atual vira UNKNOWN com aviso explícito.
+// @pinker-nav:summary Relates new lines to spans published by the Trama, resolves docs and tests through the symbol index, historical snapshots through the official composition and documentary projections through config/updates; the absence of a link or a deletion without a current coordinate becomes UNKNOWN with an explicit warning.
 
 pub fn analyze(
     input: &str,
@@ -1217,7 +1217,7 @@ fn derive_tests(
     let mut items = BTreeSet::new();
     for region in touched
         .iter()
-        .filter(|region| region.layer.as_deref() == Some("evidencia"))
+        .filter(|region| region.layer.as_deref() == Some("evidence"))
     {
         items.insert(TestItem {
             region: region.key.clone(),
@@ -1367,12 +1367,12 @@ fn manifest_number(path: &str) -> Option<u64> {
         .ok()
 }
 
-// @pinker-nav:end trama.diff-cobertura.derivacao
+// @pinker-nav:end trama.diff-coverage.derivation
 
-// @pinker-nav:start trama.diff-cobertura.renderizacao
+// @pinker-nav:start trama.diff-coverage.rendering
 // @pinker-nav:domain diff-coverage
-// @pinker-nav:layer relatorios
-// @pinker-nav:summary Renderizadores humano e JSON determinísticos derivados do mesmo CoverageReport, com ordem fixa, ausência explícita, paths repo-relativos e nenhum ANSI ou dado incidental.
+// @pinker-nav:layer reports
+// @pinker-nav:summary Deterministic human and JSON renderers derived from the same CoverageReport, with fixed order, explicit absence, repo-relative paths and no ANSI or incidental data.
 
 pub fn render_json(report: &CoverageReport) -> String {
     format!(
@@ -1656,11 +1656,11 @@ fn json_string(value: &str) -> String {
     out.push('"');
     out
 }
-// @pinker-nav:end trama.diff-cobertura.renderizacao
-// @pinker-nav:start evidencia.diff-cobertura.parser-e-render
-// @pinker-nav:domain diff-cobertura
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Provas do diff de cobertura: o parser aceita modificacao, adicao, delecao, rename e binario, preserva caminho com espacos no cabecalho git, recusa travessia de caminho, hunk incompleto e caminho nao UTF-8, delecao pura nao fabrica linha corrente, e os renderizadores sao deterministicos e sem ANSI.
+// @pinker-nav:end trama.diff-coverage.rendering
+// @pinker-nav:start evidence.diff-coverage.parser-and-render
+// @pinker-nav:domain diff-coverage
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Proofs of the coverage diff: the parser accepts modification, addition, deletion, rename and binary, preserves a path with spaces in the git header, refuses path traversal, an incomplete hunk and a non-UTF-8 path, a pure deletion does not fabricate a current line, and the renderers are deterministic and free of ANSI.
 
 #[cfg(test)]
 mod tests {
@@ -1729,4 +1729,4 @@ mod tests {
         assert!(!render_json(&report).contains('\u{1b}'));
     }
 }
-// @pinker-nav:end evidencia.diff-cobertura.parser-e-render
+// @pinker-nav:end evidence.diff-coverage.parser-and-render

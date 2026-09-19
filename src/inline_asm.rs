@@ -15,10 +15,10 @@
 //! [`verify_native_artifact`]), porque uma política de fonte não pode, sozinha,
 //! provar o conteúdo do ELF.
 
-// @pinker-nav:start sussurro.politica.scanner
+// @pinker-nav:start sussurro.policy.scanner
 // @pinker-nav:domain sussurro
 // @pinker-nav:layer inline_asm
-// @pinker-nav:summary Scanner estrutural determinístico de `sussurro`: normaliza continuações `\`+newline, divide statements por newline e `;` fora de comentários e regiões citadas, remove comentários de linha `#` e de bloco `/* */` sem interpretar o conteúdo, rejeita citação ou comentário não terminado, aceita statement vazio e label local numérico, exige mnemônico depois do label e rejeita por construção as duas formas de statement que definem símbolo — qualquer token inicial começando com `.` (toda diretiva, via `E-SEMANTIC-ASM-DIRECTIVE`), qualquer label nominal (`E-SEMANTIC-ASM-NAMED-LABEL`) e qualquer atribuição `token = expressão`, com espaçamento livre, com tab, sem espaço nenhum, depois de `;`, de comentário removido, de newline normalizado ou de label local numérico, inclusive na forma `==` do dialeto (`E-SEMANTIC-ASM-SYMBOL-ASSIGN`). O texto dos operandos é preservado para o assembler real validar.
+// @pinker-nav:summary Deterministic structural scanner for `sussurro`: it normalizes `\`+newline continuations, splits statements by newline and `;` outside comments and quoted regions, removes `#` line comments and `/* */` block comments without interpreting the content, rejects an unterminated quote or comment, accepts an empty statement and a numeric local label, requires a mnemonic after the label and rejects by construction the two statement forms that define a symbol — any initial token starting with `.` (every directive, via `E-SEMANTIC-ASM-DIRECTIVE`), any nominal label (`E-SEMANTIC-ASM-NAMED-LABEL`) and any `token = expression` assignment, with free spacing, with a tab, with no space at all, after `;`, after a removed comment, after a normalized newline or after a numeric local label, including in the dialect's `==` form (`E-SEMANTIC-ASM-SYMBOL-ASSIGN`). The operands' text is preserved for the real assembler to validate.
 
 /// Código e detalhe de uma recusa da política de `sussurro`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -790,12 +790,12 @@ pub fn scan_chunk(chunk: &str) -> Result<Vec<AsmStatement>, AsmPolicyError> {
     }
     Ok(scanned)
 }
-// @pinker-nav:end sussurro.politica.scanner
+// @pinker-nav:end sussurro.policy.scanner
 
-// @pinker-nav:start sussurro.envelope.sentinelas
+// @pinker-nav:start sussurro.envelope.sentinels
 // @pinker-nav:domain sussurro
 // @pinker-nav:layer inline_asm
-// @pinker-nav:summary Envelope de `sussurro` no backend: sentinelas geradas pelo compilador delimitam cada bloco, com troca para sintaxe Intel na entrada e restauração de AT&T na saída. A validação confirma que cada begin tem exatamente um end, que os identificadores são únicos, que os wrappers de sintaxe estão balanceados dentro do envelope e reaplica a política estrutural aos statements reconstruídos, provando que nenhum texto da fonte escapou do envelope.
+// @pinker-nav:summary `sussurro` envelope in the backend: compiler-generated sentinels delimit each block, with a switch to Intel syntax at the entry and restoration of AT&T at the exit. The validation confirms that each begin has exactly one end, that the identifiers are unique, that the syntax wrappers are balanced inside the envelope and reapplies the structural policy to the reconstructed statements, proving that no source text escaped the envelope.
 
 pub const SENTINEL_BEGIN_PREFIX: &str = "# PINKER-SUSSURRO-BEGIN:";
 pub const SENTINEL_END_PREFIX: &str = "# PINKER-SUSSURRO-END:";
@@ -887,12 +887,12 @@ pub fn validate_envelopes(asm: &str) -> Result<Vec<AsmEnvelope>, AsmPolicyError>
     }
     Ok(envelopes)
 }
-// @pinker-nav:end sussurro.envelope.sentinelas
+// @pinker-nav:end sussurro.envelope.sentinels
 
-// @pinker-nav:start sussurro.artefato.invariante
+// @pinker-nav:start sussurro.artifact.invariant
 // @pinker-nav:domain sussurro
 // @pinker-nav:layer inline_asm
-// @pinker-nav:summary Invariante do artefato realmente produzido, aplicado no caminho de `pink build --nativo` e não apenas em fixture: `strip_envelope_bodies` deriva do próprio `.s` emitido uma baseline byte a byte idêntica exceto pelos envelopes de `sussurro`, removidos por inteiro (sentinelas e wrappers inclusive); `verify_native_artifact` monta as duas variantes com o mesmo driver C, sob o mesmo nome de arquivo em diretórios irmãos para que o símbolo `STT_FILE` não vire delta falso, lê os dois objetos com o leitor de ELF próprio (`crate::elf`, sem depender de saída textual de ferramenta externa) e delega a `compare_artifact_surfaces`. A superfície comparada é o conjunto de seções e o conjunto de símbolos **definidos** (`SHN_UNDEF` excluído, porque o contrato publicado admite referência a símbolo já existente) normalizados como (nome, ligação, visibilidade, tipo, rótulo de seção, tamanho) — de modo que símbolo novo, alias novo, seção nova, mudança de ligação, de visibilidade, de tipo ou de tamanho em símbolo reservado do runtime aparecem como delta e falham com `E-BACKEND-ASM-ARTIFACT`. Sem envelope no `.s`, não há nada atribuível ao bloco e a verificação é dispensada.
+// @pinker-nav:summary Invariant of the artifact actually produced, applied on the `pink build --nativo` path and not only in a fixture: `strip_envelope_bodies` derives from the emitted `.s` itself a baseline that is byte-for-byte identical except for the `sussurro` envelopes, removed in full (sentinels and wrappers included); `verify_native_artifact` assembles the two variants with the same C driver, under the same file name in sibling directories so that the `STT_FILE` symbol does not become a false delta, reads both objects with the in-house ELF reader (`crate::elf`, without depending on an external tool's textual output) and delegates to `compare_artifact_surfaces`. The compared surface is the set of sections and the set of **defined** symbols (`SHN_UNDEF` excluded, because the published contract admits a reference to an already existing symbol) normalized as (name, binding, visibility, type, section label, size) — so that a new symbol, a new alias, a new section, a change of binding, of visibility, of type or of size in a reserved runtime symbol appear as a delta and fail with `E-BACKEND-ASM-ARTIFACT`. Without an envelope in the `.s`, there is nothing attributable to the block and the verification is skipped.
 
 use crate::elf::{ElfObject, SHN_ABS, SHN_COMMON, SHN_UNDEF};
 use std::path::Path;
@@ -1146,4 +1146,4 @@ pub fn verify_native_artifact(
     check.envelopes = envelopes.len();
     Ok(check)
 }
-// @pinker-nav:end sussurro.artefato.invariante
+// @pinker-nav:end sussurro.artifact.invariant

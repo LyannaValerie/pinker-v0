@@ -26,7 +26,7 @@
 //! ```
 
 // @pinker-nav:start sha256.contrato.nucleo
-// @pinker-nav:domain integridade
+// @pinker-nav:domain integrity
 // @pinker-nav:layer contrato
 // @pinker-nav:summary Autoridade única do SHA-256 da Pinker (Parte E2): as constantes K e o estado inicial de FIPS 180-4, o compressor de bloco de 64 bytes, o acumulador incremental `Sha256` (atualizar/finalizar) que mantém apenas um bloco parcial em memória, e `sha256_hex`, a forma canônica de 64 caracteres hexadecimais minúsculos. Compartilhado pelo compilador e pelo runtime nativo para que o digest seja idêntico nos dois backends por construção; não contém I/O, nome público da linguagem nem ABI.
 

@@ -12,7 +12,7 @@ related:
   - history
 ---
 
-# Crônica mecânica de mudanças (pós-marco)
+# Mechanical change chronicle (post-milestone)
 
 - **Classe:** Engine
 - **Papel:** projeção consultável do ledger
@@ -25,14 +25,14 @@ entram mudanças posteriores ao marco #330.
 
 <!-- @pinker-doc:start
 id: history.recent
-tags: [historico, recente, mudancas, ledger]
+tags: [history, recent, changes, ledger]
 aliases:
-  - historico recente
-  - onde esta o historico recente
-  - mudancas recentes
-summary: Onde encontrar as mudanças recentes projetadas dos manifestos versionados.
+  - recent history
+  - where the recent history is
+  - recent changes
+summary: Where to find the recent changes projected from the versioned manifests.
 -->
-## Mudanças recentes
+## Recent changes
 
 As mudanças recentes são projetadas mecanicamente da fonte estrutural
 (`.pinker/changes/pr-N.yaml`) para a tabela gerada abaixo. Para inspecionar um

@@ -2,10 +2,10 @@ mod common;
 
 use common::{render_backend_text, render_cli_machine_output, render_machine, render_selected};
 
-// @pinker-nav:start evidencia.machine.lowering-blocos-e-terminadores
+// @pinker-nav:start evidence.machine.lowering-blocks-and-terminators
 // @pinker-nav:domain machine
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Compara a representação renderizada de funções, blocos e terminadores após lowering para máquina abstrata.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Compares the rendered representation of functions, blocks and terminators after lowering to the abstract machine.
 #[test]
 fn machine_funcao_simples() {
     let code = "pacote main; carinho principal() -> bombom { mimo 0; }";
@@ -58,11 +58,11 @@ machine:
     );
 }
 
-// @pinker-nav:end evidencia.machine.lowering-blocos-e-terminadores
-// @pinker-nav:start evidencia.machine.lowering-chamadas
+// @pinker-nav:end evidence.machine.lowering-blocks-and-terminators
+// @pinker-nav:start evidence.machine.lowering-calls
 // @pinker-nav:domain machine
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Compara a representação de chamadas com e sem retorno na máquina abstrata.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Compares the representation of calls with and without a return in the abstract machine.
 #[test]
 fn machine_chamada_e_call_void() {
     let code = "\
@@ -113,11 +113,11 @@ machine:
     );
 }
 
-// @pinker-nav:end evidencia.machine.lowering-chamadas
-// @pinker-nav:start evidencia.machine.lowering-operadores-e-temporarios
+// @pinker-nav:end evidence.machine.lowering-calls
+// @pinker-nav:start evidence.machine.lowering-operators-and-temporaries
 // @pinker-nav:domain machine
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Inspeciona operadores unários, binários e temporários na representação de máquina abstrata.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Inspects unary and binary operators and temporaries in the abstract machine representation.
 #[test]
 fn machine_unaria_binaria_temporarios() {
     let code = "\
@@ -132,11 +132,11 @@ carinho principal() -> bombom {
     assert!(out.contains("vm neg<bombom>  ; negação aritmética do topo\n      vm store_slot %t1"));
 }
 
-// @pinker-nav:end evidencia.machine.lowering-operadores-e-temporarios
-// @pinker-nav:start evidencia.machine.renderizacao-cli
+// @pinker-nav:end evidence.machine.lowering-operators-and-temporaries
+// @pinker-nav:start evidence.machine.rendering-cli
 // @pinker-nav:domain machine
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Compara o cabeçalho do renderer CLI da máquina abstrata.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Compares the header of the abstract machine's CLI renderer.
 #[test]
 fn machine_cli_header_estavel() {
     let code = "pacote main; carinho principal() -> bombom { mimo 0; }";
@@ -160,11 +160,11 @@ Análise semântica concluída sem erros.
     );
 }
 
-// @pinker-nav:end evidencia.machine.renderizacao-cli
-// @pinker-nav:start evidencia.machine.comparacao-representacoes
+// @pinker-nav:end evidence.machine.rendering-cli
+// @pinker-nav:start evidence.machine.representation-comparison
 // @pinker-nav:domain machine
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Compara as saídas textuais presentes de máquina abstrata, seleção e backend textual.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Compares the textual outputs present of the abstract machine, selection and the textual backend.
 #[test]
 fn machine_diferente_de_selected_e_pseudo_asm() {
     let code = "pacote main; carinho principal() -> bombom { mimo 0; }";
@@ -175,11 +175,11 @@ fn machine_diferente_de_selected_e_pseudo_asm() {
     assert_ne!(machine, backend);
 }
 
-// @pinker-nav:end evidencia.machine.comparacao-representacoes
-// @pinker-nav:start evidencia.machine.validacao-programa-e-slots
+// @pinker-nav:end evidence.machine.representation-comparison
+// @pinker-nav:start evidence.machine.validation-program-and-slots
 // @pinker-nav:domain machine
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Constrói programas manualmente, chama o validador direto e espera rejeição das invariantes inválidas presentes.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Builds programs manually, calls the direct validator and expects refusal of the invalid invariants present.
 #[test]
 fn machine_falha_em_programa_invalido() {
     let program = pinker_v0::abstract_machine::MachineProgram {
@@ -230,11 +230,11 @@ fn machine_falha_load_slot_inexistente() {
     assert!(err.to_string().contains("load_slot para slot inexistente"));
 }
 
-// @pinker-nav:end evidencia.machine.validacao-programa-e-slots
-// @pinker-nav:start evidencia.machine.lowering-bitwise-e-modulo
+// @pinker-nav:end evidence.machine.validation-program-and-slots
+// @pinker-nav:start evidence.machine.lowering-bitwise-and-modulo
 // @pinker-nav:domain machine
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Inspeciona operadores bitwise e módulo na representação da máquina abstrata.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Inspects bitwise and modulo operators in the abstract machine representation.
 #[test]
 fn machine_bitwise_basico() {
     let code = "\
@@ -265,11 +265,11 @@ carinho principal() -> bombom {
 
 // ── Fase 35: testes de legibilidade da saída --machine ────────────────────────
 
-// @pinker-nav:end evidencia.machine.lowering-bitwise-e-modulo
-// @pinker-nav:start evidencia.machine.renderizacao-slots-e-temporarios
+// @pinker-nav:end evidence.machine.lowering-bitwise-and-modulo
+// @pinker-nav:start evidence.machine.rendering-slots-and-temporaries
 // @pinker-nav:domain machine
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Inspeciona nomes renderizados de parâmetros, locais, slots e temporários.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Inspects the rendered names of parameters, locals, slots and temporaries.
 #[test]
 fn machine_params_exibem_nomes_limpos_sem_prefixo_interno() {
     // Params do usuário devem aparecer como `x, y` e não como `%x#0, %y#0`
@@ -371,11 +371,11 @@ carinho principal() -> bombom { mimo 1 + 2; }";
     );
 }
 
-// @pinker-nav:end evidencia.machine.renderizacao-slots-e-temporarios
-// @pinker-nav:start evidencia.machine.renderizacao-chamadas
+// @pinker-nav:end evidence.machine.rendering-slots-and-temporaries
+// @pinker-nav:start evidence.machine.rendering-calls
 // @pinker-nav:domain machine
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Inspeciona descrições humanas renderizadas para chamadas com e sem retorno.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Inspects the rendered human descriptions for calls with and without a return.
 #[test]
 fn machine_instrucao_call_tem_descricao_humana() {
     let code = "\
@@ -397,11 +397,11 @@ carinho principal() -> bombom {
     assert!(out.contains("vm call_void log, 0  ; chama log com 0 argumento(s) sem retorno"));
 }
 
-// @pinker-nav:end evidencia.machine.renderizacao-chamadas
-// @pinker-nav:start evidencia.machine.renderizacao-terminadores-e-fluxos
+// @pinker-nav:end evidence.machine.rendering-calls
+// @pinker-nav:start evidence.machine.rendering-terminators-and-flows
 // @pinker-nav:domain machine
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Inspeciona descrições renderizadas de terminadores, curto-circuito, joins, quebra e continuação.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Inspects the rendered descriptions of terminators, short-circuiting, joins, break and continue.
 #[test]
 fn machine_terminadores_tem_descricoes_humanas() {
     let if_code = "\
@@ -488,11 +488,11 @@ carinho principal() -> bombom {
     assert!(out.contains("; caminho auxiliar após quebrar"));
 }
 
-// @pinker-nav:end evidencia.machine.renderizacao-terminadores-e-fluxos
-// @pinker-nav:start evidencia.machine.renderizacao-papeis-de-blocos
+// @pinker-nav:end evidence.machine.rendering-terminators-and-flows
+// @pinker-nav:start evidence.machine.rendering-block-roles
 // @pinker-nav:domain machine
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Inspeciona anotações renderizadas de papel para blocos gerais e de laço.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Inspects rendered role annotations for general and loop blocks.
 #[test]
 fn machine_blocos_tem_anotacao_de_papel() {
     // Blocos conhecidos devem ter anotação de papel como comentário
@@ -579,12 +579,12 @@ fn fase243_closure_com_captura_vira_make_closure_na_maquina() {
     let out = render_machine(code).unwrap();
     assert!(out.contains("make_closure"), "{}", out);
 }
-// @pinker-nav:end evidencia.machine.renderizacao-papeis-de-blocos
+// @pinker-nav:end evidence.machine.rendering-block-roles
 
-// @pinker-nav:start evidencia.machine.objetos-trato-fase244
+// @pinker-nav:start evidence.machine.trato-objects-phase244
 // @pinker-nav:domain machine
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita o lowering da seleção da Fase 244 para operações próprias da máquina de pilha, preservando snapshot, vtable, slot de método, aridade e chamadas com ou sem retorno.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises the lowering of the Phase 244 selection into the stack machine's own operations, preserving snapshot, vtable, method slot, arity and calls with or without a return.
 
 #[test]
 fn fase244_machine_materializa_e_despacha_com_retorno() {
@@ -663,4 +663,4 @@ carinho principal() -> bombom {
     );
 }
 
-// @pinker-nav:end evidencia.machine.objetos-trato-fase244
+// @pinker-nav:end evidence.machine.trato-objects-phase244

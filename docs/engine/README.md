@@ -16,7 +16,7 @@ related:
   - rosa
 ---
 
-# Engine — hemisfério factual e operacional
+# Engine — factual and operational hemisphere
 
 - **Classe:** Engine
 - **Papel:** navegação

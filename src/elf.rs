@@ -11,10 +11,10 @@
 //! definidos**, com ligação, visibilidade e tipo. Nada além disso é
 //! interpretado: relocações, notas, DWARF e conteúdo de seção são ignorados.
 
-// @pinker-nav:start build.elf.leitor
+// @pinker-nav:start build.elf.reader
 // @pinker-nav:domain build
 // @pinker-nav:layer elf
-// @pinker-nav:summary Leitor mínimo de ELF64 little-endian sem dependência externa: valida o magic `\x7fELF`, a classe 64 bits, a ordem little-endian e a consistência de `e_shentsize`/`e_shoff`, resolve `e_shnum`/`e_shstrndx` inclusive nas formas estendidas (`shnum == 0` lê `sh_size` da seção 0 e `shstrndx == SHN_XINDEX` lê `sh_link`), coleta os nomes das seções pela `.shstrtab` junto de `sh_flags` (consultável por nome via `section_flags_of`/`section_is_non_executable`, de modo que uma seção possa ser distinguida de uma seção com permissão de execução) e percorre toda seção `SHT_SYMTAB` extraindo nome, ligação (`st_info >> 4`), tipo (`st_info & 0xf`), visibilidade (`st_other & 0x3`), índice de seção e tamanho de cada símbolo. Toda leitura é limitada por índice conferido contra o tamanho do buffer, de modo que um arquivo truncado ou malformado devolve `Err` com detalhe legível em vez de pânico; nenhum conteúdo de seção, relocação ou informação de depuração é interpretado. `parse_program_headers` lê a tabela de segmentos do mesmo arquivo: valida o mesmo prefixo, lê `e_phoff`/`e_phentsize`/`e_phnum`, resolve a forma estendida `PN_XNUM` (`e_phnum == 0xffff` lê `sh_info` da seção 0), exige `e_phentsize == 56` e devolve `(p_type, p_flags)` de cada segmento em `ElfProgramHeader`. Existe porque a `.note.GNU-stack` do objeto só é observável no executável final como `PT_GNU_STACK`, que vive na tabela de programa e não na de seções; um objeto relocável não tem essa tabela e devolve lista vazia, o que não é erro.
+// @pinker-nav:summary Minimal little-endian ELF64 reader with no external dependency: it validates the `\x7fELF` magic, the 64-bit class, the little-endian order and the consistency of `e_shentsize`/`e_shoff`, resolves `e_shnum`/`e_shstrndx` including the extended forms (`shnum == 0` reads `sh_size` of section 0 and `shstrndx == SHN_XINDEX` reads `sh_link`), collects the section names from `.shstrtab` together with `sh_flags` (queryable by name via `section_flags_of`/`section_is_non_executable`, so that a section can be told apart from a section with execute permission) and walks every `SHT_SYMTAB` section extracting name, binding (`st_info >> 4`), type (`st_info & 0xf`), visibility (`st_other & 0x3`), section index and size of each symbol. Every read is bounded by an index checked against the buffer size, so that a truncated or malformed file returns `Err` with readable detail instead of panicking; no section content, relocation or debug information is interpreted. `parse_program_headers` reads the segment table of the same file: it validates the same prefix, reads `e_phoff`/`e_phentsize`/`e_phnum`, resolves the extended form `PN_XNUM` (`e_phnum == 0xffff` reads `sh_info` of section 0), requires `e_phentsize == 56` and returns `(p_type, p_flags)` for each segment in `ElfProgramHeader`. It exists because the object's `.note.GNU-stack` is only observable in the final executable as `PT_GNU_STACK`, which lives in the program table and not in the section table; a relocatable object has no such table and returns an empty list, which is not an error.
 
 /// Índice de seção especial: símbolo apenas referenciado, não definido aqui.
 pub const SHN_UNDEF: u16 = 0;
@@ -359,4 +359,4 @@ pub fn parse_program_headers(bytes: &[u8]) -> Result<Vec<ElfProgramHeader>, Stri
     }
     Ok(headers)
 }
-// @pinker-nav:end build.elf.leitor
+// @pinker-nav:end build.elf.reader

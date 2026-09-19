@@ -48,10 +48,10 @@ fn diretorio_temporario(rotulo: &str) -> PathBuf {
     std::env::temp_dir().join(format!("pinker_hf_sussurro_{rotulo}_{nanos}"))
 }
 
-// @pinker-nav:start evidencia.hotfix.sussurro-atribuicao-scanner
+// @pinker-nav:start evidence.hotfix.sussurro-assignment-scanner
 // @pinker-nav:domain sussurro
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Evidência da política estrutural: a atribuição de símbolo do GNU as é recusada com `E-SEMANTIC-ASM-SYMBOL-ASSIGN` em todas as formas que o assembler real aceita — espaçamento livre, tab, sem espaço, alias para símbolo existente, expressão composta, depois de `;`, depois de comentário de linha e de bloco, depois de CRLF normalizado, depois de label local numérico, em qualquer statement de um bloco com vários, e na forma `==` do dialeto —, enquanto formas apenas parecidas mantêm a classificação própria (`nome:` label nominal, `.set` diretiva, `= 1` token inesperado, `nome + 1` entregue ao assembler); cobre também o span e o texto do diagnóstico, o bloco com vários `sussurro` no mesmo carinho, o erro explícito do interpretador (`E-RUNTIME-SUSSURRO-NATIVO`) e a preservação integral dos exemplos válidos da Fase 247 e das aceitações históricas (labels locais, `Nf`/`Nb`, comentários, segment override).
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Evidence of the structural policy: GNU as symbol assignment is refused with `E-SEMANTIC-ASM-SYMBOL-ASSIGN` in every form the real assembler accepts — free spacing, tab, no space, alias to an existing symbol, compound expression, after `;`, after a line comment and a block comment, after normalized CRLF, after a numeric local label, in any statement of a block with several, and in the dialect's `==` form —, while merely similar forms keep their own classification (`name:` nominal label, `.set` directive, `= 1` unexpected token, `name + 1` handed to the assembler); it also covers the span and the text of the diagnostic, a block with several `sussurro` in the same carinho, the interpreter's explicit error (`E-RUNTIME-SUSSURRO-NATIVO`) and the full preservation of the Phase 247 valid examples and of the historical acceptances (local labels, `Nf`/`Nb`, comments, segment override).
 
 /// Toda forma de atribuição que o assembler real aceitaria define um símbolo.
 ///
@@ -243,12 +243,12 @@ fn interpretador_mantem_o_erro_explicito() {
         .to_string();
     assert!(error.contains("E-RUNTIME-SUSSURRO-NATIVO"), "{error}");
 }
-// @pinker-nav:end evidencia.hotfix.sussurro-atribuicao-scanner
+// @pinker-nav:end evidence.hotfix.sussurro-assignment-scanner
 
-// @pinker-nav:start evidencia.hotfix.sussurro-artefato
+// @pinker-nav:start evidence.hotfix.sussurro-artifact
 // @pinker-nav:domain sussurro
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Evidência do invariante de artefato: o leitor de ELF próprio lê seções e símbolos de um objeto real e recusa entrada malformada sem pânico; `strip_envelope_bodies` remove exatamente os envelopes e preserva o resto linha a linha, mantendo sentinelas e wrappers Intel/AT&T no assembly emitido; `compare_artifact_surfaces` acusa símbolo novo, alias novo, seção nova e mudança de ligação/visibilidade sobre objetos realmente montados, e aprova o par derivado do compilador; `verify_native_artifact` — a mesma função chamada pelo build — aprova um envelope legítimo; um `pink build --nativo` real imprime a linha de verificação e o ELF final não ganha nenhum símbolo definido nem seção em relação ao mesmo programa sem `sussurro`; e um guardião estrutural exige que a região `cli.build.nativo` do binário `pink` continue chamando a verificação antes de linkar, de modo que remover o cabo produtivo quebre a suíte. Sob `PINKER_EXIGE_NATIVO=1` a ausência do driver C bloqueia em vez de pular em silêncio.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Evidence of the artifact invariant: the in-house ELF reader reads sections and symbols of a real object and refuses malformed input without panicking; `strip_envelope_bodies` removes exactly the envelopes and preserves the rest line by line, keeping sentinels and Intel/AT&T wrappers in the emitted assembly; `compare_artifact_surfaces` flags a new symbol, a new alias, a new section and a change of binding/visibility over really assembled objects, and approves the pair derived from the compiler; `verify_native_artifact` — the same function called by the build — approves a legitimate envelope; a real `pink build --nativo` prints the verification line and the final ELF gains no defined symbol and no section relative to the same program without `sussurro`; and a structural guardian requires that the `cli.build.native` region of the `pink` binary keep calling the verification before linking, so that removing the productive wiring breaks the suite. Under `PINKER_EXIGE_NATIVO=1` the absence of the C driver blocks instead of skipping silently.
 
 /// Monta um `.s` com o driver C e devolve o objeto lido pelo leitor próprio.
 fn montar_e_ler(driver: &str, rotulo: &str, asm: &str) -> elf::ElfObject {
@@ -535,18 +535,18 @@ fn build_nativo_real_verifica_o_artefato_e_o_elf_final_nao_ganha_simbolo() {
 /// chamasse apenas a função da biblioteca continuaria passando com o cabo
 /// removido — por isso a exigência é sobre a fonte da região cartografada do
 /// build nativo. A fonte é o binário `pink` inteiro, não um arquivo: a
-/// decomposição física da #638 tirou `cli.build.nativo` de `src/main.rs` e a
+/// decomposição física da #638 tirou `cli.build.native` de `src/main.rs` e a
 /// pôs em `src/pink_cli/analysis_build.rs`, e um oráculo preso ao caminho
 /// antigo pararia de observar o cabo.
 #[test]
 fn verificacao_de_artefato_esta_cabeada_no_build_nativo() {
     let fonte = pink_cli();
     let inicio = fonte
-        .find("@pinker-nav:start cli.build.nativo")
-        .expect("região cli.build.nativo ausente");
+        .find("@pinker-nav:start cli.build.native")
+        .expect("região cli.build.native ausente");
     let fim = fonte
-        .find("@pinker-nav:end cli.build.nativo")
-        .expect("fim da região cli.build.nativo ausente");
+        .find("@pinker-nav:end cli.build.native")
+        .expect("fim da região cli.build.native ausente");
     let regiao = &fonte[inicio..fim];
 
     assert!(
@@ -570,4 +570,4 @@ fn verificacao_de_artefato_esta_cabeada_no_build_nativo() {
         "a verificação do artefato precisa acontecer antes da linkedição"
     );
 }
-// @pinker-nav:end evidencia.hotfix.sussurro-artefato
+// @pinker-nav:end evidence.hotfix.sussurro-artifact

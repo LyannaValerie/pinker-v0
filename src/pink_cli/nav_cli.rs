@@ -1,5 +1,5 @@
-//! Comandos `pink nav` (`cli.nav.projecao`, `cli.nav.consulta`,
-//! `cli.nav.sincronizacao-verificacao`), unidade MAIN-1 da decomposição
+//! Comandos `pink nav` (`cli.nav.projection`, `cli.nav.query`,
+//! `cli.nav.synchronization-verification`), unidade MAIN-1 da decomposição
 //! física #601 — a última do inventário.
 //!
 //! Movimento físico: as decisões, o estado e a ordem são os do entrypoint.
@@ -12,7 +12,7 @@
 //! `pinker_v0::nav_projection_archive`). Este arquivo é o adaptador de CLI
 //! dessas autoridades, exatamente como era dentro do pai.
 
-// @pinker-nav:start cli.nav.projecao
+// @pinker-nav:start cli.nav.projection
 // @pinker-nav:domain archive
 // @pinker-nav:layer cli
 // @pinker-nav:summary Final `pink nav projecao` adapter over the materialized historical archive: discovers the root through the automation core, reads the archive index once, and derives listing, single-entry inspection and integrity verification from that one model in deterministic text and JSON — no current navigation catalog, key, summary, hash, path, rename map or recipe is consulted, and a malformed index, an unknown id, an altered payload and a missing payload keep distinct exits.
@@ -160,14 +160,14 @@ fn print_archive_failure(command: &str, json: bool, failure: &archive::ArchiveFa
         _ => EXIT_HARNESS,
     }
 }
-// @pinker-nav:end cli.nav.projecao
+// @pinker-nav:end cli.nav.projection
 
-// @pinker-nav:start cli.nav.consulta
+// @pinker-nav:start cli.nav.query
 // @pinker-nav:domain nav
 // @pinker-nav:layer cli
 // @pinker-nav:related-symbol pinker_v0::symbol_index::locate
 // @pinker-nav:related-symbol pinker_v0::diff_coverage::analyze
-// @pinker-nav:summary Consultas nav read-only carregam catálogo e símbolos; cobertura-diff analisa stdin e impacto compõe git diff limitado com as autoridades correntes sem mutar o repositório.
+// @pinker-nav:summary Read-only nav queries load the catalog and symbols; cobertura-diff analyses stdin and impacto composes a bounded git diff with the current authorities without mutating the repository.
 use pinker_v0::symbol_extraction;
 
 /// Carrega o catálogo de código versionado (superfície de consulta — §5).
@@ -813,12 +813,12 @@ pub(super) fn run_nav_mapa(repo_root: &Path, filtro: Option<&str>, json: bool) -
     }
     EXIT_OK
 }
-// @pinker-nav:end cli.nav.consulta
+// @pinker-nav:end cli.nav.query
 
-// @pinker-nav:start cli.nav.sincronizacao-verificacao
+// @pinker-nav:start cli.nav.synchronization-verification
 // @pinker-nav:domain nav
 // @pinker-nav:layer cli
-// @pinker-nav:summary run_nav_sincronizar reescaneia e grava o catálogo somente após validação; run_nav_verificar reutiliza nav::verify_repository e valida em memória os vínculos estruturados do índice de símbolos contra os catálogos de código e documentação, sem escrever e sem duplicar autoridade.
+// @pinker-nav:summary run_nav_sincronizar rescans and writes the catalog only after validation; run_nav_verificar reuses nav::verify_repository and validates in memory the symbol index's structured links against the code and documentation catalogs, without writing and without duplicating authority.
 pub(super) fn run_nav_cobertura(repo_root: &Path, json: bool) -> i32 {
     let policy = match nav_coverage::CoveragePolicy::load(repo_root) {
         Ok(policy) => policy,
@@ -948,4 +948,4 @@ pub(super) fn run_nav_verificar(repo_root: &Path) -> i32 {
     println!("Marcadores, vínculos e catálogo de código verificados: ok.");
     EXIT_OK
 }
-// @pinker-nav:end cli.nav.sincronizacao-verificacao
+// @pinker-nav:end cli.nav.synchronization-verification

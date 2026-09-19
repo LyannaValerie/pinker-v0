@@ -12,10 +12,10 @@
 //!   (análise superficial: sequência + talvez/senão — sem análise de fluxo completa).
 //! - `Nulo` nunca aparece como tipo de usuário; representa ausência de retorno internamente.
 
-// @pinker-nav:start semantic.identificadores.namespace-produtor-de-simbolo
-// @pinker-nav:domain identificadores
+// @pinker-nav:start semantic.identifiers.symbol-producing-namespace
+// @pinker-nav:domain identifiers
 // @pinker-nav:layer semantic
-// @pinker-nav:summary Fronteira única das definições top-level que produzem símbolo nativo (`carinho` e `eterno`): consulta os namespaces de escopo `SymbolDefinition` da autoridade `native_symbol` — hoje o prefixo `pinker_` do runtime e os símbolos de entrypoint de plataforma `main` e `_start` — e recusa com `E-SEMANTIC-RESERVED-NAMESPACE` e span da declaração, antes de qualquer assembler ou linker. Não é possível aplicá-los na fronteira léxica porque `main` é nome legítimo de pacote; e não é preciso repetir aqui as formas geradas pelo compilador, já recusadas no lexer. Nomes do host continuam legais: `malloc`, `memcpy`, `write`, `getenv`, `free` e `environ` passam por aqui sem diagnóstico e são isolados por STB_LOCAL na emissão. A região abre no prelúdio do módulo — os usos compartilhados e a declaração dos submódulos `calls`, `expressions`, `statements` e `traits` —, que não tem responsabilidade separada.
+// @pinker-nav:summary Single boundary of the top-level definitions that produce a native symbol (`carinho` and `eterno`): it consults the `SymbolDefinition` scope namespaces of the `native_symbol` authority — today the runtime's `pinker_` prefix and the platform entrypoint symbols `main` and `_start` — and refuses with `E-SEMANTIC-RESERVED-NAMESPACE` and the declaration's span, before any assembler or linker. It is not possible to apply them at the lexical boundary because `main` is a legitimate package name; and there is no need to repeat here the compiler-generated forms, already refused in the lexer. Host names remain legal: `malloc`, `memcpy`, `write`, `getenv`, `free` and `environ` pass through here without a diagnostic and are isolated by STB_LOCAL at emission. The region opens at the module's prelude — the shared uses and the declaration of the `calls`, `expressions`, `statements` and `traits` submodules —, which has no separate responsibility.
 use crate::ast::*;
 use crate::error::PinkerError;
 use crate::ir::TypeIR;
@@ -49,11 +49,11 @@ pub fn validar_namespace_pinker_owned(name: &str, span: Span) -> Result<(), Pink
     }
     Ok(())
 }
-// @pinker-nav:end semantic.identificadores.namespace-produtor-de-simbolo
-// @pinker-nav:start semantic.intrinsecas.colisao-de-declaracao
-// @pinker-nav:domain intrinsecas
+// @pinker-nav:end semantic.identifiers.symbol-producing-namespace
+// @pinker-nav:start semantic.intrinsics.declaration-collision
+// @pinker-nav:domain intrinsics
 // @pinker-nav:layer semantic
-// @pinker-nav:summary Politica de colisao entre declaracao de usuario e grafia intrinseca depois da #505, que separou o namespace callable global do namespace de familia: a declaracao homonima so e recusada onde a superficie intrinseca continua ativa, e o diagnostico sai na ordem de leitura do humano — unidade-fonte na ordem de descoberta, depois posicao — com o limite declarado de que entradas materializadas sem posicao de fonte empatam entre si.
+// @pinker-nav:summary Policy for the collision between a user declaration and an intrinsic spelling after #505, which separated the global callable namespace from the family namespace: a same-named declaration is refused only where the intrinsic surface is still active, and the diagnostic comes out in the human's reading order — source unit in discovery order, then position — with the declared limitation that entries materialized without a source position tie among themselves.
 
 /// #505 — o que a colisão de declaração ainda protege, e o que ela soltou.
 ///
@@ -158,11 +158,11 @@ fn validate_intrinsic_declaration_conflicts(program: &Program) -> Result<(), Pin
     Ok(())
 }
 
-// @pinker-nav:end semantic.intrinsecas.colisao-de-declaracao
-// @pinker-nav:start semantic.importacoes.familias
-// @pinker-nav:domain importacoes
+// @pinker-nav:end semantic.intrinsics.declaration-collision
+// @pinker-nav:start semantic.imports.families
+// @pinker-nav:domain imports
 // @pinker-nav:layer semantic
-// @pinker-nav:summary Validação semântica de `trazer` sobre os módulos built-in, e dono único da política de colisão de import. A lista de módulos e a superfície que cada um exporta não moram aqui: são consultadas em `intrinsics::public_surface`, a autoridade única que o parser também consulta ao canonicalizar. Esta camada decide o que é decisão de import — módulo desconhecido, membro inexistente na forma seletiva e colisão do membro seletivo com item de topo (`validate_family_import_collision`, atravessada tanto pela CLI quanto pelo caminho de biblioteca). A mensagem de membro inexistente vem da própria autoridade. Depois da #505 a colisão de DECLARAÇÃO tem duas causas distintas e mensagens próprias: grafia canônica, reservada porque continua sendo a chave de despacho a jusante, e membro que esta unidade traz. Identidade homônima trazida por `trazer <modulo>;` não é recusada aqui nem em lugar nenhum: ela vence o módulo em silêncio, no parser.
+// @pinker-nav:summary Semantic validation of `trazer` over the built-in modules, and the sole owner of the import collision policy. The list of modules and the surface each one exports do not live here: they are consulted in `intrinsics::public_surface`, the single authority the parser also consults when canonicalizing. This layer decides what is an import decision — an unknown module, a nonexistent member in the selective form and a collision of the selective member with a top-level item (`validate_family_import_collision`, crossed both by the CLI and by the library path). The message for a nonexistent member comes from the authority itself. Since #505 a DECLARATION collision has two distinct causes with their own messages: a canonical spelling, reserved because it remains the downstream dispatch key, and a member this unit brings in. A same-named identity brought in by `trazer <modulo>;` is not refused here nor anywhere else: it beats the module silently, in the parser.
 /// Parte G: o membro trazido seletivamente colide com um item de topo?
 ///
 /// A regra existia só em `main.rs`, o que deixava o caminho de biblioteca
@@ -230,11 +230,11 @@ pub fn validate_builtin_family_import(import: &ImportDecl) -> Result<(), PinkerE
     }
     Ok(())
 }
-// @pinker-nav:end semantic.importacoes.familias
-// @pinker-nav:start semantic.verificador.estado
-// @pinker-nav:domain verificador
+// @pinker-nav:end semantic.imports.families
+// @pinker-nav:start semantic.verifier.state
+// @pinker-nav:domain verifier
 // @pinker-nav:layer semantic
-// @pinker-nav:summary Estado do verificador semantico e os registros que ele carrega entre as duas passagens: metadados de variavel e de escopo, metadados de metodo de impl com identidade resolvida e grafia do alvo, e as tabelas globais de funcoes, constantes, aliases, ninhos, leques e tratos, incluindo a visibilidade de trato por unidade-fonte e o conjunto de fontes que sao modulo.
+// @pinker-nav:summary State of the semantic checker and the records it carries between the two passes: variable and scope metadata, impl method metadata with resolved identity and target spelling, and the global tables of functions, constants, aliases, ninhos, leques and tratos, including trato visibility per source unit and the set of sources that are modules.
 
 #[derive(Clone)]
 struct VarMeta {
@@ -343,11 +343,11 @@ impl SemanticChecker {
             && self.fontes_de_modulo.contains(&span.source)
     }
 }
-// @pinker-nav:end semantic.verificador.estado
-// @pinker-nav:start semantic.verificador.construcao-e-grafia
-// @pinker-nav:domain verificador
+// @pinker-nav:end semantic.verifier.state
+// @pinker-nav:start semantic.verifier.construction-and-spelling
+// @pinker-nav:domain verifier
 // @pinker-nav:layer semantic
-// @pinker-nav:summary Construcao do verificador (raiz e composto, este ciente dos tratos que cada unidade autorizou) e a superficie compartilhada de apoio das duas passagens: pergunta se uma grafia crua veio de modulo, resolve nome base de leque, projeta tipo de intrinseca, chaveia tipo, valida assinatura de funcao crua para ABI externa, consulta alcance de relacao trato-alvo, reconhece objeto de trato e self contextual, e empilha e desempilha escopo.
+// @pinker-nav:summary Construction of the checker (root and composed, the latter aware of the tratos each unit authorized) and the shared support surface of the two passes: it asks whether a raw spelling came from a module, resolves a leque's base name, projects an intrinsic's type, keys a type, validates a raw function's signature for the external ABI, consults the reach of a trato-target relation, recognizes a trato object and the contextual self, and pushes and pops a scope.
 
 impl SemanticChecker {
     pub fn new() -> Self {
@@ -599,11 +599,11 @@ impl SemanticChecker {
             .unwrap_or_else(|| Span::single(Position::new(1, 1)))
     }
 
-    // @pinker-nav:end semantic.verificador.construcao-e-grafia
-    // @pinker-nav:start semantic.tipos.sistema
-    // @pinker-nav:domain tipos
+    // @pinker-nav:end semantic.verifier.construction-and-spelling
+    // @pinker-nav:start semantic.types.system
+    // @pinker-nav:domain types
     // @pinker-nav:layer semantic
-    // @pinker-nav:summary Sistema de tipos da checagem: compatibilidade estrutural (`check_type_match`), resolução de tipos nomeados/aliases com detecção de recursão (`resolve_type_named`/`resolve_type_or_error`), validação de struct, regras de inteiro/cast e verificação de faixa de literais inteiros contra o tipo-alvo.
+    // @pinker-nav:summary Type system of the check: structural compatibility (`check_type_match`), resolution of named types/aliases with recursion detection (`resolve_type_named`/`resolve_type_or_error`), struct validation, integer/cast rules and range checking of integer literals against the target type.
     fn check_type_match(expected: &Type, actual: &Type) -> bool {
         // F-04: dois mapas são comparados pelos componentes que a autoridade de
         // representação entrega, nunca pela variante física que cada um
@@ -1279,12 +1279,12 @@ impl SemanticChecker {
             })
         }
     }
-    // @pinker-nav:end semantic.tipos.sistema
+    // @pinker-nav:end semantic.types.system
 
-    // @pinker-nav:start semantic.escopos.variaveis
-    // @pinker-nav:domain escopos
+    // @pinker-nav:start semantic.scopes.variables
+    // @pinker-nav:domain scopes
     // @pinker-nav:layer semantic
-    // @pinker-nav:summary Tabela de escopos léxicos: declaração de variável com proibição de sombreamento no mesmo escopo (`declare_var`) e resolução de nome subindo a pilha de escopos, com fallback para constantes globais (`resolve_var`).
+    // @pinker-nav:summary Table of lexical scopes: variable declaration with a prohibition on shadowing within the same scope (`declare_var`) and name resolution walking up the scope stack, with a fallback to global constants (`resolve_var`).
     fn declare_var(
         &mut self,
         name: &str,
@@ -1359,11 +1359,11 @@ impl SemanticChecker {
             span,
         })
     }
-    // @pinker-nav:end semantic.escopos.variaveis
-    // @pinker-nav:start semantic.ninhos.tipo-de-campo
+    // @pinker-nav:end semantic.scopes.variables
+    // @pinker-nav:start semantic.ninhos.field-type
     // @pinker-nav:domain ninhos
     // @pinker-nav:layer semantic
-    // @pinker-nav:summary Resolucao do tipo de um acesso de campo: exige base de ninho, procura o campo declarado e devolve o tipo do campo reancorado no span do acesso, para que o erro aponte para onde o humano escreveu.
+    // @pinker-nav:summary Resolution of the type of a field access: it requires a ninho base, looks for the declared field and returns the field's type re-anchored at the access's span, so that the error points to where the human wrote it.
 
     fn resolve_struct_field_type(
         &self,
@@ -1395,11 +1395,11 @@ impl SemanticChecker {
         self.resolve_type_or_error(&struct_field.ty)
             .map(|ty| ty.with_span(span))
     }
-    // @pinker-nav:end semantic.ninhos.tipo-de-campo
-    // @pinker-nav:start semantic.falhas.identidade-do-leque
-    // @pinker-nav:domain falhas
+    // @pinker-nav:end semantic.ninhos.field-type
+    // @pinker-nav:start semantic.failures.leque-identity
+    // @pinker-nav:domain failures
     // @pinker-nav:layer semantic
-    // @pinker-nav:summary Parte B1: nenhum leque onde o runtime deposita tags pode chegar ao lowering com outra taxonomia. Complementa a conjuncao do parser olhando o programa inteiro, e por isso alcanca identidade reivindicada em outro modulo e nome monomorfico composto por leque generico de outro nome; a decisao continua sendo da autoridade unica de falha operacional.
+    // @pinker-nav:summary Part B1: no leque where the runtime deposits tags may reach the lowering with another taxonomy. It complements the parser's conjunction by looking at the whole program, and therefore reaches an identity claimed in another module and a monomorphic name composed by a generic leque of another name; the decision still belongs to the single operational-failure authority.
 
     /// Parte B1: nenhum leque em que o runtime deposita tags pode ter chegado
     /// aqui com outra taxonomia.
@@ -1483,11 +1483,11 @@ impl SemanticChecker {
         })
     }
 
-    // @pinker-nav:end semantic.falhas.identidade-do-leque
-    // @pinker-nav:start semantic.programa.duas-passagens
-    // @pinker-nav:domain programa
+    // @pinker-nav:end semantic.failures.leque-identity
+    // @pinker-nav:start semantic.program.two-passes
+    // @pinker-nav:domain program
     // @pinker-nav:layer semantic
-    // @pinker-nav:summary Entrada em duas passagens sobre o `Program`: passagem 1 valida importações e coleta funções, constantes, aliases, structs, leques e tratos em tabelas globais (detectando duplicações e conflitos de nome entre categorias, cargas de variante e recursão de alias/struct); passagem 2 dispara a verificação de contratos e de todos os corpos.
+    // @pinker-nav:summary Two-pass entry over the `Program`: pass 1 validates imports and collects functions, constants, aliases, structs, leques and tratos into global tables (detecting duplications and name conflicts between categories, variant payloads and alias/struct recursion); pass 2 triggers the verification of contracts and of every body.
     /// Parte G: o identificador não resolve para identidade alguma?
     ///
     /// Só isto autoriza falar de família em posição de base: enquanto qualquer
@@ -1807,12 +1807,12 @@ impl SemanticChecker {
 
         Ok(())
     }
-    // @pinker-nav:end semantic.programa.duas-passagens
+    // @pinker-nav:end semantic.program.two-passes
 
-    // @pinker-nav:start semantic.funcoes.verificacao
-    // @pinker-nav:domain funcoes
+    // @pinker-nav:start semantic.functions.verification
+    // @pinker-nav:domain functions
     // @pinker-nav:layer semantic
-    // @pinker-nav:summary Verificação de corpos de topo: política fixa de `principal` (sem parâmetros, retorno `bombom`), checagem de constante (tipo do inicializador e faixa) e de função (parâmetros no escopo, corpo, e alcançabilidade de retorno em todos os caminhos simples quando há retorno declarado), redigindo identidades sintéticas de callables anônimos nos diagnósticos.
+    // @pinker-nav:summary Verification of top-level bodies: the fixed policy for `principal` (no parameters, `bombom` return), checking of a constant (initializer type and range) and of a function (parameters in scope, body, and return reachability on every simple path when a return is declared), rewriting synthetic identities of anonymous callables in the diagnostics.
     // `principal` é a política fixa de entrada da v0: sem parâmetros e retorno bombom.
     fn check_principal(&self, program: &Program) -> Result<(), PinkerError> {
         let Some(main_fn) = self.funcs.get("principal") else {
@@ -2048,11 +2048,11 @@ impl SemanticChecker {
             name.to_string()
         }
     }
-    // @pinker-nav:end semantic.funcoes.verificacao
-    // @pinker-nav:start semantic.asm.verificacao-inline
+    // @pinker-nav:end semantic.functions.verification
+    // @pinker-nav:start semantic.asm.inline-verification
     // @pinker-nav:domain asm
     // @pinker-nav:layer semantic
-    // @pinker-nav:summary Verificacao de `sussurro` inline: pedacos nao vazios, tipos de operando admissiveis, papeis de entrada e saida, clobbers declarados e a politica estrutural de statement do assembler, tudo antes de o bloco chegar ao backend.
+    // @pinker-nav:summary Verification of inline `sussurro`: non-empty chunks, admissible operand types, input and output roles, declared clobbers and the assembler's structural statement policy, all before the block reaches the backend.
 
     fn check_inline_asm(&mut self, stmt: &InlineAsmStmt) -> Result<(), PinkerError> {
         let semantic_error = |msg: String, span: Span| PinkerError::Semantic { msg, span };
@@ -2220,11 +2220,11 @@ impl SemanticChecker {
         Ok(())
     }
 
-    // @pinker-nav:end semantic.asm.verificacao-inline
-    // @pinker-nav:start semantic.enums.casamento-exaustividade
+    // @pinker-nav:end semantic.asm.inline-verification
+    // @pinker-nav:start semantic.enums.match-exhaustiveness
     // @pinker-nav:domain enums
     // @pinker-nav:layer semantic
-    // @pinker-nav:summary Casamento de leque: valida o padrao de cada ramo contra as variantes declaradas e suas cargas, detecta ramo inalcancavel porque um padrao anterior ja o cobre, e aponta a lacuna concreta de exaustividade em vez de apenas dizer que o casamento e incompleto.
+    // @pinker-nav:summary Leque matching: it validates each arm's pattern against the declared variants and their payloads, detects an unreachable arm because an earlier pattern already covers it, and points at the concrete exhaustiveness gap instead of merely saying that the match is incomplete.
     fn check_enum_match(&mut self, enum_match: &EnumMatchStmt) -> Result<(), PinkerError> {
         if let Some(EnumPattern::Variant {
             enum_name, span, ..
@@ -2578,11 +2578,11 @@ impl SemanticChecker {
         }
         Ok(None)
     }
-    // @pinker-nav:end semantic.enums.casamento-exaustividade
-    // @pinker-nav:start semantic.programa.pontos-de-entrada
-    // @pinker-nav:domain programa
+    // @pinker-nav:end semantic.enums.match-exhaustiveness
+    // @pinker-nav:start semantic.program.entry-points
+    // @pinker-nav:domain program
     // @pinker-nav:layer semantic
-    // @pinker-nav:summary Funcoes livres do modulo: politica estrutural de um pedaco de sussurro (completude por construcao, nao por lista de diretivas proibidas), tipos de operando admissiveis em asm inline, e os dois pontos de entrada publicos da checagem semantica — programa raiz e programa composto com a visibilidade de trato de cada unidade-fonte.
+    // @pinker-nav:summary Free functions of the module: the structural policy of a sussurro chunk (completeness by construction, not by a list of forbidden directives), the operand types admissible in inline asm, and the two public entry points of the semantic check — the root program and a composed program with each source unit's trato visibility.
 }
 
 /// Valida um pedaço de `sussurro` pela política estrutural de statements.
@@ -2630,12 +2630,12 @@ pub fn check_program_composto(
     SemanticChecker::com_visibilidade_de_tratos(traits_visiveis_por_fonte, fontes_de_modulo)
         .check_program(program)
 }
-// @pinker-nav:end semantic.programa.pontos-de-entrada
+// @pinker-nav:end semantic.program.entry-points
 
-// @pinker-nav:start semantic.modulos.validacao-local
-// @pinker-nav:domain modulos
-// @pinker-nav:layer semantica
-// @pinker-nav:summary check_module_unit valida uma unidade-fonte COMO MÓDULO, sem exigir `principal`: aplica à unidade as regras de declaração que dependem de dados do próprio Program — a política de redeclaração de intrínsecas públicas da PR #507, a validação de import de família built-in e a colisão entre import de família e item homônimo. Sao exatamente as obrigacoes cujo gatilho desaparecia quando `imports` e `items` do modulo eram descartados antes de qualquer validacao, fazendo com que a mesma fonte recusada como raiz passasse a ser aceita ao virar modulo.
+// @pinker-nav:start semantic.modules.local-validation
+// @pinker-nav:domain modules
+// @pinker-nav:layer semantic
+// @pinker-nav:summary check_module_unit validates a source unit AS A MODULE, without requiring `principal`: it applies to the unit the declaration rules that depend on the Program's own data — the redeclaration policy for public intrinsics from PR #507, the validation of a built-in family import and the collision between a family import and a same-named item. These are exactly the obligations whose trigger disappeared when the module's `imports` and `items` were discarded before any validation, making the same source refused as a root become accepted once it turned into a module.
 /// Valida uma unidade-fonte **como módulo**.
 ///
 /// `MODULE_VALIDATION_INPUT_PRESERVATION`: para toda regra V aplicável a um
@@ -2665,4 +2665,4 @@ pub fn check_module_unit(program: &Program) -> Result<(), PinkerError> {
 
     Ok(())
 }
-// @pinker-nav:end semantic.modulos.validacao-local
+// @pinker-nav:end semantic.modules.local-validation

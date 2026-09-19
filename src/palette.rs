@@ -9,10 +9,10 @@
 
 // ── Cor RGB ──────────────────────────────────────────────────────────
 
-// @pinker-nav:start palette.visual.identidade
+// @pinker-nav:start palette.visual.identity
 // @pinker-nav:domain visual
 // @pinker-nav:layer palette
-// @pinker-nav:summary Identidade cromática canônica da Pinker: tipo RGB truecolor com geração de sequências ANSI, as cores nomeadas da paleta e o tema estruturado TEMA_PINKER.
+// @pinker-nav:summary Pinker's canonical chromatic identity: a truecolor RGB type with generation of ANSI sequences, the palette's named colours and the structured theme TEMA_PINKER.
 /// Representação de uma cor em RGB de 24 bits.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Rgb {
@@ -139,13 +139,13 @@ pub const TEMA_PINKER: Tema = Tema {
 
 pub const RESET: &str = "\x1b[0m";
 
-// @pinker-nav:end palette.visual.identidade
+// @pinker-nav:end palette.visual.identity
 // ── Helpers para estilização ─────────────────────────────────────────
 
-// @pinker-nav:start palette.visual.estilizacao
+// @pinker-nav:start palette.visual.styling
 // @pinker-nav:domain visual
 // @pinker-nav:layer palette
-// @pinker-nav:summary Helpers de estilização ANSI (cor, negrito, itálico, sublinhado), detecção de supressão de cor via NO_COLOR e exportação textual da paleta para integrações com editores.
+// @pinker-nav:summary ANSI styling helpers (colour, bold, italic, underline), detection of colour suppression via NO_COLOR and textual export of the palette for editor integrations.
 /// Envolve `texto` com a cor de foreground indicada e reset ao final.
 pub fn colorir(cor: Rgb, texto: &str) -> String {
     format!("{}{}{}", cor.fg_ansi(), texto, RESET)
@@ -243,14 +243,14 @@ Seleção               {selecao}",
         selecao = t.selecao.to_hex_string(),
     )
 }
-// @pinker-nav:end palette.visual.estilizacao
+// @pinker-nav:end palette.visual.styling
 
 // ── Testes ───────────────────────────────────────────────────────────
 
-// @pinker-nav:start evidencia.paleta.cores-e-ansi
-// @pinker-nav:domain paleta
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Provas da paleta: conversao de hexadecimal para RGB e de volta, formato das sequencias ANSI de frente e de fundo, presenca do reset ao colorir e do reset junto do negrito, consistencia das cores do tema Pinker e cobertura de todas as cores no resumo publicado.
+// @pinker-nav:start evidence.palette.colors-and-ansi
+// @pinker-nav:domain palette
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Proofs of the palette: conversion from hexadecimal to RGB and back, the format of the foreground and background ANSI sequences, the presence of the reset when colouring and of the reset alongside bold, consistency of the Pinker theme colours and coverage of every colour in the published summary.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -324,4 +324,4 @@ mod tests {
         assert!(resumo.contains("#2A1F3A"));
     }
 }
-// @pinker-nav:end evidencia.paleta.cores-e-ansi
+// @pinker-nav:end evidence.palette.colors-and-ansi

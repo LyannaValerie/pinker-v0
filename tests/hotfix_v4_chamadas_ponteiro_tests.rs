@@ -99,10 +99,10 @@ fn largura_do_acesso(com_cast: bool) -> u64 {
     }
 }
 
-// @pinker-nav:start evidencia.hotfix.v4-chamadas-ponteiro
-// @pinker-nav:domain memoria
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Evidência da simetria das formas de chamada na proveniência de ponteiro: para chamada direta, indireta, por endereço cru de código e de trato, o ponteiro devolvido é classificado como memória pública e o acesso emite pinker_publico_validar_acesso em load e em store, com e sem cast ponteiro→ponteiro; os doze exemplos de região válida, uso após liberar e uso após liberar com cast concordam em exit e stdout entre interpretador e ELF nativo, com diagnóstico E-RUNTIME-MEM-USE-AFTER-FREE e sem nenhum término por sinal de memória.
+// @pinker-nav:start evidence.hotfix.v4-pointer-calls
+// @pinker-nav:domain memory
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Evidence of the symmetry of call forms in pointer provenance: for a direct call, an indirect call, a call by raw code address and a trait call, the returned pointer is classified as public memory and the access emits pinker_publico_validar_acesso on load and on store, with and without a pointer→pointer cast; the twelve examples of a valid region, use after free and use after free with a cast agree on exit and stdout between interpreter and native ELF, with the E-RUNTIME-MEM-USE-AFTER-FREE diagnostic and with no termination by a memory signal.
 #[test]
 fn toda_forma_de_chamada_emite_validacao_em_load_e_store() {
     for (forma, _, _) in FORMAS {
@@ -307,4 +307,4 @@ fn uso_apos_liberar_diagnostica_em_toda_forma_de_chamada() {
         }
     }
 }
-// @pinker-nav:end evidencia.hotfix.v4-chamadas-ponteiro
+// @pinker-nav:end evidence.hotfix.v4-pointer-calls

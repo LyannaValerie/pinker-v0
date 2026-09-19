@@ -137,10 +137,10 @@ fn paridade(exemplo: &str, esperado: &[&str]) {
     );
 }
 
-// @pinker-nav:start evidencia.leques.carga-lista-matriz-positiva
+// @pinker-nav:start evidence.leques.payload-list-positive-matrix
 // @pinker-nav:domain leques
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Matriz positiva de cargas de lista com paridade entre interpretador e binário nativo: listas vazias, de um e de vários elementos, `lista<verso>`, listas de leque sem e com carga, apelidos simples e encadeados, especializações genéricas monomorfizadas, variantes com cargas misturadas, leque recursivo por `lista<si>`, passagem e retorno da lista extraída, mutação antes, depois e pelo binding, iteração, e instâncias independentes da mesma variante.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Positive matrix of list payloads with parity between interpreter and native binary: empty, single-element and multi-element lists, `lista<verso>`, lists of leque with and without payload, simple and chained aliases, monomorphized generic specializations, variants with mixed payloads, a leque recursive through `lista<si>`, passing and returning the extracted list, mutation before, after and through the binding, iteration, and independent instances of the same variant.
 
 /// Matriz positiva principal: representação, aliasing raso e independência
 /// entre instâncias, com o mesmo stdout nos dois backends.
@@ -222,7 +222,7 @@ fn lista_vazia_atravessa_a_variante_sem_materializacao() {
     "#;
     assert_eq!(executa_fonte(code), vec!["0".to_string()]);
 }
-// @pinker-nav:end evidencia.leques.carga-lista-matriz-positiva
+// @pinker-nav:end evidence.leques.payload-list-positive-matrix
 
 /// Executa um fonte pelo interpretador, gravando-o num arquivo temporário para
 /// usar exatamente o mesmo caminho de CLI dos exemplos versionados.
@@ -253,10 +253,10 @@ fn executa_fonte(code: &str) -> Vec<String> {
         .collect()
 }
 
-// @pinker-nav:start evidencia.leques.carga-lista-matriz-negativa
+// @pinker-nav:start evidence.leques.payload-list-negative-matrix
 // @pinker-nav:domain leques
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Matriz negativa das cargas de lista: os tipos que continuam fora do contrato (`mapa<K,V>`, `seta<T>`, `ninho`, array fixo, função, objeto de trato, união estrutural, `nulo`, genérico não resolvido, tipo inexistente, aridade genérica errada), as trocas de identidade entre listas de mesma representação, a aridade de cargas e de bindings, a variante e o leque inexistentes, o argumento sem valor e o uso do binding por operação de lista incompatível — cada um com diagnóstico estável.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Negative matrix of list payloads: the types that remain outside the contract (`mapa<K,V>`, `seta<T>`, `ninho`, fixed array, function, trato object, structural union, `nulo`, unresolved generic, nonexistent type, wrong generic arity), identity swaps between lists of the same representation, the arity of payloads and of bindings, the nonexistent variant and leque, an argument without a value and use of the binding by an incompatible list operation — each with a stable diagnostic.
 
 /// Os tipos fora do contrato são recusados com o código estável e com a
 /// descrição fiel do contrato — nunca com a enumeração antiga.
@@ -480,12 +480,12 @@ fn especializacao_generica_com_aridade_errada_e_recusada() {
     let err = recusa(code);
     assert!(err.contains("argumento(s) de tipo"), "{err}");
 }
-// @pinker-nav:end evidencia.leques.carga-lista-matriz-negativa
+// @pinker-nav:end evidence.leques.payload-list-negative-matrix
 
-// @pinker-nav:start evidencia.leques.carga-lista-estrutura-ir
+// @pinker-nav:start evidence.leques.payload-list-ir-structure
 // @pinker-nav:domain leques
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Evidência estrutural sobre a IR das cargas de lista: a metadata publicada conserva representação operacional e identidade semântica ao mesmo tempo, `lista<Cor>` e `lista<Token>` não compartilham identidade, apelidos convergem para a identidade do alvo, nenhum parâmetro genérico residual sobrevive à monomorfização, o helper de runtime deriva da classe de representação, listas não são encaminhadas pelo helper de `verso`, e o validador de IR recusa metadata fabricada inconsistente.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Structural evidence about the IR of list payloads: the published metadata preserves operational representation and semantic identity at the same time, `lista<Cor>` and `lista<Token>` do not share identity, aliases converge to the target's identity, no residual generic parameter survives monomorphization, the runtime helper derives from the representation class, lists are not routed through the `verso` helper, and the IR validator refuses inconsistent fabricated metadata.
 
 /// A carga conserva as duas dimensões: representação operacional de uma
 /// palavra **e** identidade semântica resolvida com o elemento nomeado.
@@ -815,12 +815,12 @@ fn validador_recusa_metadata_fabricada() {
         .to_string();
     assert!(erro.contains("E-IR-ENUM-PAYLOAD-METADATA"), "{erro}");
 }
-// @pinker-nav:end evidencia.leques.carga-lista-estrutura-ir
+// @pinker-nav:end evidence.leques.payload-list-ir-structure
 
-// @pinker-nav:start evidencia.leques.carga-lista-abi-runtime
+// @pinker-nav:start evidence.leques.payload-list-runtime-abi
 // @pinker-nav:domain leques
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Prova de que o caminho de carga de uma palavra já transporta handles de lista sem alteração de ABI: as quatro intrínsecas internas de anexo e extração colapsam nos dois símbolos de runtime já existentes (`pinker_leque_anexar` e `pinker_leque_carga`), e a emissão nativa de um programa com cargas de lista não introduz símbolo de runtime novo.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Proof that the one-word payload path already carries list handles with no ABI change: the four internal append and extraction intrinsics collapse into the two runtime symbols that already exist (`pinker_leque_anexar` and `pinker_leque_carga`), and native emission of a program with list payloads introduces no new runtime symbol.
 
 /// O backend nativo reutiliza os símbolos existentes: nenhuma carga de lista
 /// cria símbolo novo, e a ABI permanece a de uma palavra.
@@ -870,4 +870,4 @@ fn cargas_de_lista_reutilizam_os_simbolos_de_runtime_existentes() {
         );
     }
 }
-// @pinker-nav:end evidencia.leques.carga-lista-abi-runtime
+// @pinker-nav:end evidence.leques.payload-list-runtime-abi

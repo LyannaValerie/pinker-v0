@@ -19,10 +19,10 @@
 //! do move e continua sendo: `pub(super)` é o mínimo que devolve ao pai a
 //! função que ele chama nas duas entradas públicas do caminho montável.
 
-// @pinker-nav:start backend-s.lowering.globais-rodata
+// @pinker-nav:start backend-s.lowering.rodata-globals
 // @pinker-nav:domain lowering
 // @pinker-nav:layer backend-s
-// @pinker-nav:summary `extract_external_callconv_program` (início): deduplicação de símbolos globais (recusa duplicados), aceitação apenas de globais estáticas `bombom`/`logica` com inicializador literal inteiro/lógico (`OperandIR::Int`/`Bool`), montagem de `rodata_globals`, e a exigência de função `principal`. Primeira responsabilidade contígua da extração para `ExternalCallConvProgram`.
+// @pinker-nav:summary `extract_external_callconv_program` (beginning): deduplication of global symbols (duplicates refused), acceptance only of static `bombom`/`logica` globals with an integer/logical literal initializer (`OperandIR::Int`/`Bool`), assembly of `rodata_globals`, and the requirement of a `principal` function. First contiguous responsibility of the extraction into `ExternalCallConvProgram`.
 use super::*;
 
 pub(super) fn extract_external_callconv_program(
@@ -66,12 +66,12 @@ pub(super) fn extract_external_callconv_program(
             "subset externo montável (Fase 84) exige função `principal`",
         ));
     }
-    // @pinker-nav:end backend-s.lowering.globais-rodata
+    // @pinker-nav:end backend-s.lowering.rodata-globals
 
-    // @pinker-nav:start backend-s.lowering.funcoes-frames
+    // @pinker-nav:start backend-s.lowering.functions-frames
     // @pinker-nav:domain lowering
     // @pinker-nav:layer backend-s
-    // @pinker-nav:summary Validação e enquadramento por função no caminho montável: recusa de retorno fora de `is_external_ret_type`, `principal` sem parâmetros, tipos de parâmetro/local fora de `is_external_param_type`/`is_external_local_type`, exigência de ao menos um bloco e `validate_external_block_labels`. Em seguida constrói `slot_offsets` alocando 8 bytes por slot na ordem parâmetros → locais → temporários (`collect_temp_ids`), calcula `raw_stack` e arredonda `stack_size` para múltiplo de 16 (0 quando não há slots). Tipos menores ainda ocupam slot de 8 bytes.
+    // @pinker-nav:summary Per-function validation and framing in the assemblable path: refusal of a return outside `is_external_ret_type`, `principal` without parameters, parameter/local types outside `is_external_param_type`/`is_external_local_type`, the requirement of at least one block and `validate_external_block_labels`. It then builds `slot_offsets` allocating 8 bytes per slot in the order parameters → locals → temporaries (`collect_temp_ids`), computes `raw_stack` and rounds `stack_size` up to a multiple of 16 (0 when there are no slots). Smaller types still occupy an 8-byte slot.
     let mut functions = Vec::new();
     let mut rodata_string_labels = HashMap::new();
     let mut rodata_strings = Vec::new();
@@ -206,12 +206,12 @@ pub(super) fn extract_external_callconv_program(
         } else {
             raw_stack.div_ceil(16) * 16
         };
-        // @pinker-nav:end backend-s.lowering.funcoes-frames
+        // @pinker-nav:end backend-s.lowering.functions-frames
 
-        // @pinker-nav:start backend-s.lowering.blocos-terminadores
+        // @pinker-nav:start backend-s.lowering.blocks-terminators
         // @pinker-nav:domain lowering
         // @pinker-nav:layer backend-s
-        // @pinker-nav:summary Abertura do laço de blocos e seleção do terminador de cada bloco: `SelectedTerminator::Jmp` → `ExternalCallConvTerminator::Jmp`; `Ret(Some(value))` materializa literais `verso` de retorno em `.rodata` (`register_rodata_strings_for_operand`) e vira `Ret`; `Ret(None)` vira `RetVoid` para funções/métodos `nulo`; `Br` copia condição e rótulos. Constrói o `terminator` antes do corpo do bloco.
+        // @pinker-nav:summary Opening of the block loop and selection of each block's terminator: `SelectedTerminator::Jmp` → `ExternalCallConvTerminator::Jmp`; `Ret(Some(value))` materializes returned `verso` literals into `.rodata` (`register_rodata_strings_for_operand`) and becomes `Ret`; `Ret(None)` becomes `RetVoid` for `nulo` functions/methods; `Br` copies condition and labels. It builds the `terminator` before the block body.
         let mut blocks = Vec::new();
         // Identificador determinístico de envelope de `sussurro` dentro da função.
         let mut inline_asm_envelopes = 0_u32;
@@ -239,12 +239,12 @@ pub(super) fn extract_external_callconv_program(
                     else_label: else_label.clone(),
                 },
             };
-            // @pinker-nav:end backend-s.lowering.blocos-terminadores
+            // @pinker-nav:end backend-s.lowering.blocks-terminators
 
-            // @pinker-nav:start backend-s.lowering.operacoes-memoria
+            // @pinker-nav:start backend-s.lowering.memory-operations
             // @pinker-nav:domain lowering
             // @pinker-nav:layer backend-s
-            // @pinker-nav:summary Lowering externo de dados/memória: `Mov`; aritmética `Add`/`Sub`/`Mul`, com validação nativa de derivação quando o resultado preserva tipo ponteiro; comparações, incluindo condições assinadas inferidas dos produtores; `DerefLoad`/`DerefStore` por largura e sinal para todos os escalares públicos, precedidos por validação de região; e casts de uma palavra. O caminho hospedado legado mantém seu subconjunto conservador.
+            // @pinker-nav:summary External lowering of data/memory: `Mov`; `Add`/`Sub`/`Mul` arithmetic, with native derivation validation when the result preserves a pointer type; comparisons, including signed conditions inferred from the producers; `DerefLoad`/`DerefStore` by width and sign for every public scalar, preceded by region validation; and one-word casts. The legacy hosted path keeps its conservative subset.
             let mut body = Vec::new();
             for (instr_index, inst) in block.instructions.iter().enumerate() {
                 match inst {
@@ -677,12 +677,12 @@ pub(super) fn extract_external_callconv_program(
                             slot_offsets[&temp_key(*dest)]
                         ));
                     }
-                    // @pinker-nav:end backend-s.lowering.operacoes-memoria
+                    // @pinker-nav:end backend-s.lowering.memory-operations
 
-                    // @pinker-nav:start backend-s.lowering.chamadas-sysv
+                    // @pinker-nav:start backend-s.lowering.sysv-calls
                     // @pinker-nav:domain lowering
                     // @pinker-nav:layer backend-s
-                    // @pinker-nav:summary Lowering de chamadas no corpo do bloco (ABI SysV): `Call` com destino trata `__ternario` puro por `cmoveq`; `formatar_verso` materializa um pack contíguo de handles `verso` na pilha e chama a autoridade única `pinker_formatar_verso_pack(modelo,count,entries)`; passagem dos 6 primeiros argumentos em `ARG_REGS`, empilhamento do 7º+ do último ao primeiro com padding de alinhamento e cleanup após o `call`. `Call` e `CallVoid` delegam a escolha do destino a `resolver_rota_de_chamada` e diferem apenas em `CallVoid` não guardar `%rax`. `CallVoid` passou a consultar também o despacho por aridade, que antes só o `Call` consultava: é por aí que `afirmar` alcança `pinker_afirmar_1`/`pinker_afirmar_2`, e para as demais intrínsecas de aridade variável o ramo é inalcançável porque a seleção só emite `CallVoid` para retorno `Nulo`. Aridade fora do recorte e callee desconhecido continuam recusados por esta camada.
+                    // @pinker-nav:summary Lowering of calls in the block body (SysV ABI): `Call` with a destination handles pure `__ternario` through `cmoveq`; `formatar_verso` materializes a contiguous pack of `verso` handles on the stack and calls the single authority `pinker_formatar_verso_pack(modelo,count,entries)`; the first 6 arguments are passed in `ARG_REGS`, the 7th onwards are pushed from last to first with alignment padding and cleanup after the `call`. `Call` and `CallVoid` delegate the choice of destination to `resolver_rota_de_chamada` and differ only in that `CallVoid` does not keep `%rax`. `CallVoid` now also consults arity dispatch, which previously only `Call` consulted: that is how `afirmar` reaches `pinker_afirmar_1`/`pinker_afirmar_2`, and for the remaining variable-arity intrinsics the branch is unreachable because selection only emits `CallVoid` for a `Nulo` return. Arity outside the slice and an unknown callee remain refused by this layer.
                     SelectedInstr::Call {
                         dest,
                         callee,
@@ -1152,11 +1152,11 @@ pub(super) fn extract_external_callconv_program(
                             body.push(format!("addq ${}, %rsp", 8 * (stack_args + pad)));
                         }
                     }
-                    // @pinker-nav:end backend-s.lowering.chamadas-sysv
-                    // @pinker-nav:start backend-s.lowering.objetos-trato-nativos
+                    // @pinker-nav:end backend-s.lowering.sysv-calls
+                    // @pinker-nav:start backend-s.lowering.native-trato-objects
                     // @pinker-nav:domain lowering
                     // @pinker-nav:layer backend-s
-                    // @pinker-nav:summary Materialização nativa de `trato<T>` e despacho por vtable: `MakeTraitObject` avalia o operando uma vez, aloca/copia o snapshot pelo tamanho concreto exato, aloca o descritor `{data_ptr,vtable_ptr}` de 16 bytes e guarda seu endereço no destino. `TraitCall` carrega descritor, snapshot, vtable e slot, posiciona receiver + argumentos pela ABI SysV (incluindo spill/padding) e executa `call *%r11`, sem `__env`; retorno `nulo` não grava destino.
+                    // @pinker-nav:summary Native materialization of `trato<T>` and vtable dispatch: `MakeTraitObject` evaluates the operand once, allocates/copies the snapshot by the exact concrete size, allocates the 16-byte `{data_ptr,vtable_ptr}` descriptor and stores its address in the destination. `TraitCall` loads descriptor, snapshot, vtable and slot, positions receiver + arguments per the SysV ABI (including spill/padding) and executes `call *%r11`, without `__env`; a `nulo` return does not write the destination.
                     SelectedInstr::MakeTraitObject {
                         dest,
                         value,
@@ -1301,12 +1301,12 @@ pub(super) fn extract_external_callconv_program(
                             ));
                         }
                     }
-                    // @pinker-nav:end backend-s.lowering.objetos-trato-nativos
+                    // @pinker-nav:end backend-s.lowering.native-trato-objects
 
                     // @pinker-nav:start backend-s.lowering.falar-runtime
                     // @pinker-nav:domain lowering
                     // @pinker-nav:layer backend-s
-                    // @pinker-nav:summary Lowering de `falar` no corpo do bloco: cada pedaço vira uma chamada ao runtime conforme o tipo (`pinker_falar_pedaco_verso`/`_logica`/`_bombom`), com `pinker_falar_espaco` como separador entre pedaços e `pinker_falar_fim` ao final — espelhando `PrintInt`/`PrintBool`/`PrintStr` do interpretador. Inclui o braço catch-all do `match` que recusa instruções fora do subset montável. `falar` continua instrução própria (não intrínseca); mesmo o caminho hospedado (não nativo) emite referências a esses símbolos de `pinker_rt` quando o programa usa `falar` ou intrínsecas.
+                    // @pinker-nav:summary Lowering of `falar` in the block body: each piece becomes a runtime call according to its type (`pinker_falar_pedaco_verso`/`_logica`/`_bombom`), with `pinker_falar_espaco` as the separator between pieces and `pinker_falar_fim` at the end — mirroring `PrintInt`/`PrintBool`/`PrintStr` of the interpreter. It includes the catch-all arm of the `match` that refuses instructions outside the assemblable subset. `falar` remains its own instruction (not an intrinsic); even the hosted (non-native) path emits references to those `pinker_rt` symbols when the program uses `falar` or intrinsics.
                     // `falar` nativo (Fase 215/B4): cada pedaço vira uma
                     // chamada ao runtime conforme o tipo, com separador entre
                     // pedaços e quebra de linha ao final — espelhando as
@@ -1574,10 +1574,10 @@ pub(super) fn extract_external_callconv_program(
                 }
             }
             // @pinker-nav:end backend-s.lowering.falar-runtime
-            // @pinker-nav:start backend-s.callconv.montagem-do-programa
+            // @pinker-nav:start backend-s.callconv.program-assembly
             // @pinker-nav:domain callconv
             // @pinker-nav:layer backend-s
-            // @pinker-nav:summary Montagem final do programa de convencao externa: fecha cada bloco com seu terminador, acumula as funcoes e reune rodata de globais, de strings e de referencias a funcao com as vtables e adaptadores de trato. A referencia a funcao inexistente como valor e recusada aqui pelo subset da Fase 242.
+            // @pinker-nav:summary Final assembly of the external-convention program: it closes each block with its terminator, accumulates the functions and gathers rodata from globals, from strings and from function references together with the trato vtables and adapters. A reference to a nonexistent function as a value is refused here by the Phase 242 subset.
             blocks.push(ExternalCallConvBlock {
                 label: block.label.clone(),
                 body,
@@ -1615,4 +1615,4 @@ pub(super) fn extract_external_callconv_program(
         functions,
     })
 }
-// @pinker-nav:end backend-s.callconv.montagem-do-programa
+// @pinker-nav:end backend-s.callconv.program-assembly

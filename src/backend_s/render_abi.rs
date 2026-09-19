@@ -13,10 +13,10 @@
 //! `pinker_v0::backend_s::render_program` continue sendo o mesmo caminho
 //! público; nenhum outro item ganhou visibilidade.
 
-// @pinker-nav:start backend-s.renderizacao.abi-textual-programa
-// @pinker-nav:domain renderizacao
+// @pinker-nav:start backend-s.rendering.textual-abi-program
+// @pinker-nav:domain rendering
 // @pinker-nav:layer backend-s
-// @pinker-nav:summary `render_program`: renderer do `.s` **textual** baseado em `BackendTextProgram` (caminho `emit_from_selected`), distinto do renderer montável. Emite cabeçalho, `module`, `mode` livre/hospedado, metadados `abi.*` **como comentários** (`; abi.func`/`abi.params`/`abi.ret`/`abi.frame`/`abi.prologue`/`abi.epilogue`), `.rodata` de globais e blocos. No modo freestanding embute `boot.entry`, o linker script e o kernel stub textuais e um loop `.Lpinker_hang`. **Não** é assembly GAS montável nem ABI SysV real: `mov $slot`/`unop`/`binop` e os `@arg`/`@ret` são convenções textuais, não reconhecíveis diretamente pelo assembler.
+// @pinker-nav:summary `render_program`: renderer of the **textual** `.s` based on `BackendTextProgram` (the `emit_from_selected` path), distinct from the assemblable renderer. It emits a header, `module`, free/hosted `mode`, `abi.*` metadata **as comments** (`; abi.func`/`abi.params`/`abi.ret`/`abi.frame`/`abi.prologue`/`abi.epilogue`), `.rodata` of globals and blocks. In freestanding mode it embeds the textual `boot.entry`, linker script and kernel stub and a `.Lpinker_hang` loop. It is **not** assemblable GAS assembly nor a real SysV ABI: `mov $slot`/`unop`/`binop` and the `@arg`/`@ret` are textual conventions, not directly recognizable by the assembler.
 use super::*;
 
 pub fn render_program(program: &BackendTextProgram) -> String {
@@ -159,12 +159,12 @@ pub fn render_program(program: &BackendTextProgram) -> String {
 
     out
 }
-// @pinker-nav:end backend-s.renderizacao.abi-textual-programa
+// @pinker-nav:end backend-s.rendering.textual-abi-program
 
-// @pinker-nav:start backend-s.renderizacao.abi-textual-instrucoes
-// @pinker-nav:domain renderizacao
+// @pinker-nav:start backend-s.rendering.textual-abi-instructions
+// @pinker-nav:domain rendering
 // @pinker-nav:layer backend-s
-// @pinker-nav:summary `render_instruction` e `render_terminator` do `.s` textual: formatam cada `BackendTextInstruction` (`mov`, `unop`, `binop`, `call ; abi.call ... -> ...` com ramo defensivo de call inválida, `falar` com pares `valor:tipo`) e cada `BackendTextTerminator` (`jmp`, `br`, `ret @ret`, `ret_void`). Convenções textuais anotadas — não emitem instruções x86 reais.
+// @pinker-nav:summary `render_instruction` and `render_terminator` of the textual `.s`: they format each `BackendTextInstruction` (`mov`, `unop`, `binop`, `call ; abi.call ... -> ...` with a defensive branch for an invalid call, `falar` with `value:type` pairs) and each `BackendTextTerminator` (`jmp`, `br`, `ret @ret`, `ret_void`). Annotated textual conventions — they do not emit real x86 instructions.
 fn render_instruction(inst: &crate::backend_text::BackendTextInstruction) -> String {
     match inst {
         crate::backend_text::BackendTextInstruction::Mov { dest, src } => {
@@ -385,12 +385,12 @@ fn render_terminator(
         crate::backend_text::BackendTextTerminator::Return(None) => "ret_void".to_string(),
     }
 }
-// @pinker-nav:end backend-s.renderizacao.abi-textual-instrucoes
+// @pinker-nav:end backend-s.rendering.textual-abi-instructions
 
-// @pinker-nav:start backend-s.renderizacao.abi-textual-componentes
-// @pinker-nav:domain renderizacao
+// @pinker-nav:start backend-s.rendering.textual-abi-components
+// @pinker-nav:domain rendering
 // @pinker-nav:layer backend-s
-// @pinker-nav:summary Componentes do renderer `.s` textual: `render_unary`/`render_binop` (nomes de operador), `render_operand` (locais `$slot`, globais `@nome(%rip)`, inteiros, `1`/`0`, strings entre aspas **sem escape**, temporários `%tN`), `render_temp`, `render_slot`, `join_or_empty` e os helpers de metadado `render_abi_params`/`render_abi_return`/`render_call_site`/`render_abi_call_args` (`@arg`/`@ret`, comentários). Serializam elementos individuais da representação textual; não produzem código nativo.
+// @pinker-nav:summary Components of the textual `.s` renderer: `render_unary`/`render_binop` (operator names), `render_operand` (locals `$slot`, globals `@name(%rip)`, integers, `1`/`0`, quoted strings **without escaping**, temporaries `%tN`), `render_temp`, `render_slot`, `join_or_empty` and the metadata helpers `render_abi_params`/`render_abi_return`/`render_call_site`/`render_abi_call_args` (`@arg`/`@ret`, comments). They serialize individual elements of the textual representation; they do not produce native code.
 fn render_unary(op: UnaryOpIR) -> &'static str {
     match op {
         UnaryOpIR::Neg => "neg",
@@ -507,4 +507,4 @@ fn render_abi_call_args(args: &[crate::cfg_ir::OperandIR]) -> String {
         format!("[{}]", args)
     }
 }
-// @pinker-nav:end backend-s.renderizacao.abi-textual-componentes
+// @pinker-nav:end backend-s.rendering.textual-abi-components

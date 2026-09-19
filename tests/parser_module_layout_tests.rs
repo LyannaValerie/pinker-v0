@@ -21,35 +21,35 @@ use common::rust_source::codigo_executavel;
 
 /// Regiões que a PAR-X moveu de `src/parser.rs` para os irmãos.
 const REGIOES_MOVIDAS: &[(&str, &str)] = &[
-    ("parser.resultado.tentar-propagar", "resultado.rs"),
-    ("parser.genericos.inferencia-local", "genericos.rs"),
-    ("parser.genericos.substituicao-ast", "genericos.rs"),
-    ("parser.callbacks.substituicao-estatica", "genericos.rs"),
-    ("parser.callbacks.instanciacao-estatica", "genericos.rs"),
-    ("parser.genericos.funcoes-instanciacao", "genericos.rs"),
-    ("parser.genericos.leques-instanciacao", "genericos.rs"),
-    ("parser.comandos.bloco", "comandos.rs"),
-    ("parser.lacos.for-each", "lacos.rs"),
-    ("parser.expressoes.precedencia", "expressoes.rs"),
-    ("parser.expressoes.primarias", "expressoes.rs"),
-    ("parser.expressoes.postfix", "expressoes.rs"),
-    ("parser.texto.interpolacao", "expressoes.rs"),
+    ("parser.result.tentar-propagar", "resultado.rs"),
+    ("parser.generics.local-inference", "genericos.rs"),
+    ("parser.generics.ast-substitution", "genericos.rs"),
+    ("parser.callbacks.static-substitution", "genericos.rs"),
+    ("parser.callbacks.static-instantiation", "genericos.rs"),
+    ("parser.generics.functions-instantiation", "genericos.rs"),
+    ("parser.generics.leques-instantiation", "genericos.rs"),
+    ("parser.commands.block", "comandos.rs"),
+    ("parser.loops.for-each", "lacos.rs"),
+    ("parser.expressions.precedence", "expressoes.rs"),
+    ("parser.expressions.primaries", "expressoes.rs"),
+    ("parser.expressions.postfix", "expressoes.rs"),
+    ("parser.text.interpolation", "expressoes.rs"),
 ];
 
-/// Regiões que a PAR-X deixou onde estavam. `parser.importacoes.superficie-familia`
+/// Regiões que a PAR-X deixou onde estavam. `parser.imports.family-surface`
 /// é a fronteira C6 da #600: a autoridade pré-loader do parser não se move.
 const REGIOES_RETIDAS: &[&str] = &[
-    "parser.fluxo.nucleo",
-    "parser.programa.estrutura",
-    "parser.tipos.gramatica",
-    "parser.declaracoes.tipos",
-    "parser.encaixe.expressao",
-    "parser.closures.expressao",
-    "parser.funcoes.declaracao",
-    "parser.genericos.identidade-especializacao",
-    "parser.importacoes.superficie-familia",
-    "parser.genericos.leques-template",
-    "parser.constantes.declaracao",
+    "parser.flow.core",
+    "parser.program.structure",
+    "parser.types.grammar",
+    "parser.declarations.types",
+    "parser.encaixe.expression",
+    "parser.closures.expression",
+    "parser.functions.declaration",
+    "parser.generics.specialization-identity",
+    "parser.imports.family-surface",
+    "parser.generics.leques-template",
+    "parser.constants.declaration",
 ];
 
 /// Símbolos que o move obrigou a expor ao módulo pai, um por dependência real.

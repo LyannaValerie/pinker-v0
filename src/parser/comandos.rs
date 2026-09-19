@@ -1,7 +1,7 @@
-// @pinker-nav:start parser.comandos.bloco
-// @pinker-nav:domain comandos
+// @pinker-nav:start parser.commands.block
+// @pinker-nav:domain commands
 // @pinker-nav:layer parser
-// @pinker-nav:summary Blocos e comandos: reconhece `{ ... }`, declarações locais (`nova`/`muda`), atribuições, `mimo` (retorno), `talvez`/`senao`, laços (`sempre`/`repetir`), `quebrar`/`continuar`, `falar` e asm inline, produzindo `ast::Block`/`ast::Stmt`.
+// @pinker-nav:summary Blocks and statements: it recognizes `{ ... }`, local declarations (`nova`/`muda`), assignments, `mimo` (return), `talvez`/`senao`, loops (`sempre`/`repetir`), `quebrar`/`continuar`, `falar` and inline asm, producing `ast::Block`/`ast::Stmt`.
 use super::*;
 
 impl Parser {
@@ -465,4 +465,4 @@ impl Parser {
         }))
     }
 }
-// @pinker-nav:end parser.comandos.bloco
+// @pinker-nav:end parser.commands.block

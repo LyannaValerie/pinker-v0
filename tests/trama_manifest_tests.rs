@@ -10,10 +10,10 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-// @pinker-nav:start evidencia.trama.manifest.fixture-config
+// @pinker-nav:start evidence.trama.manifest.fixture-config
 // @pinker-nav:domain development
 // @pinker-nav:layer support
-// @pinker-nav:summary Configuração documental mínima usada pelas fixtures de manifesto.
+// @pinker-nav:summary Minimal documentary configuration used by the manifest fixtures.
 const DOC_TOML: &str = r#"schema = 1
 
 [github]
@@ -27,12 +27,12 @@ repository = "LyannaValerie/pinker-v0"
 docs_index = "docs/navigation.jsonl"
 code_index = "src/navigation.jsonl"
 "#;
-// @pinker-nav:end evidencia.trama.manifest.fixture-config
+// @pinker-nav:end evidence.trama.manifest.fixture-config
 
-// @pinker-nav:start evidencia.trama.manifest.process-support
+// @pinker-nav:start evidence.trama.manifest.process-support
 // @pinker-nav:domain development
 // @pinker-nav:layer support
-// @pinker-nav:summary Helpers que montam manifestos aceitos, repositórios temporários, arquivos, processos doc e configuração dos testes.
+// @pinker-nav:summary Helpers that assemble accepted manifests, temporary repositories, files, doc processes and the tests' configuration.
 fn manifest(pr: u64, title: &str, kind: &str, status: &str) -> String {
     format!(
         "schema: 1\nsource:\n  type: github-pr\n  number: {pr}\n  repository: LyannaValerie/pinker-v0\nkind: {kind}\ntitle: {title}\narea:\n  - language.result\nstatus: {status}\n"
@@ -78,12 +78,12 @@ fn acervo(root: &Path, pr: u64, content: &str) {
         String::from_utf8_lossy(&sync.stderr)
     );
 }
-// @pinker-nav:end evidencia.trama.manifest.process-support
+// @pinker-nav:end evidence.trama.manifest.process-support
 
-// @pinker-nav:start evidencia.trama.manifest.historical-read
+// @pinker-nav:start evidence.trama.manifest.historical-read
 // @pinker-nav:domain development
 // @pinker-nav:layer evidence
-// @pinker-nav:summary Evidência de que os manifestos aceitos permanecem legíveis, verificáveis e byte a byte intactos, e de que sincronizar não inventa manifesto para PR nenhum.
+// @pinker-nav:summary Evidence that accepted manifests remain readable, verifiable and byte-for-byte intact, and that sincronizar invents a manifest for no PR at all.
 #[test]
 fn manifesto_aceito_permanece_legivel_e_verificavel() {
     let root = temp_repo("read");
@@ -129,12 +129,12 @@ fn sincronizar_nao_sintetiza_manifesto_novo() {
 
     fs::remove_dir_all(root).unwrap();
 }
-// @pinker-nav:end evidencia.trama.manifest.historical-read
+// @pinker-nav:end evidence.trama.manifest.historical-read
 
-// @pinker-nav:start evidencia.trama.manifest.tamper-detection
+// @pinker-nav:start evidence.trama.manifest.tamper-detection
 // @pinker-nav:domain development
 // @pinker-nav:layer evidence
-// @pinker-nav:summary Evidência de que adulterar o payload aceito, o histórico mecânico ou o marco do acervo é detectado por pink doc verificar com E-DOC-VERIFY.
+// @pinker-nav:summary Evidence that tampering with the accepted payload, the mechanical history or the collection baseline is detected by pink doc verificar with E-DOC-VERIFY.
 #[test]
 fn payload_adulterado_e_detectado() {
     let root = temp_repo("tamper_payload");
@@ -225,4 +225,4 @@ fn campo_desconhecido_e_detectado() {
 
     fs::remove_dir_all(root).unwrap();
 }
-// @pinker-nav:end evidencia.trama.manifest.tamper-detection
+// @pinker-nav:end evidence.trama.manifest.tamper-detection

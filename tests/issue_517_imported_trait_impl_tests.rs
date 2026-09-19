@@ -5,10 +5,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-// @pinker-nav:start evidencia.modulos.impl-sobre-trato-importado
-// @pinker-nav:domain modulos
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Prova comportamental da #517: um trato explicitamente importado é alvo legítimo de `impl` sem que a grafia passe a decidir identidade. A matriz positiva cobre import seletivo e inteiro, `impl` dentro de módulo, default herdado, override explícito, objeto de trato e paridade interpretador/nativo; a negativa fixa ausência de import, captura por homônimo local e irmão, estado ambíguo de import, reexport implícito nas duas grafias, `impl` duplicado e as recusas de contrato que já existiam. O oráculo de identidade é o símbolo canônico `__impl_<n>_<módulo>.<trato>_...` observado na IR, não a ausência de mensagem de erro: ele distingue `a.Marca` de `b.Marca` e de uma resolução por texto puro.
+// @pinker-nav:start evidence.modules.impl-on-imported-trato
+// @pinker-nav:domain modules
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Behavioral proof of #517: an explicitly imported trato is a legitimate `impl` target without the spelling coming to decide identity. The positive matrix covers selective and whole imports, `impl` inside a module, an inherited default, an explicit override, a trato object and interpreter/native parity; the negative one fixes the absence of an import, capture by a local and a sibling of the same name, an ambiguous import state, implicit re-export in both spellings, a duplicate `impl` and the contract refusals that already existed. The identity oracle is the canonical symbol `__impl_<n>_<module>.<trato>_...` observed in the IR, not the absence of an error message: it distinguishes `a.Marca` from `b.Marca` and from a resolution by pure text.
 
 /// Um caso é um conjunto de fontes; a primeira é a raiz.
 struct Caso {
@@ -951,4 +951,4 @@ fn ordem_textual_import_antes_dos_itens_e_regra_de_gramatica_preexistente() {
         "{erro}"
     );
 }
-// @pinker-nav:end evidencia.modulos.impl-sobre-trato-importado
+// @pinker-nav:end evidence.modules.impl-on-imported-trato

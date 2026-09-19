@@ -166,7 +166,7 @@ fn dois_explicitos_sao_conflito_em_ordem_canonica() {
 
 /// As duas fases, cada uma como o MÓDULO inteiro e não como um arquivo.
 ///
-/// A decomposição física da #619 desceu `semantic.chamadas.despacho` — e com
+/// A decomposição física da #619 desceu `semantic.calls.dispatch` — e com
 /// ela a única consulta da semântica a `select_impl_method` — para
 /// `src/semantic/calls.rs`; a da #621 desceu o `impl FunctionLowerer` inteiro —
 /// e com ele a consulta a `select_impl_method` — para `src/ir/lowering.rs`; e a
@@ -247,7 +247,7 @@ fn ninguem_mais_consulta_a_autoridade_de_selecao() {
             // A #621 desceu para `ir/lowering.rs` a consulta do lowering a
             // `select_impl_method` e a #624 desceu para `ir/context.rs` a
             // consulta a `select_representative`, que é código executável da
-            // região `ir.lowering.metodos-identidade`. A camada continua sendo
+            // região `ir.lowering.method-identity`. A camada continua sendo
             // `ir` e as duas consultas continuam sendo uma cada; só o arquivo
             // mudou, e `ir.rs` saiu da lista porque não sobrou nenhuma consulta
             // nele — nem por citação em comentário, que `codigo_executavel`
@@ -258,7 +258,7 @@ fn ninguem_mais_consulta_a_autoridade_de_selecao() {
             // A #619 desceu para `semantic/calls.rs` a consulta da
             // semântica a `select_impl_method` e a #636 desceu para
             // `semantic/traits.rs` a consulta a `select_representative`, que é
-            // código executável da região `semantic.tratos.contratos`. A camada
+            // código executável da região `semantic.tratos.contracts`. A camada
             // continua sendo `semantic` e as duas consultas continuam sendo uma
             // cada; só o arquivo mudou, e `semantic.rs` saiu da lista porque
             // não sobrou nenhuma consulta nele — nem por citação em comentário,

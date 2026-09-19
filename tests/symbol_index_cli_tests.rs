@@ -64,7 +64,7 @@ Relações explícitas.
 
 const CODE: &str = r#"// @pinker-nav:start codigo.alvo.declaracao
 // @pinker-nav:domain fixture
-// @pinker-nav:layer modelo
+// @pinker-nav:layer model
 // @pinker-nav:symbol pkg_a::igual|igual|rust-type|declaration
 // @pinker-nav:symbol-doc pkg_a::igual|development.symbol-index.contract
 // @pinker-nav:summary Declara o primeiro homônimo.
@@ -89,7 +89,7 @@ fn usar_igual() {}
 
 // @pinker-nav:start codigo.homonimo.b
 // @pinker-nav:domain fixture
-// @pinker-nav:layer modelo
+// @pinker-nav:layer model
 // @pinker-nav:symbol pkg_b::igual|igual|rust-function|declaration
 // @pinker-nav:summary Segundo homônimo sem implementação, docs ou testes explícitos.
 fn igual() {}
@@ -97,7 +97,7 @@ fn igual() {}
 
 // @pinker-nav:start codigo.pinker.funcao
 // @pinker-nav:domain fixture
-// @pinker-nav:layer modelo
+// @pinker-nav:layer model
 // @pinker-nav:symbol app::principal|principal|pinker-function|declaration
 // @pinker-nav:summary Função Pinker publicada explicitamente pela fixture.
 fn marcador_pinker() {}
@@ -105,7 +105,7 @@ fn marcador_pinker() {}
 
 // @pinker-nav:start codigo.desconhecido
 // @pinker-nav:domain fixture
-// @pinker-nav:layer modelo
+// @pinker-nav:layer model
 // @pinker-nav:symbol gerado::opaco|opaco|UNKNOWN|declaration
 // @pinker-nav:summary Categoria deliberadamente indisponível na autoridade.
 fn opaco() {}
@@ -114,7 +114,7 @@ fn opaco() {}
 
 const EVIDENCE: &str = r#"// @pinker-nav:start evidencia.simbolo.igual
 // @pinker-nav:domain fixture
-// @pinker-nav:layer evidencia
+// @pinker-nav:layer evidence
 // @pinker-nav:test-for pkg_a::igual
 // @pinker-nav:summary Evidência explicitamente associada ao primeiro homônimo.
 #[test]
@@ -244,12 +244,12 @@ fn snapshot(root: &Path) -> BTreeMap<String, (Vec<u8>, SystemTime)> {
     out
 }
 
-// @pinker-nav:start evidencia.symbol-index.cli
-// @pinker-nav:domain simbolos
-// @pinker-nav:layer evidencia
+// @pinker-nav:start evidence.symbol-index.cli
+// @pinker-nav:domain symbols
+// @pinker-nav:layer evidence
 // @pinker-nav:test-for pinker_v0::symbol_index::locate
 // @pinker-nav:test-for pinker_v0::symbol_index::LocateReport
-// @pinker-nav:summary Prova a CLI de localização, o modelo comum, homônimos, relações explícitas, UNKNOWN/UNAVAILABLE, determinismo entre roots, exits, read-only e ausência estrutural de heurística, rede, Git remoto ou subprocessos no derivador.
+// @pinker-nav:summary Proves the lookup CLI, the common model, same-named items, explicit relations, UNKNOWN/UNAVAILABLE, determinism across roots, exits, read-only operation and the structural absence of heuristics, network, remote Git or subprocesses in the deriver.
 
 #[test]
 fn localiza_simbolo_conhecido_e_todas_as_relacoes_explicitas() {
@@ -468,14 +468,14 @@ fn metadados_rejeitam_destino_inexistente_duplicidade_e_teste_fabricado() {
     write(
         fabricated.path(),
         "tests/evidence.rs",
-        &EVIDENCE.replace("layer evidencia", "layer core"),
+        &EVIDENCE.replace("layer evidence", "layer core"),
     );
     let sync = run(fabricated.path(), &["nav", "sincronizar"]);
     assert_eq!(code(&sync), 5);
-    assert!(stderr(&sync).contains("exige layer evidencia"));
+    assert!(stderr(&sync).contains("exige layer evidence"));
     let verify = run(fabricated.path(), &["nav", "verificar"]);
     assert_eq!(code(&verify), 5);
-    assert!(stderr(&verify).contains("exige layer evidencia"));
+    assert!(stderr(&verify).contains("exige layer evidence"));
 }
 
 #[test]
@@ -536,7 +536,7 @@ fn derivador_nao_contem_io_rede_git_subprocesso_busca_ou_normalizacao() {
     assert!(body.contains("candidate.identity == query || candidate.name == query"));
 
     // A fonte é o binário `pink` inteiro, não um arquivo: a decomposição
-    // física da #640 tirou `cli.nav.consulta` de `src/main.rs` e a pôs em
+    // física da #640 tirou `cli.nav.query` de `src/main.rs` e a pôs em
     // `src/pink_cli/nav_cli.rs`, e um oráculo preso ao caminho antigo pararia
     // de observar o adaptador.
     let binario = pink_cli();
@@ -554,4 +554,4 @@ fn derivador_nao_contem_io_rede_git_subprocesso_busca_ou_normalizacao() {
         assert!(!adapter.contains(forbidden), "adaptador contém {forbidden}");
     }
 }
-// @pinker-nav:end evidencia.symbol-index.cli
+// @pinker-nav:end evidence.symbol-index.cli

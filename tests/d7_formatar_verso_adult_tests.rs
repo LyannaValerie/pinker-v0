@@ -16,10 +16,10 @@ use std::path::{Path, PathBuf};
 use std::process::Output;
 use std::time::Duration;
 
-// @pinker-nav:start evidencia.formatar-verso.d7-pack
-// @pinker-nav:domain texto
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Prova adulta D7 de pack geral para formatar_verso: aridades 9/13 pelo mesmo ABI, tipos normalizados, placeholders/Unicode/lifetime, sensitivity estrutural contra dispatch/helper por quantidade e paridade interpretador-nativo sob envelope.
+// @pinker-nav:start evidence.formatar-verso.d7-pack
+// @pinker-nav:domain text
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Adult D7 proof of the general pack for formatar_verso: arities 9/13 through the same ABI, normalized types, placeholders/Unicode/lifetime, structural sensitivity against dispatch/helper by count and interpreter-native parity under an envelope.
 const POSITIVE_SOURCE: &str = r#"
 pacote main; trazer texto.formatar;
 
@@ -495,4 +495,4 @@ fn paridade_interpretador_nativo_positiva_e_negativa_e_bounded() {
     assert!(String::from_utf8_lossy(&interpreted.stderr).contains("tipo inválido no argumento 2"));
     assert!(String::from_utf8_lossy(&native_build.stderr).contains("tipo inválido no argumento 2"));
 }
-// @pinker-nav:end evidencia.formatar-verso.d7-pack
+// @pinker-nav:end evidence.formatar-verso.d7-pack

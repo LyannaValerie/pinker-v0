@@ -1,7 +1,7 @@
-// @pinker-nav:start repl.ciclo.leitura-avaliacao
-// @pinker-nav:domain fluxo
+// @pinker-nav:start repl.cycle.read-evaluation
+// @pinker-nav:domain flow
 // @pinker-nav:layer repl
-// @pinker-nav:summary Laço leitura-avaliação-impressão do REPL: lê uma linha, trata `:quit`/`:sair` e EOF, avalia o trecho e imprime o resultado ou o erro sem manter estado entre linhas.
+// @pinker-nav:summary Read-eval-print loop of the REPL: it reads a line, handles `:quit`/`:sair` and EOF, evaluates the snippet and prints the result or the error without keeping state between lines.
 use crate::abstract_machine;
 use crate::abstract_machine_validate;
 use crate::cfg_ir;
@@ -116,12 +116,12 @@ fn render_value(value: &RuntimeValue) -> String {
         RuntimeValue::ValorJson(handle) => format!("<ValorJson:{handle}>"),
     }
 }
-// @pinker-nav:end repl.ciclo.leitura-avaliacao
+// @pinker-nav:end repl.cycle.read-evaluation
 
-// @pinker-nav:start repl.avaliacao.pipeline
-// @pinker-nav:domain fluxo
+// @pinker-nav:start repl.evaluation.pipeline
+// @pinker-nav:domain flow
 // @pinker-nav:layer repl
-// @pinker-nav:summary Envolve a linha do REPL como corpo temporário de `principal` e a conduz por todo o pipeline (léxico, parser, semântica, IR, CFG, seleção, máquina e interpretador), devolvendo o valor produzido.
+// @pinker-nav:summary Wraps the REPL line as a temporary body of `principal` and drives it through the whole pipeline (lexer, parser, semantics, IR, CFG, selection, machine and interpreter), returning the produced value.
 fn evaluate_snippet(snippet: &str) -> Result<RuntimeValue, String> {
     let source = wrap_snippet(snippet);
     let mut lexer = Lexer::new(&source);
@@ -204,12 +204,12 @@ fn separar_imports(snippet: &str) -> (Vec<String>, String) {
 fn snippet_has_explicit_return(snippet: &str) -> bool {
     snippet.contains("mimo")
 }
-// @pinker-nav:end repl.avaliacao.pipeline
+// @pinker-nav:end repl.evaluation.pipeline
 
-// @pinker-nav:start evidencia.repl.trecho-e-import
+// @pinker-nav:start evidence.repl.snippet-and-import
 // @pinker-nav:domain repl
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Provas do REPL: o import escrito no trecho e icado para o topo do programa, import no meio do trecho nao e icado, o comando minimo de saida e reconhecido e o trecho e envolvido em uma funcao principal temporaria.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Proofs of the REPL: an import written in the snippet is hoisted to the top of the program, an import in the middle of the snippet is not hoisted, the minimal exit command is recognized and the snippet is wrapped in a temporary principal function.
 #[cfg(test)]
 mod tests {
     use super::{is_exit_command, wrap_snippet};
@@ -268,4 +268,4 @@ mod tests {
         assert!(source.contains("mimo 0;"));
     }
 }
-// @pinker-nav:end evidencia.repl.trecho-e-import
+// @pinker-nav:end evidence.repl.snippet-and-import

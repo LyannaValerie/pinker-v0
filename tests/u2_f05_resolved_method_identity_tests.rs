@@ -15,10 +15,10 @@ use pinker_v0::ir_validate;
 use pinker_v0::semantic;
 use std::fs;
 
-// @pinker-nav:start evidencia.tratos.identidade-resolvida-u2-f05
+// @pinker-nav:start evidence.tratos.resolved-identity-u2-f05
 // @pinker-nav:domain tratos
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Matriz U2/F-05 sobre o pipeline real: aliases simples, em cadeia e equivalentes despacham pela mesma identidade resolvida; duplicatas equivalentes falham nas duas ordens sem vazar codecs internos; blocos canonicamente equivalentes são a MESMA relação e a segunda declaração é recusada mesmo quando materializa outro método (#572), enquanto tratos e tipos estruturais distintos permanecem independentes, receivers trocados são rejeitados, especializações #476 seguem injetivas, módulos são decididos após montagem, e o caso aceito cobre despacho direto/vtable, paridade entre interpretador e ELF nativo e símbolos locais.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Matrix U2/F-05 over the real pipeline: simple, chained and equivalent aliases dispatch through the same resolved identity; equivalent duplicates fail in both orders without leaking internal codecs; canonically equivalent blocks are the SAME relation and the second declaration is refused even when it materializes another method (#572), while distinct tratos and structural types remain independent, swapped receivers are rejected, #476 specializations remain injective, modules are decided after assembly, and the accepted case covers direct/vtable dispatch, parity between interpreter and native ELF and local symbols.
 
 fn run_code(code: &str) -> Result<Option<RuntimeValue>, String> {
     let program = common::parse(code).map_err(|error| error.to_string())?;
@@ -574,4 +574,4 @@ carinho principal() -> bombom { mimo dinamico(21 virar trato<Dobravel>); }
     );
 }
 
-// @pinker-nav:end evidencia.tratos.identidade-resolvida-u2-f05
+// @pinker-nav:end evidence.tratos.resolved-identity-u2-f05

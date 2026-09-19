@@ -3,10 +3,10 @@ mod common;
 use common::{parse, render_cli_ir_output, render_ir};
 use pinker_v0::ir;
 
-// @pinker-nav:start evidencia.ir.lowering-programa
+// @pinker-nav:start evidence.ir.lowering-program
 // @pinker-nav:domain ir
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita diretamente o lowering AST para IR e inspeciona a estrutura do programa resultante.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises the AST to IR lowering directly and inspects the structure of the resulting program.
 #[test]
 fn lowering_de_funcao_simples() {
     let code = "pacote main; carinho principal() -> bombom { mimo 0; }";
@@ -17,12 +17,12 @@ fn lowering_de_funcao_simples() {
     assert_eq!(lowered.functions.len(), 1);
     assert_eq!(lowered.functions[0].name, "principal");
 }
-// @pinker-nav:end evidencia.ir.lowering-programa
+// @pinker-nav:end evidence.ir.lowering-program
 
-// @pinker-nav:start evidencia.ir.renderizacao-estruturas-basicas
+// @pinker-nav:start evidence.ir.rendering-basic-structures
 // @pinker-nav:domain ir
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Renderiza IR textual após lowering e compara estruturas básicas, tipos, controle e chamadas.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Renders textual IR after lowering and compares basic structures, types, control and calls.
 #[test]
 fn lowering_de_constante_global() {
     let code = "\
@@ -224,12 +224,12 @@ functions:
 "
     );
 }
-// @pinker-nav:end evidencia.ir.renderizacao-estruturas-basicas
+// @pinker-nav:end evidence.ir.rendering-basic-structures
 
-// @pinker-nav:start evidencia.ir.renderizacao-cli
+// @pinker-nav:start evidence.ir.rendering-cli
 // @pinker-nav:domain ir
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Compara exatamente o cabeçalho e o texto de IR expostos pelo renderer de CLI.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Compares exactly the header and the IR text exposed by the CLI renderer.
 #[test]
 fn ir_de_principal_tem_cabecalho_estavel() {
     let code = "pacote main; carinho principal() -> bombom { mimo 0; }";
@@ -252,12 +252,12 @@ Análise semântica concluída sem erros.
 "
     );
 }
-// @pinker-nav:end evidencia.ir.renderizacao-cli
+// @pinker-nav:end evidence.ir.rendering-cli
 
-// @pinker-nav:start evidencia.ir.lowering-controle-de-laco
+// @pinker-nav:start evidence.ir.lowering-loop-control
 // @pinker-nav:domain ir
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita lowering estruturado de laços, quebrar e continuar e inspeciona fragmentos renderizados.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises structured lowering of loops, quebrar and continuar and inspects rendered fragments.
 #[test]
 fn lowering_de_sempre_que() {
     let code = "
@@ -305,12 +305,12 @@ fn lowering_de_sempre_que_com_continuar() {
     let ir = render_ir(code).unwrap();
     assert!(ir.contains("continue loop_continue_"), "{}", ir);
 }
-// @pinker-nav:end evidencia.ir.lowering-controle-de-laco
+// @pinker-nav:end evidence.ir.lowering-loop-control
 
-// @pinker-nav:start evidencia.ir.lowering-operacoes-textuais
+// @pinker-nav:start evidence.ir.lowering-textual-operations
 // @pinker-nav:domain ir
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita a preservação textual de asm inline e operadores lógicos na IR estruturada.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises the textual preservation of inline asm and logical operators in the structured IR.
 #[test]
 fn lowering_preserva_inline_asm_textual() {
     let code = r#"
@@ -337,12 +337,12 @@ carinho principal() -> bombom {
     assert!(ir.contains("and<logica>("), "{}", ir);
     assert!(ir.contains("or<logica>("), "{}", ir);
 }
-// @pinker-nav:end evidencia.ir.lowering-operacoes-textuais
+// @pinker-nav:end evidence.ir.lowering-textual-operations
 
-// @pinker-nav:start evidencia.ir.lowering-tipos-numericos
+// @pinker-nav:start evidence.ir.lowering-numeric-types
 // @pinker-nav:domain ir
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Inspeciona tipos inteiros fixos e operações bitwise e módulo na IR renderizada.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Inspects fixed integer types and bitwise and modulo operations in the rendered IR.
 #[test]
 fn lowering_de_unsigned_fixos_preserva_tipos() {
     let code = r#"
@@ -416,12 +416,12 @@ carinho principal() -> bombom { mimo 10 % 4; }";
         ir
     );
 }
-// @pinker-nav:end evidencia.ir.lowering-tipos-numericos
+// @pinker-nav:end evidence.ir.lowering-numeric-types
 
-// @pinker-nav:start evidencia.ir.lowering-tipos-compostos
+// @pinker-nav:start evidence.ir.lowering-composite-types
 // @pinker-nav:domain ir
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita acessos e a preservação observada de aliases, arrays, ninhos e categorias de ponteiro na IR textual.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises accesses and the observed preservation of aliases, arrays, ninhos and pointer categories in the textual IR.
 #[test]
 fn lowering_de_acesso_a_campo_e_indexacao() {
     let code = r#"
@@ -653,12 +653,12 @@ carinho principal() -> bombom { mimo 0; }
         ir
     );
 }
-// @pinker-nav:end evidencia.ir.lowering-tipos-compostos
+// @pinker-nav:end evidence.ir.lowering-composite-types
 
-// @pinker-nav:start evidencia.ir.lowering-objetos-trato-fase244
+// @pinker-nav:start evidence.ir.lowering-trato-objects-phase244
 // @pinker-nav:domain ir
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita o lowering da Fase 244: materialização, vtables, despacho dinâmico, metadados nominais de callables e closures e merge de CallableMetadata em reatribuições condicionais, incluindo aliases, cópias, aninhamento e diagnósticos estruturados para braços incompatíveis ou sem metadado.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises the Phase 244 lowering: materialization, vtables, dynamic dispatch, nominal metadata of callables and closures and the merge of CallableMetadata in conditional reassignments, including aliases, copies, nesting and structured diagnostics for incompatible arms or arms without metadata.
 
 #[test]
 fn fase244_lowering_materializa_objeto_e_preserva_ordem_da_vtable() {
@@ -1297,4 +1297,4 @@ carinho principal() -> bombom {
         "{err}"
     );
 }
-// @pinker-nav:end evidencia.ir.lowering-objetos-trato-fase244
+// @pinker-nav:end evidence.ir.lowering-trato-objects-phase244

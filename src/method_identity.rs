@@ -5,10 +5,10 @@
 //! continua sendo apenas a forma injetiva com que o parser transporta os três
 //! spellings até as fases seguintes.
 
-// @pinker-nav:start tratos.metodos.identidade
+// @pinker-nav:start tratos.methods.identity
 // @pinker-nav:domain tratos
-// @pinker-nav:layer identidade
-// @pinker-nav:summary Identidade estruturada de método parametrizada pela identidade resolvida do alvo, compartilhada pela autoridade semântica e pela visão derivada da IR; também centraliza o codec injetivo dos nomes provisórios `__impl_*` e `__trait_default_check_*` — mesma gramática, prefixos distintos —, que preservam spellings para transporte e renderização mas nunca decidem coerência ou despacho, e a forma única que reconhece os dois como o mesmo corpo sintético de `trato`, para que a canonização e a materialização modular não precisem perguntar pelo prefixo literal. Desde a #647 também detém a autoridade única da resolução qualificada: dada a identidade já resolvida — trato canônico, identidade resolvida do alvo e nome do método —, qual das funções materializadas a representa exatamente; a checagem semântica e o lowering trazem o índice na sua própria representação de alvo e traduzem o veredito, e nenhuma das duas ainda decide a correspondência.
+// @pinker-nav:layer identity
+// @pinker-nav:summary Structured method identity parameterized by the target's resolved identity, shared by the semantic authority and by the IR's derived view; it also centralizes the injective codec of the provisional names `__impl_*` and `__trait_default_check_*` — the same grammar, distinct prefixes —, which preserve spellings for transport and rendering but never decide coherence or dispatch, and the single form that recognizes both as the same synthetic `trato` body, so that canonicalization and modular materialization need not ask about the literal prefix. Since #647 it also holds the sole authority over qualified resolution: given the already resolved identity — canonical trato, resolved identity of the target and method name —, which of the materialized functions represents it exactly; the semantic check and the lowering bring the index in their own target representation and translate the verdict, and neither of them decides the matching any more.
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct MethodIdentity<T> {
@@ -198,12 +198,12 @@ fn parse_com_prefixo(name: &str, prefixo: &str) -> Option<(String, String, Strin
     ))
 }
 
-// @pinker-nav:end tratos.metodos.identidade
+// @pinker-nav:end tratos.methods.identity
 
-// @pinker-nav:start evidencia.metodos.identidade
-// @pinker-nav:domain metodos
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Provas da identidade de metodo: o transporte provisorio e injetivo mesmo para componentes que contem sublinhado, o corpo sintetico reconhece as duas formas e preserva o prefixo, e tratos homonimos de unidades distintas nao compartilham a checagem de default.
+// @pinker-nav:start evidence.methods.identity
+// @pinker-nav:domain methods
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Proofs of method identity: the provisional transport is injective even for components containing an underscore, the synthetic body recognizes both forms and preserves the prefix, and same-named traits from distinct units do not share the default check.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -245,4 +245,4 @@ mod tests {
         );
     }
 }
-// @pinker-nav:end evidencia.metodos.identidade
+// @pinker-nav:end evidence.methods.identity

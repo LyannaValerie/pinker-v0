@@ -45,10 +45,10 @@
 //! default_importado_com_closure_sintetica_compoe_pela_origem`, que continua
 //! provando a ligação e o comportamento do processo `pink`.
 
-// @pinker-nav:start evidencia.identidade-anonima.reconhecimento-cli
-// @pinker-nav:domain identidade
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Adaptador duravel que compila o consumidor de reconhecimento do pink_cli dentro da crate de biblioteca sob cfg(test), estendendo ao binario a prova por execucao de que a decisao deriva da autoridade canonica.
+// @pinker-nav:start evidence.anonymous-identity.cli-recognition
+// @pinker-nav:domain identity
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Durable adapter that compiles the pink_cli recognition consumer inside the library crate under cfg(test), extending to the binary the by-execution proof that the decision derives from the canonical authority.
 use crate as pinker_v0;
 
 use crate::anonymous_identity::{
@@ -282,4 +282,4 @@ fn colheita_de_closures_de_default_do_cli_acompanha_a_autoridade() {
         "o template colhido mudou de forma além da grafia do namespace"
     );
 }
-// @pinker-nav:end evidencia.identidade-anonima.reconhecimento-cli
+// @pinker-nav:end evidence.anonymous-identity.cli-recognition

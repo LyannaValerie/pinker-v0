@@ -38,21 +38,21 @@ fn block(label: &str, code: Vec<MachineInstr>, term: MachineTerminator) -> Machi
     }
 }
 
-// @pinker-nav:start evidencia.machine.renderizacao-programa-valido
+// @pinker-nav:start evidence.machine.rendering-valid-program
 // @pinker-nav:domain machine
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Renderiza um programa simples aceito pelo caminho presente.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Renders a simple program accepted by the path present.
 #[test]
 fn stack_valida_programa_simples() {
     let out = render_machine("pacote main; carinho principal() -> bombom { mimo 1 + 2; }").unwrap();
     assert!(out.contains("vm add"));
 }
 
-// @pinker-nav:end evidencia.machine.renderizacao-programa-valido
-// @pinker-nav:start evidencia.machine.validacao-underflow-operadores
+// @pinker-nav:end evidence.machine.rendering-valid-program
+// @pinker-nav:start evidence.machine.validation-operator-underflow
 // @pinker-nav:domain machine
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Constrói manualmente operações unária e binária e espera rejeição por underflow.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Builds unary and binary operations manually and expects refusal due to underflow.
 #[test]
 fn stack_underflow_unaria() {
     let err = validate(fn_bombom(vec![block(
@@ -78,11 +78,11 @@ fn stack_underflow_binaria() {
     assert!(err.contains("underflow em operação binária"));
 }
 
-// @pinker-nav:end evidencia.machine.validacao-underflow-operadores
-// @pinker-nav:start evidencia.machine.validacao-chamadas-aridade-e-underflow
+// @pinker-nav:end evidence.machine.validation-operator-underflow
+// @pinker-nav:start evidence.machine.validation-calls-arity-and-underflow
 // @pinker-nav:domain machine
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Constrói chamadas manualmente e espera rejeição de underflow ou aridade inválida nos casos presentes.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Builds calls manually and expects refusal of underflow or invalid arity in the cases present.
 #[test]
 fn stack_underflow_call() {
     let program = MachineProgram {
@@ -250,11 +250,11 @@ fn stack_underflow_call_void() {
     assert!(err.contains("instr='call_void log, 1'"));
 }
 
-// @pinker-nav:end evidencia.machine.validacao-chamadas-aridade-e-underflow
-// @pinker-nav:start evidencia.machine.validacao-formato-diagnostico
+// @pinker-nav:end evidence.machine.validation-calls-arity-and-underflow
+// @pinker-nav:start evidence.machine.validation-diagnostic-format
 // @pinker-nav:domain machine
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Inspeciona o formato contextual do diagnóstico de validação presente.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Inspects the contextual format of the validation diagnostic present.
 #[test]
 fn erro_machine_mantem_formato_padrao_de_contexto() {
     let err = validate(fn_bombom(vec![block(
@@ -270,11 +270,11 @@ fn erro_machine_mantem_formato_padrao_de_contexto() {
     assert!(err.contains("esperado=bombom, recebido=lógica"));
 }
 
-// @pinker-nav:end evidencia.machine.validacao-formato-diagnostico
-// @pinker-nav:start evidencia.machine.validacao-branch
+// @pinker-nav:end evidence.machine.validation-diagnostic-format
+// @pinker-nav:start evidence.machine.validation-branch
 // @pinker-nav:domain machine
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Constrói branches manualmente e espera rejeição por condição ausente ou incompatível.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Builds branches manually and expects refusal due to a missing or incompatible condition.
 #[test]
 fn stack_branch_sem_condicao() {
     let err = validate(fn_bombom(vec![
@@ -330,11 +330,11 @@ fn stack_branch_tipo_incompativel() {
     assert!(err.contains("term='br_true then_0, else_1'"));
 }
 
-// @pinker-nav:end evidencia.machine.validacao-branch
-// @pinker-nav:start evidencia.machine.renderizacao-branch-valido
+// @pinker-nav:end evidence.machine.validation-branch
+// @pinker-nav:start evidence.machine.rendering-valid-branch
 // @pinker-nav:domain machine
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Renderiza o branch de tipo compatível presente.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Renders the type-compatible branch present.
 #[test]
 fn stack_branch_tipo_compativel() {
     let out = render_machine(
@@ -344,11 +344,11 @@ fn stack_branch_tipo_compativel() {
     assert!(out.contains("term br_true"));
 }
 
-// @pinker-nav:end evidencia.machine.renderizacao-branch-valido
-// @pinker-nav:start evidencia.machine.validacao-retorno
+// @pinker-nav:end evidence.machine.rendering-valid-branch
+// @pinker-nav:start evidence.machine.validation-return
 // @pinker-nav:domain machine
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Constrói retornos manualmente e espera rejeição por valor ausente ou tipo incompatível.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Builds returns manually and expects refusal due to a missing value or an incompatible type.
 #[test]
 fn stack_ret_sem_valor() {
     let err = validate(fn_bombom(vec![block(
@@ -373,22 +373,22 @@ fn stack_ret_tipo_incompativel() {
     assert!(err.contains("esperado=bombom, recebido=lógica"));
 }
 
-// @pinker-nav:end evidencia.machine.validacao-retorno
-// @pinker-nav:start evidencia.machine.renderizacao-retorno-valido
+// @pinker-nav:end evidence.machine.validation-return
+// @pinker-nav:start evidence.machine.rendering-valid-return
 // @pinker-nav:domain machine
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Renderiza o retorno de tipo compatível presente.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Renders the type-compatible return present.
 #[test]
 fn stack_ret_tipo_compativel() {
     let out = render_machine("pacote main; carinho principal() -> bombom { mimo 7; }").unwrap();
     assert!(out.contains("term ret"));
 }
 
-// @pinker-nav:end evidencia.machine.renderizacao-retorno-valido
-// @pinker-nav:start evidencia.machine.validacao-pilha-retvoid-e-merges
+// @pinker-nav:end evidence.machine.rendering-valid-return
+// @pinker-nav:start evidence.machine.validation-stack-retvoid-and-merges
 // @pinker-nav:domain machine
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Espera rejeição de pilha residual em retorno vazio e de alturas inconsistentes em merge de fluxo.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Expects refusal of residual stack on an empty return and of inconsistent heights at a flow merge.
 #[test]
 fn stack_ret_void_pilha_suja() {
     let function = MachineFunction {
@@ -434,11 +434,11 @@ fn stack_altura_inconsistente_entre_predecessores() {
     assert!(err.contains("altura de pilha inconsistente entre predecessores"));
 }
 
-// @pinker-nav:end evidencia.machine.validacao-pilha-retvoid-e-merges
-// @pinker-nav:start evidencia.machine.validacao-slots-existencia
+// @pinker-nav:end evidence.machine.validation-stack-retvoid-and-merges
+// @pinker-nav:start evidence.machine.validation-slot-existence
 // @pinker-nav:domain machine
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Espera rejeição de load e store para slots inexistentes nos programas construídos.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Expects refusal of load and store for nonexistent slots in the constructed programs.
 #[test]
 fn stack_load_slot_invalido() {
     let err = validate(fn_bombom(vec![block(
@@ -467,11 +467,11 @@ fn stack_store_slot_invalido() {
     assert!(err.contains("função 'principal', bloco 'entry'"));
 }
 
-// @pinker-nav:end evidencia.machine.validacao-slots-existencia
-// @pinker-nav:start evidencia.machine.validacao-slots-tipados
+// @pinker-nav:end evidence.machine.validation-slot-existence
+// @pinker-nav:start evidence.machine.validation-typed-slots
 // @pinker-nav:domain machine
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Valida os casos presentes de fluxo por parâmetros e locais tipados e rejeita store incompatível.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Validates the cases present of flow through typed parameters and locals and rejects an incompatible store.
 #[test]
 fn stack_load_slot_param_tipado_fluxo_valido() {
     let function = MachineFunction {
@@ -551,11 +551,11 @@ fn stack_store_slot_tipado_incompativel() {
     assert!(err.contains("esperado=bombom, recebido=lógica"));
 }
 
-// @pinker-nav:end evidencia.machine.validacao-slots-tipados
-// @pinker-nav:start evidencia.machine.validacao-tipos-operacoes-e-retorno
+// @pinker-nav:end evidence.machine.validation-typed-slots
+// @pinker-nav:start evidence.machine.validation-types-operations-and-return
 // @pinker-nav:domain machine
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Espera rejeição de parâmetro lógico em aritmética e retorno incompatível.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Expects refusal of a logical parameter in arithmetic and of an incompatible return.
 #[test]
 fn stack_aritmetica_invalida_com_parametro_logico() {
     let function = MachineFunction {
@@ -598,11 +598,11 @@ fn stack_ret_invalido_com_parametro_logico() {
     assert!(err.contains("ret com tipo incompatível"));
 }
 
-// @pinker-nav:end evidencia.machine.validacao-tipos-operacoes-e-retorno
-// @pinker-nav:start evidencia.machine.validacao-tipos-chamadas
+// @pinker-nav:end evidence.machine.validation-types-operations-and-return
+// @pinker-nav:start evidence.machine.validation-call-types
 // @pinker-nav:domain machine
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Espera rejeição de argumentos incompatíveis em chamadas com e sem retorno.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Expects refusal of incompatible arguments in calls with and without a return.
 #[test]
 fn stack_call_tipo_argumento_incompativel() {
     let program = MachineProgram {
@@ -698,11 +698,11 @@ fn stack_call_void_tipo_argumento_incompativel() {
     assert!(err.contains("esperado=lógica, recebido=bombom"));
 }
 
-// @pinker-nav:end evidencia.machine.validacao-tipos-chamadas
-// @pinker-nav:start evidencia.machine.renderizacao-casos-validos
+// @pinker-nav:end evidence.machine.validation-call-types
+// @pinker-nav:start evidence.machine.rendering-valid-cases
 // @pinker-nav:domain machine
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Renderiza os casos válidos presentes de temporário em if/else e chamada com retorno.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Renders the valid cases present of a temporary in if/else and a call with a return.
 #[test]
 fn stack_valido_temporario_if_else() {
     let out = render_machine(
@@ -723,11 +723,11 @@ fn stack_valido_call_retorno() {
     assert!(out.contains("term ret"));
 }
 
-// @pinker-nav:end evidencia.machine.renderizacao-casos-validos
-// @pinker-nav:start evidencia.machine.validacao-programa-invalido
+// @pinker-nav:end evidence.machine.rendering-valid-cases
+// @pinker-nav:start evidence.machine.validation-invalid-program
 // @pinker-nav:domain machine
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Valida diretamente uma máquina inválida construída manualmente e observa a rejeição presente.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Validates directly an invalid machine built by hand and observes the refusal present.
 #[test]
 fn machine_invalida_nao_e_impressa() {
     let function = MachineFunction {
@@ -746,11 +746,11 @@ fn machine_invalida_nao_e_impressa() {
     assert!(validation.is_err());
 }
 
-// @pinker-nav:end evidencia.machine.validacao-programa-invalido
-// @pinker-nav:start evidencia.machine.renderizacao-cli-golden
+// @pinker-nav:end evidence.machine.validation-invalid-program
+// @pinker-nav:start evidence.machine.rendering-cli-golden
 // @pinker-nav:domain machine
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Inspeciona fragmentos do renderer CLI para um programa não trivial válido.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Inspects fragments of the CLI renderer for a valid non-trivial program.
 #[test]
 fn golden_machine_nao_trivial_valido() {
     let code = "
@@ -772,12 +772,12 @@ carinho principal() -> bombom {
     assert!(out.contains("term br_true then_0, else_1"));
     assert!(out.contains("Análise semântica concluída sem erros."));
 }
-// @pinker-nav:end evidencia.machine.renderizacao-cli-golden
+// @pinker-nav:end evidence.machine.rendering-cli-golden
 
-// @pinker-nav:start evidencia.machine.validacao-objetos-trato-fase244
+// @pinker-nav:start evidence.machine.validation-trato-objects-phase244
 // @pinker-nav:domain machine
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Valida manualmente os efeitos de pilha da materialização e do despacho dinâmico da Fase 244, incluindo receiver nominal, argumentos, retorno nulo e invariantes da vtable.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Manually validates the stack effects of Phase 244 materialization and dynamic dispatch, including a nominal receiver, arguments, a null return and vtable invariants.
 
 fn fase244_fn_com_objeto(code: Vec<MachineInstr>, ret_type: TypeIR) -> MachineFunction {
     MachineFunction {
@@ -936,4 +936,4 @@ fn fase244_machine_stack_rejeita_slot_fora_da_vtable() {
     );
 }
 
-// @pinker-nav:end evidencia.machine.validacao-objetos-trato-fase244
+// @pinker-nav:end evidence.machine.validation-trato-objects-phase244

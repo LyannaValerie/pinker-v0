@@ -17,7 +17,7 @@ related:
   - bridge.engine-rosa
 ---
 
-# Rosa — hemisfério identitário da Pinker
+# Rosa — Pinker's identity hemisphere
 
 - **Classe:** Rosa
 - **Papel:** visão

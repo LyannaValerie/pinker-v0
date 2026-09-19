@@ -14,10 +14,10 @@
 //! zero-dependência do compilador. A remoção de diacríticos cobre o alfabeto
 //! latino usado no repositório (português) por mapeamento explícito e auditável.
 
-// @pinker-nav:start trama.consultas.normalizacao
-// @pinker-nav:domain consultas
+// @pinker-nav:start trama.queries.normalization
+// @pinker-nav:domain queries
 // @pinker-nav:layer trama
-// @pinker-nav:summary Normalização determinística de texto para as consultas da Trama (minúsculas, remoção de diacríticos, pontuação vira espaço, colapso e separação em termos), sem stemming nem fuzzy — base compartilhada por `pink doc` e `pink nav`.
+// @pinker-nav:summary Deterministic text normalization for the Trama's queries (lowercasing, diacritic removal, punctuation becoming whitespace, collapsing and splitting into terms), with no stemming and no fuzzy matching — a shared basis for `pink doc` and `pink nav`.
 /// Normaliza uma string para uma forma canônica comparável: minúsculas, sem
 /// acentos, com pontuação virada em espaço e espaços colapsados em um único
 /// separador. O resultado tem no máximo um espaço entre termos e não tem
@@ -106,12 +106,12 @@ fn passthrough(ch: char) -> &'static str {
     // é conservador e determinístico; nenhum termo do repositório depende disso.
     " "
 }
-// @pinker-nav:end trama.consultas.normalizacao
+// @pinker-nav:end trama.queries.normalization
 
-// @pinker-nav:start evidencia.consultas.normalizacao
-// @pinker-nav:domain consultas
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Provas da normalizacao de consulta: minusculas com remocao de diacriticos, pontuacao virando espaco com colapso de repeticoes, divisao em termos descartando vazios e dobra de todos os diacriticos do portugues.
+// @pinker-nav:start evidence.queries.normalization
+// @pinker-nav:domain queries
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Proofs of query normalization: lowercasing with diacritic removal, punctuation becoming whitespace with collapsing of repetitions, splitting into terms discarding empty ones and folding of every Portuguese diacritic.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -146,4 +146,4 @@ mod tests {
         assert_eq!(normalize("Ãâ Éê Çç"), "aa ee cc");
     }
 }
-// @pinker-nav:end evidencia.consultas.normalizacao
+// @pinker-nav:end evidence.queries.normalization

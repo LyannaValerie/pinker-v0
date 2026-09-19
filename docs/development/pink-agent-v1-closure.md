@@ -11,16 +11,16 @@ audience:
 related:
 ---
 
-# Fechamento da série A–D do `pink agente`
+# Closure of the `pink agente` A–D series
 
 <!-- @pinker-doc:start
 id: development.pink-agent-v1-closure.series
-tags: [agente, fechamento, serie, v1]
+tags: [agent, closure, series, v1]
 aliases:
-  - fechamento serie pink agente
-summary: Fecha exclusivamente a série interna A–D do pink agente e congela o contrato V1 sem tocar a Trama.
+  - pink agente series closure
+summary: It closes exclusively the internal A–D series of pink agente and freezes the V1 contract without touching the Trama.
 -->
-## Escopo do fechamento
+## Closure scope
 
 Esta onda fecha **somente** a série interna A–D do `pink agente` e congela o
 contrato V1:
@@ -45,10 +45,10 @@ mapa` já pertence à base pela PR #382 e é apenas consumido aqui. Onda 9 inati
 
 <!-- @pinker-doc:start
 id: development.pink-agent-v1-closure.nonclaims
-tags: [agente, fechamento, non-claims, limites]
+tags: [agent, closure, non-claims, limits]
 aliases:
-  - non-claims pink agente
-summary: Limites explícitos do que o fechamento A–D não afirma nem executa.
+  - pink agente non-claims
+summary: Explicit limits of what the A–D closure neither asserts nor executes.
 -->
 ## Non-claims
 

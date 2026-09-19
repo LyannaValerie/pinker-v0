@@ -1,7 +1,7 @@
-// @pinker-nav:start select.validacao.invariantes
-// @pinker-nav:domain validacao
+// @pinker-nav:start select.validation.invariants
+// @pinker-nav:domain validation
 // @pinker-nav:layer select
-// @pinker-nav:summary Valida a camada de seleção de instruções: operandos e destinos bem formados, uso coerente de temporários e conformidade das instruções selecionadas antes de descer à máquina abstrata.
+// @pinker-nav:summary Validates the instruction selection layer: well-formed operands and destinations, coherent use of temporaries and conformance of the selected instructions before descending to the abstract machine.
 use crate::cfg_ir::OperandIR;
 use crate::error::PinkerError;
 use crate::instr_select::{SelectedInstr, SelectedProgram, SelectedTerminator};
@@ -565,4 +565,4 @@ fn err(msg: &str) -> PinkerError {
     }
 }
 
-// @pinker-nav:end select.validacao.invariantes
+// @pinker-nav:end select.validation.invariants

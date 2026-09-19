@@ -1,7 +1,7 @@
-// @pinker-nav:start error.diagnostico.taxonomia
-// @pinker-nav:domain diagnostico
+// @pinker-nav:start error.diagnostic.taxonomy
+// @pinker-nav:domain diagnostic
 // @pinker-nav:layer error
-// @pinker-nav:summary Taxonomia unificada de erros do compilador (léxico, sintático, semântico, cada validação de pipeline e runtime), cada variante carregando mensagem e span de origem.
+// @pinker-nav:summary Unified taxonomy of compiler errors (lexical, syntactic, semantic, each pipeline validation and runtime), each variant carrying a message and a source span.
 use crate::token::Span;
 
 #[derive(Debug)]
@@ -52,12 +52,12 @@ pub enum PinkerError {
         span: Option<Span>,
     },
 }
-// @pinker-nav:end error.diagnostico.taxonomia
+// @pinker-nav:end error.diagnostic.taxonomy
 
-// @pinker-nav:start error.diagnostico.contexto-fonte
-// @pinker-nav:domain diagnostico
+// @pinker-nav:start error.diagnostic.source-context
+// @pinker-nav:domain diagnostic
 // @pinker-nav:layer error
-// @pinker-nav:summary Renderiza um erro para o CLI recuperando a linha de origem pelo span e desenhando um cursor `^` na coluna; formata mensagens e stack traces de runtime.
+// @pinker-nav:summary Renders an error for the CLI by recovering the source line from the span and drawing a `^` cursor at the column; it formats runtime messages and stack traces.
 impl PinkerError {
     pub fn span(&self) -> Option<Span> {
         match self {
@@ -242,12 +242,12 @@ fn split_runtime_message_and_trace(msg: &str) -> (&str, Option<&str>) {
         None => (msg, None),
     }
 }
-// @pinker-nav:end error.diagnostico.contexto-fonte
+// @pinker-nav:end error.diagnostic.source-context
 
-// @pinker-nav:start error.diagnostico.mensagem
-// @pinker-nav:domain diagnostico
+// @pinker-nav:start error.diagnostic.message
+// @pinker-nav:domain diagnostic
 // @pinker-nav:layer error
-// @pinker-nav:summary Texto observavel de cada variante de erro do compilador: a mensagem que o humano le e que os testes comparam, por fase — lexico, sintatico, semantico, IR, validacao textual e runtime — com a posicao de origem preservada em todas elas.
+// @pinker-nav:summary Observable text of each compiler error variant: the message the human reads and the tests compare, by phase — lexical, syntactic, semantic, IR, textual validation and runtime — with the source position preserved in all of them.
 impl std::fmt::Display for PinkerError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -307,4 +307,4 @@ impl std::fmt::Display for PinkerError {
 }
 
 impl std::error::Error for PinkerError {}
-// @pinker-nav:end error.diagnostico.mensagem
+// @pinker-nav:end error.diagnostic.message

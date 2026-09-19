@@ -17,10 +17,10 @@
 //! um dado não é atribuir significado a ele, e atribuir significado aos dois
 //! exige decisão que esta camada não possui.
 
-// @pinker-nav:start modulos.unidade.preservacao
-// @pinker-nav:domain modulos
-// @pinker-nav:layer compilador
-// @pinker-nav:summary ModuleId/ModuleKey identificam a unidade modular; ModuleUnit preserva os cinco campos do Program (package, freestanding, imports, impls, items) junto da identidade de módulo e da fonte de origem, de modo que nenhuma validação dependente desses dados possa perdê-los antes de rodar; ModuleGraph reúne as unidades de uma compilação com a raiz em ModuleId::ROOT e oferece a ordem de dependência já resolvida. package e freestanding trafegam como dado, sem contrato semântico novo.
+// @pinker-nav:start modules.unit.preservation
+// @pinker-nav:domain modules
+// @pinker-nav:layer compiler
+// @pinker-nav:summary ModuleId/ModuleKey identify the modular unit; ModuleUnit preserves the Program's five fields (package, freestanding, imports, impls, items) together with the module identity and the originating source, so that no validation depending on that data can lose it before running; ModuleGraph gathers a compilation's units with the root at ModuleId::ROOT and offers the already resolved dependency order. package and freestanding travel as data, with no new semantic contract.
 use std::collections::HashMap;
 
 use crate::ast::{ImplDecl, ImportDecl, Item, PackageDecl, Program};
@@ -270,4 +270,4 @@ impl ModuleGraph {
         order
     }
 }
-// @pinker-nav:end modulos.unidade.preservacao
+// @pinker-nav:end modules.unit.preservation

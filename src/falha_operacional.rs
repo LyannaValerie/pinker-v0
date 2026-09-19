@@ -32,10 +32,10 @@
 //! - não converte falha interna em valor. Bug de programa e violação de
 //!   invariante continuam fatais.
 
-// @pinker-nav:start falha.operacional.superficies
-// @pinker-nav:domain erros
-// @pinker-nav:layer semantica
-// @pinker-nav:summary Autoridade única das superfícies falíveis da Parte B: `CargaResultado` classifica a carga de sucesso/falha em uma palavra (`bombom`) ou texto (`verso`), `SuperficieFalivel` liga o nome da intrínseca à especialização de `Resultado<T,E>` que ela devolve e ao símbolo do runtime nativo que a implementa, e `SUPERFICIES_FALIVEIS` é a lista fechada consultada por parser, semântica, validadores, interpretador e backend. As tags `TAG_OK`/`TAG_ERRO` espelham a ordem de declaração do leque predeclarado e são fixadas por teste; nenhuma camada redescobre esses fatos por conta própria. Como as tags são produzidas pela implementação, a autoridade também responde quem pode dar significado a elas: `identidade_produzida_pelo_runtime` (derivada das próprias superfícies) e `conflito_de_identidade` sustentam a recusa do parser por nome de origem, enquanto `variantes_canonicas`/`taxonomia_divergente` e `conflito_de_taxonomia` sustentam a checagem da semântica sobre o programa já montado — a que alcança identidade reivindicada em outro módulo e nome monomórfico composto por um leque de outro nome.
+// @pinker-nav:start failure.operational.surfaces
+// @pinker-nav:domain errors
+// @pinker-nav:layer semantic
+// @pinker-nav:summary Single authority of Part B's fallible surfaces: `CargaResultado` classifies the success/failure payload as one word (`bombom`) or text (`verso`), `SuperficieFalivel` links the intrinsic's name to the `Resultado<T,E>` specialization it returns and to the native runtime symbol that implements it, and `SUPERFICIES_FALIVEIS` is the closed list consulted by parser, semantics, validators, interpreter and backend. The `TAG_OK`/`TAG_ERRO` tags mirror the declaration order of the predeclared leque and are fixed by a test; no layer rediscovers those facts on its own. Because the tags are produced by the implementation, the authority also answers who may give them meaning: `identidade_produzida_pelo_runtime` (derived from the surfaces themselves) and `conflito_de_identidade` support the parser's refusal by origin name, while `variantes_canonicas`/`taxonomia_divergente` and `conflito_de_taxonomia` support the semantic check over the already assembled program — the one that reaches an identity claimed in another module and a monomorphic name composed by a leque of another name.
 use crate::ast::EnumDecl;
 use crate::ast::Type;
 use crate::generic_identity::{self, GenericKind, GenericOrigin};
@@ -703,4 +703,4 @@ pub fn nomes() -> impl Iterator<Item = &'static str> {
         .map(|superficie| superficie.intrinseca)
 }
 
-// @pinker-nav:end falha.operacional.superficies
+// @pinker-nav:end failure.operational.surfaces

@@ -5,10 +5,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-// @pinker-nav:start evidencia.modulos.closure-sintetica-de-default-importado
-// @pinker-nav:domain modulos
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Prova comportamental da #567: um corpo default de trato que contém closure compõe quando o trato é importado, e compõe significando o que a unidade DECLARANTE escreveu. A matriz positiva cobre o par de equivalência local/importado, captura de auxiliar e de local da origem, objeto de trato, override explícito e paridade interpretador/nativo; a adversarial fixa que o homônimo do importador não captura, que duas origens com closures estruturalmente idênticas não colidem, que o `impl` do override não carrega a dependência sintética do default omitido, e que a referência que só existe no importador continua falhando fechada. O oráculo é o valor observado — o auxiliar da origem e o homônimo do importador devolvem números diferentes — e a identidade sintética renderizada na IR, que carrega a proveniência da closure e a da materialização, nunca a grafia do trato.
+// @pinker-nav:start evidence.modules.synthetic-closure-of-imported-default
+// @pinker-nav:domain modules
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Behavioral proof of #567: a trato default body containing a closure composes when the trato is imported, and composes meaning what the DECLARING unit wrote. The positive matrix covers the local/imported equivalence pair, capture of a helper and of a local from the origin, a trato object, an explicit override and interpreter/native parity; the adversarial one fixes that the importer's same-named item does not capture, that two origins with structurally identical closures do not collide, that the override's `impl` does not carry the synthetic dependency of the omitted default, and that a reference existing only in the importer still fails closed. The oracle is the observed value — the origin's helper and the importer's same-named one return different numbers — and the synthetic identity rendered in the IR, which carries the closure's provenance and the materialization's, never the trato's spelling.
 
 /// Um caso é um conjunto de fontes; a primeira é a raiz.
 struct Caso {
@@ -587,4 +587,4 @@ fn paridade_interpretador_e_nativo_do_default_importado_com_closure() {
     assert!(nativo.status.success(), "{nativo:?}");
     assert_eq!(interpretado.stdout, nativo.stdout);
 }
-// @pinker-nav:end evidencia.modulos.closure-sintetica-de-default-importado
+// @pinker-nav:end evidence.modules.synthetic-closure-of-imported-default

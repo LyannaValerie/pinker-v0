@@ -13,15 +13,15 @@ related:
   - engine
 ---
 
-# Uniões estruturais tagged
+# Tagged structural unions
 
 <!-- @pinker-doc:start
 id: language.union-types.contract
-tags: [linguagem, uniao, tipos, tagged, encaixe]
+tags: [language, union, types, tagged, encaixe]
 aliases:
-  - uniao estrutural
+  - structural union
   - union types
-summary: Define identidade canônica, injeção explícita, encaixe exaustivo, handle público de uma palavra e snapshot integral do payload — escalar, handle opaco ou agregado multi-palavra —, com a distinção explícita entre o que o pipeline representa, o que a sintaxe-fonte constrói e qual evidência executável cobre cada forma; e separa os dois domínios de armazenamento — a cota vitalícia de identidades públicas, consumida só por `alocar` e com contrato igual nos dois back-ends, e o domínio interno de união, onde descritores, bytes de payload e metadata têm limites compartilhados, mas o storage do binding de extração é slot de frame já reservado e sem cota própria no nativo e arena monotônica com limite e diagnósticos exclusivos no interpretador.
+summary: Defines canonical identity, explicit injection, exhaustive encaixe, a public one-word handle and a full snapshot of the payload — scalar, opaque handle or multi-word aggregate —, with the explicit distinction between what the pipeline represents, what the source syntax builds and which executable evidence covers each form; and it separates the two storage domains — the lifetime quota of public identities, consumed only by `alocar` and with the same contract on both back-ends, and the internal union domain, where descriptors, payload bytes and metadata have shared limits, but the storage of the extraction binding is an already reserved frame slot with no quota of its own in the native path and a monotonic arena with exclusive limits and diagnostics in the interpreter.
 -->
 
 Uma união é escrita `uniao<T1, T2, ...>`. Aliases são resolvidos, uniões

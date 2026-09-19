@@ -10,10 +10,10 @@
 //! `\" \\ \n \r \t \uXXXX`), inteiros não-negativos, booleanos e arrays de
 //! strings. Zero dependências externas.
 
-// @pinker-nav:start trama.catalogo.leitor-jsonl
-// @pinker-nav:domain catalogo
+// @pinker-nav:start trama.catalog.jsonl-reader
+// @pinker-nav:domain catalog
 // @pinker-nav:layer trama
-// @pinker-nav:summary Leitor mínimo e zero-dependência de JSON de uma linha (JSONL): interpreta objetos com strings escapadas, inteiros, booleanos e arrays de strings, permitindo que as consultas reconstruam os catálogos sem revarrer as fontes.
+// @pinker-nav:summary Minimal, zero-dependency reader of single-line JSON (JSONL): it interprets objects with escaped strings, integers, booleans and arrays of strings, allowing the queries to reconstruct the catalogs without rescanning the sources.
 use std::collections::BTreeMap;
 use std::fmt;
 
@@ -274,12 +274,12 @@ impl<'a> Parser<'a> {
         Ok(out)
     }
 }
-// @pinker-nav:end trama.catalogo.leitor-jsonl
+// @pinker-nav:end trama.catalog.jsonl-reader
 
-// @pinker-nav:start evidencia.jsonl.parser-minimo
+// @pinker-nav:start evidence.jsonl.minimal-parser
 // @pinker-nav:domain jsonl
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Provas do parser JSONL minimo: objeto plano, arrays e booleanos, escapes e sequencias unicode, preservacao de UTF-8 e recusa de sobra depois do valor em vez de aceitacao silenciosa.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Proofs of the minimal JSONL parser: flat object, arrays and booleans, escapes and unicode sequences, UTF-8 preservation and refusal of leftovers after the value instead of silent acceptance.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -320,4 +320,4 @@ mod tests {
         assert!(parse_object(r#"{"a":}"#).is_err());
     }
 }
-// @pinker-nav:end evidencia.jsonl.parser-minimo
+// @pinker-nav:end evidence.jsonl.minimal-parser

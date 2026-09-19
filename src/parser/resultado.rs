@@ -1,7 +1,7 @@
-// @pinker-nav:start parser.resultado.tentar-propagar
-// @pinker-nav:domain resultado
+// @pinker-nav:start parser.result.tentar-propagar
+// @pinker-nav:domain result
 // @pinker-nav:layer parser
-// @pinker-nav:summary Desugaring de `tentar` e `propagar`/`propagar?` sobre leques de resultado: reconhece os braços `sucesso`/`falha` (ou a forma curta de propagação) e abaixa para a mesma representação de `encaixe`, produzindo `ast::Stmt` sem caminho especial de runtime.
+// @pinker-nav:summary Desugaring of `tentar` and `propagar`/`propagar?` over result leques: it recognizes the `sucesso`/`falha` arms (or the short propagation form) and lowers them into the same representation as `encaixe`, producing `ast::Stmt` with no special runtime path.
 use super::*;
 
 impl Parser {
@@ -654,4 +654,4 @@ impl Parser {
         ])
     }
 }
-// @pinker-nav:end parser.resultado.tentar-propagar
+// @pinker-nav:end parser.result.tentar-propagar

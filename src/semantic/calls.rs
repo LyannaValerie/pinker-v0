@@ -1,7 +1,7 @@
 //! Despacho de chamadas da checagem semântica, movido de `src/semantic.rs`
 //! pela unidade SEM-1 do inventário da #601 (Task #619).
 //!
-//! Só o arquivo mudou: a região cartografada `semantic.chamadas.despacho`, as
+//! Só o arquivo mudou: a região cartografada `semantic.calls.dispatch`, as
 //! seis funções que a compõem e a ordem em que decidem continuam exatamente
 //! como estavam. `super` mudou de significado ao descer um nível, e o `use`
 //! abaixo devolve ao irmão o vocabulário do pai — `SemanticChecker`, os tipos
@@ -18,10 +18,10 @@
 //! `check_call_expr` é o único símbolo que o pai chama e, por isso, o único que
 //! passou de privado a `pub(super)`.
 
-// @pinker-nav:start semantic.chamadas.contrato-interno
-// @pinker-nav:domain chamadas
+// @pinker-nav:start semantic.calls.internal-contract
+// @pinker-nav:domain calls
 // @pinker-nav:layer semantic
-// @pinker-nav:summary U-01: aridade, contrato e classe declarada de cada operacao interna lidos da autoridade declarativa em vez de reimplantados aqui. A semantica continua decidindo o que e dela — o texto de cada diagnostico, a correspondencia entre Type e TypeIR, e as perguntas que so existem nesta fase, como se um valor e leque com carga — enquanto quantos operandos a operacao tem e qual a classe de cada um vem da autoridade.
+// @pinker-nav:summary U-01: the arity, contract and declared class of each internal operation are read from the declarative authority instead of being reimplemented here. Semantics still decides what is its own — the text of each diagnostic, the correspondence between Type and TypeIR, and the questions that exist only at this phase, such as whether a value is a leque with a payload — while how many operands the operation has and what class each of them is come from the authority.
 use super::*;
 use crate::map_specialization;
 
@@ -139,11 +139,11 @@ fn resultado_interno(name: &str, span: Span) -> Result<Type, PinkerError> {
 }
 
 impl SemanticChecker {
-    // @pinker-nav:end semantic.chamadas.contrato-interno
-    // @pinker-nav:start semantic.chamadas.despacho
-    // @pinker-nav:domain chamadas
+    // @pinker-nav:end semantic.calls.internal-contract
+    // @pinker-nav:start semantic.calls.dispatch
+    // @pinker-nav:domain calls
     // @pinker-nav:layer semantic
-    // @pinker-nav:summary Despacho de chamadas: resolução de método de impl (direta e qualificada por trato), restringida aos tratos que a unidade-fonte da chamada autorizou — uma chamada de método não nomeia o trato, então sem esse filtro um trato da raiz forneceria método default ao corpo de um módulo que nunca o importou. Quem alcança, quem precede e quem vence entre os candidatos não é decidido aqui: esta camada só constrói candidatos a partir de `method_index` e traduz o veredito de `method_dispatch`, a autoridade única que o lowering consulta com a mesma regra; a chamada qualificada nomeia o trato e continua sendo resolução de identidade, sem candidatos a comparar, e a correspondência exata dessa identidade é de `method_identity` desde a #647 — aqui sobram o adaptador que resolve o alvo e a mensagem, que é da fase; desde a #649 ela também pergunta o ALCANCE da relação resolvida à mesma autoridade de `module_resolve` que o despacho não qualificado consulta, porque poder nomear o trato não autoriza relação de unidade que este contexto nunca pediu. Também: seleção monomórfica das intrínsecas genéricas de mapa, checagem de chamada nomeada (aridade e tipos de argumento) e o despachante `check_call_expr` — construção de variante de leque, desugaring de `encaixe`, a checagem genérica das grafias históricas de contrato declarado, dirigida por `intrinsics::registry`, e os contratos próprios que sobram (aridade variável, formas genéricas de lista/mapa e restrições que não cabem em `(params, ret)`), caindo para a chamada de função declarada.
+    // @pinker-nav:summary Call dispatch: resolution of an impl method (direct and qualified by trato), restricted to the tratos the call's source unit authorized — a method call does not name the trato, so without that filter a trato in the root would supply a default method to the body of a module that never imported it. Who reaches, who precedes and who wins among the candidates is not decided here: this layer only builds candidates from `method_index` and translates the verdict of `method_dispatch`, the single authority the lowering consults with the same rule; a qualified call names the trato and is still identity resolution, with no candidates to compare, and the exact matching of that identity belongs to `method_identity` since #647 — what remains here is the adapter that resolves the target and the message, which belongs to this phase; since #649 it also asks the REACH of the resolved relation of the same `module_resolve` authority the unqualified dispatch consults, because being able to name the trato does not authorize a unit relation this context never requested. Also: monomorphic selection of the generic map intrinsics, checking of a named call (arity and argument types) and the `check_call_expr` dispatcher — leque variant construction, `encaixe` desugaring, the generic check of the historical spellings with a declared contract, driven by `intrinsics::registry`, and the remaining contracts of its own (variable arity, generic list/map forms and restrictions that do not fit in `(params, ret)`), falling through to the declared function call.
     fn check_trait_object_method_call(
         &mut self,
         expr_span: Span,
@@ -1850,4 +1850,4 @@ impl SemanticChecker {
         self.check_named_function_call(expr_span, callee.span, name, &arg_refs)
     }
 }
-// @pinker-nav:end semantic.chamadas.despacho
+// @pinker-nav:end semantic.calls.dispatch

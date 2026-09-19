@@ -15,7 +15,7 @@ related:
   - rosa
 ---
 
-# Ponte — mediação Engine ↔ Rosa
+# Bridge — Engine ↔ Rosa mediation
 
 - **Classe:** Ponte
 - **Papel:** navegação

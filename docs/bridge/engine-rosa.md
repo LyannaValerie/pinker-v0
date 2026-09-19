@@ -16,7 +16,7 @@ related:
   - rosa.voice-tests
 ---
 
-# Ponte Engine ↔ Rosa
+# Engine ↔ Rosa bridge
 
 - **Classe:** Ponte
 - **Papel:** híbrido
@@ -26,12 +26,12 @@ related:
 
 <!-- @pinker-doc:start
 id: bridge.engine-rosa
-tags: [ponte, engine, rosa, mediacao]
+tags: [bridge, engine, rosa, mediation]
 aliases:
-  - ponte engine rosa
-  - mediacao engine rosa
-  - relacao engine rosa
-summary: Mediação explícita entre o estado factual (Engine), a direção identitária (Rosa) e a agência do Guardião.
+  - engine rosa bridge
+  - engine rosa mediation
+  - engine rosa relation
+summary: Explicit mediation between the factual state (Engine), the identity direction (Rosa) and the Guardião's agency.
 -->
 Conectar explicitamente:
 

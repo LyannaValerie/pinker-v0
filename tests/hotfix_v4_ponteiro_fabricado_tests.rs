@@ -94,10 +94,10 @@ fn exigir_validacao_emitida(rotulo: &str, assembly: &str, largura: u64) {
     );
 }
 
-// @pinker-nav:start evidencia.hotfix.v4-ponteiro-fabricado
-// @pinker-nav:domain memoria
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Evidência do item V4: a emissão nativa chama pinker_publico_validar_acesso para load e store através de ponteiro fabricado por conversão de inteiro, nos dez tipos escalares endereçáveis e nas larguras 1/2/4/8; o ambiente de closure continua isento por ser domínio interno; e os exemplos de endereço fabricado, nulo e round-trip por inteiro falham deterministicamente com o mesmo exit nos dois back-ends, sem SIGSEGV.
+// @pinker-nav:start evidence.hotfix.v4-fabricated-pointer
+// @pinker-nav:domain memory
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Evidence of item V4: native emission calls pinker_publico_validar_acesso for load and store through a pointer fabricated by integer conversion, across the ten addressable scalar types and widths 1/2/4/8; the closure environment remains exempt because it is an internal domain; and the fabricated-address, null and integer round-trip examples fail deterministically with the same exit on both back-ends, without SIGSEGV.
 #[test]
 fn v4_emite_validacao_para_load_e_store_por_ponteiro_fabricado() {
     for (tipo, largura) in TIPOS {
@@ -343,4 +343,4 @@ fn v4_nenhum_endereco_fabricado_termina_por_sinal() {
         let _ = std::fs::remove_dir_all(executavel.parent().expect("diretório do build"));
     }
 }
-// @pinker-nav:end evidencia.hotfix.v4-ponteiro-fabricado
+// @pinker-nav:end evidence.hotfix.v4-fabricated-pointer

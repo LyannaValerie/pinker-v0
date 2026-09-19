@@ -2,10 +2,10 @@ mod common;
 
 use common::{render_cfg_ir, render_cli_cfg_ir_output};
 
-// @pinker-nav:start evidencia.cfg.lowering-e-renderizacao-basica
+// @pinker-nav:start evidence.cfg.lowering-and-basic-rendering
 // @pinker-nav:domain cfg
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita lowering IR para CFG e compara exatamente blocos, branches, saltos, retornos e chamadas renderizados.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises IR to CFG lowering and compares exactly the rendered blocks, branches, jumps, returns and calls.
 #[test]
 fn cfg_ir_funcao_simples() {
     let code = "pacote main; carinho principal() -> bombom { mimo 0; }";
@@ -120,12 +120,12 @@ functions:
 "
     );
 }
-// @pinker-nav:end evidencia.cfg.lowering-e-renderizacao-basica
+// @pinker-nav:end evidence.cfg.lowering-and-basic-rendering
 
-// @pinker-nav:start evidencia.cfg.renderizacao-cli
+// @pinker-nav:start evidence.cfg.rendering-cli
 // @pinker-nav:domain cfg
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Compara exatamente o cabeçalho e a CFG textual expostos pelo renderer de CLI.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Compares exactly the header and the textual CFG exposed by the CLI renderer.
 #[test]
 fn cfg_ir_cli_header_estavel() {
     let code = "pacote main; carinho principal() -> bombom { mimo 0; }";
@@ -148,12 +148,12 @@ Análise semântica concluída sem erros.
 "
     );
 }
-// @pinker-nav:end evidencia.cfg.renderizacao-cli
+// @pinker-nav:end evidence.cfg.rendering-cli
 
-// @pinker-nav:start evidencia.cfg.lowering-lacos
+// @pinker-nav:start evidence.cfg.lowering-loops
 // @pinker-nav:domain cfg
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita a formação de blocos e labels de laço, quebrar e continuar e inspeciona fragmentos textuais.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises the formation of loop blocks and labels, quebrar and continuar and inspects textual fragments.
 #[test]
 fn cfg_ir_sempre_que() {
     let code = "
@@ -203,12 +203,12 @@ fn cfg_ir_sempre_que_com_continuar() {
     assert!(cfg.contains("block loop_cond_"), "{}", cfg);
     assert!(cfg.contains("loop_continue_cont"), "{}", cfg);
 }
-// @pinker-nav:end evidencia.cfg.lowering-lacos
+// @pinker-nav:end evidence.cfg.lowering-loops
 
-// @pinker-nav:start evidencia.cfg.lowering-operadores-e-join
+// @pinker-nav:start evidence.cfg.lowering-operators-and-join
 // @pinker-nav:domain cfg
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Inspeciona operações bitwise e módulo e a formação de join quando ambos os ramos continuam.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Inspects bitwise and modulo operations and the formation of a join when both branches continue.
 #[test]
 fn cfg_ir_bitwise_basico() {
     let code = "
@@ -257,12 +257,12 @@ fn cfg_ir_if_else_fallthrough_ambos_ramos_gera_join_valido() {
     assert!(cfg.contains("block join_"), "{}", cfg);
     assert!(cfg.contains("ret %x#0"), "{}", cfg);
 }
-// @pinker-nav:end evidencia.cfg.lowering-operadores-e-join
+// @pinker-nav:end evidence.cfg.lowering-operators-and-join
 
-// @pinker-nav:start evidencia.cfg.lowering-ponteiros-e-agregados
+// @pinker-nav:start evidence.cfg.lowering-pointers-and-aggregates
 // @pinker-nav:domain cfg
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita casts, dereferência, indexação e campos no subset observado e espera erros nos casos fora dele.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises casts, dereference, indexing and fields in the observed subset and expects errors in the cases outside it.
 #[test]
 fn cfg_ir_cast_explicito_bombom_para_seta_bombom_e_volta() {
     let code = r#"
@@ -372,12 +372,12 @@ fn cfg_ir_acesso_campo_em_valor_struct_ainda_fora_do_subset_operacional() {
     let err = render_cfg_ir(code).unwrap_err().to_string();
     assert!(err.contains("(*ptr).campo"), "{}", err);
 }
-// @pinker-nav:end evidencia.cfg.lowering-ponteiros-e-agregados
+// @pinker-nav:end evidence.cfg.lowering-pointers-and-aggregates
 
-// @pinker-nav:start evidencia.cfg.lowering-limite-asm
+// @pinker-nav:start evidence.cfg.lowering-asm-limit
 // @pinker-nav:domain cfg
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Confirma que asm inline atravessa a CFG como barreira explícita e preserva o chunk.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Confirms that inline asm crosses the CFG as an explicit barrier and preserves the chunk.
 #[test]
 fn cfg_ir_inline_asm_preservado() {
     let code = r#"
@@ -390,12 +390,12 @@ fn cfg_ir_inline_asm_preservado() {
     let cfg = render_cfg_ir(code).unwrap();
     assert!(cfg.contains("inline_asm [\"mov rax, 60\"]"), "{cfg}");
 }
-// @pinker-nav:end evidencia.cfg.lowering-limite-asm
+// @pinker-nav:end evidence.cfg.lowering-asm-limit
 
-// @pinker-nav:start evidencia.cfg.lowering-verso
+// @pinker-nav:start evidence.cfg.lowering-verso
 // @pinker-nav:domain cfg
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita verso em constante, local, parâmetro, retorno, chamada e falar e inspeciona a CFG renderizada.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises verso in a constant, a local, a parameter, a return, a call and falar and inspects the rendered CFG.
 #[test]
 fn cfg_ir_verso_constante_global_operacional() {
     let code = r#"
@@ -426,12 +426,12 @@ fn cfg_ir_verso_operacional_minimo_em_local_parametro_retorno() {
     assert!(cfg.contains("call eco(%texto#0) -> verso"), "{}", cfg);
     assert!(cfg.contains("falar %copia#0:verso"), "{}", cfg);
 }
-// @pinker-nav:end evidencia.cfg.lowering-verso
+// @pinker-nav:end evidence.cfg.lowering-verso
 
-// @pinker-nav:start evidencia.cfg.lowering-curto-circuito
+// @pinker-nav:start evidence.cfg.lowering-short-circuit
 // @pinker-nav:domain cfg
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita curto-circuito lógico como controle e valor e inspeciona seus blocos de branch e join.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises logical short-circuiting as control and as value and inspects its branch and join blocks.
 #[test]
 fn cfg_ir_logicos_viram_branch_de_curto_circuito() {
     let code = "
@@ -496,12 +496,12 @@ fn fase243_closure_com_captura_vira_make_closure_na_cfg() {
     let cfg = render_cfg_ir(code).unwrap();
     assert!(cfg.contains("make_closure"), "{}", cfg);
 }
-// @pinker-nav:end evidencia.cfg.lowering-curto-circuito
+// @pinker-nav:end evidence.cfg.lowering-short-circuit
 
-// @pinker-nav:start evidencia.cfg.objetos-trato-fase244
+// @pinker-nav:start evidence.cfg.trato-objects-phase244
 // @pinker-nav:domain cfg
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita a representação da Fase 244 na CFG: materialização com snapshot e vtable ordenada, despacho direto e qualificado, chamada dinâmica com retorno e chamada nula sem destino.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises the Phase 244 representation in the CFG: materialization with a snapshot and an ordered vtable, direct and qualified dispatch, a dynamic call with a return and a null call without a destination.
 
 #[test]
 fn fase244_cfg_lowering_materializa_objeto_com_vtable_ordenada() {
@@ -646,4 +646,4 @@ carinho principal() -> bombom {
     );
 }
 
-// @pinker-nav:end evidencia.cfg.objetos-trato-fase244
+// @pinker-nav:end evidence.cfg.trato-objects-phase244

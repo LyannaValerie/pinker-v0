@@ -21,8 +21,8 @@
 use std::collections::BTreeMap;
 
 // @pinker-nav:start json.valor.modelo
-// @pinker-nav:domain dados
-// @pinker-nav:layer semantica
+// @pinker-nav:domain data
+// @pinker-nav:layer semantic
 // @pinker-nav:summary Autoridade única do valor JSON da Parte E1: `NoJson` é o nó da arena (nulo, lógica, número `i64`, verso, lista de handles e objeto `BTreeMap` de handles), `TabelaJson` materializa a árvore atrás de handles monotônicos que nunca são reutilizados, e `TipoJson` nomeia as seis classes observáveis na ordem de declaração que é o discriminante lido pela IR. O nesting é recursivo por handle, não por família de formato: nenhum helper novo é exigido por forma nova. Objeto usa `BTreeMap`, então a ordem observável é das chaves por construção e nunca herdada de `HashMap`.
 
 /// Variantes do leque `TipoJson`, em ordem de declaração.
@@ -214,8 +214,8 @@ impl TabelaJson {
 // @pinker-nav:end json.valor.modelo
 
 // @pinker-nav:start json.texto.interpretacao
-// @pinker-nav:domain dados
-// @pinker-nav:layer semantica
+// @pinker-nav:domain data
+// @pinker-nav:layer semantic
 // @pinker-nav:summary Interpretação de texto JSON externo em árvore de arena: descida recursiva com limite de profundidade explícito, números restritos ao domínio `i64` exato sem fração nem expoente, strings com escapes completos e pares surrogate validados, chave duplicada recusada e lixo após o valor recusado. Toda recusa é falha recuperável descrita em texto — nunca pânico, nunca aproximação silenciosa, nunca comportamento herdado de biblioteca host.
 /// Inteiro JSON validado, ainda **sem** domínio escolhido.
 ///
@@ -574,8 +574,8 @@ impl<'a> Cursor<'a> {
 // @pinker-nav:end json.texto.interpretacao
 
 // @pinker-nav:start json.plano.projecao-legada
-// @pinker-nav:domain dados
-// @pinker-nav:layer semantica
+// @pinker-nav:domain data
+// @pinker-nav:layer semantic
 // @pinker-nav:summary Projeção plana histórica sobre a MESMA autoridade léxica e sintática: `interpretar_plano_bombom` percorre o objeto de um nível com o cursor compartilhado e projeta cada número para `u64`, preservando a faixa inteira do recorte anterior — inclusive `i64::MAX + 1 ..= u64::MAX`, que o domínio adulto recusa —, e `serializar_plano_bombom` emite decimal exato sem cast para `i64`, com chaves ordenadas. As recusas históricas continuam recusando com as mesmas razões observáveis; o que mudou é que não existe mais um segundo cursor capaz de divergir.
 
 /// Interpreta um objeto JSON plano no recorte histórico `verso -> bombom`.
@@ -684,8 +684,8 @@ pub fn serializar_plano_bombom(pares: &[(String, u64)]) -> Result<String, String
 // @pinker-nav:end json.plano.projecao-legada
 
 // @pinker-nav:start json.texto.serializacao
-// @pinker-nav:domain dados
-// @pinker-nav:layer semantica
+// @pinker-nav:domain data
+// @pinker-nav:layer semantic
 // @pinker-nav:summary Serialização determinística da árvore: objetos saem em ordem de chave por construção do `BTreeMap`, strings escapam aspas, barra invertida e controles em forma canônica preservando UTF-8 multibyte cru, e números saem exatos. A regra de ordem é explícita e não herdada de iteração de host; a mesma regra já vigorava no emissor plano histórico, que ordenava as chaves.
 /// Serializa a árvore a partir de `handle`, de forma determinística.
 ///
@@ -771,8 +771,8 @@ fn escrever_string(texto: &str, saida: &mut String) {
 // @pinker-nav:end json.texto.serializacao
 
 // @pinker-nav:start evidencia.json.modelo-unitario
-// @pinker-nav:domain dados
-// @pinker-nav:layer evidencia
+// @pinker-nav:domain data
+// @pinker-nav:layer evidence
 // @pinker-nav:summary Evidência unitária do modelo: handles monotônicos sem reuso, esgotamento sem wrap, nesting recursivo atravessado pelo mesmo mecanismo em duas árvores de formatos diferentes, domínio numérico exato com recusa de fração/expoente/magnitude, escapes e pares surrogate, chave duplicada recusada, profundidade limitada e serialização determinística por ordem de chave independente da ordem de inserção.
 #[cfg(test)]
 mod tests {

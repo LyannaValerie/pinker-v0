@@ -1,9 +1,9 @@
 //! Contrato de validação e aplicação do overlay de ambiente de processos.
 
-// @pinker-nav:start processos.ambiente.overlay
-// @pinker-nav:domain processos
+// @pinker-nav:start processes.environment.overlay
+// @pinker-nav:domain processes
 // @pinker-nav:layer runtime
-// @pinker-nav:summary Autoridade da validação e aplicação do overlay de ambiente para processos estruturados: chave vazia, igual na chave e NUL em chave ou valor são inválidos; igual no valor é preservado integralmente e os pares seguem separados até Command::env, sem serialização textual.
+// @pinker-nav:summary Authority for validating and applying the environment overlay for structured processes: an empty key, an equals sign in the key and a NUL in the key or the value are invalid; an equals sign in the value is preserved in full and the pairs stay separated all the way to Command::env, with no textual serialization.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ErroAmbienteProcesso {
     ChaveVazia,
@@ -44,12 +44,12 @@ where
     Ok(())
 }
 
-// @pinker-nav:end processos.ambiente.overlay
+// @pinker-nav:end processes.environment.overlay
 
-// @pinker-nav:start evidencia.processos.ambiente-overlay
-// @pinker-nav:domain processos
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Prova o contrato fechado do overlay de ambiente, inclusive o caso obrigatório PINKER_TEST com valor a=b=c observado exatamente pelo filho, sem tratar os sinais de igual adicionais como separadores.
+// @pinker-nav:start evidence.processes.environment-overlay
+// @pinker-nav:domain processes
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Proves the closed contract of the environment overlay, including the mandatory PINKER_TEST case with the value a=b=c observed exactly by the child, without treating the additional equals signs as separators.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -88,4 +88,4 @@ mod tests {
         );
     }
 }
-// @pinker-nav:end evidencia.processos.ambiente-overlay
+// @pinker-nav:end evidence.processes.environment-overlay

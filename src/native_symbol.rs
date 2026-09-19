@@ -16,10 +16,10 @@
 //! visibilidade dinâmica (`STV_HIDDEN`), que governa exportação e não resolve
 //! captura no link estático.
 
-// @pinker-nav:start nativo.simbolo.entrypoint
-// @pinker-nav:domain identidade
-// @pinker-nav:layer nativo
-// @pinker-nav:summary Autoridade explícita do entrypoint: ENTRYPOINT_SOURCE_IDENTITY (`principal`) é a única identidade de fonte que produz um símbolo de plataforma, ENTRYPOINT_NATIVE_SYMBOL (`main`) é o símbolo da superfície montável e FREESTANDING_ENTRYPOINT_SYMBOL (`_start`) o da superfície livre. NativeSurface modela explicitamente a diferença deliberada entre a superfície montável, onde a identidade vira símbolo de ABI, e a superfície textual `pinker.text.v0`, anotativa, que preserva a grafia Pinker. `function_symbol` é o único ponto que responde `principal -> main`; `is_entrypoint` é o único ponto que reconhece a identidade do entrypoint.
+// @pinker-nav:start native.symbol.entrypoint
+// @pinker-nav:domain identity
+// @pinker-nav:layer native
+// @pinker-nav:summary Explicit authority of the entrypoint: ENTRYPOINT_SOURCE_IDENTITY (`principal`) is the only source identity that produces a platform symbol, ENTRYPOINT_NATIVE_SYMBOL (`main`) is the symbol of the assemblable surface and FREESTANDING_ENTRYPOINT_SYMBOL (`_start`) that of the free surface. NativeSurface explicitly models the deliberate difference between the assemblable surface, where the identity becomes an ABI symbol, and the annotative textual surface `pinker.text.v0`, which preserves the Pinker spelling. `function_symbol` is the only point that answers `principal -> main`; `is_entrypoint` is the only point that recognizes the entrypoint's identity.
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
@@ -60,12 +60,12 @@ pub fn function_symbol(surface: NativeSurface, source_name: &str) -> String {
         _ => source_name.to_string(),
     }
 }
-// @pinker-nav:end nativo.simbolo.entrypoint
+// @pinker-nav:end native.symbol.entrypoint
 
-// @pinker-nav:start nativo.simbolo.ligacao
+// @pinker-nav:start native.symbol.wiring
 // @pinker-nav:domain abi
-// @pinker-nav:layer nativo
-// @pinker-nav:summary Autoridade única de ligação das definições emitidas pelo objeto do programa: NativeDefinition classifica a definição (entrypoint, função de usuário, função gerada pelo compilador, global `eterno`, helper local do backend) e `native_binding` responde LOCAL ou GLOBAL por classe. Só o entrypoint é GLOBAL, porque é a única definição do objeto consumida de fora (pelo CRT); todo o resto é STB_LOCAL e por isso deixa de satisfazer referências externas do runtime que deveriam ir ao host. `NativeBinding::directive` é o único produtor de `.globl`/`.local`; `.hidden` não é usado, porque STV_HIDDEN governa exportação dinâmica e não impede a captura no link estático.
+// @pinker-nav:layer native
+// @pinker-nav:summary Single authority over the linkage of the definitions emitted by the program object: NativeDefinition classifies the definition (entrypoint, user function, compiler-generated function, `eterno` global, backend local helper) and `native_binding` answers LOCAL or GLOBAL per class. Only the entrypoint is GLOBAL, because it is the object's only definition consumed from outside (by the CRT); everything else is STB_LOCAL and therefore stops satisfying external runtime references that should go to the host. `NativeBinding::directive` is the only producer of `.globl`/`.local`; `.hidden` is not used, because STV_HIDDEN governs dynamic export and does not prevent capture at static link time.
 
 /// Ligação ELF de uma definição emitida.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -137,12 +137,12 @@ pub fn native_binding(definition: NativeDefinition) -> NativeBinding {
 pub fn function_binding(source_name: &str) -> NativeBinding {
     native_binding(classify_function(source_name))
 }
-// @pinker-nav:end nativo.simbolo.ligacao
+// @pinker-nav:end native.symbol.wiring
 
-// @pinker-nav:start nativo.simbolo.namespace-reservado
-// @pinker-nav:domain identificadores
-// @pinker-nav:layer nativo
-// @pinker-nav:summary Reserva dirigida dos namespaces que a Pinker realmente possui, derivada de uma tabela única: as dezenove formas de identidade sintética que o compilador de fato materializa (dezessete prefixos, de `__pinker_internal_` a `__propagar_falha_`, e dois nomes exatos, `__env` e `__ternario`), o prefixo `pinker_` (símbolos definidos e consumidos por `libpinker_rt.a`) e os símbolos de entrypoint de plataforma `main` e `_start`. A reserva é da forma realmente possuída, não do superprefixo comum a ela: `__` continua livre, então `__usuario` é nome Pinker legal, e uma entrada `Exact` nunca vira `Prefix` por conveniência — `__env` é reservado e `__envio` não. Cada entrada declara seu dono (`NamespaceOwner`) e a fronteira exata em que é aplicada — `AnyIdentifier` na fronteira léxica de fonte, `SymbolDefinition` na fronteira de definição produtora de símbolo — e cada fronteira consulta só as entradas do seu escopo, porque `main` é nome legítimo de pacote e as identidades sintéticas são criadas pelo próprio compilador depois do lexer. `is_compiler_generated` é o único ponto que reconhece identidade gerada, e `classify_function` o consome em vez de testar prefixo por conta própria. Nomes do host (`malloc`, `memcpy`, `write`, `getenv`, `free`, `environ`, ...) NÃO são reservados: continuam legais como nomes Pinker e são isolados por STB_LOCAL.
+// @pinker-nav:start native.symbol.reserved-namespace
+// @pinker-nav:domain identifiers
+// @pinker-nav:layer native
+// @pinker-nav:summary Targeted reservation of the namespaces Pinker actually owns, derived from a single table: the nineteen forms of synthetic identity the compiler really materializes (seventeen prefixes, from `__pinker_internal_` to `__propagar_falha_`, and two exact names, `__env` and `__ternario`), the `pinker_` prefix (symbols defined and consumed by `libpinker_rt.a`) and the platform entrypoint symbols `main` and `_start`. The reservation is of the form actually owned, not of the superprefix common to it: `__` remains free, so `__usuario` is a legal Pinker name, and an `Exact` entry never becomes a `Prefix` out of convenience — `__env` is reserved and `__envio` is not. Each entry declares its owner (`NamespaceOwner`) and the exact boundary at which it is applied — `AnyIdentifier` at the source's lexical boundary, `SymbolDefinition` at the symbol-producing definition boundary — and each boundary consults only the entries of its scope, because `main` is a legitimate package name and the synthetic identities are created by the compiler itself after the lexer. `is_compiler_generated` is the only point that recognizes a generated identity, and `classify_function` consumes it instead of testing a prefix on its own. Host names (`malloc`, `memcpy`, `write`, `getenv`, `free`, `environ`, ...) are NOT reserved: they remain legal as Pinker names and are isolated by STB_LOCAL.
 
 /// Prefixo histórico das intrínsecas internas materializadas pelo lowering.
 /// Continua reservado; hoje é uma das dezenove formas da tabela canônica.
@@ -398,12 +398,12 @@ pub fn reserved_namespace_message(name: &str, namespace: PinkerOwnedNamespace) -
         namespace.reason
     )
 }
-// @pinker-nav:end nativo.simbolo.namespace-reservado
+// @pinker-nav:end native.symbol.reserved-namespace
 
-// @pinker-nav:start nativo.simbolo.rotulo-injetivo
-// @pinker-nav:domain renderizacao
-// @pinker-nav:layer nativo
-// @pinker-nav:summary Encoding injetivo dos rótulos locais gerados, pelo mesmo princípio já usado pela identidade genérica e pelo símbolo de vtable: cada componente entra com prefixo de comprimento em bytes, de modo que a concatenação é recuperável e `components(A) != components(B)` implica `encode(A) != encode(B)`. `injective_local_label` produz o rótulo e `decode_injective_local_label` recupera os componentes — a recuperabilidade é a prova de injetividade, não uma conveniência. Substitui a concatenação textual `.L{fn}_{label}`, que colapsava `('f','loop_join_1')` e `('f_loop','join_1')` no mesmo `.Lf_loop_join_1`.
+// @pinker-nav:start native.symbol.injective-label
+// @pinker-nav:domain rendering
+// @pinker-nav:layer native
+// @pinker-nav:summary Injective encoding of the generated local labels, by the same principle already used by the generic identity and by the vtable symbol: each component enters with a byte-length prefix, so that the concatenation is recoverable and `components(A) != components(B)` implies `encode(A) != encode(B)`. `injective_local_label` produces the label and `decode_injective_local_label` recovers the components — recoverability is the proof of injectivity, not a convenience. It replaces the textual concatenation `.L{fn}_{label}`, which collapsed `('f','loop_join_1')` and `('f_loop','join_1')` into the same `.Lf_loop_join_1`.
 
 /// Prefixo dos rótulos locais injetivos emitidos pelo backend.
 pub const INJECTIVE_LOCAL_LABEL_PREFIX: &str = ".Lp";
@@ -444,12 +444,12 @@ pub fn decode_injective_local_label(label: &str) -> Option<Vec<String>> {
     }
     Some(components)
 }
-// @pinker-nav:end nativo.simbolo.rotulo-injetivo
+// @pinker-nav:end native.symbol.injective-label
 
-// @pinker-nav:start nativo.simbolo.conjunto-emitido
-// @pinker-nav:domain validacao
-// @pinker-nav:layer nativo
-// @pinker-nav:summary Verificação do conjunto que o renderer vai emitir, antes de entregar o `.s` à toolchain externa (R2). `EmittedDefinitions` registra cada definição como par `(símbolo, identidade que a produziu)`: duas identidades distintas no mesmo símbolo são colisão e viram diagnóstico Pinker determinístico — ordenado por BTreeMap, nunca por ordem de HashMap — enquanto a mesma identidade repetida no mesmo símbolo é muitos-para-um deliberado e permanece legal. Fecha a classe de erro cru de GNU as ('symbol already defined') para as colisões que o compilador já pode conhecer.
+// @pinker-nav:start native.symbol.emitted-set
+// @pinker-nav:domain validation
+// @pinker-nav:layer native
+// @pinker-nav:summary Verification of the set the renderer is about to emit, before handing the `.s` to the external toolchain (R2). `EmittedDefinitions` records each definition as a `(symbol, identity that produced it)` pair: two distinct identities on the same symbol are a collision and become a deterministic Pinker diagnostic — ordered by BTreeMap, never by HashMap order — while the same identity repeated on the same symbol is deliberate many-to-one and remains legal. It closes GNU as's raw error class ('symbol already defined') for the collisions the compiler can already know about.
 
 /// Colisão entre duas identidades distintas que renderizam para a mesma
 /// definição emitida.
@@ -513,12 +513,12 @@ pub fn emitted_collision_message(collision: &EmittedCollision) -> String {
         collision.first_identity, collision.second_identity, collision.symbol
     )
 }
-// @pinker-nav:end nativo.simbolo.conjunto-emitido
+// @pinker-nav:end native.symbol.emitted-set
 
-// @pinker-nav:start evidencia.nativo.simbolo
-// @pinker-nav:domain identidade
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Evidência local da autoridade nativa de símbolos: fixa `principal -> main` só na superfície montável, a ligação por classe, o escopo exato de cada namespace reservado, a injetividade e a recuperabilidade do encoding de rótulo (incluindo o par histórico `f`/`f_loop` da F-04) e a separação entre muitos-para-um da mesma identidade e colisão entre identidades distintas.
+// @pinker-nav:start evidence.native.symbol
+// @pinker-nav:domain identity
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Local evidence of the native symbol authority: it fixes `principal -> main` only on the assemblable surface, linkage by class, the exact scope of each reserved namespace, the injectivity and recoverability of the label encoding (including the historical `f`/`f_loop` pair of F-04) and the separation between many-to-one of the same identity and a collision between distinct identities.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -663,4 +663,4 @@ mod tests {
         assert_eq!(collision.symbol, "main");
     }
 }
-// @pinker-nav:end evidencia.nativo.simbolo
+// @pinker-nav:end evidence.native.symbol

@@ -1,7 +1,7 @@
-// @pinker-nav:start parser.estado.modelo
-// @pinker-nav:domain estado
+// @pinker-nav:start parser.state.model
+// @pinker-nav:domain state
 // @pinker-nav:layer parser
-// @pinker-nav:summary Preludio do parser e o estado que ele carrega durante todo o parse: os submodulos de comandos, expressoes, genericos, lacos e resultado, o tipo de colecao detectado em declaracao de variavel e de parametro (que decide a desugaring de `para cada`), e a estrutura Parser com posicao de token, tabelas de tipos conhecidos, relacoes de impl pendentes, origem generica e o conjunto de funcoes anonimas capturantes.
+// @pinker-nav:summary Prelude of the parser and the state it carries throughout the parse: the statement, expression, generics, loop and result submodules, the collection type detected in a variable and parameter declaration (which decides the desugaring of `para cada`), and the Parser structure with the token position, tables of known types, pending impl relations, generic origin and the set of capturing anonymous functions.
 use crate::anonymous_identity;
 use crate::ast::*;
 use crate::error::PinkerError;
@@ -198,11 +198,11 @@ pub struct Parser {
     /// — excluídos dos caminhos rápidos estáticos das Fases 238/239.
     capturing_anon_functions: HashSet<String>,
 }
-// @pinker-nav:end parser.estado.modelo
-// @pinker-nav:start parser.instanciacao.registros
-// @pinker-nav:domain instanciacao
+// @pinker-nav:end parser.state.model
+// @pinker-nav:start parser.instantiation.registers
+// @pinker-nav:domain instantiation
 // @pinker-nav:layer parser
-// @pinker-nav:summary Registros que o parser acumula enquanto reconhece formas que so se resolvem depois: instanciacao generica de funcao e de leque, instanciacao e binding de parametro de funcao, bloco de impl ja lido e relacao de impl ainda pendente, mais a uniao de dois spans em um span que cobre os dois.
+// @pinker-nav:summary Records the parser accumulates while recognizing forms that are only resolved later: generic instantiation of a function and of a leque, instantiation and binding of a function parameter, an impl block already read and an impl relation still pending, plus the union of two spans into one span covering both.
 
 #[derive(Clone)]
 struct GenericInstantiation {
@@ -259,11 +259,11 @@ fn merge_span(a: Span, b: Span) -> Span {
 ///
 /// Guarda ÍNDICES, não lexemas: quem lê decide o que extrair, e o leitor não
 /// precisa de empréstimo vivo sobre `self.tokens` enquanto o parser segue
-// @pinker-nav:end parser.instanciacao.registros
-// @pinker-nav:start parser.importacoes.contexto
-// @pinker-nav:domain importacoes
+// @pinker-nav:end parser.instantiation.registers
+// @pinker-nav:start parser.imports.context
+// @pinker-nav:domain imports
 // @pinker-nav:layer parser
-// @pinker-nav:summary Declaracao de `trazer` como o parser a ve e o contexto de import que ele recebe pronto: membros na ordem textual, import inteiro quando a lista e vazia, quais nomes sao modulo Pinker real e quais identidades de topo o modulo traz. O parser recebe o veredito de modulo; nao o calcula.
+// @pinker-nav:summary The `trazer` declaration as the parser sees it and the import context it receives ready-made: members in textual order, a whole import when the list is empty, which names are a real Pinker module and which top-level identities the module brings in. The parser receives the module verdict; it does not compute it.
 /// mutando. `membros` vazio significa import inteiro (`trazer M;`); caso
 /// contrário são os membros na ORDEM TEXTUAL, que é a ordem em que a forma
 /// separada equivalente teria sido escrita.
@@ -325,11 +325,11 @@ pub struct ContextoDeImport {
     pub import_incompleto: bool,
 }
 
-// @pinker-nav:end parser.importacoes.contexto
-// @pinker-nav:start parser.impl.materializacao-de-default
+// @pinker-nav:end parser.imports.context
+// @pinker-nav:start parser.impl.default-materialization
 // @pinker-nav:domain impl
 // @pinker-nav:layer parser
-// @pinker-nav:summary Construcao do parser (com e sem contexto de import ou origem generica) e a materializacao de corpo default de trato por alvo: chave de tipo do impl, nome da funcao materializada, nome da funcao de checagem do default e a copia das closures sinteticas que o corpo cita. Uma copia por materializacao e obrigatoria porque a captura de uma closure e resolvida uma unica vez por nome e o receiver muda de tipo a cada alvo.
+// @pinker-nav:summary Construction of the parser (with and without an import context or generic origin) and the materialization of a trato default body per target: the impl's type key, the name of the materialized function, the name of the default's checking function and the copy of the synthetic closures the body cites. One copy per materialization is mandatory because a closure's capture is resolved exactly once per name and the receiver changes type at each target.
 impl Parser {
     pub fn new(tokens: Vec<Token>) -> Self {
         Self::with_generic_origin(tokens, GenericOrigin::Root)
@@ -540,11 +540,11 @@ impl Parser {
         Ok(())
     }
 
-    // @pinker-nav:end parser.impl.materializacao-de-default
-    // @pinker-nav:start parser.fluxo.nucleo
-    // @pinker-nav:domain fluxo
+    // @pinker-nav:end parser.impl.default-materialization
+    // @pinker-nav:start parser.flow.core
+    // @pinker-nav:domain flow
     // @pinker-nav:layer parser
-    // @pinker-nav:summary Núcleo do parser: cursor sobre a lista de tokens (peek/advance/previous/check/consume) e antecipação com offset, mais o erro `Expected` de sincronização básica; utilitários fundamentais que todas as regras gramaticais consomem.
+    // @pinker-nav:summary Core of the parser: a cursor over the token list (peek/advance/previous/check/consume) and lookahead with an offset, plus the `Expected` error of basic synchronization; fundamental utilities that every grammar rule consumes.
     fn peek(&self) -> Option<&Token> {
         self.tokens
             .get(self.current)
@@ -662,12 +662,12 @@ impl Parser {
         })
     }
 
-    // @pinker-nav:end parser.fluxo.nucleo
+    // @pinker-nav:end parser.flow.core
 
-    // @pinker-nav:start parser.programa.estrutura
-    // @pinker-nav:domain programa
+    // @pinker-nav:start parser.program.structure
+    // @pinker-nav:domain program
     // @pinker-nav:layer parser
-    // @pinker-nav:summary Ponto de entrada do parser: constrói o `Program` reconhecendo `pacote`, `trazer` (imports) e a marca freestanding, e despacha os itens de topo via `parse_item`. Desde a #533 a declaração `trazer` aceita vários membros de UM módulo (`trazer M.a, b, c;`) e desaçucara ali mesmo para as unidades `Import` de sempre, na ordem textual, sem que nada a jusante conheça multi-import; a leitura da declaração é `ler_declaracao_trazer`, a mesma que os prepasses de import usam, e o caminho de cursor só produz o diagnóstico das formas recusadas (`M.a, b,;`, `M.a, N.b;`, `M, a;`). Dois prepasses estreitos de autoridade precedem qualquer resolução, ambos sobre tokens e sem resolver tipos: um detecta templates genéricos de usuário antes de registrar o `Resultado<T,E>` builtin, tornando USER_WINS independente da ordem textual; outro colhe as identidades de topo do arquivo (`coletar_nomes_de_topo`), que é o que dá à superfície por família a mesma independência de ordem. A redeclaração continua formando com a produção runtime a conjunção inválida da Parte B1.
+    // @pinker-nav:summary Entry point of the parser: it builds the `Program` by recognizing `pacote`, `trazer` (imports) and the freestanding marker, and dispatches the top-level items via `parse_item`. Since #533 the `trazer` declaration accepts several members of ONE module (`trazer M.a, b, c;`) and desugars right there into the usual `Import` units, in textual order, without anything downstream knowing about multi-import; the declaration is read by `ler_declaracao_trazer`, the same one the import prepasses use, and the cursor path only produces the diagnostic of the refused forms (`M.a, b,;`, `M.a, N.b;`, `M, a;`). Two narrow authority prepasses precede any resolution, both over tokens and without resolving types: one detects user generic templates before registering the builtin `Resultado<T,E>`, making USER_WINS independent of textual order; the other gathers the file's top-level identities (`coletar_nomes_de_topo`), which is what gives the per-family surface the same order independence. A redeclaration still forms with the runtime production the invalid conjunction of Part B1.
     pub fn parse(&mut self) -> Result<Program, PinkerError> {
         // Parte G: o censo de identidades de topo precede toda resolução. A
         // família é fallback, e fallback precisa saber o que já está
@@ -992,12 +992,12 @@ impl Parser {
         }
     }
 
-    // @pinker-nav:end parser.programa.estrutura
+    // @pinker-nav:end parser.program.structure
 
-    // @pinker-nav:start parser.tipos.gramatica
-    // @pinker-nav:domain tipos
+    // @pinker-nav:start parser.types.grammar
+    // @pinker-nav:domain types
     // @pinker-nav:layer parser
-    // @pinker-nav:summary Gramática de tipos: reconhece tipos primitivos, nomeados, listas/mapas, ponteiros e arrays, função e aplicações genéricas na sintaxe, produzindo nós `ast::Type` sem resolver aliases nem significado (isso é da semântica).
+    // @pinker-nav:summary Type grammar: it recognizes primitive, named, list/map, pointer and array types, function types and generic applications in the syntax, producing `ast::Type` nodes without resolving aliases or meaning (that belongs to semantics).
     fn parse_type(&mut self) -> Result<Type, PinkerError> {
         let span = self.peek_span();
         if self.match_token(TokenKind::KwFragil) {
@@ -1305,12 +1305,12 @@ impl Parser {
         })
     }
 
-    // @pinker-nav:end parser.tipos.gramatica
+    // @pinker-nav:end parser.types.grammar
 
-    // @pinker-nav:start parser.declaracoes.tipos
-    // @pinker-nav:domain declaracoes
+    // @pinker-nav:start parser.declarations.types
+    // @pinker-nav:domain declarations
     // @pinker-nav:layer parser
-    // @pinker-nav:summary Declarações de tipos e itens de topo: `apelido` (type alias), `ninho` (struct), blocos `impl`, `trato` e `leque` (enum), consumindo cada gramática e produzindo os nós de declaração correspondentes.
+    // @pinker-nav:summary Type declarations and top-level items: `apelido` (type alias), `ninho` (struct), `impl`, `trato` and `leque` (enum) blocks, consuming each grammar and producing the corresponding declaration nodes.
     fn parse_type_alias(&mut self) -> Result<TypeAliasDecl, PinkerError> {
         let start_span = self.previous().span;
         let name = self
@@ -1730,12 +1730,12 @@ impl Parser {
         })
     }
 
-    // @pinker-nav:end parser.declaracoes.tipos
+    // @pinker-nav:end parser.declarations.types
 
-    // @pinker-nav:start parser.encaixe.expressao
+    // @pinker-nav:start parser.encaixe.expression
     // @pinker-nav:domain encaixe
     // @pinker-nav:layer parser
-    // @pinker-nav:summary Parser de `encaixe`: preserva leques como `EnumMatchStmt` com `EnumPattern` recursivo (variantes e bindings) e mantém uniões estruturais no `UnionMatchStmt` vigente; tipo, exaustividade, duplicatas e unreachable patterns pertencem à semântica.
+    // @pinker-nav:summary Parser of `encaixe`: it preserves leques as an `EnumMatchStmt` with a recursive `EnumPattern` (variants and bindings) and keeps structural unions in the current `UnionMatchStmt`; type, exhaustiveness, duplicates and unreachable patterns belong to semantics.
     /// Parse de `encaixe` sobre leques e uniões estruturais.
     ///
     /// ```text
@@ -1957,11 +1957,11 @@ impl Parser {
         })])
     }
 
-    // @pinker-nav:end parser.encaixe.expressao
-    // @pinker-nav:start parser.colecoes.registro-de-tipo
-    // @pinker-nav:domain colecoes
+    // @pinker-nav:end parser.encaixe.expression
+    // @pinker-nav:start parser.collections.type-registry
+    // @pinker-nav:domain collections
     // @pinker-nav:layer parser
-    // @pinker-nav:summary Registro do tipo de colecao de um nome declarado, para que o `para cada` posterior saiba, sem reinferir, se itera lista, mapa ou verso, e para que uma redeclaracao em outro escopo nao herde a colecao anterior.
+    // @pinker-nav:summary Registry of the collection type of a declared name, so that a later `para cada` knows, without re-inferring, whether it iterates a list, a map or a verso, and so that a redeclaration in another scope does not inherit the previous collection.
 
     fn register_collection_type(&mut self, name: &str, ty: &Type) {
         match ty {
@@ -2005,11 +2005,11 @@ impl Parser {
         }
     }
 
-    // @pinker-nav:end parser.colecoes.registro-de-tipo
-    // @pinker-nav:start parser.closures.expressao
+    // @pinker-nav:end parser.collections.type-registry
+    // @pinker-nav:start parser.closures.expression
     // @pinker-nav:domain closures
     // @pinker-nav:layer parser
-    // @pinker-nav:summary Funções anônimas e vínculos de valor-função: reconhece a closure `(params) -> tipo { corpo }`, materializa sua identidade sintética com proveniência canônica da fonte mais índice local e reconhece os `nova f = ...` que ligam nomes a funções, mantendo o escopo de aliases de valor-função e produzindo `ast::Expr`/vínculos locais.
+    // @pinker-nav:summary Anonymous functions and function-value bindings: it recognizes the closure `(params) -> type { body }`, materializes its synthetic identity with the source's canonical provenance plus a local index and recognizes the `nova f = ...` that bind names to functions, maintaining the scope of function-value aliases and producing `ast::Expr`/local bindings.
     fn parse_anonymous_function_expr(&mut self, start_span: Span) -> Result<Expr, PinkerError> {
         self.consume(TokenKind::LParen, "(")?;
         let mut params = Vec::new();
@@ -2238,12 +2238,12 @@ impl Parser {
         })))
     }
 
-    // @pinker-nav:end parser.closures.expressao
+    // @pinker-nav:end parser.closures.expression
 
-    // @pinker-nav:start parser.funcoes.declaracao
-    // @pinker-nav:domain funcoes
+    // @pinker-nav:start parser.functions.declaration
+    // @pinker-nav:domain functions
     // @pinker-nav:layer parser
-    // @pinker-nav:summary Declaração de função: reconhece `carinho nome<params-de-tipo>(params) -> tipo { corpo }`, incluindo os parâmetros de tipo genéricos opcionais, e produz o nó `ast::FunctionDecl`.
+    // @pinker-nav:summary Function declaration: it recognizes `carinho name<type-params>(params) -> type { body }`, including the optional generic type parameters, and produces the `ast::FunctionDecl` node.
     fn parse_function(&mut self) -> Result<FunctionDecl, PinkerError> {
         let start_span = self.previous().span;
         let name = self
@@ -2400,12 +2400,12 @@ impl Parser {
         Ok(params)
     }
 
-    // @pinker-nav:end parser.funcoes.declaracao
+    // @pinker-nav:end parser.functions.declaration
 
-    // @pinker-nav:start parser.genericos.identidade-especializacao
-    // @pinker-nav:domain genericos
+    // @pinker-nav:start parser.generics.specialization-identity
+    // @pinker-nav:domain generics
     // @pinker-nav:layer parser
-    // @pinker-nav:summary O parser não codifica identidade: entrega kind, proveniência do template no estágio atual, nome local e argumentos ordenados à autoridade compartilhada `generic_identity`. A presença em `predeclared_generic_enums`, definida pelo prepass de autoridade, distingue o `Resultado` builtin global do template homônimo de fonte raiz ou modular; módulos recebem a chave transportada pelo loader.
+    // @pinker-nav:summary The parser does not encode identity: it hands kind, the template's provenance at the current stage, the local name and the ordered arguments to the shared authority `generic_identity`. Presence in `predeclared_generic_enums`, defined by the authority prepass, distinguishes the global builtin `Resultado` from a same-named template of root or modular source; modules receive the key carried by the loader.
     fn generic_function_name(&self, name: &str, type_args: &[Type]) -> String {
         generic_identity::specialization_name(
             GenericKind::Function,
@@ -2424,12 +2424,12 @@ impl Parser {
         generic_identity::specialization_name(GenericKind::Enum, origin, name, type_args)
     }
 
-    // @pinker-nav:end parser.genericos.identidade-especializacao
+    // @pinker-nav:end parser.generics.specialization-identity
 
-    // @pinker-nav:start parser.importacoes.superficie-familia
-    // @pinker-nav:domain importacoes
+    // @pinker-nav:start parser.imports.family-surface
+    // @pinker-nav:domain imports
     // @pinker-nav:layer parser
-    // @pinker-nav:summary Resolução da superfície modular dentro do parser, e as autoridades de precedência que a governam: `nomes_de_topo`, censo de tokens em profundidade zero com as identidades que a Pinker resolve independentemente da ordem textual, e `escopos_locais`, pilha de escopos léxicos reais. O módulo é FALLBACK e o último a responder: cede a identidade de topo em todo o arquivo e cede a ligação local onde ela está visível. Depois da #505 o que ele NÃO faz mais é ceder ao global: `recusar_intrinseca_sem_import` recusa, no próprio CANONICALIZATION_BOUNDARY, qualquer grafia pública chamada sem import — canônica ou de membro —, e é isso que torna `GLOBAL_PUBLIC_INTRINSIC = 0` uma propriedade do parser em vez de uma lista. A recusa cede a `identidade_lexical_existente`, então declaração do próprio arquivo continua vencendo. A ligação `(módulo, membro) -> identidade` não mora aqui; vem inteira de `intrinsics::public_surface`. A #533 acrescentou `ler_declaracao_trazer` como autoridade sintática ÚNICA da declaração: os quatro varredores de token desta região (`familias_seletivas_candidatas`, `modulos_trazidos_inteiros`, `membros_trazidos_seletivamente`, `coletar_nomes_de_topo`) e o laço de import do parser leem por ela, de modo que `ALL_IMPORT_PREPASSES_SEE_THE_SAME_MEMBERS` seja construção e não coincidência — o censo de identidades de topo passou a registrar TODOS os membros da lista, não só o primeiro. `membros_trazidos_seletivamente` é da #517 e devolve `(módulo, membros)` cru, sem decidir o que é família nem o que é módulo real: quem decide continua sendo a autoridade de import.
+    // @pinker-nav:summary Resolution of the modular surface inside the parser, and the precedence authorities that govern it: `nomes_de_topo`, a census of tokens at depth zero with the identities Pinker resolves independently of textual order, and `escopos_locais`, a stack of real lexical scopes. The module is a FALLBACK and the last to answer: it yields to a top-level identity anywhere in the file and yields to a local binding where it is visible. Since #505 what it no longer does is yield to the global: `recusar_intrinseca_sem_import` refuses, at the CANONICALIZATION_BOUNDARY itself, any public spelling called without an import — canonical or member —, and that is what makes `GLOBAL_PUBLIC_INTRINSIC = 0` a property of the parser instead of a list. The refusal yields to `identidade_lexical_existente`, so a declaration in the file itself still wins. The `(module, member) -> identity` link does not live here; it comes in full from `intrinsics::public_surface`. #533 added `ler_declaracao_trazer` as the SINGLE syntactic authority of the declaration: this region's four token scanners (`familias_seletivas_candidatas`, `modulos_trazidos_inteiros`, `membros_trazidos_seletivamente`, `coletar_nomes_de_topo`) and the parser's import loop read through it, so that `ALL_IMPORT_PREPASSES_SEE_THE_SAME_MEMBERS` is construction and not coincidence — the census of top-level identities came to register ALL the members of the list, not only the first. `membros_trazidos_seletivamente` is from #517 and returns `(module, members)` raw, without deciding what is a family and what is a real module: the decision still belongs to the import authority.
 
     /// #533: autoridade sintática ÚNICA da declaração `trazer`.
     ///
@@ -3009,12 +3009,12 @@ impl Parser {
         self.membros_familia_importados.get(name).copied()
     }
 
-    // @pinker-nav:end parser.importacoes.superficie-familia
+    // @pinker-nav:end parser.imports.family-surface
 
-    // @pinker-nav:start parser.genericos.leques-template
-    // @pinker-nav:domain genericos
+    // @pinker-nav:start parser.generics.leques-template
+    // @pinker-nav:domain generics
     // @pinker-nav:layer parser
-    // @pinker-nav:summary Materializa um `EnumDecl` concreto a partir de um template de leque genérico e seus argumentos de tipo: confere a aridade (erro `Parse` se divergir), monta a tabela parâmetro-de-tipo → tipo concreto, substitui as cargas das variantes, remove os parâmetros de tipo e nomeia a instância pelo nome monomórfico. Não valida os tipos resultantes nem os anexa ao `Program`. Inclui também a predeclaração da biblioteca padrão (Fase 241): `register_predeclared_generic_enums`/`predeclared_generic_enum_templates` constroem o template sintético `Resultado<T,E> { Ok(T), Erro(E) }` e `item_name` apoia a supressão por declaração do usuário. `registrar_resultado_falivel` materializa a especialização devolvida por uma superfície falível e, com `registrar_redeclaracao_de_identidade`/`registrar_producao_de_identidade`/`verificar_identidade_runtime`, fecha a conjunção da Parte B1: produzir a identidade pelo runtime e redeclarar o nome é inválido, independentemente da ordem no texto.
+    // @pinker-nav:summary Materializes a concrete `EnumDecl` from a generic leque template and its type arguments: it checks the arity (a `Parse` error if it diverges), builds the type-parameter → concrete-type table, substitutes the variants' payloads, removes the type parameters and names the instance by the monomorphic name. It neither validates the resulting types nor attaches them to the `Program`. It also includes the standard library's predeclaration (Phase 241): `register_predeclared_generic_enums`/`predeclared_generic_enum_templates` build the synthetic template `Resultado<T,E> { Ok(T), Erro(E) }` and `item_name` supports suppression by a user declaration. `registrar_resultado_falivel` materializes the specialization returned by a fallible surface and, with `registrar_redeclaracao_de_identidade`/`registrar_producao_de_identidade`/`verificar_identidade_runtime`, closes Part B1's conjunction: producing the identity through the runtime and redeclaring the name is invalid, regardless of the order in the text.
     fn instantiate_generic_enum_decl(
         &self,
         template: &EnumDecl,
@@ -3365,11 +3365,11 @@ impl Parser {
             Item::Trait(trait_decl) => Some(&trait_decl.name),
         }
     }
-    // @pinker-nav:end parser.genericos.leques-template
-    // @pinker-nav:start parser.funcoes.parametro-funcao
-    // @pinker-nav:domain funcoes
+    // @pinker-nav:end parser.generics.leques-template
+    // @pinker-nav:start parser.functions.function-parameter
+    // @pinker-nav:domain functions
     // @pinker-nav:layer parser
-    // @pinker-nav:summary Reconhecimento de declaracao que recebe funcao como parametro e a cunhagem do nome sintetico correspondente, transporte usado pela especializacao; o nome pertence a unidade que materializa e nunca e autoridade de identidade.
+    // @pinker-nav:summary Recognition of a declaration that takes a function as a parameter and the minting of the corresponding synthetic name, transport used by the specialization; the name belongs to the unit that materializes it and is never an authority on identity.
 
     fn has_function_param(function: &FunctionDecl) -> bool {
         function
@@ -3407,12 +3407,12 @@ impl Parser {
         format!("__fnparam_{}_{}", name, suffix)
     }
 
-    // @pinker-nav:end parser.funcoes.parametro-funcao
+    // @pinker-nav:end parser.functions.function-parameter
 
-    // @pinker-nav:start parser.constantes.declaracao
-    // @pinker-nav:domain constantes
+    // @pinker-nav:start parser.constants.declaration
+    // @pinker-nav:domain constants
     // @pinker-nav:layer parser
-    // @pinker-nav:summary Declaração de constante global: reconhece `eterno nome: tipo = expr;` e produz o nó `ast::ConstDecl`, consumindo tipo e expressão inicial pela gramática comum.
+    // @pinker-nav:summary Global constant declaration: it recognizes `eterno name: type = expr;` and produces the `ast::ConstDecl` node, consuming the type and the initial expression through the common grammar.
     fn parse_const(&mut self) -> Result<ConstDecl, PinkerError> {
         let start_span = self.previous().span;
         let name = self
@@ -3433,4 +3433,4 @@ impl Parser {
         })
     }
 }
-// @pinker-nav:end parser.constantes.declaracao
+// @pinker-nav:end parser.constants.declaration

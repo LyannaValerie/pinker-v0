@@ -1,7 +1,7 @@
-// @pinker-nav:start apps.guardiao.auditoria
+// @pinker-nav:start apps.guardiao.audit
 // @pinker-nav:domain guardiao
 // @pinker-nav:layer apps
-// @pinker-nav:summary Audita os contratos operacionais do repositório Pinker.
+// @pinker-nav:summary Audits the operational contracts of the Pinker repository.
 
 pacote guardiao_pinker;
 
@@ -179,4 +179,4 @@ carinho principal() -> bombom {
     }
 }
 
-// @pinker-nav:end apps.guardiao.auditoria
+// @pinker-nav:end apps.guardiao.audit

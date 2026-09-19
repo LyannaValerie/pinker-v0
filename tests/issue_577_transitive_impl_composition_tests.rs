@@ -5,10 +5,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-// @pinker-nav:start evidencia.modulos.impl-transitivo-pela-unidade-importada
-// @pinker-nav:domain modulos
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Prova comportamental da #577: quem importa a unidade que declara um `impl` passa a poder despachar por essa relação sem reimportar o trato de origem, e sem ganhar nada mais que isso. A matriz positiva cobre a cadeia A -> B -> RAIZ com bloco vazio, com default simples, com default que fecha closure (#567), com override explícito (#566), com objeto de trato e com import explícito adicional do próprio trato; a adversarial fixa que a raiz continua sem poder nomear o trato, sem poder escrever `impl` sobre ele, que o homônimo da raiz resolve a relação DELA sem capturar nem ser capturado, que duas origens homônimas permanecem entidades distintas em vez de colidirem, que a duplicata de relação continua governada pela #572 e que a unidade não importada continua fora do despacho. O oráculo é o valor observado — cada origem devolve um número próprio — mais a identidade canônica renderizada na IR, que nomeia sempre a unidade declarante do trato e nunca a que hospeda o `impl`.
+// @pinker-nav:start evidence.modules.transitive-impl-through-imported-unit
+// @pinker-nav:domain modules
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Behavioral proof of #577: whoever imports the unit that declares an `impl` gains the ability to dispatch through that relation without re-importing the originating trato, and gains nothing more than that. The positive matrix covers the chain A -> B -> ROOT with an empty block, with a simple default, with a default that closes over a closure (#567), with an explicit override (#566), with a trato object and with an additional explicit import of the trato itself; the adversarial one fixes that the root still cannot name the trato, cannot write `impl` over it, that the root's same-named item resolves ITS relation without capturing or being captured, that two same-named origins remain distinct entities instead of colliding, that a duplicate relation is still governed by #572 and that a unit not imported stays outside dispatch. The oracle is the observed value — each origin returns its own number — plus the canonical identity rendered in the IR, which always names the unit declaring the trato and never the one hosting the `impl`.
 
 /// Um caso é um conjunto de fontes; a primeira é a raiz.
 struct Caso {
@@ -673,4 +673,4 @@ fn p14_paridade_interpretador_e_nativo_da_cadeia() {
     assert!(nativo.status.success(), "{nativo:?}");
     assert_eq!(interpretado.stdout, nativo.stdout);
 }
-// @pinker-nav:end evidencia.modulos.impl-transitivo-pela-unidade-importada
+// @pinker-nav:end evidence.modules.transitive-impl-through-imported-unit

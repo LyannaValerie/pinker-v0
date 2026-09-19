@@ -70,10 +70,10 @@
 //! exaustividade é do compilador Rust, não de um `_ => None` que engoliria uma
 //! célula material em silêncio.
 
-// @pinker-nav:start mapas.especializacao.autoridade
-// @pinker-nav:domain mapas
-// @pinker-nav:layer compilador
-// @pinker-nav:summary Autoridade canonica unica da especializacao de operacao de mapa (U-02): dada a classe concreta de mapa e a operacao generica, devolve a identidade monomorfica executavel, substituindo as cinco copias anteriores em parser, semantica e IR.
+// @pinker-nav:start maps.specialization.authority
+// @pinker-nav:domain maps
+// @pinker-nav:layer compiler
+// @pinker-nav:summary Single canonical authority of map operation specialization (U-02): given the concrete map class and the generic operation, it returns the executable monomorphic identity, replacing the five previous copies in parser, semantics and IR.
 use crate::intrinsics::identity::{intrinsic_from_public_spelling, IntrinsicIdentity};
 
 #[cfg(test)]
@@ -307,4 +307,4 @@ mod tests {
         );
     }
 }
-// @pinker-nav:end mapas.especializacao.autoridade
+// @pinker-nav:end maps.specialization.authority

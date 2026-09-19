@@ -1,9 +1,9 @@
 mod common;
 
-// @pinker-nav:start evidencia.genericos.inferencia-local-d8
-// @pinker-nav:domain genericos
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Evidência D8 da inferência genérica local: cobre id e funções nominalmente distintas, dois parâmetros de tipo, conflito e ausência de fonte, compatibilidade explícita, nesting lista<T>, chamadas não genéricas, sensitivity contra special-case nominal e paridade interpretador/nativo com diagnóstico pré-backend.
+// @pinker-nav:start evidence.generics.local-inference-d8
+// @pinker-nav:domain generics
+// @pinker-nav:layer evidence
+// @pinker-nav:summary D8 evidence of local generic inference: it covers id and nominally distinct functions, two type parameters, conflict and absence of a source, explicit compatibility, lista<T> nesting, non-generic calls, sensitivity against a nominal special case and interpreter/native parity with a pre-backend diagnostic.
 
 use common::{ControlledCommand as Command, NativeArtifactDir};
 use pinker_v0::ast::Type;
@@ -281,4 +281,4 @@ fn paridade_interpretador_nativo_e_diagnostico_pre_backend() {
     }
 }
 
-// @pinker-nav:end evidencia.genericos.inferencia-local-d8
+// @pinker-nav:end evidence.generics.local-inference-d8

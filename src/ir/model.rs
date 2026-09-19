@@ -3,7 +3,7 @@
 //! (Task #632).
 //!
 //! Só o arquivo mudou: as duas regiões cartografadas
-//! `ir.modelo.representacao` e `ir.tipos.identidade-resolvida` — a
+//! `ir.model.representation` e `ir.types.resolved-identity` — a
 //! representação (`ProgramIR`, `ConstIR`, `FunctionIR`, `BlockIR`,
 //! `InstructionIR`, `ValueIR`, `TypeIR`, `ScalarTypeIR`, os operadores e os
 //! validadores de registro de união) e a identidade resolvida (`ResolvedTypeId`,
@@ -17,7 +17,7 @@
 //! A autoridade não se moveu com o corte. O `impl TypeIR`, o `impl
 //! ScalarTypeIR`, o `impl UnaryOpIR` e o `impl BinaryOpIR` não estão em nenhuma
 //! das duas regiões e continuam no pai, junto de `LoweringContext`, da conversão
-//! AST→`TypeIR` (`ir.tipos.conversao-ast`) e da entrada pública
+//! AST→`TypeIR` (`ir.types.ast-conversion`) e da entrada pública
 //! `render_program`. A validação da IR continua em `src/ir_validate.rs` e a
 //! fronteira de CFG continua em `src/cfg_ir.rs`; nada disso desceu. A seleção de
 //! método (`crate::method_dispatch`, C2) e o registry declarativo de intrínsecas
@@ -36,10 +36,10 @@
 //! privados a `pub(super)` — exatamente os seis `exports` que o
 //! `unit_costs.json` da #601 nomeia para a IR-3.
 
-// @pinker-nav:start ir.modelo.representacao
-// @pinker-nav:domain modelo
+// @pinker-nav:start ir.model.representation
+// @pinker-nav:domain model
 // @pinker-nav:layer ir
-// @pinker-nav:summary Modelo de dados da IR estruturada: programa, constantes, funções, blocos, instruções, valores, tipos (`TypeIR`/`ScalarTypeIR`) e operadores — a representação com slots normalizados e tipos explícitos produzida após a semântica.
+// @pinker-nav:summary Data model of the structured IR: program, constants, functions, blocks, instructions, values, types (`TypeIR`/`ScalarTypeIR`) and operators — the representation with normalized slots and explicit types produced after semantics.
 use super::*;
 
 /// Programa completo na IR estruturada.
@@ -935,12 +935,12 @@ pub enum BinaryOpIR {
     Gt,
     Gte,
 }
-// @pinker-nav:end ir.modelo.representacao
+// @pinker-nav:end ir.model.representation
 
-// @pinker-nav:start ir.tipos.identidade-resolvida
-// @pinker-nav:domain modelo
+// @pinker-nav:start ir.types.resolved-identity
+// @pinker-nav:domain model
 // @pinker-nav:layer ir
-// @pinker-nav:summary Identidade semântica resolvida de tipos: `ResolvedTypeId` interna a identidade completa (`ResolvedTypeIR` = chave canônica de `union_canon` + representação operacional + identidade nominal + componentes internos `pointee`/`element`/`signature`/`union_members`; `element` também transporta o tipo de valor de mapa genérico), `TypeRefIR` acopla representação e identidade em um único contrato transportável, `ResolvedTypeTable` interna por chave canônica em `BTreeMap` e recusa qualquer divergência de representação, identidade nominal ou estrutura interna sob a mesma chave, `into_types` entrega a tabela sem renumeração tardia, e os validadores confirmam densidade, unicidade, ausência de chave envenenada, coerência de representação, coerência nominal e componentes estruturais. `TypeIR` continua sendo apenas a categoria operacional; as duas noções nunca se substituem.
+// @pinker-nav:summary Resolved semantic identity of types: `ResolvedTypeId` interns the full identity (`ResolvedTypeIR` = `union_canon`'s canonical key + operational representation + nominal identity + internal components `pointee`/`element`/`signature`/`union_members`; `element` also carries the value type of a generic map), `TypeRefIR` couples representation and identity into a single transportable contract, `ResolvedTypeTable` interns by canonical key in a `BTreeMap` and refuses any divergence of representation, nominal identity or internal structure under the same key, `into_types` delivers the table without late renumbering, and the validators confirm density, uniqueness, the absence of a poisoned key, representation coherence, nominal coherence and structural components. `TypeIR` remains only the operational category; the two notions never replace each other.
 /// Identidade semântica completa de um tipo, internada no programa.
 ///
 /// **Não** é a categoria operacional: `ninho Alfa` e `ninho Beta` compartilham
@@ -1620,4 +1620,4 @@ pub fn validate_union_registry_identities(
     }
     Ok(())
 }
-// @pinker-nav:end ir.tipos.identidade-resolvida
+// @pinker-nav:end ir.types.resolved-identity

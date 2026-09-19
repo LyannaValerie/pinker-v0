@@ -8,10 +8,10 @@
 //! mudaria**, não o conteúdo. Também não carregam root absoluto, porque o
 //! modelo só conhece paths repo-relativos.
 
-// @pinker-nav:start automation.relatorio.renderizacao
-// @pinker-nav:domain relatorio
+// @pinker-nav:start automation.report.rendering
+// @pinker-nav:domain report
 // @pinker-nav:layer automation
-// @pinker-nav:summary Renderização determinística do mesmo modelo de check em JSON de uma linha com ordem de chaves fixa e em Markdown derivado dele, ambos sem payload completo, sem root absoluto e sem códigos ANSI; a falha, quando existe, aparece com código estável e nunca é substituída pelo estado decisório.
+// @pinker-nav:summary Deterministic rendering of the same check model as single-line JSON with a fixed key order and as Markdown derived from it, both without the full payload, without an absolute root and without ANSI codes; the failure, when there is one, appears with a stable code and is never replaced by the decision state.
 use super::compare::CheckReport;
 use super::fsio::ApplyReport;
 use super::{json_string, Failure, FinalDrift};
@@ -164,12 +164,12 @@ fn optional_number(value: Option<usize>) -> String {
 fn optional_text(value: Option<&str>) -> String {
     value.map_or_else(|| "null".to_string(), json_string)
 }
-// @pinker-nav:end automation.relatorio.renderizacao
+// @pinker-nav:end automation.report.rendering
 
-// @pinker-nav:start automation.relatorio.aplicacao
-// @pinker-nav:domain relatorio
+// @pinker-nav:start automation.report.apply
+// @pinker-nav:domain report
 // @pinker-nav:layer automation
-// @pinker-nav:summary Renderização do relatório de aplicação em JSON e Markdown a partir do mesmo modelo: aplicados, item falho, não tentados, rollback_performed sempre falso, drift final medido ou explicitamente desconhecido, causa e estado decisório lado a lado, e o procedimento de recuperação impresso em vez de sugerido.
+// @pinker-nav:summary Rendering of the apply report in JSON and Markdown from the same model: applied items, the failed item, items not attempted, rollback_performed always false, final drift either measured or explicitly unknown, cause and decision state side by side, and the recovery procedure printed rather than suggested.
 
 fn lista_json(itens: &[String]) -> String {
     let partes: Vec<String> = itens.iter().map(|i| json_string(i)).collect();
@@ -282,12 +282,12 @@ fn lista_humana(itens: &[String]) -> String {
             .join(", ")
     }
 }
-// @pinker-nav:end automation.relatorio.aplicacao
+// @pinker-nav:end automation.report.apply
 
-// @pinker-nav:start evidencia.automacao.relatorio-sem-payload
-// @pinker-nav:domain automacao
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Prova de que os relatorios de automacao nao carregam o payload do plano, mantendo o relatorio auditavel sem duplicar conteudo de arquivo.
+// @pinker-nav:start evidence.automation.report-without-payload
+// @pinker-nav:domain automation
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Proof that the automation reports do not carry the plan's payload, keeping the report auditable without duplicating file content.
 #[cfg(test)]
 mod tests {
     use super::super::compare::{check, Observation, ObservedState};
@@ -316,4 +316,4 @@ mod tests {
         assert!(!markdown.contains("636f6e746575646f"));
     }
 }
-// @pinker-nav:end evidencia.automacao.relatorio-sem-payload
+// @pinker-nav:end evidence.automation.report-without-payload

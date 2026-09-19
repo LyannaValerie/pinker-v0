@@ -3,18 +3,18 @@
 //! da #601).
 //!
 //! `src/ir.rs` é a autoridade do lowering. A #621 desceu o `impl FunctionLowerer`
-//! inteiro — as cinco regiões `ir.lowering.funcoes-blocos`,
-//! `ir.lowering.comandos-controle`, `ir.lowering.expressoes-valores`,
-//! `ir.lowering.bindings-escopos` e `ir.lowering.constantes` — para
+//! inteiro — as cinco regiões `ir.lowering.functions-blocks`,
+//! `ir.lowering.control-commands`, `ir.lowering.expression-values`,
+//! `ir.lowering.bindings-scopes` e `ir.lowering.constants` — para
 //! `src/ir/lowering.rs`. A #624 desceu a montagem do contexto global e a
 //! orquestração do programa — as cinco regiões
-//! `ir.lowering.programa-orquestracao`, `ir.lowering.contexto-declaracoes`,
-//! `ir.lowering.assinaturas-intrinsecos`, `ir.lowering.metodos-identidade` e
-//! `ir.lowering.identidade-resolvida` — para `src/ir/context.rs`. A #626 desceu
-//! a renderização textual — a região `ir.renderizacao.textual` — para
+//! `ir.lowering.program-orchestration`, `ir.lowering.context-declarations`,
+//! `ir.lowering.intrinsic-signatures`, `ir.lowering.method-identity` e
+//! `ir.lowering.resolved-identity` — para `src/ir/context.rs`. A #626 desceu
+//! a renderização textual — a região `ir.rendering.textual` — para
 //! `src/ir/render.rs`. A #632 desceu o modelo de dados da IR e a identidade
-//! semântica resolvida de tipos — as regiões `ir.modelo.representacao` e
-//! `ir.tipos.identidade-resolvida` — para `src/ir/model.rs`. Nenhuma das quatro
+//! semântica resolvida de tipos — as regiões `ir.model.representation` e
+//! `ir.types.resolved-identity` — para `src/ir/model.rs`. Nenhuma das quatro
 //! divide a autoridade: as `struct FunctionLowerer`/`LoweringContext` e todo o
 //! estado, a resolução de tipo e de união (`resolve_type`,
 //! `resolve_union_ast_type`, `intern_union`), a entrada pública `render_program`,
@@ -56,7 +56,7 @@
 //!    irmão. Nenhuma das duas desceu: `src/ir_validate.rs` e `src/cfg_ir.rs`
 //!    continuam donos do que sempre foram;
 //! 5. o corte podia arrastar região ou definição de unidade vizinha. Depois da
-//!    IR-3 a única região que fica no pai é `ir.tipos.conversao-ast`, que não é
+//!    IR-3 a única região que fica no pai é `ir.types.ast-conversion`, que não é
 //!    de nenhuma unidade, e o conjunto do que ficou é comparado por igualdade,
 //!    não por presença.
 //!
@@ -77,27 +77,27 @@ use rust_source::codigo_executavel;
 /// As regiões que cada unidade moveu, e o irmão onde passam a morar.
 const REGIOES_MOVIDAS: &[(&str, &str)] = &[
     // IR-1 (#621): o `impl FunctionLowerer` inteiro.
-    ("ir.lowering.funcoes-blocos", "lowering.rs"),
-    ("ir.lowering.comandos-controle", "lowering.rs"),
-    ("ir.lowering.expressoes-valores", "lowering.rs"),
-    ("ir.lowering.bindings-escopos", "lowering.rs"),
-    ("ir.lowering.constantes", "lowering.rs"),
+    ("ir.lowering.functions-blocks", "lowering.rs"),
+    ("ir.lowering.control-commands", "lowering.rs"),
+    ("ir.lowering.expression-values", "lowering.rs"),
+    ("ir.lowering.bindings-scopes", "lowering.rs"),
+    ("ir.lowering.constants", "lowering.rs"),
     // IR-2 (#624): a orquestração do programa e a montagem do contexto.
-    ("ir.lowering.programa-orquestracao", "context.rs"),
-    ("ir.lowering.contexto-declaracoes", "context.rs"),
-    ("ir.lowering.assinaturas-intrinsecos", "context.rs"),
-    ("ir.lowering.metodos-identidade", "context.rs"),
-    ("ir.lowering.identidade-resolvida", "context.rs"),
+    ("ir.lowering.program-orchestration", "context.rs"),
+    ("ir.lowering.context-declarations", "context.rs"),
+    ("ir.lowering.intrinsic-signatures", "context.rs"),
+    ("ir.lowering.method-identity", "context.rs"),
+    ("ir.lowering.resolved-identity", "context.rs"),
     // IR-4 (#626): a renderização textual da IR já construída.
-    ("ir.renderizacao.textual", "render.rs"),
+    ("ir.rendering.textual", "render.rs"),
     // IR-3 (#632): o modelo de dados da IR e a identidade resolvida de tipos.
-    ("ir.modelo.representacao", "model.rs"),
-    ("ir.tipos.identidade-resolvida", "model.rs"),
+    ("ir.model.representation", "model.rs"),
+    ("ir.types.resolved-identity", "model.rs"),
 ];
 
 /// As regiões que os quatro cortes deixaram onde estavam.
 ///
-/// `ir.tipos.conversao-ast` é a vizinha imediata do span da IR-3 — a que vem
+/// `ir.types.ast-conversion` é a vizinha imediata do span da IR-3 — a que vem
 /// depois — e não pertence a nenhuma unidade do inventário: ela mora dentro do
 /// `impl LoweringContext` do pai. É ela que ficaria vermelha se o corte tivesse
 /// escorregado uma região para a frente, e a igualdade de conjunto abaixo é o
@@ -111,19 +111,19 @@ const REGIOES_MOVIDAS: &[(&str, &str)] = &[
 /// de alias de objeto de trato. Nenhuma delas pertence a unidade do inventário
 /// da #601: elas nascem aqui e ficam aqui.
 const REGIOES_RETIDAS: &[&str] = &[
-    "ir.tipos.conversao-ast",
-    "ir.modulo.superficie",
-    "ir.lowering.metadados-internos",
-    "ir.leques.metadata-publicada",
-    "ir.lowering.reconhecimento-de-forma",
-    "ir.lowering.estado-por-funcao",
-    "ir.render.programa",
-    "ir.lowering.resolucao-de-tipo",
-    "ir.tipos.representacao-fisica",
-    "ir.tipos.nome-e-render",
-    "ir.tipos.escalares",
-    "ir.operadores.conversao-ast",
-    "evidencia.ir.alias-de-objeto-de-trato",
+    "ir.types.ast-conversion",
+    "ir.module.surface",
+    "ir.lowering.internal-metadata",
+    "ir.leques.published-metadata",
+    "ir.lowering.shape-recognition",
+    "ir.lowering.per-function-state",
+    "ir.render.program",
+    "ir.lowering.type-resolution",
+    "ir.types.physical-representation",
+    "ir.types.name-and-render",
+    "ir.types.scalars",
+    "ir.operators.ast-conversion",
+    "evidence.ir.trato-object-alias",
 ];
 
 /// As definições que cada unidade moveu inteiras, e o irmão onde passam a morar.
@@ -233,7 +233,7 @@ const DEFINICOES_MOVIDAS: &[(&str, &str)] = &[
 /// mesmo `impl LoweringContext` cuja maior parte desceu com a IR-2, e não estão
 /// em nenhuma das cinco regiões da unidade: arrastá-las junto seria mover código
 /// que não é do corte. `render_program` é a entrada pública da renderização: ela
-/// não está na região `ir.renderizacao.textual` e fica no pai, delegando ao
+/// não está na região `ir.rendering.textual` e fica no pai, delegando ao
 /// irmão — é ela que ancora a fronteira de cima da IR-4. `is_compatible_with`,
 /// `to_type_ir` e `from_ast_with_context` são corpos dos `impl TypeIR` e
 /// `impl ScalarTypeIR`, que ficam depois do span da IR-3 e não pertencem a
@@ -834,7 +834,7 @@ fn a_decomposicao_nao_promoveu_visibilidade() {
 /// declarações, nem uma a mais.
 ///
 /// Os três nasceram dentro das duas regiões da IR-3 — `MapKeyIR::type_ir` e
-/// `MapValueIR::type_ir` em `ir.modelo.representacao`, e
+/// `MapValueIR::type_ir` em `ir.model.representation`, e
 /// `is_generic_map_intrinsic` entre as duas regiões — e desceram com elas. Os
 /// dois primeiros são métodos e viajam com o tipo, que o pai reexporta; o
 /// terceiro é uma função livre, e por isso o pai reexporta o caminho
@@ -1127,7 +1127,7 @@ fn os_irmaos_nao_reconstroem_c5_nem_duplicam_c1() {
         }
     }
 
-    // C1: a região `ir.lowering.assinaturas-intrinsecos` desceu com a IR-2, e
+    // C1: a região `ir.lowering.intrinsic-signatures` desceu com a IR-2, e
     // com ela a única leitura do registry declarativo. Ela continua sendo uma
     // leitura só, e continua sendo leitura: os helpers de assinatura
     // (`builtin_sig`, `builtin_nominal_sig`) desceram com a IR-3 para o irmão

@@ -1,14 +1,14 @@
-// @pinker-nav:start interpreter.intrinsecos.preludio
-// @pinker-nav:domain intrinsecos
+// @pinker-nav:start interpreter.intrinsics.prelude
+// @pinker-nav:domain intrinsics
 // @pinker-nav:layer interpreter
-// @pinker-nav:summary Preludio do submodulo de intrinsecas hospedadas: reexporta o ambiente do interpretador que todos os bracos do dispatcher usam — valor de runtime, estado enderecavel, estado de mapas e o construtor de erro de runtime.
+// @pinker-nav:summary Prelude of the hosted intrinsics submodule: it re-exports the interpreter environment that every arm of the dispatcher uses — runtime value, addressable state, map state and the runtime error constructor.
 use super::*;
-// @pinker-nav:end interpreter.intrinsecos.preludio
+// @pinker-nav:end interpreter.intrinsics.prelude
 
-// @pinker-nav:start interpreter.intrinsecos.despacho-hospedado
-// @pinker-nav:domain intrinsecos
+// @pinker-nav:start interpreter.intrinsics.hosted-dispatch
+// @pinker-nav:domain intrinsics
 // @pinker-nav:layer interpreter
-// @pinker-nav:summary Roteia o despacho hospedado a partir de identidade de callee já resolvida, encaminhando para autoridades hospedadas já existentes: consulta a autoridade de mapas genéricos, executa os acessores nominais de SaidaProcesso e ValorJson e encaminha alocar e liberar ao estado endereçável do interpretador, além dos braços genéricos anteriores à região de aleatoriedade. Roteia identidade intrínseca já resolvida e não detém autoridade do registry: a superfície histórica de intrínsecas permanece de C1, e este prefixo não implementa aleatoriedade nem substitui as autoridades de identidade, JSON, processo ou memória.
+// @pinker-nav:summary Routes hosted dispatch from an already resolved callee identity, forwarding to hosted authorities that already exist: it consults the generic maps authority, executes the nominal accessors of SaidaProcesso and ValorJson and forwards alocar and liberar to the interpreter's addressable state, besides the generic arms preceding the randomness region. It routes an already resolved intrinsic identity and holds no registry authority: the historical intrinsics surface remains C1's, and this prefix implements no randomness and replaces none of the identity, JSON, process or memory authorities.
 /// #532 — porta única do despacho intrínseco do interpretador.
 ///
 /// ```text
@@ -189,11 +189,11 @@ pub(super) fn try_call_intrinsic(
         }
         "alocar" => public_memory_allocate(args, public_memory_state),
         "liberar" => public_memory_free(args, public_memory_state),
-        // @pinker-nav:end interpreter.intrinsecos.despacho-hospedado
-        // @pinker-nav:start interpreter.intrinsecos.acaso
-        // @pinker-nav:domain intrinsecos
+        // @pinker-nav:end interpreter.intrinsics.hosted-dispatch
+        // @pinker-nav:start interpreter.intrinsics.acaso
+        // @pinker-nav:domain intrinsics
         // @pinker-nav:layer interpreter
-        // @pinker-nav:summary Implementa intrínsecas hospedadas de aleatoriedade inicial, validando aridade, semente e handle de gerador, mutando o estado pseudoaleatório do interpretador e retornando handles ou números; não representa geradores do runtime nativo.
+        // @pinker-nav:summary Implements hosted intrinsics for initial randomness, validating arity, seed and generator handle, mutating the interpreter's pseudorandom state and returning handles or numbers; it does not represent the native runtime's generators.
         "aleatorio_criar" => {
             if args.len() != 1 {
                 return Err(runtime_err(
@@ -232,12 +232,12 @@ pub(super) fn try_call_intrinsic(
             let next = advance_random_generator(&mut generator.state);
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(next))))
         }
-        // @pinker-nav:end interpreter.intrinsecos.acaso
+        // @pinker-nav:end interpreter.intrinsics.acaso
 
-        // @pinker-nav:start interpreter.intrinsecos.listas
-        // @pinker-nav:domain intrinsecos
+        // @pinker-nav:start interpreter.intrinsics.lists
+        // @pinker-nav:domain intrinsics
         // @pinker-nav:layer interpreter
-        // @pinker-nav:summary Implementa operações hospedadas contíguas de listas de bombom e verso, criando handles tipados, anexando, obtendo, medindo, definindo, removendo e inserindo elementos com validação dinâmica de aridade, índice, handle e tipo; os handles pertencem ao estado do interpretador.
+        // @pinker-nav:summary Implements contiguous hosted operations for lists of bombom and verso, creating typed handles, appending, getting, measuring, setting, removing and inserting elements with dynamic validation of arity, index, handle and type; the handles belong to the interpreter's state.
         "lista_bombom_criar" => {
             if !args.is_empty() {
                 return Err(runtime_err(
@@ -528,11 +528,11 @@ pub(super) fn try_call_intrinsic(
             lista.insert(idx, valor);
             Ok(IntrinsicCall::Done(None))
         }
-        // @pinker-nav:end interpreter.intrinsecos.listas
-        // @pinker-nav:start interpreter.intrinsecos.mapas-genericos
-        // @pinker-nav:domain intrinsecos
+        // @pinker-nav:end interpreter.intrinsics.lists
+        // @pinker-nav:start interpreter.intrinsics.generic-maps
+        // @pinker-nav:domain intrinsics
         // @pinker-nav:layer interpreter
-        // @pinker-nav:summary Autoridade hospedada do mapa generico: criacao com chave bombom ou verso, escrita, leitura, presenca, tamanho e cursor de iteracao. A chave escolhe somente a igualdade e o valor e preservado como RuntimeValue completo, sem enumeracao K x V; nenhum layout nativo e definido aqui.
+        // @pinker-nav:summary Hosted authority of the generic map: creation with a bombom or verso key, write, read, presence, size and iteration cursor. The key chooses only the equality and the value is preserved as a complete RuntimeValue, without a K × V enumeration; no native layout is defined here.
 
         // Autoridade hospedada genérica: K escolhe somente a igualdade; V é
         // preservado como RuntimeValue completo, sem enumeração K × V.
@@ -697,11 +697,11 @@ pub(super) fn try_call_intrinsic(
             Ok(IntrinsicCall::Done(Some(key)))
         }
 
-        // @pinker-nav:end interpreter.intrinsecos.mapas-genericos
-        // @pinker-nav:start interpreter.intrinsecos.mapas-verso-bombom
-        // @pinker-nav:domain intrinsecos
+        // @pinker-nav:end interpreter.intrinsics.generic-maps
+        // @pinker-nav:start interpreter.intrinsics.maps-verso-bombom
+        // @pinker-nav:domain intrinsics
         // @pinker-nav:layer interpreter
-        // @pinker-nav:summary Implementa o primeiro bloco contíguo de mapa hospedado `verso -> bombom`, incluindo criação, escrita, leitura, presença, tamanho e cursores internos usados por lowering de iteração; valida aridade, handles e chaves sem definir layout nativo.
+        // @pinker-nav:summary Implements the first contiguous block of the hosted `verso -> bombom` map, including creation, write, read, presence, size and the internal cursors used by iteration lowering; it validates arity, handles and keys without defining a native layout.
         "mapa_verso_bombom_criar" => {
             if !args.is_empty() {
                 return Err(runtime_err(
@@ -868,12 +868,12 @@ pub(super) fn try_call_intrinsic(
             iter.next_index = iter.next_index.saturating_add(1);
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(key.clone()))))
         }
-        // @pinker-nav:end interpreter.intrinsecos.mapas-verso-bombom
+        // @pinker-nav:end interpreter.intrinsics.maps-verso-bombom
 
-        // @pinker-nav:start interpreter.intrinsecos.leques
-        // @pinker-nav:domain intrinsecos
+        // @pinker-nav:start interpreter.intrinsics.leques
+        // @pinker-nav:domain intrinsics
         // @pinker-nav:layer interpreter
-        // @pinker-nav:summary Implementa leques hospedados por handle opaco, criando valores, anexando payload inteiro ou textual e carregando tag ou carga com validações de handle, tag e índice; descreve somente a representação do interpretador, não o layout futuro do runtime nativo.
+        // @pinker-nav:summary Implements hosted leques by opaque handle, creating values, appending an integer or textual payload and loading a tag or a payload with handle, tag and index validations; it describes only the interpreter's representation, not the native runtime's future layout.
         "__pinker_internal_leque_criar_0" => {
             if args.len() != 1 {
                 return Err(runtime_err(
@@ -1152,12 +1152,12 @@ pub(super) fn try_call_intrinsic(
             };
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(value.clone()))))
         }
-        // @pinker-nav:end interpreter.intrinsecos.leques
+        // @pinker-nav:end interpreter.intrinsics.leques
 
-        // @pinker-nav:start interpreter.intrinsecos.io-arquivo-texto
-        // @pinker-nav:domain intrinsecos
+        // @pinker-nav:start interpreter.intrinsics.io-text-file
+        // @pinker-nav:domain intrinsics
         // @pinker-nav:layer interpreter
-        // @pinker-nav:summary Agrupa intrínsecas hospedadas contíguas de stdin, arquivos por handle, operações diretas de texto e serialização mínima, validando aridade e tipos, lendo stdin, escrevendo stdout ou filesystem real e retornando valores Pinker; não é filesystem virtual nem runtime nativo.
+        // @pinker-nav:summary Groups contiguous hosted intrinsics for stdin, files by handle, direct text operations and minimal serialization, validating arity and types, reading stdin, writing to stdout or the real filesystem and returning Pinker values; it is neither a virtual filesystem nor the native runtime.
         "ouvir" => {
             if !args.is_empty() {
                 return Err(runtime_err("intrínseca 'ouvir' exige 0 argumentos"));
@@ -2130,22 +2130,22 @@ pub(super) fn try_call_intrinsic(
             let json = emit_json_plano_bombom(mapa)?;
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Str(json))))
         }
-        // @pinker-nav:end interpreter.intrinsecos.io-arquivo-texto
-        // @pinker-nav:start interpreter.intrinsecos.falha-operacional
-        // @pinker-nav:domain erros
+        // @pinker-nav:end interpreter.intrinsics.io-text-file
+        // @pinker-nav:start interpreter.intrinsics.operational-failure
+        // @pinker-nav:domain errors
         // @pinker-nav:layer interpreter
-        // @pinker-nav:summary Despacho hospedado das superfícies falíveis da Parte B: o braço reconhece a chamada consultando `falha_operacional::superficie` e decide por `OperacaoFalivel`, nunca por nome literal — o nome público continua declarado só na autoridade. Leitura de arquivo por caminho, spawn de processo e conversão de texto para número devolvem `Resultado<T,E>` construído pelo mesmo `enum_values` de qualquer leque do usuário. A falha recuperável carrega a causa em `verso`; aridade, tipo de argumento e invariantes internas continuam fatais.
+        // @pinker-nav:summary Hosted dispatch of Part B's fallible surfaces: the arm recognizes the call by consulting `falha_operacional::superficie` and decides by `OperacaoFalivel`, never by a literal name — the public name is still declared only in the authority. Reading a file by path, spawning a process and converting text into a number return `Resultado<T,E>` built by the same `enum_values` as any user leque. A recoverable failure carries the cause in a `verso`; arity, argument type and internal invariants remain fatal.
         nome if crate::falha_operacional::superficie(nome).is_some() => {
             let superficie = crate::falha_operacional::superficie(nome)
                 .expect("o guarda acima já resolveu a superfície");
             executar_superficie_falivel(superficie, args, map_state, list_state)
         }
-        // @pinker-nav:end interpreter.intrinsecos.falha-operacional
+        // @pinker-nav:end interpreter.intrinsics.operational-failure
 
-        // @pinker-nav:start interpreter.intrinsecos.tempo-processos-ambiente
-        // @pinker-nav:domain intrinsecos
+        // @pinker-nav:start interpreter.intrinsics.time-processes-environment
+        // @pinker-nav:domain intrinsics
         // @pinker-nav:layer interpreter
-        // @pinker-nav:summary Agrupa intrínsecas hospedadas contíguas de relógio, processos, argumentos CLI, ambiente, caminhos, status de saída, assertivas, espera e cópia ou renomeação, com efeitos reais no host como `Command`, pipes, diretório atual, variáveis de ambiente, sono e filesystem; devolve resultados ao interpretador sem prometer modo freestanding.
+        // @pinker-nav:summary Groups contiguous hosted intrinsics for the clock, processes, CLI arguments, environment, paths, exit status, assertions, waiting and copying or renaming, with real effects on the host such as `Command`, pipes, current directory, environment variables, sleep and the filesystem; it returns results to the interpreter without promising freestanding mode.
         "tempo_unix" => {
             if !args.is_empty() {
                 return Err(runtime_err("intrínseca 'tempo_unix' exige 0 argumentos"));
@@ -2759,12 +2759,12 @@ pub(super) fn try_call_intrinsic(
             })?;
             Ok(IntrinsicCall::Done(None))
         }
-        // @pinker-nav:end interpreter.intrinsecos.tempo-processos-ambiente
+        // @pinker-nav:end interpreter.intrinsics.time-processes-environment
 
-        // @pinker-nav:start interpreter.intrinsecos.conversoes-numero-texto
-        // @pinker-nav:domain intrinsecos
+        // @pinker-nav:start interpreter.intrinsics.number-text-conversions
+        // @pinker-nav:domain intrinsics
         // @pinker-nav:layer interpreter
-        // @pinker-nav:summary Intrínsecas hospedadas de conversão entre número e texto: `verso_para_bombom` (parse de `verso` para `bombom`, com erro em texto inválido) e `bombom_para_verso` (formatação de `bombom` como `verso`). Valida aridade e tipos dos argumentos.
+        // @pinker-nav:summary Hosted intrinsics for conversion between number and text: `verso_para_bombom` (parsing a `verso` into a `bombom`, with an error on invalid text) and `bombom_para_verso` (formatting a `bombom` as a `verso`). It validates the arity and types of the arguments.
         "verso_para_bombom" => {
             if args.len() != 1 {
                 return Err(runtime_err(
@@ -2797,13 +2797,13 @@ pub(super) fn try_call_intrinsic(
                 valor.to_string(),
             ))))
         }
-        // @pinker-nav:end interpreter.intrinsecos.conversoes-numero-texto
-        // @pinker-nav:start interpreter.intrinsecos.aleatorio-entre
-        // @pinker-nav:domain intrinsecos
+        // @pinker-nav:end interpreter.intrinsics.number-text-conversions
+        // @pinker-nav:start interpreter.intrinsics.aleatorio-entre
+        // @pinker-nav:domain intrinsics
         // @pinker-nav:layer interpreter
-        // @pinker-nav:summary Braco `aleatorio_entre` da familia `acaso`, fisicamente separado dela neste ponto do dispatcher: valida aridade e tipos de gerador, minimo e maximo, e delega ao mesmo gerador da regiao interpreter.intrinsecos.acaso, sem segunda fonte de aleatoriedade.
+        // @pinker-nav:summary The `aleatorio_entre` arm of the `acaso` family, physically separated from it at this point of the dispatcher: it validates arity and the types of generator, minimum and maximum, and delegates to the same generator as the interpreter.intrinsics.acaso region, with no second source of randomness.
 
-        // Arm isolado da família `acaso` (ver `interpreter.intrinsecos.acaso`),
+        // Arm isolado da família `acaso` (ver `interpreter.intrinsics.acaso`),
         // fisicamente separado dela neste ponto do dispatcher; sem âncora própria.
         "aleatorio_entre" => {
             if args.len() != 3 {
@@ -2837,11 +2837,11 @@ pub(super) fn try_call_intrinsic(
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(result))))
         }
 
-        // @pinker-nav:end interpreter.intrinsecos.aleatorio-entre
-        // @pinker-nav:start interpreter.intrinsecos.mapas-tipados
-        // @pinker-nav:domain intrinsecos
+        // @pinker-nav:end interpreter.intrinsics.aleatorio-entre
+        // @pinker-nav:start interpreter.intrinsics.typed-maps
+        // @pinker-nav:domain intrinsics
         // @pinker-nav:layer interpreter
-        // @pinker-nav:summary Intrínsecas hospedadas das famílias tipadas de mapa `mapa<verso,verso>`, `mapa<bombom,bombom>` e `mapa<bombom,verso>` — cada uma com `criar`/`definir`/`obter`/`tem`/`tamanho`/`remover` e os cursores internos de iteração (`__pinker_internal_..._iterador_criar`/`_proxima_chave`) — mais a remoção residual de `mapa<verso,bombom>`. Opera sobre as tabelas de estado do hospedeiro; valida aridade e tipos.
+        // @pinker-nav:summary Hosted intrinsics of the typed map families `mapa<verso,verso>`, `mapa<bombom,bombom>` and `mapa<bombom,verso>` — each with `criar`/`definir`/`obter`/`tem`/`tamanho`/`remover` and the internal iteration cursors (`__pinker_internal_..._iterador_criar`/`_proxima_chave`) — plus the residual removal of `mapa<verso,bombom>`. It operates over the host's state tables; it validates arity and types.
         "mapa_verso_bombom_remover" => {
             if args.len() != 2 {
                 return Err(runtime_err(
@@ -3439,13 +3439,13 @@ pub(super) fn try_call_intrinsic(
             iter.next_index = iter.next_index.saturating_add(1);
             Ok(IntrinsicCall::Done(Some(RuntimeValue::Int(key_val))))
         }
-        // @pinker-nav:end interpreter.intrinsecos.mapas-tipados
-        // @pinker-nav:start interpreter.intrinsecos.insercao-em-lista
-        // @pinker-nav:domain intrinsecos
+        // @pinker-nav:end interpreter.intrinsics.typed-maps
+        // @pinker-nav:start interpreter.intrinsics.list-insertion
+        // @pinker-nav:domain intrinsics
         // @pinker-nav:layer interpreter
-        // @pinker-nav:summary Braco `lista_bombom_inserir` da familia `listas`, fisicamente separado dela neste ponto do dispatcher, e o encerramento do dispatcher: indice validado contra os limites da lista e, no ramo final, a identidade nao intrinseca devolvida como tal em vez de virar erro.
+        // @pinker-nav:summary The `lista_bombom_inserir` arm of the `listas` family, physically separated from it at this point of the dispatcher, and the closing of the dispatcher: the index is validated against the list's bounds and, in the final branch, a non-intrinsic identity is returned as such instead of becoming an error.
 
-        // Arm isolado da família `listas` (ver `interpreter.intrinsecos.listas`),
+        // Arm isolado da família `listas` (ver `interpreter.intrinsics.lists`),
         // fisicamente separado dela neste ponto do dispatcher; sem âncora própria.
         // Segue o ramo `_ => NotIntrinsic` de encerramento do dispatcher.
         "lista_bombom_inserir" => {
@@ -3485,4 +3485,4 @@ pub(super) fn try_call_intrinsic(
         _ => Ok(IntrinsicCall::NotIntrinsic),
     }
 }
-// @pinker-nav:end interpreter.intrinsecos.insercao-em-lista
+// @pinker-nav:end interpreter.intrinsics.list-insertion

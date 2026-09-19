@@ -1,13 +1,13 @@
-//! Parsing e roteamento da CLI (`cli.parsing.subcomandos`,
-//! `cli.parsing.roteamento`), unidade MAIN-5 da decomposição física #605.
+//! Parsing e roteamento da CLI (`cli.parsing.subcommands`,
+//! `cli.parsing.routing`), unidade MAIN-5 da decomposição física #605.
 //!
 //! Movimento físico: as decisões, o estado e a ordem são os do entrypoint.
 //! `main.rs` continua dono da orquestração; aqui mora só a implementação.
 
-// @pinker-nav:start cli.parsing.subcomandos
+// @pinker-nav:start cli.parsing.subcommands
 // @pinker-nav:domain parsing
 // @pinker-nav:layer cli
-// @pinker-nav:summary Parsers estritos dos subcomandos, incluindo estado, doctor e verificar: validam flags, posicionais, duplicatas e requisitos cruzados antes de produzir modelos tipados.
+// @pinker-nav:summary Strict parsers for the subcommands, including estado, doctor and verificar: they validate flags, positionals, duplicates and cross requirements before producing typed models.
 use super::*;
 
 fn parse_build_args(binary: &str, args: &[String]) -> Result<BuildConfig, String> {
@@ -740,12 +740,12 @@ fn parse_verify_args(binary: &str, args: &[String]) -> Result<VerifyConfigCli, S
         json,
     })
 }
-// @pinker-nav:end cli.parsing.subcomandos
+// @pinker-nav:end cli.parsing.subcommands
 
-// @pinker-nav:start cli.parsing.roteamento
+// @pinker-nav:start cli.parsing.routing
 // @pinker-nav:domain parsing
 // @pinker-nav:layer cli
-// @pinker-nav:summary parse_args resolve ajuda e versão, separa runtime tail e despacha os nove comandos — incluindo doctor e verificar — ou análise, com erros uniformes de uso.
+// @pinker-nav:summary parse_args resolves help and version, separates the runtime tail and dispatches the nine commands — including doctor and verificar — or analysis, with uniform usage errors.
 pub(super) fn parse_args() -> Result<CliCommand, String> {
     let mut input: Option<String> = None;
     let mut print_tokens = false;
@@ -962,4 +962,4 @@ pub(super) fn parse_args() -> Result<CliCommand, String> {
         check_only,
     }))
 }
-// @pinker-nav:end cli.parsing.roteamento
+// @pinker-nav:end cli.parsing.routing

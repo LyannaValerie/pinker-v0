@@ -1,9 +1,9 @@
 //! Identidade estreita e injetiva de callables anônimos.
 
-// @pinker-nav:start identidades.anonima-callable
-// @pinker-nav:domain identidade
-// @pinker-nav:layer compilador
-// @pinker-nav:summary Codifica a identidade estrutural e injetiva de callables anônimos a partir da proveniência canônica da fonte e do índice local do parser, renderizando integralmente os bytes sob o namespace sintético reservado. Desde a #567 há uma segunda forma, para a closure COPIADA numa materialização de corpo default de trato: ela carrega as duas proveniências — a da closure, que é a unidade onde o default foi escrito, e a da materialização, que é a unidade que escreveu o `impl` e conta o índice. As duas são necessárias e por razões distintas: sem a primeira a cópia se apresentaria como coisa do importador; sem a segunda dois importadores cunhariam o mesmo nome, porque índice local só é injetivo dentro de quem o conta. Nenhuma grafia de trato, alvo ou método participa.
+// @pinker-nav:start identities.anonymous-callable
+// @pinker-nav:domain identity
+// @pinker-nav:layer compiler
+// @pinker-nav:summary Encodes the structural, injective identity of anonymous callables from the source's canonical provenance and the parser's local index, rendering the bytes in full under the reserved synthetic namespace. Since #567 there is a second form, for the closure COPIED in a materialization of a trato default body: it carries both provenances — the closure's, which is the unit where the default was written, and the materialization's, which is the unit that wrote the `impl` and counts the index. Both are necessary and for distinct reasons: without the first the copy would present itself as the importer's thing; without the second two importers would mint the same name, because a local index is injective only inside whoever counts it. No spelling of trato, target or method takes part.
 use crate::source_origin::SourceOrigin;
 
 const FORMAT_MAGIC: &[u8] = b"pinker-anonymous-callable-v1";
@@ -166,4 +166,4 @@ pub fn materialized_default_closure_name(
     );
     format!("{}{}", anonymous_callable_prefix(), full_hex(&bytes))
 }
-// @pinker-nav:end identidades.anonima-callable
+// @pinker-nav:end identities.anonymous-callable

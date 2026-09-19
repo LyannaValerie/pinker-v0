@@ -4,10 +4,10 @@
 //! Trama, documentação, projeções e automation core para uma
 //! representação única consumível diretamente por interfaces internas.
 
-// @pinker-nav:start project-state.modelo
-// @pinker-nav:domain estado
-// @pinker-nav:layer modelo
-// @pinker-nav:summary Modelo tipado e versionado do estado consolidado: domínios em ordem fixa, estados explícitos, fontes atribuídas, warnings, blockers e operações pendentes sem root absoluto ou dados incidentais.
+// @pinker-nav:start project-state.model
+// @pinker-nav:domain state
+// @pinker-nav:layer model
+// @pinker-nav:summary Typed, versioned model of the consolidated state: domains in fixed order, explicit states, attributed sources, warnings, blockers and pending operations without an absolute root or incidental data.
 use crate::automation::RepoRoot;
 use crate::doc::{self, DocConfig};
 use crate::doc_index::{DocCatalog, DocIndex};
@@ -236,12 +236,12 @@ impl ProjectState {
     }
 }
 
-// @pinker-nav:end project-state.modelo
+// @pinker-nav:end project-state.model
 
-// @pinker-nav:start project-state.coleta
-// @pinker-nav:domain estado
-// @pinker-nav:layer adaptadores
-// @pinker-nav:summary Coleta somente leitura que reutiliza RepoRoot, verificadores doc/nav e o arquivo histórico materializado; falhas de um domínio são preservadas sem apagar domínios independentes.
+// @pinker-nav:start project-state.gathering
+// @pinker-nav:domain state
+// @pinker-nav:layer adapters
+// @pinker-nav:summary Read-only gathering that reuses RepoRoot, the doc/nav verifiers and the materialized historical archive; a failure in one domain is preserved without erasing independent domains.
 
 #[derive(Debug)]
 pub enum CollectError {
@@ -919,12 +919,12 @@ fn add_warning_and_diagnostic(
     });
 }
 
-// @pinker-nav:end project-state.coleta
+// @pinker-nav:end project-state.gathering
 
-// @pinker-nav:start evidencia.estado.precedencia
-// @pinker-nav:domain estado
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Prova de que o estado geral do projeto tem precedencia deterministica entre os estados de dominio, de modo que a ordem em que os dominios sao observados nao altera o veredito publicado.
+// @pinker-nav:start evidence.state.precedence
+// @pinker-nav:domain state
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Proof that the project's overall state has deterministic precedence among the domain states, so that the order in which the domains are observed does not change the published verdict.
 #[cfg(test)]
 mod tests {
     use super::{
@@ -962,4 +962,4 @@ mod tests {
         );
     }
 }
-// @pinker-nav:end evidencia.estado.precedencia
+// @pinker-nav:end evidence.state.precedence

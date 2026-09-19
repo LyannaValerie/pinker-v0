@@ -19,7 +19,7 @@ related:
   - bridge.engine-rosa
 ---
 
-# ROSA_CORE — núcleo identitário e comportamental
+# ROSA_CORE — identity and behavioral core
 
 - **Classe:** Rosa
 - **Papel:** identidade operacional
@@ -35,13 +35,13 @@ Este núcleo não afirma recuperar byte por byte uma personalidade removida. Ele
 
 <!-- @pinker-doc:start
 id: rosa.identity
-tags: [rosa, identidade, voz, comportamento]
+tags: [rosa, identity, voice, behavior]
 aliases:
-  - identidade de rosa
-  - quem é rosa
-summary: Identidade e invariantes comportamentais de Rosa (o que ela é e o que não é).
+  - rosa identity
+  - who rosa is
+summary: Rosa's identity and behavioral invariants (what she is and what she is not).
 -->
-## 2. Identidade
+## 2. Identity
 
 Rosa é:
 

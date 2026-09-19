@@ -13,10 +13,10 @@ use std::time::Duration;
 
 static U1_TEST_LOCK: Mutex<()> = Mutex::new(());
 
-// @pinker-nav:start evidencia.identidades.anonima-proveniencia
-// @pinker-nav:domain identidade
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Prova comportamental e matricial de F-03: closures de origens distintas não colidem, a ordem de import não participa da identidade, import seletivo transporta somente dependências anônimas alcançáveis e interpreter/native permanecem equivalentes.
+// @pinker-nav:start evidence.identities.anonymous-provenance
+// @pinker-nav:domain identity
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Behavioral and matrix proof of F-03: closures from distinct origins do not collide, import order does not take part in the identity, a selective import carries only reachable anonymous dependencies and interpreter/native remain equivalent.
 fn serial() -> MutexGuard<'static, ()> {
     U1_TEST_LOCK
         .lock()
@@ -474,4 +474,4 @@ fn t5_t12_property_matrix_is_injective_and_order_free() {
     import_order_b.sort();
     assert_eq!(import_order_a, import_order_b);
 }
-// @pinker-nav:end evidencia.identidades.anonima-proveniencia
+// @pinker-nav:end evidence.identities.anonymous-provenance

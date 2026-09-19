@@ -168,10 +168,10 @@ fn callee_de_principal(fonte: &str) -> ExprKind {
     panic!("nenhuma chamada em principal");
 }
 
-// @pinker-nav:start evidencia.identidade.intrinseca-vs-grafia
-// @pinker-nav:domain identificadores
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Prova comportamental do contrato central da #532: a decisão "esta chamada é intrínseca" vem de `CalleeIdentity`, produzida só pela canonicalização de um `trazer`, e não da grafia textual. Cobre a matriz I1 — função do usuário com antiga grafia canônica declarada e chamada, referência modular à mesma grafia alcançando a intrínseca, coexistência das duas no mesmo programa, acordo interpretador × nativo — e o censo de reservas textuais, que passou a ser zero. Os oráculos são observáveis semânticos (valor devolvido, saída, forma do callee na AST), nunca "o programa compila".
+// @pinker-nav:start evidence.identity.intrinsic-vs-spelling
+// @pinker-nav:domain identifiers
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Behavioral proof of the central contract of #532: the decision “this call is an intrinsic” comes from `CalleeIdentity`, produced only by the canonicalization of a `trazer`, and not from the textual spelling. It covers matrix I1 — a user function with the old canonical spelling declared and called, a modular reference to the same spelling reaching the intrinsic, coexistence of the two in the same program, agreement between interpreter × native — and the census of textual reservations, which has become zero. The oracles are semantic observables (returned value, output, shape of the callee in the AST), never “the program compiles”.
 
 // ---------------------------------------------------------------------------
 // I1 — grafia canônica deixou de ser identidade
@@ -322,12 +322,12 @@ fn censo_de_reservas_textuais_para_funcao_do_usuario_e_zero() {
         "grafias canônicas ainda reservadas ou capturadas para o usuário"
     );
 }
-// @pinker-nav:end evidencia.identidade.intrinseca-vs-grafia
+// @pinker-nav:end evidence.identity.intrinsic-vs-spelling
 
-// @pinker-nav:start evidencia.identidade.namespace-de-modulos
-// @pinker-nav:domain importacoes
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Prova comportamental do namespace de módulos da #532: a regra única `EXISTING_LEXICAL_IDENTITY > MODULE_NAME` vale igual para família built-in e módulo real e não depende da ordem do texto (I2); a criação genérica de mapa passou a ser `mapa.criar`, fechando a última grafia builtin chamável sem import (I3); e `REAL_MODULE_X > BUILTIN_FAMILY_X` passou a valer nas DUAS formas de `trazer`, preservando G-517-1 quando não existe arquivo homônimo (I4). Inclui a matriz negativa N1..N8 e o censo estrutural dos quinze módulos, que recusa qualquer módulo tratado como caso especial.
+// @pinker-nav:start evidence.identity.module-namespace
+// @pinker-nav:domain imports
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Behavioral proof of the module namespace of #532: the single rule `EXISTING_LEXICAL_IDENTITY > MODULE_NAME` holds equally for a built-in family and a real module and does not depend on text order (I2); generic map creation became `mapa.criar`, closing the last builtin spelling callable without an import (I3); and `REAL_MODULE_X > BUILTIN_FAMILY_X` came to hold in BOTH forms of `trazer`, preserving G-517-1 when no file of the same name exists (I4). It includes the negative matrix N1..N8 and the structural census of the fifteen modules, which refuses any module treated as a special case.
 
 // ---------------------------------------------------------------------------
 // I2 — nome de módulo, ligação de valor e nome textual
@@ -874,4 +874,4 @@ fn censo_estrutural_dos_quinze_modulos_nao_tem_caso_especial() {
         );
     }
 }
-// @pinker-nav:end evidencia.identidade.namespace-de-modulos
+// @pinker-nav:end evidence.identity.module-namespace

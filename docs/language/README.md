@@ -15,7 +15,7 @@ related:
   - engine
 ---
 
-# Linguagem — território lexical e de famílias
+# Language — lexical and family territory
 
 - **Classe:** Ponte
 - **Papel:** navegação

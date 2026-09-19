@@ -2,10 +2,10 @@ mod common;
 
 use common::{render_cli_selected_output, render_selected};
 
-// @pinker-nav:start evidencia.select.blocos-e-terminadores
+// @pinker-nav:start evidence.select.blocks-and-terminators
 // @pinker-nav:domain select
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Compara a renderização da seleção abstrata de funções e desvios condicionais presentes.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Compares the rendering of the abstract selection of the functions and conditional branches present.
 #[test]
 fn seleciona_funcao_simples() {
     let code = "pacote main; carinho principal() -> bombom { mimo 0; }";
@@ -87,11 +87,11 @@ selected:
     );
 }
 
-// @pinker-nav:end evidencia.select.blocos-e-terminadores
-// @pinker-nav:start evidencia.select.chamadas-e-operadores
+// @pinker-nav:end evidence.select.blocks-and-terminators
+// @pinker-nav:start evidence.select.calls-and-operators
 // @pinker-nav:domain select
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Compara chamadas com e sem retorno e operadores unários e binários na seleção abstrata.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Compares calls with and without a return and unary and binary operators in the abstract selection.
 #[test]
 fn seleciona_chamada_retorno_e_call_void() {
     let code = "\
@@ -164,11 +164,11 @@ selected:
     );
 }
 
-// @pinker-nav:end evidencia.select.chamadas-e-operadores
-// @pinker-nav:start evidencia.select.renderizacao-cli
+// @pinker-nav:end evidence.select.calls-and-operators
+// @pinker-nav:start evidence.select.rendering-cli
 // @pinker-nav:domain select
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Compara o cabeçalho produzido pelo renderer CLI da seleção.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Compares the header produced by the selection's CLI renderer.
 #[test]
 fn selected_cli_header_estavel() {
     let code = "pacote main; carinho principal() -> bombom { mimo 0; }";
@@ -192,11 +192,11 @@ Análise semântica concluída sem erros.
     );
 }
 
-// @pinker-nav:end evidencia.select.renderizacao-cli
-// @pinker-nav:start evidencia.select.rejeicao-call-sem-destino
+// @pinker-nav:end evidence.select.rendering-cli
+// @pinker-nav:start evidence.select.rejection-call-without-destination
 // @pinker-nav:domain select
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita o lowering direto e espera rejeição de chamada com retorno sem destino.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises the direct lowering and expects refusal of a call with a return but no destination.
 #[test]
 fn falha_clara_para_call_sem_destino() {
     let cfg = pinker_v0::cfg_ir::ProgramCfgIR {
@@ -234,11 +234,11 @@ fn falha_clara_para_call_sem_destino() {
     assert!(err.to_string().contains("instruction selection"));
 }
 
-// @pinker-nav:end evidencia.select.rejeicao-call-sem-destino
-// @pinker-nav:start evidencia.select.fluxos-de-laco
+// @pinker-nav:end evidence.select.rejection-call-without-destination
+// @pinker-nav:start evidence.select.loop-flows
 // @pinker-nav:domain select
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Inspeciona blocos e terminadores selecionados para laço, quebra e continuação.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Inspects the blocks and terminators selected for a loop, break and continue.
 #[test]
 fn seleciona_sempre_que() {
     let code = "
@@ -284,11 +284,11 @@ fn seleciona_sempre_que_com_continuar() {
     assert!(out.contains("loop_continue_cont"), "{}", out);
 }
 
-// @pinker-nav:end evidencia.select.fluxos-de-laco
-// @pinker-nav:start evidencia.select.operadores-bitwise-e-modulo
+// @pinker-nav:end evidence.select.loop-flows
+// @pinker-nav:start evidence.select.operators-bitwise-and-modulo
 // @pinker-nav:domain select
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Inspeciona a seleção abstrata dos operadores bitwise e módulo presentes.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Inspects the abstract selection of the bitwise and modulo operators present.
 #[test]
 fn seleciona_bitwise_basico() {
     let code = "
@@ -316,12 +316,12 @@ fn seleciona_modulo_basico() {
     let out = render_selected(code).unwrap();
     assert!(out.contains("isel mod %t0, 10, 4"), "{}", out);
 }
-// @pinker-nav:end evidencia.select.operadores-bitwise-e-modulo
+// @pinker-nav:end evidence.select.operators-bitwise-and-modulo
 
-// @pinker-nav:start evidencia.select.objetos-trato-fase244
+// @pinker-nav:start evidence.select.trato-objects-phase244
 // @pinker-nav:domain select
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita a seleção da Fase 244 para materialização e chamadas dinâmicas com e sem retorno, além das invariantes estruturais de snapshot, vtable e destino.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises the Phase 244 selection for materialization and dynamic calls with and without a return, besides the structural invariants of snapshot, vtable and destination.
 
 #[test]
 fn fase244_select_materializa_e_despacha_com_retorno() {
@@ -515,4 +515,4 @@ fn fase244_select_validation_rejeita_slot_fora_da_vtable() {
     );
 }
 
-// @pinker-nav:end evidencia.select.objetos-trato-fase244
+// @pinker-nav:end evidence.select.trato-objects-phase244

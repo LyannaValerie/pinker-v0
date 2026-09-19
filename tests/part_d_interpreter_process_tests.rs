@@ -7,10 +7,10 @@ use std::fs;
 use std::process::{Command, Output, Stdio};
 use std::time::{Duration, Instant};
 
-// @pinker-nav:start evidencia.processos.parte-d-interpreter-step-3
-// @pinker-nav:domain processos
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Prova a execução estruturada real no interpretador: spawn único sem shell, fronteiras de argv, stdin integral e EOF, captura simultânea e separada de stdout/stderr grandes, cwd só do filho, ambiente herdado+overlay e PATH, status normal/não-zero, término anormal e UTF-8 inválido recuperáveis, timeout simples e adversarial com descendente segurando pipes, reap/cleanup e accessors sem reexecução.
+// @pinker-nav:start evidence.processes.part-d-interpreter-step-3
+// @pinker-nav:domain processes
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Proves real structured execution in the interpreter: a single spawn without a shell, argv boundaries, whole stdin and EOF, simultaneous and separate capture of large stdout/stderr, cwd limited to the child, inherited environment + overlay and PATH, normal/non-zero status, abnormal termination and recoverable invalid UTF-8, simple and adversarial timeout with a descendant holding the pipes, reap/cleanup and accessors without re-execution.
 
 fn literal(texto: &str) -> String {
     let mut saida = String::from("\"");
@@ -651,4 +651,4 @@ fn timeout_nao_espera_eof_de_descendente_mas_sem_limite_espera() {
     assert!(elapsed < Duration::from_secs(2), "{elapsed:?}");
 }
 
-// @pinker-nav:end evidencia.processos.parte-d-interpreter-step-3
+// @pinker-nav:end evidence.processes.part-d-interpreter-step-3

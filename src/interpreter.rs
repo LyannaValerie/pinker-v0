@@ -6,10 +6,10 @@
 //!
 //! Ponto de entrada: [`run_program`].
 
-// @pinker-nav:start interpreter.unioes.estado-de-runtime
-// @pinker-nav:domain unioes
+// @pinker-nav:start interpreter.unions.runtime-state
+// @pinker-nav:domain unions
 // @pinker-nav:layer interpreter
-// @pinker-nav:summary Preludio do interpretador e o dominio interno de uniao em runtime (HR3): o snapshot imutavel de carga — escalar e handle clonados na injecao, agregado copiado byte a byte, de modo que mudar a origem depois nao muda o que o `encaixe` observa —, o descritor com tag e layout, e o orcamento equivalente ao do runtime nativo, contabilizado com operacoes checked em descritores, bytes de carga e metadata. Nada deste dominio consome a cota vitalicia de identidades publicas, que pertence somente a `alocar`.
+// @pinker-nav:summary Prelude of the interpreter and the internal union domain at runtime (HR3): the immutable payload snapshot — scalar and handle cloned at injection, aggregate copied byte for byte, so that changing the origin afterwards does not change what `encaixe` observes —, the descriptor with tag and layout, and a budget equivalent to the native runtime's, accounted with checked operations over descriptors, payload bytes and metadata. Nothing in this domain consumes the lifetime quota of public identities, which belongs only to `alocar`.
 use crate::abstract_machine::{
     MachineFunction, MachineGlobal, MachineInstr, MachineProgram, MachineTerminator,
 };
@@ -146,12 +146,12 @@ thread_local! {
     static UNION_RUNTIME_STATE: RefCell<UnionRuntimeState> =
         RefCell::new(UnionRuntimeState::default());
 }
-// @pinker-nav:end interpreter.unioes.estado-de-runtime
+// @pinker-nav:end interpreter.unions.runtime-state
 
-// @pinker-nav:start interpreter.modelo.valores-estado
-// @pinker-nav:domain modelo
+// @pinker-nav:start interpreter.model.state-values
+// @pinker-nav:domain model
 // @pinker-nav:layer interpreter
-// @pinker-nav:summary Define valores executados, handles lógicos e estados hospedados do interpretador para IO, listas, mapas, leques, aleatoriedade, arquivos e frames de diagnóstico; diferencia slots e endereços simulados de ponteiros nativos e não define a representação do runtime nativo linkável.
+// @pinker-nav:summary Defines executed values, logical handles and hosted states of the interpreter for IO, lists, maps, leques, randomness, files and diagnostic frames; it distinguishes slots and simulated addresses from native pointers and does not define the representation of the linkable native runtime.
 // Truncamento de stack trace longo (Fase 27b):
 // traces com mais de TRACE_TRUNC_THRESHOLD frames são resumidos mostrando
 // os primeiros TRACE_HEAD e os últimos TRACE_TAIL, com linha de omissão.
@@ -1167,12 +1167,12 @@ pub struct RunOutcome {
     pub exit_status: Option<i32>,
 }
 
-// @pinker-nav:end interpreter.modelo.valores-estado
+// @pinker-nav:end interpreter.model.state-values
 
-// @pinker-nav:start interpreter.execucao.programa-globais
-// @pinker-nav:domain execucao
+// @pinker-nav:start interpreter.execution.program-globals
+// @pinker-nav:domain execution
 // @pinker-nav:layer interpreter
-// @pinker-nav:summary Inicia a execução hospedada de um `MachineProgram`, copia argumentos CLI para o estado do interpretador, chama `principal`, converte globais em `RuntimeValue`, monta a memória indireta simulada em `HashMap` e devolve valor ou status de saída sem gerar código nativo.
+// @pinker-nav:summary Starts hosted execution of a `MachineProgram`, copies CLI arguments into the interpreter's state, calls `principal`, converts globals into `RuntimeValue`, builds the simulated indirect memory in a `HashMap` and returns a value or an exit status without generating native code.
 pub fn run_program(program: &MachineProgram) -> Result<Option<RuntimeValue>, PinkerError> {
     Ok(run_program_with_args(program, &[])?.return_value)
 }
@@ -1392,12 +1392,12 @@ fn accept_call_result(
 // frame atual e empilham outro; somente intrínsecas hospedadas executam inline.
 // O call_stack permanece separado para preservar o stack trace observável.
 #[allow(clippy::too_many_arguments)]
-// @pinker-nav:end interpreter.execucao.programa-globais
+// @pinker-nav:end interpreter.execution.program-globals
 
-// @pinker-nav:start interpreter.execucao.funcoes-fluxo
-// @pinker-nav:domain execucao
+// @pinker-nav:start interpreter.execution.functions-flow
+// @pinker-nav:domain execution
 // @pinker-nav:layer interpreter
-// @pinker-nav:summary Executa uma `MachineFunction` validada a partir do bloco `entry`, criando frame, slots, pilha e mapa de labels, seguindo terminadores e propagando retornos ou `sair`; consulta intrínsecas hospedadas e funções Pinker sem reconstruir CFG, escalonar concorrência ou emitir ABI nativa.
+// @pinker-nav:summary Executes a validated `MachineFunction` starting from the `entry` block, creating frame, slots, stack and label map, following terminators and propagating returns or `sair`; it consults hosted intrinsics and Pinker functions without rebuilding the CFG, scheduling concurrency or emitting a native ABI.
 fn call_function(
     fn_name: &str,
     args: Vec<RuntimeValue>,
@@ -1579,12 +1579,12 @@ fn call_function(
 }
 
 #[allow(clippy::too_many_arguments)]
-// @pinker-nav:end interpreter.execucao.funcoes-fluxo
+// @pinker-nav:end interpreter.execution.functions-flow
 
-// @pinker-nav:start interpreter.execucao.instrucoes-pilha
-// @pinker-nav:domain execucao
+// @pinker-nav:start interpreter.execution.stack-instructions
+// @pinker-nav:domain execution
 // @pinker-nav:layer interpreter
-// @pinker-nav:summary Executa instruções da máquina de pilha lendo ou desempilhando operandos, mutando slots, pilha, globais e memória simulada, despachando intrínsecas antes de funções Pinker e materializando impressões de `falar`; mantém verificações defensivas de underflow e tipos sem substituir a validação estática.
+// @pinker-nav:summary Executes stack machine instructions by reading or popping operands, mutating slots, stack, globals and simulated memory, dispatching intrinsics before Pinker functions and materializing `falar` prints; it keeps defensive underflow and type checks without replacing static validation.
 const RAW_FUNCTION_ADDRESS_BASE: usize = 0x7000_0000;
 
 fn raw_function_address(program: &MachineProgram, name: &str) -> Option<usize> {
@@ -2392,12 +2392,12 @@ fn exec_instr(
     Ok(InstrControl::Continue)
 }
 
-// @pinker-nav:end interpreter.execucao.instrucoes-pilha
+// @pinker-nav:end interpreter.execution.stack-instructions
 
-// @pinker-nav:start interpreter.falha-operacional.construcao
-// @pinker-nav:domain erros
+// @pinker-nav:start interpreter.operational-failure.construction
+// @pinker-nav:domain errors
 // @pinker-nav:layer interpreter
-// @pinker-nav:summary Execução hospedada das superfícies falíveis da Parte B: `executar_superficie_falivel` despacha por `OperacaoFalivel` — nunca por nome literal — e obtém nome público e tipo do argumento da própria autoridade; `exigir_argumento_unico` mantém aridade e tipo como erro de programa; `novo_leque`/`resultado_ok_bombom`/`resultado_ok_verso`/`resultado_erro` produzem o valor pelo mesmo `enum_values` que qualquer leque do usuário, com `Ok` na tag 0 e `Erro` na tag 1.
+// @pinker-nav:summary Hosted execution of Part B's fallible surfaces: `executar_superficie_falivel` dispatches by `OperacaoFalivel` — never by a literal name — and obtains the public name and the argument type from the authority itself; `exigir_argumento_unico` keeps arity and type as a program error; `novo_leque`/`resultado_ok_bombom`/`resultado_ok_verso`/`resultado_erro` produce the value through the same `enum_values` as any user leque, with `Ok` at tag 0 and `Erro` at tag 1.
 /// Argumento único das superfícies falíveis, com o tipo exigido vindo da
 /// autoridade em vez de ser reafirmado aqui.
 ///
@@ -2781,12 +2781,12 @@ fn resultado_erro(map_state: &mut RuntimeMapState, causa: String) -> IntrinsicCa
     }
     IntrinsicCall::Done(Some(RuntimeValue::Int(handle)))
 }
-// @pinker-nav:end interpreter.falha-operacional.construcao
+// @pinker-nav:end interpreter.operational-failure.construction
 
-// @pinker-nav:start interpreter.memoria.estado-enderecavel
-// @pinker-nav:domain memoria
+// @pinker-nav:start interpreter.memory.addressable-state
+// @pinker-nav:domain memory
 // @pinker-nav:layer interpreter
-// @pinker-nav:summary O interpretador mantém dois domínios endereçáveis relacionados porém contabilmente distintos: identidades de memória pública, com limites, reserva, vivacidade e contabilidade pelo contrato compartilhado; e o domínio interno monotônico de bindings de união, com limites, snapshots e cópias de payload próprios, que não consomem identidade pública nem podem ser liberados por liberar. Reúne também a representação escalar, o acesso em bytes, a contenção por intervalos, a validação de proveniência e as implementações de alocar e liberar. Não é aleatoriedade.
+// @pinker-nav:summary The interpreter maintains two addressable domains that are related yet accounted for distinctly: public memory identities, with limits, reservation, liveness and accounting by the shared contract; and the monotonic internal domain of union bindings, with its own limits, snapshots and payload copies, which consume no public identity and cannot be released by liberar. It also gathers the scalar representation, byte access, containment by intervals, provenance validation and the implementations of alocar and liberar. It is not randomness.
 const PUBLIC_MEMORY_BASE: usize = 0x5000_0000;
 const PUBLIC_MEMORY_MAX_IDENTITIES: usize = pinker_memory_contract::MAX_PUBLIC_IDENTITIES as usize;
 const PUBLIC_MEMORY_MAX_VIRTUAL_BYTES: usize =
@@ -3406,12 +3406,12 @@ fn public_memory_free(
         "E-RUNTIME-MEM-FOREIGN-FREE: 'liberar' rejeita ponteiro estrangeiro ou de domínio interno",
     ))
 }
-// @pinker-nav:end interpreter.memoria.estado-enderecavel
+// @pinker-nav:end interpreter.memory.addressable-state
 
-// @pinker-nav:start interpreter.hospedeiro.servicos-auxiliares
-// @pinker-nav:domain hospedeiro
+// @pinker-nav:start interpreter.host.auxiliary-services
+// @pinker-nav:domain host
 // @pinker-nav:layer interpreter
-// @pinker-nav:summary Reúne helpers hospedados usados pelas intrínsecas para stdin, aleatoriedade, ambiente, formatação textual, CSV, JSON mínimo, tempo UTC e processos; encapsula efeitos e normalizações auxiliares sem criar novas ferramentas da Trama nem alterar a semântica do dispatcher, e concentra em comando_de_processo a construção de todo Command das famílias de subprocesso, que instala um pre_exec devolvendo SIGPIPE a SIG_DFL no filho antes do exec em paridade com o runtime nativo. A leitura de argumento nomeado deixou de morar aqui: sobraram os dois guardas de chave vazia, e eles só escolhem qual mensagem de `pinker_argv_contract` usar — a classificação da chave é da autoridade compartilhada com o runtime nativo (#492).
+// @pinker-nav:summary Gathers hosted helpers used by the intrinsics for stdin, randomness, environment, textual formatting, CSV, minimal JSON, UTC time and processes; it encapsulates effects and auxiliary normalizations without creating new Trama tools or altering the dispatcher's semantics, and concentrates in comando_de_processo the construction of every Command of the subprocess families, which installs a pre_exec returning SIGPIPE to SIG_DFL in the child before exec, in parity with the native runtime. Reading a named argument no longer lives here: what remains are the two empty-key guards, and they only choose which `pinker_argv_contract` message to use — the key's classification belongs to the authority shared with the native runtime (#492).
 fn read_stdin_line_minima(intrinsic_name: &str) -> Result<Option<String>, PinkerError> {
     let mut raw = String::new();
     let bytes = io::stdin().read_line(&mut raw).map_err(|err| {
@@ -3857,12 +3857,12 @@ fn trim_final_newline_minimo(mut line: String) -> String {
     line
 }
 
-// @pinker-nav:end interpreter.hospedeiro.servicos-auxiliares
+// @pinker-nav:end interpreter.host.auxiliary-services
 
-// @pinker-nav:start interpreter.execucao.valores-tipos
-// @pinker-nav:domain execucao
+// @pinker-nav:start interpreter.execution.value-types
+// @pinker-nav:domain execution
 // @pinker-nav:layer interpreter
-// @pinker-nav:summary Implementa busca de função, desempilhamento de argumentos, validações dinâmicas de tipo, coerção para `TypeIR`, conversões de ponteiros simulados, aritmética, comparação e signedness usados pela execução; são defesas de runtime, não o sistema estático de tipos Pinker.
+// @pinker-nav:summary Implements function lookup, argument popping, dynamic type validations, coercion to `TypeIR`, conversions of simulated pointers, arithmetic, comparison and signedness used by execution; these are runtime defences, not Pinker's static type system.
 fn find_function<'a>(
     name: &str,
     program: &'a MachineProgram,
@@ -4335,12 +4335,12 @@ fn normalize_numeric_pair(
     }
 }
 
-// @pinker-nav:end interpreter.execucao.valores-tipos
+// @pinker-nav:end interpreter.execution.value-types
 
-// @pinker-nav:start interpreter.diagnostico.stack-trace
-// @pinker-nav:domain diagnostico
+// @pinker-nav:start interpreter.diagnostic.stack-trace
+// @pinker-nav:domain diagnostic
 // @pinker-nav:layer interpreter
-// @pinker-nav:summary Cria erros de runtime enriquecidos e stack traces do interpretador a partir dos frames Pinker ativos, incluindo função, bloco, instrução e span futuro quando disponível, prevenindo anexação duplicada e truncando traces longos; não é backtrace nativo Rust.
+// @pinker-nav:summary Creates enriched runtime errors and interpreter stack traces from the active Pinker frames, including function, block, instruction and the upcoming span when available, preventing duplicate attachment and truncating long traces; it is not a native Rust backtrace.
 fn runtime_err(msg: &str) -> PinkerError {
     PinkerError::Runtime {
         msg: enrich_runtime_msg(msg),
@@ -4545,12 +4545,12 @@ fn machine_instr_name(instr: &MachineInstr) -> &'static str {
         MachineInstr::InlineAsm { .. } => "inline_asm",
     }
 }
-// @pinker-nav:end interpreter.diagnostico.stack-trace
+// @pinker-nav:end interpreter.diagnostic.stack-trace
 
-// @pinker-nav:start interpreter.provas.ligacao
-// @pinker-nav:domain provas
+// @pinker-nav:start interpreter.proofs.wiring
+// @pinker-nav:domain proofs
 // @pinker-nav:layer interpreter
-// @pinker-nav:summary Ligacao do modulo de provas do interpretador, movido para `interpreter/tests.rs` pela unidade INT-1: privado e `#[cfg(test)]`, nao amplia superficie nenhuma do interpretador.
+// @pinker-nav:summary Wiring of the interpreter's proof module, moved to `interpreter/tests.rs` by unit INT-1: private and `#[cfg(test)]`, it widens no surface of the interpreter.
 #[cfg(test)]
 mod tests;
-// @pinker-nav:end interpreter.provas.ligacao
+// @pinker-nav:end interpreter.proofs.wiring

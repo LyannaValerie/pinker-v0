@@ -15,7 +15,7 @@ related:
   - development
 ---
 
-# Contrato do arquivo histórico das projeções de navegação
+# Historical archive contract of the navigation projections
 
 - **Classe:** Engine
 - **Papel:** contrato de domínio
@@ -36,14 +36,14 @@ verificá-lo é conferir integridade desses bytes.
 
 <!-- @pinker-doc:start
 id: development.projection-snapshots-contract.schema
-tags: [desenvolvimento, snapshots, projecoes, determinismo, cartografia]
+tags: [development, snapshots, projections, determinism, cartography]
 aliases:
-  - snapshot de projecao
-  - projecao estavel
-  - medidas historicas da cartografia
-summary: Projeção estável, medidas históricas preservadas, e a fronteira entre a projeção documental e o arquivo histórico da cartografia de código.
+  - projection snapshot
+  - stable projection
+  - historical cartography measures
+summary: Stable projection, preserved historical measures, and the boundary between the document projection and the historical archive of the code cartography.
 -->
-## Domínio e fronteira
+## Domain and boundary
 
 `src/projection.rs` é a autoridade das projeções **documentais**: ele projeta os
 manifestos versionados em regiões geradas de documentos humanos (§12). O arquivo
@@ -78,15 +78,15 @@ histórica de nenhum estado.
 <!-- @pinker-doc:end development.projection-snapshots-contract.schema -->
 
 <!-- @pinker-doc:start
-id: development.projection-snapshots-contract.arquivo
-tags: [desenvolvimento, arquivo, integridade, sha256, proveniencia]
+id: development.projection-snapshots-contract.archive
+tags: [development, archive, integrity, sha256, provenance]
 aliases:
-  - arquivo historico materializado
-  - indice do arquivo
-  - verificacao de integridade historica
-summary: Formato do arquivo materializado em .pinker/archive/, o índice de proveniência, o que a verificação confere e o que ela deliberadamente não lê.
+  - materialized historical archive
+  - archive index
+  - historical integrity verification
+summary: Format of the archive materialized under .pinker/archive/, the provenance index, what verification checks and what it deliberately does not read.
 -->
-## O arquivo materializado
+## The materialized archive
 
 O acervo vive em `.pinker/archive/`:
 
@@ -253,18 +253,18 @@ preservadas — `mostrar ID` passou a fazer sempre, sobre o payload
 materializado, e reporta o resultado em `integridade`. `--justificativa`,
 `--predecessor`, `--autorizar` e `--renomeacoes` eram opções do lifecycle de
 reconstrução e saíram com ele.
-<!-- @pinker-doc:end development.projection-snapshots-contract.arquivo -->
+<!-- @pinker-doc:end development.projection-snapshots-contract.archive -->
 
 <!-- @pinker-doc:start
-id: development.projection-snapshots-contract.acervo
-tags: [desenvolvimento, historia, identidade, eras, frozen]
+id: development.projection-snapshots-contract.collection
+tags: [development, history, identity, eras, frozen]
 aliases:
-  - identificadores historicos
-  - acervo de treze estados
-  - metadados frozen preservados
-summary: Os treze estados históricos aceitos, os seus identificadores, as seis eras que os organizam e o papel residual dos TOML FROZEN preservados.
+  - historical identifiers
+  - collection of thirteen states
+  - preserved frozen metadata
+summary: The thirteen accepted historical states, their identifiers, the six eras that organize them and the residual role of the preserved FROZEN TOML files.
 -->
-## Os treze estados aceitos
+## The thirteen accepted states
 
 Os identificadores vêm da **identidade histórica** do marco que cada estado
 representa — o gate que o mede — e nunca de uma medida. Um identificador que
@@ -318,4 +318,4 @@ com `stable_projection()` da reconstrução aceita, e a exportação recusava
 qualquer estado cuja reconstrução não reproduzisse as próprias medidas
 preservadas. Só depois de 13/13 equivalentes, com o checkpoint verde no CI
 remoto, a reconstrução foi retirada.
-<!-- @pinker-doc:end development.projection-snapshots-contract.acervo -->
+<!-- @pinker-doc:end development.projection-snapshots-contract.collection -->

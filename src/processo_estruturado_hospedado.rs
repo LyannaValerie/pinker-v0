@@ -3,10 +3,10 @@
 //! Esta é a ponta operacional do interpretador. Ela não é usada pelas
 //! superfícies históricas e não implementa o runtime nativo.
 
-// @pinker-nav:start processos.estruturado.hospedado
-// @pinker-nav:domain processos
+// @pinker-nav:start processes.structured.hosted
+// @pinker-nav:domain processes
 // @pinker-nav:layer interpreter
-// @pinker-nav:summary Implementa a nova execução estruturada apenas no interpretador: recusa Ate(0) antes de configurar ou criar o filho, configura argv/cwd/ambiente e PATH saneada, faz um único spawn para os demais limites, move stdin/stdout/stderr por uma única malha poll com fds não-bloqueantes e quantum justo por canal, aplica deadline monotônico, mata e reapa somente o filho direto no timeout ou erro pós-spawn, valida UTF-8 estritamente após reap e só então devolve um snapshot imutável.
+// @pinker-nav:summary Implements the new structured execution in the interpreter only: it refuses Ate(0) before configuring or creating the child, configures argv/cwd/environment and a sanitized PATH, performs a single spawn for the remaining limits, moves stdin/stdout/stderr through a single poll loop with non-blocking fds and a fair quantum per channel, applies a monotonic deadline, kills and reaps only the direct child on timeout or a post-spawn error, validates UTF-8 strictly after the reap and only then returns an immutable snapshot.
 use crate::limite_tempo::LimiteTempo;
 use crate::saida_processo::SaidaProcesso;
 use std::collections::HashMap;
@@ -648,12 +648,12 @@ fn poll_descritores(
     ))
 }
 
-// @pinker-nav:end processos.estruturado.hospedado
+// @pinker-nav:end processes.structured.hosted
 
-// @pinker-nav:start evidencia.processos.estruturado-recursos
-// @pinker-nav:domain processos
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Exercita diretamente a disciplina de recursos da execução hospedada: uma falha de setup falsificada depois do spawn aciona kill e wait do filho direto antes de retornar, sem criar snapshot ou thread auxiliar.
+// @pinker-nav:start evidence.processes.structured-resources
+// @pinker-nav:domain processes
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Exercises directly the resource discipline of hosted execution: a falsified setup failure after the spawn triggers kill and wait of the direct child before returning, without creating a snapshot or an auxiliary thread.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -911,4 +911,4 @@ mod tests {
         assert_eq!(pid, 0, "INTERPRETER_SPAWN_COUNT precisa permanecer zero");
     }
 }
-// @pinker-nav:end evidencia.processos.estruturado-recursos
+// @pinker-nav:end evidence.processes.structured-resources

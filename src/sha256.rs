@@ -13,10 +13,10 @@
 //! `Resultado<T,E>`. Um nome, uma autoridade — e um teste da Parte B cobra que
 //! o nome público de uma superfície falível exista só naquele arquivo.
 
-// @pinker-nav:start sha256.superficie.nomes
-// @pinker-nav:domain integridade
-// @pinker-nav:layer semantica
-// @pinker-nav:summary Nomes públicos da superfície SHA-256 adulta da Parte E2 declarados num único lugar: `sha256_verso` é a intrínseca pura sobre os bytes UTF-8 de um `verso`, e a intrínseca falível de arquivo vive em `falha_operacional` porque devolve `Resultado`. `assinatura_ir` publica a assinatura operacional uma vez para todas as camadas de pipeline, e `simbolo_runtime` liga o nome ao símbolo `pinker_*` do runtime nativo, de modo que o backend consulte a autoridade em vez de manter uma cópia da lista.
+// @pinker-nav:start sha256.surface.names
+// @pinker-nav:domain integrity
+// @pinker-nav:layer semantic
+// @pinker-nav:summary Public names of Part E2's adult SHA-256 surface declared in a single place: `sha256_verso` is the pure intrinsic over a `verso`'s UTF-8 bytes, and the fallible file intrinsic lives in `falha_operacional` because it returns a `Resultado`. `assinatura_ir` publishes the operational signature once for every pipeline layer, and `simbolo_runtime` links the name to the native runtime's `pinker_*` symbol, so that the backend consults the authority instead of keeping a copy of the list.
 
 /// Nomes públicos das intrínsecas **não falíveis** da superfície SHA-256.
 ///
@@ -72,4 +72,4 @@ pub fn simbolo_runtime(nome: &str) -> Option<&'static str> {
     }
 }
 
-// @pinker-nav:end sha256.superficie.nomes
+// @pinker-nav:end sha256.surface.names

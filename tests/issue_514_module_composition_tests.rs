@@ -8,10 +8,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-// @pinker-nav:start evidencia.modulos.composicao-integridade
-// @pinker-nav:domain modulos
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Prova comportamental dos oito invariantes de aceite da composição modular, cada um com controle positivo, controle adversarial e regressão derivada do conjunto congelado: integridade da localização de diagnóstico, não-interferência do importador, isolamento entre irmãos, preservação do binding de import explícito, ausência de reexport implícito, superfície do import seletivo, preservação da entrada de validação modular e continuidade de identidade de topo ordinária. Inclui paridade interpretador/nativo de um programa composto. Os artefatos congelados não são reexecutados aqui: estas são asserções novas sobre o comportamento corrigido, e o resultado histórico continua sendo evidência do defeito, não expectativa.
+// @pinker-nav:start evidence.modules.composition-integrity
+// @pinker-nav:domain modules
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Behavioral proof of the eight acceptance invariants of modular composition, each with a positive control, an adversarial control and a regression derived from the frozen set: integrity of diagnostic location, non-interference by the importer, isolation between siblings, preservation of the explicit import binding, absence of implicit re-export, the surface of the selective import, preservation of the modular validation entry and continuity of ordinary top-level identity. It includes interpreter/native parity of a composed program. The frozen artifacts are not re-executed here: these are new assertions about the corrected behavior, and the historical result remains evidence of the defect, not an expectation.
 
 /// Um caso é um conjunto de fontes; a primeira é a raiz.
 struct Caso {
@@ -852,12 +852,12 @@ fn paridade_interpretador_e_nativo_de_programa_composto() {
     assert_eq!(interpretado.stdout, nativo.stdout);
     assert_eq!(String::from_utf8_lossy(&nativo.stdout), "30\n");
 }
-// @pinker-nav:end evidencia.modulos.composicao-integridade
+// @pinker-nav:end evidence.modules.composition-integrity
 
-// @pinker-nav:start evidencia.modulos.revisao-adversarial
-// @pinker-nav:domain modulos
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Regressões das seis correções vindas da revisão adversarial independente da #514: grafia builtin não é entidade de unidade e por isso não é capturável nos dois sentidos, com guarda de deriva contra a autoridade de intrínsecas; `--check` e o lowering concordam sobre despacho de método em programa composto; a forma qualificada `<módulo>.<entidade>` passa pelo ambiente como qualquer outra referência; a superfície de import é validada em toda unidade e não só na raiz; `impl` duplicado dentro de módulo não é engolido pela deduplicação de identidades geradas; e um arquivo que importa a si mesmo não é rotulado como fonte estrangeira.
+// @pinker-nav:start evidence.modules.adversarial-review
+// @pinker-nav:domain modules
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Regressions for the six fixes coming from the independent adversarial review of #514: a builtin spelling is not a unit entity and therefore is not capturable in either direction, with a drift guard against the intrinsics authority; `--check` and lowering agree on method dispatch in a composed program; the qualified form `<module>.<entity>` goes through the environment like any other reference; the import surface is validated in every unit and not only in the root; a duplicate `impl` inside a module is not swallowed by the deduplication of generated identities; and a file that imports itself is not labelled a foreign source.
 
 /// Revisão adversarial N1 — grafia builtin não pertence a unidade alguma.
 ///
@@ -2075,4 +2075,4 @@ fn revisao_p10_uniao_canonica_tem_identidade_exata_na_guarda() {
         "a projeção deve consumir a chave exata da autoridade canônica"
     );
 }
-// @pinker-nav:end evidencia.modulos.revisao-adversarial
+// @pinker-nav:end evidence.modules.adversarial-review

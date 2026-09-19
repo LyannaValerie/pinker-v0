@@ -195,10 +195,10 @@ fn repositorio_sintetico(nome: &str) -> std::path::PathBuf {
     raiz
 }
 
-// @pinker-nav:start evidencia.hotfix.clone-raso-diagnostico
+// @pinker-nav:start evidence.hotfix.shallow-clone-diagnostic
 // @pinker-nav:domain trama
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Evidência do diagnóstico de clone raso do gate de cobertura histórica (hotfix pós-PR #411): um clone com profundidade 1 é detectado e recebe E-CHANGE-HISTORY-SHALLOW-CLONE com a instrução de `git fetch --unshallow`, enquanto clone completo — o repositório sintético de origem e o próprio workspace — não muda de comportamento e segue sem diagnóstico.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Evidence of the shallow-clone diagnostic of the historical coverage gate (hotfix after PR #411): a clone with depth 1 is detected and receives E-CHANGE-HISTORY-SHALLOW-CLONE with the instruction to `git fetch --unshallow`, while a full clone — the synthetic source repository and the workspace itself — does not change behavior and proceeds without a diagnostic.
 #[test]
 fn clone_raso_recebe_diagnostico_especifico() {
     let raiz = repositorio_sintetico("raso");
@@ -268,7 +268,7 @@ fn clone_completo_nao_muda_de_comportamento() {
 
     let _ = fs::remove_dir_all(&raiz);
 }
-// @pinker-nav:end evidencia.hotfix.clone-raso-diagnostico
+// @pinker-nav:end evidence.hotfix.shallow-clone-diagnostic
 
 /// O gate histórico roda sem rede; todo workflow que exista precisa materializar
 /// o histórico local. Um workflow inexistente não é um portão reprovado.

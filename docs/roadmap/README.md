@@ -15,7 +15,7 @@ related:
   - history
 ---
 
-# Roadmap — território da ordem ativa
+# Roadmap — territory of the active order
 
 - **Classe:** Engine
 - **Papel:** navegação
@@ -58,13 +58,13 @@ histórica nem declara implementação por interpretação.
 
 <!-- @pinker-doc:start
 id: roadmap.current
-tags: [roadmap, corrente, ordem-ativa]
+tags: [roadmap, current, active-order]
 aliases:
-  - ordem ativa
-  - qual a ordem atual
-summary: Onde vive a ordem ativa oficial do roadmap.
+  - active order
+  - what the current order is
+summary: Where the roadmap's official active order lives.
 -->
-### Ordem corrente
+### Current order
 
 A ordem ativa oficial vive em `../roadmap.md`. O portal não duplica a ordem: ele
 aponta para a fonte canônica e para os shards estruturais por bloco.
@@ -72,13 +72,13 @@ aponta para a fonte canônica e para os shards estruturais por bloco.
 
 <!-- @pinker-doc:start
 id: roadmap.active-block
-tags: [roadmap, bloco, corrente]
+tags: [roadmap, block, current]
 aliases:
-  - bloco corrente
-  - qual bloco esta ativo
-summary: Como localizar o bloco corrente e seus shards estruturais.
+  - current block
+  - which block is active
+summary: How to locate the current block and its structural shards.
 -->
-### Bloco corrente
+### Current block
 
 O bloco corrente é determinado pela ordem ativa em `../roadmap.md`; seus shards
 estruturais estão em `blocos/` e a convergência bare-metal em
@@ -87,14 +87,14 @@ estruturais estão em `blocos/` e a convergência bare-metal em
 
 <!-- @pinker-doc:start
 id: roadmap.next
-tags: [roadmap, proximo, direcao]
+tags: [roadmap, next, direction]
 aliases:
-  - proxima fase
-  - qual a proxima fase
-  - proxima direcao
-summary: Direção imediata da trilha — para onde o roadmap aponta a seguir.
+  - next phase
+  - what the next phase is
+  - next direction
+summary: Immediate direction of the track — where the roadmap points next.
 -->
-### Próxima direção
+### Next direction
 
 Para descobrir a próxima direção da trilha, consulte a ordem ativa em
 `../roadmap.md` e o hub de navegação `indice.md`. A próxima direção nunca é

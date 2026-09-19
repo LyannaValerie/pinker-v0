@@ -13,10 +13,10 @@ use std::path::{Path, PathBuf};
 use std::process::Output;
 use std::time::Duration;
 
-// @pinker-nav:start evidencia.encaixe.d10-patterns-aninhados
+// @pinker-nav:start evidence.encaixe.d10-nested-patterns
 // @pinker-nav:domain encaixe
-// @pinker-nav:layer evidencia
-// @pinker-nav:summary Prova adulta D10 de patterns recursivos de leque: AST/IR recursivas, identidade nominal, aridade, escopo e materialização tardia de bindings, exaustividade/senao, duas famílias independentes, profundidade pequena, scrutinee único e paridade interpretador-nativo sob envelope.
+// @pinker-nav:layer evidence
+// @pinker-nav:summary Adult D10 proof of recursive leque patterns: recursive AST/IR, nominal identity, arity, scope and late materialization of bindings, exhaustiveness/senao, two independent families, small depth, a single scrutinee and interpreter-native parity under an envelope.
 const POSITIVE_SOURCE: &str = r#"
 pacote main; trazer mapa; trazer mapa.definir; trazer mapa.obter;
 
@@ -476,4 +476,4 @@ fn diagnostico_negativo_e_identico_antes_do_backend() {
     assert!(String::from_utf8_lossy(&build.stderr).contains("INVALID_NESTED_PATTERN_TYPE"));
     assert!(!dir.path().join("d10_nested_negative").exists());
 }
-// @pinker-nav:end evidencia.encaixe.d10-patterns-aninhados
+// @pinker-nav:end evidence.encaixe.d10-nested-patterns
